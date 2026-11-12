@@ -1,0 +1,391 @@
+# Indexed evidence for the source-backed loader's closed failures.
+# These cases must keep failing until a mapper-aware loader reproduces the same values.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+
+---
+synthetic source is rejected:
+- do:
+    indices.create:
+      index: nr_synthetic
+      body:
+        settings:
+          index.mapping.source.mode: synthetic
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_synthetic | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+- contains:
+    error.reason: stored, unfiltered
+
+---
+filtered source is rejected:
+- do:
+    indices.create:
+      index: nr_filtered
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            excludes:
+            - revenue
+          properties:
+            revenue:
+              type: long
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_filtered | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+- contains:
+    error.reason: stored, unfiltered
+
+---
+scaled float nested values are rejected:
+- do:
+    indices.create:
+      index: nr_scaled
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: scaled_float
+                  scaling_factor: 100
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_scaled | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+- contains:
+    error.reason: rounded numeric
+
+---
+null value replacement on a nested field is rejected:
+- do:
+    indices.create:
+      index: nr_null_value
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                sku:
+                  type: keyword
+                  null_value: missing
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_null_value | WHERE NESTED(items.sku == "book") | KEEP _id | LIMIT 10
+- contains:
+    error.reason: null_value
+
+---
+alias inside a nested object is rejected:
+- do:
+    indices.create:
+      index: nr_alias
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                price_alias:
+                  type: alias
+                  path: items.price
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_alias | EVAL total = NESTED(SUM(items.price_alias)) | KEEP total | LIMIT 10
+- contains:
+    error.reason: aliases or multifields
+
+---
+disabled source is rejected:
+- do:
+    indices.create:
+      index: nr_disabled_source
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            enabled: false
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_disabled_source | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+- contains:
+    error.reason: stored, unfiltered
+
+---
+nested multifield is rejected:
+- do:
+    indices.create:
+      index: nr_multifield
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: text
+                  fields:
+                    raw:
+                      type: keyword
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_multifield | WHERE NESTED(items.price.raw == "book") | KEEP _id | LIMIT 10
+- contains:
+    error.reason: aliases or multifields
+
+---
+ignore_above on a nested keyword is rejected:
+- do:
+    indices.create:
+      index: nr_ignore_above
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                sku:
+                  type: keyword
+                  ignore_above: 10
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_ignore_above | WHERE NESTED(items.sku == "book") | KEEP _id | LIMIT 10
+- contains:
+    error.reason: ignore_above
+
+---
+normalizer on a nested keyword is rejected:
+- do:
+    indices.create:
+      index: nr_normalizer
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          analysis:
+            normalizer:
+              lowercase_norm:
+                type: custom
+                filter:
+                - lowercase
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                sku:
+                  type: keyword
+                  normalizer: lowercase_norm
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_normalizer | WHERE NESTED(items.sku == "book") | KEEP _id | LIMIT 10
+- contains:
+    error.reason: normalizer
+
+---
+copy_to into a visible nested field is rejected:
+- do:
+    indices.create:
+      index: nr_copy_to
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                secret:
+                  type: long
+                  copy_to: items.price
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_copy_to | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+- contains:
+    error.reason: copy_to
+
+---
+index-level ignore_malformed is rejected:
+- do:
+    indices.create:
+      index: nr_index_ignore_malformed
+      body:
+        settings:
+          index.mapping.ignore_malformed: true
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_index_ignore_malformed | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+- contains:
+    error.reason: index-level
+
+---
+explicit coerce true matches a plain long sum:
+- do:
+    indices.create:
+      index: nr_coerce_default
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                  coerce: true
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_coerce_default
+          _id: "1"
+      - items:
+        - price: 10
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_coerce_default | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+- match: { columns.0.name: total }
+- match: { columns.0.type: long }
+- length: { values: 1 }
+- match: { values.0.0: 10 }
+
+---
+explicit ignore_malformed false matches a plain long sum:
+- do:
+    indices.create:
+      index: nr_ignore_malformed_default
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                  ignore_malformed: false
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_ignore_malformed_default
+          _id: "1"
+      - items:
+        - price: 10
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_ignore_malformed_default | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+- match: { columns.0.name: total }
+- match: { columns.0.type: long }
+- length: { values: 1 }
+- match: { values.0.0: 10 }

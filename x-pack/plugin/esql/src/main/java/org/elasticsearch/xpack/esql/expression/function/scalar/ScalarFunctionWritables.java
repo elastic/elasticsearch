@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
@@ -98,6 +99,7 @@ public class ScalarFunctionWritables {
         entries.add(E.ENTRY);
         entries.add(EndsWith.ENTRY);
         entries.add(FieldExtract.ENTRY);
+        entries.add(NestedReduction.ENTRY);
         entries.add(FromAggregateMetricDouble.ENTRY);
         entries.add(Greatest.ENTRY);
         entries.add(CopySign.ENTRY);

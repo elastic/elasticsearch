@@ -1,0 +1,143 @@
+# Multi-shard execution and the settled LAST null contract, on a real node.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+
+---
+reductions from two primary shards add up:
+- do:
+    indices.create:
+      index: nr_shards
+      body:
+        settings:
+          number_of_shards: 2
+          number_of_replicas: 0
+        mappings:
+          properties:
+            order_id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                quantity:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_shards
+          _id: a
+          routing: a
+      - order_id: a
+        items:
+        - price: 10
+          quantity: 3
+      - index:
+          _index: nr_shards
+          _id: b
+          routing: b
+      - order_id: b
+        items:
+        - price: 40
+          quantity: 5
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >
+          FROM nr_shards
+          | EVAL total = NESTED(SUM(items.price * items.quantity))
+          | STATS n = COUNT(*), amount = SUM(total)
+          | LIMIT 10
+- match: { columns.0.name: n }
+- match: { columns.0.type: long }
+- match: { columns.1.name: amount }
+- match: { columns.1.type: long }
+- length: { values: 1 }
+- match: { values.0.0: 2 }
+- match: { values.0.1: 230 }
+
+---
+LAST null keys and values follow ordinary LAST:
+- do:
+    indices.create:
+      index: nr_last
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                sku:
+                  type: keyword
+                rank:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_last
+          _id: null_value
+      - id: null_value
+        items:
+        - sku: usable
+          rank: 20
+        - sku: null
+          rank: 30
+      - index:
+          _index: nr_last
+          _id: null_keys
+      - id: null_keys
+        items:
+        - sku: a
+          rank: null
+        - sku: b
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >
+          FROM nr_last
+          | WHERE id == "null_value"
+          | EVAL picked = NESTED(LAST(items.sku, items.rank))
+          | KEEP id, picked
+          | LIMIT 10
+- match: { columns.1.name: picked }
+- match: { columns.1.type: keyword }
+- length: { values: 1 }
+- match: { values.0.0: null_value }
+- match: { values.0.1: null }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >
+          FROM nr_last
+          | WHERE id == "null_keys"
+          | EVAL picked = NESTED(LAST(items.sku, items.rank))
+          | KEEP id, picked
+          | LIMIT 10
+- match: { columns.1.type: keyword }
+- length: { values: 1 }
+- match: { values.0.0: null_keys }
+- match: { values.0.1: /a|b/ }

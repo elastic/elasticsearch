@@ -1,0 +1,1766 @@
+# Contract for nested_reductions_design.docx (12 November 2026).
+# nested_reductions stays unadvertised. A capability skip is not a passing feature test.
+# To execute these cases, start the node with -Desql.nested_reductions.test_execution=true.
+# Error substrings are proposed categories.
+# One wrapper produces one completed Boolean/scalar for every input row, including join/branch copies.
+# Confirmed choices: empty/all-null SUM = null; a selection tie may return either maximum-key candidate.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    - allowed_warnings_regex
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nr_orders
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            order_id:
+              type: keyword
+            revenue:
+              type: long
+            region:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                sku:
+                  type: keyword
+                category:
+                  type: keyword
+                price:
+                  type: long
+                quantity:
+                  type: long
+                details:
+                  properties:
+                    color:
+                      type: keyword
+            events:
+              type: nested
+              properties:
+                start:
+                  type: long
+                end:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_orders
+          _id: a
+      - order_id: a
+        revenue: 1000
+        region: west
+        items:
+        - sku: bookcheap
+          category: book
+          price: 10
+          quantity: 3
+          details:
+            color: blue
+        - sku: game
+          category: game
+          price: 40
+          quantity: 5
+          details:
+            color: red
+        events:
+        - start: 20
+          end: 10
+      - index:
+          _index: nr_orders
+          _id: b
+      - order_id: b
+        revenue: 200
+        region: east
+        items:
+        - sku: bb
+          category: book
+          price: 70
+          quantity: 2
+        - sku: gb
+          category: game
+          price: 90
+          quantity: 2
+        events:
+        - start: 1
+          end: 2
+      - index:
+          _index: nr_orders
+          _id: c
+      - order_id: c
+        revenue: 300
+        region: west
+        items:
+        - sku: sparsebook
+          category: book
+          price: 9
+        - sku: cgame
+          category: game
+          price: 3
+          quantity: 2
+        - sku: zero
+          category: book
+          price: 4
+          quantity: 0
+      - index:
+          _index: nr_orders
+          _id: d
+      - order_id: d
+        revenue: 400
+        region: east
+        items:
+        - sku: dup
+          category: book
+          price: 1
+          quantity: 2
+        - sku: dup
+          category: book
+          price: 1
+          quantity: 2
+      - index:
+          _index: nr_orders
+          _id: e
+      - order_id: e
+        revenue: 500
+        region: west
+        items: []
+      - index:
+          _index: nr_orders
+          _id: f
+      - order_id: f
+        revenue: 600
+        region: east
+        items: null
+      - index:
+          _index: nr_orders
+          _id: g
+      - order_id: g
+        revenue: 700
+        region: west
+      - index:
+          _index: nr_orders
+          _id: h
+      - order_id: h
+        revenue: 800
+        region: east
+        items:
+        - sku: allnull
+          category: book
+          quantity: 2
+        - sku: allnull2
+          category: game
+          price: null
+          quantity: null
+      - index:
+          _index: nr_orders
+          _id: i
+      - order_id: i
+        revenue: 900
+        region: west
+        items:
+        - sku: z
+          category: game
+          price: 0
+          quantity: 99
+        - sku: negative
+          category: book
+          price: -2
+          quantity: 3
+        events:
+        - start: 9
+          end: 3
+      - index:
+          _index: nr_orders
+          _id: j
+      - order_id: j
+        revenue: 100
+        region: east
+        items:
+        - sku: tie_a
+          category: book
+          price: 5
+          quantity: 1
+        - sku: tie_b
+          category: game
+          price: 5
+          quantity: 2
+# The runner cannot match inside setup. A failed bulk request still fails setup;
+# item-level errors:true is covered by the parent-count assertions below.
+---
+existence respects sibling correlation:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(items.category == "book" AND items.price > 80) | KEEP order_id | SORT order_id | LIMIT
+          100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values: []
+---
+independent wrappers may match different children:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(items.category == "book") AND NESTED(items.price > 80) | KEEP order_id | SORT order_id
+          | LIMIT 100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values:
+    - - b
+---
+one object satisfies conjunction:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(items.category == "book" AND items.price > 60) | KEEP order_id | SORT order_id | LIMIT
+          100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values:
+    - - b
+---
+one field cannot equal two different values:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(items.sku == "bookcheap" AND items.sku == "game") | KEEP order_id | SORT order_id | LIMIT
+          100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values: []
+---
+arithmetic predicate uses one child:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(items.price * items.quantity > 100) | KEEP order_id | SORT order_id | LIMIT 100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values:
+    - - a
+    - - b
+---
+parent AND stays outside scope:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE revenue > 500 AND NESTED(items.price > 0) | KEEP order_id | SORT order_id | LIMIT 100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values:
+    - - a
+---
+parent OR preserves unmatched parents:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE revenue > 750 OR NESTED(items.price > 50) | KEEP order_id | SORT order_id | LIMIT 100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values:
+    - - a
+    - - b
+    - - h
+    - - i
+---
+outer NOT sees false for empty or unknown-only scope:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NOT NESTED(items.price > 50) | KEEP order_id | SORT order_id | LIMIT 100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values:
+    - - a
+    - - c
+    - - d
+    - - e
+    - - f
+    - - g
+    - - h
+    - - i
+    - - j
+---
+inner NOT retains ordinary null semantics:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(NOT (items.price > 50)) | KEEP order_id | SORT order_id | LIMIT 100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values:
+    - - a
+    - - c
+    - - d
+    - - i
+    - - j
+---
+NOT around parent AND does not lose parents:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NOT (revenue > 750 AND NESTED(items.price > 50)) | KEEP order_id | SORT order_id | LIMIT 100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values:
+    - - a
+    - - b
+    - - c
+    - - d
+    - - e
+    - - f
+    - - g
+    - - h
+    - - i
+    - - j
+---
+OR inside scope stays inside one object:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(items.category == "book" AND (items.price > 60 OR items.quantity == 3)) | KEEP order_id
+          | SORT order_id | LIMIT 100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values:
+    - - a
+    - - b
+    - - i
+---
+ordinary object descendants stay in child scope:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(items.details.color == "blue" AND items.price > 30) | KEEP order_id | SORT order_id | LIMIT
+          100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values: []
+---
+independent nested paths have independent reductions:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(items.price > 0) AND NESTED(events.end < events.start) | KEEP order_id | SORT order_id
+          | LIMIT 100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values:
+    - - a
+---
+existence EVAL returns one Boolean per parent:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL hit = NESTED(items.price > 0) | KEEP order_id, hit | SORT order_id
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: hit
+      type: boolean
+- match:
+    values:
+    - - a
+      - true
+    - - b
+      - true
+    - - c
+      - true
+    - - d
+      - true
+    - - e
+      - false
+    - - f
+      - false
+    - - g
+      - false
+    - - h
+      - false
+    - - i
+      - false
+    - - j
+      - true
+---
+many matching children count their parent once:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(items.price * items.quantity > 100) | STATS parents = COUNT(*), total_revenue = SUM(revenue)
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: parents
+      type: long
+    - name: total_revenue
+      type: long
+- match:
+    values:
+    - - 2
+      - 1200
+---
+per parent SUM returns scalar and preserves every parent:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL item_total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, item_total | SORT order_id
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: item_total
+      type: long
+- match:
+    values:
+    - - a
+      - 230
+    - - b
+      - 320
+    - - c
+      - 6
+    - - d
+      - 4
+    - - e
+      - null
+    - - f
+      - null
+    - - g
+      - null
+    - - h
+      - null
+    - - i
+      - -6
+    - - j
+      - 15
+---
+duplicate children contribute twice:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id == "d" | EVAL item_total = NESTED(SUM(items.price * items.quantity)) | KEEP item_total
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: item_total
+      type: long
+- match:
+    values:
+    - - 4
+---
+missing quantity cannot shift later contribution:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id == "c" | EVAL item_total = NESTED(SUM(items.price * items.quantity)) | KEEP item_total
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: item_total
+      type: long
+- match:
+    values:
+    - - 6
+---
+zero and negative contributions are not omitted:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id == "i" | EVAL item_total = NESTED(SUM(items.price * items.quantity)) | KEEP item_total
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: item_total
+      type: long
+- match:
+    values:
+    - - -6
+---
+empty null missing and all-null SUM are null:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id IN ("e","f","g","h") | EVAL item_total = NESTED(SUM(items.price * items.quantity)) |
+          KEEP order_id, item_total | SORT order_id
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: item_total
+      type: long
+- match:
+    values:
+    - - e
+      - null
+    - - f
+      - null
+    - - g
+      - null
+    - - h
+      - null
+---
+literal arithmetic is allowed inside aggregate scope:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL item_total = NESTED(SUM(items.price * items.quantity * 2)) | KEEP order_id, item_total | SORT order_id
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: item_total
+      type: long
+- match:
+    values:
+    - - a
+      - 460
+    - - b
+      - 640
+    - - c
+      - 12
+    - - d
+      - 8
+    - - e
+      - null
+    - - f
+      - null
+    - - g
+      - null
+    - - h
+      - null
+    - - i
+      - -12
+    - - j
+      - 30
+---
+ordinary SUM and COUNT see parent rows after reduction:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL item_total = NESTED(SUM(items.price * items.quantity)) | STATS combined = SUM(item_total), parents
+          = COUNT(*), present = COUNT(item_total), total_revenue = SUM(revenue)
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: combined
+      type: long
+    - name: parents
+      type: long
+    - name: present
+      type: long
+    - name: total_revenue
+      type: long
+- match:
+    values:
+    - - 569
+      - 10
+      - 6
+      - 5500
+---
+completed scalar survives rename and projection:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL total = NESTED(SUM(items.price * items.quantity)) | RENAME total AS subtotal | KEEP order_id, subtotal
+          | EVAL doubled = subtotal * 2 | KEEP order_id, doubled | SORT order_id
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: doubled
+      type: long
+- match:
+    values:
+    - - a
+      - 460
+    - - b
+      - 640
+    - - c
+      - 12
+    - - d
+      - 8
+    - - e
+      - null
+    - - f
+      - null
+    - - g
+      - null
+    - - h
+      - null
+    - - i
+      - -12
+    - - j
+      - 30
+---
+scalar reducer can feed ordinary WHERE comparison:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(SUM(items.price * items.quantity)) > 100 | KEEP order_id | SORT order_id | LIMIT 100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+- match:
+    values:
+    - - a
+    - - b
+---
+LIMIT applies to parents and does not truncate child SUM:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | SORT order_id | LIMIT 1 | EVAL item_total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id,
+          item_total
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: item_total
+      type: long
+- match:
+    values:
+    - - a
+      - 230
+---
+selection returns value from maximum-price child:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id IN ("a","b","c","d","i") | EVAL selected_sku = NESTED(LAST(items.sku, items.price)) |
+          KEEP order_id, selected_sku | SORT order_id
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: selected_sku
+      type: keyword
+- match:
+    values:
+    - - a
+      - game
+    - - b
+      - gb
+    - - c
+      - sparsebook
+    - - d
+      - dup
+    - - i
+      - z
+---
+selection ties must return a maximum-key candidate:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id == "j" | EVAL selected_sku = NESTED(LAST(items.sku, items.price)) | EVAL valid = selected_sku
+          IN ("tie_a","tie_b") | KEEP valid
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: valid
+      type: boolean
+- match:
+    values:
+    - - true
+---
+selection preserves parents without objects:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id IN ("e","f","g") | EVAL selected_sku = NESTED(LAST(items.sku, items.price)) | KEEP order_id,
+          selected_sku | SORT order_id
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: selected_sku
+      type: keyword
+- match:
+    values:
+    - - e
+      - null
+    - - f
+      - null
+    - - g
+      - null
+---
+selection preserves numeric result type:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id IN ("a","c","i") | EVAL selected = NESTED(LAST(items.price, items.price)) | KEEP order_id,
+          selected | SORT order_id
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: selected
+      type: long
+- match:
+    values:
+    - - a
+      - 40
+    - - c
+      - 9
+    - - i
+      - 0
+---
+multiple wrappers attach one result each:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id == "a" | EVAL item_total = NESTED(SUM(items.price * items.quantity)), selected = NESTED(LAST(items.sku,
+          items.price)), hit = NESTED(items.price > 20) | KEEP order_id, item_total, selected, hit
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: item_total
+      type: long
+    - name: selected
+      type: keyword
+    - name: hit
+      type: boolean
+- match:
+    values:
+    - - a
+      - 230
+      - game
+      - true
+---
+columnar response exposes scalar cells:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id IN ("a","e") | EVAL total = NESTED(SUM(items.price * items.quantity)), hit = NESTED(items.price
+          > 20) | KEEP order_id, total, hit | SORT order_id
+        columnar: true
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: total
+      type: long
+    - name: hit
+      type: boolean
+- match:
+    values:
+    - - a
+      - e
+    - - 230
+      - null
+    - - true
+      - false
+---
+child multivalue comparison keeps scalar warnings:
+- do:
+    index:
+      index: nr_orders
+      id: m
+      refresh: true
+      body:
+        order_id: m
+        revenue: 50
+        region: west
+        items:
+        - sku: multi
+          price:
+          - 2
+          - 3
+          quantity: 2
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id == "m" | EVAL hit = NESTED(items.price > 0) | KEEP hit
+    allowed_warnings_regex:
+    - ".*single-value function encountered multi-value.*"
+    - "Line .*: evaluation of \\[.*\\] failed, treating result as null\\. Only first 20 failures recorded\\."
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: hit
+      type: boolean
+- match:
+    values:
+    - - false
+---
+multivalue arithmetic is not zipped:
+- do:
+    index:
+      index: nr_orders
+      id: m
+      refresh: true
+      body:
+        order_id: m
+        revenue: 50
+        region: west
+        items:
+        - sku: multi
+          price:
+          - 2
+          - 3
+          quantity: 2
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id == "m" | EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP total
+    allowed_warnings_regex:
+    - ".*single-value function encountered multi-value.*"
+    - "Line .*: evaluation of \\[.*\\] failed, treating result as null\\. Only first 20 failures recorded\\."
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: total
+      type: long
+- match:
+    values:
+    - - null
+---
+direct SUM consumes ordinary numeric multivalues:
+- do:
+    index:
+      index: nr_orders
+      id: m
+      refresh: true
+      body:
+        order_id: m
+        revenue: 50
+        region: west
+        items:
+        - sku: multi
+          price:
+          - 2
+          - 3
+          quantity: 2
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE order_id == "m" | EVAL total = NESTED(SUM(items.price)) | KEEP total
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: total
+      type: long
+- match:
+    values:
+    - - 5
+---
+double reduction reports double response type:
+- do:
+    indices.create:
+      index: nr_float
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            order_id:
+              type: keyword
+            revenue:
+              type: long
+            region:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                sku:
+                  type: keyword
+                category:
+                  type: keyword
+                price:
+                  type: double
+                quantity:
+                  type: long
+                details:
+                  properties:
+                    color:
+                      type: keyword
+            events:
+              type: nested
+              properties:
+                start:
+                  type: long
+                end:
+                  type: long
+- do:
+    index:
+      index: nr_float
+      id: float
+      refresh: true
+      body:
+        order_id: float
+        revenue: 1
+        region: west
+        items:
+        - price: 1.5
+          quantity: 3
+        - price: 4.5
+          quantity: 2
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_float | EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP total
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: total
+      type: double
+- match:
+    values:
+    - - 13.5
+---
+unmapped scope stays mapping-only in default mode:
+- do:
+    indices.create:
+      index: nr_unmapped
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: false
+          properties:
+            order_id:
+              type: keyword
+            revenue:
+              type: long
+- do:
+    index:
+      index: nr_unmapped
+      id: u
+      refresh: true
+      body:
+        order_id: u
+        revenue: 1100
+        items:
+        - price: 999
+          quantity: 2
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders,nr_unmapped | WHERE order_id == "u" | EVAL hit = NESTED(items.price > 0), total = NESTED(SUM(items.price
+          * items.quantity)) | KEEP order_id, hit, total
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: hit
+      type: boolean
+    - name: total
+      type: long
+- match:
+    values:
+    - - u
+      - false
+      - null
+---
+unmapped scope stays mapping-only in nullify mode:
+- do:
+    indices.create:
+      index: nr_unmapped
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: false
+          properties:
+            order_id:
+              type: keyword
+            revenue:
+              type: long
+- do:
+    index:
+      index: nr_unmapped
+      id: u
+      refresh: true
+      body:
+        order_id: u
+        revenue: 1100
+        items:
+        - price: 999
+          quantity: 2
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: SET unmapped_fields="nullify"; FROM nr_orders,nr_unmapped | WHERE order_id == "u" | EVAL hit = NESTED(items.price > 0),
+          total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, hit, total
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: hit
+      type: boolean
+    - name: total
+      type: long
+- match:
+    values:
+    - - u
+      - false
+      - null
+---
+unmapped scope stays mapping-only in load mode:
+- do:
+    indices.create:
+      index: nr_unmapped
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: false
+          properties:
+            order_id:
+              type: keyword
+            revenue:
+              type: long
+- do:
+    index:
+      index: nr_unmapped
+      id: u
+      refresh: true
+      body:
+        order_id: u
+        revenue: 1100
+        items:
+        - price: 999
+          quantity: 2
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: SET unmapped_fields="load"; FROM nr_orders,nr_unmapped | WHERE order_id == "u" | EVAL hit = NESTED(items.price > 0),
+          total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, hit, total
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: hit
+      type: boolean
+    - name: total
+      type: long
+- match:
+    values:
+    - - u
+      - false
+      - null
+---
+unmapped scope stays mapping-only in load_all mode:
+- do:
+    indices.create:
+      index: nr_unmapped
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: false
+          properties:
+            order_id:
+              type: keyword
+            revenue:
+              type: long
+- do:
+    index:
+      index: nr_unmapped
+      id: u
+      refresh: true
+      body:
+        order_id: u
+        revenue: 1100
+        items:
+        - price: 999
+          quantity: 2
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: SET unmapped_fields="load_all"; FROM nr_orders,nr_unmapped | WHERE order_id == "u" | EVAL hit = NESTED(items.price >
+          0), total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, hit, total
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: hit
+      type: boolean
+    - name: total
+      type: long
+- match:
+    values:
+    - - u
+      - false
+      - null
+---
+bare arithmetic cannot escape item scope:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL amount = NESTED(items.price * items.quantity) | KEEP amount
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: reduction
+---
+bare numeric field requires reduction:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL price = NESTED(items.price) | KEEP price
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: reduction
+---
+whole object collection is outside this scalar design:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL objects = NESTED(items) | KEEP objects
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: scalar
+---
+old scope-bearing STATS grouping is rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | STATS total = NESTED(SUM(items.price)) BY category = NESTED(items.category)
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: NESTED
+---
+completed scalar is a parent capture not a scoped alias:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL total = NESTED(SUM(items.price)) | EVAL hit = NESTED(total > items.price)
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: outside
+---
+parent field capture is rejected:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL total = NESTED(SUM(items.price * revenue))
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: outside
+---
+unrelated paths cannot share one wrapper:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(items.price > events.start)
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: path
+---
+constant alone cannot bind a nested path:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL total = NESTED(SUM(1))
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: nested field
+---
+unknown child remains an analysis error:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(items.unknown == 1)
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: items.unknown
+---
+non-nested parent cannot establish scope:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(revenue > 0)
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: nested field
+---
+wrappers cannot nest:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | WHERE NESTED(NESTED(items.price > 0))
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: NESTED
+---
+SUM requires numeric child expression:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL total = NESTED(SUM(items.sku))
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: numeric
+---
+unsupported inner aggregate is not enabled automatically:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL total = NESTED(AVG(items.price))
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: AVG
+---
+bare scalar function is still unreduced:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL sku = NESTED(TO_UPPER(items.sku))
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: reduction
+---
+arbitrary pipeline commands are not wrapper expressions:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL x = NESTED(items | STATS total = SUM(price))
+- match:
+    error.type: parsing_exception
+- contains:
+    error.reason: '|'
+---
+second nested mapping level is rejected:
+- do:
+    indices.create:
+      index: nr_deep
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            order_id:
+              type: keyword
+            groups:
+              type: nested
+              properties:
+                members:
+                  type: nested
+                  properties:
+                    score:
+                      type: long
+- do:
+    index:
+      index: nr_deep
+      id: one
+      refresh: true
+      body:
+        order_id: one
+        groups:
+        - members:
+          - score: 1
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_deep | WHERE NESTED(groups.members.score > 0)
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: level
+---
+conflicting nested field types are rejected:
+- do:
+    indices.create:
+      index: nr_string
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            order_id:
+              type: keyword
+            revenue:
+              type: long
+            region:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                sku:
+                  type: keyword
+                category:
+                  type: keyword
+                price:
+                  type: keyword
+                quantity:
+                  type: long
+                details:
+                  properties:
+                    color:
+                      type: keyword
+            events:
+              type: nested
+              properties:
+                start:
+                  type: long
+                end:
+                  type: long
+- do:
+    index:
+      index: nr_string
+      id: one
+      refresh: true
+      body:
+        order_id: one
+        revenue: 1
+        region: west
+        items:
+        - price: '9'
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders,nr_string | EVAL total = NESTED(SUM(items.price))
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: price
+---
+join copies with same document identity reduce separately:
+- do:
+    indices.create:
+      index: nr_repeats
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mode: lookup
+        mappings:
+          dynamic: strict
+          properties:
+            order_id:
+              type: keyword
+            repeat_label:
+              type: keyword
+- do:
+    index:
+      index: nr_repeats
+      id: r1
+      refresh: true
+      body:
+        order_id: a
+        repeat_label: first
+- do:
+    index:
+      index: nr_repeats
+      id: r2
+      refresh: true
+      body:
+        order_id: a
+        repeat_label: second
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders METADATA _index, _id | LOOKUP JOIN nr_repeats ON order_id | WHERE order_id == "a" | EVAL total = NESTED(SUM(items.price
+          * items.quantity)) | KEEP _index, _id, repeat_label, total | SORT repeat_label
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: _index
+      type: keyword
+    - name: _id
+      type: keyword
+    - name: repeat_label
+      type: keyword
+    - name: total
+      type: long
+- match:
+    values:
+    - - nr_orders
+      - a
+      - first
+      - 230
+    - - nr_orders
+      - a
+      - second
+      - 230
+---
+outer totals count each repeated input row:
+- do:
+    indices.create:
+      index: nr_repeats
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mode: lookup
+        mappings:
+          dynamic: strict
+          properties:
+            order_id:
+              type: keyword
+            repeat_label:
+              type: keyword
+- do:
+    index:
+      index: nr_repeats
+      id: r1
+      refresh: true
+      body:
+        order_id: a
+        repeat_label: first
+- do:
+    index:
+      index: nr_repeats
+      id: r2
+      refresh: true
+      body:
+        order_id: a
+        repeat_label: second
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | LOOKUP JOIN nr_repeats ON order_id | EVAL total = NESTED(SUM(items.price * items.quantity)) | STATS
+          parents = COUNT(*), total = SUM(total), revenue = SUM(revenue)
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: parents
+      type: long
+    - name: total
+      type: long
+    - name: revenue
+      type: long
+- match:
+    values:
+    - - 11
+      - 799
+      - 6500
+---
+existence reduction after join retains every qualifying copy:
+- do:
+    indices.create:
+      index: nr_repeats
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mode: lookup
+        mappings:
+          dynamic: strict
+          properties:
+            order_id:
+              type: keyword
+            repeat_label:
+              type: keyword
+- do:
+    index:
+      index: nr_repeats
+      id: r1
+      refresh: true
+      body:
+        order_id: a
+        repeat_label: first
+- do:
+    index:
+      index: nr_repeats
+      id: r2
+      refresh: true
+      body:
+        order_id: a
+        repeat_label: second
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | LOOKUP JOIN nr_repeats ON order_id | WHERE NESTED(items.price * items.quantity > 100) | STATS parents
+          = COUNT(*), revenue = SUM(revenue)
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: parents
+      type: long
+    - name: revenue
+      type: long
+- match:
+    values:
+    - - 3
+      - 2200
+---
+completed scalar can be duplicated by a later join:
+- do:
+    indices.create:
+      index: nr_repeats
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mode: lookup
+        mappings:
+          dynamic: strict
+          properties:
+            order_id:
+              type: keyword
+            repeat_label:
+              type: keyword
+- do:
+    index:
+      index: nr_repeats
+      id: r1
+      refresh: true
+      body:
+        order_id: a
+        repeat_label: first
+- do:
+    index:
+      index: nr_repeats
+      id: r2
+      refresh: true
+      body:
+        order_id: a
+        repeat_label: second
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | EVAL total = NESTED(SUM(items.price * items.quantity)) | LOOKUP JOIN nr_repeats ON order_id | STATS
+          parents = COUNT(*), total = SUM(total)
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: parents
+      type: long
+    - name: total
+      type: long
+- match:
+    values:
+    - - 11
+      - 799
+---
+branch copies reduce separately:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | FORK (WHERE order_id == "a") (WHERE order_id == "a") | EVAL total = NESTED(SUM(items.price * items.quantity))
+          | KEEP order_id, total
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: total
+      type: long
+- match:
+    values:
+    - - a
+      - 230
+    - - a
+      - 230
+---
+branch copies contribute twice to outer aggregation:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders | FORK (WHERE order_id == "a") (WHERE order_id == "a") | EVAL total = NESTED(SUM(items.price * items.quantity))
+          | STATS parents = COUNT(*), total = SUM(total), revenue = SUM(revenue)
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    columns:
+    - name: parents
+      type: long
+    - name: total
+      type: long
+    - name: revenue
+      type: long
+- match:
+    values:
+    - - 2
+      - 460
+      - 2000

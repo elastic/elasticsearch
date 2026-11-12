@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
+import org.elasticsearch.xpack.esql.analysis.rules.NestedReductionsAnalysis;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightFieldMappings;
@@ -81,6 +82,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
@@ -327,6 +329,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveIpLocation(),
                 new ResolveLookupTables(),
                 new ResolveFunctions(),
+                new NestedReductionsAnalysis.ValidateNames(),
                 new ResolvePromqlFunctions(),
                 new ResolveTimestampBoundsAware(),
                 new ResolveInference(),
@@ -345,7 +348,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             ),
             new Batch<>(
                 "Resolution",
+                new NestedReductionsAnalysis.Prepare(),
                 new ResolveRefs(),
+                new NestedReductionsAnalysis.Resolve(),
                 // Must run in a fixpoint batch, right after ResolveRefs: it inspects the child's output, which is only
                 // trustworthy once ResolveRefs has resolved the child (e.g. expanded wildcard projections such as KEEP *),
                 // and it must strip the wrapper before the union-type rules below inspect the UnionAll's parent.
@@ -381,7 +386,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveHighlightFieldMappings(),
                 // Must run before UnionTypesCleanup, which drops the synthetic key from the output.
                 new ResolveHighlightIndexKey(),
-                new UnionTypesCleanup()
+                new UnionTypesCleanup(),
+                new NestedReductionsAnalysis.Cleanup()
             )
         );
     }
@@ -623,7 +629,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
                     attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
                 } else {
-                    attribute = new FieldAttribute(source, parentName, null, name, t);
+                    attribute = new FieldAttribute(source, parentName, null, name, t, t instanceof NestedScopeField);
                 }
                 // primitive branch
                 if (DataType.isPrimitive(type)) {

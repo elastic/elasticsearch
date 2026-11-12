@@ -11,6 +11,7 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedReduceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -124,7 +126,9 @@ public class MapperUtils {
         }
 
         if (p instanceof Eval eval) {
-            return new EvalExec(eval.source(), child, eval.fields());
+            return eval.fields().stream().anyMatch(a -> a.child().anyMatch(NestedReduction.class::isInstance))
+                ? new NestedReduceExec(eval.source(), child, eval.fields())
+                : new EvalExec(eval.source(), child, eval.fields());
         }
 
         if (p instanceof PackDims pack) {

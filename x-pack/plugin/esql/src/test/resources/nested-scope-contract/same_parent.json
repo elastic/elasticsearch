@@ -1,0 +1,133 @@
+{
+  "index": "nr_nested_parents",
+  "mapping": {
+    "dynamic": "strict",
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "rate": {
+        "type": "long"
+      },
+      "items": {
+        "type": "nested",
+        "properties": {
+          "price": {
+            "type": "long"
+          },
+          "quantity": {
+            "type": "long"
+          },
+          "details": {
+            "type": "object",
+            "properties": {
+              "tax": {
+                "type": "long"
+              }
+            }
+          }
+        }
+      },
+      "shipping": {
+        "type": "nested",
+        "properties": {
+          "cost": {
+            "type": "long"
+          }
+        }
+      }
+    }
+  },
+  "documents": [
+    {
+      "id": "one",
+      "rate": 7,
+      "items": [
+        {
+          "price": 3,
+          "quantity": 2,
+          "details": {
+            "tax": 1
+          }
+        },
+        {
+          "price": 5,
+          "quantity": 4,
+          "details": {
+            "tax": 2
+          }
+        }
+      ],
+      "shipping": [
+        {
+          "cost": 10
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "name": "same nested parent arithmetic",
+      "query": "FROM nr_nested_parents | EVAL picked = NESTED(SUM(items.price * items.quantity)) | KEEP id, picked",
+      "expected": [
+        [
+          "one",
+          26
+        ]
+      ],
+      "type": "long"
+    },
+    {
+      "name": "ordinary object descendants share nested parent",
+      "query": "FROM nr_nested_parents | EVAL picked = NESTED(SUM(items.price + items.details.tax)) | KEEP id, picked",
+      "expected": [
+        [
+          "one",
+          11
+        ]
+      ],
+      "type": "long"
+    },
+    {
+      "name": "cast cannot conceal a second nested parent",
+      "query": "FROM nr_nested_parents | EVAL picked = NESTED(SUM(items.price + shipping.cost::long)) | KEEP id, picked",
+      "error": "analysis",
+      "reason": "one nested path"
+    },
+    {
+      "name": "selection value and key require same nested parent",
+      "query": "FROM nr_nested_parents | EVAL picked = NESTED(LAST(items.price, shipping.cost)) | KEEP id, picked",
+      "error": "analysis",
+      "reason": "one nested path"
+    },
+    {
+      "name": "predicate requires same nested parent",
+      "query": "FROM nr_nested_parents | EVAL picked = NESTED(items.price > 0 AND shipping.cost > 0) | KEEP id, picked",
+      "error": "analysis",
+      "reason": "one nested path"
+    },
+    {
+      "name": "ordinary parent field capture rejected",
+      "query": "FROM nr_nested_parents | EVAL picked = NESTED(SUM(items.price * rate)) | KEEP id, picked",
+      "error": "analysis",
+      "reason": "outside the nested scope"
+    },
+    {
+      "name": "ordinary parent alias capture rejected",
+      "query": "FROM nr_nested_parents | EVAL parent_alias = rate | EVAL picked = NESTED(SUM(items.quantity * parent_alias)) | KEEP id, picked",
+      "error": "analysis",
+      "reason": "outside the nested scope"
+    },
+    {
+      "name": "separate wrappers may use different nested parents",
+      "query": "FROM nr_nested_parents | EVAL picked = NESTED(items.price > 0) AND NESTED(shipping.cost > 0) | KEEP id, picked",
+      "expected": [
+        [
+          "one",
+          true
+        ]
+      ],
+      "type": "boolean"
+    }
+  ]
+}

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
+import org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -109,6 +111,15 @@ public class FieldNameUtils {
         // fields. A future field-name-narrowing pass could tighten this once the walk understands EQL queries.
         if (parsed.anyMatch(UnresolvedEqlRelation.class::isInstance)) {
             return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
+        }
+        var nested = new boolean[1];
+        parsed.forEachExpressionDown(UnresolvedFunction.class, f -> {
+            if (f.name().equalsIgnoreCase("nested")) {
+                nested[0] = true;
+            }
+        });
+        if (nested[0]) {
+            return new PreAnalysisResult(Set.of("*", NestedScopeField.REQUEST_MARKER), Set.of());
         }
 
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
@@ -531,7 +542,7 @@ public class FieldNameUtils {
     }
 
     /**
-     * Parse-time mirror of {@link org.elasticsearch.xpack.esql.plan.logical.highlight.HighlightSupport#deriveFields}.
+     * Parse-time mirror of {@link HighlightSupport#deriveFields}.
      * {@code MATCH(...)} / {@code MATCH_PHRASE(...)} are still {@link UnresolvedFunction}s here; {@code :} is already {@link Match}.
      */
     private static boolean collectHighlightQueryReferences(Expression query, AttributeSet.Builder refs) {

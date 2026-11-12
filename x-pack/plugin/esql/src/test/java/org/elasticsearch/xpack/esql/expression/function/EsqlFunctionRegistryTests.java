@@ -23,8 +23,11 @@ import org.elasticsearch.xpack.esql.expression.OnlySurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.Nested;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReductionsContractTests;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Parameter;
@@ -264,6 +267,14 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY.snapshotRegistry();
         Set<String> errors = new TreeSet<>();
         for (FunctionDefinition def : registry.listFunctions()) {
+            if (def.clazz() == Nested.class) {
+                // This syntax marker requires analyzer context and never executes/serializes unlowered.
+                assertTrue(
+                    Arrays.stream(NestedReductionsContractTests.class.getDeclaredMethods())
+                        .anyMatch(method -> method.isAnnotationPresent(Test.class))
+                );
+                continue;
+            }
             checkFunctionTestExists(errors, def, "Tests", AbstractFunctionTestCase.class);
             if (takesParameters(def)) {
                 checkFunctionTestExists(errors, def, "ErrorTests", ErrorsForCasesWithoutExamplesTestCase.class);

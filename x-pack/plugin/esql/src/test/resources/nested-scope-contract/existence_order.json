@@ -1,0 +1,217 @@
+{
+  "index": "nr_nested_existence",
+  "mapping": {
+    "dynamic": "strict",
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "items": {
+        "type": "nested",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "documents": [
+    {
+      "id": "late_mv",
+      "items": [
+        {
+          "active": true
+        },
+        {
+          "active": [
+            true,
+            false
+          ]
+        }
+      ]
+    },
+    {
+      "id": "early_mv",
+      "items": [
+        {
+          "active": [
+            true,
+            false
+          ]
+        },
+        {
+          "active": true
+        }
+      ]
+    },
+    {
+      "id": "mv_only",
+      "items": [
+        {
+          "active": [
+            true,
+            false
+          ]
+        }
+      ]
+    },
+    {
+      "id": "no_true",
+      "items": [
+        {
+          "active": false
+        },
+        {
+          "active": null
+        }
+      ]
+    },
+    {
+      "id": "all_unknown",
+      "items": [
+        {
+          "active": null
+        },
+        {}
+      ]
+    },
+    {
+      "id": "empty",
+      "items": []
+    },
+    {
+      "id": "valid",
+      "items": [
+        {
+          "active": false
+        },
+        {
+          "active": true
+        },
+        {
+          "active": null
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "name": "raw multivalue rejected: late_mv",
+      "query": "FROM nr_nested_existence | WHERE id == \"late_mv\" | EVAL picked = NESTED(items.active) | KEEP id, picked",
+      "error": "runtime",
+      "reason": "scalar predicate result"
+    },
+    {
+      "name": "raw multivalue rejected: early_mv",
+      "query": "FROM nr_nested_existence | WHERE id == \"early_mv\" | EVAL picked = NESTED(items.active) | KEEP id, picked",
+      "error": "runtime",
+      "reason": "scalar predicate result"
+    },
+    {
+      "name": "raw multivalue rejected: mv_only",
+      "query": "FROM nr_nested_existence | WHERE id == \"mv_only\" | EVAL picked = NESTED(items.active) | KEEP id, picked",
+      "error": "runtime",
+      "reason": "scalar predicate result"
+    },
+    {
+      "name": "explicit scalar reduction: late_mv",
+      "query": "FROM nr_nested_existence | WHERE id == \"late_mv\" | EVAL picked = NESTED(MV_MAX(items.active)) | KEEP id, picked",
+      "expected": [
+        [
+          "late_mv",
+          true
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "explicit scalar reduction: early_mv",
+      "query": "FROM nr_nested_existence | WHERE id == \"early_mv\" | EVAL picked = NESTED(MV_MAX(items.active)) | KEEP id, picked",
+      "expected": [
+        [
+          "early_mv",
+          true
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "explicit scalar reduction: mv_only",
+      "query": "FROM nr_nested_existence | WHERE id == \"mv_only\" | EVAL picked = NESTED(MV_MAX(items.active)) | KEEP id, picked",
+      "expected": [
+        [
+          "mv_only",
+          true
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "scalar comparison after true child",
+      "query": "FROM nr_nested_existence | WHERE id == \"late_mv\" | EVAL picked = NESTED(items.active == true) | KEEP id, picked",
+      "expected": [
+        [
+          "late_mv",
+          true
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "comparison is not multivalue membership",
+      "query": "FROM nr_nested_existence | WHERE id == \"mv_only\" | EVAL picked = NESTED(items.active == true) | KEEP id, picked",
+      "expected": [
+        [
+          "mv_only",
+          false
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "ordinary existence: no_true",
+      "query": "FROM nr_nested_existence | WHERE id == \"no_true\" | EVAL picked = NESTED(items.active) | KEEP id, picked",
+      "expected": [
+        [
+          "no_true",
+          false
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "ordinary existence: all_unknown",
+      "query": "FROM nr_nested_existence | WHERE id == \"all_unknown\" | EVAL picked = NESTED(items.active) | KEEP id, picked",
+      "expected": [
+        [
+          "all_unknown",
+          false
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "ordinary existence: empty",
+      "query": "FROM nr_nested_existence | WHERE id == \"empty\" | EVAL picked = NESTED(items.active) | KEEP id, picked",
+      "expected": [
+        [
+          "empty",
+          false
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "ordinary existence: valid",
+      "query": "FROM nr_nested_existence | WHERE id == \"valid\" | EVAL picked = NESTED(items.active) | KEEP id, picked",
+      "expected": [
+        [
+          "valid",
+          true
+        ]
+      ],
+      "type": "boolean"
+    }
+  ]
+}

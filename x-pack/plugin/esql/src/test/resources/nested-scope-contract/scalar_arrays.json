@@ -1,0 +1,383 @@
+{
+  "index": "nr_nested_scalar_arrays",
+  "mapping": {
+    "dynamic": "strict",
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "items": {
+        "type": "nested",
+        "properties": {
+          "price": {
+            "type": "long"
+          },
+          "quantity": {
+            "type": "long"
+          },
+          "sku": {
+            "type": "keyword"
+          },
+          "rank": {
+            "type": "long"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "score": {
+            "type": "double"
+          },
+          "seq": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  },
+  "documents": [
+    {
+      "id": "values",
+      "items": [
+        {
+          "price": [
+            [
+              2,
+              null
+            ],
+            [
+              3,
+              2
+            ]
+          ],
+          "quantity": 2,
+          "sku": [
+            [
+              "a"
+            ],
+            [
+              "z"
+            ]
+          ],
+          "rank": [
+            [
+              5
+            ],
+            [
+              30
+            ]
+          ],
+          "active": [
+            [
+              true
+            ],
+            [
+              false
+            ]
+          ],
+          "score": [
+            [
+              1.5
+            ],
+            [
+              2.5
+            ]
+          ],
+          "seq": [
+            [
+              1
+            ],
+            [
+              3
+            ]
+          ]
+        },
+        {
+          "price": [
+            [
+              7
+            ]
+          ],
+          "quantity": 1,
+          "sku": [
+            [
+              "b"
+            ]
+          ],
+          "rank": [
+            [
+              20
+            ]
+          ],
+          "active": [
+            [
+              false
+            ]
+          ],
+          "score": [
+            [
+              0.5
+            ]
+          ],
+          "seq": [
+            [
+              2
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "empty_arrays",
+      "items": [
+        {
+          "price": [
+            [],
+            [
+              null,
+              ""
+            ]
+          ],
+          "quantity": 2,
+          "sku": [
+            [],
+            [
+              null
+            ]
+          ],
+          "rank": [
+            [],
+            null
+          ],
+          "active": [
+            null,
+            []
+          ]
+        },
+        {
+          "price": [
+            [
+              4
+            ]
+          ],
+          "quantity": 3,
+          "sku": [
+            [
+              "c"
+            ]
+          ],
+          "rank": [
+            [
+              10
+            ]
+          ],
+          "active": [
+            [
+              true
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "all_empty",
+      "items": [
+        {
+          "price": [
+            [],
+            [
+              null,
+              ""
+            ]
+          ],
+          "quantity": 1,
+          "sku": [
+            [],
+            [
+              null
+            ]
+          ],
+          "rank": [
+            null,
+            []
+          ],
+          "active": [
+            [],
+            null
+          ]
+        }
+      ]
+    },
+    {
+      "id": "no_items",
+      "items": []
+    }
+  ],
+  "cases": [
+    {
+      "name": "nested numeric arrays preserve duplicates",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"values\" | EVAL picked = NESTED(SUM(items.price)) | KEEP id, picked",
+      "expected": [
+        [
+          "values",
+          14
+        ]
+      ],
+      "type": "long"
+    },
+    {
+      "name": "ordinary multivalue arithmetic remains null per child",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"values\" | EVAL picked = NESTED(SUM(items.price * items.quantity)) | KEEP id, picked",
+      "expected": [
+        [
+          "values",
+          7
+        ]
+      ],
+      "type": "long"
+    },
+    {
+      "name": "explicit per-object multivalue sum",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"values\" | EVAL picked = NESTED(SUM(MV_SUM(items.price) * items.quantity)) | KEEP id, picked",
+      "expected": [
+        [
+          "values",
+          21
+        ]
+      ],
+      "type": "long"
+    },
+    {
+      "name": "reduced field remains associated with its object",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"values\" | EVAL picked = NESTED(MV_MAX(items.price) == 3 AND items.quantity == 2) | KEEP id, picked",
+      "expected": [
+        [
+          "values",
+          true
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "reduced fields cannot match across objects",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"values\" | EVAL picked = NESTED(MV_MAX(items.price) == 7 AND items.quantity == 2) | KEEP id, picked",
+      "expected": [
+        [
+          "values",
+          false
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "scalarized nested keyword and key arrays",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"values\" | EVAL picked = NESTED(LAST(MV_MIN(items.sku), MV_MAX(items.rank))) | KEEP id, picked",
+      "expected": [
+        [
+          "values",
+          "a"
+        ]
+      ],
+      "type": "keyword"
+    },
+    {
+      "name": "raw multivalued selection remains rejected",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"values\" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked",
+      "error": "runtime",
+      "reason": "scalar child values"
+    },
+    {
+      "name": "explicit reduction of Boolean arrays",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"values\" | EVAL picked = NESTED(MV_MAX(items.active)) | KEEP id, picked",
+      "expected": [
+        [
+          "values",
+          true
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "raw multivalued Boolean predicate remains rejected",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"values\" | EVAL picked = NESTED(items.active) | KEEP id, picked",
+      "error": "runtime",
+      "reason": "scalar predicate result"
+    },
+    {
+      "name": "empty scalar arrays contribute no values",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"empty_arrays\" | EVAL picked = NESTED(SUM(items.price)) | KEEP id, picked",
+      "expected": [
+        [
+          "empty_arrays",
+          4
+        ]
+      ],
+      "type": "long"
+    },
+    {
+      "name": "empty scalar arrays do not remove their object",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"empty_arrays\" | EVAL picked = NESTED(items.price IS NULL) | KEEP id, picked",
+      "expected": [
+        [
+          "empty_arrays",
+          true
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "nested double arrays",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"values\" | EVAL picked = NESTED(SUM(items.score)) | KEEP id, picked",
+      "expected": [
+        [
+          "values",
+          4.5
+        ]
+      ],
+      "type": "double"
+    },
+    {
+      "name": "nested integer ordering arrays",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"values\" | EVAL picked = NESTED(LAST(MV_MIN(items.sku), MV_MAX(items.seq))) | KEEP id, picked",
+      "expected": [
+        [
+          "values",
+          "a"
+        ]
+      ],
+      "type": "keyword"
+    },
+    {
+      "name": "all empty scalar arrays sum to null",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"all_empty\" | EVAL picked = NESTED(SUM(items.price)) | KEEP id, picked",
+      "expected": [
+        [
+          "all_empty",
+          null
+        ]
+      ],
+      "type": "long"
+    },
+    {
+      "name": "all empty scalar arrays still have a child object",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"all_empty\" | EVAL picked = NESTED(items.price IS NULL) | KEEP id, picked",
+      "expected": [
+        [
+          "all_empty",
+          true
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "no child objects remain distinct from empty fields",
+      "query": "FROM nr_nested_scalar_arrays | WHERE id == \"no_items\" | EVAL picked = NESTED(items.price IS NULL) | KEEP id, picked",
+      "expected": [
+        [
+          "no_items",
+          false
+        ]
+      ],
+      "type": "boolean"
+    }
+  ]
+}

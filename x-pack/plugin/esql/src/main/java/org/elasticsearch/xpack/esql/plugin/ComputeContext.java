@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.SharedSortBound;
+import org.elasticsearch.compute.operator.HashJoinTables;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.core.Nullable;
@@ -20,6 +21,8 @@ import java.util.function.Supplier;
 
 /**
  * @param queryId the task of the query's coordinator in this cluster
+ * @param hashJoinTables keeps hash join tables for the other computes of the same request, or {@code null} if this
+ *                       compute is the only one that joins against its data
  */
 record ComputeContext(
     String sessionId,
@@ -33,7 +36,8 @@ record ComputeContext(
     Supplier<ExchangeSource> exchangeSourceSupplier,
     Supplier<ExchangeSink> exchangeSinkSupplier,
     boolean singleNodeOptimizations,
-    @Nullable SharedSortBound sortBound
+    @Nullable SharedSortBound sortBound,
+    @Nullable HashJoinTables hashJoinTables
 ) {
     ComputeContext(
         String sessionId,
@@ -60,6 +64,7 @@ record ComputeContext(
             exchangeSourceSupplier,
             exchangeSinkSupplier,
             singleNodeOptimizations,
+            null,
             null
         );
     }

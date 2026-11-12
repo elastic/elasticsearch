@@ -17,14 +17,9 @@ import org.elasticsearch.core.ReleasableIterator;
  * {@link RowInTableLookup} for an empty table.
  */
 public final class EmptyRowInTableLookup extends RowInTableLookup {
-    private final BlockFactory blockFactory;
-
-    public EmptyRowInTableLookup(BlockFactory blockFactory) {
-        this.blockFactory = blockFactory;
-    }
-
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        BlockFactory blockFactory = page.getBlock(0).blockFactory();
         return ReleasableIterator.single((IntBlock) blockFactory.newConstantNullBlock(page.getPositionCount()));
     }
 

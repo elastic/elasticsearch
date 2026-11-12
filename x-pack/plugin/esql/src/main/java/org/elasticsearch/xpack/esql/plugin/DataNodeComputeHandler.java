@@ -34,6 +34,7 @@ import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.HashJoinTables;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
@@ -681,6 +682,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final boolean singleNodeOptimizations;
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
+        private final HashJoinTables hashJoinTables;
         private final PlanTimeProfile planTimeProfile;
         private final List<DataNodeRequest.Shard> shards;
         @Nullable
@@ -699,6 +701,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
             AcquiredSearchContexts searchContexts,
+            HashJoinTables hashJoinTables,
             @Nullable SharedSortBound sortBound
         ) {
             assert (internalExchange == null) != (externalSink == null) : "exactly one exchange must be provided";
@@ -715,6 +718,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.shardLevelFailures = shardLevelFailures;
             this.blockingSink = exchangeSink(() -> {});
             this.searchContexts = searchContexts;
+            this.hashJoinTables = hashJoinTables;
             this.planTimeProfile = new PlanTimeProfile();
             this.sortBound = sortBound;
             boolean ascending = ShardTimestampOrder.ascending(request.plan());
@@ -805,7 +809,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         null,
                         () -> exchangeSink(pagesProduced::incrementAndGet),
                         singleNodeOptimizations,
-                        sortBound
+                        sortBound,
+                        hashJoinTables
                     );
                     computeService.runCompute(
                         parentTask,
@@ -900,6 +905,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             if (lastBatchIndex < shards.size() && exchangeFinished() == false) {
                 runBatch(lastBatchIndex);
             } else {
+                // No later batch can use the tables, so release them now rather than once every page has been consumed
+                hashJoinTables.close();
                 // don't return until all pages have been consumed
                 if (internalExchange != null) {
                     internalExchange.addCompletionListener(computeListener.acquireAvoid());
@@ -943,11 +950,18 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // Shared by the batches of shards, and released once all of them are done
         final int sortKeys = ShardTimestampOrder.sharedSortKeys(request.plan());
         final SharedSortBound sortBound = sortKeys > 0 ? new SharedSortBound(sortKeys) : null;
+        // Every batch of shards plans the same request plan, so they can share the tables it joins against. Released
+        // once the last batch is done, and in any case before responding, so the memory is back by the time the
+        // coordinator learns this node is done.
+        final HashJoinTables hashJoinTables = new HashJoinTables();
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
                 ActionListener.runAfter(
-                    listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures)),
+                    ActionListener.runBefore(
+                        listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures)),
+                        hashJoinTables::close
+                    ),
                     () -> Releasables.close(sortBound)
                 )
             )
@@ -981,6 +995,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     shardLevelFailures,
                     computeListener,
                     searchContexts,
+                    hashJoinTables,
                     sortBound
                 );
                 dataNodeRequestExecutor.start();

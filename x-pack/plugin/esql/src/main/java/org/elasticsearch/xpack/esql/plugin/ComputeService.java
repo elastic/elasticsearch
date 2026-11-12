@@ -2061,7 +2061,8 @@ public class ComputeService {
                 computeLoad == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, computeLoad),
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                context.hashJoinTables()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

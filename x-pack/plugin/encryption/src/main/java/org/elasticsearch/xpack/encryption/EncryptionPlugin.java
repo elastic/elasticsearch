@@ -100,7 +100,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             services.clusterService(),
             services.projectResolver(),
             pekService,
-            pekEncryption::isKeyMissingFromGateway,
+            pekEncryption::isKeyInGateway,
             handlerRegistry
         );
 

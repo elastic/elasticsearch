@@ -132,7 +132,12 @@ After reloading, check that the health indicator is green on every node. If a no
 If a master-eligible node without a usable copy of the key restarts and is elected master, it can't provide the key to the rest of the cluster. Encrypt and decrypt operations then fail on every node, the key isn't rotated, and the health indicator reports that the elected master holds no encryption key. The other nodes keep the key on their own disks, but it's lost if all of them leave the cluster, so fix this promptly:
 
 * If the elected master stored the key on disk with a password it no longer has, add that password back to its keystore and reload its secure settings. The master restores the key automatically.
-* Otherwise, configure the encryption password on the elected master and restart it. The restart lets another master-eligible node take over. If that node holds the key on disk, it restores the key automatically. If the newly elected master holds no key either, repeat these steps for that node.
+* Otherwise, elect a master-eligible node that holds the key:
+
+  1. Find a master-eligible node that reports `key_on_disk: true` in the details of the `cluster_state_encryption` health indicator, for example with `GET _health_report/cluster_state_encryption` sent to that node.
+  2. Exclude every other master-eligible node from the voting configuration with [`POST /_cluster/voting_config_exclusions`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-post-voting-config-exclusions). The elected master steps down and the remaining node is elected. It restores the key automatically.
+  3. Wait until the health indicator reports green, then remove the exclusions with `DELETE /_cluster/voting_config_exclusions`. While the exclusions are in place the cluster depends on that one node, so keep this step short.
+  4. Configure the encryption password on the master-eligible nodes that lack it, and reload their secure settings.
 
 Don't reset the encryption key in this situation: the other nodes still hold it, and a reset permanently deletes all encrypted data.
 

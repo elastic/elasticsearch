@@ -31,8 +31,8 @@ public enum EncryptionServiceState {
 
     /**
      * The elected master could not decrypt its persisted project encryption key (missing or wrong password, or no key material on its
-     * disk) and published cluster state without the key. The operator must configure the password on the elected master, or restart it
-     * so that a master-eligible node that holds the key is elected.
+     * disk) and published cluster state without the key. The operator must configure the password on the elected master, or elect a
+     * master-eligible node that holds the key.
      */
     UNAVAILABLE_DECRYPTION_FAILED("unavailable: decryption_failed");
 
@@ -58,8 +58,8 @@ public enum EncryptionServiceState {
             case UNAVAILABLE_MISSING_PASSWORD -> "Provision the matching cluster.state.encryption.password.<id> in the keystore"
                 + " and call POST /_nodes/reload_secure_settings (stateful).";
             case UNAVAILABLE_DECRYPTION_FAILED -> "The elected master holds no encryption key. Configure"
-                + " cluster.state.encryption.password.<id> on the elected master and reload secure settings, or restart it so that a"
-                + " master-eligible node that holds the key is elected. Check the cluster_state_encryption health indicator for details.";
+                + " cluster.state.encryption.password.<id> on the elected master and reload secure settings, or elect a master-eligible"
+                + " node that holds the key. Check the cluster_state_encryption health indicator for details.";
         };
     }
 }

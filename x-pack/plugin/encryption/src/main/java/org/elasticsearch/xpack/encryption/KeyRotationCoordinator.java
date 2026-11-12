@@ -497,7 +497,11 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         try {
             ProjectEncryptionKeyMetadata restored = degraded.unwrapGatewayKeys();
             if (restored == null) {
-                logger.debug("project encryption key: cluster state is degraded and this node's disk holds no copy of the active key");
+                logger.warn(
+                    "the elected master has no copy of project encryption key [{}] on its own disk, so cluster state encryption is"
+                        + " unavailable. Use voting configuration exclusions to elect a master-eligible node that holds the key",
+                    degraded.getActiveKeyId()
+                );
             } else {
                 submitTaskIfOpen("restore-project-encryption-keys", new RestoreKeysTask(restored));
             }
@@ -505,8 +509,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             logger.warn(
                 () -> Strings.format(
                     "the elected master cannot restore project encryption key [%s] from its own disk. Configure the encryption password"
-                        + " this node used to persist the key and reload secure settings, or restart this node so that a"
-                        + " master-eligible node that holds the key is elected",
+                        + " this node used to persist the key and reload secure settings, or use voting configuration exclusions to"
+                        + " elect a master-eligible node that holds the key",
                     degraded.getActiveKeyId()
                 ),
                 e

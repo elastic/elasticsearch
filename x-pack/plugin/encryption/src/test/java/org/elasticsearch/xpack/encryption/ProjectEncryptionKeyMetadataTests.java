@@ -620,16 +620,16 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
 
         StreamInput in = out.bytes().streamInput();
         in.setTransportVersion(ProjectEncryptionKeyMetadata.PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT);
-        ProjectEncryptionKeyMetadata received = new ProjectEncryptionKeyMetadata(
-            in,
-            TestPekEncryption.onNode(wrongPassword, new GatewayKeys())
-        );
+        GatewayKeys peerKeys = new GatewayKeys();
+        ProjectEncryptionKeyMetadata received = new ProjectEncryptionKeyMetadata(in, TestPekEncryption.onNode(wrongPassword, peerKeys));
 
         assertTrue("degraded flag must survive transport round-trip", received.isUnwrapFailed());
+        assertNull("never read or persisted", peerKeys.holdsKeys());
 
         // Peer has no local blob — writes empty keys (no data loss, just no material to preserve).
         String peerBlob = chunkedToXContent(received, gatewayParams);
         assertThat("peer without local blob writes empty keys", peerBlob, containsString("\"keys\":{}"));
+        assertEquals(Boolean.FALSE, peerKeys.holdsKeys());
         assertNull(received.unwrapGatewayKeys());
     }
 
@@ -645,6 +645,7 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
 
         String persisted = chunkedToXContent(received, getToXContentParams());
         assertThat(persisted, containsString(Base64.getEncoder().encodeToString(keyBytes)));
+        assertEquals(Boolean.TRUE, peer.holdsKeys());
 
         ProjectEncryptionKeyMetadata restored = received.unwrapGatewayKeys();
         assertFalse(restored.isUnwrapFailed());

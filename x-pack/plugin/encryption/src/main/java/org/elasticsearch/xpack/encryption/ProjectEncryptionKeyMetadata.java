@@ -17,6 +17,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -165,14 +166,22 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
      * The wrapped keys in the cluster state this node last read or persisted, used only for the same active key. Since only a rotation
      * adds keys, they include every current key, but may still hold retired keys and stale handler key ids and password id.
      */
+    @FixForMultiProject(description = "one copy per node; with multiple projects each project's copy overwrites the others")
     static final class GatewayKeys {
         private volatile GatewayCopy gatewayCopy;
+        private volatile boolean known;
 
         /** Returns the id of the password that wraps this node's gateway keys, or {@code null} if it has none. */
         @Nullable
         String passwordId() {
             GatewayCopy copy = gatewayCopy;
             return copy == null ? null : copy.passwordId();
+        }
+
+        /** Returns whether this node holds gateway keys, or {@code null} if it has not read or persisted cluster state. */
+        @Nullable
+        Boolean holdsKeys() {
+            return known ? gatewayCopy != null : null;
         }
     }
 
@@ -451,6 +460,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         GatewayKeys gatewayKeys = pekEncryption.gatewayKeys();
         if (gatewayKeys != null) {
             gatewayKeys.gatewayCopy = copy;
+            gatewayKeys.known = true;
         }
     }
 
@@ -560,6 +570,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     static ProjectEncryptionKeyMetadata fromXContent(XContentParser parser, PekEncryption pekEncryption) throws IOException {
         ProjectEncryptionKeyMetadata parsed = PARSER.parse(parser, pekEncryption);
         if (parsed.isUnwrapFailed()) {
+            setGatewayCopy(pekEncryption, null);
             return parsed;
         }
         GatewayCopy copy = new GatewayCopy(parsed.activeKeyId, parsed.passwordId, parsed.keys, parsed.handlerKeyIds);
@@ -567,10 +578,10 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         try {
             return unwrap(copy, pekEncryption);
         } catch (RuntimeException e) {
-            logger.error(
+            logger.warn(
                 () -> Strings.format(
-                    "failed to unwrap project encryption key [passwordId=%s] from disk; node starting in degraded state."
-                        + " To recover: fix the password and restart, or call POST /_encryption/_reset?accept_data_loss=true",
+                    "cannot read the project encryption key from this node's on-disk cluster state [passwordId=%s]; this node gets the"
+                        + " key from the elected master. Configure the password and reload secure settings",
                     parsed.passwordId
                 ),
                 e

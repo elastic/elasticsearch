@@ -21,9 +21,10 @@ import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
@@ -110,7 +111,8 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         "master_has_no_key",
         "The elected master started without a usable copy of the cluster state encryption key and published cluster state without it.",
         "Configure the encryption password on the elected master and reload secure settings; if it persisted the key with that password,"
-            + " it restores the key. Otherwise restart it so that a master-eligible node that holds the key is elected. Only reset"
+            + " it restores the key. Otherwise use voting configuration exclusions to elect a master-eligible node whose"
+            + " cluster_state_encryption health details report key_on_disk: true; it restores the key. Only reset"
             + " encryption if no node holds the key: a reset permanently deletes all encrypted data.",
         HELP_URL
     );
@@ -135,20 +137,20 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final ProjectEncryptionKeyService pekService;
-    private final BooleanSupplier keyMissingFromGateway;
+    private final Supplier<Boolean> keyInGateway;
     private final EncryptedDataHandlerRegistry handlerRegistry;
 
     ProjectEncryptionKeyHealthIndicatorService(
         ClusterService clusterService,
         ProjectResolver projectResolver,
         ProjectEncryptionKeyService pekService,
-        BooleanSupplier keyMissingFromGateway,
+        Supplier<Boolean> keyInGateway,
         EncryptedDataHandlerRegistry handlerRegistry
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.pekService = pekService;
-        this.keyMissingFromGateway = keyMissingFromGateway;
+        this.keyInGateway = keyInGateway;
         this.handlerRegistry = handlerRegistry;
     }
 
@@ -166,7 +168,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
 
         return switch (serviceState) {
             case READY -> {
-                if (pekService.canWrapForDisk() == false || keyMissingFromGateway.getAsBoolean()) {
+                if (pekService.canWrapForDisk() == false || Boolean.FALSE.equals(keyInGateway.get())) {
                     yield createIndicator(
                         YELLOW,
                         YELLOW_CANNOT_PERSIST,
@@ -221,33 +223,19 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
 
     private HealthIndicatorDetails detailsBuilder(@Nullable ProjectEncryptionKeyMetadata metadata, EncryptionServiceState serviceState) {
         String activePasswordId = pekService.getActivePasswordId();
-        if (metadata == null) {
-            return new SimpleHealthIndicatorDetails(
-                Map.of(
-                    "state",
-                    serviceState.displayValue(),
-                    "encryption_required",
-                    pekService.isEncryptionRequired(),
-                    "active_password_id",
-                    activePasswordId == null ? "(unset)" : activePasswordId
-                )
-            );
+        Map<String, Object> details = new HashMap<>();
+        details.put("state", serviceState.displayValue());
+        details.put("encryption_required", pekService.isEncryptionRequired());
+        details.put("active_password_id", activePasswordId == null ? "(unset)" : activePasswordId);
+        Boolean keyOnDisk = keyInGateway.get();
+        if (keyOnDisk != null) {
+            details.put("key_on_disk", keyOnDisk);
         }
-        return new SimpleHealthIndicatorDetails(
-            Map.of(
-                "state",
-                serviceState.displayValue(),
-                "encryption_required",
-                pekService.isEncryptionRequired(),
-                "active_password_id",
-                activePasswordId == null ? "(unset)" : activePasswordId,
-                "metadata_password_id",
-                metadata.getPasswordId(),
-                "active_key_id",
-                metadata.getActiveKeyId(),
-                "key_count",
-                metadata.getKeys().size()
-            )
-        );
+        if (metadata != null) {
+            details.put("metadata_password_id", metadata.getPasswordId());
+            details.put("active_key_id", metadata.getActiveKeyId());
+            details.put("key_count", metadata.getKeys().size());
+        }
+        return new SimpleHealthIndicatorDetails(details);
     }
 }

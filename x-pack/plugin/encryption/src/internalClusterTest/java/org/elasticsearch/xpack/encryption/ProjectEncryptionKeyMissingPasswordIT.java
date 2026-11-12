@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -26,6 +27,7 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
+import org.elasticsearch.xpack.encryption.spi.EncryptionServiceUnavailableException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -33,7 +35,9 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -166,10 +170,84 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         reload(nonMaster, rotatedPasswordSettings(false));
     }
 
+    /** A node restarted without its password keeps writing its previous copy of the key, and is green once restarted with it. */
+    public void testNodeRestartedWithoutPasswordKeepsKeyOnDisk() throws Exception {
+        String node = restartNodeWithoutPassword();
+        byte[] payload = "restart-payload".getBytes(StandardCharsets.UTF_8);
+        EncryptedData encrypted = internalCluster().getInstance(EncryptionService.class, internalCluster().getMasterName())
+            .encrypt(payload);
+        assertArrayEquals(payload, decryptOn(node, encrypted));
+
+        updateClusterSettings(Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "51mb"));
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_CANNOT_PERSIST, health(node).symptom());
+        assertEquals(true, keyOnDisk(node));
+
+        internalCluster().restartNode(node, new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return passwordSettings();
+            }
+        });
+        ensureStableCluster(3);
+        assertBusy(() -> assertEquals(HealthStatus.GREEN, health(node).status()));
+        assertArrayEquals(payload, decryptOn(node, encrypted));
+    }
+
+    /** A reset while a node cannot persist the key gives it the new key, and it must not persist its stale copy of the old one. */
+    public void testResetWhileNodeCannotPersistKey() throws Exception {
+        String node = restartNodeWithoutPassword();
+        String master = internalCluster().getMasterName();
+        String oldKeyId = pekOn(master).getActiveKeyId();
+
+        client().execute(TransportEncryptionResetAction.TYPE, new EncryptionResetRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true))
+            .get();
+        assertBusy(() -> {
+            ProjectEncryptionKeyMetadata pek = pekOn(node);
+            assertThat(pek, notNullValue());
+            assertThat(pek.getActiveKeyId(), not(equalTo(oldKeyId)));
+        });
+        updateClusterSettings(Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "51mb"));
+        assertEquals(false, keyOnDisk(node));
+        assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_CANNOT_PERSIST, health(node).symptom());
+
+        byte[] payload = "after-reset-payload".getBytes(StandardCharsets.UTF_8);
+        assertArrayEquals(payload, decryptOn(node, internalCluster().getInstance(EncryptionService.class, master).encrypt(payload)));
+        ensureStableCluster(3);
+    }
+
+    /**
+     * Starts three nodes, installs the key with the password on every node, and restarts a non-master node, which drops its reloaded
+     * password, so it holds the key on disk but can no longer read or wrap it.
+     */
+    private String restartNodeWithoutPassword() throws Exception {
+        internalCluster().startNodes(3);
+        ensureStableCluster(3);
+        String master = internalCluster().getMasterName();
+        for (String node : internalCluster().getNodeNames()) {
+            if (node.equals(master) == false) {
+                reload(node, passwordSettings());
+            }
+        }
+        // the master installs the key once it has a password, so every other node can persist it from the first write
+        reload(master, passwordSettings());
+        assertBusy(() -> {
+            for (String node : internalCluster().getNodeNames()) {
+                assertEquals(HealthStatus.GREEN, health(node).status());
+                assertThat(pekOn(node), notNullValue());
+            }
+        });
+
+        String node = randomValueOtherThan(master, () -> randomFrom(internalCluster().getNodeNames()));
+        internalCluster().restartNode(node);
+        ensureStableCluster(3);
+        assertEquals(master, internalCluster().getMasterName());
+        return node;
+    }
+
     /**
      * A master-eligible node without a password stores the key-less cluster state, restarts and wins the election before it receives a
      * publication, so it publishes a degraded instance. Encryption is unavailable on every node, but the other nodes must keep the keys
-     * on disk, and a later master must restore them from its disk.
+     * on disk and report it, and a key holder elected through voting exclusions must restore them from its disk.
      */
     public void testElectedMasterWithoutKeysDoesNotLoseKeys() throws Exception {
         KeyLessMaster cluster = electMasterWithoutGatewayKeys();
@@ -179,7 +257,11 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
                 EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED,
                 internalCluster().getInstance(ProjectEncryptionKeyService.class, node).state()
             );
-            expectThrows(Exception.class, () -> decryptOn(node, cluster.encrypted()));
+            EncryptionServiceUnavailableException e = expectThrows(
+                EncryptionServiceUnavailableException.class,
+                () -> decryptOn(node, cluster.encrypted())
+            );
+            assertEquals(EncryptionServiceState.UNAVAILABLE_DECRYPTION_FAILED, e.serviceState());
             HealthIndicatorResult health = health(node);
             assertEquals("no feature stores encrypted data in this test", HealthStatus.YELLOW, health.status());
             assertEquals(ProjectEncryptionKeyHealthIndicatorService.MASTER_HAS_NO_KEY, health.symptom());
@@ -187,16 +269,29 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
 
         // further metadata changes make every node persist the degraded instance, which must not erase the keys from their disks
         updateClusterSettings(Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "51mb"));
+        for (String node : internalCluster().getNodeNames()) {
+            boolean holdsKey = node.equals(cluster.masterWithoutKeys()) == false;
+            assertBusy(() -> assertEquals(holdsKey, keyOnDisk(node)));
+        }
 
+        // the documented recovery: exclude every other master-eligible node from voting so that the key holder is elected
+        String keyHolder = cluster.nodesWithKeys().get(0);
         clearVotingConfigExclusions();
+        client().execute(
+            TransportAddVotingConfigExclusionsAction.TYPE,
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, cluster.masterWithoutKeys(), cluster.nodesWithKeys().get(1))
+        ).get();
+        assertBusy(() -> assertEquals(keyHolder, internalCluster().getMasterName()));
+        assertBusy(() -> {
+            ProjectEncryptionKeyMetadata restored = pekOn(keyHolder);
+            assertFalse(restored.isUnwrapFailed());
+            assertEquals(cluster.activeKeyId(), restored.getActiveKeyId());
+        });
+        clearVotingConfigExclusions();
+
         internalCluster().restartNode(cluster.masterWithoutKeys(), new InternalTestCluster.RestartCallback() {
             @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                assertBusy(() -> {
-                    ProjectEncryptionKeyMetadata restored = pekOn(cluster.nodesWithKeys().get(0));
-                    assertFalse(restored.isUnwrapFailed());
-                    assertEquals(cluster.activeKeyId(), restored.getActiveKeyId());
-                });
+            public Settings onNodeStopped(String nodeName) {
                 return passwordSettings();
             }
         });
@@ -301,6 +396,10 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
     private static ProjectEncryptionKeyMetadata pekOn(String node) {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node);
         return clusterService.state().metadata().getSingleProjectCustom(ProjectEncryptionKeyMetadata.TYPE);
+    }
+
+    private static Object keyOnDisk(String node) {
+        return ((SimpleHealthIndicatorDetails) health(node).details()).details().get("key_on_disk");
     }
 
     private static HealthIndicatorResult health(String node) {

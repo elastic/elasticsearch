@@ -119,9 +119,24 @@ public class PasswordPekEncryptionTests extends ESTestCase {
         assertThat(enc.unwrap(wrappedNew.wrapped(), wrappedNew.passwordId()), equalTo(plaintext));
     }
 
-    public void testOnGatewayWriteWarnsOncePerCauseAndTracksMissingKey() {
+    /** A wrap failure with the password configured, such as a password too weak for FIPS, must not advise configuring the password. */
+    public void testOnGatewayWriteDoesNotAdviseConfiguringConfiguredPassword() {
+        PasswordPekEncryption enc = new PasswordPekEncryption(() -> settingsWithPassword("v1", "short"));
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(new ElasticsearchException("Wrapping key derivation failed"), false),
+            PasswordPekEncryption.class,
+            new MockLog.SeenEventExpectation(
+                "warn",
+                LOGGER,
+                Level.WARN,
+                "cannot wrap the project encryption key for disk; cluster state was persisted without the project encryption key"
+            ),
+            new MockLog.UnseenEventExpectation("no password advice", LOGGER, Level.WARN, "*Configure*")
+        );
+    }
+
+    public void testOnGatewayWriteWarnsOncePerCause() {
         PasswordPekEncryption enc = new PasswordPekEncryption(() -> Settings.EMPTY);
-        assertFalse(enc.isKeyMissingFromGateway());
 
         MockLog.assertThatLogger(
             () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false),
@@ -133,7 +148,6 @@ public class PasswordPekEncryptionTests extends ESTestCase {
                 "cannot wrap PEK for disk: missing; cluster state was persisted without the project encryption key*"
             )
         );
-        assertTrue(enc.isKeyMissingFromGateway());
 
         MockLog.assertThatLogger(
             () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false),
@@ -151,13 +165,11 @@ public class PasswordPekEncryptionTests extends ESTestCase {
                 "*with this node's previous copy of the project encryption key*"
             )
         );
-        assertFalse("previous copy was written", enc.isKeyMissingFromGateway());
 
         MockLog.assertThatLogger(
             () -> enc.onGatewayWrite(null, true),
             PasswordPekEncryption.class,
             new MockLog.SeenEventExpectation("recovered", LOGGER, Level.INFO, "*persisted to this node's disk again*")
         );
-        assertFalse(enc.isKeyMissingFromGateway());
     }
 }

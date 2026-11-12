@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -32,7 +33,6 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
     private final Supplier<Settings> settingsSupplier;
     private final AtomicReference<String> lastWrapFailure = new AtomicReference<>();
     private final ProjectEncryptionKeyMetadata.GatewayKeys gatewayKeys = new ProjectEncryptionKeyMetadata.GatewayKeys();
-    private volatile boolean keyMissingFromGateway;
 
     PasswordPekEncryption(Supplier<Settings> settingsSupplier) {
         this.settingsSupplier = settingsSupplier;
@@ -88,17 +88,27 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
 
     @Override
     public void onGatewayWrite(@Nullable Exception wrapFailure, boolean keysWritten) {
-        keyMissingFromGateway = keysWritten == false;
         String failure = wrapFailure == null ? null : Objects.requireNonNullElse(wrapFailure.getMessage(), wrapFailure.toString());
         String previous = lastWrapFailure.getAndSet(failure);
         if (failure != null && failure.equals(previous) == false) {
-            logger.warn(
-                "{}; cluster state was persisted {}. Configure [{}] and the matching [{}<id>] secure setting and reload secure settings",
-                failure,
-                keysWritten ? "with this node's previous copy of the project encryption key" : "without the project encryption key",
-                ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY,
-                ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
-            );
+            String persisted = keysWritten
+                ? "with this node's previous copy of the project encryption key"
+                : "without the project encryption key";
+            if (ProjectEncryptionKeyPasswordSettings.canWrapForDisk(settingsSupplier.get())) {
+                logger.warn(
+                    () -> Strings.format("cannot wrap the project encryption key for disk; cluster state was persisted %s", persisted),
+                    wrapFailure
+                );
+            } else {
+                logger.warn(
+                    "{}; cluster state was persisted {}. Configure [{}] and the matching [{}<id>] secure setting and reload secure"
+                        + " settings",
+                    failure,
+                    persisted,
+                    ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY,
+                    ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
+                );
+            }
         } else if (failure == null && previous != null) {
             logger.info("project encryption key is persisted to this node's disk again");
         }
@@ -114,8 +124,12 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
         return gatewayKeys.passwordId();
     }
 
-    /** Returns whether the cluster state this node last persisted carried no project encryption key material. */
-    boolean isKeyMissingFromGateway() {
-        return keyMissingFromGateway;
+    /**
+     * Returns whether the cluster state this node last read or persisted carried project encryption key material, or {@code null} if
+     * this node has done neither, such as a node that is not the elected master in serverless.
+     */
+    @Nullable
+    Boolean isKeyInGateway() {
+        return gatewayKeys.holdsKeys();
     }
 }

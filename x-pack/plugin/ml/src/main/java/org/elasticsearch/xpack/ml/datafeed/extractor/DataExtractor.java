@@ -89,7 +89,7 @@ public interface DataExtractor {
     }
 
     /**
-     * Returns the interval that could not be extracted completely, if any.
+     * Smallest interval covering every chunk that was truncated; complete chunks between them may fall inside it.
      */
     default Optional<SearchInterval> getIncompleteSearchInterval() {
         return Optional.empty();

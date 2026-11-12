@@ -29,7 +29,11 @@ final class PromqlFunctionCallV2 {
      * Shared by the function families that need no special lowering.
      */
     static IntermediateResult translate(PromqlFunctionCall function, TranslationContextV2 context) {
-        IntermediateResult child = context.translate(function.child());
+        return apply(function, context, context.translate(function.child()));
+    }
+
+    /** Applies {@code function} to the value of its already translated child. */
+    static IntermediateResult apply(PromqlFunctionCall function, TranslationContextV2 context, IntermediateResult child) {
         if (child.kind().constant) {
             return child;
         }

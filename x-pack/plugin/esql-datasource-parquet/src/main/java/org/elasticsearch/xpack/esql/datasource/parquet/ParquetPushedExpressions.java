@@ -526,10 +526,17 @@ final class ParquetPushedExpressions {
             case LONG -> buildLongPredicate(columnName, value, op, schema);
             case UNSIGNED_LONG -> buildUnsignedLongPredicate(columnName, value, op, schema);
             case DOUBLE -> {
-                if (isPhysicalDouble(schema, columnName)) {
-                    yield orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
+                if (isPhysicalDouble(schema, columnName) == false) {
+                    yield null;
                 }
-                yield null;
+                Double boxed = value != null ? ((Number) value).doubleValue() : null;
+                // parquet-java statistics/dictionary/bloom filters order doubles with Double.compare
+                // (signed zeros unequal, NaN greatest). ES|QL uses IEEE operators. A ±0.0 or NaN
+                // literal can drop a matching row group; leave those to late-mat.
+                if (boxed != null && parquetDoubleStatsDisagreeWithIeee(boxed)) {
+                    yield null;
+                }
+                yield orderedPredicate(FilterApi.doubleColumn(columnName), boxed, op);
             }
             case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
                 ? orderedPredicate(FilterApi.binaryColumn(columnName), value != null ? toBinary(value) : null, op)
@@ -1139,10 +1146,15 @@ final class ParquetPushedExpressions {
             case LONG -> translateLongIn(columnName, rawValues, schema);
             case UNSIGNED_LONG -> translateUnsignedLongIn(columnName, rawValues, schema);
             case DOUBLE -> {
-                if (isPhysicalDouble(schema, columnName)) {
-                    yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
+                if (isPhysicalDouble(schema, columnName) == false) {
+                    yield null;
                 }
-                yield null;
+                for (Object v : rawValues) {
+                    if (parquetDoubleStatsDisagreeWithIeee(((Number) v).doubleValue())) {
+                        yield null;
+                    }
+                }
+                yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
             }
             case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
                 ? inPredicate(FilterApi.binaryColumn(columnName), rawValues, ParquetPushedExpressions::toBinary)
@@ -1903,9 +1915,9 @@ final class ParquetPushedExpressions {
      * declines a repeated column on the statistics path only, while canPush tests the ES|QL type and the reader maps a
      * LIST column to its element type, so a genuinely multivalued block does arrive here.
      *
-     * <p>A double block declines too. The scalar arms order doubles with {@code Double.compare}, which separates
-     * {@code -0.0} from {@code 0.0} and ranks NaN above everything, while the mv_ functions compare with primitive
-     * operators, which do neither; the mask would drop a row the function keeps.
+     * <p>A double block declines too. Scalar comparisons now use IEEE operators, matching the mv_ functions, but
+     * the mv_ path has not been proven against signed zero and NaN together with FilterExec; it stays conservative
+     * (all rows survive) rather than answering.
      */
     private static Block singleValuedBlock(Expression field, Map<String, Block> blocks) {
         if (field instanceof NamedExpression ne) {
@@ -2057,13 +2069,13 @@ final class ParquetPushedExpressions {
             double val = ((Number) literal).doubleValue();
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
-                    if (block.getValueCount(i) == 1 && compareResult(Double.compare(db.getDouble(block.getFirstValueIndex(i)), val), bc)) {
+                    if (block.getValueCount(i) == 1 && ieeeCompare(db.getDouble(block.getFirstValueIndex(i)), val, bc)) {
                         mask.set(i);
                     }
                 }
             } else {
                 for (int i = 0; i < rowCount; i++) {
-                    if (block.isNull(i) == false && compareResult(Double.compare(db.getDouble(i), val), bc)) {
+                    if (block.isNull(i) == false && ieeeCompare(db.getDouble(i), val, bc)) {
                         mask.set(i);
                     }
                 }
@@ -2152,6 +2164,43 @@ final class ParquetPushedExpressions {
             return cmp >= 0;
         }
         return true;
+    }
+
+    /**
+     * ES|QL double comparisons are IEEE-754 ({@code ==}, {@code <}, …), not {@link Double#compare}.
+     * {@code Double.compare} separates {@code -0.0} from {@code 0.0} and ranks NaN above every
+     * finite value; under {@code NOT} that too-loose ranking becomes a too-tight mask and drops
+     * rows FilterExec never sees.
+     */
+    private static boolean ieeeCompare(double cell, double val, EsqlBinaryComparison bc) {
+        if (bc instanceof Equals) {
+            return cell == val;
+        }
+        if (bc instanceof NotEquals) {
+            return cell != val;
+        }
+        if (bc instanceof LessThan) {
+            return cell < val;
+        }
+        if (bc instanceof LessThanOrEqual) {
+            return cell <= val;
+        }
+        if (bc instanceof GreaterThan) {
+            return cell > val;
+        }
+        if (bc instanceof GreaterThanOrEqual) {
+            return cell >= val;
+        }
+        throw new AssertionError("unexpected comparison " + bc.getClass().getName());
+    }
+
+    /**
+     * parquet-java row-group filters order doubles with {@code Double.compare}. A predicate whose
+     * literal is {@code ±0.0} or NaN can drop a matching group (or, after {@code FilterApi.not}
+     * inversion, drop a group the IEEE operator would keep). Late-mat still evaluates the filter.
+     */
+    private static boolean parquetDoubleStatsDisagreeWithIeee(double value) {
+        return value == 0.0 || Double.isNaN(value);
     }
 
     private static Long toLongValue(Object literal) {
@@ -2372,6 +2421,10 @@ final class ParquetPushedExpressions {
                 for (int i = 0; i < rowCount; i++) {
                     if (block.getValueCount(i) == 1) {
                         double val = db.getDouble(block.getFirstValueIndex(i));
+                        // NaN fails every IEEE bound test, so both continues are skipped and the
+                        // row would be kept. MvInRange / FilterExec reject NaN; keeping it here
+                        // makes NOT(range) drop the NaN row.
+                        if (Double.isNaN(val)) continue;
                         if (hasLo && (incLo ? val < lo : val <= lo)) continue;
                         if (hasHi && (incHi ? val > hi : val >= hi)) continue;
                         mask.set(i);
@@ -2381,6 +2434,7 @@ final class ParquetPushedExpressions {
                 for (int i = 0; i < rowCount; i++) {
                     if (block.isNull(i) == false) {
                         double val = db.getDouble(i);
+                        if (Double.isNaN(val)) continue;
                         if (hasLo && (incLo ? val < lo : val <= lo)) continue;
                         if (hasHi && (incHi ? val > hi : val >= hi)) continue;
                         mask.set(i);

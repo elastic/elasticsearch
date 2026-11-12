@@ -81,8 +81,6 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     private static final String ENABLE_DEBUG_JVM_ARGS = "-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=";
     private static final String ENTITLEMENT_POLICY_YAML = "entitlement-policy.yaml";
     private static final String PLUGIN_DESCRIPTOR_PROPERTIES = "plugin-descriptor.properties";
-    private static final String PASSWORD_HASHING_ALGORITHM_SETTING = "xpack.security.authc.password_hashing.algorithm";
-    private static final String FIPS_MODE_SETTING = "xpack.security.fips_mode.enabled";
     public static final String FIRST_DISTRO_WITH_JDK_21 = "8.11.0";
 
     private final DistributionResolver distributionResolver;
@@ -502,7 +500,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         /**
          * Every {@code elasticsearch-keystore} call starts a JVM. On first start a node with nothing to put in its keystore
          * can skip creating one, because Elasticsearch creates an empty keystore itself at startup. Once the node has run,
-         * keep creating it: a running node reloads secure settings from this file, and a restart expects it to exist.
+         * keep creating it: {@link #updateStoredSecureSettings()} rewrites this file for a running node, which reloads secure
+         * settings from it.
          */
         private boolean needsKeystoreFile(Map<String, String> keystoreSettings) {
             return process != null
@@ -645,19 +644,13 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 LOGGER.info("Creating users for node '{}'", name);
                 final Set<String> operators = new HashSet<>();
-                final Map<String, String> settings = spec.resolveSettings();
+                final Map<String, String> hashByPassword = new HashMap<>();
                 final Set<String> usernames = new HashSet<>();
                 for (User user : spec.getUsers()) {
                     if (usernames.add(user.getUsername()) == false) {
                         throw new IllegalStateException("User [" + user.getUsername() + "] is defined more than once");
                     }
-                    final FileRealmUsers.HashKey hashKey = new FileRealmUsers.HashKey(
-                        spec.getVersion(),
-                        user.getPassword(),
-                        settings.get(PASSWORD_HASHING_ALGORITHM_SETTING),
-                        settings.get(FIPS_MODE_SETTING)
-                    );
-                    String passwordHash = FileRealmUsers.cachedPasswordHash(hashKey);
+                    String passwordHash = hashByPassword.get(user.getPassword());
                     if (passwordHash == null) {
                         runToolScript(
                             "elasticsearch-users",
@@ -669,7 +662,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                             "-r",
                             user.getRole()
                         );
-                        FileRealmUsers.cachePasswordHash(hashKey, FileRealmUsers.readPasswordHash(configDir, user.getUsername()));
+                        hashByPassword.put(user.getPassword(), FileRealmUsers.readPasswordHash(configDir, user.getUsername()));
                     } else {
                         FileRealmUsers.addUser(configDir, user.getUsername(), passwordHash, user.getRole());
                     }

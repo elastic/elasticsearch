@@ -8667,27 +8667,28 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * A breaker that admits one gathered file but not the next stops the FIRST_FILE_WINS stats gather: the remaining
-     * footers are not read, the resolve degrades to partial stats, and the results run is released.
+     * footers are not read, the resolve fails with a {@link CircuitBreakingException} (429), and the results run and
+     * planning reservation are released.
      */
-    public void testStatsGatherTripsBreakerAndDegradesToPartialStats() throws Exception {
-        assertStatsGatherTripsBreakerAndDegradesToPartialStats(null, null);
+    public void testStatsGatherTripsBreakerAndFailsWith429() throws Exception {
+        assertStatsGatherTripsBreakerAndFailsWith429(null, null);
     }
 
     /**
-     * Same as {@link #testStatsGatherTripsBreakerAndDegradesToPartialStats} with the schema cache enabled, the
+     * Same as {@link #testStatsGatherTripsBreakerAndFailsWith429} with the schema cache enabled, the
      * production default: the gather goes through {@code readAndAggregateAllFileStatsWithCache} and stores
      * cache-backed metadata. Each resolver gets its own cold cache so the narrow run reads the same footers.
      */
-    public void testStatsGatherTripsBreakerAndDegradesToPartialStatsWithCache() throws Exception {
+    public void testStatsGatherTripsBreakerAndFailsWith429WithCache() throws Exception {
         try (
             ExternalSourceCacheService wideCache = new ExternalSourceCacheService(cacheEnabledSettings());
             ExternalSourceCacheService narrowCache = new ExternalSourceCacheService(cacheEnabledSettings())
         ) {
-            assertStatsGatherTripsBreakerAndDegradesToPartialStats(wideCache, narrowCache);
+            assertStatsGatherTripsBreakerAndFailsWith429(wideCache, narrowCache);
         }
     }
 
-    private void assertStatsGatherTripsBreakerAndDegradesToPartialStats(
+    private void assertStatsGatherTripsBreakerAndFailsWith429(
         @Nullable ExternalSourceCacheService wideCache,
         @Nullable ExternalSourceCacheService narrowCache
     ) throws Exception {
@@ -8743,30 +8744,87 @@ public class ExternalSourceResolverTests extends ESTestCase {
         EsqlExecutionInfo narrowInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         ExternalPlanningReservation narrowReservation = bindPlanning(narrowResolver, narrowInfo, narrow);
         int[] charged = { 0 };
-        narrowResolver.gatherResultsRunProbe = run -> charged[0]++;
+        ExternalPlanningReservation.Run[] capturedRun = new ExternalPlanningReservation.Run[1];
+        narrowResolver.gatherResultsRunProbe = run -> {
+            capturedRun[0] = run;
+            charged[0]++;
+        };
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         resolvePaths(narrowResolver, List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
-        ExternalSourceResolution resolution = future.actionGet();
+        CircuitBreakingException cbe = expectThrows(CircuitBreakingException.class, future::actionGet);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(cbe));
+        assertThat(cbe.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
 
         assertEquals(1, charged[0]);
         // The gather is sequential here (direct executor): the file that tripped is read but never charged, and every
         // later file is drained without a read, so exactly (files - 2) reads are saved against the full gather.
         assertEquals(files - 2, wideReads.get() - narrowReads.get());
-        // Partial stats keep the anchor (first) file's own statistics, not the dataset-wide sum.
-        assertEquals(
-            fixture.rowCounts().get(fixture.paths().get(0)).longValue(),
-            ((Number) soleResolvedSource(resolution, StatsGatherFixture.GLOB).metadata()
-                .sourceMetadata()
-                .get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
-        );
-        assertEquals(
-            Boolean.TRUE,
-            soleResolvedSource(resolution, StatsGatherFixture.GLOB).metadata()
-                .sourceMetadata()
-                .get(SourceStatisticsSerializer.STATS_PARTIAL)
-        );
+        assertNotNull(capturedRun[0]);
+        assertEquals(0L, capturedRun[0].held());
         assertEquals(narrowReservation.queryHeld() + wideBaseline, narrow.getUsed());
+    }
+
+    /**
+     * A {@link CircuitBreakingException} thrown from a non-anchor file's {@code metadata()} on the FIRST_FILE_WINS
+     * stats gather fails the resolve with a 429. The gather must not degrade to partial stats, and later files are
+     * not read. The factory loop wraps the trip in an {@link IllegalArgumentException}, so the gather has to unwrap
+     * it the same way {@code mapResolveFailure} does.
+     */
+    public void testStatsGatherNonAnchorMetadataBreakerTripFailsWith429() throws Exception {
+        assertStatsGatherNonAnchorMetadataBreakerTripFailsWith429(null);
+    }
+
+    /**
+     * Same as {@link #testStatsGatherNonAnchorMetadataBreakerTripFailsWith429} on the cached gather handler.
+     */
+    public void testStatsGatherNonAnchorMetadataBreakerTripFailsWith429WithCache() throws Exception {
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            assertStatsGatherNonAnchorMetadataBreakerTripFailsWith429(cache);
+        }
+    }
+
+    private void assertStatsGatherNonAnchorMetadataBreakerTripFailsWith429(@Nullable ExternalSourceCacheService cache) throws Exception {
+        int files = 4;
+        StatsGatherFixture fixture = statsGatherFixture(files, 4);
+        String tripPath = fixture.paths().get(1);
+        List<String> unread = fixture.paths().subList(2, files);
+        List<String> readPaths = new ArrayList<>();
+        CircuitBreakingException trip = new CircuitBreakingException("over limit", 100, 50, CircuitBreaker.Durability.TRANSIENT);
+        StubFormatReaderWithStats reader = new StubFormatReaderWithStats(fixture.schemas(), fixture.rowCounts()) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                String path = object.path().toString();
+                readPaths.add(path);
+                if (path.equals(tripPath)) {
+                    throw trip;
+                }
+                return super.metadata(object);
+            }
+        };
+
+        CircuitBreaker breaker = requestBreaker("1gb");
+        ExternalSourceResolver resolver = planningResolver(reader, fixture.schemas(), fixture.listings(), breaker, cache);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, breaker);
+        long baseline = breaker.getUsed();
+        ExternalPlanningReservation.Run[] capturedRun = new ExternalPlanningReservation.Run[1];
+        resolver.gatherResultsRunProbe = run -> capturedRun[0] = run;
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolvePaths(resolver, List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
+        CircuitBreakingException cbe = expectThrows(CircuitBreakingException.class, future::actionGet);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(cbe));
+        assertThat(cbe.getMessage(), containsString("over limit"));
+
+        assertThat(readPaths, hasItem(fixture.paths().get(0)));
+        assertThat(readPaths, hasItem(tripPath));
+        for (String path : unread) {
+            assertThat("later files must not be read after the non-anchor trip", readPaths, not(hasItem(path)));
+        }
+        assertNotNull(capturedRun[0]);
+        assertEquals(0L, capturedRun[0].held());
+        assertEquals(reservation.queryHeld() + baseline, breaker.getUsed());
     }
 
     /** A FIRST_FILE_WINS glob whose files all share a wide schema and report row-count statistics. */

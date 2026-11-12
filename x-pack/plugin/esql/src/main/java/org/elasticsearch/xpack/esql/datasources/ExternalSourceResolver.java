@@ -4107,8 +4107,8 @@ public class ExternalSourceResolver {
      * Reads metadata from the files in {@code listing} with an async, bounded fan-out (see {@link #gatherPerFile}),
      * folding each file's column statistics as it completes. Responds with the folded stats map, or {@code null} if
      * any file lacks statistics. A read failure is treated as "could not aggregate" and responds with {@code null}
-     * so the caller marks stats partial — except cancellation, which is surfaced as a failure so the query aborts
-     * promptly instead of silently degrading.
+     * so the caller marks stats partial — except cancellation and a circuit-breaker trip, which are surfaced as
+     * failures so the query aborts promptly instead of silently degrading.
      */
     private void readAndAggregateAllFileStats(
         FileList listing,
@@ -4135,22 +4135,7 @@ public class ExternalSourceResolver {
                 collectInferredTypes(listing, allMeta, inferredTypesOut);
                 collectSlimStatistics(listing, allMeta, slimStatsOut);
                 listener.onResponse(fold.finish());
-            }, e -> {
-                // Cancellation is not a "could not aggregate stats" condition — propagate it so the query aborts promptly
-                // instead of silently degrading to partial stats and continuing. A read that failed *because* the query
-                // was cancelled mid-flight can arrive wrapped (the schema cache wraps loader failures), so consult the
-                // cancellation state directly rather than matching only on the exception type.
-                if (e instanceof TaskCancelledException) {
-                    listener.onFailure(e);
-                    return;
-                }
-                if (isCancelled()) {
-                    listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
-                    return;
-                }
-                LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
-                listener.onResponse(null);
-            })
+            }, e -> failOrDegradeStatsGather(e, listener))
         );
     }
 
@@ -4201,8 +4186,8 @@ public class ExternalSourceResolver {
     /**
      * Cache-aware gather for {@link #readAndAggregateAllFileStats}. Peeks the schema cache (keyed by path + mtime)
      * for each file so repeated multi-file resolves do not re-read footers, then folds each completion through
-     * {@code fold}. Responds with {@code null} if any file cannot be resolved or lacks statistics; a bare
-     * cancellation is surfaced as a failure so it is never masked as partial stats.
+     * {@code fold}. Responds with {@code null} if any file cannot be resolved or lacks statistics; cancellation
+     * and a circuit-breaker trip are surfaced as failures so they are never masked as partial stats.
      */
     private void readAndAggregateAllFileStatsWithCache(
         FileList listing,
@@ -4234,21 +4219,31 @@ public class ExternalSourceResolver {
                 collectInferredTypes(listing, allMeta, inferredTypesOut);
                 collectSlimStatistics(listing, allMeta, slimStatsOut);
                 listener.onResponse(fold.finish());
-            }, e -> {
-                // A bare cancellation, or a read that failed because the query was cancelled mid-flight (the cache wraps
-                // loader failures, so consult the state directly), must abort rather than degrade to partial stats.
-                if (e instanceof TaskCancelledException) {
-                    listener.onFailure(e);
-                    return;
-                }
-                if (isCancelled()) {
-                    listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
-                    return;
-                }
-                LOGGER.debug(() -> "Failed to get cached stats, will use partial stats: " + e.getMessage());
-                listener.onResponse(null);
-            })
+            }, e -> failOrDegradeStatsGather(e, listener))
         );
+    }
+
+    /**
+     * Cancellation and a circuit-breaker trip abort the FIRST_FILE_WINS stats gather instead of degrading to
+     * partial stats. Other per-file failures still respond {@code null} so the caller marks stats partial.
+     * Unwraps a breaker trip because the factory loop (and the schema cache) wrap loader failures;
+     * {@link #mapResolveFailure} unwraps the same way.
+     */
+    private void failOrDegradeStatsGather(Exception e, ActionListener<Map<String, Object>> listener) {
+        if (e instanceof TaskCancelledException) {
+            listener.onFailure(e);
+            return;
+        }
+        if (isCancelled()) {
+            listener.onFailure(new TaskCancelledException(RESOLUTION_CANCELLED_MESSAGE));
+            return;
+        }
+        if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) != null) {
+            listener.onFailure(e);
+            return;
+        }
+        LOGGER.debug(() -> "Failed to read per-file stats, will use partial stats: " + e.getMessage());
+        listener.onResponse(null);
     }
 
     private ExternalSourceMetadata buildUnifiedMetadata(

@@ -198,6 +198,9 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     public void testCoerce() {} // coerce is unimplemented
 
     @Override
+    public void testNullabilityFalseCoerceFalseEmptyStringIsAValue() {} // coerce is unimplemented
+
+    @Override
     protected boolean supportsIgnoreMalformed() {
         return true;
     }

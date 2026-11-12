@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fetch;
@@ -98,7 +99,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
@@ -200,6 +201,9 @@ public class ApproximationSupportTests extends ESTestCase {
         ShowInfo.class,
         MetricsInfo.class,
         ExternalRelation.class,
+        // EQL delegates to an exact _eql/search over its own bounded result set; there is no index scan to
+        // sample, so a query with SET approximation over an EQL source runs exact (approximation is skipped).
+        EqlRelation.class,
         TsInfo.class,
 
         // The plans are superclasses of other plans.
@@ -218,7 +222,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Describe.class,
         Drop.class,
         FillNull.class,
-        InnerJoin.class,
+        HashJoin.class,
         InlineStats.class,
         Keep.class,
         MarkJoin.class,

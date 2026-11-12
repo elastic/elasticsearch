@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EqlSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -96,6 +98,19 @@ public class MapperUtils {
         // Commands
         if (p instanceof ShowInfo showInfo) {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
+        }
+
+        if (p instanceof EqlRelation eql) {
+            return new EqlSourceExec(
+                eql.source(),
+                eql.query(),
+                eql.indexPattern().indexPattern(),
+                eql.options(),
+                eql.mode(),
+                eql.output(),
+                eql.pushedLimit(),
+                eql.preResolvedFieldCaps()
+            );
         }
 
         return unsupported(p);

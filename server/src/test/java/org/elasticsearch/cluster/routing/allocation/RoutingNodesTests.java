@@ -710,7 +710,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             .addShard(
                 shardRoutingBuilder(targetShardId, "node-2", true, INITIALIZING).withRecoverySource(
                     new RecoverySource.ReshardSplitRecoverySource(sourceShardId)
-                ).withRecoveryPriority(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING).build()
+                ).withRecoveryPriority(RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET).build()
             )
             .build();
 
@@ -734,7 +734,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         assertThat(unassignedShard.primary(), equalTo(true));
         assertThat(unassignedShard.recoverySource().getType(), equalTo(RecoverySource.Type.RESHARD_SPLIT));
         final var expectedRecoveryPriority = targetShardState == IndexReshardingState.Split.TargetShardState.CLONE
-            ? RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+            ? RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET
             : RecoveryPriority.UNASSIGNED_UNEXPECTED;
         assertThat(unassignedShard.recoveryPriority(), equalTo(expectedRecoveryPriority));
     }

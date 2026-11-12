@@ -51,6 +51,7 @@ public class PlainSkipBoundsFormatTests extends ESTestCase {
             StringData.SORTED_HOSTNAME,
             StringData.DESCENDING_HOSTNAME,
             StringData.CLUSTERED_POD_NAME,
+            StringData.SORTED_SERVICE,
             StringData.SHUFFLED_POD_NAME,
             StringData.TRACE_ID }) {
             final BytesRef[] values = data.generate(DOCS, new Random(randomLong()));

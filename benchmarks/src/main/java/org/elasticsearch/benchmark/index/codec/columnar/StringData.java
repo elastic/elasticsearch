@@ -171,6 +171,23 @@ public enum StringData {
     },
 
     /**
+     * The values of {@link #CLUSTERED_SERVICE} as the primary sort of the index: a handful of values in term
+     * order, each in one run of about an eighth of the column. A run is longer than a chunk, so a term or a
+     * prefix matches whole chunks between the chunk it starts in and the chunk it ends in.
+     */
+    SORTED_SERVICE {
+        @Override
+        boolean ordered() {
+            return true;
+        }
+
+        @Override
+        BytesRef[] generate(int count, Random random) {
+            return CLUSTERED_SERVICE.generate(count, random);
+        }
+    },
+
+    /**
      * A host name on an index sorted by it: thousands of values, each in one run, in term order. This is
      * the shape a primary sort produces, and the one where a filter can find its documents by bisection
      * rather than by comparing every value.

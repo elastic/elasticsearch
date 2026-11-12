@@ -64,6 +64,7 @@ public class ColumnarPlainStringRangeSlicingBenchmark extends AbstractStringRang
             "SORTED_HOSTNAME",
             "DESCENDING_HOSTNAME",
             "CLUSTERED_POD_NAME",
+            "SORTED_SERVICE",
             "SHUFFLED_POD_NAME",
             "TRACE_ID" }
     )

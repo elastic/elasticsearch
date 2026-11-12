@@ -42,6 +42,11 @@ public interface DataExtractorFactory {
      * <p>
      * Note: Callers should apply cross-project search (CPS) mode to the datafeed's IndicesOptions
      * before calling this method using {@link DatafeedConfig#withCrossProjectModeIfEnabled}.
+     * <p>
+     * When {@link DatafeedConfig#getEsqlQuery()} is set, routing uses {@link EsqlDataExtractorFactory}
+     * before rollup index-cap lookup. That path does not apply {@code extraFilters}, does not record
+     * {@link DatafeedSearchTelemetry}, and
+     * does not run the DSL rollup/scroll factory probes used at start.
      */
     static void create(
         Client client,

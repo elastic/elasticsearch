@@ -41,13 +41,6 @@ setup:
           - '{ "other": "c" }'
 
 ---
-teardown:
-  - do:
-      indices.delete:
-        index: test
-        ignore_unavailable: true
-
----
 exists total equals the hits returned for a keyword field without an index:
   - do:
       search:

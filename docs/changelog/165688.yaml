@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 164149
 pr: 165688
-summary: Fix RERANK for listwise models
+summary: "Fix `RERANK` rankings for listwise rerankers such as `.jina-reranker-v3` by sending all documents in a single request. The default `.rerank-v1-elasticsearch` endpoint keeps its parallel batches. A query now fails if the request exceeds the endpoint's limits or the endpoint's `top_n` is lower than the number of documents."
 type: bug

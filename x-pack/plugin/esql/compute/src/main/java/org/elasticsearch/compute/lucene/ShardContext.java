@@ -79,4 +79,11 @@ public interface ShardContext extends RefCounted {
      * Adds {@code delta} to the number of slices of this shard that are not read yet.
      */
     default void addUnfinishedSlices(int delta) {}
+
+    /**
+     * Whether this shard has the {@code _tsid} prefix partitions
+     */
+    default boolean canPartitionByTsidPrefix() {
+        return false;
+    }
 }

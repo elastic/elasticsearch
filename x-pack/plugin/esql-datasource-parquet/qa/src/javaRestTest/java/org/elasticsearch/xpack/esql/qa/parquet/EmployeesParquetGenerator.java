@@ -71,8 +71,9 @@ public final class EmployeesParquetGenerator {
     public record EventRow(int id, String category, long eventTimeMillis) {}
 
     /**
-     * Six DOUBLE rows covering signed zero, a finite pair, NaN and a non-zero that {@code IN (0.0, 5.0)}
-     * keeps. Used by the IEEE filter-parity REST IT.
+     * Four DOUBLE rows covering both signed zeros and a finite pair. {@code d * 1.0} throws on
+     * NaN, so NaN stays in the unit suite; this fixture is the REST-IT oracle against that
+     * pushdown-defeating rewrite.
      */
     public static byte[] signedZeroParquetBytes() throws IOException {
         MessageType schema = new MessageType(
@@ -82,7 +83,7 @@ public final class EmployeesParquetGenerator {
         );
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
-        double[] values = { -0.0, 0.0, 1.0, -1.0, Double.NaN, 5.0 };
+        double[] values = { -0.0, 0.0, 1.0, -1.0 };
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(byteArrayOutputFile(baos))
                 .withConf(new PlainParquetConfiguration())

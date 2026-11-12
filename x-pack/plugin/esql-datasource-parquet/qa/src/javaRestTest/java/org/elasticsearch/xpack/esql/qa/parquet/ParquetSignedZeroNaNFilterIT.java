@@ -36,7 +36,9 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 /**
  * A pushed Parquet filter over a DOUBLE column must return the same ids as the same
  * predicate evaluated after {@code d * 1.0}, which defeats pushdown so FilterExec uses
- * ES|QL IEEE operators. Covers signed zero, NaN, {@code IN}, and {@code NOT}.
+ * ES|QL IEEE operators. The fixture is the four-row signed-zero file ({@code -0.0},
+ * {@code 0.0}, {@code 1.0}, {@code -1.0}); {@code d * 1.0} throws on NaN, so NaN stays
+ * in the unit suite.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetSignedZeroNaNFilterIT extends ESRestTestCase {

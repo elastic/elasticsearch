@@ -67,7 +67,9 @@ public class PromqlPlanMetadataManipulationFunctionV2Tests extends AbstractPromq
         for (String query : List.of(
             "label_replace(sum by (pod) (network.bytes_in), \"dst\", \"$1\", \"pod\", \"(.*)\")",
             "label_join(sum by (cluster, pod) (network.bytes_in), \"dst\", \"-\", \"cluster\", \"pod\")",
-            "sum by (dst) (label_replace(sum by (pod) (network.bytes_in), \"dst\", \"$1\", \"pod\", \"(.*)\"))"
+            "sum by (dst) (label_replace(sum by (pod) (network.bytes_in), \"dst\", \"$1\", \"pod\", \"(.*)\"))",
+            // the series id keys the collapse under the label it writes
+            "sum by (dst) (label_replace(network.bytes_in, \"dst\", \"$1\", \"region\", \"(.+)\"))"
         )) {
             LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h " + query, true);
             assertThat(query, plan.collect(TimeSeriesAggregate.class), hasSize(1));

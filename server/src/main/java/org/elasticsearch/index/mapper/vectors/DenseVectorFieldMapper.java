@@ -4434,7 +4434,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             ft.similarity.vectorSimilarityFunction(indexCreatedVersion, element.elementType())
         );
         vectorFieldType.freeze();
-        ctx.addColumn(new FloatVectorColumn(ft.name(), vectorFieldType, vectors));
+        ctx.addColumn(DenseVectorColumn.floats(ft.name(), vectorFieldType, vectors));
         if (magnitudes != null) {
             ctx.addColumn(
                 LuceneLongColumn.sparseLongColumn(

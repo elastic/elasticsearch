@@ -445,7 +445,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
             case INTEGER, COUNTER_INTEGER -> new BlockArrowFormatter.AsInt32(type);
             case LONG, COUNTER_LONG -> new BlockArrowFormatter.AsInt64(type);
-            case UNSIGNED_LONG -> new BlockArrowFormatter.AsInt64(type, MinorType.UINT8);
+            case UNSIGNED_LONG -> new BlockArrowFormatter.AsUnsignedLong(type);
 
             case DOUBLE, COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
 

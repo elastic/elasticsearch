@@ -1,0 +1,10 @@
+_id:keyword,event_type:keyword,host:keyword,op_sys:keyword,bool:boolean,uptime:long,port:long,ip:ip
+21,alert,doom,win10,,0,1234,10.0.0.1
+22,alert,CS,win10,,5,1,
+23,alert,farcry,win10,false,1,1234,
+24,alert,GTA,slack,,3,12,
+25,alert,sniper 3d,fedora,,6,1234,
+26,alert,doom,redhat,true,,65123,10.0.0.5
+27,failure,doom,redhat,true,15,1234,
+28,success,doom,win10,,16,512,10.0.0.1
+29,success,GTA,win10,false,,12,10.0.0.1

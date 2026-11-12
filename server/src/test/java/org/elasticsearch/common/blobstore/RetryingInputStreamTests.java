@@ -20,13 +20,17 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.OPEN;
@@ -215,6 +219,48 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         try (var inputStream = new ShortDelayRetryingInputStream(services, purpose)) {
             assertEquals(resourceBytes.length() - 1, inputStream.skip(resourceBytes.length() - 1));
+        }
+    }
+
+    public void testRetriesWillAbortOnInterrupt() {
+        final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
+        final var eTag = randomUUID();
+        final var purpose = randomRetryingPurpose();
+        final var maxRetries = randomIntBetween(3, 10);
+        final int interruptAfterAttempts = randomIntBetween(1, maxRetries);
+        final var interruptCountDown = new AtomicInteger(interruptAfterAttempts);
+
+        final var services = new BlobStoreServicesAdapter(purpose, maxRetries) {
+
+            @Override
+            protected RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
+                throws IOException {
+                if (interruptCountDown.getAndDecrement() == 0) {
+                    Thread.currentThread().interrupt();
+                }
+                if (randomBoolean() && Thread.currentThread().isInterrupted()) {
+                    throw new InterruptedIOException(
+                        "Some BlobStoreServices implementations might throw an InterruptedIOException from doGetInputStream"
+                    );
+                }
+                return createSingleAttemptInputStream(resourceBytes, eTag, 0, true);
+            }
+        };
+
+        final var executor = Executors.newSingleThreadExecutor();
+        try {
+            final var future = executor.submit(() -> {
+                final var interruptedIOException = assertThrows(InterruptedIOException.class, () -> {
+                    try (var inputStream = new ShortDelayRetryingInputStream(services, purpose)) {
+                        copyToBytes(inputStream);
+                    }
+                });
+                assertThat(interruptedIOException.getSuppressed().length, equalTo(interruptAfterAttempts));
+                return interruptedIOException;
+            });
+            safeGet(future);
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }
     }
 
@@ -472,6 +518,10 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         @Override
         public int read() throws IOException {
+            // Some implementations might throw InterruptedIOException, others might not
+            if (randomBoolean() && Thread.currentThread().isInterrupted()) {
+                throw new InterruptedIOException();
+            }
             if (readRemaining > 0) {
                 readRemaining--;
                 return inputStream.read();

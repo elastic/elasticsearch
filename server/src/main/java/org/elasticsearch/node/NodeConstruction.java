@@ -335,7 +335,7 @@ class NodeConstruction {
 
             Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider, pluginsLoader);
             constructor.loadLoggingDataProviders();
-            ThreadContext threadContext = constructor.createThreadContext(settings);
+            var threadContext = new ThreadContext(settings);
             TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(threadContext);
             ThreadPool threadPool = constructor.createThreadPool(threadContext, settings, telemetryProvider.getMeterRegistry());
 
@@ -546,12 +546,6 @@ class NodeConstruction {
 
     private void loadLoggingDataProviders() {
         DynamicContextDataProvider.setDataProviders(pluginsService.loadServiceProviders(LoggingDataProvider.class));
-    }
-
-    private ThreadContext createThreadContext(Settings settings) {
-        ThreadContext threadContext = new ThreadContext(settings);
-        modules.bindToInstance(ThreadContext.class, threadContext);
-        return threadContext;
     }
 
     private TelemetryProvider createTelemetryProvider(ThreadContext threadContext) {

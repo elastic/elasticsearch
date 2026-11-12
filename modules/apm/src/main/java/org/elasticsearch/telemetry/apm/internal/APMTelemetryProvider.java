@@ -62,16 +62,16 @@ public class APMTelemetryProvider implements TelemetryProvider {
     }
 
     // visible for testing: pre-built service/tracer instances with stubbed suppliers
-    public APMTelemetryProvider(APMMeterService apmMeterService, APMTracer apmTracer, APMLoggingService loggingService) {
+    public APMTelemetryProvider(
+        APMMeterService apmMeterService,
+        APMTracer apmTracer,
+        APMLoggingService loggingService,
+        HttpServerInstrumentation httpServerInstrumentation
+    ) {
         this.apmMeterService = apmMeterService;
         this.apmTracer = apmTracer;
         this.loggingService = loggingService;
-        httpServerInstrumentation = new HttpServerInstrumentations(
-            List.of(
-                new HttpServerTracing(apmTracer),
-                new RestRequestMetrics(new ThreadContext(Settings.EMPTY), apmMeterService.getMeterRegistry())
-            )
-        );
+        this.httpServerInstrumentation = httpServerInstrumentation;
     }
 
     @Override

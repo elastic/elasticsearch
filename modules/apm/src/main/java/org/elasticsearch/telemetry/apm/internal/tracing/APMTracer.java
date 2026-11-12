@@ -73,7 +73,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
 
-    private final ThreadContext threadContext;
+    final ThreadContext threadContext;
     private final TraceSupplier traceSupplier;
 
     private volatile boolean enabled;

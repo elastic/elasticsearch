@@ -23,6 +23,7 @@ import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -173,7 +174,8 @@ public class APMTelemetryProviderTests extends ESTestCase {
                 List.of(),
                 new TelemetryLogResourceProvider.Default(),
                 MeterProvider::noop
-            )
+            ),
+            HttpServerInstrumentation.NOOP
         );
     }
 }

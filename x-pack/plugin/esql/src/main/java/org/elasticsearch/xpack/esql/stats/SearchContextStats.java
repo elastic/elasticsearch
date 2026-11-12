@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -674,14 +673,10 @@ public class SearchContextStats implements SearchStats {
 
     @Override
     public boolean canPartitionByTsidPrefix() {
-        try {
-            for (SearchExecutionContext context : contexts) {
-                if (PartitionedDocValues.canPartitionByTsidPrefix(context.searcher()) == false) {
-                    return false;
-                }
+        for (SearchExecutionContext context : contexts) {
+            if (PartitionedDocValues.canPartitionByTsidPrefix(context.getIndexSettings().getIndexVersionCreated()) == false) {
+                return false;
             }
-        } catch (IOException ex) {
-            throw new UncheckedIOException("failed to read time-series partition", ex);
         }
         return true;
     }

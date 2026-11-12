@@ -39,7 +39,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -64,9 +63,11 @@ public class PushDownPromqlLabelsTests extends ESTestCase {
         LogicalPlan plan = PushDownPromqlLabels.pushDown(new Eval(SOURCE, collapse, List.of(read)), EsqlTestUtils.TEST_CFG);
 
         TimeSeriesAggregate pushed = plan.collect(TimeSeriesAggregate.class).getFirst();
-        var keys = pushed.groupings().stream().map(Alias::unwrap).filter(Attribute.class::isInstance).map(Attribute.class::cast);
-        assertThat(keys.map(Attribute::name).toList(), hasItem(MetadataAttribute.TSID_FIELD));
-        assertThat(expressions(plan, TimeSeriesWithout.class), empty());
+        // the keyword view of every label keys the collapse
+        var views = pushed.groupings().stream().map(Alias::unwrap).filter(TimeSeriesWithout.class::isInstance).toList();
+        assertThat(views, hasSize(1));
+        assertThat(views.getFirst().children(), empty());
+        assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
         assertThat(expressions(plan, AbstractTimeSeriesMetadataFunction.class), empty());
         Eval eval = as(plan, Eval.class);
         assertThat(Alias.unwrap(eval.fields().getFirst()), instanceOf(Attribute.class));

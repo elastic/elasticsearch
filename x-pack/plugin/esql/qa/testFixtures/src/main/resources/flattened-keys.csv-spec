@@ -1,0 +1,415 @@
+// [notes.text] is a keyword multi-field in [flattened_paths_keyword] and a key of the flattened [notes] in
+// [flattened_paths_mapped], so it is a keyword column that each index reads with what it has.
+
+multiFieldAndKey
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped METADATA _index
+| KEEP _index, id, notes.text
+| SORT id
+;
+
+_index:keyword          | id:keyword | notes.text:keyword
+flattened_paths_mapped  | f1         | hi
+flattened_paths_mapped  | f2         | null
+flattened_paths_keyword | k1         | hi
+;
+
+multiFieldAndKeyRootIsATypeConflict
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| KEEP notes
+| LIMIT 1
+;
+
+notes:unsupported
+null
+;
+
+multiFieldAndKeyLike
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE notes.text LIKE "*h*"
+| KEEP id, notes.text
+| SORT id
+;
+
+id:keyword | notes.text:keyword
+f1         | hi
+k1         | hi
+;
+
+multiFieldAndKeyNotLike
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE NOT notes.text LIKE "*test*"
+| KEEP id, notes.text
+| SORT id
+;
+
+id:keyword | notes.text:keyword
+f1         | hi
+k1         | hi
+;
+
+multiFieldAndKeyRlike
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE notes.text RLIKE "h.*"
+| KEEP id, notes.text
+| SORT id
+;
+
+id:keyword | notes.text:keyword
+f1         | hi
+k1         | hi
+;
+
+multiFieldAndKeyStartsWith
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE STARTS_WITH(notes.text, "h")
+| KEEP id, notes.text
+| SORT id
+;
+
+id:keyword | notes.text:keyword
+f1         | hi
+k1         | hi
+;
+
+multiFieldAndKeyEndsWith
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE ENDS_WITH(notes.text, "i")
+| KEEP id, notes.text
+| SORT id
+;
+
+id:keyword | notes.text:keyword
+f1         | hi
+k1         | hi
+;
+
+multiFieldAndKeyContains
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE CONTAINS(notes.text, "h")
+| KEEP id, notes.text
+| SORT id
+;
+
+id:keyword | notes.text:keyword
+f1         | hi
+k1         | hi
+;
+
+multiFieldAndKeyEquals
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE notes.text == "hi"
+| KEEP id, notes.text
+| SORT id
+;
+
+id:keyword | notes.text:keyword
+f1         | hi
+k1         | hi
+;
+
+multiFieldAndKeyNotEquals
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE notes.text != "beta"
+| KEEP id, notes.text
+| SORT id
+;
+
+id:keyword | notes.text:keyword
+f1         | hi
+k1         | hi
+;
+
+multiFieldAndKeyIn
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE notes.text IN ("hi", "x")
+| KEEP id, notes.text
+| SORT id
+;
+
+id:keyword | notes.text:keyword
+f1         | hi
+k1         | hi
+;
+
+multiFieldAndKeyRange
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE notes.text >= "a"
+| KEEP id, notes.text
+| SORT id
+;
+
+id:keyword | notes.text:keyword
+f1         | hi
+k1         | hi
+;
+
+multiFieldAndKeyIsNotNull
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE notes.text IS NOT NULL
+| KEEP id, notes.text
+| SORT id
+;
+
+id:keyword | notes.text:keyword
+f1         | hi
+k1         | hi
+;
+
+multiFieldAndKeyIsNull
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| WHERE notes.text IS NULL
+| KEEP id, notes.text
+;
+
+id:keyword | notes.text:keyword
+f2         | null
+;
+
+multiFieldAndKeyCount
+required_capability: flattened_keys
+
+FROM flattened_paths_keyword, flattened_paths_mapped
+| STATS c = COUNT(notes.text)
+;
+
+c:long
+2
+;
+
+// [attributes.host] is a key of the flattened [attributes] in [flattened_paths_mapped], a keyword in
+// [flattened_paths_keyword] and unmapped in [flattened_paths_unmapped].
+
+keyInSubquery
+skip_flattened_rewrite: keyword_also_a_flattened_key
+required_capability: flattened_keys
+required_capability: subquery_in_from_command
+
+FROM flattened_paths_mapped, (FROM flattened_paths_keyword | KEEP attributes.host)
+| KEEP attributes.host
+| SORT attributes.host
+;
+
+attributes.host:keyword
+a
+c
+k
+;
+
+keyInMainBranch
+skip_flattened_rewrite: keyword_also_a_flattened_key
+required_capability: flattened_keys
+required_capability: subquery_in_from_command
+
+FROM flattened_paths_keyword, (FROM flattened_paths_mapped | KEEP attributes.host)
+| KEEP attributes.host
+| SORT attributes.host
+;
+
+attributes.host:keyword
+a
+c
+k
+;
+
+keyFilteredInSubquery
+skip_flattened_rewrite: keyword_also_a_flattened_key
+required_capability: flattened_keys
+required_capability: subquery_in_from_command
+
+FROM flattened_paths_keyword, (FROM flattened_paths_mapped | WHERE attributes.host == "a" | KEEP attributes.host)
+| WHERE attributes.host >= "a"
+| KEEP attributes.host
+| SORT attributes.host
+;
+
+attributes.host:keyword
+a
+k
+;
+
+keyInSubqueryUnderLoad
+required_capability: flattened_keys
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM flattened_paths_mapped, (FROM flattened_paths_unmapped | KEEP attributes.host)
+| KEEP attributes.host
+| SORT attributes.host
+;
+
+attributes.host:keyword
+a
+c
+d
+;
+
+// As for a mapped field, a branch that does not name the key does not load it
+keyInSubqueryUnderLoadNotNamedByMainBranch
+required_capability: flattened_keys
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM flattened_paths_unmapped, (FROM flattened_paths_mapped | KEEP attributes.host)
+| KEEP attributes.host
+| SORT attributes.host
+;
+
+attributes.host:keyword
+a
+c
+null
+;
+
+keyUnderLoadNotNamedBySubquery
+required_capability: flattened_keys
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM flattened_paths_mapped, (FROM flattened_paths_unmapped)
+| KEEP attributes.host
+| SORT attributes.host
+;
+
+attributes.host:keyword
+a
+c
+null
+;
+
+keyInSubqueryUnderLoadAll
+required_capability: flattened_keys
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="load_all"\;
+FROM flattened_paths_unmapped, (FROM flattened_paths_mapped | KEEP attributes.host)
+| KEEP attributes.host
+| SORT attributes.host
+;
+
+attributes.host:keyword
+a
+c
+d
+;
+
+keyInFork
+skip_flattened_rewrite: keyword_also_a_flattened_key
+required_capability: flattened_keys
+required_capability: fork_v9
+
+FROM flattened_paths_mapped, flattened_paths_keyword
+| FORK (WHERE attributes.host == "a") (WHERE attributes.host == "k")
+| KEEP _fork, attributes.host
+| SORT _fork
+;
+
+_fork:keyword | attributes.host:keyword
+fork1         | a
+fork2         | k
+;
+
+keyIsNullInFork
+required_capability: flattened_keys
+required_capability: fork_v9
+
+FROM flattened_paths_mapped
+| FORK (WHERE attributes.host == "a") (WHERE attributes.host IS NULL)
+| KEEP _fork, attributes.host
+| SORT _fork
+;
+
+_fork:keyword | attributes.host:keyword
+fork1         | a
+;
+
+keyInForkUnderLoad
+required_capability: flattened_keys
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM flattened_paths_mapped, flattened_paths_unmapped
+| FORK (WHERE attributes.host == "a") (WHERE attributes.host == "d")
+| KEEP _fork, attributes.host
+| SORT _fork
+;
+warning:Field [attributes] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
+_fork:keyword | attributes.host:keyword
+fork1         | a
+fork2         | d
+;
+
+// The name keeps reading the field of the main index: a lookup index contributes no keys
+keywordWithLookupJoin
+required_capability: flattened_keys
+required_capability: join_lookup_v12
+
+FROM flattened_paths_keyword
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP attributes.host
+;
+
+attributes.host:keyword
+k
+;
+
+keyWithLookupJoin
+required_capability: flattened_keys
+required_capability: join_lookup_v12
+
+FROM flattened_paths_mapped
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.host:keyword
+f1         | a
+f2         | c
+;
+
+keyOnlyTheLookupIndexHolds
+required_capability: flattened_keys
+required_capability: join_lookup_v12
+
+FROM flattened_paths_mapped
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.zone
+| SORT id
+;
+
+id:keyword | attributes.zone:keyword
+f1         | null
+f2         | null
+;

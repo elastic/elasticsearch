@@ -204,6 +204,10 @@ public class CsvTestsDataLoader {
         new TestDataset("change_point_unmapped", "mapping-change_point_unmapped.json", "change_point_unmapped.csv"),
         new TestDataset("flattened_paths_mapped", "mapping-flattened_paths_mapped.json", "flattened_paths_mapped.csv"),
         new TestDataset("flattened_paths_unmapped", "mapping-flattened_paths_unmapped.json", "flattened_paths_unmapped.csv"),
+        new TestDataset("flattened_paths_keyword", "mapping-flattened_paths_keyword.json", "flattened_paths_keyword.csv"),
+        new TestDataset("flattened_paths_lookup", "mapping-flattened_paths_lookup.json", "flattened_paths_lookup.csv").withSetting(
+            "lookup-settings.json"
+        ),
         new TestDataset("unmapped_compound_outputs", "mapping-unmapped_compound_outputs.json", "unmapped_compound_outputs.csv"),
         new TestDataset("unmapped_compound_inputs", "mapping-unmapped_compound_inputs.json", "unmapped_compound_inputs.csv"),
         // Four indices that give the same conceptual "unmapped" field a different shape each, for LOAD_ALL multi-index expansion:
@@ -585,6 +589,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("drop_unmapped_duration_wildcard_partial_mapping_view", List.of(EsqlCapabilities.Cap.SET_IN_VIEW_DEFINITIONS)),
         new ViewConfig("view_partial_mapping_loads_event_duration", List.of(EsqlCapabilities.Cap.SET_IN_VIEW_DEFINITIONS)),
         new ViewConfig("nested_partial_mapping_view"),
+        new ViewConfig("view_flattened_paths_mapped"),
         new ViewConfig("view_partially_unmapped_sample_data"),
         new ViewConfig("view_partially_unmapped_conflicting_sample_data"),
         new ViewConfig("view_languages"),

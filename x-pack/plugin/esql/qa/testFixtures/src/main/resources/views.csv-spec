@@ -3753,3 +3753,36 @@ null                           | Disconnected    | fork2
 2023-10-23T13:33:34.937Z       | Disconnected    | fork1
 2023-10-23T13:33:34.937123456Z | Disconnected    | fork1
 ;
+
+// [attributes.host] is a key of the flattened [attributes] in [flattened_paths_mapped] and a keyword in
+// [flattened_paths_keyword].
+flattenedKeyInView
+required_capability: flattened_keys
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM view_flattened_paths_mapped
+| KEEP attributes.host
+| SORT attributes.host
+;
+
+attributes.host:keyword
+a
+c
+;
+
+flattenedKeyInViewAndIndex
+required_capability: flattened_keys
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM view_flattened_paths_mapped, flattened_paths_keyword
+| KEEP attributes.host
+| SORT attributes.host
+;
+
+attributes.host:keyword
+a
+c
+k
+;

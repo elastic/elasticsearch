@@ -60,6 +60,8 @@ This mapping definition maps the geometry field to the shape type. The indexer u
 
 When `doc_values` is enabled, each shape is also stored on disk as a tree of the triangles in its triangular mesh, encoded as single precision floats like the index. Aggregations such as [`cartesian_bounds`](/reference/aggregations/search-aggregations-metrics-cartesian-bounds-aggregation.md) and [`cartesian_centroid`](/reference/aggregations/search-aggregations-metrics-cartesian-centroid-aggregation.md) read these doc values instead of the `_source`.
 
+{applies_to}`stack: ga 9.7` {applies_to}`serverless: ga` Doc values also store the vertices of the original geometry and how they connect, so the geometry can be reconstructed at index precision without reading the `_source`. [{{esql}} spatial functions](/reference/query-languages/esql/functions-operators/spatial-functions.md) use this to read shapes from doc values when the original field is not returned by the query. Refer to [Spatial precision](/reference/query-languages/esql/limitations.md#esql-limitations-spatial-precision). Indices created before 9.7 keep the previous format, and {{esql}} reads their shapes from the `_source`. Reindex to use the new format.
+
 
 ## Input Structure [shape-input-structure]
 
@@ -345,5 +347,5 @@ POST /example/_doc
 
 ## Sorting and Retrieving index Shapes [_sorting_and_retrieving_index_shapes_2]
 
-Due to the complex input structure and index representation of shapes, it is not currently possible to sort shapes or retrieve their fields directly. The `shape` value is only retrievable through the `_source` field.
+Due to the complex input structure and index representation of shapes, it is not currently possible to sort shapes or retrieve their fields directly. The `shape` value is only retrievable through the `_source` field. {{esql}} spatial functions can process a shape reconstructed from [doc values](#shape-doc-values) at index precision, but returning the original value still requires the `_source`.
 

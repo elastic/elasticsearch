@@ -20,7 +20,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import org.elasticsearch.xpack.esql.CsvTestUtils.TestResults;
 import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
@@ -185,7 +185,7 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
     @BeforeClass
     public static void setupLoadAllStrategy() {
         logger.info("removed fields by index = {}", removedFieldsByIndex);
-        indexLoadStrategy = new LoadAllKeywordFieldStrategy();
+        differentialTestStrategy = new LoadAllKeywordFieldStrategy();
     }
 
     private static boolean usesUnsupportedCommand(String query) {
@@ -317,7 +317,7 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         return "SET unmapped_fields = \"LOAD_ALL\"; " + originalQuery.stripLeading();
     }
 
-    private static final class LoadAllKeywordFieldStrategy implements IndexLoadStrategy {
+    private static final class LoadAllKeywordFieldStrategy implements DifferentialTestStrategy {
 
         @Override
         public String transformMapping(CsvTestsDataLoader.TestDataset dataset, String originalMapping) throws IOException {
@@ -372,16 +372,16 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         }
 
         @Override
-        public ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected) {
+        public TestResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, TestResults expected) {
             return expected;
         }
 
         @Override
-        public ExpectedResults transformActualResults(
+        public TestResults transformActualResults(
             String testId,
             CsvSpecReader.CsvTestCase testCase,
-            ExpectedResults expected,
-            ExpectedResults actual
+            TestResults expected,
+            TestResults actual
         ) {
             String removedField = removedFieldsByIndex.get(extractSingleFromIndex(testCase.query));
             boolean namedInQuery = Pattern.compile("\\b" + Pattern.quote(removedField) + "\\b").matcher(testCase.query).find();
@@ -432,7 +432,7 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
                 types.add(to, types.remove(from));
                 rows.forEach(row -> row.add(to, row.remove(from)));
             }
-            return new ExpectedResults(names, types, rows);
+            return new TestResults(names, types, rows);
         }
 
         @Override

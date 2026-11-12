@@ -94,7 +94,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> indexed;
         private final FieldMapper.DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(false);
 
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<Explicit<Boolean>> coerce;
@@ -104,7 +104,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> XContentMapValues.nodeDoubleValue(o),
-            m -> toType(m).scalingFactor,
             XContentBuilder::field,
             Objects::toString
         ).addValidator(v -> {
@@ -120,7 +119,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
-            m -> toType(m).nullValue,
             XContentBuilder::field,
             Objects::toString
         ).acceptsNull();
@@ -145,22 +143,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
-                m -> toType(m).docValuesParameters(),
                 indexSettings
             );
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
                 true,
-                m -> toType(m).ignoreMalformed,
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
-            this.coerce = Parameter.explicitBoolParam(
-                "coerce",
-                true,
-                m -> toType(m).coerce,
-                COERCE_SETTING.get(indexSettings.getSettings())
-            );
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+            this.coerce = Parameter.explicitBoolParam("coerce", true, COERCE_SETTING.get(indexSettings.getSettings()));
+            this.indexed = Parameter.indexParam(() -> {
                 if (indexSettings.isIndexDisabledByDefault()) {
                     return false;
                 }
@@ -172,17 +163,18 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     return true;
                 }
             });
-            this.metric = TimeSeriesParams.metricParam(
-                m -> toType(m).metricType,
-                TimeSeriesParams.MetricType.GAUGE,
-                TimeSeriesParams.MetricType.COUNTER
-            ).addValidator(v -> {
-                if (v != null && docValuesParameters.getValue().enabled() == false) {
-                    throw new IllegalArgumentException(
-                        "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + docValuesParameters.name + "] is true"
-                    );
-                }
-            });
+            this.metric = TimeSeriesParams.metricParam(TimeSeriesParams.MetricType.GAUGE, TimeSeriesParams.MetricType.COUNTER)
+                .addValidator(v -> {
+                    if (v != null && docValuesParameters.getValue().enabled() == false) {
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + TimeSeriesParams.TIME_SERIES_METRIC_PARAM
+                                + "] requires that ["
+                                + docValuesParameters.name
+                                + "] is true"
+                        );
+                    }
+                });
             this.indexSettings = indexSettings;
         }
 
@@ -643,7 +635,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     private final Double nullValue;
     private final double scalingFactor;
     private final boolean isSourceSynthetic;
-    private final TimeSeriesParams.MetricType metricType;
     private final String offsetsFieldName;
     private final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> offsetsFallback;
 
@@ -669,7 +660,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.coerce = builder.coerce.getValue();
         this.indexSettings = builder.indexSettings;
-        this.metricType = builder.metric.getValue();
         this.offsetsFieldName = offsetsFieldName;
         // The recorded value is the scaled long (doc values) representation; decode it like the offsets-aware loader does.
         this.offsetsFallback = (b, v) -> b.value(decodeForSyntheticSource((Long) v, scalingFactor));
@@ -711,6 +701,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean readsEmptyStringAsNull() {
+        // parseCreateField reads an empty string as null when coercing, and rejects it as malformed otherwise.
+        return coerce.value();
+    }
+
+    @Override
     public ScaledFloatFieldType fieldType() {
         return (ScaledFloatFieldType) super.fieldType();
     }
@@ -718,11 +714,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSettings).metric(metricType).init(this);
     }
 
     @Override
@@ -760,7 +751,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         if (value == null) {
             if (shouldStoreOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, offsetsFallback);
             }
             return;
         }

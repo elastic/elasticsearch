@@ -88,6 +88,48 @@ M
 ;
 
 
+// The sort order is neither the order of the keys nor the order of the documents, so this only passes if DEDUP keeps the SORT order.
+dedupKeepsSortOrder
+skip_flattened_rewrite: junk_injection_breaks_result_shape
+required_capability: dedup_command
+
+FROM employees
+| WHERE emp_no <= 10009
+| KEEP gender, languages
+| SORT languages DESC, gender DESC
+| DEDUP
+;
+
+gender:keyword | languages:integer
+M              | 5
+F              | 5
+M              | 4
+F              | 4
+F              | 3
+M              | 2
+M              | 1
+F              | 1
+;
+
+
+// Each row keeps the position of its first occurrence in the sort order, here that of the highest salary for each gender.
+dedupKeepsSortOrderOfDroppedColumn
+skip_flattened_rewrite: junk_injection_breaks_result_shape
+required_capability: dedup_command
+
+FROM employees
+| SORT salary DESC
+| KEEP gender
+| DEDUP
+;
+
+gender:keyword
+M
+F
+null
+;
+
+
 dedupRemovesDuplicateRows
 required_capability: dedup_command
 
@@ -115,6 +157,24 @@ FROM employees
 job_positions:keyword
 [Accountant, Senior Python Developer]
 [Internship, Senior Python Developer]
+;
+
+
+dedupMultivalueIsOrderAndRepeatSensitive
+required_capability: dedup_command
+
+ROW i = [1, 2, 3, 4]
+| MV_EXPAND i
+| EVAL mv = CASE(i == 1, ["a", "b"], i == 2, ["b", "a"], i == 3, ["a", "a", "b"], ["a", "b"])
+| KEEP mv
+| DEDUP
+;
+ignoreOrder:true
+
+mv:keyword
+[a, b]
+[b, a]
+[a, a, b]
 ;
 
 

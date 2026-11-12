@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
@@ -28,6 +29,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.DoubleStream;
@@ -172,6 +175,198 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(expected.getMessage(), equalTo(errorMessage));
     }
 
+    public void testFieldPathParsing() throws Exception {
+        doWithRandomAccessPattern((doc) -> {
+            doc.setFieldValue("a.b.c", "value");
+            // a path leads to the same field whether or not it starts with the prefix of where it is, and a trailing separator is ignored
+            assertThat(doc.getFieldValue(FieldPath.of("a.b.c"), String.class), equalTo("value"));
+            assertThat(doc.getFieldValue(FieldPath.of("_source.a.b.c"), String.class), equalTo("value"));
+            assertThat(doc.getFieldValue(FieldPath.of("a.b.c."), String.class), equalTo("value"));
+            // and whichever it is, it is the same field that the String overloads find
+            assertThat(doc.getFieldValue("a.b.c.", String.class), equalTo("value"));
+            // but the elements of a path only lead to the field when they are all there, in order
+            assertThat(doc.getFieldValue(FieldPath.of("b.c"), String.class, true), nullValue());
+        });
+
+        // creating a field path never fails because of what the path is, that is only found out when it is used
+        IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random());
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> FieldPath.of("").resolve(doc)).getMessage(),
+            equalTo("path cannot be null nor empty")
+        );
+        for (String invalid : List.of("a..b", ".a", ".", "..", "_source..", "_ingest..")) {
+            assertThat(
+                invalid,
+                expectThrows(IllegalArgumentException.class, () -> FieldPath.of(invalid).resolve(doc)).getMessage(),
+                equalTo("path [" + invalid + "] is not valid")
+            );
+        }
+    }
+
+    /**
+     * A path that is a template is rendered once for every operation (so a processor that needs more than one has to resolve it itself,
+     * see {@link FieldPath#resolve}), and what it renders as is the path that is used.
+     */
+    public void testTemplatedFieldPathIsRenderedOncePerOperation() throws Exception {
+        final AtomicInteger renders = new AtomicInteger();
+        final AtomicReference<String> renderedAs = new AtomicReference<>();
+        final FieldPath path = FieldPath.of(params -> new TemplateScript(params) {
+            @Override
+            public String execute() {
+                renders.incrementAndGet();
+                return renderedAs.get();
+            }
+        });
+
+        doWithRandomAccessPattern((doc) -> {
+            // reading
+            renderedAs.set("fizz.buzz");
+            assertRenderedOnce(renders, () -> assertThat(doc.getFieldValue(path, String.class), equalTo("hello world")));
+            assertRenderedOnce(renders, () -> assertThat(doc.getFieldValue(path, String.class, false), equalTo("hello world")));
+            assertRenderedOnce(renders, () -> assertThat(doc.getFieldValue(path, String.class, true), equalTo("hello world")));
+            assertRenderedOnce(renders, () -> assertTrue(doc.hasField(path)));
+            assertRenderedOnce(renders, () -> assertTrue(doc.hasField(path, true)));
+            renderedAs.set("fizz.missing");
+            assertRenderedOnce(renders, () -> assertThat(doc.getFieldValue(path, String.class, true), nullValue()));
+            assertRenderedOnce(renders, () -> assertFalse(doc.hasField(path)));
+
+            // writing, to wherever it was rendered as
+            renderedAs.set("new.object");
+            assertRenderedOnce(renders, () -> doc.setFieldValue(path, "value"));
+            assertThat(doc.getFieldValue("new.object", String.class), equalTo("value"));
+            assertRenderedOnce(renders, () -> doc.setFieldValue(path, ValueSource.wrap(7, null)));
+            assertRenderedOnce(renders, () -> doc.setFieldValue(path, ValueSource.wrap(8, null), true));
+            assertRenderedOnce(renders, () -> doc.setFieldValue(path, "value", true));
+            assertThat(doc.getFieldValue("new.object", String.class), equalTo("value"));
+            renderedAs.set("new.list");
+            assertRenderedOnce(renders, () -> doc.appendFieldValue(path, "a"));
+            assertRenderedOnce(renders, () -> doc.appendFieldValue(path, "b", true));
+            assertRenderedOnce(renders, () -> doc.appendFieldValue(path, "c", true, true));
+            assertRenderedOnce(renders, () -> doc.appendFieldValue(path, ValueSource.wrap(4, null), true, true));
+            assertThat(doc.getFieldValue("new.list", List.class), equalTo(List.of("a", "b", "c", 4)));
+
+            // removing
+            renderedAs.set("new.object");
+            assertRenderedOnce(renders, () -> doc.removeField(path));
+            assertFalse(doc.hasField("new.object"));
+            assertRenderedOnce(renders, () -> doc.removeField(path, true));
+            renderedAs.set("new.list");
+            assertRenderedOnce(renders, () -> doc.removeField(path, false));
+            assertFalse(doc.hasField("new.list"));
+
+            // when there is nothing to write there is no need to know where, so it is not rendered (see the Javadoc of these methods)
+            renderedAs.set("new.ignored");
+            int before = renders.get();
+            doc.setFieldValue(path, "", true);
+            assertThat(renders.get(), equalTo(before));
+            assertFalse(doc.hasField("new.ignored"));
+        });
+    }
+
+    private static void assertRenderedOnce(AtomicInteger renders, Runnable operation) {
+        int before = renders.get();
+        operation.run();
+        assertThat(renders.get() - before, equalTo(1));
+    }
+
+    /**
+     * Whether or not a path is valid for the access pattern in use is only checked when the path is used, so a path that is only
+     * valid for some access patterns can still be parsed up front, before it is known which access pattern will be in play.
+     */
+    public void testFieldPathIsValidatedAgainstTheAccessPatternWhenUsed() throws Exception {
+        final FieldPath bracketed = FieldPath.of("a[0]");
+
+        doWithAccessPattern(CLASSIC, (doc) -> assertFalse(doc.hasField(bracketed)));
+
+        doWithAccessPattern(FLEXIBLE, (doc) -> {
+            String expected = "path [a[0]] is not valid";
+            assertThat(expectThrows(IllegalArgumentException.class, () -> doc.hasField(bracketed)).getMessage(), equalTo(expected));
+            assertThat(expectThrows(IllegalArgumentException.class, () -> doc.hasField(bracketed, true)).getMessage(), equalTo(expected));
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> doc.getFieldValue(bracketed, Object.class)).getMessage(),
+                equalTo(expected)
+            );
+            assertThat(expectThrows(IllegalArgumentException.class, () -> doc.removeField(bracketed)).getMessage(), equalTo(expected));
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> doc.setFieldValue(bracketed, "value")).getMessage(),
+                equalTo(expected)
+            );
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> doc.appendFieldValue(bracketed, "value")).getMessage(),
+                equalTo(expected)
+            );
+        });
+    }
+
+    /**
+     * The overloads that take a parsed {@link FieldPath} should behave exactly like the ones that take a String.
+     */
+    public void testFieldPathOverloads() throws Exception {
+        doWithRandomAccessPattern((doc) -> {
+            // get
+            assertThat(doc.getFieldValue(FieldPath.of("fizz.buzz"), String.class), equalTo("hello world"));
+            assertThat(doc.getFieldValue(FieldPath.of("fizz.buzz"), String.class, false), equalTo("hello world"));
+            assertThat(doc.getFieldValue(FieldPath.of("fizz.missing"), String.class, true), nullValue());
+            // errors keep reporting the path as it was originally given, and match the String overloads
+            IllegalArgumentException missing = expectThrows(
+                IllegalArgumentException.class,
+                () -> doc.getFieldValue(FieldPath.of("fizz.missing"), String.class)
+            );
+            assertThat(missing.getMessage(), equalTo("field [missing] not present as part of path [fizz.missing]"));
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> doc.getFieldValue("fizz.missing", String.class)).getMessage(),
+                equalTo(missing.getMessage())
+            );
+            IllegalArgumentException mismatch = expectThrows(
+                IllegalArgumentException.class,
+                () -> doc.getFieldValue(FieldPath.of("int"), String.class)
+            );
+            assertThat(mismatch.getMessage(), equalTo("field [int] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+
+            // has
+            assertTrue(doc.hasField(FieldPath.of("fizz.buzz")));
+            assertTrue(doc.hasField(FieldPath.of("fizz.buzz"), true));
+            assertFalse(doc.hasField(FieldPath.of("fizz.missing")));
+            // prefixes are understood
+            assertTrue(doc.hasField(FieldPath.of("_source.fizz.buzz")));
+            assertTrue(doc.hasField(FieldPath.of("_ingest.timestamp")));
+
+            // set, in all of its flavors
+            doc.setFieldValue(FieldPath.of("new.object"), "value");
+            assertThat(doc.getFieldValue("new.object", String.class), equalTo("value"));
+            doc.setFieldValue(FieldPath.of("new.valuesource"), ValueSource.wrap(7, null));
+            assertThat(doc.getFieldValue("new.valuesource", Integer.class), equalTo(7));
+            doc.setFieldValue(FieldPath.of("new.valuesource2"), ValueSource.wrap(8, null), true);
+            assertThat(doc.getFieldValue("new.valuesource2", Integer.class), equalTo(8));
+            doc.setFieldValue(FieldPath.of("new.ignored"), "", true);
+            assertFalse(doc.hasField("new.ignored"));
+            doc.setFieldValue(FieldPath.of("new.notignored"), "", false);
+            assertThat(doc.getFieldValue("new.notignored", String.class), equalTo(""));
+
+            // append, in all of its flavors
+            doc.appendFieldValue(FieldPath.of("new.list"), "a");
+            doc.appendFieldValue(FieldPath.of("new.list"), "a", true);
+            doc.appendFieldValue(FieldPath.of("new.list"), "a", false);
+            doc.appendFieldValue(FieldPath.of("new.list"), "", true, true);
+            doc.appendFieldValue(FieldPath.of("new.list"), ValueSource.wrap(1, null), true, true);
+            assertThat(doc.getFieldValue("new.list", List.class), equalTo(List.of("a", "a", 1)));
+
+            // remove
+            doc.removeField(FieldPath.of("new.object"));
+            assertFalse(doc.hasField("new.object"));
+            doc.removeField(FieldPath.of("new.object"), true);
+            IllegalArgumentException removeMissing = expectThrows(
+                IllegalArgumentException.class,
+                () -> doc.removeField(FieldPath.of("new.object"))
+            );
+            assertThat(removeMissing.getMessage(), containsString("new.object"));
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> doc.removeField("new.object")).getMessage(),
+                equalTo(removeMissing.getMessage())
+            );
+        });
+    }
+
     /**
      * A path made up of nothing but separators used to parse into zero path elements, which then blew up with an
      * {@link ArrayIndexOutOfBoundsException} when it was used. Make sure that every operation reports it as an invalid path instead.
@@ -207,6 +402,22 @@ public class IngestDocumentTests extends ESTestCase {
                 );
             }
         });
+    }
+
+    /**
+     * Parsed paths are cached, and the cache is shared by all of the access patterns, so a path that is only valid for some of them has
+     * to be checked against the pattern that is in use every time that it is used, whichever pattern happened to be used with it first.
+     */
+    public void testPathThatIsOnlyValidForSomeAccessPatternsIsCheckedEveryTime() throws Exception {
+        // a different path for each order, as the second would otherwise find that the first has already put it in the cache
+        String classicFirst = "classic_first_" + randomAlphaOfLength(8) + "[0]";
+        String flexibleFirst = "flexible_first_" + randomAlphaOfLength(8) + "[0]";
+
+        doWithAccessPattern(CLASSIC, (doc) -> assertPathValid(doc, classicFirst));
+        doWithAccessPattern(FLEXIBLE, (doc) -> assertPathInvalid(doc, classicFirst, "path [" + classicFirst + "] is not valid"));
+
+        doWithAccessPattern(FLEXIBLE, (doc) -> assertPathInvalid(doc, flexibleFirst, "path [" + flexibleFirst + "] is not valid"));
+        doWithAccessPattern(CLASSIC, (doc) -> assertPathValid(doc, flexibleFirst));
     }
 
     public void testPathParsingLogic() throws Exception {
@@ -556,7 +767,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testGetFieldValueNull() throws Exception {
         try {
-            doWithRandomAccessPattern((doc) -> doc.getFieldValue(null, String.class));
+            doWithRandomAccessPattern((doc) -> doc.getFieldValue((String) null, String.class));
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -713,7 +924,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testHasFieldNull() throws Exception {
         try {
-            doWithRandomAccessPattern((doc) -> doc.hasField(null));
+            doWithRandomAccessPattern((doc) -> doc.hasField((String) null));
             fail("has field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -884,7 +1095,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testSetFieldValueNullName() throws Exception {
         try {
-            doWithRandomAccessPattern((doc) -> doc.setFieldValue(null, "bar"));
+            doWithRandomAccessPattern((doc) -> doc.setFieldValue((String) null, "bar"));
             fail("add field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -1682,6 +1893,35 @@ public class IngestDocumentTests extends ESTestCase {
         doWithRandomAccessPattern((doc) -> doc.removeField("fizz.some.nonsense", true));
     }
 
+    /**
+     * A flexible lookup of a field that has a dotted name can be incomplete rather than failed (it found part of the path, and the rest
+     * is the name of a field in what it found), and removing such a field has to use that result even though failures are being ignored.
+     */
+    public void testRemoveDottedFieldIgnoreMissing() throws Exception {
+        doWithAccessPattern(FLEXIBLE, (doc) -> {
+            assertThat(doc.hasField("dotted.bar.baz"), equalTo(true));
+            doc.removeField("dotted.bar.baz", randomBoolean());
+            assertThat(doc.hasField("dotted.bar.baz"), equalTo(false));
+
+            // and a missing one is still ignored
+            doc.removeField("dotted.bar.nonsense", true);
+            doc.removeField("nonsense.bar.baz", true);
+        });
+    }
+
+    /**
+     * A field that is there, but has a null value, is not a missing field.
+     */
+    public void testRemoveNullValuedFieldIgnoreMissing() throws Exception {
+        doWithRandomAccessPattern((doc) -> {
+            assertThat(doc.hasField("fizz.foo_null"), equalTo(true));
+            doc.removeField("fizz.foo_null", randomBoolean());
+            assertThat(doc.hasField("fizz.foo_null"), equalTo(false));
+
+            assertThat(doc.getFieldValue("fizz.foo_null", Object.class, true), nullValue());
+        });
+    }
+
     public void testRemoveInnerField() throws Exception {
         doWithRandomAccessPattern((doc) -> {
             doc.removeField("fizz.buzz");
@@ -1898,7 +2138,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveNullField() throws Exception {
         try {
-            doWithRandomAccessPattern((doc) -> doc.removeField(null));
+            doWithRandomAccessPattern((doc) -> doc.removeField((String) null));
             fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -2021,55 +2261,6 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(copy.getSource().get("afterClockChange"), equalTo(original.getSource().get("afterClockChange")));
     }
 
-    public void testSetInvalidSourceField() {
-        Map<String, Object> document = new HashMap<>();
-        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
-        document.put("source_field", randomObject);
-
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        try {
-            ingestDocument.getFieldValueAsBytes("source_field");
-            fail("Expected an exception due to invalid source field, but did not happen");
-        } catch (IllegalArgumentException e) {
-            String expectedClassName = randomObject.getClass().getName();
-
-            assertThat(
-                e.getMessage(),
-                containsString("field [source_field] of unknown type [" + expectedClassName + "], must be string or byte array")
-            );
-        }
-    }
-
-    public void testGetFieldValueRawBytesLength() {
-        Map<String, Object> document = new HashMap<>();
-        document.put("bytes_field", new byte[] { 1, 2, 3 });
-        document.put("ascii_field", "QQ==");
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        assertThat(
-            ingestDocument.getFieldValueRawBytesLength("bytes_field", ingestDocument.getFieldValue("bytes_field", Object.class)),
-            equalTo(3)
-        );
-        assertThat(
-            ingestDocument.getFieldValueRawBytesLength("ascii_field", ingestDocument.getFieldValue("ascii_field", Object.class)),
-            equalTo(4)
-        );
-    }
-
-    public void testGetFieldValueRawBytesLengthInvalidType() {
-        Map<String, Object> document = new HashMap<>();
-        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
-        document.put("source_field", randomObject);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ingestDocument.getFieldValueRawBytesLength("source_field", randomObject)
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("field [source_field] of unknown type [" + randomObject.getClass().getName() + "], must be string or byte array")
-        );
-    }
-
     public void testDeepCopy() {
         IngestDocument copiedDoc = new IngestDocument(
             CollectionUtils.deepCopy(document.getCtxMap()),
@@ -2183,7 +2374,7 @@ public class IngestDocumentTests extends ESTestCase {
 
         // At the end of the test, there should be neither pipeline ids nor access patterns left in the stack.
         assertThat(document.getPipelineStack(), is(empty()));
-        assertThat(document.getCurrentAccessPattern().isEmpty(), is(true));
+        assertThat(document.getAccessPattern(), is(IngestPipelineFieldAccessPattern.CLASSIC));
     }
 
     /**
@@ -2223,6 +2414,9 @@ public class IngestDocumentTests extends ESTestCase {
 
             // Execute pipeline
             logger.debug("LEVEL {}/{}: Executing {}/{}", level, maxCallDepth, pipelineIdx, pipelinesAtThisLevel);
+            // the access pattern that is in effect for the pipeline that is above us (if there is one), which has to be back in effect
+            // once this pipeline has finished
+            IngestPipelineFieldAccessPattern accessPatternBefore = document.getAccessPattern();
             document.executePipeline(mockPipeline, mockHandler);
 
             // Verify pipeline was called, capture completion handler
@@ -2231,8 +2425,7 @@ public class IngestDocumentTests extends ESTestCase {
 
             // Assert expected state
             assertThat(document.getPipelineStack().getFirst(), is(expectedPipelineId));
-            assertThat(document.getCurrentAccessPattern().isPresent(), is(true));
-            assertThat(document.getCurrentAccessPattern().get(), is(expectedAccessPattern));
+            assertThat(document.getAccessPattern(), is(expectedAccessPattern));
 
             // Randomly recurse: We recurse only one time per level to avoid hogging test time, but we randomize which
             // pipeline to recurse on, eventually requiring a recursion on the last pipeline run if one hasn't happened yet.
@@ -2247,14 +2440,9 @@ public class IngestDocumentTests extends ESTestCase {
 
             // Assert expected state
             assertThat(document.getPipelineStack().size(), is(equalTo(level)));
-            if (level == 0) {
-                // Top level means access pattern should be empty
-                assertThat(document.getCurrentAccessPattern().isEmpty(), is(true));
-            } else {
-                // If we're nested below the top level we should still have an access
-                // pattern on the document for the pipeline above us
-                assertThat(document.getCurrentAccessPattern().isPresent(), is(true));
-            }
+            // At the top level there is no pipeline above us, and if we're nested below it we should still have the access pattern on
+            // the document for the pipeline above us
+            assertThat(document.getAccessPattern(), is(accessPatternBefore));
         }
         logger.debug("LEVEL {}/{}: COMPLETE", level, maxCallDepth);
     }

@@ -95,11 +95,11 @@ FROM kibana_sample_data_logs
 ::::::
 
 ::::::{tab-item} Discover
-To get started with {{esql}} in Discover, open the main menu and select **Discover**. Next, select **Try ES|QL** from the application menu bar.
+To get started with {{esql}} in Discover, open the main menu and select **Discover**. If **Discover** doesn't open in {{esql}} mode, select **Query in ES|QL** (**Try ES|QL** in earlier versions) from the application menu.
 
 Adjust the time filter so it includes the timestamps in the sample data (October 23rd, 2023).
 
-After switching to {{esql}} mode, the query bar shows a sample query. You can replace this query with the queries in this getting started guide.
+In {{esql}} mode, the editor shows a starting query. You can replace it with the queries in this getting started guide.
 
 You can adjust the editor’s height by dragging its bottom border to your liking.
 ::::::

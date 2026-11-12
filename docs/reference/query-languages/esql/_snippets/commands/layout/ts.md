@@ -266,8 +266,6 @@ The result contains the following columns:
 | `_timeseries` | Only with `include_timeseries`. The dimensions of the time series the exemplar belongs to, as a JSON string |
 | `_source` | The full exemplar document, including the additional labels recorded with it |
 
-A column that none of the exemplar data streams map is `null`.
-
 The most recent exemplars are returned first. Unless you configure a `limit`, the
 [default result set size](/reference/query-languages/esql/limitations.md#esql-max-rows) of a query applies.
 Use a map instead of `true` to configure the number of exemplars or to add the `_timeseries` column:

@@ -369,7 +369,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessPluginIntegTes
         PlainActionFuture<Void> prewarmingFuture = new PlainActionFuture<>();
         onlinePrewarmingService.prewarm(indexShard, prewarmingFuture);
         // fails with a ResourceAlreadyUploadedException unless prewarming retries from the object store
-        prewarmingFuture.get(10, TimeUnit.SECONDS);
+        safeGet(prewarmingFuture);
 
         assertThat(
             "prewarming should first have tried to read the VBCC from the indexing node",

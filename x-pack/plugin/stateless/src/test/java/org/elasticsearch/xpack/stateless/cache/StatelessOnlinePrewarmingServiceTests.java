@@ -316,6 +316,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             final Exception failure = safeAwaitFailure(Void.class, l -> fakeNode.onlinePrewarmingService.prewarm(searchShard, l));
 
             assertThat(ExceptionsHelper.unwrap(failure, ResourceAlreadyUploadedException.class), is(notNullValue()));
+            assertThat("both regions should have been read", failures.readsPerPosition(), hasSize(2));
             assertThat(
                 "every region should be read once and retried once, but not more",
                 failures.readsPerPosition(),

@@ -200,17 +200,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             this.meta = configureMetaParam();
         }
 
-        public Builder(SemanticFieldMapper mapper) {
-            this(
-                mapper.leafName(),
-                mapper.fieldType().getChunksField().bitsetProducer(),
-                mapper.fieldType().getChunksField().indexSettings(),
-                mapper.modelRegistry,
-                mapper.vectorsFormatProviders
-            );
-            init(mapper);
-        }
-
         public Builder setInferenceId(String id) {
             this.inferenceId.setValue(id);
             return this;
@@ -241,12 +230,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         protected Parameter<String> configureInferenceIdParam() {
-            return Parameter.stringParam(
-                INFERENCE_ID_FIELD,
-                true,
-                mapper -> ((SemanticFieldType) mapper.fieldType()).inferenceId,
-                getDefaultInferenceId()
-            ).addValidator(v -> {
+            return Parameter.stringParam(INFERENCE_ID_FIELD, true, getDefaultInferenceId()).addValidator(v -> {
                 if (Strings.isEmpty(v)) {
                     throw new IllegalArgumentException(
                         "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + contentType() + "] must not be empty"
@@ -260,12 +244,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         protected Parameter<String> configureSearchInferenceIdParam() {
-            return Parameter.stringParam(
-                SEARCH_INFERENCE_ID_FIELD,
-                true,
-                mapper -> ((SemanticFieldType) mapper.fieldType()).searchInferenceId,
-                null
-            ).acceptsNull().addValidator(v -> {
+            return Parameter.stringParam(SEARCH_INFERENCE_ID_FIELD, true, null).acceptsNull().addValidator(v -> {
                 if (v != null && Strings.isEmpty(v)) {
                     throw new IllegalArgumentException(
                         "["
@@ -286,7 +265,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 true,
                 () -> null,
                 (n, c, o) -> SemanticTextField.parseModelSettingsFromMap(o),
-                mapper -> ((SemanticFieldType) mapper.fieldType()).modelSettings,
                 (b, n, v) -> {
                     if (v != null) {
                         b.field(MODEL_SETTINGS_FIELD, v, EndpointClusterState.withoutEndpointMetadata());
@@ -316,7 +294,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 true,
                 () -> null,
                 (n, c, o) -> parseIndexOptionsFromMap(n, o, c, experimentalFeaturesEnabled),
-                mapper -> ((SemanticFieldType) mapper.fieldType()).indexOptions,
                 (b, n, v) -> {
                     throw new IllegalStateException("Serializer for [" + INDEX_OPTIONS_FIELD + "] should not be called");
                 },
@@ -361,7 +338,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 true,
                 () -> null,
                 (n, c, o) -> SemanticTextField.parseChunkingSettingsFromMap(o),
-                mapper -> ((SemanticFieldType) mapper.fieldType()).chunkingSettings,
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
@@ -629,8 +605,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 builderParams,
                 indexVersionCreated,
                 indexSettings.getMode(),
-                modelRegistry,
-                vectorsFormatProviders,
                 sourceColumnarStored
             );
         }
@@ -659,8 +633,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
     }
 
-    protected final ModelRegistry modelRegistry;
-    protected final List<VectorsFormatProvider> vectorsFormatProviders;
     protected final IndexVersion indexCreatedVersion;
     protected final IndexMode indexMode;
     /** Whether the original input is left out of the {@code columnar_stored} {@code _source} and patched back from doc values. */
@@ -672,16 +644,12 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         BuilderParams builderParams,
         IndexVersion indexCreatedVersion,
         IndexMode indexMode,
-        ModelRegistry modelRegistry,
-        List<VectorsFormatProvider> vectorsFormatProviders,
         boolean sourceColumnarStored
     ) {
         super(simpleName, mappedFieldType, builderParams);
         ensureMultiFields(builderParams.multiFields().iterator());
         this.indexCreatedVersion = indexCreatedVersion;
         this.indexMode = indexMode;
-        this.modelRegistry = modelRegistry;
-        this.vectorsFormatProviders = vectorsFormatProviders;
         this.patchedIntoSource = sourceColumnarStored && mappedFieldType.storesOriginalValuesInDocValues;
     }
 
@@ -709,11 +677,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
         mappers.add(fieldType().getInferenceField());
         return mappers.iterator();
-    }
-
-    @Override
-    public SemanticFieldMapper.Builder getMergeBuilder() {
-        return new Builder(this);
     }
 
     @Override

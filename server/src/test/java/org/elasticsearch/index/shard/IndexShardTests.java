@@ -2497,6 +2497,42 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testActivelyRelocatingPrimaryIgnoresStaleAttempts() throws IOException {
+        final IndexShard indexShard = newStartedShard(true);
+        try {
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+            final long staleVersion = randomLongBetween(1, 100);
+            final long newerVersion = staleVersion + randomLongBetween(1, 100);
+
+            // The stale attempt starts first, the newer one takes over and the stale completion is a no-op.
+            final var staleAttempt = indexShard.markActivelyRelocatingPrimary(staleVersion);
+            assertTrue(indexShard.isActivelyRelocatingPrimary());
+            final var newerAttempt = indexShard.markActivelyRelocatingPrimary(newerVersion);
+            staleAttempt.close();
+            assertTrue(indexShard.isActivelyRelocatingPrimary());
+            newerAttempt.close();
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+
+            // A stale attempt that only starts after a newer one completed is ignored.
+            final var lateStaleAttempt = indexShard.markActivelyRelocatingPrimary(staleVersion);
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+            lateStaleAttempt.close();
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+
+            // A newer attempt that completes before a stale one clears the marker, even though the stale one is still unwinding.
+            final long latestVersion = newerVersion + randomLongBetween(1, 100);
+            final var latestAttempt = indexShard.markActivelyRelocatingPrimary(latestVersion);
+            final var staleAfterLatest = indexShard.markActivelyRelocatingPrimary(newerVersion);
+            assertTrue(indexShard.isActivelyRelocatingPrimary());
+            latestAttempt.close();
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+            staleAfterLatest.close();
+            assertFalse(indexShard.isActivelyRelocatingPrimary());
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
     public void testRecoverFromStoreWithOutOfOrderDelete() throws IOException {
         /*
          * The flow of this test:
@@ -2897,7 +2933,7 @@ public class IndexShardTests extends IndexShardTestCase {
         };
         threadPool.generic().execute(() -> shard.startRecovery(null, recoveryListener, null, (mapping, l) -> l.onResponse(null), null, 0L));
 
-        assertThat(safeGet(failureStrategyFuture), equalTo(closeShardDuringRecovery ? FailureStrategy.ABORT : FailureStrategy.FAIL_SEND));
+        assertThat(safeGet(failureStrategyFuture), equalTo(closeShardDuringRecovery ? FailureStrategy.ABORT : FailureStrategy.RETRY));
         closeShards(shard);
     }
 

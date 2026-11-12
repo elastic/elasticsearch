@@ -67,10 +67,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
      */
     public static final int MAX_VECTORS = 8192;
 
-    private static RankVectorsFieldMapper toType(FieldMapper in) {
-        return (RankVectorsFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<DenseVectorFieldMapper.ElementType> elementType = new Parameter<>(
@@ -86,7 +82,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
                 }
                 return elementType;
             },
-            m -> toType(m).fieldType().element.elementType(),
             XContentBuilder::field,
             Objects::toString
         );
@@ -99,7 +94,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
             }
 
             return XContentMapValues.nodeIntegerValue(o);
-        }, m -> toType(m).fieldType().dims, XContentBuilder::field, Objects::toString).setSerializerCheck((id, ic, v) -> v != null)
+        }, XContentBuilder::field, Objects::toString).setSerializerCheck((id, ic, v) -> v != null)
             .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current))
             .addValidator(dims -> {
                 if (dims == null) {
@@ -179,7 +174,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
                     meta.getValue()
                 ),
                 builderParams(this, context),
-                indexCreatedVersion,
                 licenseState,
                 isExcludeSourceVectorsFinal
             );
@@ -282,7 +276,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
         }
     }
 
-    private final IndexVersion indexCreatedVersion;
     private final XPackLicenseState licenseState;
     private final boolean isExcludeSourceVectors;
 
@@ -290,12 +283,10 @@ public class RankVectorsFieldMapper extends FieldMapper {
         String simpleName,
         MappedFieldType fieldType,
         BuilderParams params,
-        IndexVersion indexCreatedVersion,
         XPackLicenseState licenseState,
         boolean isExcludeSourceVectors
     ) {
         super(simpleName, fieldType, params);
-        this.indexCreatedVersion = indexCreatedVersion;
         this.licenseState = licenseState;
         this.isExcludeSourceVectors = isExcludeSourceVectors;
     }
@@ -456,11 +447,6 @@ public class RankVectorsFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, licenseState, isExcludeSourceVectors).init(this);
     }
 
     @Override

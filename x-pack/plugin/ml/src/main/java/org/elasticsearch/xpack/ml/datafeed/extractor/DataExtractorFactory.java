@@ -88,8 +88,6 @@ public interface DataExtractorFactory {
         );
 
         if (datafeed.getEsqlQuery() != null) {
-            // No rollup caps, extraFilters (https://github.com/elastic/elasticsearch/issues/161207), or
-            // searchTelemetry (https://github.com/elastic/esql-planning/issues/2206); see create() javadoc.
             EsqlDataExtractorFactory.create(searchClient, datafeed, job, timingStatsReporter, factoryHandler);
             return;
         }

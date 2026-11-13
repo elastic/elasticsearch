@@ -46,9 +46,8 @@ public class CsvExternalAggregatePushdownMatrixIT extends AbstractExternalAggreg
     }
 
     /**
-     * MIN/MAX on a double column containing a NaN must equal a full scan: the runtime aggregator uses
-     * {@code Math.min}/{@code Math.max}, which propagate NaN, so any NaN makes the result NaN. The warm path
-     * must return the same NaN the cold scan does (it must not skip the NaN and serve a normal extreme).
+     * MIN/MAX on a double column containing a NaN must equal a full scan: the runtime aggregator skips NaN, so
+     * the result is the finite extreme. The warm path must return the same value the cold scan does.
      */
     public void testMinMaxNaNDoubleColdThenWarmShortCircuits() throws Exception {
         Path dir = createTempDir();
@@ -61,8 +60,8 @@ public class CsvExternalAggregatePushdownMatrixIT extends AbstractExternalAggreg
         registerDataset("nan_employees", StoragePath.fileUri(file));
 
         assertColdThenWarmShortCircuit("nan_employees", "STATS lo = MIN(d), hi = MAX(d)", ROWS, rows -> {
-            assertThat("MIN(d) is NaN when any value is NaN", ((Number) rows.get(0).get(0)).doubleValue(), equalTo(Double.NaN));
-            assertThat("MAX(d) is NaN when any value is NaN", ((Number) rows.get(0).get(1)).doubleValue(), equalTo(Double.NaN));
+            assertThat("MIN(d) skips NaN", ((Number) rows.get(0).get(0)).doubleValue(), equalTo(0.5));
+            assertThat("MAX(d) skips NaN", ((Number) rows.get(0).get(1)).doubleValue(), equalTo(ROWS - 1 + 0.5));
         });
     }
 

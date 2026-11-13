@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 117216
+pr: 162146
+summary: Fix `variable_width_histogram` assigning documents to the wrong buckets in sub-aggregations
+type: bug

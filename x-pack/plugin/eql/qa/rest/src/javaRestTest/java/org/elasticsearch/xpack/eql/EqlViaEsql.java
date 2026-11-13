@@ -172,6 +172,7 @@ final class EqlViaEsql {
             List<?> keys = (List<?>) sequence.getOrDefault("join_keys", List.of());
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> sequenceEvents = (List<Map<String, Object>>) sequence.getOrDefault("events", List.of());
+            // TODO compare typed join key values instead of String.valueOf, https://github.com/elastic/elasticsearch/issues/165568
             summary.add(keys.stream().map(String::valueOf).toList() + " " + sequenceEvents.stream().map(e -> eventId(e, idField)).toList());
         }
         return summary;

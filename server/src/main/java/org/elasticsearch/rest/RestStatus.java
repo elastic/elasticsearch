@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
@@ -545,8 +546,8 @@ public enum RestStatus {
         out.writeString(status.name());
     }
 
-    public static RestStatus status(int successfulShards, int totalShards, ShardOperationFailedException... failures) {
-        if (failures.length == 0) {
+    public static RestStatus status(int successfulShards, int totalShards, List<? extends ShardOperationFailedException> failures) {
+        if (failures.isEmpty()) {
             if (successfulShards == 0 && totalShards > 0) {
                 return RestStatus.SERVICE_UNAVAILABLE;
             }

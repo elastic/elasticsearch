@@ -446,6 +446,18 @@ public class BooleanFieldMapperColumnarCompatibilityTests extends AbstractColumn
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":true}", "{\"f\":null}"));
     }
 
+    /**
+     * A nullability=false field missing from a document goes in _ignored under on_failure=ignore, as on the row path, and the batch path
+     * keeps the batch. A null would pack the column as a UNION, which this mapper refuses, so such a batch falls back instead.
+     */
+    public void testRequiredFieldMissingIsIgnored() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "boolean").field("nullability", false).endObject()),
+            Settings.builder().put(columnarSettings()).put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), "ignore").build(),
+            batch("missing", 1L, doc("d1", 1L, "{\"f\":" + randomBoolean() + "}"), doc("d2", 2L, "{}"))
+        );
+    }
+
     public void testBooleanParentWithKeywordSubField() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "boolean");

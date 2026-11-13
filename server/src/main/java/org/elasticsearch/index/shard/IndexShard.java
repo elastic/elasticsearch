@@ -114,6 +114,7 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.BatchMappingContext;
+import org.elasticsearch.index.mapper.BatchMappingShardContext;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -216,7 +217,7 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.RETRY;
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 
-public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
+public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard, BatchMappingShardContext {
 
     private final ThreadPool threadPool;
     @Nullable
@@ -1187,6 +1188,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Hands a mapped batch chunk to the engine's document size reporter before the chunk's columns are frozen, see
      * {@link Engine#onBatchParsingCompleted}.
      */
+    @Override
     public void onBatchParsingCompleted(BatchMappingContext context) {
         getEngine().onBatchParsingCompleted(context);
     }

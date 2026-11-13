@@ -31,6 +31,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.stateless.commits.Blob;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService.RecoveryInfoFromSource;
@@ -198,10 +199,10 @@ public class TransportStatelessPrimaryRelocationHandoffAction extends TransportA
             retentionLeases = new RetentionLeases(in);
             searchNodesPerCommit = in.readMap(PrimaryTermAndGeneration::new, in0 -> in0.readCollectionAsSet(StreamInput::readString));
             latestBccBlob = in.readOptionalWriteable(BlobFileWithLength::new);
-            otherBlobFiles = in.readCollectionAsSet(BlobFile::new);
+            otherBlobFiles = in.readCollectionAsSet(Blob.reader(BlobFile.class));
             hasRecentIdLookup = in.readBoolean();
             lastCommitBlobs = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS)
-                ? in.readCollectionAsImmutableSet(BlobFile::new)
+                ? in.readCollectionAsImmutableSet(Blob.reader(BlobFile.class))
                 : Set.of();
             lastCommitIsHollow = in.getTransportVersion().supports(STATELESS_PRIMARY_HANDOFF_LATEST_BLOBS) && in.readBoolean();
             hollowRecoveryState = in.getTransportVersion().supports(HOLLOW_SHARD_RECOVERY_STATE)

@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -51,7 +50,7 @@ import java.util.function.IntPredicate;
  *     outside the v1 support matrix — runtime fields, index-time scripts, dynamic mapping,
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
- *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution,
+ *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, BatchMappingShardContext, int, int, BatchMapperResolution,
  *     Engine.Operation.Origin, Recycler, DocumentParsingProvider)} runs per chunk. It meters the chunk under the provider's
  *     metering model, then invokes each mapper once for the whole chunk — attaching one Lucene column per batch-wide value
  *     (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles {@link Engine.Index}
@@ -500,7 +499,7 @@ public final class ShardBatchMapper {
     public static EngineBatch mapColumnBatch(
         BulkItemRequest[] items,
         SourceBatch batch,
-        IndexShard shard,
+        BatchMappingShardContext shard,
         int chunkStart,
         int chunkEnd,
         BatchMapperResolution resolution,

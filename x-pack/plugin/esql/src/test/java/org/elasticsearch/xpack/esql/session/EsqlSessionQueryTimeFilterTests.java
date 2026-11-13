@@ -511,6 +511,7 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
         doReturn(threadPool).when(transportService).getThreadPool();
 
         return new TransportActionServices(
+            mock(Client.class),
             transportService,
             mock(SearchService.class),
             null,

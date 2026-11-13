@@ -197,7 +197,7 @@ columnar_stored returns the same source as synthetic for every field type on bot
 ---
 columnar_stored drops the null elements of every field type:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "columnar_stored keeps null array elements today, and the proposed rule drops them at indexing"
 
   - do:
@@ -224,7 +224,7 @@ columnar_stored drops the null elements of every field type:
 ---
 columnar_stored drops the null elements of every field type on the row indexing path:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "columnar_stored keeps null array elements today, and the proposed rule drops them at indexing"
 
   - do:

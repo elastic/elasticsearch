@@ -913,7 +913,7 @@ value_count counts only the values of an indexed keyword field and a date field:
 ---
 synthetic source drops the null elements of a keyword field without an index:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
 
   - do:
@@ -939,7 +939,7 @@ synthetic source drops the null elements of a keyword field without an index:
 ---
 synthetic source drops the null elements of an indexed keyword field:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
 
   - do:
@@ -965,7 +965,7 @@ synthetic source drops the null elements of an indexed keyword field:
 ---
 synthetic source drops the null elements of a text field:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
 
   - do:
@@ -991,7 +991,7 @@ synthetic source drops the null elements of a text field:
 ---
 synthetic source drops the null elements of a long field:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
 
   - do:
@@ -1017,7 +1017,7 @@ synthetic source drops the null elements of a long field:
 ---
 synthetic source drops the null elements of a date field:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
 
   - do:

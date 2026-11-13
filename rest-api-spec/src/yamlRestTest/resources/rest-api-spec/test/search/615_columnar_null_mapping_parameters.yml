@@ -158,7 +158,7 @@ synthetic source keeps substituted, empty and malformed values:
 ---
 synthetic source drops the null elements of a keyword field that also holds an empty string:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
 
   - do:

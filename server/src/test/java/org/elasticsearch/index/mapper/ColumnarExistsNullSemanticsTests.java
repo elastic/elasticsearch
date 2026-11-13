@@ -77,32 +77,32 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
         assertExistsMatchesOnlyDocumentsWithANonNullValue("boolean", () -> randomBoolean());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
     public void testKeywordSyntheticSourceDropsNullElements() throws IOException {
         assertSyntheticSourceDropsNullElements("keyword", () -> randomAlphaOfLengthBetween(1, 8));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
     public void testTextSyntheticSourceDropsNullElements() throws IOException {
         assertSyntheticSourceDropsNullElements("text", () -> randomAlphaOfLengthBetween(1, 8));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
     public void testLongSyntheticSourceDropsNullElements() throws IOException {
         assertSyntheticSourceDropsNullElements("long", () -> randomLong());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
     public void testDateSyntheticSourceDropsNullElements() throws IOException {
         assertSyntheticSourceDropsNullElements("date", ColumnarExistsNullSemanticsTests::randomDate);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
     public void testIpSyntheticSourceDropsNullElements() throws IOException {
         assertSyntheticSourceDropsNullElements("ip", () -> NetworkAddress.format(randomIp(randomBoolean())));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
     public void testBooleanSyntheticSourceDropsNullElements() throws IOException {
         assertSyntheticSourceDropsNullElements("boolean", () -> randomBoolean());
     }

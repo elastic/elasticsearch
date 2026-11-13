@@ -168,7 +168,7 @@ exists matches only documents with a non-null value on an indexed keyword field 
 ---
 synthetic source drops the null elements of an indexed keyword field:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
 
   - do:
@@ -191,7 +191,7 @@ synthetic source drops the null elements of an indexed keyword field:
 ---
 synthetic source drops the null elements of a long field:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
 
   - do:

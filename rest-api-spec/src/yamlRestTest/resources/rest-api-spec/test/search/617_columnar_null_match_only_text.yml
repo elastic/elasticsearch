@@ -325,7 +325,7 @@ exists hits, size 0 total and count agree on a match_only_text field after a mer
 ---
 synthetic source drops the null elements of a match_only_text field:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
 
   - do:

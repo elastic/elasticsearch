@@ -10362,6 +10362,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(e.getMessage(), containsString("has non-literal value [scale]"));
     }
 
+    public void testDecayInvalidScaleFailsVerification() {
+        var query = """
+            FROM employees
+            | EVAL decay_result = decay(salary, 0, 0)
+            | KEEP decay_result
+            | LIMIT 5""";
+
+        Exception e = expectThrows(VerificationException.class, () -> logicalOptimizer.optimize(defaultAnalyzer().query(query)));
+        assertThat(e.getMessage(), containsString("[scale] must be a finite number greater than 0, found [0.0]"));
+    }
+
     /**
      * {@snippet lang="text":
      * Project[[languages{f}#8, language_code{f}#16, language_name{f}#17]]

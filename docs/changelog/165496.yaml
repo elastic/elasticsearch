@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165496
+summary: Compute `AVG` of a `long` with an exact 128-bit sum, reading the values without materializing them
+type: enhancement

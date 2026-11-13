@@ -800,9 +800,21 @@ public class LocalExecutionPlanner {
         EsStatsQueryExec.Stat stat = statsQuery.stat();
 
         EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
+        if (stat instanceof EsStatsQueryExec.LongSumCountStat longSumCount) {
+            LuceneOperator.Factory sumCountFactory = esProvider.sumCountLongSource(context, statsQuery, longSumCount);
+            Layout.Builder sumCountLayout = new Layout.Builder();
+            for (Attribute attribute : statsQuery.output()) {
+                sumCountLayout.append(attribute);
+            }
+            context.driverParallelism(
+                new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, Math.max(1, sumCountFactory.taskConcurrency()))
+            );
+            return PhysicalOperation.fromSource(sumCountFactory, sumCountLayout.build());
+        }
         var queryFunction = switch (stat) {
             case EsStatsQueryExec.BasicStat basic -> esProvider.querySupplierForField(basic.filter(statsQuery.query()), basic.name());
             case EsStatsQueryExec.ByStat byStat -> esProvider.querySupplier(byStat.queryBuilderAndTags());
+            case EsStatsQueryExec.LongSumCountStat ignored -> throw new IllegalStateException("handled above");
         };
         final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, queryFunction, stat.tagTypes(), statsQuery.limit());
 

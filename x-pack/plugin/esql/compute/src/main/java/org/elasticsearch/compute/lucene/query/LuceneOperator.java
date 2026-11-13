@@ -532,6 +532,22 @@ public abstract class LuceneOperator extends SourceOperator {
         }
 
         /**
+         * The end, exclusive, of the range of the leaf this scorer is to visit. May be {@link Integer#MAX_VALUE} for whole-leaf
+         * partitions, so callers that need a doc id have to clamp it to the {@code maxDoc} of the leaf.
+         */
+        int maxPosition() {
+            return maxPosition;
+        }
+
+        /**
+         * Moves on to {@code newPosition} for callers that visit the docs without going through {@link #scoreNextRange}.
+         */
+        void advanceTo(int newPosition) {
+            assert newPosition >= position && newPosition <= maxPosition : position + " -> " + newPosition + " of " + maxPosition;
+            position = newPosition;
+        }
+
+        /**
          * Tags to add to the data returned by this query.
          */
         List<Object> tags() {

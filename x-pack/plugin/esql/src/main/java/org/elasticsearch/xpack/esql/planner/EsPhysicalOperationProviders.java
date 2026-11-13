@@ -25,6 +25,7 @@ import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSumCountLongOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
@@ -94,6 +95,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -798,6 +800,34 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             context.queryPragmas().taskConcurrency(),
             tagTypes,
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
+            directoryBytesRead,
+            context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
+            singleValueQueryWarnings
+        );
+    }
+
+    /**
+     * Build a {@link SourceOperator.SourceOperatorFactory} that sums and counts the values of a {@code long} field without building
+     * a page of them, see {@link LuceneSumCountLongOperator}.
+     */
+    public LuceneSumCountLongOperator.Factory sumCountLongSource(
+        LocalExecutionPlannerContext context,
+        EsStatsQueryExec statsQuery,
+        EsStatsQueryExec.LongSumCountStat stat
+    ) {
+        ValuesSourceReaderOperator.FieldInfo field = extractFields(
+            statsQuery,
+            List.of(stat.field()),
+            attribute -> MappedFieldType.FieldExtractPreference.DOC_VALUES
+        ).getFirst();
+        return new LuceneSumCountLongOperator.Factory(
+            shardContexts,
+            querySupplier(stat.queryBuilderAndTags()),
+            context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
+            // The same threshold as the source of a plain STATS, which this replaces.
+            context.queryPragmas().docsThresholdForAutoPartitioning(plannerSettings.docsThresholdForAutoPartitioning()),
+            context.queryPragmas().taskConcurrency(),
+            field,
             directoryBytesRead,
             context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
             singleValueQueryWarnings

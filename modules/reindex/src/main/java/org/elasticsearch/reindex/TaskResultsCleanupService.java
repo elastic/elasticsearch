@@ -131,7 +131,8 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         this.threadPool = threadPool;
         this.clientWithOrigin = clientWithOrigin;
         clusterService.getClusterSettings().initializeAndWatch(TASK_RESULTS_RETENTION_PERIOD_SETTING, v -> this.retentionPeriod = v);
-        clusterService.getClusterSettings().initializeAndWatch(TASK_RESULTS_CLEANUP_INTERVAL_SETTING, v -> {
+        this.cleanupInterval = clusterService.getClusterSettings().get(TASK_RESULTS_CLEANUP_INTERVAL_SETTING);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(TASK_RESULTS_CLEANUP_INTERVAL_SETTING, v -> {
             boolean isCleanupEnabledBefore = isCleanupEnabled();
             this.cleanupInterval = v;
             boolean isCleanupEnabledAfter = isCleanupEnabled();

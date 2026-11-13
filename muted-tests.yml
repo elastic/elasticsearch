@@ -622,3 +622,8 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSlowTranslogUploadIsHedged
   issue: https://github.com/elastic/elasticsearch/issues/165850
+- class: org.elasticsearch.benchmark.index.mapper.batch.ShardIndexingBenchmarkTests
+  tasks:
+  - :benchmarks:test
+  method: testBenchmarkLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/165852

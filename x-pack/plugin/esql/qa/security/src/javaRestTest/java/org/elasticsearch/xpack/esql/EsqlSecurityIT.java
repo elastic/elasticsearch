@@ -3358,13 +3358,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         refresh("nr-security");
 
         String total = "FROM nr-security | EVAL total = NESTED(SUM(items.price * items.quantity)) | STATS amount = SUM(total)";
-        if (indexSettings().isEmpty() == false) {
-            ResponseException rejected = expectThrows(ResponseException.class, () -> runESQLCommand("test-admin", total));
-            assertThat(rejected.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
-            assertThat(EntityUtils.toString(rejected.getResponse().getEntity()), containsString("stored, unfiltered"));
-            return;
-        }
-
         Response admin = runESQLCommand("test-admin", total);
         assertOK(admin);
         @SuppressWarnings("unchecked")

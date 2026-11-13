@@ -145,6 +145,11 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
         assertEquals(expectedRows(c -> c > 5), filtered.rows());
         assertEquals("statistics admit every row group", filtered.status().rowGroupsTotal(), filtered.status().rowGroupsKept());
         assertThat(filtered.status().rowGroupsTotal(), greaterThanOrEqualTo(3L));
+        assertEquals(
+            "the dictionary level is skipped for every row group",
+            filtered.status().rowGroupsTotal(),
+            filtered.status().rowGroupsDictionaryFilterSkipped()
+        );
         assertThat(
             "filtered open must not add a synchronous dictionary GET per row group; baseline=" + baselineSync,
             filtered.syncGets(),
@@ -161,6 +166,7 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
         long baselineSync = readAll(file, null).syncGets();
         ReadResult filtered = readAll(file, valueGreaterThan(codeToValue(5)));
         assertEquals(expectedRows(c -> c > 5), filtered.rows());
+        assertEquals(0L, filtered.status().rowGroupsDictionaryFilterSkipped());
         assertThat(filtered.syncGets(), lessThanOrEqualTo(baselineSync));
     }
 
@@ -179,6 +185,7 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
             filtered.status().rowGroupsKept(),
             lessThan(filtered.status().rowGroupsTotal())
         );
+        assertEquals(0L, filtered.status().rowGroupsDictionaryFilterSkipped());
         assertThat(filtered.syncGets(), lessThanOrEqualTo(baselineSync));
     }
 
@@ -193,6 +200,7 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
         ReadResult filtered = readAll(file, valueEquals(codeToValue(RARE_CODE)));
         assertEquals(expectedRows(c -> c == RARE_CODE), filtered.rows());
         assertEquals(filtered.status().rowGroupsTotal(), filtered.status().rowGroupsKept());
+        assertEquals(filtered.status().rowGroupsTotal(), filtered.status().rowGroupsDictionaryFilterSkipped());
         assertThat(filtered.syncGets(), lessThanOrEqualTo(baselineSync));
     }
 

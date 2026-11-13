@@ -3117,38 +3117,66 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         if (FilterCompat.isFilteringRequired(recordFilter) == false) {
             return null;
         }
-        boolean[] flags = new boolean[blocks.size()];
-        int dictionaryLevelSkipped = 0;
-        for (int i = 0; i < blocks.size(); i++) {
-            BlockMetaData block = blocks.get(i);
-            List<RowGroupFilter.FilterLevel> levels;
+        // Split the blocks by level list and filter each partition in one call: parquet-mr's
+        // RowGroupFilter handles the blocks it is given independently and in order, so two calls
+        // over the partitions are equivalent to one call over the whole list, without the per-block
+        // list, visitor and predicate validation that a call per row group would cost on large files.
+        List<BlockMetaData> withDictionary = new ArrayList<>(blocks.size());
+        List<BlockMetaData> withoutDictionary = new ArrayList<>();
+        for (BlockMetaData block : blocks) {
             if (predicateColumnPaths == null || dictionaryFilterLevelApplies(block, predicateColumnPaths, preWarmedChunks)) {
-                levels = ALL_ROW_GROUP_FILTER_LEVELS;
+                withDictionary.add(block);
             } else {
-                levels = ROW_GROUP_FILTER_LEVELS_WITHOUT_DICTIONARY;
-                dictionaryLevelSkipped++;
+                withoutDictionary.add(block);
             }
-            // parquet-mr's RowGroupFilter loops over the blocks it is given, so filtering one block
-            // at a time with its own level list is equivalent to one call over the whole list.
-            flags[i] = RowGroupFilter.filterRowGroups(levels, recordFilter, List.of(block), reader).isEmpty() == false;
         }
-        if (dictionaryLevelSkipped > 0) {
+        boolean[] flags = new boolean[blocks.size()];
+        markSurvivors(blocks, filterRowGroups(ALL_ROW_GROUP_FILTER_LEVELS, recordFilter, withDictionary, reader), flags);
+        markSurvivors(blocks, filterRowGroups(ROW_GROUP_FILTER_LEVELS_WITHOUT_DICTIONARY, recordFilter, withoutDictionary, reader), flags);
+        if (withoutDictionary.isEmpty() == false) {
             logger.debug(
                 "Skipped DICTIONARY row-group filtering for [{}] of [{}] row groups in [{}]: "
                     + "dictionary pages of the predicate columns were not pre-warmed",
-                dictionaryLevelSkipped,
+                withoutDictionary.size(),
                 blocks.size(),
                 fileLocation
             );
         }
         // parquet-mr's RowGroupFilter returns only the combined survivor set, not which level
-        // (stats / dictionary / bloom) rejected a group, so we track total and kept only.
+        // (stats / dictionary / bloom) rejected a group, so per-level rejections are not tracked;
+        // the groups the DICTIONARY level did not run on at all are.
         if (counters != null) {
             for (int i = 0; i < blocks.size(); i++) {
                 counters.addRowGroupFiltered(flags[i]);
             }
+            counters.addRowGroupsDictionaryFilterSkipped(withoutDictionary.size());
         }
         return flags;
+    }
+
+    private static List<BlockMetaData> filterRowGroups(
+        List<RowGroupFilter.FilterLevel> levels,
+        FilterCompat.Filter recordFilter,
+        List<BlockMetaData> blocks,
+        ParquetFileReader reader
+    ) {
+        return blocks.isEmpty() ? List.of() : RowGroupFilter.filterRowGroups(levels, recordFilter, blocks, reader);
+    }
+
+    /**
+     * Sets {@code flags[i]} for every block of {@code blocks} present in {@code kept}. {@code kept} is
+     * a subsequence of {@code blocks} (RowGroupFilter preserves order), so identity-comparing with
+     * one forward cursor maps each survivor to its ordinal without relying on {@code equals()}.
+     */
+    private static void markSurvivors(List<BlockMetaData> blocks, List<BlockMetaData> kept, boolean[] flags) {
+        int keptIdx = 0;
+        for (int i = 0; i < blocks.size() && keptIdx < kept.size(); i++) {
+            if (kept.get(keptIdx) == blocks.get(i)) {
+                flags[i] = true;
+                keptIdx++;
+            }
+        }
+        assert keptIdx == kept.size() : "row-group filter returned a block that is not in the input";
     }
 
     /**

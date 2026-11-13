@@ -118,8 +118,10 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -127,6 +129,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -200,6 +203,7 @@ import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.action.MockDataSourceRequest;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -283,6 +287,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private AuditTrail auditTrail;
     private AuditTrailService auditTrailService;
     private ClusterService clusterService;
+    private FeatureService featureService;
     private AuthorizationService authorizationService;
     private ThreadContext threadContext;
     private ThreadPool threadPool;
@@ -307,6 +312,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
+        featureService = mock(FeatureService.class);
         final Settings settings = Settings.builder()
             .put("cluster.remote.other_cluster.seeds", "localhost:9999")
             .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
@@ -374,6 +380,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             rolesStore,
             fieldPermissionsCache,
             clusterService,
+            featureService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
@@ -1419,6 +1426,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             rolesStore,
             fieldPermissionsCache,
             clusterService,
+            featureService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
@@ -1506,6 +1514,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             rolesStore,
             fieldPermissionsCache,
             clusterService,
+            featureService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
@@ -1563,6 +1572,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             rolesStore,
             fieldPermissionsCache,
             clusterService,
+            featureService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
@@ -1948,6 +1958,66 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(securityException, throwableWithMessage(containsString(", this action is granted by the index privileges [read,all]")));
     }
 
+    public void testMandatoryTimestampExclusionDeniesReadOnlyWhenFeatureEnabled() {
+        final String index = "logs-" + randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT);
+        final RoleDescriptor role = new RoleDescriptor(
+            "timestamp_excluding",
+            null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices(index).privileges("read").grantedFields("*").deniedFields("@timestamp").build() },
+            null
+        );
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("timestamp_user", role.getName()));
+        mockClusterState(
+            ProjectMetadata.builder(projectId)
+                .put(
+                    IndexMetadata.builder(index)
+                        .settings(
+                            Settings.builder()
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                .put(IndexSettings.MODE.getKey(), "logsdb")
+                        )
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .build(),
+                    true
+                )
+                .build()
+        );
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.FLS_MANDATORY_TIMESTAMP))).thenReturn(false);
+        final SearchRequest allowed = new SearchRequest(index);
+        authorize(authentication, TransportSearchAction.TYPE.name(), allowed);
+        verify(auditTrail).accessGranted(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(allowed),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.FLS_MANDATORY_TIMESTAMP))).thenReturn(true);
+        final SearchRequest denied = new SearchRequest(index);
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), denied)
+        );
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(
+            e,
+            throwableWithMessage(containsString("on indices [" + index + "] because field level security excludes [@timestamp]"))
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(denied),
+            authzInfoRoles(new String[] { role.getName() })
+        );
+    }
+
     public void testDenialErrorMessagesForBulkIngest() throws Exception {
         final String index = randomAlphaOfLengthBetween(5, 12);
         RoleDescriptor role = new RoleDescriptor(
@@ -2144,6 +2214,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             rolesStore,
             fieldPermissionsCache,
             clusterService,
+            featureService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
@@ -2199,6 +2270,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             rolesStore,
             fieldPermissionsCache,
             clusterService,
+            featureService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
@@ -3797,6 +3869,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             rolesStore,
             fieldPermissionsCache,
             clusterService,
+            featureService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
@@ -3962,6 +4035,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             rolesStore,
             fieldPermissionsCache,
             clusterService,
+            featureService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,
@@ -4314,6 +4388,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             rolesStore,
             fieldPermissionsCache,
             clusterService,
+            featureService,
             auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool,

@@ -650,17 +650,28 @@ public interface AuthorizationEngine {
                 return null;
             } else {
                 assert indicesAccessControl != null;
+                final Set<String> timestampExcludedIndices = indicesAccessControl.getTimestampExcludedIndices();
                 String[] indices = RequestInfo.indices(requestInfo.getRequest());
                 if (indices == null
                     || indices.length == 0
                     || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
-                    return null;
+                    return timestampExcludedIndices.isEmpty() ? null : getTimestampExclusionDescription(timestampExcludedIndices);
                 }
                 Set<String> deniedIndices = Arrays.stream(indices)
                     .filter(index -> false == indicesAccessControl.hasIndexPermissions(index))
                     .collect(Collectors.toSet());
+                if (deniedIndices.isEmpty() && timestampExcludedIndices.isEmpty() == false) {
+                    return getTimestampExclusionDescription(timestampExcludedIndices);
+                }
                 return getFailureDescription(deniedIndices, restrictedIndices);
             }
+        }
+
+        private static String getTimestampExclusionDescription(Set<String> timestampExcludedIndices) {
+            return "on indices ["
+                + String.join(",", timestampExcludedIndices.stream().sorted().toList())
+                + "] because field level security excludes [@timestamp], which is always visible on data stream backing indices "
+                + "and on indices whose index mode requires it";
         }
 
         public static String getFailureDescription(Collection<String> deniedIndices, RestrictedIndices restrictedNames) {

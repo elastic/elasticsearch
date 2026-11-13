@@ -1,0 +1,27 @@
+area: Authorization
+breaking:
+  area: Authorization
+  title: Field level security always shows `@timestamp` on data streams and timestamp-based index modes
+  details: >-
+    Field level security now always shows `@timestamp` on data stream backing
+    indices and on `time_series`, `logsdb` and `logsdb_columnar` indices.
+    Failure store indices are not affected. A role whose `grant` list does not
+    include `@timestamp` can now read it on these indices. A role whose
+    `except` list matches `@timestamp`, for example `@timestamp` or `@*`, can
+    no longer read these indices. When a user has several roles, a role that
+    grants `@timestamp` restores access. For an API key, the rule applies to
+    the key and to its owner. Other indices are not affected.
+  impact: >-
+    Read requests, such as search, get and ES|QL, from roles and API keys whose
+    `except` list matches `@timestamp` fail with a security exception on these
+    indices. Background tasks that use these credentials, such as transforms,
+    ML datafeeds and watches, can fail too. To restore access, remove
+    `@timestamp` from the `except` list.
+  notable: false
+issues:
+  - 163725
+pr: 165786
+summary: Always show `@timestamp` under field level security on data streams and
+  timestamp-based index modes, which fixes a wrong `_id` in search results and an
+  ES|QL `METADATA _id` failure for roles that hide it
+type: bug

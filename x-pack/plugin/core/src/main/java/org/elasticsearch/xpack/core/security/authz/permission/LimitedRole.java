@@ -140,14 +140,22 @@ public final class LimitedRole implements Role {
         String action,
         Set<String> requestedIndicesOrAliases,
         ProjectMetadata metadata,
-        FieldPermissionsCache fieldPermissionsCache
+        FieldPermissionsCache fieldPermissionsCache,
+        boolean mandatoryTimestamp
     ) {
-        IndicesAccessControl indicesAccessControl = baseRole.authorize(action, requestedIndicesOrAliases, metadata, fieldPermissionsCache);
+        IndicesAccessControl indicesAccessControl = baseRole.authorize(
+            action,
+            requestedIndicesOrAliases,
+            metadata,
+            fieldPermissionsCache,
+            mandatoryTimestamp
+        );
         IndicesAccessControl limitedByIndicesAccessControl = limitedByRole.authorize(
             action,
             requestedIndicesOrAliases,
             metadata,
-            fieldPermissionsCache
+            fieldPermissionsCache,
+            mandatoryTimestamp
         );
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }

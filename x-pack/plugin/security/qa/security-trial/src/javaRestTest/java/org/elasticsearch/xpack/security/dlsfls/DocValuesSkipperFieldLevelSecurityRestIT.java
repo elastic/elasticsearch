@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.dlsfls;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -30,12 +29,10 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class DocValuesSkipperFieldLevelSecurityRestIT extends SecurityOnTrialLicenseRestTestCase {
 
@@ -48,162 +45,143 @@ public class DocValuesSkipperFieldLevelSecurityRestIT extends SecurityOnTrialLic
     private static final long START = 1767225600000L;
     private static final int NUM_DOCS = 5;
 
-    public void testSortAscendingOnHiddenTimestampReturnsMissingValues() throws IOException {
+    public void testSortAscendingOnUngrantedTimestampReturnsValues() throws IOException {
         createLogsIndex();
         createUsers();
         final String body = """
             {"size": 3, "track_total_hits": true, "sort": [{"@timestamp": "asc"}]}""";
 
-        final ObjectPath unrestricted = search(UNRESTRICTED_USER, body);
-        assertThat(unrestricted.evaluate("hits.total.value"), equalTo(NUM_DOCS));
-        assertThat(sortValues(unrestricted), equalTo(List.of(timestamp(1), timestamp(2), timestamp(3))));
-
-        final ObjectPath restricted = search(RESTRICTED_USER, body);
-        assertThat(restricted.evaluate("hits.total.value"), equalTo(NUM_DOCS));
-        assertThat(sortValues(restricted), equalTo(List.of(Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE)));
+        for (String user : List.of(UNRESTRICTED_USER, RESTRICTED_USER)) {
+            final ObjectPath response = search(user, body);
+            assertThat(user, response.evaluate("hits.total.value"), equalTo(NUM_DOCS));
+            assertThat(user, sortValues(response), equalTo(List.of(timestamp(1), timestamp(2), timestamp(3))));
+        }
     }
 
-    public void testSortDescendingOnHiddenTimestampReturnsMissingValues() throws IOException {
+    public void testSortDescendingOnUngrantedTimestampReturnsValues() throws IOException {
         createLogsIndex();
         createUsers();
         final String body = """
             {"size": 3, "track_total_hits": true, "sort": [{"@timestamp": "desc"}]}""";
 
-        final ObjectPath unrestricted = search(UNRESTRICTED_USER, body);
-        assertThat(unrestricted.evaluate("hits.total.value"), equalTo(NUM_DOCS));
-        assertThat(sortValues(unrestricted), equalTo(List.of(timestamp(5), timestamp(4), timestamp(3))));
-
-        final ObjectPath restricted = search(RESTRICTED_USER, body);
-        assertThat(restricted.evaluate("hits.total.value"), equalTo(NUM_DOCS));
-        assertThat(sortValues(restricted), equalTo(List.of(Long.MIN_VALUE, Long.MIN_VALUE, Long.MIN_VALUE)));
+        for (String user : List.of(UNRESTRICTED_USER, RESTRICTED_USER)) {
+            final ObjectPath response = search(user, body);
+            assertThat(user, response.evaluate("hits.total.value"), equalTo(NUM_DOCS));
+            assertThat(user, sortValues(response), equalTo(List.of(timestamp(5), timestamp(4), timestamp(3))));
+        }
     }
 
-    public void testMaxAggregationOnHiddenTimestampReturnsNull() throws IOException {
+    public void testMetricAggregationsOnUngrantedTimestampReturnValues() throws IOException {
         createLogsIndex();
         createUsers();
-        final String body = timestampAggregation("max");
+        final Map<String, Object> expected = Map.of(
+            "max",
+            (double) timestamp(5),
+            "min",
+            (double) timestamp(1),
+            "avg",
+            (double) timestamp(3),
+            "value_count",
+            NUM_DOCS,
+            "cardinality",
+            NUM_DOCS
+        );
 
-        assertThat(search(UNRESTRICTED_USER, body).evaluate("aggregations.a.value"), equalTo((double) timestamp(5)));
-        assertThat(search(RESTRICTED_USER, body).evaluate("aggregations.a.value"), nullValue());
+        for (String user : List.of(UNRESTRICTED_USER, RESTRICTED_USER)) {
+            for (Map.Entry<String, Object> aggregation : expected.entrySet()) {
+                assertThat(
+                    user + " " + aggregation.getKey(),
+                    search(user, timestampAggregation(aggregation.getKey())).evaluate("aggregations.a.value"),
+                    equalTo(aggregation.getValue())
+                );
+            }
+        }
     }
 
-    public void testMinAggregationOnHiddenTimestampReturnsNull() throws IOException {
-        createLogsIndex();
-        createUsers();
-        final String body = timestampAggregation("min");
-
-        assertThat(search(UNRESTRICTED_USER, body).evaluate("aggregations.a.value"), equalTo((double) timestamp(1)));
-        assertThat(search(RESTRICTED_USER, body).evaluate("aggregations.a.value"), nullValue());
-    }
-
-    public void testAvgAggregationOnHiddenTimestampReturnsNull() throws IOException {
-        createLogsIndex();
-        createUsers();
-        final String body = timestampAggregation("avg");
-
-        assertThat(search(UNRESTRICTED_USER, body).evaluate("aggregations.a.value"), equalTo((double) timestamp(3)));
-        assertThat(search(RESTRICTED_USER, body).evaluate("aggregations.a.value"), nullValue());
-    }
-
-    public void testValueCountOnHiddenTimestampReturnsZero() throws IOException {
-        createLogsIndex();
-        createUsers();
-        final String body = timestampAggregation("value_count");
-
-        assertThat(search(UNRESTRICTED_USER, body).evaluate("aggregations.a.value"), equalTo(NUM_DOCS));
-        assertThat(search(RESTRICTED_USER, body).evaluate("aggregations.a.value"), equalTo(0));
-    }
-
-    public void testCardinalityOnHiddenTimestampReturnsZero() throws IOException {
-        createLogsIndex();
-        createUsers();
-        final String body = timestampAggregation("cardinality");
-
-        assertThat(search(UNRESTRICTED_USER, body).evaluate("aggregations.a.value"), equalTo(NUM_DOCS));
-        assertThat(search(RESTRICTED_USER, body).evaluate("aggregations.a.value"), equalTo(0));
-    }
-
-    public void testPercentilesOnHiddenTimestampReturnNull() throws IOException {
+    public void testPercentilesOnUngrantedTimestampReturnValues() throws IOException {
         createLogsIndex();
         createUsers();
         final String body = """
             {"size": 0, "aggs": {"a": {"percentiles": {"field": "@timestamp", "percents": [25, 50, 75]}}}}""";
 
-        final Map<String, Object> unrestricted = search(UNRESTRICTED_USER, body).evaluate("aggregations.a.values");
-        for (String percent : List.of("25.0", "50.0", "75.0")) {
-            assertThat(
-                percent,
-                ((Number) unrestricted.get(percent)).doubleValue(),
-                allOf(greaterThanOrEqualTo((double) timestamp(1)), lessThanOrEqualTo((double) timestamp(5)))
-            );
+        for (String user : List.of(UNRESTRICTED_USER, RESTRICTED_USER)) {
+            final Map<String, Object> values = search(user, body).evaluate("aggregations.a.values");
+            for (String percent : List.of("25.0", "50.0", "75.0")) {
+                assertThat(
+                    user + " " + percent,
+                    ((Number) values.get(percent)).doubleValue(),
+                    allOf(greaterThanOrEqualTo((double) timestamp(1)), lessThanOrEqualTo((double) timestamp(5)))
+                );
+            }
         }
-
-        final Map<String, Object> restricted = search(RESTRICTED_USER, body).evaluate("aggregations.a.values");
-        assertThat(restricted.keySet(), equalTo(Set.of("25.0", "50.0", "75.0")));
-        assertThat(new ArrayList<>(restricted.values()), equalTo(Arrays.asList(null, null, null)));
     }
 
-    public void testDateHistogramOnHiddenTimestampHasNoBuckets() throws IOException {
+    public void testDateHistogramOnUngrantedTimestampHasBuckets() throws IOException {
         createLogsIndex();
         createUsers();
         final String body = """
             {"size": 0, "aggs": {"a": {"date_histogram": {"field": "@timestamp", "calendar_interval": "day"}}}}""";
 
-        final ObjectPath unrestricted = search(UNRESTRICTED_USER, body);
-        assertThat(unrestricted.evaluate("aggregations.a.buckets"), hasSize(1));
-        assertThat(unrestricted.evaluate("aggregations.a.buckets.0.key_as_string"), equalTo("2026-01-01T00:00:00.000Z"));
-        assertThat(unrestricted.evaluate("aggregations.a.buckets.0.doc_count"), equalTo(NUM_DOCS));
-
-        assertThat(search(RESTRICTED_USER, body).evaluate("aggregations.a.buckets"), equalTo(List.of()));
+        for (String user : List.of(UNRESTRICTED_USER, RESTRICTED_USER)) {
+            final ObjectPath response = search(user, body);
+            assertThat(user, response.evaluate("aggregations.a.buckets"), hasSize(1));
+            assertThat(user, response.evaluate("aggregations.a.buckets.0.key_as_string"), equalTo("2026-01-01T00:00:00.000Z"));
+            assertThat(user, response.evaluate("aggregations.a.buckets.0.doc_count"), equalTo(NUM_DOCS));
+        }
     }
 
-    public void testDocValueFieldsOmitsHiddenTimestamp() throws IOException {
+    public void testDocValueFieldsReturnUngrantedTimestamp() throws IOException {
         createLogsIndex();
         createUsers();
         final String body = """
             {"size": 10, "_source": false, "docvalue_fields": ["@timestamp"]}""";
 
-        assertThat(
-            hitValues(search(UNRESTRICTED_USER, body), "fields.@timestamp.0"),
-            containsInAnyOrder(
-                "2026-01-01T00:00:01.000Z",
-                "2026-01-01T00:00:02.000Z",
-                "2026-01-01T00:00:03.000Z",
-                "2026-01-01T00:00:04.000Z",
-                "2026-01-01T00:00:05.000Z"
-            )
-        );
-        assertThat(hitValues(search(RESTRICTED_USER, body), "fields"), equalTo(Collections.nCopies(NUM_DOCS, null)));
+        for (String user : List.of(UNRESTRICTED_USER, RESTRICTED_USER)) {
+            assertThat(
+                user,
+                hitValues(search(user, body), "fields.@timestamp.0"),
+                containsInAnyOrder(
+                    "2026-01-01T00:00:01.000Z",
+                    "2026-01-01T00:00:02.000Z",
+                    "2026-01-01T00:00:03.000Z",
+                    "2026-01-01T00:00:04.000Z",
+                    "2026-01-01T00:00:05.000Z"
+                )
+            );
+        }
     }
 
-    public void testScriptSeesNoHiddenTimestampValues() throws IOException {
+    public void testScriptSeesUngrantedTimestampValues() throws IOException {
         createLogsIndex();
         createUsers();
         final String body = """
             {"size": 10, "_source": false, "script_fields": {"s": {"script": "doc['@timestamp'].size()"}}}""";
 
-        assertThat(hitValues(search(UNRESTRICTED_USER, body), "fields.s.0"), equalTo(Collections.nCopies(NUM_DOCS, 1)));
-        assertThat(hitValues(search(RESTRICTED_USER, body), "fields.s.0"), equalTo(Collections.nCopies(NUM_DOCS, 0)));
+        for (String user : List.of(UNRESTRICTED_USER, RESTRICTED_USER)) {
+            assertThat(user, hitValues(search(user, body), "fields.s.0"), equalTo(Collections.nCopies(NUM_DOCS, 1)));
+        }
     }
 
-    public void testTimestampRangeDoesNotMatchHiddenValues() throws IOException {
+    public void testRangeOnUngrantedTimestampMatchesValues() throws IOException {
         createLogsIndex();
         createUsers();
         final String body = Strings.format("""
             {"size": 0, "track_total_hits": true, "query": {"range": {"@timestamp": {"gte": %d}}}}""", timestamp(2));
 
-        assertThat(search(UNRESTRICTED_USER, body).evaluate("hits.total.value"), equalTo(4));
-        assertThat(search(RESTRICTED_USER, body).evaluate("hits.total.value"), equalTo(0));
+        for (String user : List.of(UNRESTRICTED_USER, RESTRICTED_USER)) {
+            assertThat(user, search(user, body).evaluate("hits.total.value"), equalTo(4));
+        }
     }
 
-    public void testTimestampExistsDoesNotMatchHiddenValues() throws IOException {
+    public void testExistsOnUngrantedTimestampMatchesValues() throws IOException {
         createLogsIndex();
         createUsers();
         final String body = """
             {"size": 0, "track_total_hits": true, "query": {"exists": {"field": "@timestamp"}}}""";
 
-        assertThat(search(UNRESTRICTED_USER, body).evaluate("hits.total.value"), equalTo(NUM_DOCS));
-        assertThat(search(RESTRICTED_USER, body).evaluate("hits.total.value"), equalTo(0));
+        for (String user : List.of(UNRESTRICTED_USER, RESTRICTED_USER)) {
+            assertThat(user, search(user, body).evaluate("hits.total.value"), equalTo(NUM_DOCS));
+        }
     }
 
     public void testSortOnHiddenKeywordReturnsMissingValues() throws IOException {
@@ -261,41 +239,32 @@ public class DocValuesSkipperFieldLevelSecurityRestIT extends SecurityOnTrialLic
         assertThat(fieldNames(timestampOnly), equalTo(Collections.nCopies(3, Set.of("@timestamp"))));
     }
 
-    public void testShardSkippingDoesNotDependOnHiddenValues() throws IOException {
+    public void testShardSkippingUsesUngrantedTimestamp() throws IOException {
         createFourShardLogsIndex();
         createUsers();
         final String matchingRange = timestampRange(START, START + DAY);
         final String nonMatchingRange = timestampRange(START - 10 * DAY, START - 9 * DAY);
 
-        final ObjectPath unrestrictedMatching = preFilteredSearch(UNRESTRICTED_USER, matchingRange);
-        final ObjectPath unrestrictedNonMatching = preFilteredSearch(UNRESTRICTED_USER, nonMatchingRange);
-        assertThat(unrestrictedMatching.evaluate("hits.total.value"), equalTo(1));
-        assertThat(unrestrictedMatching.evaluate("_shards.skipped"), equalTo(3));
-        assertThat(unrestrictedNonMatching.evaluate("hits.total.value"), equalTo(0));
-        assertThat(unrestrictedNonMatching.evaluate("_shards.skipped"), equalTo(4));
-
-        final ObjectPath restrictedMatching = preFilteredSearch(RESTRICTED_USER, matchingRange);
-        final ObjectPath restrictedNonMatching = preFilteredSearch(RESTRICTED_USER, nonMatchingRange);
-        assertThat(restrictedMatching.evaluate("hits.total.value"), equalTo(0));
-        assertThat(restrictedNonMatching.evaluate("hits.total.value"), equalTo(0));
-        assertThat(
-            "skipped shards must not depend on hidden values",
-            restrictedMatching.evaluate("_shards.skipped"),
-            equalTo(restrictedNonMatching.evaluate("_shards.skipped"))
-        );
+        for (String user : List.of(UNRESTRICTED_USER, RESTRICTED_USER)) {
+            final ObjectPath matching = preFilteredSearch(user, matchingRange);
+            final ObjectPath nonMatching = preFilteredSearch(user, nonMatchingRange);
+            assertThat(user, matching.evaluate("hits.total.value"), equalTo(1));
+            assertThat(user, matching.evaluate("_shards.skipped"), equalTo(3));
+            assertThat(user, nonMatching.evaluate("hits.total.value"), equalTo(0));
+            assertThat(user, nonMatching.evaluate("_shards.skipped"), equalTo(4));
+        }
     }
 
-    public void testEsqlRejectsHiddenTimestamp() throws IOException {
+    public void testEsqlReadsUngrantedTimestamp() throws IOException {
         createLogsIndex();
         createUsers();
         final Request esql = new Request("POST", "/_query");
         esql.setJsonEntity(Strings.format("""
-            {"query": "FROM %s | STATS min_ts = MIN(@timestamp)"}""", INDEX));
+            {"query": "FROM %s | STATS min_ts = MIN(@timestamp) | LIMIT 1"}""", INDEX));
         esql.setOptions(asUser(RESTRICTED_USER));
 
-        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(esql));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e.getMessage(), containsString("@timestamp"));
+        final ObjectPath response = assertOKAndCreateObjectPath(client().performRequest(esql));
+        assertThat(response.evaluate("values.0.0"), equalTo("2026-01-01T00:00:01.000Z"));
     }
 
     private static long timestamp(int second) {
@@ -364,6 +333,7 @@ public class DocValuesSkipperFieldLevelSecurityRestIT extends SecurityOnTrialLic
     private void createUsers() throws IOException {
         upsertRole(Strings.format("""
             {"indices": [{"names": ["%s"], "privileges": ["read"]}]}""", INDEX), "full_access");
+        // NOTE: no_fields hides host.name but still sees @timestamp, which field level security always grants on logsdb indices
         upsertRole(Strings.format("""
             {"indices": [{"names": ["%s"], "privileges": ["read"], "field_security": {"grant": []}}]}""", INDEX), "no_fields");
         createUser(UNRESTRICTED_USER, PASSWORD, List.of("full_access"));

@@ -14,6 +14,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -26,6 +27,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.index.FieldFilterLeafReader;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -47,12 +49,19 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IdLoaderTests extends ESTestCase {
+
+    private static final List<String> IDENTITY_FIELDS = List.of(
+        TimeSeriesIdFieldMapper.NAME,
+        DataStreamTimestampFieldMapper.DEFAULT_PATH,
+        TimeSeriesRoutingHashFieldMapper.NAME
+    );
 
     private final int routingHash = randomInt();
 
@@ -256,6 +265,92 @@ public class IdLoaderTests extends ESTestCase {
         return IdLoader.createTsIdLoader(indexRouting, List.of(routingPath), false);
     }
 
+    public void testSynthesizeIdWithUnavailableIdentityDocValues() throws Exception {
+        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
+        List<Doc> docs = List.of(new Doc(startTime, List.of(new Dimension("dim1", "aaa"))));
+        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
+            LeafReader reader = getOnlyLeafReader(indexReader);
+            assertUnavailableIdentityDocValuesFail(IdLoader.createTsIdLoader(null, null, false), IDENTITY_FIELDS, reader);
+            assertUnavailableIdentityDocValuesFail(IdLoader.createTsIdLoader(null, null, true), IDENTITY_FIELDS, reader);
+            assertUnavailableIdentityDocValuesFail(
+                legacyTsIdLoader("dim1"),
+                List.of(TimeSeriesIdFieldMapper.NAME, DataStreamTimestampFieldMapper.DEFAULT_PATH),
+                reader
+            );
+        };
+        prepareIndexReader(indexAndForceMerge(docs, routingHash), verify, false);
+    }
+
+    private static void assertUnavailableIdentityDocValuesFail(IdLoader idLoader, List<String> identityFields, LeafReader reader)
+        throws IOException {
+        for (String hidden : identityFields) {
+            LeafReader leafReader = new FieldFilterLeafReader(reader, Set.of(hidden), true);
+            String expectedMessage = "field [" + hidden + "] is not accessible for doc [0]";
+            Exception eager = expectThrows(IllegalStateException.class, () -> idLoader.leaf(null, leafReader, new int[] { 0 }));
+            assertThat(eager.getMessage(), containsString(expectedMessage));
+            IdLoader.Leaf lazyLeaf = idLoader.leaf(null, leafReader, null);
+            Exception lazy = expectThrows(IllegalStateException.class, () -> lazyLeaf.getId(0));
+            assertThat(lazy.getMessage(), containsString(expectedMessage));
+            Exception block = expectThrows(IllegalStateException.class, () -> blockIds(idLoader, leafReader, new int[] { 0 }));
+            assertThat(block.getMessage(), containsString("field [" + hidden + "] is not accessible in the segment"));
+        }
+    }
+
+    public void testSynthesizeIdWithMissingIdentityValue() throws Exception {
+        long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
+        Doc complete = new Doc(startTime, List.of(new Dimension("dim1", "aaa")));
+        String missing = randomFrom(IDENTITY_FIELDS);
+        CheckedConsumer<IndexWriter, IOException> buildIndex = writer -> {
+            indexDoc(writer, complete, routingHash);
+            List<IndexableField> incomplete = new ArrayList<>();
+            for (IndexableField field : identityFields(new Doc(startTime + 1, List.of(new Dimension("dim1", "bbb"))), routingHash)) {
+                if (field.name().equals(missing) == false) {
+                    incomplete.add(field);
+                }
+            }
+            writer.addDocument(incomplete);
+            writer.forceMerge(1);
+        };
+        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
+            LeafReader leafReader = getOnlyLeafReader(indexReader);
+            boolean firstDocComplete = missing.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                ? DocValues.getSortedNumeric(leafReader, missing).advanceExact(0)
+                : DocValues.getSorted(leafReader, missing).advanceExact(0);
+            int incompleteDoc = firstDocComplete ? 1 : 0;
+            int completeDoc = 1 - incompleteDoc;
+            String expectedMessage = "field [" + missing + "] is not accessible for doc [" + incompleteDoc + "]";
+            int[] docIds = new int[] { incompleteDoc };
+            for (boolean useSyntheticIds : new boolean[] { false, true }) {
+                IdLoader idLoader = IdLoader.createTsIdLoader(null, null, useSyntheticIds);
+                String expectedId = expectedId(complete, routingHash, useSyntheticIds);
+                assertThat(idLoader.leaf(null, leafReader, new int[] { completeDoc }).getId(completeDoc), equalTo(expectedId));
+                assertThat(idLoader.leaf(null, leafReader, null).getId(completeDoc), equalTo(expectedId));
+                assertThat(blockIds(idLoader, leafReader, new int[] { completeDoc }), equalTo(List.of(expectedId)));
+
+                Exception eager = expectThrows(IllegalStateException.class, () -> idLoader.leaf(null, leafReader, docIds));
+                assertThat(eager.getMessage(), containsString(expectedMessage));
+                IdLoader.Leaf lazyLeaf = idLoader.leaf(null, leafReader, null);
+                Exception lazy = expectThrows(IllegalStateException.class, () -> lazyLeaf.getId(incompleteDoc));
+                assertThat(lazy.getMessage(), containsString(expectedMessage));
+                Exception block = expectThrows(IllegalStateException.class, () -> blockIds(idLoader, leafReader, docIds));
+                assertThat(block.getMessage(), containsString(expectedMessage));
+            }
+        };
+        prepareIndexReader(buildIndex, verify, false);
+    }
+
+    private static List<String> blockIds(IdLoader idLoader, LeafReader reader, int[] docIds) throws IOException {
+        BlockLoader loader = idLoader.blockLoader(ByteSizeValue.ofKb(1));
+        try (var blockReader = loader.columnAtATimeReader(reader.getContext()).apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))) {
+            TestBlock block = (TestBlock) blockReader.read(TestBlock.factory(), TestBlock.docs(docIds), 0, false);
+            List<String> ids = new ArrayList<>();
+            for (int i = 0; i < block.size(); i++) {
+                ids.add(((BytesRef) block.get(i)).utf8ToString());
+            }
+            return ids;
+        }
+    }
+
     private static CheckedConsumer<IndexWriter, IOException> indexAndForceMerge(List<Doc> docs, int routingHash) {
         return writer -> {
             for (Doc doc : docs) {
@@ -293,6 +388,10 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     private static void indexDoc(IndexWriter iw, Doc doc, int routingHash) throws IOException {
+        iw.addDocument(identityFields(doc, routingHash));
+    }
+
+    private static List<IndexableField> identityFields(Doc doc, int routingHash) {
         var routingFields = new RoutingPathFields(null);
 
         final List<IndexableField> fields = new ArrayList<>();
@@ -315,7 +414,7 @@ public class IdLoaderTests extends ESTestCase {
                 Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash))
             )
         );
-        iw.addDocument(fields);
+        return fields;
     }
 
     private static String expectedId(Doc doc, int routingHash, boolean useSyntheticIds) {

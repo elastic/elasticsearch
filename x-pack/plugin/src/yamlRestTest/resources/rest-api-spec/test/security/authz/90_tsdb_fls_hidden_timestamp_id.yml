@@ -1,6 +1,8 @@
 setup:
   - requires:
       test_runner_features: headers
+      cluster_features: [ "fls_mandatory_timestamp" ]
+      reason: "@timestamp is mandatory visible metadata under field level security on time series indices"
 
   - do:
       indices.create:
@@ -56,6 +58,29 @@ setup:
             "roles": [ "no_timestamp_role" ]
           }
 
+  - do:
+      security.put_role:
+        name: "excluding_timestamp_role"
+        body: >
+          {
+            "indices": [
+              {
+                "names": ["tsdb"],
+                "privileges": ["read"],
+                "field_security": { "grant": ["*"], "except": ["@timestamp"] }
+              }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "tsdb_excluding_user"
+        body: >
+          {
+            "password": "x-pack-test-password",
+            "roles": [ "excluding_timestamp_role" ]
+          }
+
 ---
 teardown:
   - do:
@@ -68,8 +93,18 @@ teardown:
         name: "no_timestamp_role"
         ignore: 404
 
+  - do:
+      security.delete_user:
+        username: "tsdb_excluding_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "excluding_timestamp_role"
+        ignore: 404
+
 ---
-"GET with the indexed _id when field level security hides @timestamp":
+"GET with the indexed _id when field level security omits @timestamp":
   - do:
       search:
         index: tsdb
@@ -82,10 +117,11 @@ teardown:
         id: $indexed_id
   - match: { found: true }
   - match: { _id: $indexed_id }
-  - is_false: _source.@timestamp
+  - match: { _source.@timestamp: "2026-01-01T00:00:00.000Z" }
+  - match: { _source.host: "h1" }
 
 ---
-"GET with the _id returned by search when field level security hides @timestamp":
+"GET with the _id returned by search when field level security omits @timestamp":
   - do:
       search:
         index: tsdb
@@ -96,30 +132,64 @@ teardown:
       search:
         index: tsdb
   - length: { hits.hits: 1 }
-  - is_false: hits.hits.0._source.@timestamp
-  - set: { hits.hits.0._id: returned_id }
-  # Fails: the returned _id is built from timestamp 0.
-  # With assertions enabled, as on test clusters, the search above fails first and the node exits.
   - match: { hits.hits.0._id: $indexed_id }
+  - match: { hits.hits.0._source.@timestamp: "2026-01-01T00:00:00.000Z" }
 
-  # Fails: GET with the returned _id returns found: false.
   - do:
       headers: { Authorization: "Basic dHNkYl91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # tsdb_user
       get:
         index: tsdb
-        id: $returned_id
+        id: $indexed_id
   - match: { found: true }
   - match: { _id: $indexed_id }
-  - is_false: _source.@timestamp
 
 ---
-"ES|QL METADATA _id when field level security hides @timestamp":
-  # TODO: https://github.com/elastic/elasticsearch/issues/163725 ES|QL currently fails with a NullPointerException in
-  # IdLoader. Once fixed, expect one row with the indexed _id and host "h1" instead of the error.
+"ES|QL METADATA _id when field level security omits @timestamp":
   - do:
-      catch: /null_pointer_exception/
+      search:
+        index: tsdb
+  - set: { hits.hits.0._id: indexed_id }
+
+  - do:
       headers: { Authorization: "Basic dHNkYl91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # tsdb_user
       esql.query:
         body:
           query: 'FROM tsdb METADATA _id | KEEP _id, host | LIMIT 10'
-  - match: { status: 500 }
+  - length: { values: 1 }
+  - match: { values.0.0: $indexed_id }
+  - match: { values.0.1: "h1" }
+
+---
+"Search fails when field level security excludes @timestamp":
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dHNkYl9leGNsdWRpbmdfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # tsdb_excluding_user
+      search:
+        index: tsdb
+  - match: { error.type: "security_exception" }
+  - match: { error.reason: "/on\\ indices\\ \\[tsdb\\]\\ because\\ field\\ level\\ security\\ excludes\\ \\[@timestamp\\]/" }
+
+---
+"GET fails when field level security excludes @timestamp":
+  - do:
+      search:
+        index: tsdb
+  - set: { hits.hits.0._id: indexed_id }
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dHNkYl9leGNsdWRpbmdfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # tsdb_excluding_user
+      get:
+        index: tsdb
+        id: $indexed_id
+  - match: { error.type: "security_exception" }
+
+---
+"ES|QL fails when field level security excludes @timestamp":
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dHNkYl9leGNsdWRpbmdfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # tsdb_excluding_user
+      esql.query:
+        body:
+          query: 'FROM tsdb METADATA _id | KEEP _id, host | LIMIT 10'
+  - match: { error.type: "security_exception" }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAct
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -68,11 +71,19 @@ public final class IndicesPermission {
 
     private static final Set<String> PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE = Set.of("create", "create_doc", "index", "write");
 
+    private static final String READ_ACTION_PREFIX = "indices:data/read/";
+
+    // NOTE: excluding `_*` keeps metadata fields that a role hides hidden when this is unioned with the role's field permissions
+    private static final FieldPermissions TIMESTAMP_ONLY = new FieldPermissions(
+        new FieldPermissionsDefinition(new String[] { DataStream.TIMESTAMP_FIELD_NAME }, new String[] { "_*" })
+    );
+
     private final Map<String, IsResourceAuthorizedPredicate> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
     private final RestrictedIndices restrictedIndices;
     private final Group[] groups;
     private final boolean hasFieldOrDocumentLevelSecurity;
+    private final boolean hasTimestampExclusion;
 
     public static class Builder {
 
@@ -132,6 +143,7 @@ public final class IndicesPermission {
         this.groups = groups;
         this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups).noneMatch(Group::isTotal)
             && Arrays.stream(groups).anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
+        this.hasTimestampExclusion = Arrays.stream(groups).anyMatch(g -> g.excludesTimestamp);
     }
 
     /**
@@ -623,6 +635,24 @@ public final class IndicesPermission {
         ProjectMetadata metadata,
         FieldPermissionsCache fieldPermissionsCache
     ) {
+        return authorize(action, requestedIndicesOrAliases, metadata, fieldPermissionsCache, false);
+    }
+
+    /**
+     * Authorizes the provided action against the provided indices, given the current cluster metadata. When
+     * {@code mandatoryTimestamp} is {@code true}, {@code @timestamp} is mandatory visible metadata on the indices accepted by
+     * {@link #isMandatoryTimestampIndex}: field level security that omits it still grants it, and field level security that
+     * explicitly excludes it keeps it hidden and reports the index in {@link IndicesAccessControl#getTimestampExcludedIndices()}.
+     * A read action ({@code indices:data/read/*}) is then denied, so that no read can return a document of such an index, while
+     * other actions keep {@code @timestamp} hidden.
+     */
+    public IndicesAccessControl authorize(
+        String action,
+        Set<String> requestedIndicesOrAliases,
+        ProjectMetadata metadata,
+        FieldPermissionsCache fieldPermissionsCache,
+        boolean mandatoryTimestamp
+    ) {
         // Short circuit if the indicesPermission allows all access to every index
         for (Group group : groups) {
             if (group.isTotal()) {
@@ -653,23 +683,59 @@ public final class IndicesPermission {
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getFailureIndices(metadata)));
 
-        final Supplier<Map<String, IndicesAccessControl.IndexAccessControl>> indexPermissions = () -> buildIndicesAccessControl(
-            action,
-            resources,
-            finalTotalResourceCount,
-            fieldPermissionsCache,
-            failureIndicesByResourceName
+        final ProjectMetadata mandatoryTimestampMetadata = mandatoryTimestamp && hasFieldOrDocumentLevelSecurity ? metadata : null;
+        final CachedSupplier<ResolvedIndexAccessControls> resolved = CachedSupplier.wrap(
+            () -> buildIndicesAccessControl(
+                action,
+                resources,
+                finalTotalResourceCount,
+                fieldPermissionsCache,
+                failureIndicesByResourceName,
+                mandatoryTimestampMetadata
+            )
         );
 
-        return new IndicesAccessControl(overallGranted, indexPermissions);
+        if (mandatoryTimestampMetadata != null && hasTimestampExclusion) {
+            final boolean granted = overallGranted
+                && (action.startsWith(READ_ACTION_PREFIX) == false || resolved.get().timestampExcludedIndices().isEmpty());
+            return new IndicesAccessControl(
+                granted,
+                () -> resolved.get().indexPermissions(),
+                () -> resolved.get().timestampExcludedIndices()
+            );
+        }
+        return new IndicesAccessControl(overallGranted, () -> resolved.get().indexPermissions());
     }
 
-    private Map<String, IndicesAccessControl.IndexAccessControl> buildIndicesAccessControl(
+    private record ResolvedIndexAccessControls(
+        Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions,
+        Set<String> timestampExcludedIndices
+    ) {}
+
+    /**
+     * True if {@code @timestamp} is mandatory visible metadata on the concrete index {@code name}: the index is a backing index of a
+     * data stream, or its index mode {@link IndexMode#requiresTimestamp()}. Failure store indices never qualify.
+     */
+    static boolean isMandatoryTimestampIndex(String name, ProjectMetadata metadata) {
+        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(name);
+        if (indexAbstraction == null || indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
+            return false;
+        }
+        if (indexAbstraction.getParentDataStream() != null) {
+            return indexAbstraction.isFailureIndexOfDataStream() == false;
+        }
+        final IndexMetadata indexMetadata = metadata.index(name);
+        final IndexMode indexMode = indexMetadata == null ? null : indexMetadata.getIndexMode();
+        return indexMode != null && indexMode.requiresTimestamp();
+    }
+
+    private ResolvedIndexAccessControls buildIndicesAccessControl(
         final String action,
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
         final FieldPermissionsCache fieldPermissionsCache,
-        final Map<String, List<Index>> failureIndicesByIndexResource
+        final Map<String, List<Index>> failureIndicesByIndexResource,
+        @Nullable final ProjectMetadata mandatoryTimestampMetadata
     ) {
 
         // now... every index that is associated with the request, must be granted
@@ -697,7 +763,7 @@ public final class IndicesPermission {
             }
         }
 
-        return resolveIndexAccessControls(grantedResources, accessByIndex, fieldPermissionsCache);
+        return resolveIndexAccessControls(grantedResources, accessByIndex, fieldPermissionsCache, mandatoryTimestampMetadata);
     }
 
     /**
@@ -753,6 +819,7 @@ public final class IndicesPermission {
         boolean queriesCopied = false;
         boolean allowAllDocuments = false;
         boolean hasExplicitDlsFls = false;
+        boolean excludesTimestamp = false;
 
         for (Group group : groups) {
             // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
@@ -799,28 +866,49 @@ public final class IndicesPermission {
                     // indices of a resource are matched by the same groups, so OR-ing here and
                     // propagating to each of them is equivalent to deciding it index by index.
                     hasExplicitDlsFls |= false == group.implicitlyGranted() && (group.hasQuery() || fp.hasFieldLevelSecurity());
+                    excludesTimestamp |= group.excludesTimestamp;
                 }
             }
         }
-        return granted ? new IndexAccess(fieldPermissions, allowAllDocuments, queries, hasExplicitDlsFls) : null;
+        return granted ? new IndexAccess(fieldPermissions, allowAllDocuments, queries, hasExplicitDlsFls, excludesTimestamp) : null;
     }
 
-    /** One {@code IndexAccessControl} per granted name; names sharing an {@code IndexAccess} share the object. */
-    private static Map<String, IndicesAccessControl.IndexAccessControl> resolveIndexAccessControls(
+    /**
+     * One {@code IndexAccessControl} per granted name; names sharing an {@code IndexAccess} share the object. A non-null
+     * {@code mandatoryTimestampMetadata} applies the mandatory {@code @timestamp} rule of
+     * {@link #authorize(String, Set, ProjectMetadata, FieldPermissionsCache, boolean)}.
+     */
+    private static ResolvedIndexAccessControls resolveIndexAccessControls(
         Set<String> grantedResources,
         Map<String, IndexAccess> accessByIndex,
-        FieldPermissionsCache fieldPermissionsCache
+        FieldPermissionsCache fieldPermissionsCache,
+        @Nullable ProjectMetadata mandatoryTimestampMetadata
     ) {
         final Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = Maps.newMapWithExpectedSize(grantedResources.size());
+        final Set<String> timestampExcludedIndices = new HashSet<>();
         for (String index : grantedResources) {
             final IndexAccess access = accessByIndex.get(index);
             // A granted name that resolved to no index has no IndexAccess and stays unrestricted, as before.
-            indexPermissions.put(
-                index,
-                access == null ? IndicesAccessControl.IndexAccessControl.ALLOW_ALL : access.toIndexAccessControl(fieldPermissionsCache)
-            );
+            if (access == null) {
+                indexPermissions.put(index, IndicesAccessControl.IndexAccessControl.ALLOW_ALL);
+                continue;
+            }
+            IndicesAccessControl.IndexAccessControl indexAccessControl = access.toIndexAccessControl(fieldPermissionsCache);
+            if (mandatoryTimestampMetadata != null
+                && indexAccessControl.getFieldPermissions().grantsAccessTo(DataStream.TIMESTAMP_FIELD_NAME) == false
+                && isMandatoryTimestampIndex(index, mandatoryTimestampMetadata)) {
+                // NOTE: an exclusion from any matching group wins over a group that only omits @timestamp from its grant list,
+                // so the omission does not make it visible. Only a group whose grant matches @timestamp cancels the exclusion,
+                // because then the union of the field permissions already grants it and this branch is not reached.
+                if (access.excludesTimestamp) {
+                    timestampExcludedIndices.add(index);
+                } else {
+                    indexAccessControl = access.toIndexAccessControlWithTimestamp(fieldPermissionsCache);
+                }
+            }
+            indexPermissions.put(index, indexAccessControl);
         }
-        return unmodifiableMap(indexPermissions);
+        return new ResolvedIndexAccessControls(unmodifiableMap(indexPermissions), Collections.unmodifiableSet(timestampExcludedIndices));
     }
 
     /**
@@ -1050,6 +1138,7 @@ public final class IndicesPermission {
         // declared in a role. Implicit groups are excluded from DLS/FLS license enforcement and
         // feature-usage tracking; see IndicesPermission#authorize and IndicesAccessControl.
         private final boolean implicitlyGranted;
+        private final boolean excludesTimestamp;
 
         public Group(
             IndexPrivilege privilege,
@@ -1077,7 +1166,20 @@ public final class IndicesPermission {
                 );
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
+            this.excludesTimestamp = excludesField(fieldPermissions, DataStream.TIMESTAMP_FIELD_NAME);
             this.query = query;
+        }
+
+        private static boolean excludesField(FieldPermissions fieldPermissions, String field) {
+            for (FieldPermissionsDefinition definition : fieldPermissions.getFieldPermissionsDefinitions()) {
+                for (FieldPermissionsDefinition.FieldGrantExcludeGroup group : definition.getFieldGrantExcludeGroups()) {
+                    String[] excludedFields = group.getExcludedFields();
+                    if (excludedFields != null && excludedFields.length > 0 && Automatons.predicate(excludedFields).test(field)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         public IndexPrivilege privilege() {
@@ -1175,14 +1277,19 @@ public final class IndicesPermission {
         private final Set<BytesReference> queries;
         /** A group declared in the role contributed DLS or FLS; decides {@code dlsFlsImplicit}. */
         private final boolean hasExplicitDlsFls;
+        /** A matching group's field level security explicitly excludes {@code @timestamp}. */
+        private final boolean excludesTimestamp;
         @Nullable
         private IndicesAccessControl.IndexAccessControl indexAccessControl;
+        @Nullable
+        private IndicesAccessControl.IndexAccessControl indexAccessControlWithTimestamp;
 
         IndexAccess(
             Set<FieldPermissions> fieldPermissions,
             boolean allowAllDocuments,
             @Nullable Set<BytesReference> queries,
-            boolean hasExplicitDlsFls
+            boolean hasExplicitDlsFls,
+            boolean excludesTimestamp
         ) {
             assert fieldPermissions.isEmpty() == false : "granted access carries at least one group's field permissions";
             assert allowAllDocuments == (queries == null) : "queries are tracked only while documents are restricted";
@@ -1190,6 +1297,7 @@ public final class IndicesPermission {
             this.allowAllDocuments = allowAllDocuments;
             this.queries = queries;
             this.hasExplicitDlsFls = hasExplicitDlsFls;
+            this.excludesTimestamp = excludesTimestamp;
         }
 
         /**
@@ -1208,7 +1316,8 @@ public final class IndicesPermission {
                 Sets.union(a.fieldPermissions, b.fieldPermissions),
                 allowAllDocuments,
                 allowAllDocuments ? null : Sets.union(a.queries, b.queries),
-                a.hasExplicitDlsFls || b.hasExplicitDlsFls
+                a.hasExplicitDlsFls || b.hasExplicitDlsFls,
+                a.excludesTimestamp || b.excludesTimestamp
             );
         }
 
@@ -1216,7 +1325,8 @@ public final class IndicesPermission {
         private boolean covers(IndexAccess other) {
             return fieldPermissions.containsAll(other.fieldPermissions)
                 && (allowAllDocuments || (other.allowAllDocuments == false && queries.containsAll(other.queries)))
-                && (hasExplicitDlsFls || other.hasExplicitDlsFls == false);
+                && (hasExplicitDlsFls || other.hasExplicitDlsFls == false)
+                && (excludesTimestamp || other.excludesTimestamp == false);
         }
 
         IndicesAccessControl.IndexAccessControl toIndexAccessControl(FieldPermissionsCache fieldPermissionsCache) {
@@ -1224,6 +1334,19 @@ public final class IndicesPermission {
                 indexAccessControl = buildIndexAccessControl(fieldPermissionsCache);
             }
             return indexAccessControl;
+        }
+
+        /** The same access control as {@link #toIndexAccessControl}, with {@code @timestamp} added to the granted fields. */
+        IndicesAccessControl.IndexAccessControl toIndexAccessControlWithTimestamp(FieldPermissionsCache fieldPermissionsCache) {
+            if (indexAccessControlWithTimestamp == null) {
+                final IndicesAccessControl.IndexAccessControl base = toIndexAccessControl(fieldPermissionsCache);
+                indexAccessControlWithTimestamp = new IndicesAccessControl.IndexAccessControl(
+                    fieldPermissionsCache.union(Sets.union(fieldPermissions, Set.of(TIMESTAMP_ONLY))),
+                    base.getDocumentPermissions(),
+                    base.isDlsFlsImplicit()
+                );
+            }
+            return indexAccessControlWithTimestamp;
         }
 
         private IndicesAccessControl.IndexAccessControl buildIndexAccessControl(FieldPermissionsCache fieldPermissionsCache) {

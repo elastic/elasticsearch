@@ -91,6 +91,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.INDE
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 import static org.elasticsearch.index.SliceIndexing.SLICE_MISSING_EXCEPTION_VERSION;
+import static org.elasticsearch.index.engine.DocValuesUpdateBaseNotPresentException.DOC_VALUES_UPDATE_BASE_NOT_PRESENT_EXCEPTION_VERSION;
 import static org.elasticsearch.index.engine.OCCNotSupportedException.OCC_NOT_SUPPORTED_EXCEPTION_VERSION;
 import static org.elasticsearch.index.reindex.TaskRelocatedException.TASK_RELOCATED_EXCEPTION_VERSION;
 import static org.elasticsearch.indices.recovery.RecoveryCancelledException.RECOVERY_CANCELLED_EXCEPTION_VERSION;
@@ -2225,6 +2226,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.snapshots.ShardRestoringException::new,
             198,
             SHARD_RESTORING_EXCEPTION_VERSION
+        ),
+        DOC_VALUES_UPDATE_BASE_NOT_PRESENT_EXCEPTION(
+            org.elasticsearch.index.engine.DocValuesUpdateBaseNotPresentException.class,
+            org.elasticsearch.index.engine.DocValuesUpdateBaseNotPresentException::new,
+            199,
+            DOC_VALUES_UPDATE_BASE_NOT_PRESENT_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

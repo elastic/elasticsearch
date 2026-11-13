@@ -9,8 +9,11 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
@@ -23,6 +26,7 @@ final class CombinedDocValues {
     private final NumericDocValues seqNoDV;
     private final NumericDocValues primaryTermDV;
     private final NumericDocValues tombstoneDV;
+    private final BinaryDocValues docValuesUpdateDV;
     private final NumericDocValues recoverySource;
     private final NumericDocValues recoverySourceSize;
 
@@ -34,6 +38,7 @@ final class CombinedDocValues {
             "PrimaryTermDV is missing"
         );
         this.tombstoneDV = leafReader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
+        this.docValuesUpdateDV = leafReader.getBinaryDocValues(ParsedDocument.DOC_VALUES_UPDATE_FIELD);
         this.recoverySource = leafReader.getNumericDocValues(SourceFieldMapper.RECOVERY_SOURCE_NAME);
         this.recoverySourceSize = leafReader.getNumericDocValues(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME);
     }
@@ -72,6 +77,23 @@ final class CombinedDocValues {
         }
         assert tombstoneDV.docID() < segmentDocId;
         return tombstoneDV.advanceExact(segmentDocId) && tombstoneDV.longValue() > 0;
+    }
+
+    boolean isDocValuesUpdate(int segmentDocId) throws IOException {
+        if (docValuesUpdateDV == null) {
+            return false;
+        }
+        assert docValuesUpdateDV.docID() < segmentDocId;
+        return docValuesUpdateDV.advanceExact(segmentDocId);
+    }
+
+    /**
+     * The serialized field-update payload for a doc-values-update history document. Must only be called for a document for which
+     * {@link #isDocValuesUpdate(int)} returned true, after advancing to it. Returns a copy safe to retain.
+     */
+    BytesRef docValuesUpdatePayload(int segmentDocId) throws IOException {
+        assert docValuesUpdateDV != null && docValuesUpdateDV.docID() == segmentDocId;
+        return BytesRef.deepCopyOf(docValuesUpdateDV.binaryValue());
     }
 
     boolean hasRecoverySource(int segmentDocId) throws IOException {

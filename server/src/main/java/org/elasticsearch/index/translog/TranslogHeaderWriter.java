@@ -180,4 +180,19 @@ public final class TranslogHeaderWriter {
         buffer.writeInt(operationSize);
         buffer.seek(end);
     }
+
+    // No fast page-based path: doc-values updates carry a variable-length list of field updates and are rare relative to
+    // index/delete/no-op, so the generic size-backpatching write is enough.
+    public static void writeDocValuesUpdateHeader(RecyclerBytesStreamOutput buffer, Translog.DocValuesUpdate update) throws IOException {
+        final long start = buffer.position();
+        buffer.skip(Integer.BYTES);
+        buffer.writeByte(Translog.Record.Type.DOC_VALUES_UPDATE.id());
+        update.writeHeader(Translog.DocValuesUpdate.EXPERIMENTAL_PRE_RELEASE, buffer);
+        final long end = buffer.position();
+        // The total operation size is the header size + 4 bytes for checksum
+        final int operationSize = (int) (end - Integer.BYTES - start) + Integer.BYTES;
+        buffer.seek(start);
+        buffer.writeInt(operationSize);
+        buffer.seek(end);
+    }
 }

@@ -107,6 +107,33 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
+    protected DocValuesUpdateStrategy docValuesUpdateStrategyForOperation(final DocValuesUpdate docValuesUpdate) throws IOException {
+        preFlight(docValuesUpdate);
+        if (docValuesUpdate.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(docValuesUpdate)) {
+            // See the comment in #indexingStrategyForOperation for why an already-processed operation is safely skipped. The result
+            // carries UNASSIGNED_SEQ_NO, exactly as IndexingStrategy#skipDueToVersionConflict does, so the engine neither records a no-op
+            // nor re-marks the (already processed) sequence number.
+            final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
+                shardId,
+                docValuesUpdate.seqNo(),
+                lookupPrimaryTerm(docValuesUpdate.seqNo())
+            );
+            final DocValuesUpdateResult skip = new DocValuesUpdateResult(
+                error,
+                docValuesUpdate.version(),
+                docValuesUpdate.primaryTerm(),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                docValuesUpdate.id()
+            );
+            return new DocValuesUpdateStrategy(docValuesUpdate, null, skip);
+        }
+        // A leader-assigned operation has PRIMARY origin but is a replayed operation: reuse its leader sequence number (the leader
+        // already ran the optimistic-concurrency check) and resolve it against the live document, as a replica operation does.
+        advanceMaxSeqNo(docValuesUpdate.seqNo());
+        return new DocValuesUpdateStrategy(docValuesUpdate, planDocValuesUpdateAsNonPrimary(docValuesUpdate), null);
+    }
+
+    @Override
     protected Optional<Exception> preFlightCheckForNoOp(NoOp noOp) throws IOException {
         if (noOp.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(noOp)) {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.

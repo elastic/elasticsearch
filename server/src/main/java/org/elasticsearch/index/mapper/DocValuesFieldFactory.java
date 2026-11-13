@@ -53,7 +53,8 @@ public class DocValuesFieldFactory {
     /**
      * Adds a numeric doc values field as {@link SortedNumericDocValuesField}. Always uses the multi-valued Lucene type
      * regardless of the {@code multi_value} setting, so that index-sort ({@code SortedNumericSortField}) works correctly
-     * at segment-merge time for {@code multi_value=false} fields.
+     * at segment-merge time for {@code multi_value=false} fields. An updatable field uses the same type: Lucene updates a
+     * single-valued {@code SORTED_NUMERIC} column in place via {@code IndexWriter#updateDocValues}.
      */
     public void addNumericField(LuceneDocument doc, String name, long value) {
         doc.add(hasSkipper ? SortedNumericDocValuesField.indexedField(name, value) : new SortedNumericDocValuesField(name, value));

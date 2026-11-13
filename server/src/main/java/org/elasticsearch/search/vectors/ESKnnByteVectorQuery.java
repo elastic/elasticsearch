@@ -16,9 +16,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TimeLimitingKnnCollectorManager;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.elasticsearch.lucene.store.ThreadConfinedArena;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -186,5 +189,11 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
             base = new SeededRetryCollectorManager(base, seedDocsPerLeaf, field);
         }
         return earlyTermination ? PatienceCollectorManager.wrap(base) : base;
+    }
+
+    @Override
+    protected TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, TimeLimitingKnnCollectorManager knnCollectorManager)
+        throws IOException {
+        return ThreadConfinedArena.withConfinedArena(() -> super.searchLeaf(ctx, filterWeight, knnCollectorManager));
     }
 }

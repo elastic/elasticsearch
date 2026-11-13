@@ -31,6 +31,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.lucene.store.ThreadConfinedArena;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -401,6 +402,10 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             }
             assert innerRewritten.getClass() != MatchAllDocsQuery.class;
 
+            return ThreadConfinedArena.withConfinedArena(() -> rescore(indexSearcher, innerRewritten));
+        }
+
+        private KnnScoreDocQuery rescore(IndexSearcher indexSearcher, Query innerRewritten) throws IOException {
             DocAndFloatFeatureBuffer buffer = new DocAndFloatFeatureBuffer();
             List<ScoreDoc> results = new ArrayList<>(10);
 

@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.persistence.JobScopedDeleteCheck;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
@@ -110,6 +111,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs, indicesToQuery);
         request.setParentTask(getParentTaskId());
 
+        JobScopedDeleteCheck.logIfNotJobScoped(job.getId(), request);
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {

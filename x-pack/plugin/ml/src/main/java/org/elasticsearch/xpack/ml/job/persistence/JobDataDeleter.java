@@ -164,6 +164,7 @@ public class JobDataDeleter {
         // _doc is the most efficient sort order and will also disable scoring
         deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
+        JobScopedDeleteCheck.logIfNotJobScoped(jobId, deleteByQueryRequest);
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
     }
 
@@ -252,7 +253,9 @@ public class JobDataDeleter {
         ActionListener<Boolean> listener,
         int attempt
     ) {
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, requestSupplier.get(), ActionListener.wrap(response -> {
+        DeleteByQueryRequest request = requestSupplier.get();
+        JobScopedDeleteCheck.logIfNotJobScoped(jobId, request);
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
             if (hasSearchContextMissingFailure(response)) {
                 if (attempt < MAX_DELETE_SCROLL_CONTEXT_ATTEMPTS) {
                     scheduleDeleteByQueryRetry(requestSupplier, listener, attempt + 1);
@@ -380,6 +383,7 @@ public class JobDataDeleter {
         // _doc is the most efficient sort order and will also disable scoring
         dbqRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
+        JobScopedDeleteCheck.logIfNotJobScoped(jobId, dbqRequest);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.execute(DeleteByQueryAction.INSTANCE, dbqRequest).get();
         } catch (Exception e) {
@@ -611,6 +615,7 @@ public class JobDataDeleter {
                 .setAbortOnVersionConflict(false)
                 .setRefresh(true);
 
+            JobScopedDeleteCheck.logIfNotJobScoped(jobId, request);
             executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, listener);
         }, listener::onFailure);
 
@@ -692,6 +697,7 @@ public class JobDataDeleter {
             .setAbortOnVersionConflict(false)
             .setRefresh(true);
 
+        JobScopedDeleteCheck.logIfNotJobScoped(jobId, request);
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
@@ -729,6 +735,7 @@ public class JobDataDeleter {
             .setAbortOnVersionConflict(false)
             .setRefresh(true);
 
+        JobScopedDeleteCheck.logIfNotJobScoped(jobId, request);
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
             // If we successfully deleted a document try the next one; if not we're done
             if (response.getDeleted() > 0) {

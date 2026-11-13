@@ -65,7 +65,8 @@ public final class Case extends EsqlScalarFunction {
             "single_value_list_condition",
             "partial_fold_multivalue_warning",
             "standard_multivalue_message",
-            "multivalue_warning_names_function"
+            "multivalue_warning_names_function",
+            "partial_fold_all_null_arms"
         )
         .name("case");
 
@@ -435,7 +436,7 @@ public final class Case extends EsqlScalarFunction {
         for (Condition condition : conditions) {
             if (condition.condition.foldable() == false) {
                 newChildren.add(condition.condition);
-                newChildren.add(condition.value);
+                newChildren.add(typedNull(condition.value));
                 continue;
             }
             modified = true;
@@ -455,7 +456,7 @@ public final class Case extends EsqlScalarFunction {
                  * the same. In those cases we fold the entire condition
                  * away, returning just what ever’s remaining in the CASE.
                  */
-                newChildren.add(condition.value);
+                newChildren.add(typedNull(condition.value));
                 return finishPartialFold(newChildren);
             }
         }
@@ -463,7 +464,7 @@ public final class Case extends EsqlScalarFunction {
             return this;
         }
         if (elseValueIsExplicit()) {
-            newChildren.add(elseValue);
+            newChildren.add(typedNull(elseValue));
         }
         return finishPartialFold(newChildren);
     }
@@ -480,17 +481,32 @@ public final class Case extends EsqlScalarFunction {
         return switch (newChildren.size()) {
             // CASE(false, a) -> NULL
             case 0 -> new Literal(source(), null, dataType());
-            // CASE(false, a, b) -> b, casting a NULL arm to dataType() so callers see KEYWORD, not NULL.
-            case 1 -> {
-                Expression child = newChildren.getFirst();
-                if (child.dataType() == NULL && dataType() != NULL) {
-                    yield new Literal(child.source(), null, dataType());
-                }
-                yield child;
-            }
+            // CASE(false, a, b) -> b
+            case 1 -> newChildren.getFirst();
             // CASE(false, a, b, c, d) -> CASE(b, c, d)
             default -> replaceChildren(newChildren);
         };
+    }
+
+    /**
+     * Give a {@code NULL} typed value this {@code CASE}'s {@link #dataType()}.
+     * <p>
+     *     A rebuilt {@code CASE} works its type out again from the values it's given. So when
+     *     {@link #partiallyFold} drops the arm that carried the type, {@code CASE(false, "a", x > 0, null)}
+     *     becomes {@code CASE(x > 0, null)}, and its type would change from {@code KEYWORD} to {@code NULL}.
+     * </p>
+     * <p>
+     *     Optimizer rules must not change an expression's type. {@link #finishPartialFold} checks that
+     *     here, and {@code PostOptimizationPhasePlanVerifier} checks the plan's output. Consumers rely on it:
+     *     {@code COUNT_DISTINCT}, for example, picks its implementation from its input type and rejects
+     *     {@code NULL} with "illegal data type [null]".
+     * </p>
+     */
+    private Expression typedNull(Expression value) {
+        if (value.dataType() == NULL && dataType() != NULL) {
+            return new Literal(value.source(), null, dataType());
+        }
+        return value;
     }
 
     @Override

@@ -172,8 +172,8 @@ final class BatchModeRouter implements Releasable {
      * <p>All-or-none: if every request already has a timestamp set (producer supplied it out-of-band),
      * returns immediately. A mixed batch (some set, some not) throws.
      *
-     * @param requests the bulk request's items, in the same order as the bulk; each row-bearing
-     *                 {@link IndexRequest}'s row index is used to map it to the batch column
+     * @param requests the bulk request's items; only those whose {@link #batchKey} matches this router are
+     *                 considered, so the full request list of a multi-batch bulk can be passed
      * @throws IllegalArgumentException if {@code @timestamp} is missing, an unsupported kind,
      *                                  or a row has no value for it
      */
@@ -198,6 +198,10 @@ final class BatchModeRouter implements Releasable {
         boolean anyLacksTimestamp = false;
         for (DocWriteRequest<?> req : requests) {
             if (req instanceof IndexRequest ir && ir.indexSource().hasSourceRow()) {
+                // Items of other routers of the same bulk have overlapping row indices; skip them.
+                if (key.equals(batchKey(project.getIndicesLookup().get(ir.index()), project)) == false) {
+                    continue;
+                }
                 int rowIndex = ir.indexSource().rowIndex();
                 if (rowIndex >= 0 && rowIndex < byRow.length) {
                     byRow[rowIndex] = ir;

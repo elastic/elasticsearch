@@ -473,10 +473,11 @@ public class BulkRequest extends UntypedActionRequest
     }
 
     /**
-     * Attaches pre-built ESCF batches to this request, keyed by the write target of the index abstraction its items
-     * target: the data stream's name for a data stream or an alias over one, otherwise the name of the (write) index,
-     * so for an alias the name of its write index and not the alias itself. The request owns the batches from here on until the bulk action takes them via
-     * {@link #takePreBuiltBatches()}; while it still owns them, {@link #releasePreBuiltBatches()} lets the
+     * Attaches pre-built ESCF batches to this request, one per index abstraction its items target. Each is keyed by
+     * the write target of that abstraction: the data stream's name for a data stream or an alias over one, otherwise
+     * the name of the (write) index, so for an alias the name of its write index and not the alias itself. A bulk may
+     * carry batches for several abstractions. The request owns the batches from here on until the bulk action takes
+     * them via {@link #takePreBuiltBatches()}; while it still owns them, {@link #releasePreBuiltBatches()} lets the
      * action and the submitter release them if the request is rejected before that point. A {@link #shallowClone()}
      * shares the batches with its original, so a request must not be cloned while it still owns them.
      *

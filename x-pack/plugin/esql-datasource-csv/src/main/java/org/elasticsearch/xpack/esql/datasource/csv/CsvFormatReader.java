@@ -5766,7 +5766,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * {@link #DIRECT_SKIP}ped (Jackson-compatible, first-cell-bounded comment detection on the raw
          * {@code char[]}, no row String); a per-record size-cap violation is routed through the error
          * policy and also skipped, mirroring the recovery contract of the String path. The record, when
-         * {@link #DIRECT_DATA}, is exposed via {@code recordReader.recordBuffer()/recordLength()}.
+         * {@link #DIRECT_DATA}, is exposed via {@code recordReader.recordBuffer()/recordOffset()/recordLength()}.
          */
         private int advanceDirectRecord() throws IOException {
             try {
@@ -5783,8 +5783,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return DIRECT_SKIP;
             }
             char[] recBuf = recordReader.recordBuffer();
-            int recLen = recordReader.recordLength();
-            if (isBlankOrCommentFirstCell(recBuf, 0, recLen, options.commentPrefix(), options.delimiter())) {
+            int recFrom = recordReader.recordOffset();
+            int recTo = recFrom + recordReader.recordLength();
+            if (isBlankOrCommentFirstCell(recBuf, recFrom, recTo, options.commentPrefix(), options.delimiter())) {
                 return DIRECT_SKIP;
             }
             // The raw first-cell comment check above is exact unless decoding could move the first
@@ -5794,8 +5795,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // example {@code "//x",a}) is skipped exactly as the Jackson bulk filter skips it.
             if (directBlockQuoted
                 && hasCommentFilter
-                && firstCellMayDecodeToComment(recBuf, recLen)
-                && decodedFirstCellIsComment(recBuf, recLen)) {
+                && firstCellMayDecodeToComment(recBuf, recFrom, recTo)
+                && decodedFirstCellIsComment(recBuf, recFrom, recTo)) {
                 return DIRECT_SKIP;
             }
             return DIRECT_DATA;
@@ -5809,9 +5810,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * For the common first cell (a plain id/keyword with no leading quote or escape) the raw check
          * in {@link #advanceDirectRecord} is exact and the decode is skipped.
          */
-        private boolean firstCellMayDecodeToComment(char[] buf, int to) {
+        private boolean firstCellMayDecodeToComment(char[] buf, int from, int to) {
             final char delim = options.delimiter();
-            int p = 0;
+            int p = from;
             while (p < to && buf[p] <= ' ' && buf[p] != delim) {
                 p++;
             }
@@ -5840,14 +5841,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * test. Only invoked on the quoted path for first cells {@link #firstCellMayDecodeToComment}
          * flags, so it is off the common hot path.
          */
-        private boolean decodedFirstCellIsComment(char[] buf, int to) {
+        private boolean decodedFirstCellIsComment(char[] buf, int from, int to) {
             final String prefix = options.commentPrefix();
             final char delim = options.delimiter();
             final char quote = options.quoteChar();
             final char esc = options.escapeChar();
             final boolean escapeAware = options.escaping();
             StringBuilder cell = resetQuotedBuf();
-            int p = 0;
+            int p = from;
             while (p < to && buf[p] <= ' ' && buf[p] != delim) {
                 p++;
             }
@@ -5950,7 +5951,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (captureStripeOffsets) {
                         directOffsets[dataIdx] = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
                     }
-                    if (splitAndConvertDirect(recordReader.recordBuffer(), 0, recordReader.recordLength())) {
+                    if (splitAndConvertDirect(
+                        recordReader.recordBuffer(),
+                        recordReader.recordOffset(),
+                        recordReader.recordOffset() + recordReader.recordLength()
+                    )) {
                         if (captureStripeOffsets) {
                             directSurvived[dataIdx] = true;
                         }
@@ -5995,7 +6000,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (captureStripeOffsets) {
                         directOffsets[dataIdx] = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
                     }
-                    if (splitAndConvertDirect(recordReader.recordBuffer(), 0, recordReader.recordLength())) {
+                    if (splitAndConvertDirect(
+                        recordReader.recordBuffer(),
+                        recordReader.recordOffset(),
+                        recordReader.recordOffset() + recordReader.recordLength()
+                    )) {
                         if (useByteHint) {
                             appendStagedRowDeferringByteHint(builders);
                         } else {

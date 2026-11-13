@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165940
+summary: Scan CSV records without copying the input
+type: enhancement

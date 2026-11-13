@@ -161,6 +161,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -401,6 +402,9 @@ class NodeConstruction {
      * References for storing in a Node
      */
     private Injector injector;
+    // IndicesClusterStateService is a Guice-managed eager singleton, not yet constructible when
+    // LocalRecoveryRetriesHealthTracker is built in loadDiagnosticServices(); set once the injector exists.
+    private final SetOnce<IndicesClusterStateService> indicesClusterStateServiceRef = new SetOnce<>();
     private Environment environment;
     private NodeEnvironment nodeEnvironment;
     private PluginsService pluginsService;
@@ -1440,8 +1444,7 @@ class NodeConstruction {
                 telemetryProvider,
                 repositoriesService,
                 fileSettingsHealthTracker,
-                projectResolver,
-                indicesService
+                projectResolver
             )
         );
 
@@ -1579,6 +1582,7 @@ class NodeConstruction {
         }
 
         injector = modules.createInjector();
+        indicesClusterStateServiceRef.set(injector.getInstance(IndicesClusterStateService.class));
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }
@@ -1676,8 +1680,7 @@ class NodeConstruction {
         TelemetryProvider telemetryProvider,
         RepositoriesService repositoriesService,
         FileSettingsHealthTracker fileSettingsHealthTracker,
-        ProjectResolver projectResolver,
-        IndicesService indicesService
+        ProjectResolver projectResolver
     ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
@@ -1715,7 +1718,7 @@ class NodeConstruction {
             new DiskHealthTracker(nodeService, clusterService),
             new RepositoriesHealthTracker(repositoriesService, projectResolver),
             fileSettingsHealthTracker,
-            new LocalRecoveryRetriesHealthTracker(indicesService)
+            new LocalRecoveryRetriesHealthTracker(indicesClusterStateServiceRef::get)
         );
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, threadPool, client, healthTrackers);
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);

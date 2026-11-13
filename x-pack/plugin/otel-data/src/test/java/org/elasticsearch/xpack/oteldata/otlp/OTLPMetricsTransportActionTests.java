@@ -442,10 +442,18 @@ public class OTLPMetricsTransportActionTests extends AbstractOTLPTransportAction
             ExportMetricsServiceRequest.parseFrom(createMetricsRequest(createMetric()).getRequest().streamInput())
         );
         String target = "metrics-generic.otel-default";
-        assertTrue(
-            metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey()), groups)
+        // the deprecated key is only read when the tsdb_batch_indexing feature flag is enabled
+        assertThat(
+            metricsAction.canUseBatchIndexing(
+                true,
+                batchIndexingProject(target, IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey()),
+                groups
+            ),
+            equalTo(BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled())
         );
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+        if (BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled()) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+        }
         assertTrue(metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, IndexSettings.BATCH_INDEXING.getKey()), groups));
         assertThat(
             metricsAction.canUseBatchIndexing(true, batchIndexingProject(target, null), groups),

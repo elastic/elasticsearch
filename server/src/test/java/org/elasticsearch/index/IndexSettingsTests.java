@@ -1811,23 +1811,35 @@ public class IndexSettingsTests extends ESTestCase {
     }
 
     public void testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting() {
+        boolean flagsEnabled = BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled();
+        Settings tsdbOptOut = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), false)
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(tsdbOptOut));
+
         Settings tsdbOptIn = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
             .build();
-        assertThat(IndexSettings.BATCH_INDEXING.get(tsdbOptIn), equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled()));
+        assertThat(IndexSettings.BATCH_INDEXING.get(tsdbOptIn), equalTo(flagsEnabled));
+        // without the flags the default is false, so the deprecated setting is only read with both of them
+        if (flagsEnabled) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+        }
+    }
 
-        // an explicit opt-out through the old key overrides the strict-columnar default
+    public void testDeprecatedTimeSeriesBatchIndexingIgnoredOutsideTimeSeries() {
         Settings columnarOptOut = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
             .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), false)
             .build();
-        assertFalse(IndexSettings.BATCH_INDEXING.get(columnarOptOut));
-        // with the feature flag off the default resolves to false without reading the deprecated setting
-        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
-        }
+        assertThat(IndexSettings.BATCH_INDEXING.get(columnarOptOut), equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled()));
+
+        Settings standardOptIn = Settings.builder().put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true).build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(standardOptIn));
     }
 
     public void testBatchIndexingExplicitSettingWinsOverFallback() {
@@ -1886,7 +1898,18 @@ public class IndexSettingsTests extends ESTestCase {
         assertFalse(IndexSettingsModule.newIndexSettings("index", tsdbStored).isBatchIndexingEnabled());
     }
 
-    public void testExplicitBatchIndexingIgnoredForStoredSource() {
+    public void testDeprecatedBatchIndexingIgnoredForStoredSource() {
+        Settings tsdbStored = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(tsdbStored));
+        assertFalse(IndexSettings.isBatchIndexingEnabled(tsdbStored));
+    }
+
+    public void testExplicitBatchIndexingRejectedForStoredSource() {
         assumeTrue("setting can only be enabled with the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         Settings stored = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
@@ -1894,10 +1917,12 @@ public class IndexSettingsTests extends ESTestCase {
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
             .put(IndexSettings.BATCH_INDEXING.getKey(), true)
             .build();
-        // accepted, so forcing stored source after the fact (e.g. the synthetic source license fallback) doesn't fail index creation
-        assertTrue(IndexSettings.BATCH_INDEXING.get(stored));
-        assertFalse(IndexSettings.isBatchIndexingEnabled(stored));
-        assertFalse(IndexSettingsModule.newIndexSettings("index", stored).isBatchIndexingEnabled());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.BATCH_INDEXING.get(stored));
+        assertThat(
+            e.getMessage(),
+            equalTo("[index.batch_indexing] can't be enabled for [index.mode=time_series] indices with [index.mapping.source.mode=stored]")
+        );
+        expectThrows(IllegalArgumentException.class, () -> IndexSettingsModule.newIndexSettings("index", stored));
     }
 
     public void testExplicitBatchIndexingHonoredForStoredSourceOutsideTimeSeries() {

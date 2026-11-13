@@ -199,8 +199,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAll;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedJson;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedStats;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
@@ -687,7 +689,9 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 Delay.DEFINITION,
+                NestedStats.DEFINITION,
                 NestedAny.DEFINITION,
+                NestedAll.DEFINITION,
                 NestedJson.DEFINITION,
                 // TSTEP is new enough that we only want to expose it on snapshot builds for now.
                 TStep.DEFINITION,

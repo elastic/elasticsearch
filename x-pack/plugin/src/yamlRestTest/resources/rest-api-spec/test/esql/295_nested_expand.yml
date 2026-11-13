@@ -282,7 +282,7 @@ stats over expanded rows agree with the nested reduction:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM ne_orders | EVAL nested_total = NESTED_ANY(SUM(items.price * items.quantity)) | NESTED_EXPAND items
+        query: FROM ne_orders | EVAL nested_total = NESTED(SUM(items.price * items.quantity)) | NESTED_EXPAND items
           | STATS total = SUM(items.price * items.quantity), nested_total = MAX(nested_total) BY order_id | SORT order_id
     allowed_warnings_regex:
     - "No limit defined, adding default limit of \\[1000\\]"
@@ -455,7 +455,7 @@ another nested field still reduces on each expanded row:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM ne_orders | WHERE order_id == "b" | NESTED_EXPAND items | EVAL spans = NESTED_ANY(SUM(events.end - events.start))
+        query: FROM ne_orders | WHERE order_id == "b" | NESTED_EXPAND items | EVAL spans = NESTED(SUM(events.end - events.start))
           | KEEP items.sku, spans | SORT items.sku
     allowed_warnings_regex:
     - "No limit defined, adding default limit of \\[1000\\]"
@@ -711,7 +711,7 @@ nested reduction cannot read an expanded field:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM ne_orders | NESTED_EXPAND items | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total
+        query: FROM ne_orders | NESTED_EXPAND items | EVAL total = NESTED(SUM(items.price)) | KEEP total
 - match:
     error.type: verification_exception
 - contains:

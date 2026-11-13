@@ -104,7 +104,7 @@ public class NestedReductionsSelectionTests extends LuceneTestCase {
 
     @Before
     public void onlySnapshotBuildsRegisterNested() {
-        assumeTrue("NESTED_ANY is registered on snapshot builds", Build.current().isSnapshot());
+        assumeTrue("The nested functions are registered on snapshot builds", Build.current().isSnapshot());
     }
 
     @BeforeClass

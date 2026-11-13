@@ -1,4 +1,4 @@
-# NESTED_ANY(<aggregate> BY <child fields>) groups each parent's nested objects like STATS ... BY and returns one keyword
+# NESTED(<aggregate> BY <child fields>) groups each parent's nested objects like STATS ... BY and returns one keyword
 # per parent holding a JSON object: one level per key, sorted by key, the aggregate at the bottom. Children with a null
 # key are left out; a parent without grouped children gets null. A multivalued key counts once per value, as in STATS.
 # Grouped reductions read doc values only, never _source.
@@ -86,7 +86,7 @@ count by one key:
 - do:
     esql.query:
       body:
-        query: FROM ng_orders | EVAL by_user = NESTED_ANY(COUNT(*) BY items.user) | KEEP order_id, by_user | SORT order_id | LIMIT 10
+        query: FROM ng_orders | EVAL by_user = NESTED(COUNT(*) BY items.user) | KEEP order_id, by_user | SORT order_id | LIMIT 10
 - match:
     columns:
     - name: order_id
@@ -106,7 +106,7 @@ sum by two keys nests one level per key:
 - do:
     esql.query:
       body:
-        query: FROM ng_orders | EVAL spend = NESTED_ANY(SUM(items.price) BY items.user, items.category) | KEEP order_id, spend | SORT order_id
+        query: FROM ng_orders | EVAL spend = NESTED(SUM(items.price) BY items.user, items.category) | KEEP order_id, spend | SORT order_id
           | LIMIT 10
 - match:
     values:
@@ -121,8 +121,8 @@ count of a field, min and max by key:
 - do:
     esql.query:
       body:
-        query: FROM ng_orders | WHERE order_id IN ("a", "b") | EVAL n = NESTED_ANY(COUNT(items.price) BY items.user), lo = NESTED_ANY(MIN(items.price)
-          BY items.user), hi = NESTED_ANY(MAX(items.price) BY items.user) | KEEP order_id, n, lo, hi | SORT order_id | LIMIT 10
+        query: FROM ng_orders | WHERE order_id IN ("a", "b") | EVAL n = NESTED(COUNT(items.price) BY items.user), lo = NESTED(MIN(items.price)
+          BY items.user), hi = NESTED(MAX(items.price) BY items.user) | KEEP order_id, n, lo, hi | SORT order_id | LIMIT 10
 - match:
     values:
     - [a, '{"bob":2,"james":1}', '{"bob":10,"james":5}', '{"bob":20,"james":5}']
@@ -133,7 +133,7 @@ a multivalued key counts once per value:
 - do:
     esql.query:
       body:
-        query: FROM ng_orders | WHERE order_id == "b" | EVAL by_tag = NESTED_ANY(COUNT(*) BY items.tags) | KEEP by_tag | LIMIT 10
+        query: FROM ng_orders | WHERE order_id == "b" | EVAL by_tag = NESTED(COUNT(*) BY items.tags) | KEEP by_tag | LIMIT 10
 - match:
     values:
     - ['{"x":1,"y":1}']
@@ -143,7 +143,7 @@ one group can be read back with JSON_EXTRACT:
 - do:
     esql.query:
       body:
-        query: FROM ng_orders | WHERE order_id == "a" | EVAL by_user = NESTED_ANY(COUNT(*) BY items.user) | EVAL bob = JSON_EXTRACT(by_user,
+        query: FROM ng_orders | WHERE order_id == "a" | EVAL by_user = NESTED(COUNT(*) BY items.user) | EVAL bob = JSON_EXTRACT(by_user,
           "bob") | KEEP bob | LIMIT 10
 - match:
     values:
@@ -154,13 +154,13 @@ grouped reductions run below sort and limit:
 - do:
     esql.query:
       body:
-        query: FROM ng_orders | SORT order_id | LIMIT 1 | EVAL by_user = NESTED_ANY(COUNT(*) BY items.user) | KEEP by_user
+        query: FROM ng_orders | SORT order_id | LIMIT 1 | EVAL by_user = NESTED(COUNT(*) BY items.user) | KEEP by_user
 - match:
     values:
     - ['{"bob":2,"james":1}']
 
 ---
-BY is only allowed inside NESTED_ANY:
+BY is only allowed inside NESTED:
 - do:
     catch: bad_request
     esql.query:
@@ -169,7 +169,7 @@ BY is only allowed inside NESTED_ANY:
 - match:
     error.type: parsing_exception
 - contains:
-    error.reason: "BY is only allowed inside NESTED_ANY"
+    error.reason: "BY is only allowed inside NESTED"
 
 ---
 a grouping key must be inside the nested scope:
@@ -177,7 +177,7 @@ a grouping key must be inside the nested scope:
     catch: bad_request
     esql.query:
       body:
-        query: FROM ng_orders | EVAL x = NESTED_ANY(COUNT(*) BY region) | LIMIT 10
+        query: FROM ng_orders | EVAL x = NESTED(COUNT(*) BY region) | LIMIT 10
 - match:
     error.type: verification_exception
 - contains:
@@ -189,11 +189,11 @@ a grouping key must be a child field:
     catch: bad_request
     esql.query:
       body:
-        query: FROM ng_orders | EVAL x = NESTED_ANY(COUNT(*) BY TO_UPPER(items.user)) | LIMIT 10
+        query: FROM ng_orders | EVAL x = NESTED(COUNT(*) BY TO_UPPER(items.user)) | LIMIT 10
 - match:
     error.type: verification_exception
 - contains:
-    error.reason: "NESTED_ANY BY requires child fields"
+    error.reason: "NESTED BY requires child fields"
 
 ---
 grouping supports COUNT, SUM, MIN and MAX:
@@ -201,11 +201,11 @@ grouping supports COUNT, SUM, MIN and MAX:
     catch: bad_request
     esql.query:
       body:
-        query: FROM ng_orders | EVAL x = NESTED_ANY(AVG(items.price) BY items.user) | LIMIT 10
+        query: FROM ng_orders | EVAL x = NESTED(AVG(items.price) BY items.user) | LIMIT 10
 - match:
     error.type: verification_exception
 - contains:
-    error.reason: "NESTED_ANY BY supports COUNT, SUM, MIN and MAX"
+    error.reason: "NESTED BY supports COUNT, SUM, MIN and MAX"
 
 ---
 grouping requires an aggregate:
@@ -213,11 +213,11 @@ grouping requires an aggregate:
     catch: bad_request
     esql.query:
       body:
-        query: FROM ng_orders | EVAL x = NESTED_ANY(items.price > 0 BY items.user) | LIMIT 10
+        query: FROM ng_orders | EVAL x = NESTED(items.price > 0 BY items.user) | LIMIT 10
 - match:
     error.type: verification_exception
 - contains:
-    error.reason: "NESTED_ANY BY supports COUNT, SUM, MIN and MAX"
+    error.reason: "NESTED BY supports COUNT, SUM, MIN and MAX"
 
 ---
 grouped reductions never read _source:
@@ -225,8 +225,8 @@ grouped reductions never read _source:
     catch: bad_request
     esql.query:
       body:
-        query: FROM ng_orders | EVAL by_user = NESTED_ANY(COUNT(*) BY items.user) | KEEP by_user | LIMIT 10
+        query: FROM ng_orders | EVAL by_user = NESTED(COUNT(*) BY items.user) | KEEP by_user | LIMIT 10
         pragma:
           nested_loader: source
 - contains:
-    error.reason: "NESTED_ANY BY reads doc values only"
+    error.reason: "NESTED BY reads doc values only"

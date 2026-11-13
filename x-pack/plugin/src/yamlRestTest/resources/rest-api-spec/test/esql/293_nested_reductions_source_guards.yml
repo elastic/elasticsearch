@@ -39,7 +39,7 @@ synthetic source is rejected when reading source:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_synthetic | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total | LIMIT 10
+        query: FROM nr_synthetic | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
         pragma:
           nested_loader: source
 - contains:
@@ -71,7 +71,7 @@ filtered source is rejected when reading source:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_filtered | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total | LIMIT 10
+        query: FROM nr_filtered | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
         pragma:
           nested_loader: source
 - contains:
@@ -99,7 +99,7 @@ scaled float nested values are rejected when reading source:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_scaled | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total | LIMIT 10
+        query: FROM nr_scaled | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
         pragma:
           nested_loader: source
 - contains:
@@ -157,7 +157,7 @@ alias inside a nested object is rejected when reading source:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_alias | EVAL total = NESTED_ANY(SUM(items.price_alias)) | KEEP total | LIMIT 10
+        query: FROM nr_alias | EVAL total = NESTED(SUM(items.price_alias)) | KEEP total | LIMIT 10
         pragma:
           nested_loader: source
 - contains:
@@ -186,7 +186,7 @@ disabled source is rejected when reading source:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_disabled_source | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total | LIMIT 10
+        query: FROM nr_disabled_source | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
         pragma:
           nested_loader: source
 - contains:
@@ -308,7 +308,7 @@ copy_to into a visible nested field is rejected when reading source:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_copy_to | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total | LIMIT 10
+        query: FROM nr_copy_to | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
         pragma:
           nested_loader: source
 - contains:
@@ -336,7 +336,7 @@ index-level ignore_malformed is rejected when reading source:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_index_ignore_malformed | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total | LIMIT 10
+        query: FROM nr_index_ignore_malformed | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
         pragma:
           nested_loader: source
 - contains:
@@ -372,7 +372,7 @@ explicit coerce true matches a plain long sum:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_coerce_default | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total | LIMIT 10
+        query: FROM nr_coerce_default | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
 - match: { columns.0.name: total }
 - match: { columns.0.type: long }
 - length: { values: 1 }
@@ -408,7 +408,7 @@ explicit ignore_malformed false matches a plain long sum:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_ignore_malformed_default | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total | LIMIT 10
+        query: FROM nr_ignore_malformed_default | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
 - match: { columns.0.name: total }
 - match: { columns.0.type: long }
 - length: { values: 1 }
@@ -445,7 +445,7 @@ synthetic source reads doc values on the data node:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_synthetic | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total | LIMIT 10
+        query: FROM nr_synthetic | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
 - match:
     values:
     - [30]
@@ -482,7 +482,7 @@ disabled source reads doc values on the data node:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_disabled_source | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total | LIMIT 10
+        query: FROM nr_disabled_source | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
 - match:
     values:
     - [30]
@@ -562,7 +562,7 @@ synthetic source is rejected after a coordinator step:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_synthetic | LIMIT 1 | MV_EXPAND id | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total
+        query: FROM nr_synthetic | LIMIT 1 | MV_EXPAND id | EVAL total = NESTED(SUM(items.price)) | KEEP total
 - contains:
     error.reason: stored, unfiltered
 
@@ -599,7 +599,7 @@ synthetic source sums doc values after a sort and limit:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_synthetic | SORT id | LIMIT 1 | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total
+        query: FROM nr_synthetic | SORT id | LIMIT 1 | EVAL total = NESTED(SUM(items.price)) | KEEP total
 - match:
     values:
     - [10]

@@ -17,10 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.util.List;
 
-/**
- * Evaluates an expression in one nested collection: a predicate is true when any nested object matches, and an aggregate
- * reduces each parent's objects, optionally {@code BY} child fields.
- */
+/** True when a predicate holds for at least one of a parent's nested objects; false when there are none. */
 public final class NestedAny extends Nested implements OptionalArgument {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(NestedAny.class)
         .unaryVariadic(NestedAny::new)
@@ -28,23 +25,23 @@ public final class NestedAny extends Nested implements OptionalArgument {
 
     @FunctionInfo(
         preview = true,
-        returnType = { "boolean", "integer", "long", "double", "keyword", "text" },
-        briefSummary = "Evaluates an expression in one explicit nested object scope.",
-        description = "Returns one completed Boolean or scalar reduction for each input parent row. "
-            + "With `BY`, returns a keyword holding a JSON object of the aggregate for each group of nested objects."
+        returnType = "boolean",
+        briefSummary = "Returns true when a predicate holds for any nested object.",
+        description = "Returns, for each input parent row, whether at least one of its nested objects matches the predicate. "
+            + "A parent without nested objects does not match."
     )
     public NestedAny(
         Source source,
         @Param(
-            name = "expression",
-            type = { "boolean", "integer", "long", "double", "keyword", "text", "_source" },
-            description = "Expression using fields from one nested path, or the nested collection the next expression reads."
+            name = "predicate",
+            type = { "boolean", "_source" },
+            description = "Predicate over fields from one nested path, or the nested collection the next predicate reads."
         ) Expression child,
         @Param(
-            name = "keys",
-            type = { "boolean", "integer", "long", "double", "keyword", "text" },
+            name = "collectionPredicate",
+            type = "boolean",
             optional = true,
-            description = "The expression over the named collection, then the child fields after `BY` to group the nested objects by."
+            description = "The predicate over the named collection."
         ) List<Expression> rest
     ) {
         super(source, child, rest);

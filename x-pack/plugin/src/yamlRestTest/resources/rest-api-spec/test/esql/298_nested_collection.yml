@@ -1,6 +1,7 @@
 # NESTED_ANY(<collection>, <expression>) names the nested collection first, so the expression need not read a child field:
 # NESTED_ANY(items, true) is true when the parent has at least one object in items, and NOT NESTED_ANY(items, true) finds parents
-# whose items are empty or missing. In WHERE it runs in Lucene as a nested match_all query.
+# whose items are empty or missing. In WHERE it runs in Lucene as a nested match_all query. NESTED(items, COUNT(*)) counts
+# the objects in items, 0 when it is empty or missing.
 # Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
 ---
 setup:
@@ -167,7 +168,7 @@ a reduction over the named collection:
 - do:
     esql.query:
       body:
-        query: FROM nc_orders | EVAL total = NESTED_ANY(items, SUM(items.price)) | KEEP id, total | SORT id | LIMIT 10
+        query: FROM nc_orders | EVAL total = NESTED(items, SUM(items.price)) | KEEP id, total | SORT id | LIMIT 10
 - match:
     values:
     - [a, 25]
@@ -175,6 +176,76 @@ a reduction over the named collection:
     - [c, null]
     - [d, null]
     - [e, 1]
+
+---
+count the objects in a collection:
+- do:
+    esql.query:
+      body:
+        query: FROM nc_orders | EVAL n = NESTED(items, COUNT(*)) | KEEP id, n | SORT id | LIMIT 10
+- match:
+    columns:
+    - name: id
+      type: keyword
+    - name: n
+      type: long
+- match:
+    values:
+    - [a, 2]
+    - [b, 0]
+    - [c, 0]
+    - [d, 1]
+    - [e, 1]
+
+---
+the source loader counts the same objects:
+- do:
+    esql.query:
+      body:
+        query: FROM nc_orders | EVAL n = NESTED(items, COUNT(*)) | KEEP id, n | SORT id | LIMIT 10
+        pragma:
+          nested_loader: source
+- match:
+    values:
+    - [a, 2]
+    - [b, 0]
+    - [c, 0]
+    - [d, 1]
+    - [e, 1]
+
+---
+count the values of a child field:
+- do:
+    esql.query:
+      body:
+        query: FROM nc_orders | EVAL n = NESTED(COUNT(items.price)) | KEEP id, n | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, 2]
+    - [b, 0]
+    - [c, 0]
+    - [d, 0]
+    - [e, 1]
+
+---
+filter on a count:
+- do:
+    esql.query:
+      body:
+        query: FROM nc_orders | WHERE NESTED(items, COUNT(*)) >= 2 | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+
+---
+count all needs a collection:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM nc_orders | EVAL n = NESTED(COUNT(*)) | LIMIT 1
+- contains:
+    error.reason: "NESTED(COUNT(*)) needs the collection to count, such as NESTED(items, COUNT(*))"
 
 ---
 the collection must be a nested field:

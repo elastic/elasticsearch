@@ -49,7 +49,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
 
     @Before
     public void onlySnapshotBuildsRegisterNested() {
-        assumeTrue("NESTED_ANY is registered on snapshot builds", Build.current().isSnapshot());
+        assumeTrue("The nested functions are registered on snapshot builds", Build.current().isSnapshot());
     }
 
     @BeforeClass
@@ -62,7 +62,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
     public void testOverwritingSourceAndIndexDoesNotChangeReduction() throws Exception {
         var rows = run(
             "FROM orders | EVAL _source = \"user source\", _index = \"user index\" "
-                + "| EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) | KEEP order_id, _source, _index, total | SORT order_id"
+                + "| EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, _source, _index, total | SORT order_id"
         );
         assertEquals(List.of(row("a", "user source", "user index", 24L), row("b", "user source", "user index", null)), rows);
     }
@@ -84,8 +84,8 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
 
     public void testReductionOutputCanReusePublicMetadataName() throws Exception {
         var rows = run(
-            "FROM orders | EVAL _index = NESTED_ANY(SUM(items.price * items.quantity)) "
-                + "| EVAL second = NESTED_ANY(SUM(items.price)) | KEEP order_id, _index, second | SORT order_id"
+            "FROM orders | EVAL _index = NESTED(SUM(items.price * items.quantity)) "
+                + "| EVAL second = NESTED(SUM(items.price)) | KEEP order_id, _index, second | SORT order_id"
         );
         assertEquals(List.of(row("a", 24L, 12L), row("b", null, null)), rows);
     }
@@ -93,7 +93,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
     public void testExpandedParentRowsKeepIndependentReductions() throws Exception {
         var rows = run(
             "FROM orders | EVAL copies = [10, 20] | MV_EXPAND copies "
-                + "| EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) | STATS n = COUNT(*), amount = SUM(total)"
+                + "| EVAL total = NESTED(SUM(items.price * items.quantity)) | STATS n = COUNT(*), amount = SUM(total)"
         );
         assertEquals(List.of(row(4L, 48L)), rows);
     }
@@ -101,28 +101,28 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
     public void testRenamingAndReplacingExplicitMetadataDoesNotChangeReduction() throws Exception {
         var rows = run(
             "FROM orders METADATA _index | RENAME _index AS origin | EVAL _index = \"replacement\" "
-                + "| EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) | KEEP order_id, origin, _index, total | SORT order_id"
+                + "| EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, origin, _index, total | SORT order_id"
         );
         assertEquals(List.of(row("a", "orders", "replacement", 24L), row("b", "orders", "replacement", null)), rows);
     }
 
     public void testDroppingExplicitMetadataDoesNotRemovePrivateInput() throws Exception {
         var rows = run(
-            "FROM orders METADATA _index | DROP _index | EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) "
+            "FROM orders METADATA _index | DROP _index | EVAL total = NESTED(SUM(items.price * items.quantity)) "
                 + "| KEEP order_id, total | SORT order_id"
         );
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
     public void testKeepBeforeReductionRetainsOnlyPrivateDependencies() throws Exception {
-        var rows = run("FROM orders | KEEP order_id | EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) | SORT order_id");
+        var rows = run("FROM orders | KEEP order_id | EVAL total = NESTED(SUM(items.price * items.quantity)) | SORT order_id");
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
     public void testForkCanChangePublicMetadataIndependently() throws Exception {
         var rows = run(
             "FROM orders | FORK (EVAL _index = \"left\") (EVAL _index = \"right\") "
-                + "| EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) | STATS n = COUNT(*), amount = SUM(total)"
+                + "| EVAL total = NESTED(SUM(items.price * items.quantity)) | STATS n = COUNT(*), amount = SUM(total)"
         );
         assertEquals(List.of(row(4L, 48L)), rows);
     }
@@ -130,7 +130,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
     public void testNestedLookupMappingCannotRedirectLeftReduction() throws Exception {
         var rows = run(
             "FROM orders | LOOKUP JOIN prices ON order_id "
-                + "| EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) | KEEP order_id, total | SORT order_id",
+                + "| EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, total | SORT order_id",
             lookup("items")
         );
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
@@ -138,7 +138,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
 
     public void testLaterLookupMappingCannotChangeEarlierReduction() throws Exception {
         var rows = run(
-            "FROM orders | EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) "
+            "FROM orders | EVAL total = NESTED(SUM(items.price * items.quantity)) "
                 + "| LOOKUP JOIN prices ON order_id | KEEP order_id, total | SORT order_id",
             lookup("items")
         );
@@ -148,7 +148,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
     public void testDisjointNestedLookupMappingCannotRedirectLeftReduction() throws Exception {
         var rows = run(
             "FROM orders | LOOKUP JOIN prices ON order_id "
-                + "| EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) | KEEP order_id, total | SORT order_id",
+                + "| EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, total | SORT order_id",
             lookup("offers")
         );
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
@@ -158,7 +158,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         var error = assertThrows(
             VerificationException.class,
             () -> NestedReductionsTestSupport.analyze(
-                "FROM orders | LOOKUP JOIN prices ON order_id | EVAL total = NESTED_ANY(SUM(offers.price))",
+                "FROM orders | LOOKUP JOIN prices ON order_id | EVAL total = NESTED(SUM(offers.price))",
                 schema(),
                 lookup("offers")
             )
@@ -169,7 +169,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
     public void testLookupMappingTypeCannotChangeLeftArithmetic() throws Exception {
         var rows = run(
             "FROM orders | LOOKUP JOIN prices ON order_id "
-                + "| EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) | KEEP order_id, total | SORT order_id",
+                + "| EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, total | SORT order_id",
             lookup("items", "keyword")
         );
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
@@ -187,7 +187,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         var error = assertThrows(
             VerificationException.class,
             () -> NestedReductionsTestSupport.analyze(
-                "FROM orders | LOOKUP JOIN prices ON order_id | EVAL total = NESTED_ANY(SUM(offers.price))",
+                "FROM orders | LOOKUP JOIN prices ON order_id | EVAL total = NESTED(SUM(offers.price))",
                 plain,
                 lookup("offers")
             )
@@ -199,7 +199,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertThrows(
             VerificationException.class,
             () -> NestedReductionsTestSupport.analyze(
-                "FROM orders | STATS n = COUNT(*) | EVAL total = NESTED_ANY(SUM(items.price * items.quantity))",
+                "FROM orders | STATS n = COUNT(*) | EVAL total = NESTED(SUM(items.price * items.quantity))",
                 schema(),
                 Map.of()
             )
@@ -217,7 +217,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
                 var error = assertThrows(
                     VerificationException.class,
                     () -> NestedReductionsTestSupport.analyze(
-                        "FROM orders | " + command + " | EVAL total = NESTED_ANY(SUM(items.price))",
+                        "FROM orders | " + command + " | EVAL total = NESTED(SUM(items.price))",
                         schema(),
                         Map.of()
                     )

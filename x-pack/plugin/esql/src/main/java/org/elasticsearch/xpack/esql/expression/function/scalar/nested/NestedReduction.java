@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
@@ -80,6 +81,8 @@ public final class NestedReduction extends EsqlScalarFunction {
     private final List<Attribute> groupings;
     /** Returns the objects as a JSON array instead of reducing them; {@link #body} is unused. */
     private final boolean json;
+    /** A predicate must hold for every object, as in {@code NESTED_ALL}, rather than for at least one. */
+    private final boolean all;
     private final List<Attribute> inputs;
     private final List<String> paths;
     private final List<Set<String>> mappedIndices;
@@ -94,6 +97,7 @@ public final class NestedReduction extends EsqlScalarFunction {
         Expression body,
         List<Attribute> groupings,
         boolean json,
+        boolean all,
         List<Attribute> inputs,
         List<String> paths,
         List<Set<String>> mappedIndices,
@@ -105,6 +109,7 @@ public final class NestedReduction extends EsqlScalarFunction {
         this.body = body;
         this.groupings = List.copyOf(groupings);
         this.json = json;
+        this.all = all;
         this.inputs = List.copyOf(inputs);
         this.paths = List.copyOf(paths);
         this.mappedIndices = mappedIndices.stream().map(Set::copyOf).toList();
@@ -119,6 +124,7 @@ public final class NestedReduction extends EsqlScalarFunction {
             in.readCollectionAsImmutableSet(StreamInput::readString),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readBoolean(),
             in.readBoolean(),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readStringCollectionAsList(),
@@ -144,6 +150,7 @@ public final class NestedReduction extends EsqlScalarFunction {
         out.writeNamedWriteable(body);
         out.writeNamedWriteableCollection(groupings);
         out.writeBoolean(json);
+        out.writeBoolean(all);
         out.writeNamedWriteableCollection(inputs);
         out.writeStringCollection(paths);
         out.writeCollection(mappedIndices, StreamOutput::writeStringCollection);
@@ -181,6 +188,7 @@ public final class NestedReduction extends EsqlScalarFunction {
             body,
             groupings,
             json,
+            all,
             inputs,
             paths,
             mappedIndices,
@@ -190,6 +198,11 @@ public final class NestedReduction extends EsqlScalarFunction {
 
     public String path() {
         return path;
+    }
+
+    /** Whether the predicate must hold for every object rather than for at least one. */
+    public boolean all() {
+        return all;
     }
 
     /**
@@ -229,7 +242,20 @@ public final class NestedReduction extends EsqlScalarFunction {
 
     @Override
     public NestedReduction replaceChildren(List<Expression> children) {
-        return new NestedReduction(source(), children, path, indices, body, groupings, json, inputs, paths, mappedIndices, sourceFailures);
+        return new NestedReduction(
+            source(),
+            children,
+            path,
+            indices,
+            body,
+            groupings,
+            json,
+            all,
+            inputs,
+            paths,
+            mappedIndices,
+            sourceFailures
+        );
     }
 
     @Override
@@ -241,6 +267,7 @@ public final class NestedReduction extends EsqlScalarFunction {
             && body.equals(other.body)
             && groupings.equals(other.groupings)
             && json == other.json
+            && all == other.all
             && inputs.equals(other.inputs)
             && paths.equals(other.paths)
             && mappedIndices.equals(other.mappedIndices)
@@ -249,7 +276,7 @@ public final class NestedReduction extends EsqlScalarFunction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, indices, body, groupings, json, inputs, paths, mappedIndices, sourceFailures);
+        return Objects.hash(super.hashCode(), path, indices, body, groupings, json, all, inputs, paths, mappedIndices, sourceFailures);
     }
 
     @Override
@@ -262,8 +289,7 @@ public final class NestedReduction extends EsqlScalarFunction {
             return operatorFactory(children().stream().map(toEvaluator::apply).toList(), List.of(), shards, null);
         }
         Expression value = prepareScalar(
-            groupings.isEmpty() == false ? ((UnaryAggregateFunction) body).field()
-                : body instanceof Sum sum ? sum.field()
+            groupings.isEmpty() == false || body instanceof Sum || body instanceof Count ? ((UnaryAggregateFunction) body).field()
                 : body instanceof Last last ? last.field()
                 : body
         );
@@ -329,7 +355,7 @@ public final class NestedReduction extends EsqlScalarFunction {
 
     private IllegalArgumentException sourceRead() {
         return new IllegalArgumentException(
-            (json ? "NESTED_JSON" : "NESTED_ANY BY") + " reads doc values only; [" + path + "] would have to be read from _source here"
+            (json ? "NESTED_JSON" : "NESTED BY") + " reads doc values only; [" + path + "] would have to be read from _source here"
         );
     }
 
@@ -449,7 +475,10 @@ public final class NestedReduction extends EsqlScalarFunction {
         }
 
         private Object emptyResult() {
-            return json || body instanceof ToAggregator ? null : false;
+            if (body instanceof Count && grouping == null) {
+                return 0L;
+            }
+            return json || body instanceof ToAggregator ? null : all;
         }
 
         private Object reduce(List<Map<?, ?>> objects, String index, long token) {
@@ -476,12 +505,13 @@ public final class NestedReduction extends EsqlScalarFunction {
                         .apply(context)
                     : null
             ) {
-                boolean matched = false;
+                boolean matched = all;
                 for (int offset = 0; offset < objects.size();) {
                     int count = Math.min(CHILD_PAGE_SIZE, objects.size() - offset);
                     try (var frame = loadFrame(objects, index, token, offset, count)) {
-                        // Evaluate every page even after a match, so later invalid predicates cannot be hidden.
-                        matched |= evaluateFrame(frame, aggregator);
+                        // Evaluate every page even once the answer is known, so later invalid predicates cannot be hidden.
+                        boolean frameMatched = evaluateFrame(frame, aggregator);
+                        matched = all ? matched & frameMatched : matched | frameMatched;
                     }
                     offset += count;
                 }
@@ -619,9 +649,7 @@ public final class NestedReduction extends EsqlScalarFunction {
                         for (Block block : evaluated) {
                             for (int i = 0; i < block.getPositionCount(); i++) {
                                 if (block.getValueCount(i) > 1) {
-                                    throw new IllegalArgumentException(
-                                        "NESTED_ANY selection requires scalar child values and ordering keys"
-                                    );
+                                    throw new IllegalArgumentException("NESTED selection requires scalar child values and ordering keys");
                                 }
                             }
                         }
@@ -631,16 +659,19 @@ public final class NestedReduction extends EsqlScalarFunction {
                     }
                     return false;
                 }
-                boolean matched = false;
+                boolean matched = all;
                 for (int i = 0; i < evaluated[0].getPositionCount(); i++) {
                     if ((i & 1023) == 0) {
                         context.checkForEarlyTermination();
                     }
                     if (evaluated[0].getValueCount(i) > 1) {
-                        throw new IllegalArgumentException("NESTED_ANY existence requires a scalar predicate result per child");
+                        throw new IllegalArgumentException(
+                            (all ? "NESTED_ALL" : "NESTED_ANY") + " requires a scalar predicate result per child"
+                        );
                     }
-                    // A true child cannot hide an invalid multivalue result later in the same scope.
-                    matched |= Boolean.TRUE.equals(BlockUtils.toJavaObject(evaluated[0], i));
+                    // A decided answer cannot hide an invalid multivalue result later in the same scope.
+                    boolean childMatched = Boolean.TRUE.equals(BlockUtils.toJavaObject(evaluated[0], i));
+                    matched = all ? matched & childMatched : matched | childMatched;
                 }
                 return matched;
             } finally {

@@ -31,8 +31,10 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.Nested;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAll;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedJson;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedStats;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -358,60 +360,73 @@ public final class NestedReductionsAnalysis {
     }
 
     private static NestedReduction bind(Nested nested, LogicalPlan input, AnalyzerContext context) {
+        String name = nested.functionName();
         Map<String, NestedScopeField> roots = scopeSchema(input, nested).roots();
         Expression body = nested.body();
         if (body.anyMatch(e -> e instanceof Nested || e instanceof FullTextFunction)) {
-            throw error(nested, "NESTED_ANY does not allow inner scopes or full-text functions");
+            throw error(nested, name + " does not allow inner scopes or full-text functions");
         }
         List<Expression> keys = nested.keys();
         if (nested.extraArguments().isEmpty() == false) {
-            throw error(nested, "NESTED_ANY takes a collection and one expression");
+            throw error(nested, name + " takes a collection and one expression");
         }
         String collection = null;
         if (nested.collection() != null) {
             if (nested.collection() instanceof FieldAttribute f && f.field() instanceof NestedScopeField n && n.collection()) {
                 if (n.conflict() != null) {
-                    throw error(nested, "NESTED_ANY cannot read [" + publicName(f) + "]: " + n.conflict());
+                    throw error(nested, name + " cannot read [" + publicName(f) + "]: " + n.conflict());
                 }
                 collection = n.path();
-                checkNotReplaced(input, collection, nested, "NESTED_ANY");
+                checkNotReplaced(input, collection, nested, name);
             } else {
-                throw error(nested, "NESTED_ANY requires a nested collection first, not [" + nested.collection().sourceText() + "]");
+                throw error(nested, name + " requires a nested collection first, not [" + nested.collection().sourceText() + "]");
             }
         }
-        if (keys.isEmpty() == false) {
+        if (nested instanceof NestedStats == false) {
+            if (body.anyMatch(AggregateFunction.class::isInstance)) {
+                throw error(nested, name + " takes a predicate; use NESTED for a reduction such as SUM");
+            }
+            if (body.dataType() != DataType.BOOLEAN) {
+                throw error(nested, name + " requires a predicate, not [" + body.sourceText() + "]");
+            }
+        } else if (keys.isEmpty() == false) {
             if (body instanceof Count == false
                 && body instanceof Sum == false
                 && body instanceof Min == false
                 && body instanceof Max == false) {
-                throw error(nested, "NESTED_ANY BY supports COUNT, SUM, MIN and MAX, not [" + body.sourceText() + "]");
+                throw error(nested, "NESTED BY supports COUNT, SUM, MIN and MAX, not [" + body.sourceText() + "]");
             }
             for (Expression key : keys) {
                 if (key instanceof FieldAttribute == false) {
-                    throw error(key, "NESTED_ANY BY requires child fields, not [" + key.sourceText() + "]");
+                    throw error(key, "NESTED BY requires child fields, not [" + key.sourceText() + "]");
                 }
                 if (((FieldAttribute) key).field() instanceof NestedScopeField == false) {
                     throw error(key, "Field [" + key.sourceText() + "] is outside the nested scope");
                 }
             }
+        } else if (body instanceof Count count) {
+            if (collection == null && count.field().foldable()) {
+                throw error(nested, "NESTED(COUNT(*)) needs the collection to count, such as NESTED(items, COUNT(*))");
+            }
         } else if (body instanceof Sum == false && body instanceof Last == false) {
             if (body.anyMatch(AggregateFunction.class::isInstance)) {
-                throw error(nested, "NESTED_ANY supports SUM and LAST only, not [" + body.sourceText() + "]");
+                throw error(nested, "NESTED supports COUNT, SUM and LAST only, not [" + body.sourceText() + "]");
             }
             if (body.dataType() == DataType.SOURCE || body.dataType() == DataType.OBJECT) {
-                throw error(nested, "NESTED_ANY requires a scalar reduction, not an object collection");
+                throw error(nested, "NESTED requires a scalar reduction, not an object collection");
             }
-            if (body.dataType() != DataType.BOOLEAN) {
-                throw error(nested, "NESTED_ANY requires an explicit reduction for per-item values");
+            if (body.dataType() == DataType.BOOLEAN) {
+                throw error(nested, "NESTED takes a reduction; use NESTED_ANY or NESTED_ALL for a predicate");
             }
+            throw error(nested, "NESTED requires a reduction such as SUM, COUNT or LAST, not [" + body.sourceText() + "]");
         }
         if (body instanceof AggregateFunction aggregate) {
             if (aggregate.filter().equals(Literal.TRUE) == false || aggregate.window().equals(AggregateFunction.NO_WINDOW) == false) {
-                throw error(nested, "NESTED_ANY does not support inner aggregate filters or windows");
+                throw error(nested, name + " does not support inner aggregate filters or windows");
             }
             for (Expression field : aggregate.fields()) {
                 if (field.anyMatch(AggregateFunction.class::isInstance)) {
-                    throw error(nested, "NESTED_ANY does not support nested aggregates");
+                    throw error(nested, name + " does not support nested aggregates");
                 }
             }
         }
@@ -424,13 +439,13 @@ public final class NestedReductionsAnalysis {
         for (Attribute attr : fields.values()) {
             if (attr instanceof FieldAttribute f && f.field() instanceof NestedScopeField n) {
                 if (n.conflict() != null) {
-                    throw error(nested, "NESTED_ANY cannot read [" + publicName(f) + "]: " + n.conflict());
+                    throw error(nested, name + " cannot read [" + publicName(f) + "]: " + n.conflict());
                 }
                 if (collection != null && collection.equals(n.path()) == false) {
                     throw error(nested, "Field [" + publicName(f) + "] is outside the nested scope [" + collection + "]");
                 }
                 if (path != null && path.equals(n.path()) == false) {
-                    throw error(nested, "NESTED_ANY requires one nested path");
+                    throw error(nested, name + " requires one nested path");
                 }
                 path = n.path();
                 indices.addAll(n.indices());
@@ -438,7 +453,7 @@ public final class NestedReductionsAnalysis {
             }
         }
         if (path == null) {
-            throw error(nested, "NESTED_ANY requires a mapped nested field");
+            throw error(nested, name + " requires a mapped nested field");
         }
         String scope = path;
         if (roots.containsKey(path)) {
@@ -446,10 +461,10 @@ public final class NestedReductionsAnalysis {
             sourceFailures.putAll(roots.get(path).sourceFailures());
         }
         if (roots.keySet().stream().anyMatch(parent -> scope.startsWith(parent + "."))) {
-            throw error(nested, "NESTED_ANY supports one nesting level");
+            throw error(nested, name + " supports one nesting level");
         }
         if (indices.stream().anyMatch(index -> index.contains(":"))) {
-            throw error(nested, "NESTED_ANY cross-cluster loading is not supported by this PoC");
+            throw error(nested, name + " cross-cluster loading is not supported by this PoC");
         }
         List<Attribute> channels = new ArrayList<>();
         List<String> paths = new ArrayList<>();
@@ -460,7 +475,7 @@ public final class NestedReductionsAnalysis {
                 throw error(nested, "Field [" + attr.name() + "] is outside the nested scope");
             }
             if (SUPPORTED_CHILD_TYPES.contains(attr.dataType()) == false) {
-                throw error(nested, "NESTED_ANY does not support child type [" + attr.dataType() + "] for [" + attr.name() + "]");
+                throw error(nested, name + " does not support child type [" + attr.dataType() + "] for [" + attr.name() + "]");
             }
             ReferenceAttribute ref = new ReferenceAttribute(attr.source(), attr.name(), attr.dataType());
             channels.add(ref);
@@ -481,6 +496,7 @@ public final class NestedReductionsAnalysis {
             bound,
             groupings,
             false,
+            nested instanceof NestedAll,
             channels,
             paths,
             mapped,
@@ -563,6 +579,7 @@ public final class NestedReductionsAnalysis {
             Literal.NULL,
             List.of(),
             true,
+            false,
             channels,
             paths,
             mapped,

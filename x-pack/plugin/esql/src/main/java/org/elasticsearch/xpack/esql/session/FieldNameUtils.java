@@ -83,6 +83,8 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
 
+    private static final Set<String> NESTED_FUNCTIONS = Set.of("nested", "nested_any", "nested_all", "nested_json");
+
     private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(
         TBucket.NAME.toLowerCase(Locale.ROOT),
         TStep.NAME.toLowerCase(Locale.ROOT),
@@ -115,7 +117,7 @@ public class FieldNameUtils {
         }
         var nested = new boolean[1];
         parsed.forEachExpressionDown(UnresolvedFunction.class, f -> {
-            if (f.name().equalsIgnoreCase("nested_any") || f.name().equalsIgnoreCase("nested_json")) {
+            if (NESTED_FUNCTIONS.contains(f.name().toLowerCase(Locale.ROOT))) {
                 nested[0] = true;
             }
         });

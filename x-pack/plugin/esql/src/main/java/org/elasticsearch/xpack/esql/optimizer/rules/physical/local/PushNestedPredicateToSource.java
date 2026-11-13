@@ -52,7 +52,9 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * leave the index. The in-memory check reads the child values from doc values, so a query on the indexed child fields gives
  * the same answer when every child field is searchable and has doc values here. A predicate that translates exactly replaces
  * the reduction; one that needs a recheck is pushed and still evaluated; anything else stays in memory. A {@code true}
- * predicate, as in {@code NESTED_ANY(items, true)}, matches any child document.
+ * predicate, as in {@code NESTED_ANY(items, true)}, matches any child document. {@code NESTED_ALL(<predicate>)} runs as
+ * {@code NOT nested(NOT <predicate>)}: a child where the predicate is false or null excludes its parent, and a parent without
+ * children matches.
  */
 public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     FilterExec,
@@ -86,7 +88,11 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
                 QueryBuilder query = anyChild
                     ? QueryBuilders.matchAllQuery()
                     : TRANSLATOR_HANDLER.asQuery(children, predicate).toQueryBuilder();
-                queries.add(new NestedQueryBuilder(reduction.path(), query, ScoreMode.None).ignoreUnmapped(true));
+                queries.add(
+                    reduction.all()
+                        ? QueryBuilders.boolQuery().mustNot(nested(reduction, QueryBuilders.boolQuery().mustNot(query)))
+                        : nested(reduction, query)
+                );
             }
             if (translatable == FinishedTranslatable.YES) {
                 replaced.add(((ReferenceAttribute) conjunct).id());
@@ -106,6 +112,10 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
             ? new NestedReduceExec(reduce.source(), child, fields)
             : new EvalExec(reduce.source(), child, fields);
         return remaining.isEmpty() ? eval : new FilterExec(filter.source(), eval, Predicates.combineAnd(remaining));
+    }
+
+    private static QueryBuilder nested(NestedReduction reduction, QueryBuilder child) {
+        return new NestedQueryBuilder(reduction.path(), child, ScoreMode.None).ignoreUnmapped(true);
     }
 
     /** The scan below row-preserving steps, if a filter there keeps the same rows; not once a limit is pushed into it. */

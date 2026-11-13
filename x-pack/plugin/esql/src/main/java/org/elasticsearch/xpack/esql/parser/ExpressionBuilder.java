@@ -742,10 +742,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitFunctionName(ctx.functionName());
-        if ("nested".equals(EsqlFunctionRegistry.normalizeName(name))) {
-            // Analysis would report the child fields as unknown columns first, hiding that the function itself is unknown.
-            throw new ParsingException(source(ctx), "NESTED is not a function, use NESTED_ANY or NESTED_JSON instead");
-        }
         List<Expression> args = new ArrayList<>();
         for (ParseTree child : ctx.children) {
             if (child instanceof EsqlBaseParser.BooleanExpressionContext boolCtx) {
@@ -761,8 +757,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             args.add(mapArg);
         }
         if (ctx.functionGrouping() != null) {
-            if ("nested_any".equals(EsqlFunctionRegistry.normalizeName(name)) == false) {
-                throw new ParsingException(source(ctx.functionGrouping()), "BY is only allowed inside NESTED_ANY");
+            if ("nested".equals(EsqlFunctionRegistry.normalizeName(name)) == false) {
+                throw new ParsingException(source(ctx.functionGrouping()), "BY is only allowed inside NESTED");
             }
             List<Expression> keys = new ArrayList<>();
             for (var key : ctx.functionGrouping().booleanExpression()) {

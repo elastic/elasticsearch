@@ -184,3 +184,14 @@ spotless {
     targetExclude 'src/main/generated/**/*.java'
   }
 }
+
+// Counts the cold reads and rounds of doc-values prefetch per format; runs outside JMH, as nothing is timed.
+tasks.register("docValuesPrefetchReads", JavaExec) {
+  def run = tasks.named("run", JavaExec).get()
+  classpath = run.classpath
+  executable = run.executable
+  jvmArgs run.jvmArgs
+  systemProperties run.systemProperties
+  dependsOn run.dependsOn
+  mainClass = 'org.elasticsearch.benchmark.stateless.DocValuesPrefetchReadsReport'
+}

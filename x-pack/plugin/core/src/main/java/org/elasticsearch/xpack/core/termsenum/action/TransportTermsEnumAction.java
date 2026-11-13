@@ -298,7 +298,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 }
                 successfulShards += rc.resp.getSuccessfulShards();
                 failedShards += rc.resp.getFailedShards();
-                for (DefaultShardOperationFailedException exc : rc.resp.getShardFailures()) {
+                for (DefaultShardOperationFailedException exc : rc.resp.shardFailuresList()) {
                     if (shardFailures == null) {
                         shardFailures = new ArrayList<>();
                     }

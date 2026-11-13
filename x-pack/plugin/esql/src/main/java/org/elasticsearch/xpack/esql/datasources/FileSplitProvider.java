@@ -1219,10 +1219,10 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     private static boolean shouldRelistStaleObject(SplitDiscoveryContext context, Exception e) {
-        if (context.isCancelled().getAsBoolean()) {
+        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
             return false;
         }
-        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
+        if (context.isCancelled().getAsBoolean()) {
             return false;
         }
         return ExternalException.isStaleCachedObject(e);

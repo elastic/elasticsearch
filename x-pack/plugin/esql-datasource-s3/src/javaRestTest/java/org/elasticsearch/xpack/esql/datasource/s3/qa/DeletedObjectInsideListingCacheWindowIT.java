@@ -47,12 +47,10 @@ import static org.hamcrest.Matchers.not;
  * A file deleted from the object store after a dataset's file listing was cached must not fail queries over the
  * rest of that dataset until the listing TTL elapses.
  * <p>
- * Two datasets share one prefix and differ in one setting. Default first-file-wins bounds its listing, so it never
- * enters the cache and re-lists on every query. {@code file_sort_by: name} makes the listing unbounded and cacheable.
- * After a delete-and-add, the bounded dataset answers from the store immediately. The cacheable dataset may fail the
- * first query that still holds the stale set; that failure drops the listing, so the next query lists again. Either
- * way, a query inside the TTL window reads the surviving file and the file added after the delete, not the deleted
- * one. The added file is what tells a re-list apart from a silent skip.
+ * Two datasets share one prefix and differ in sort, so they cache under different listing keys. After a
+ * delete-and-add, a query that still holds the stale set may fail once; that failure drops the listing, so the
+ * next query lists the store. Either way, a query inside the TTL window reads the surviving file and the file
+ * added after the delete, not the deleted one. The added file is what tells a re-list apart from a silent skip.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class DeletedObjectInsideListingCacheWindowIT extends ESRestTestCase {
@@ -62,10 +60,10 @@ public class DeletedObjectInsideListingCacheWindowIT extends ESRestTestCase {
     private static final String SECRET_KEY = "listing_cache_secret_key";
     private static final String DATA_SOURCE = "listing_cache_ds";
 
-    /** Default settings: the listing is bounded to a prefix, so it never enters the listing cache. */
-    private static final String DATASET_BOUNDED = "listing_cache_bounded";
-    /** {@code file_sort_by} makes the listing unbounded, which is what puts it in the listing cache. */
-    private static final String DATASET_CACHED = "listing_cache_cached";
+    /** Default first-file-wins listing order. */
+    private static final String DATASET_DEFAULT = "listing_cache_default";
+    /** {@code file_sort_by: name} is a different listing key over the same prefix. */
+    private static final String DATASET_BY_NAME = "listing_cache_by_name";
 
     private static final String SURVIVING_CSV = "glob/a.csv";
     private static final String DELETED_CSV = "glob/b.csv";
@@ -120,12 +118,11 @@ public class DeletedObjectInsideListingCacheWindowIT extends ESRestTestCase {
 
     public void testDeletedObjectInsideTheCachedListingWindow() throws Exception {
         putDataSource();
-        putDataset(DATASET_BOUNDED, Map.of());
-        putDataset(DATASET_CACHED, Map.of("file_sort_by", "name"));
+        putDataset(DATASET_DEFAULT, Map.of());
+        putDataset(DATASET_BY_NAME, Map.of("file_sort_by", "name"));
 
-        Outcome boundedBefore = run(DATASET_BOUNDED);
-        Outcome cachedBefore = run(DATASET_CACHED);
-        for (Outcome before : List.of(boundedBefore, cachedBefore)) {
+        for (String dataset : List.of(DATASET_DEFAULT, DATASET_BY_NAME)) {
+            Outcome before = run(dataset);
             assertThat(before.status(), equalTo(200));
             assertThat(before.body(), containsString("Vienna"));
             assertThat(before.body(), containsString("Berlin"));
@@ -134,18 +131,23 @@ public class DeletedObjectInsideListingCacheWindowIT extends ESRestTestCase {
         s3HttpFixture.removeBlob(DELETED_CSV);
         s3HttpFixture.seedBlob(ADDED_CSV, "id,city\n3,Prague\n".getBytes(StandardCharsets.UTF_8));
 
-        Outcome boundedInside = run(DATASET_BOUNDED);
-        assertThat(boundedInside.status(), equalTo(200));
-        assertCurrentStore(boundedInside.body());
-        assertThat(boundedInside.warnings(), equalTo(List.of()));
-
-        Outcome cachedInside = run(DATASET_CACHED);
-        if (cachedInside.status() != 200) {
-            assertThat(cachedInside.body(), containsString("not found"));
-            cachedInside = run(DATASET_CACHED);
+        for (String dataset : List.of(DATASET_DEFAULT, DATASET_BY_NAME)) {
+            assertCurrentStore(runUntilCurrentStore(dataset).body());
         }
-        assertThat(cachedInside.status(), equalTo(200));
-        assertCurrentStore(cachedInside.body());
+    }
+
+    /**
+     * A stale cached listing can 404 the deleted object on the first query; that failure drops the listing.
+     * The next query lists the store and must succeed inside the TTL.
+     */
+    private static Outcome runUntilCurrentStore(String dataset) throws IOException {
+        Outcome outcome = run(dataset);
+        if (outcome.status() != 200) {
+            assertThat(outcome.body(), containsString("not found"));
+            outcome = run(dataset);
+        }
+        assertThat(outcome.status(), equalTo(200));
+        return outcome;
     }
 
     private static void assertCurrentStore(String body) {

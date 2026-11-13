@@ -15,10 +15,19 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.DisableDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.EnableDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.DisableDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.EnableDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.junit.After;
@@ -28,12 +37,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -48,7 +59,42 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
 
-    private static final Set<String> CREATED_DATASOURCES = Set.of("ds_fwd", "ds_fwd_max");
+    private static final Set<String> CREATED_DATASOURCES = Set.of("ds_fwd", "ds_fwd_max", "ds_fwd_toggle");
+
+    private static final Set<String> CREATED_DATASETS = Set.of("set_fwd_toggle");
+
+    /**
+     * Registers a data source type with a real telemetry token ({@code gcs}), so that a toggle's {@code type} attribute can be
+     * told apart from {@code unknown}, which is what the {@code test} type used elsewhere folds to.
+     * Discovered through {@code META-INF/services} like the other test data source plugins, not through {@link #nodePlugins()}.
+     */
+    public static final class GcsTypedDataSourcePlugin extends Plugin implements DataSourcePlugin {
+        @Override
+        public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+            return Map.of("gcs", new GcsTypedValidator());
+        }
+    }
+
+    private static final class GcsTypedValidator implements DataSourceValidator {
+        @Override
+        public String type() {
+            return "gcs";
+        }
+
+        @Override
+        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+            return new HashMap<>();
+        }
+
+        @Override
+        public Map<String, Object> validateDataset(
+            Map<String, DataSourceSetting> datasourceSettings,
+            String resource,
+            Map<String, Object> datasetSettings
+        ) {
+            return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
+        }
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -65,6 +111,16 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
 
     @After
     public void cleanup() throws Exception {
+        for (String name : CREATED_DATASETS) {
+            try {
+                client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name }))
+                    .get(30, TimeUnit.SECONDS);
+            } catch (ResourceNotFoundException ignored) {
+                // never created by this method
+            } catch (Exception e) {
+                logger.warn("dataset cleanup [{}] failed", name, e);
+            }
+        }
         for (String name : CREATED_DATASOURCES) {
             try {
                 client().execute(
@@ -157,6 +213,103 @@ public class ExternalSourceConfigChangeForwardIT extends AbstractEsqlIntegTestCa
             assertAcked(
                 clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(Settings.builder().putNull(DataSourceService.MAX_DATA_SOURCES_COUNT_SETTING.getKey()).build())
+            );
+        }
+    }
+
+    /**
+     * Enable/disable forwarded from a non-master node land once, on the master, one event per name that flipped, tagged with the
+     * data source's type (the parent's type for a dataset). A toggle onto the state the resource already has is acknowledged but
+     * not counted.
+     */
+    public void testToggleFromNonMasterCountsOnceWithParentType() throws Exception {
+        String master = internalCluster().getMasterName();
+        String coord = nonMasterNode(master);
+        assertAcked(
+            client(coord).execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "ds_fwd_toggle", "gcs", null, new HashMap<>())
+            )
+        );
+        assertAcked(
+            client(coord).execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, "set_fwd_toggle", "ds_fwd_toggle", "gcs://bucket/x/", null, new HashMap<>())
+            )
+        );
+
+        long disabledBefore = clusterTotal(
+            a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_DISABLED) + a.configChanges(
+                DataSourceUsageAccumulator.KIND_DATASET,
+                DataSourceUsageAccumulator.OP_DISABLED
+            )
+        );
+        resetAllMeters();
+        for (int i = 0; i < 2; i++) {
+            assertAcked(
+                client(coord).execute(
+                    DisableDataSourceAction.INSTANCE,
+                    new DisableDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_fwd_toggle" })
+                )
+            );
+            assertAcked(
+                client(coord).execute(
+                    DisableDatasetAction.INSTANCE,
+                    new DisableDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "set_fwd_toggle" })
+                )
+            );
+        }
+        collectAllMeters();
+        assertToggleCountedOnceOnMaster(master, coord, "disabled");
+        assertThat(
+            "phone-home disabled once per kind across the cluster",
+            clusterTotal(
+                a -> a.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_DISABLED) + a.configChanges(
+                    DataSourceUsageAccumulator.KIND_DATASET,
+                    DataSourceUsageAccumulator.OP_DISABLED
+                )
+            ) - disabledBefore,
+            equalTo(2L)
+        );
+
+        resetAllMeters();
+        for (int i = 0; i < 2; i++) {
+            assertAcked(
+                client(coord).execute(
+                    EnableDataSourceAction.INSTANCE,
+                    new EnableDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "ds_fwd_toggle" })
+                )
+            );
+            assertAcked(
+                client(coord).execute(
+                    EnableDatasetAction.INSTANCE,
+                    new EnableDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "set_fwd_toggle" })
+                )
+            );
+        }
+        collectAllMeters();
+        assertToggleCountedOnceOnMaster(master, coord, "enabled");
+    }
+
+    private void assertToggleCountedOnceOnMaster(String master, String coord, String op) {
+        for (String kind : List.of("datasource", "dataset")) {
+            assertThat("APM " + op + " once across the cluster for " + kind, apmConfigChanges(kind, op), equalTo(1L));
+            assertThat("master recorded " + op + " for " + kind, apmConfigChangesOn(master, kind, op), equalTo(1L));
+            assertThat("coordinator must not also record " + op + " for " + kind, apmConfigChangesOn(coord, kind, op), equalTo(0L));
+            List<Measurement> measurements = counters(ExternalSourceMetrics.CONFIG_CHANGES_TOTAL).stream()
+                .filter(m -> kind.equals(m.attributes().get(ExternalSourceMetrics.KIND_ATTRIBUTE)))
+                .filter(m -> op.equals(m.attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE)))
+                .toList();
+            assertThat(measurements, hasSize(1));
+            assertThat(
+                kind + " is tagged with the data source type",
+                measurements.get(0).attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE),
+                equalTo("gcs")
+            );
+            assertThat(
+                "a toggle carries no rejection reason",
+                measurements.get(0).attributes().containsKey(ExternalSourceMetrics.REASON_ATTRIBUTE),
+                equalTo(false)
             );
         }
     }

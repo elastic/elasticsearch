@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
+import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -93,6 +94,37 @@ public class SegmentTests extends ESTestCase {
             Segment deserialized = new Segment(input);
             assertTrue(isSegmentEquals(deserialized, segment));
         }
+    }
+
+    /**
+     * A segment sorted by a ColumNAR numeric field is written exactly as one sorted by the {@link SortedNumericSortField} it
+     * describes, so every node reads it with no transport version of its own, and reads it back as that field.
+     */
+    public void testColumnarNumericSortSerializesAsSortedNumeric() throws IOException {
+        String field = randomAlphaOfLengthBetween(1, 10);
+        boolean reverse = randomBoolean();
+        boolean max = randomBoolean();
+        Long missing = randomBoolean() ? null : randomLong();
+        SortField columnar = new ColumnarNumericSortField(field, SortField.Type.LONG, reverse, max, missing);
+        SortField sortedNumeric = new SortedNumericSortField(
+            field,
+            SortField.Type.LONG,
+            reverse,
+            max ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN,
+            missing
+        );
+
+        Segment segment = randomSegment();
+        segment.segmentSort = new Sort(columnar);
+        BytesStreamOutput columnarOutput = new BytesStreamOutput();
+        segment.writeTo(columnarOutput);
+        segment.segmentSort = new Sort(sortedNumeric);
+        BytesStreamOutput sortedNumericOutput = new BytesStreamOutput();
+        segment.writeTo(sortedNumericOutput);
+        assertEquals(sortedNumericOutput.bytes(), columnarOutput.bytes());
+
+        Segment deserialized = new Segment(columnarOutput.bytes().streamInput());
+        assertEquals(new Sort(sortedNumeric), deserialized.segmentSort);
     }
 
     public void testSerializationWithAutoCalibration() throws IOException {

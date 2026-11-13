@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -257,6 +258,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         if (sortField instanceof MultiValuedBinaryDocValuesSortField binarySortField) {
             return binarySortField.isMaybeMultiValued(context.reader());
         }
+        // Likewise a ColumNAR numeric column sorts as a number but has no SORTED_NUMERIC doc values.
+        if (sortField instanceof ColumnarNumericSortField columnarSortField) {
+            return columnarSortField.isMaybeMultiValued(context.reader());
+        }
         SortField.Type type = IndexSortConfig.getSortFieldType(sortField);
         return switch (type) {
             case STRING -> {
@@ -293,7 +298,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                 || source.missingBucket
                 || indexSortField.getField().equals(source.fieldType.name()) == false
                 || isMaybeMultivalued(context, indexSortField)
-                || sourceConfig.hasScript()) {
+                || sourceConfig.hasScript()
+                // applySortFieldRounding can only round a SortedNumericSortField; a ColumNAR numeric column's sort isn't one.
+                || (sourceConfig.valuesSource() instanceof RoundingValuesSource
+                    && indexSortField instanceof SortedNumericSortField == false)) {
                 break;
             }
 

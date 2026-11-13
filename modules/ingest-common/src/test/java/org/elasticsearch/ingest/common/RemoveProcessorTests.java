@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.ingest.common.RemoveProcessor.shouldKeep;
 import static org.hamcrest.Matchers.containsString;
@@ -196,6 +197,36 @@ public class RemoveProcessorTests extends ESTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> notIgnoringMissing.execute(ingestDocument));
             assertThat(e.getMessage(), equalTo("field [] doesn't exist"));
         }
+    }
+
+    /**
+     * Each field that is a template is rendered once for every document, whether or not the document has the field.
+     */
+    public void testTemplatedFieldsAreRenderedOncePerExecute() throws Exception {
+        AtomicInteger presentRenders = new AtomicInteger();
+        AtomicInteger missingRenders = new AtomicInteger();
+        List<TemplateScript.Factory> fields = List.of(
+            countingTemplate("present", presentRenders),
+            countingTemplate("missing", missingRenders)
+        );
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("present", "value");
+        ingestDocument.setFieldValue("other", "value");
+        new RemoveProcessor("tag", null, fields, List.of(), true).execute(ingestDocument);
+        assertThat(ingestDocument.getSource(), equalTo(Map.of("other", "value")));
+        assertThat(presentRenders.get(), equalTo(1));
+        assertThat(missingRenders.get(), equalTo(1));
+    }
+
+    private static TemplateScript.Factory countingTemplate(String rendersAs, AtomicInteger renders) {
+        return params -> new TemplateScript(params) {
+            @Override
+            public String execute() {
+                renders.incrementAndGet();
+                return rendersAs;
+            }
+        };
     }
 
     public void testKeepFields() throws Exception {

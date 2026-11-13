@@ -26,14 +26,15 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExplainResponseTests extends AbstractXContentSerializingTestCase<ExplainResponse> {
@@ -92,23 +93,7 @@ public class ExplainResponseTests extends AbstractXContentSerializingTestCase<Ex
             String.valueOf(randomIntBetween(1, 100)),
             randomBoolean(),
             randomExplanation(randomExplanation(randomExplanation()), randomExplanation()),
-            createRandomGetResult()
-        );
-    }
-
-    private GetResult createRandomGetResult() {
-        String fieldName = randomAlphaOfLength(10);
-        List<Object> values = Arrays.asList(randomAlphaOfLengthBetween(3, 10), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        return new GetResult(
-            randomAlphaOfLengthBetween(3, 10),
-            randomAlphaOfLengthBetween(3, 10),
-            0,
-            1,
-            randomNonNegativeLong(),
-            true,
-            RandomObjects.randomSource(random()),
-            singletonMap(fieldName, new DocumentField(fieldName, values)),
-            null
+            GetResultTests.randomGetResult(XContentType.JSON).v2()
         );
     }
 
@@ -117,16 +102,55 @@ public class ExplainResponseTests extends AbstractXContentSerializingTestCase<Ex
         String index = instance.getIndex();
         String id = instance.getId();
         Explanation explanation = instance.getExplanation();
-        // note: the "exists" flag is not part of ExplainResponse#equals, so only mutate the fields it compares
-        switch (randomIntBetween(0, 2)) {
+        // note: the top-level "exists" flag is not part of ExplainResponse#equals, so only mutate the fields it compares,
+        // including the GetResult fields that ExplainResponse#equals considers (isExists, sourceAsMap, fields)
+        GetResult getResult = instance.getGetResult();
+        switch (randomIntBetween(0, 3)) {
             case 0 -> index = randomValueOtherThan(index, () -> randomAlphaOfLength(5));
             case 1 -> id = randomValueOtherThan(id, () -> String.valueOf(randomIntBetween(1, 100)));
-            default -> explanation = randomValueOtherThan(
+            case 2 -> explanation = randomValueOtherThan(
                 explanation,
                 () -> randomExplanation(randomExplanation(randomExplanation()), randomExplanation())
             );
+            default -> getResult = mutateGetResult(getResult);
         }
-        return new ExplainResponse(index, id, instance.isExists(), explanation, instance.getGetResult());
+        return new ExplainResponse(index, id, instance.isExists(), explanation, getResult);
+    }
+
+    private static GetResult mutateGetResult(GetResult toMutate) {
+        long seqNo = toMutate.getSeqNo();
+        long primaryTerm = toMutate.getPrimaryTerm();
+        boolean exists = toMutate.isExists();
+        BytesReference source = toMutate.internalSourceRef();
+        Map<String, DocumentField> documentFields = toMutate.getDocumentFields();
+        Map<String, DocumentField> metaFields = toMutate.getMetadataFields();
+        switch (randomIntBetween(0, 3)) {
+            // flip exists, honoring the seqNo/primaryTerm invariants that entails
+            case 0 -> {
+                exists = exists == false;
+                seqNo = exists ? between(0, Integer.MAX_VALUE) : UNASSIGNED_SEQ_NO;
+                primaryTerm = exists ? between(1, 10) : UNASSIGNED_PRIMARY_TERM;
+            }
+            case 1 -> source = randomValueOtherThan(source, () -> RandomObjects.randomSource(random()));
+            case 2 -> documentFields = randomFieldsMap();
+            default -> metaFields = randomFieldsMap();
+        }
+        return new GetResult(
+            toMutate.getIndex(),
+            toMutate.getId(),
+            seqNo,
+            primaryTerm,
+            toMutate.getVersion(),
+            exists,
+            source,
+            documentFields,
+            metaFields
+        );
+    }
+
+    private static Map<String, DocumentField> randomFieldsMap() {
+        String fieldName = randomAlphaOfLengthBetween(3, 10);
+        return singletonMap(fieldName, new DocumentField(fieldName, singletonList(randomAlphaOfLength(5))));
     }
 
     @Override

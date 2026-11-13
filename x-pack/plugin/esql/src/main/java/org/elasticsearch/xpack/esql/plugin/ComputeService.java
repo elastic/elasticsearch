@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -142,7 +143,6 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -1172,6 +1172,12 @@ public class ComputeService {
             || (exchange.child() instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance));
     }
 
+    /**
+     * Executes {@code physicalPlan} and collects its result pages on the coordinator.
+     *
+     * @param maxResultSize limit on the collected result pages, or {@code null} for no limit. The execution fails as soon as the
+     *                      pages exceed it, see {@link BoundedPageCollector}.
+     */
     public void execute(
         String sessionId,
         CancellableTask rootTask,
@@ -1181,6 +1187,7 @@ public class ComputeService {
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
         PlanTimeProfile planTimeProfile,
+        @Nullable ByteSizeValue maxResultSize,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -1223,7 +1230,9 @@ public class ComputeService {
                     null,
                     initialClusterStatuses,
                     planTimeProfile,
-                    warnIndexCoordinatorOnce
+                    warnIndexCoordinatorOnce,
+                    SiblingPlacement.SINGLE,
+                    maxResultSize
                 );
                 case SubPlan.Merge merge -> new SubPlansExecutor(
                     this,
@@ -1238,6 +1247,7 @@ public class ComputeService {
                     warnIndexCoordinatorOnce,
                     planTimeProfile,
                     merge,
+                    maxResultSize,
                     dispatchListener
                 ).executePlan();
             }
@@ -1247,39 +1257,6 @@ public class ComputeService {
             // of that same finally; notifyOnce drops that second completion.
             dispatchListener.onFailure(e);
         }
-    }
-
-    public void executePlan(
-        String sessionId,
-        CancellableTask rootTask,
-        EsqlFlags flags,
-        PhysicalPlan physicalPlan,
-        Configuration configuration,
-        FoldContext foldContext,
-        EsqlExecutionInfo execInfo,
-        String profileQualifier,
-        ActionListener<Result> listener,
-        Supplier<ExchangeSink> exchangeSinkSupplier,
-        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
-        PlanTimeProfile planTimeProfile,
-        Runnable warnIndexCoordinatorOnce
-    ) {
-        executePlan(
-            sessionId,
-            rootTask,
-            flags,
-            physicalPlan,
-            configuration,
-            foldContext,
-            execInfo,
-            profileQualifier,
-            listener,
-            exchangeSinkSupplier,
-            initialClusterStatuses,
-            planTimeProfile,
-            warnIndexCoordinatorOnce,
-            SiblingPlacement.SINGLE
-        );
     }
 
     /**
@@ -1301,6 +1278,46 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
         SiblingPlacement placement
+    ) {
+        executePlan(
+            sessionId,
+            rootTask,
+            flags,
+            physicalPlan,
+            configuration,
+            foldContext,
+            execInfo,
+            profileQualifier,
+            listener,
+            exchangeSinkSupplier,
+            initialClusterStatuses,
+            planTimeProfile,
+            warnIndexCoordinatorOnce,
+            placement,
+            null
+        );
+    }
+
+    /**
+     * @param maxResultSize limit on the result pages collected when {@code exchangeSinkSupplier} is {@code null}, or
+     *                      {@code null} for no limit, see {@link BoundedPageCollector}
+     */
+    private void executePlan(
+        String sessionId,
+        CancellableTask rootTask,
+        EsqlFlags flags,
+        PhysicalPlan physicalPlan,
+        Configuration configuration,
+        FoldContext foldContext,
+        EsqlExecutionInfo execInfo,
+        String profileQualifier,
+        ActionListener<Result> listener,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
+        PlanTimeProfile planTimeProfile,
+        Runnable warnIndexCoordinatorOnce,
+        SiblingPlacement placement,
+        @Nullable ByteSizeValue maxResultSize
     ) {
         final long splitDiscoveryStart = System.nanoTime();
         ExternalPlanningReservation reservation = execInfo == null ? null : execInfo.externalPlanning();
@@ -1334,7 +1351,8 @@ public class ComputeService {
                     planTimeProfile,
                     warnIndexCoordinatorOnce,
                     splitDiscoveryStart + waitedNanos,
-                    placement
+                    placement,
+                    maxResultSize
                 ),
                 releasing
             );
@@ -1447,7 +1465,8 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
         long splitDiscoveryStart,
-        SiblingPlacement placement
+        SiblingPlacement placement,
+        @Nullable ByteSizeValue maxResultSize
     ) {
         final ExternalDistributionResult distributionResult;
         try {
@@ -1470,7 +1489,8 @@ public class ComputeService {
             return;
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
-        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        final BoundedPageCollector pageCollector = new BoundedPageCollector(maxResultSize);
+        final List<Page> collectedPages = pageCollector.pages();
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
             l.onFailure(e);
@@ -1484,7 +1504,7 @@ public class ComputeService {
             ? streaming.pageStream()
             : null;
         if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
-            coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
+            coordinatorPlan = new OutputExec(coordinatorPlan, pageCollector);
         }
 
         PhysicalPlan dataNodePlan = coordinatorAndDataNode.v2();

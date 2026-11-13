@@ -1027,6 +1027,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             () -> {},
             planTimeProfile,
             topology,
+            null,
             future
         ).executePlan();
         return new StartedQuery(future, sessionId, rootTask, execInfo);
@@ -1084,6 +1085,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             () -> {},
             planTimeProfile,
             topology,
+            null,
             listener
         ).executePlan();
     }

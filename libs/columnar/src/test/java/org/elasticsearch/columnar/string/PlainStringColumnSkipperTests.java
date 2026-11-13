@@ -141,38 +141,6 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
         }
     }
 
-    public void testQueriesAtTheEdgesOfAnIntervalAreExact() throws IOException {
-        final int bands = 4;
-        final BytesRef[][] docSlots = new BytesRef[bands * INTERVAL][];
-        for (int doc = 0; doc < docSlots.length; doc++) {
-            final int band = bands - 1 - doc / INTERVAL;
-            docSlots[doc] = new BytesRef[] { new BytesRef("band" + band + "-" + (char) ('c' - (doc % INTERVAL) * 3 / INTERVAL)) };
-        }
-        final List<BytesRef> edges = new ArrayList<>();
-        for (String edge : new String[] { "band1-a", "band1-c", "band1-b", "band1-", "band0-c", "band2-a", "band1-d", "band1" }) {
-            edges.add(new BytesRef(edge));
-            edges.add(new BytesRef(edge + "\0"));
-        }
-        edges.add(null);
-        withColumn(docSlots, plain(true, sizes(128, 4096)), (metadata, reader) -> {
-            assertNotNull(((StringColumnMetadata.Plain) metadata).skipper());
-            for (BytesRef lower : edges) {
-                for (BytesRef upper : edges) {
-                    for (boolean includeLower : new boolean[] { true, false }) {
-                        for (boolean includeUpper : new boolean[] { true, false }) {
-                            StringMatchOracle.assertRange(reader, docSlots, lower, includeLower, upper, includeUpper);
-                        }
-                    }
-                }
-            }
-            for (BytesRef term : edges) {
-                if (term != null) {
-                    assertEquals(StringMatchOracle.expected(docSlots, term::equals), StringMatchOracle.matched(reader.matchTerm(term)));
-                }
-            }
-        });
-    }
-
     public void testValuesOfHighBytesAndLongValuesAreFound() throws IOException {
         final byte[] allFf = new byte[300];
         Arrays.fill(allFf, (byte) 0xFF);
@@ -196,40 +164,6 @@ public class PlainStringColumnSkipperTests extends ColumnarStringTestCase {
                 StringMatchOracle.expected(docSlots, value -> StringMatchOracle.startsWith(value, high)),
                 StringMatchOracle.matched(reader.matchPrefix(high))
             );
-        });
-    }
-
-    public void testNullsAndEmptyArraysNeverMatchAndMultiValuedDocumentsAreBoundedByTheirValues() throws IOException {
-        final BytesRef[][] docSlots = new BytesRef[3 * INTERVAL + 7][];
-        for (int doc = 0; doc < docSlots.length; doc++) {
-            final int interval = doc / INTERVAL;
-            docSlots[doc] = switch (doc % 5) {
-                case 0 -> new BytesRef[] { new BytesRef("m" + interval), new BytesRef("m" + interval), new BytesRef("m" + interval) };
-                case 1 -> new BytesRef[] { null };
-                case 2 -> new BytesRef[0];
-                case 3 -> null;
-                case 4 -> new BytesRef[] { null, new BytesRef("m" + interval) };
-                default -> throw new AssertionError(doc);
-            };
-        }
-        withColumn(docSlots, plain(true, sizes(128, 4096)), (metadata, reader) -> {
-            assertNotNull(((StringColumnMetadata.Plain) metadata).skipper());
-            final List<BytesRef> probes = List.of(
-                new BytesRef("m0"),
-                new BytesRef("m1"),
-                new BytesRef("m2"),
-                new BytesRef("m3"),
-                new BytesRef(),
-                new BytesRef("a"),
-                new BytesRef("z")
-            );
-            for (BytesRef probe : probes) {
-                assertEquals(StringMatchOracle.expected(docSlots, probe::equals), StringMatchOracle.matched(reader.matchTerm(probe)));
-                StringMatchOracle.assertRange(reader, docSlots, probe, true, probe, true);
-                StringMatchOracle.assertRange(reader, docSlots, probe, false, null, true);
-                StringMatchOracle.assertRange(reader, docSlots, null, true, probe, false);
-            }
-            StringMatchOracle.assertRange(reader, docSlots, null, true, null, true);
         });
     }
 

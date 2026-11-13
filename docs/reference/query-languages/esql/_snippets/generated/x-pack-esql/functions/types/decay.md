@@ -5,12 +5,151 @@
 | value | origin | scale | options | result |
 | --- | --- | --- | --- | --- |
 | cartesian_point | cartesian_point | double | named parameters | double |
+| cartesian_point | cartesian_point | double | | double |
+| cartesian_point | cartesian_point | integer | named parameters | double |
+| cartesian_point | cartesian_point | integer | | double |
+| cartesian_point | cartesian_point | long | named parameters | double |
+| cartesian_point | cartesian_point | long | | double |
+| cartesian_point | cartesian_point | unsigned_long | named parameters | double |
+| cartesian_point | cartesian_point | unsigned_long | | double |
 | date | date | time_duration | named parameters | double |
+| date | date | time_duration | | double |
+| date | date_nanos | time_duration | named parameters | double |
+| date | date_nanos | time_duration | | double |
+| date_nanos | date | time_duration | named parameters | double |
+| date_nanos | date | time_duration | | double |
 | date_nanos | date_nanos | time_duration | named parameters | double |
+| date_nanos | date_nanos | time_duration | | double |
 | double | double | double | named parameters | double |
+| double | double | double | | double |
+| double | double | integer | named parameters | double |
+| double | double | integer | | double |
+| double | double | long | named parameters | double |
+| double | double | long | | double |
+| double | double | unsigned_long | named parameters | double |
+| double | double | unsigned_long | | double |
+| double | integer | double | named parameters | double |
+| double | integer | double | | double |
+| double | integer | integer | named parameters | double |
+| double | integer | integer | | double |
+| double | integer | long | named parameters | double |
+| double | integer | long | | double |
+| double | integer | unsigned_long | named parameters | double |
+| double | integer | unsigned_long | | double |
+| double | long | double | named parameters | double |
+| double | long | double | | double |
+| double | long | integer | named parameters | double |
+| double | long | integer | | double |
+| double | long | long | named parameters | double |
+| double | long | long | | double |
+| double | long | unsigned_long | named parameters | double |
+| double | long | unsigned_long | | double |
+| double | unsigned_long | double | named parameters | double |
+| double | unsigned_long | double | | double |
+| double | unsigned_long | integer | named parameters | double |
+| double | unsigned_long | integer | | double |
+| double | unsigned_long | long | named parameters | double |
+| double | unsigned_long | long | | double |
+| double | unsigned_long | unsigned_long | named parameters | double |
+| double | unsigned_long | unsigned_long | | double |
 | geo_point | geo_point | keyword | named parameters | double |
+| geo_point | geo_point | keyword | | double |
 | geo_point | geo_point | text | named parameters | double |
+| geo_point | geo_point | text | | double |
+| integer | double | double | named parameters | double |
+| integer | double | double | | double |
+| integer | double | integer | named parameters | double |
+| integer | double | integer | | double |
+| integer | double | long | named parameters | double |
+| integer | double | long | | double |
+| integer | double | unsigned_long | named parameters | double |
+| integer | double | unsigned_long | | double |
+| integer | integer | double | named parameters | double |
+| integer | integer | double | | double |
 | integer | integer | integer | named parameters | double |
+| integer | integer | integer | | double |
+| integer | integer | long | named parameters | double |
+| integer | integer | long | | double |
+| integer | integer | unsigned_long | named parameters | double |
+| integer | integer | unsigned_long | | double |
+| integer | long | double | named parameters | double |
+| integer | long | double | | double |
+| integer | long | integer | named parameters | double |
+| integer | long | integer | | double |
+| integer | long | long | named parameters | double |
+| integer | long | long | | double |
+| integer | long | unsigned_long | named parameters | double |
+| integer | long | unsigned_long | | double |
+| integer | unsigned_long | double | named parameters | double |
+| integer | unsigned_long | double | | double |
+| integer | unsigned_long | integer | named parameters | double |
+| integer | unsigned_long | integer | | double |
+| integer | unsigned_long | long | named parameters | double |
+| integer | unsigned_long | long | | double |
+| integer | unsigned_long | unsigned_long | named parameters | double |
+| integer | unsigned_long | unsigned_long | | double |
+| long | double | double | named parameters | double |
+| long | double | double | | double |
+| long | double | integer | named parameters | double |
+| long | double | integer | | double |
+| long | double | long | named parameters | double |
+| long | double | long | | double |
+| long | double | unsigned_long | named parameters | double |
+| long | double | unsigned_long | | double |
+| long | integer | double | named parameters | double |
+| long | integer | double | | double |
+| long | integer | integer | named parameters | double |
+| long | integer | integer | | double |
+| long | integer | long | named parameters | double |
+| long | integer | long | | double |
+| long | integer | unsigned_long | named parameters | double |
+| long | integer | unsigned_long | | double |
+| long | long | double | named parameters | double |
+| long | long | double | | double |
+| long | long | integer | named parameters | double |
+| long | long | integer | | double |
 | long | long | long | named parameters | double |
+| long | long | long | | double |
+| long | long | unsigned_long | named parameters | double |
+| long | long | unsigned_long | | double |
+| long | unsigned_long | double | named parameters | double |
+| long | unsigned_long | double | | double |
+| long | unsigned_long | integer | named parameters | double |
+| long | unsigned_long | integer | | double |
+| long | unsigned_long | long | named parameters | double |
+| long | unsigned_long | long | | double |
+| long | unsigned_long | unsigned_long | named parameters | double |
+| long | unsigned_long | unsigned_long | | double |
+| unsigned_long | double | double | named parameters | double |
+| unsigned_long | double | double | | double |
+| unsigned_long | double | integer | named parameters | double |
+| unsigned_long | double | integer | | double |
+| unsigned_long | double | long | named parameters | double |
+| unsigned_long | double | long | | double |
+| unsigned_long | double | unsigned_long | named parameters | double |
+| unsigned_long | double | unsigned_long | | double |
+| unsigned_long | integer | double | named parameters | double |
+| unsigned_long | integer | double | | double |
+| unsigned_long | integer | integer | named parameters | double |
+| unsigned_long | integer | integer | | double |
+| unsigned_long | integer | long | named parameters | double |
+| unsigned_long | integer | long | | double |
+| unsigned_long | integer | unsigned_long | named parameters | double |
+| unsigned_long | integer | unsigned_long | | double |
+| unsigned_long | long | double | named parameters | double |
+| unsigned_long | long | double | | double |
+| unsigned_long | long | integer | named parameters | double |
+| unsigned_long | long | integer | | double |
+| unsigned_long | long | long | named parameters | double |
+| unsigned_long | long | long | | double |
+| unsigned_long | long | unsigned_long | named parameters | double |
+| unsigned_long | long | unsigned_long | | double |
+| unsigned_long | unsigned_long | double | named parameters | double |
+| unsigned_long | unsigned_long | double | | double |
+| unsigned_long | unsigned_long | integer | named parameters | double |
+| unsigned_long | unsigned_long | integer | | double |
+| unsigned_long | unsigned_long | long | named parameters | double |
+| unsigned_long | unsigned_long | long | | double |
 | unsigned_long | unsigned_long | unsigned_long | named parameters | double |
+| unsigned_long | unsigned_long | unsigned_long | | double |
 

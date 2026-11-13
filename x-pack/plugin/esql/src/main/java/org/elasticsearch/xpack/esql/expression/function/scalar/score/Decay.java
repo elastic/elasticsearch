@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -66,6 +67,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -93,7 +96,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
 public class Decay extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware, AnyNullIsNull {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Decay.class).quaternary(Decay::new).name("decay");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Decay.class)
+        .quaternary(Decay::new)
+        // Convert date/date_nanos origins to the value's unit, accept any numeric scale or offset for cartesian points,
+        // and reject geo_point/cartesian_point origin mixes.
+        .capabilities("fix_mixed_type_parameters")
+        .name("decay");
 
     public static final String ORIGIN = "origin";
     public static final String SCALE = "scale";
@@ -133,14 +141,16 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     @FunctionInfo(
         returnType = "double",
         signatures = {
-            @Signature(params = { "integer", "integer", "integer", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "long", "long", "long", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "unsigned_long", "unsigned_long", "unsigned_long", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "double", "double", "double", "named_parameters" }, returnType = "double"),
+            // Numeric origin and scale (and offset) are converted to the type of the value.
+            @Signature(params = { "NUMERIC", "NUMERIC", "NUMERIC" }, returnType = "double"),
+            @Signature(params = { "NUMERIC", "NUMERIC", "NUMERIC", "named_parameters" }, returnType = "double"),
+            @Signature(params = { "geo_point", "geo_point", "STRING" }, returnType = "double"),
             @Signature(params = { "geo_point", "geo_point", "STRING", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "cartesian_point", "cartesian_point", "double", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "date", "date", "time_duration", "named_parameters" }, returnType = "double"),
-            @Signature(params = { "date_nanos", "date_nanos", "time_duration", "named_parameters" }, returnType = "double") },
+            @Signature(params = { "cartesian_point", "cartesian_point", "NUMERIC" }, returnType = "double"),
+            @Signature(params = { "cartesian_point", "cartesian_point", "NUMERIC", "named_parameters" }, returnType = "double"),
+            // The origin is converted to the unit of the value.
+            @Signature(params = { "date|date_nanos", "date|date_nanos", "time_duration" }, returnType = "double"),
+            @Signature(params = { "date|date_nanos", "date|date_nanos", "time_duration", "named_parameters" }, returnType = "double") },
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
         briefSummary = "Calculates a relevance score that decays with distance from a target origin.",
@@ -274,8 +284,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             boolean isGeoPoint = isGeoPoint(valueType);
 
             return validateOriginScaleAndOffset(
-                DataType::isSpatialPoint,
-                "spatial point",
+                t -> t == valueType,
+                valueType.typeName(),
                 isGeoPoint ? DataType::isString : DataType::isNumeric,
                 isGeoPoint ? "keyword or text" : "numeric",
                 isGeoPoint ? DataType::isString : DataType::isNumeric,
@@ -398,7 +408,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         FoldContext foldCtx = toEvaluator.foldCtx();
 
         // Constants
-        Object originFolded = convertNumericParam(origin.fold(foldCtx), origin.dataType(), valueDataType);
+        Object originFolded = convertOrigin(origin.fold(foldCtx), origin.dataType(), valueDataType);
         Object scaleFolded = convertNumericParam(getFoldedScale(foldCtx, valueDataType), scale.dataType(), valueDataType);
         Object offsetFolded = getOffset(foldCtx, valueDataType, offsetExpr);
         double decayFolded = decayExpr != null ? ((Number) decayExpr.fold(foldCtx)).doubleValue() : DEFAULT_DECAY;
@@ -454,8 +464,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 source(),
                 valueFactory,
                 (BytesRef) originFolded,
-                (Double) scaleFolded,
-                (Double) offsetFolded,
+                numberAsDouble(scaleFolded, scale.dataType()),
+                numberAsDouble(offsetFolded, offsetExpr != null ? offsetExpr.dataType() : DOUBLE),
                 decayFolded,
                 decayFunction
             );
@@ -771,6 +781,20 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         Object foldedOffset = offset.fold(foldCtx);
         Duration offsetDuration = (Duration) foldedOffset;
         return offsetDuration.toNanos();
+    }
+
+    private static Object convertOrigin(Object origin, DataType originType, DataType valueType) {
+        if (valueType == DATETIME && originType == DATE_NANOS) {
+            return DateUtils.toMilliSeconds((Long) origin);
+        }
+        if (valueType == DATE_NANOS && originType == DATETIME) {
+            return DateUtils.toNanoSeconds((Long) origin);
+        }
+        return convertNumericParam(origin, originType, valueType);
+    }
+
+    private static double numberAsDouble(Object value, DataType type) {
+        return type == UNSIGNED_LONG ? NumericUtils.unsignedLongToDouble((Long) value) : ((Number) value).doubleValue();
     }
 
     private static Object convertNumericParam(Object value, DataType valueType, DataType targetType) {

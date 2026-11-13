@@ -269,7 +269,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var plan = plannerOptimizer.plan("from test | where emp_no > 10040 | stats c = count(emp_no)", IS_SV_STATS);
         var stat = (EsStatsQueryExec.BasicStat) queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
-        assertThat(stat.query(), is(existsQuery("emp_no")));
+        // The filter leaves only rows with a single emp_no, so the rows are counted and there is no need to check that it exists
+        assertThat(stat.query(), is(nullValue()));
     }
 
     /**
@@ -319,10 +320,9 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var stat = as(esStatsQuery.stat(), EsStatsQueryExec.BasicStat.class);
         Source source = new Source(2, 8, "salary > 1000");
-        var exists = existsQuery("salary");
-        assertThat(stat.query(), is(exists));
-        var range = wrapWithSingleQuery(query, unscore(rangeQuery("salary").gt(1000)), "salary", source);
-        var expected = boolQuery().must(range).must(unscore(exists));
+        // The filter leaves only rows with a single salary, so the rows are counted and there is no need to check that it exists
+        assertThat(stat.query(), is(nullValue()));
+        var expected = wrapWithSingleQuery(query, unscore(rangeQuery("salary").gt(1000)), "salary", source);
         assertThat(esStatsQuery.query().toString(), is(expected.toString()));
     }
 

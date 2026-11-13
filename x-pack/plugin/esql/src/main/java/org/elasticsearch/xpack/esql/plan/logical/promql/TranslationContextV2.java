@@ -56,6 +56,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult.Kind;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.SelectorV2;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -100,9 +104,12 @@ public record TranslationContextV2(
      * intermediate results travel back up.
      */
     public IntermediateResult translate(LogicalPlan node) {
-        switch (node) {
+        return switch (node) {
+            case InstantSelector selector -> SelectorV2.translate(selector, this);
+            case RangeSelector selector -> SelectorV2.translate(selector, this);
+            case LiteralSelector selector -> SelectorV2.translate(selector, this);
             default -> throw new QlIllegalArgumentException("PromQL plan node [{}] does not translate in V2 yet", node.nodeName());
-        }
+        };
     }
 
     /** The labels of a vector without labels. */

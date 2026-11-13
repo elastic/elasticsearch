@@ -112,6 +112,17 @@ If omitted, it defaults to `metrics-*`, which queries matching indices configure
 [`index.mode: time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md).
 The {{prom}}-compatible `query` and `query_range` endpoints use the same default when the `{index}` path parameter is omitted.
 
+### Exemplars [esql-promql-exemplars]
+
+{applies_to}`stack: preview 9.7` {applies_to}`serverless: preview`
+
+With [`SET exemplars=true`](/reference/query-languages/esql/directives/set.md#esql-exemplars), a `PROMQL` query
+returns the exemplars of the series its selectors select instead of its result. The metric names and label matchers
+of the selectors and the evaluated time range of the query select the exemplars. Only the exemplars that influenced
+the metric values are returned. For example, for a selector with `offset 1h`, these are exemplars older than one hour.
+For how exemplars are found, the returned columns, and the limitations, refer to
+[Query exemplars](/reference/query-languages/esql/commands/ts.md#esql-ts-exemplars).
+
 ### Implicit range selectors [esql-promql-implicit-range-selectors]
 
 In standard {{promql}}, functions like `rate` require a range selector: `rate(http_requests_total[5m])`.

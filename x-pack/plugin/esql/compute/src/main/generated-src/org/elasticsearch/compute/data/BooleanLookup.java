@@ -19,9 +19,11 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
 public final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
+    private static final int PREALLOCATED_BYTES_PER_VALUE = Byte.BYTES;
     private final BooleanBlock values;
     private final IntBlock positions;
     private final long targetByteSize;
+    private final int initialPositions;
     private int position;
 
     private boolean first;
@@ -33,6 +35,8 @@ public final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
         this.values = values;
         this.positions = positions;
         this.targetByteSize = targetBlockSize.getBytes();
+        // The builder counts preallocated values in estimatedBytes, so start at half the target.
+        this.initialPositions = (int) Math.min(Integer.MAX_VALUE, Math.max(1, targetByteSize / 2 / PREALLOCATED_BYTES_PER_VALUE));
     }
 
     @Override
@@ -42,7 +46,8 @@ public final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
 
     @Override
     public BooleanBlock next() {
-        try (BooleanBlock.Builder builder = positions.blockFactory().newBooleanBlockBuilder(positions.getTotalValueCount())) {
+        int initialSize = Math.min(positions.getPositionCount() - position, initialPositions);
+        try (BooleanBlock.Builder builder = positions.blockFactory().newBooleanBlockBuilder(initialSize)) {
             int count = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
@@ -58,7 +63,7 @@ public final class BooleanLookup implements ReleasableIterator<BooleanBlock> {
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() >= targetByteSize) {
                     break;
                 }
             }

@@ -7,12 +7,14 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceIntBlockSourceOperator;
 import org.hamcrest.Matcher;
 
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ColumnLoadOperatorTests extends OperatorTestCase {
     @Override
@@ -60,6 +63,36 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
             if (p - loadedOffset == loaded.getPositionCount()) {
                 loadedOffset += loaded.getPositionCount();
                 loaded = null;
+            }
+        }
+    }
+
+    public void testTargetBlockSize() {
+        assertThat(ColumnLoadOperator.targetBlockSize(4).getBytes(), equalTo((long) Operator.TARGET_PAGE_SIZE / 5));
+        assertThat(ColumnLoadOperator.targetBlockSize(1000), equalTo(ByteSizeValue.ofKb(10)));
+    }
+
+    public void testSparsePositionsKeepPageWhole() {
+        DriverContext driverContext = driverContext();
+        int positionCount = 3333;
+        Page input;
+        try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                if (p % 10 == 0) {
+                    builder.appendInt(between(0, 4));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            input = new Page(builder.build());
+        }
+        List<Page> results = new TestDriverRunner().builder(driverContext).input(input).run(simple().get(driverContext));
+        try {
+            assertThat(results, hasSize(1));
+            assertThat(results.get(0).getPositionCount(), equalTo(positionCount));
+        } finally {
+            for (Page p : results) {
+                p.releaseBlocks();
             }
         }
     }

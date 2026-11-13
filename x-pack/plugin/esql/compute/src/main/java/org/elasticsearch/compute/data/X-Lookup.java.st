@@ -23,12 +23,17 @@ import org.elasticsearch.core.Releasables;
  */
 public final class $Type$Lookup implements ReleasableIterator<$Type$Block> {
 $if(BytesRef)$
+    // BytesRefArray sizes 3 value bytes per entry up front and adds 4-byte int offsets once value lengths differ.
+    private static final int PREALLOCATED_BYTES_PER_VALUE = Long.BYTES;
     private final BytesRef firstScratch = new BytesRef();
     private final BytesRef valueScratch = new BytesRef();
+$else$
+    private static final int PREALLOCATED_BYTES_PER_VALUE = $BYTES$;
 $endif$
     private final $Type$Block values;
     private final IntBlock positions;
     private final long targetByteSize;
+    private final int initialPositions;
     private int position;
 
     private $type$ first;
@@ -40,6 +45,8 @@ $endif$
         this.values = values;
         this.positions = positions;
         this.targetByteSize = targetBlockSize.getBytes();
+        // The builder counts preallocated values in estimatedBytes, so start at half the target.
+        this.initialPositions = (int) Math.min(Integer.MAX_VALUE, Math.max(1, targetByteSize / 2 / PREALLOCATED_BYTES_PER_VALUE));
     }
 
     @Override
@@ -49,7 +56,8 @@ $endif$
 
     @Override
     public $Type$Block next() {
-        try ($Type$Block.Builder builder = positions.blockFactory().new$Type$BlockBuilder(positions.getTotalValueCount())) {
+        int initialSize = Math.min(positions.getPositionCount() - position, initialPositions);
+        try ($Type$Block.Builder builder = positions.blockFactory().new$Type$BlockBuilder(initialSize)) {
             int count = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
@@ -65,7 +73,7 @@ $endif$
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() >= targetByteSize) {
                     break;
                 }
             }

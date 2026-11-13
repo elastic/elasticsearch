@@ -37,7 +37,9 @@ import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertInsertNulls;
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BlockMultiValuedTests extends ESTestCase {
@@ -137,7 +139,20 @@ public class BlockMultiValuedTests extends ESTestCase {
     }
 
     public void testLookupFromSingleManyPages() {
-        assertLookup(ByteSizeValue.ofBytes(1), between(1, 32), p -> 1);
+        int blocks = assertLookup(ByteSizeValue.ofBytes(1), between(Operator.MIN_TARGET_PAGE_SIZE + 2, 1024), p -> 1);
+        assertThat(blocks, greaterThan(1));
+    }
+
+    public void testLookupSplitDoesNotDependOnNulls() {
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, between(1, 1000), false, 1, 1, 0, 0);
+        try {
+            int positionCount = 16 * 1024;
+            int denseBlocks = countLookupBlocks(b.block(), positionCount, 1);
+            int sparseBlocks = countLookupBlocks(b.block(), positionCount, 100);
+            assertThat(sparseBlocks, lessThanOrEqualTo(denseBlocks));
+        } finally {
+            b.block().close();
+        }
     }
 
     public void testToMask() {
@@ -319,7 +334,30 @@ public class BlockMultiValuedTests extends ESTestCase {
         }
     }
 
-    private void assertLookup(ByteSizeValue targetBytes, int positionsToCopy, IntUnaryOperator positionsPerPosition) {
+    private int countLookupBlocks(Block values, int positionCount, int nonNullEvery) {
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                if (p % nonNullEvery == 0) {
+                    builder.appendInt(between(0, values.getPositionCount() - 1));
+                } else {
+                    builder.appendNull();
+                }
+            }
+            int blocks = 0;
+            try (
+                IntBlock positions = builder.build();
+                ReleasableIterator<? extends Block> lookup = values.lookup(positions, ByteSizeValue.ofKb(10))
+            ) {
+                while (lookup.hasNext()) {
+                    lookup.next().close();
+                    blocks++;
+                }
+            }
+            return blocks;
+        }
+    }
+
+    private int assertLookup(ByteSizeValue targetBytes, int positionsToCopy, IntUnaryOperator positionsPerPosition) {
         BlockFactory positionsFactory = blockFactory();
         int positionCount = randomIntBetween(100, 16 * 1024);
         var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 100, 0, 0);
@@ -340,6 +378,7 @@ public class BlockMultiValuedTests extends ESTestCase {
             }
             Block copy = null;
             int positionOffset = 0;
+            int blocks = 0;
             try (
                 IntBlock positions = builder.build();
                 ReleasableIterator<? extends Block> lookup = b.block().lookup(positions, targetBytes);
@@ -352,6 +391,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                         }
                         assertThat(lookup.hasNext(), equalTo(true));
                         copy = lookup.next();
+                        blocks++;
                         if (positions.getPositionCount() - positionOffset < Operator.MIN_TARGET_PAGE_SIZE) {
                             assertThat(copy.getPositionCount(), equalTo(positions.getPositionCount() - positionOffset));
                         } else {
@@ -378,6 +418,7 @@ public class BlockMultiValuedTests extends ESTestCase {
                     }
                 }
                 assertThat(lookup.hasNext(), equalTo(false));
+                return blocks;
             } finally {
                 Releasables.close(copy);
             }

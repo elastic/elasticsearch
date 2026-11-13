@@ -396,6 +396,25 @@ public class EsqlStreamResponseListenerTests extends ESTestCase {
         assertTrue("error part should be the last part", errorPart.isLastPart());
     }
 
+    /**
+     * If the stream fails after the success footer was published, buffered pages are dropped, so the terminal
+     * line must report the failure rather than echo the stored success footer.
+     */
+    public void testFailStreamAfterCompleteWithFooterReportsIncomplete() throws IOException {
+        Subscribed s = subscribe(simpleColumns(), null);
+        ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildSimplePage(1, "first"));
+        // No demand is outstanding, so this page stays buffered and is dropped by failStream.
+        s.producer().addPage(buildSimplePage(2, "second"));
+        s.producer().finish();
+        s.publisher().completeWithFooter(0L, List.of(), false);
+        s.publisher().failStream(new RuntimeException("post-footer failure"));
+        encodeBodyPart(pagePart);
+        ChunkedRestResponseBodyPart errorPart = nextPart(pagePart, () -> {});
+
+        assertErrorLine(errorPart, 500, "runtime_exception", "post-footer failure", 1);
+        assertTrue("error part should be the last part", errorPart.isLastPart());
+    }
+
     public void testDoubleTerminalEmitsOnce() throws IOException {
         Subscribed s = subscribe(simpleColumns(), null);
         ChunkedRestResponseBodyPart pagePart = sendFirstPage(s, buildSimplePage(1, "first"));

@@ -67,7 +67,8 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
  *       the error HTTP status code.</li>
  * </ul>
  *
- * <p>{@code complete} is true unless the response ended in an error. {@code next_offset} is the number of rows
+ * <p>{@code complete} is true only when the stream ended with a normal completion signal; any error, including
+ * one raised after the success footer was published, makes it false. {@code next_offset} is the number of rows
  * written to the response, which is the first row that was not sent. It counts rows written, not rows the
  * client received.</p>
  *
@@ -134,6 +135,23 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         );
     }
 
+    /**
+     * Turns a success footer into a failure footer for a stream that failed after the footer was published,
+     * keeping its timing, warnings, completion info, clusters and profile.
+     */
+    private static PageStreamPublisher.StreamFooter footerWithError(PageStreamPublisher.StreamFooter footer, Exception e) {
+        return new PageStreamPublisher.StreamFooter(
+            ExceptionsHelper.status(e).getStatus(),
+            footer.tookMillis(),
+            footer.isPartial(),
+            footer.warnings(),
+            footer.completionInfo(),
+            footer.clusters(),
+            e,
+            footer.profile()
+        );
+    }
+
     public ActionListener<EsqlStreamQueryAction.ResultStream> resultStreamListener() {
         return ActionListener.wrap(this::initializeStream, this::onFailure);
     }
@@ -183,7 +201,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
             }
             PageStreamPublisher.StreamFooter footer = preHeaderFailureFooter != null ? preHeaderFailureFooter : fallbackFailureFooter(e);
             RestStatus status = RestStatus.fromCode(footer.status());
-            RestResponse response = RestResponse.chunked(status, new NdjsonFooterBodyPart(footer), this::release);
+            RestResponse response = RestResponse.chunked(status, new NdjsonFooterBodyPart(footer, false), this::release);
             if (e instanceof ElasticsearchException ese) {
                 response.copyHeaders(ese);
             }
@@ -228,7 +246,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         try {
             PageStreamPublisher.StreamFooter footer = fallbackFailureFooter(e);
             RestStatus errorStatus = RestStatus.fromCode(footer.status());
-            channel.sendResponse(RestResponse.chunked(errorStatus, new NdjsonFooterBodyPart(footer), this::release));
+            channel.sendResponse(RestResponse.chunked(errorStatus, new NdjsonFooterBodyPart(footer, false), this::release));
         } catch (Exception inner) {
             inner.addSuppressed(e);
             logger.warn("failed to send failure response", inner);
@@ -304,8 +322,12 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
                 if (footer == null) {
                     footer = fallbackFailureFooter(e);
+                } else if (footer.error() == null) {
+                    // completeWithFooter ran, then the stream failed: the stored footer is a success footer, but the
+                    // buffered pages were dropped, so it must be reported as a failure.
+                    footer = footerWithError(footer, e);
                 }
-                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer);
+                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer, false);
                 if (responseSent == false) {
                     responseSent = true;
                     sendDeferred(RestStatus.fromCode(footer.status()), footerPart, footer.error());
@@ -330,7 +352,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         public void onComplete() {
             if (terminalEmitted.compareAndSet(false, true)) {
                 PageStreamPublisher.StreamFooter footer = publisher.footer();
-                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer);
+                ChunkedRestResponseBodyPart footerPart = new NdjsonFooterBodyPart(footer, true);
                 if (responseSent == false) {
                     responseSent = true;
                     synchronized (continuationMonitor) {
@@ -498,6 +520,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 // chunkStream, so size() is accurate to the row just written; without that it would only
                 // advance in ~8 KB steps. Measuring after the row (not before) guarantees at least one row
                 // per call, so a part with a tiny sizeHint still makes forward progress.
+                int rowsInChunk = 0;
                 while (nextRow < rowCount) {
                     try (XContentBuilder builder = XContentFactory.jsonBuilder(out)) {
                         builder.startArray();
@@ -510,11 +533,12 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                     }
                     chunkStream.write(NEWLINE);
                     nextRow++;
-                    rowsWritten.incrementAndGet();
+                    rowsInChunk++;
                     if (chunkStream.size() >= sizeHint) {
                         break;
                     }
                 }
+                rowsWritten.addAndGet(rowsInChunk);
                 if (nextRow == rowCount) {
                     encoded = true;
                 }
@@ -549,6 +573,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
     private class NdjsonFooterBodyPart implements ChunkedRestResponseBodyPart {
         private final PageStreamPublisher.StreamFooter footer;
+        private final boolean complete;
         private boolean encoded = false;
 
         private RecyclerBytesStreamOutput target;
@@ -566,8 +591,9 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
         private XContentBuilder builder;                          // created on the first encodeChunk
         private Iterator<? extends ToXContent> contentIterator;  // built on the first encodeChunk
 
-        NdjsonFooterBodyPart(PageStreamPublisher.StreamFooter footer) {
+        NdjsonFooterBodyPart(PageStreamPublisher.StreamFooter footer, boolean complete) {
             this.footer = footer;
+            this.complete = complete;
         }
 
         @Override
@@ -600,7 +626,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                         b.field("took", footer.tookMillis());
                         b.field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), footer.isPartial());
                         b.array("warnings", footer.warnings().toArray(String[]::new));
-                        b.field("complete", footer.error() == null);
+                        b.field("complete", complete);
                         b.field("next_offset", rowsWritten.get());
                         if (footer.completionInfo() != null) {
                             DriverCompletionInfo ci = footer.completionInfo();

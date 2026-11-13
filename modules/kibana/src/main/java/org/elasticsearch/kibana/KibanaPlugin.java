@@ -56,6 +56,10 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     private static final int NOTIFICATION_CENTER_MAPPINGS_VERSION = 1;
 
+    private static final int CONTEXT_ENGINE_SESSION_MEMORY_MAPPINGS_VERSION = 1;
+
+    private static final int CONTEXT_ENGINE_SESSION_EVENTS_MAPPINGS_VERSION = 1;
+
     /** Data stream registered in {@link #changeHistorySystemDataStreamDescriptor()}. */
     public static final String CHANGE_HISTORY_DATA_STREAM_NAME = ".kibana_change_history";
 
@@ -95,6 +99,38 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     /** Substitution key for managed index version in {@value #NOTIFICATION_CENTER_COMPOSABLE_TEMPLATE_RESOURCE}. */
     public static final String NOTIFICATION_CENTER_MANAGED_INDEX_VERSION_VARIABLE = "kibana.notification.center.managed.index.version";
+
+    /** Data stream registered in {@link #contextEngineSessionMemorySystemDataStreamDescriptor()}. */
+    public static final String CONTEXT_ENGINE_SESSION_MEMORY_DATA_STREAM_NAME = ".context-engine-session-memory";
+
+    /** Composable index template resource for {@value #CONTEXT_ENGINE_SESSION_MEMORY_DATA_STREAM_NAME}. */
+    public static final String CONTEXT_ENGINE_SESSION_MEMORY_COMPOSABLE_TEMPLATE_RESOURCE = "context-engine-session-memory.json";
+
+    /** Substitution key for managed index version in {@value #CONTEXT_ENGINE_SESSION_MEMORY_COMPOSABLE_TEMPLATE_RESOURCE}. */
+    public static final String CONTEXT_ENGINE_SESSION_MEMORY_MANAGED_INDEX_VERSION_VARIABLE =
+        "kibana.context.engine.session.memory.managed.index.version";
+
+    /** Data stream registered in {@link #contextEngineSessionEventsSystemDataStreamDescriptor()}. */
+    public static final String CONTEXT_ENGINE_SESSION_EVENTS_DATA_STREAM_NAME = ".context-engine-session-events";
+
+    /** Composable index template resource for {@value #CONTEXT_ENGINE_SESSION_EVENTS_DATA_STREAM_NAME}. */
+    public static final String CONTEXT_ENGINE_SESSION_EVENTS_COMPOSABLE_TEMPLATE_RESOURCE = "context-engine-session-events.json";
+
+    /** Substitution key for managed index version in {@value #CONTEXT_ENGINE_SESSION_EVENTS_COMPOSABLE_TEMPLATE_RESOURCE}. */
+    public static final String CONTEXT_ENGINE_SESSION_EVENTS_MANAGED_INDEX_VERSION_VARIABLE =
+        "kibana.context.engine.session.events.managed.index.version";
+
+    /** Substitution key for the stack version in both Context Engine session templates. */
+    public static final String CONTEXT_ENGINE_VERSION_VARIABLE = "kibana.context.engine.version";
+
+    /**
+     * Matches Context Engine system <strong>indices</strong> under {@code .context-engine-}, but not the
+     * {@linkplain SystemDataStreamDescriptor system data streams} registered in {@link #getSystemDataStreamDescriptors()}
+     * ({@value #CONTEXT_ENGINE_SESSION_MEMORY_DATA_STREAM_NAME} and {@value #CONTEXT_ENGINE_SESSION_EVENTS_DATA_STREAM_NAME}).
+     * <p>
+     * A plain {@code .context-engine-*} pattern is invalid here for the same reason as {@link #KIBANA_SYSTEM_INDEX_PATTERN}.
+     */
+    public static final String CONTEXT_ENGINE_SYSTEM_INDEX_PATTERN = ".context-engine-~(session-memory*|session-events*)";
 
     /**
      * Matches workflows-related system <strong>indices</strong> under {@code .workflows-}, but not the log
@@ -147,7 +183,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .build();
 
     public static final SystemIndexDescriptor CONTEXT_ENGINE_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(".context-engine-*")
+        .setIndexPattern(CONTEXT_ENGINE_SYSTEM_INDEX_PATTERN)
         .setDescription("Context Engine system indices")
         .setType(Type.EXTERNAL_UNMANAGED)
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)
@@ -205,8 +241,62 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
             workflowsEventsSystemDataStreamDescriptor(),
             workflowsExecutionDataStreamLogsSystemDataStreamDescriptor(),
             changeHistorySystemDataStreamDescriptor(),
-            notificationCenterSystemDataStreamDescriptor()
+            notificationCenterSystemDataStreamDescriptor(),
+            contextEngineSessionMemorySystemDataStreamDescriptor(),
+            contextEngineSessionEventsSystemDataStreamDescriptor()
         );
+    }
+
+    private static SystemDataStreamDescriptor contextEngineSessionMemorySystemDataStreamDescriptor() {
+        try {
+            ComposableIndexTemplate composableIndexTemplate = loadDataStreamComposableTemplate(
+                CONTEXT_ENGINE_SESSION_MEMORY_COMPOSABLE_TEMPLATE_RESOURCE,
+                Map.of(
+                    CONTEXT_ENGINE_VERSION_VARIABLE,
+                    Version.CURRENT.toString(),
+                    CONTEXT_ENGINE_SESSION_MEMORY_MANAGED_INDEX_VERSION_VARIABLE,
+                    Integer.toString(CONTEXT_ENGINE_SESSION_MEMORY_MAPPINGS_VERSION)
+                )
+            );
+            return new SystemDataStreamDescriptor(
+                CONTEXT_ENGINE_SESSION_MEMORY_DATA_STREAM_NAME,
+                "Context Engine session memories",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                composableIndexTemplate,
+                Map.of(),
+                KIBANA_PRODUCT_ORIGIN,
+                KIBANA_ORIGIN,
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static SystemDataStreamDescriptor contextEngineSessionEventsSystemDataStreamDescriptor() {
+        try {
+            ComposableIndexTemplate composableIndexTemplate = loadDataStreamComposableTemplate(
+                CONTEXT_ENGINE_SESSION_EVENTS_COMPOSABLE_TEMPLATE_RESOURCE,
+                Map.of(
+                    CONTEXT_ENGINE_VERSION_VARIABLE,
+                    Version.CURRENT.toString(),
+                    CONTEXT_ENGINE_SESSION_EVENTS_MANAGED_INDEX_VERSION_VARIABLE,
+                    Integer.toString(CONTEXT_ENGINE_SESSION_EVENTS_MAPPINGS_VERSION)
+                )
+            );
+            return new SystemDataStreamDescriptor(
+                CONTEXT_ENGINE_SESSION_EVENTS_DATA_STREAM_NAME,
+                "Context Engine session event transcripts",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                composableIndexTemplate,
+                Map.of(),
+                KIBANA_PRODUCT_ORIGIN,
+                KIBANA_ORIGIN,
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static SystemDataStreamDescriptor changeHistorySystemDataStreamDescriptor() {

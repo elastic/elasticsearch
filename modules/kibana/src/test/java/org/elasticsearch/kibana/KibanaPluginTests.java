@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
 
 public class KibanaPluginTests extends ESTestCase {
@@ -32,7 +33,7 @@ public class KibanaPluginTests extends ESTestCase {
                 KibanaPlugin.KIBANA_SYSTEM_INDEX_PATTERN,
                 ".reporting-*",
                 ".chat-*",
-                ".context-engine-*",
+                KibanaPlugin.CONTEXT_ENGINE_SYSTEM_INDEX_PATTERN,
                 ".contextengine-*",
                 KibanaPlugin.WORKFLOWS_SYSTEM_INDEX_PATTERN,
                 ".apm-agent-configuration*",
@@ -48,7 +49,9 @@ public class KibanaPluginTests extends ESTestCase {
                 KibanaPlugin.WORKFLOWS_EVENTS_DATA_STREAM_NAME,
                 KibanaPlugin.WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME,
                 KibanaPlugin.CHANGE_HISTORY_DATA_STREAM_NAME,
-                KibanaPlugin.NOTIFICATION_CENTER_DATA_STREAM_NAME
+                KibanaPlugin.NOTIFICATION_CENTER_DATA_STREAM_NAME,
+                KibanaPlugin.CONTEXT_ENGINE_SESSION_MEMORY_DATA_STREAM_NAME,
+                KibanaPlugin.CONTEXT_ENGINE_SESSION_EVENTS_DATA_STREAM_NAME
             )
         );
     }
@@ -60,6 +63,37 @@ public class KibanaPluginTests extends ESTestCase {
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana_change_history-000001")));
         assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".kibana-notifications")));
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".context-engine-session-memory")));
+        assertFalse(indexDescriptors.stream().anyMatch(d -> d.matchesIndexPattern(".context-engine-session-events")));
+    }
+
+    public void testContextEngineSystemIndexDescriptorStillCoversOtherContextEngineIndices() {
+        assertTrue(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-ai-indices"));
+        assertTrue(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-improvements"));
+        assertFalse(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-session-memory"));
+        assertFalse(KibanaPlugin.CONTEXT_ENGINE_INDEX_DESCRIPTOR.matchesIndexPattern(".context-engine-session-events"));
+    }
+
+    /**
+     * Kibana writes these fields and filters every read and delete on {@code space} and {@code user_id}; nothing in
+     * Elasticsearch reads them, so only this test would catch a change that drops one.
+     */
+    public void testContextEngineSessionMemoryMapsKibanaFields() {
+        Map<String, Object> properties = mappedProperties(KibanaPlugin.CONTEXT_ENGINE_SESSION_MEMORY_DATA_STREAM_NAME);
+        assertThat(
+            properties.keySet(),
+            containsInAnyOrder("@timestamp", "id", "space", "ai_index_id", "session_id", "user_id", "content", "attributes", "deleted_at")
+        );
+        assertThat(asMap(asMap(properties.get("content")).get("fields")), hasEntry("semantic_text", Map.of("type", "semantic_text")));
+    }
+
+    public void testContextEngineSessionEventsMapsKibanaFields() {
+        Map<String, Object> properties = mappedProperties(KibanaPlugin.CONTEXT_ENGINE_SESSION_EVENTS_DATA_STREAM_NAME);
+        assertThat(
+            properties.keySet(),
+            containsInAnyOrder("@timestamp", "id", "space", "ai_index_id", "session_id", "turn_id", "user_id", "transcript")
+        );
+        assertThat(properties, hasEntry("transcript", Map.of("type", "text", "index", false)));
     }
 
     public void testWorkflowsSystemIndexDescriptorCoversOtherWorkflowsIndices() {
@@ -125,9 +159,13 @@ public class KibanaPluginTests extends ESTestCase {
     }
 
     private static Map<String, Object> notificationCenterMappedProperties() {
+        return mappedProperties(KibanaPlugin.NOTIFICATION_CENTER_DATA_STREAM_NAME);
+    }
+
+    private static Map<String, Object> mappedProperties(String dataStreamName) {
         SystemDataStreamDescriptor descriptor = new KibanaPlugin().getSystemDataStreamDescriptors()
             .stream()
-            .filter(d -> KibanaPlugin.NOTIFICATION_CENTER_DATA_STREAM_NAME.equals(d.getDataStreamName()))
+            .filter(d -> dataStreamName.equals(d.getDataStreamName()))
             .findFirst()
             .orElseThrow();
         Map<String, Object> mappings = XContentHelper.convertToMap(

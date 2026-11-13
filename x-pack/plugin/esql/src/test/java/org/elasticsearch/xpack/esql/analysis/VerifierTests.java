@@ -50,6 +50,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeFunctionEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
@@ -1940,6 +1941,38 @@ public class VerifierTests extends AnalyzerTestCase {
             TS k8s
             | STATS `event_shape` = count_distinct(network.eth0.currently_connected_clients)
             BY event_log, fMGjtTxPiPQV = bucket(@timestamp,1hour)""");
+    }
+
+    public void testWindowFunnelOutsideStats() {
+        assumeFunctionEnabled("window_funnel");
+        defaultAnalyzer().error(
+            "FROM test | EVAL x = WINDOW_FUNNEL(1 hour, hire_date, still_hired)",
+            equalTo("1:22: aggregate function [WINDOW_FUNNEL(1 hour, hire_date, still_hired)] not allowed outside STATS command")
+        );
+    }
+
+    public void testWindowFunnelDatePeriodMaxspan() {
+        assumeFunctionEnabled("window_funnel");
+        defaultAnalyzer().error(
+            "FROM test | STATS WINDOW_FUNNEL(1 day, hire_date, still_hired)",
+            equalTo(
+                "1:19: first argument of [WINDOW_FUNNEL(1 day, hire_date, still_hired)] must be [time_duration], "
+                    + "found value [1 day] type [date_period]"
+                    + "; a date_period is calendar based, use a time_duration such as [24 hours] instead"
+            )
+        );
+    }
+
+    public void testWindowFunnelWithTs() {
+        assumeFunctionEnabled("window_funnel");
+        tsdb().error(
+            "TS test | STATS WINDOW_FUNNEL(1 hour, @timestamp, network.connections > 0)",
+            equalTo("1:17: window_funnel [WINDOW_FUNNEL(1 hour, @timestamp, network.connections > 0)] can't be used with TS command")
+        );
+        tsdb().error(
+            "TS test | STATS f = WINDOW_FUNNEL(1 hour, @timestamp, network.connections > 0) + 1",
+            equalTo("1:21: window_funnel [WINDOW_FUNNEL(1 hour, @timestamp, network.connections > 0)] can't be used with TS command")
+        );
     }
 
     public void testSparklineRejectsMultiValuedAggs() {

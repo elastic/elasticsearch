@@ -1,0 +1,31 @@
+{
+    "properties": {
+        "@timestamp": {
+            "type": "date"
+        },
+        "event_nanos": {
+            "type": "date_nanos"
+        },
+        "user": {
+            "type": "keyword"
+        },
+        "session": {
+            "type": "keyword"
+        },
+        "device": {
+            "type": "keyword"
+        },
+        "country": {
+            "type": "keyword"
+        },
+        "action": {
+            "type": "keyword"
+        },
+        "amount": {
+            "type": "double"
+        },
+        "tags": {
+            "type": "keyword"
+        }
+    }
+}

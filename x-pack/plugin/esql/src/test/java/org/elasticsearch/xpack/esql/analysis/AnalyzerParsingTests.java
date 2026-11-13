@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.StatementParserTests;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeFunctionEnabled;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -48,6 +49,25 @@ public class AnalyzerParsingTests extends AnalyzerTestCase {
             "row a = 1 | eval x = case(1)",
             ParsingException.class,
             equalTo("line 1:22: error building [case]: expects at least two arguments")
+        );
+    }
+
+    public void testWindowFunnelFunctionInvalidInputs() {
+        assumeFunctionEnabled("window_funnel");
+        defaultAnalyzer().error(
+            "from test | stats x = window_funnel()",
+            ParsingException.class,
+            equalTo("line 1:23: error building [window_funnel]: expects at least three arguments")
+        );
+        defaultAnalyzer().error(
+            "from test | stats x = window_funnel(1 hour, hire_date)",
+            ParsingException.class,
+            equalTo("line 1:23: error building [window_funnel]: expects at least three arguments")
+        );
+        defaultAnalyzer().error(
+            "from test | stats x = window_funnel(1 hour)",
+            ParsingException.class,
+            equalTo("line 1:23: error building [window_funnel]: expects at least three arguments")
         );
     }
 

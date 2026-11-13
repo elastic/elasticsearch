@@ -1,0 +1,1090 @@
+windowFunnel
+required_capability: fn_window_funnel
+// tag::window-funnel[]
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") BY user
+| SORT user
+// end::window-funnel[]
+;
+
+// tag::window-funnel-result[]
+level:integer | user:keyword
+4             | u1
+3             | u2
+0             | u3
+2             | u4
+3             | u5
+1             | u6
+0             | u7
+2             | u8
+3             | u9
+// end::window-funnel-result[]
+;
+
+windowFunnelByMultipleColumns
+required_capability: fn_window_funnel
+// tag::window-funnel-by-multiple[]
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(15 minutes, @timestamp, action == "view", action == "cart", action == "checkout") BY user, session
+| SORT user, session
+// end::window-funnel-by-multiple[]
+;
+
+// tag::window-funnel-by-multiple-result[]
+level:integer | user:keyword | session:keyword
+3             | u1           | s1
+1             | u2           | s2
+3             | u2           | s3
+0             | u3           | s4
+1             | u4           | s5
+2             | u4           | s6
+3             | u5           | s7
+1             | u6           | s8
+0             | u7           | s9
+2             | u8           | s10
+3             | u9           | s11
+// end::window-funnel-by-multiple-result[]
+;
+
+byDeviceAndCountry
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") BY device, country
+| SORT device, country
+;
+
+level:integer | device:keyword | country:keyword
+0             | desktop        | DE
+4             | desktop        | US
+2             | mobile         | DE
+0             | mobile         | FR
+3             | mobile         | US
+2             | tablet         | DE
+3             | tablet         | FR
+;
+
+byExpressionAndColumn
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart") BY lower_country = TO_LOWER(country), device
+| SORT lower_country, device
+;
+
+level:integer | lower_country:keyword | device:keyword
+0             | de                    | desktop
+2             | de                    | mobile
+2             | de                    | tablet
+0             | fr                    | mobile
+2             | fr                    | tablet
+2             | us                    | desktop
+2             | us                    | mobile
+;
+
+noBy
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS
+    one_hour = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"),
+    five_minutes = WINDOW_FUNNEL(5 minutes, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase")
+;
+
+one_hour:integer | five_minutes:integer
+4                | 3
+;
+
+singleCondition
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS purchased = WINDOW_FUNNEL(1 hour, @timestamp, action == "purchase") BY user
+| SORT user
+;
+
+purchased:integer | user:keyword
+1                 | u1
+0                 | u2
+1                 | u3
+1                 | u4
+0                 | u5
+1                 | u6
+0                 | u7
+0                 | u8
+0                 | u9
+;
+
+singleConditionNoBy
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS purchased = WINDOW_FUNNEL(1 millisecond, @timestamp, action == "purchase"), missing = WINDOW_FUNNEL(1 hour, @timestamp, action == "refund")
+;
+
+purchased:integer | missing:integer
+1                 | 0
+;
+
+maxspanIsInclusive
+required_capability: fn_window_funnel
+FROM funnel_events
+| WHERE user == "u1"
+| STATS
+    m20 = WINDOW_FUNNEL(20 minutes, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"),
+    m19 = WINDOW_FUNNEL(1199 seconds, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"),
+    m10 = WINDOW_FUNNEL(10 minutes, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"),
+    m9 = WINDOW_FUNNEL(9 minutes, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"),
+    m0 = WINDOW_FUNNEL(0 seconds, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase")
+;
+
+m20:integer | m19:integer | m10:integer | m9:integer | m0:integer
+4           | 3           | 3           | 2          | 1
+;
+
+maxspanZero
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(0 seconds, @timestamp, action == "view", action == "cart", action == "checkout") BY user
+| SORT user
+;
+
+level:integer | user:keyword
+1             | u1
+1             | u2
+0             | u3
+1             | u4
+3             | u5
+1             | u6
+0             | u7
+1             | u8
+2             | u9
+;
+
+maxspanAsConversion
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(TO_TIMEDURATION("15 minutes"), @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") BY user
+| SORT user
+;
+
+level:integer | user:keyword
+3             | u1
+3             | u2
+0             | u3
+2             | u4
+3             | u5
+1             | u6
+0             | u7
+2             | u8
+3             | u9
+;
+
+hugeMaxspan
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS
+    millis = WINDOW_FUNNEL(2562048 hours, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"),
+    nanos = WINDOW_FUNNEL(2562048 hours, event_nanos, action == "view", action == "cart", action == "checkout", action == "purchase")
+  BY user
+| SORT user
+;
+
+millis:integer | nanos:integer | user:keyword
+4              | 4             | u1
+3              | 3             | u2
+0              | 0             | u3
+2              | 2             | u4
+3              | 3             | u5
+1              | 1             | u6
+0              | 0             | u7
+2              | 2             | u8
+3              | 3             | u9
+;
+
+dateNanos
+required_capability: fn_window_funnel
+FROM funnel_events
+| WHERE user IN ("u5", "u9")
+| STATS
+    millis_zero = WINDOW_FUNNEL(0 seconds, @timestamp, action == "view", action == "cart", action == "checkout"),
+    nanos_zero = WINDOW_FUNNEL(0 seconds, event_nanos, action == "view", action == "cart", action == "checkout"),
+    truncated_zero = WINDOW_FUNNEL(0 seconds, TO_DATETIME(event_nanos), action == "view", action == "cart", action == "checkout"),
+    millis_one = WINDOW_FUNNEL(1 millisecond, @timestamp, action == "view", action == "cart", action == "checkout"),
+    nanos_one = WINDOW_FUNNEL(1 millisecond, event_nanos, action == "view", action == "cart", action == "checkout")
+  BY user
+| SORT user
+;
+
+millis_zero:integer | nanos_zero:integer | truncated_zero:integer | millis_one:integer | nanos_one:integer | user:keyword
+3                   | 3                  | 3                      | 3                  | 3                 | u5
+2                   | 1                  | 2                      | 3                  | 3                 | u9
+;
+
+maxspanIsElapsedTimeAcrossDaylightSavingTime
+required_capability: fn_window_funnel
+SET time_zone = "Europe/Bucharest"\;
+ROW ts = ["2026-03-29T00:30:00Z", "2026-03-29T01:30:00Z", "2026-10-25T00:30:00Z", "2026-10-25T01:30:00Z"]
+| MV_EXPAND ts
+| EVAL ts = TO_DATETIME(ts), season = CASE(ts < TO_DATETIME("2026-06-01T00:00:00Z"), "spring", "autumn")
+| EVAL step = CASE(ts == TO_DATETIME("2026-03-29T00:30:00Z") OR ts == TO_DATETIME("2026-10-25T00:30:00Z"), 1, 2)
+| STATS
+    one_hour = WINDOW_FUNNEL(1 hour, ts, step == 1, step == 2),
+    under_one_hour = WINDOW_FUNNEL(59 minutes, ts, step == 1, step == 2),
+    zero = WINDOW_FUNNEL(0 seconds, ts, step == 1, step == 2)
+  BY season
+| SORT season
+;
+
+one_hour:integer | under_one_hour:integer | zero:integer | season:keyword
+2                | 1                      | 1            | autumn
+2                | 1                      | 1            | spring
+;
+
+sampleDataBoundary
+required_capability: fn_window_funnel
+FROM sample_data
+| STATS
+    s66 = WINDOW_FUNNEL(66 seconds, @timestamp, message == "Connection error", STARTS_WITH(message, "Connected")),
+    s65 = WINDOW_FUNNEL(65 seconds, @timestamp, message == "Connection error", STARTS_WITH(message, "Connected")),
+    exact = WINDOW_FUNNEL(65711 milliseconds, @timestamp, message == "Connection error", STARTS_WITH(message, "Connected")),
+    short = WINDOW_FUNNEL(65710 milliseconds, @timestamp, message == "Connection error", STARTS_WITH(message, "Connected"))
+  BY client_ip
+| SORT client_ip
+;
+
+s66:integer | s65:integer | exact:integer | short:integer | client_ip:ip
+0           | 0           | 0             | 0             | 172.21.0.5
+0           | 0           | 0             | 0             | 172.21.2.113
+0           | 0           | 0             | 0             | 172.21.2.162
+2           | 1           | 2             | 1             | 172.21.3.15
+;
+
+sampleDataNanosBoundary
+required_capability: fn_window_funnel
+FROM sample_data_ts_nanos
+| WHERE client_ip == "172.21.3.15"
+| STATS
+    exact = WINDOW_FUNNEL(65711 milliseconds, @timestamp, message == "Connection error", STARTS_WITH(message, "Connected")),
+    short = WINDOW_FUNNEL(65710 milliseconds, @timestamp, message == "Connection error", STARTS_WITH(message, "Connected"))
+;
+
+exact:integer | short:integer
+2             | 1
+;
+
+dateAndDateNanosUnionType
+required_capability: fn_window_funnel
+required_capability: implicit_casting_date_and_date_nanos
+FROM sample_data, sample_data_ts_nanos
+| WHERE client_ip == "172.21.3.15"
+| STATS
+    exact = WINDOW_FUNNEL(65711 milliseconds, @timestamp, message == "Connection error", STARTS_WITH(message, "Connected")),
+    short = WINDOW_FUNNEL(65710 milliseconds, @timestamp, message == "Connection error", STARTS_WITH(message, "Connected"))
+;
+
+exact:integer | short:integer
+2             | 1
+;
+
+noMatchingRows
+required_capability: fn_window_funnel
+FROM funnel_events
+| WHERE user == "nobody"
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart")
+;
+
+level:integer
+0
+;
+
+noMatchingRowsWithBy
+required_capability: fn_window_funnel
+FROM funnel_events
+| WHERE user == "nobody"
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart") BY user
+;
+
+level:integer | user:keyword
+;
+
+filteredAggregationNoBy
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS
+    desktop = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") WHERE device == "desktop",
+    mobile = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") WHERE device == "mobile",
+    nothing = WINDOW_FUNNEL(1 hour, @timestamp, action == "view") WHERE false,
+    unknown = WINDOW_FUNNEL(1 hour, @timestamp, action == "view") WHERE null
+;
+
+desktop:integer | mobile:integer | nothing:integer | unknown:integer
+4               | 3              | 0               | 0
+;
+
+sameFunnelTwice
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS
+    a = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart"),
+    b = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart")
+  BY user
+| SORT user
+| LIMIT 3
+;
+
+a:integer | b:integer | user:keyword
+2         | 2         | u1
+2         | 2         | u2
+0         | 0         | u3
+;
+
+byBucketOfTimestamp
+required_capability: fn_window_funnel
+FROM funnel_events
+| WHERE user IN ("u1", "u2", "u4")
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase")
+  BY hour = BUCKET(@timestamp, 1 hour)
+| SORT hour
+;
+
+level:integer | hour:date
+4             | 2024-05-01T10:00:00.000Z
+3             | 2024-05-01T11:00:00.000Z
+1             | 2024-05-01T12:00:00.000Z
+2             | 2024-05-01T13:00:00.000Z
+;
+
+filteredAggregationBy
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS
+    desktop = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") WHERE device == "desktop",
+    mobile = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") WHERE device == "mobile"
+  BY user
+| SORT user
+;
+
+desktop:integer | mobile:integer | user:keyword
+4               | 0              | u1
+0               | 3              | u2
+0               | 0              | u3
+0               | 2              | u4
+0               | 0              | u5
+1               | 0              | u6
+0               | 0              | u7
+0               | 0              | u8
+3               | 0              | u9
+;
+
+sameRowSatisfiesConsecutiveConditions
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "cart", amount > 10) BY user
+| SORT user
+;
+
+level:integer | user:keyword
+2             | u1
+1             | u2
+1             | u3
+2             | u4
+1             | u5
+2             | u6
+1             | u7
+1             | u8
+1             | u9
+;
+
+complexConditions
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action IN ("cart", "checkout"), STARTS_WITH(action, "pur") AND amount >= 10) BY user
+| SORT user
+;
+
+level:integer | user:keyword
+3             | u1
+2             | u2
+0             | u3
+3             | u4
+2             | u5
+1             | u6
+0             | u7
+2             | u8
+2             | u9
+;
+
+conditionsOnEvaluatedColumns
+required_capability: fn_window_funnel
+FROM funnel_events
+| EVAL step = CASE(action == "view", 1, action == "cart", 2, action == "checkout", 3, action == "purchase", 4, 0)
+| RENAME @timestamp AS ts
+| STATS level = WINDOW_FUNNEL(1 hour, ts, step == 1, step == 2, step == 3, step == 4) BY user
+| WHERE level >= 3
+| SORT level DESC, user
+;
+
+level:integer | user:keyword
+4             | u1
+3             | u2
+3             | u5
+3             | u9
+;
+
+nullConditionIsFalse
+required_capability: fn_window_funnel
+FROM funnel_events
+| WHERE user == "u7"
+| STATS
+    cart_then_view = WINDOW_FUNNEL(1 hour, @timestamp, action == "cart", action == "view"),
+    cart_then_null = WINDOW_FUNNEL(1 hour, @timestamp, action == "cart", action IS NULL),
+    coalesced = WINDOW_FUNNEL(1 hour, @timestamp, action == "cart", COALESCE(action, "none") == "none")
+;
+
+cart_then_view:integer | cart_then_null:integer | coalesced:integer
+1                      | 2                      | 2
+;
+
+nullTimestampIsIgnored
+required_capability: fn_window_funnel
+FROM funnel_events
+| WHERE user == "u7"
+| STATS view = WINDOW_FUNNEL(1 hour, @timestamp, action == "view"), view_nanos = WINDOW_FUNNEL(1 hour, event_nanos, action == "view"), any = WINDOW_FUNNEL(1 hour, @timestamp, true)
+;
+
+view:integer | view_nanos:integer | any:integer
+0            | 0                  | 1
+;
+
+multivaluedTimestamp
+required_capability: fn_window_funnel
+FROM funnel_events
+| WHERE user == "u8"
+| STATS
+    one_minute = WINDOW_FUNNEL(1 minute, @timestamp, action == "view", action == "cart"),
+    thirty_seconds = WINDOW_FUNNEL(30 seconds, @timestamp, action == "view", action == "cart"),
+    nanos = WINDOW_FUNNEL(1 minute, event_nanos, action == "view", action == "cart")
+;
+
+one_minute:integer | thirty_seconds:integer | nanos:integer
+2                  | 1                      | 2
+;
+
+mvExpandedTimestampMatchesMultivalued
+required_capability: fn_window_funnel
+FROM funnel_events
+| WHERE user == "u8"
+| MV_EXPAND @timestamp
+| STATS
+    one_minute = WINDOW_FUNNEL(1 minute, @timestamp, action == "view", action == "cart"),
+    thirty_seconds = WINDOW_FUNNEL(30 seconds, @timestamp, action == "view", action == "cart")
+;
+
+one_minute:integer | thirty_seconds:integer
+2                  | 1
+;
+
+lookupJoinBeforeStats
+required_capability: fn_window_funnel
+required_capability: join_lookup_v12
+FROM funnel_events
+| EVAL language_code = CASE(action == "view", 1, action == "cart", 2, action == "checkout", 3, action == "purchase", 4)
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, language_name == "English", language_name == "French", language_name == "Spanish", language_name == "German") BY user
+| SORT user
+;
+
+level:integer | user:keyword
+4             | u1
+3             | u2
+0             | u3
+2             | u4
+3             | u5
+1             | u6
+0             | u7
+2             | u8
+3             | u9
+;
+
+conditionsFromDifferentIndices
+required_capability: fn_window_funnel
+FROM funnel_events, sample_data
+| STATS
+    within = WINDOW_FUNNEL(4600 hours, @timestamp, message == "Connection error", action == "view"),
+    outside = WINDOW_FUNNEL(4500 hours, @timestamp, message == "Connection error", action == "view"),
+    reversed = WINDOW_FUNNEL(4600 hours, @timestamp, action == "view", message == "Connection error")
+;
+
+within:integer | outside:integer | reversed:integer
+2              | 1               | 1
+;
+
+multivaluedCondition
+required_capability: fn_window_funnel
+FROM funnel_events
+| WHERE user == "u1"
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", tags == "promo")
+;
+warning:Line 3:69: evaluation of [tags == \"promo\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:69: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+level:integer
+1
+;
+
+byMultivaluedKey
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart") BY tags
+| SORT tags
+;
+
+level:integer | tags:keyword
+1             | home
+2             | promo
+0             | sale
+2             | null
+;
+
+constantConditions
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS
+    always = WINDOW_FUNNEL(1 hour, @timestamp, true),
+    never = WINDOW_FUNNEL(1 hour, @timestamp, false),
+    three = WINDOW_FUNNEL(1 hour, @timestamp, true, true, true),
+    never_first = WINDOW_FUNNEL(1 hour, @timestamp, false, true),
+    unknown = WINDOW_FUNNEL(1 hour, @timestamp, null)
+;
+
+always:integer | never:integer | three:integer | never_first:integer | unknown:integer
+1              | 0             | 3             | 0                   | 0
+;
+
+constantTimestamp
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(0 seconds, TO_DATETIME("2024-01-01T00:00:00.000Z"), action == "view", action == "cart") BY user
+| SORT user
+;
+
+level:integer | user:keyword
+2             | u1
+2             | u2
+0             | u3
+2             | u4
+2             | u5
+2             | u6
+2             | u7
+2             | u8
+2             | u9
+;
+
+nullTimestamp
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(1 hour, null, action == "view")
+;
+
+level:integer
+0
+;
+
+truncatedTimestamp
+required_capability: fn_window_funnel
+FROM funnel_events
+| WHERE user IN ("u1", "u2")
+| STATS level = WINDOW_FUNNEL(0 seconds, DATE_TRUNC(1 hour, @timestamp), action == "view", action == "cart", action == "checkout", action == "purchase") BY user
+| SORT user
+;
+
+level:integer | user:keyword
+4             | u1
+3             | u2
+;
+
+levelDistribution
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") BY user
+| STATS users = COUNT(*) BY level
+| SORT level
+;
+
+users:long | level:integer
+2          | 0
+1          | 1
+2          | 2
+3          | 3
+1          | 4
+;
+
+withOtherAggregations
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS
+    level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"),
+    events = COUNT(*),
+    purchases = COUNT(*) WHERE action == "purchase"
+  BY user
+| SORT user
+;
+
+level:integer | events:long | purchases:long | user:keyword
+4             | 4           | 1              | u1
+3             | 5           | 0              | u2
+0             | 3           | 1              | u3
+2             | 4           | 1              | u4
+3             | 3           | 0              | u5
+1             | 4           | 1              | u6
+0             | 3           | 0              | u7
+2             | 2           | 0              | u8
+3             | 3           | 0              | u9
+;
+
+expressionOverResult
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS progress = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") * 25 BY user
+| SORT user
+;
+
+progress:integer | user:keyword
+100              | u1
+75               | u2
+0                | u3
+50               | u4
+75               | u5
+25               | u6
+0                | u7
+50               | u8
+75               | u9
+;
+
+sortAndLimitOnResult
+required_capability: fn_window_funnel
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") BY user
+| SORT level DESC, user
+| LIMIT 3
+;
+
+level:integer | user:keyword
+4             | u1
+3             | u2
+3             | u5
+;
+
+inlineStats
+required_capability: fn_window_funnel
+required_capability: inline_stats
+FROM funnel_events
+| WHERE user IN ("u1", "u3")
+| INLINE STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") BY user
+| KEEP @timestamp, user, action, level
+| SORT @timestamp
+;
+
+@timestamp:date          | user:keyword | action:keyword | level:integer
+2024-05-01T09:00:00.000Z | u3           | cart           | 0
+2024-05-01T09:01:00.000Z | u3           | checkout       | 0
+2024-05-01T09:02:00.000Z | u3           | purchase       | 0
+2024-05-01T10:00:00.000Z | u1           | view           | 4
+2024-05-01T10:05:00.000Z | u1           | cart           | 4
+2024-05-01T10:10:00.000Z | u1           | checkout       | 4
+2024-05-01T10:20:00.000Z | u1           | purchase       | 4
+;
+
+fork
+required_capability: fn_window_funnel
+required_capability: fork_v9
+FROM funnel_events
+| FORK (WHERE device == "desktop" | STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"))
+       (WHERE device == "mobile" | STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"))
+| KEEP _fork, level
+| SORT _fork
+;
+
+_fork:keyword | level:integer
+fork1         | 4
+fork2         | 3
+;
+
+maxConditions
+required_capability: fn_window_funnel
+ROW ts = TO_DATETIME("2024-01-01T00:00:00.000Z")
+| STATS level = WINDOW_FUNNEL(1 hour, ts,
+    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+    true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true)
+;
+
+level:integer
+32
+;
+
+prefixLevels
+required_capability: fn_window_funnel
+ROW code = [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008]
+| MV_EXPAND code
+| EVAL ts = TO_DATETIME((code - 1000) * 1000)
+| STATS
+    one = WINDOW_FUNNEL(1 hour, ts, code == 1000),
+    two = WINDOW_FUNNEL(1 hour, ts, code == 1000, code == 1001),
+    three = WINDOW_FUNNEL(1 hour, ts, code == 1000, code == 1001, code == 1002),
+    with_gap = WINDOW_FUNNEL(1 hour, ts, code == 1000, code == 1001, code == 1002, code == 1008),
+    reversed = WINDOW_FUNNEL(1 hour, ts, code == 1008, code == 1001)
+;
+
+one:integer | two:integer | three:integer | with_gap:integer | reversed:integer
+1           | 2           | 3             | 4                | 1
+;
+
+windowSizes
+required_capability: fn_window_funnel
+ROW code = [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008]
+| MV_EXPAND code
+| EVAL ts = TO_DATETIME((code - 1000) * 1000)
+| STATS
+    w2 = WINDOW_FUNNEL(2 seconds, ts, code == 1003, code == 1004, code == 1005, code == 1006, code == 1007),
+    w3 = WINDOW_FUNNEL(3 seconds, ts, code == 1003, code == 1004, code == 1005, code == 1006, code == 1007),
+    w4 = WINDOW_FUNNEL(4 seconds, ts, code == 1003, code == 1004, code == 1005, code == 1006, code == 1007)
+;
+
+w2:integer | w3:integer | w4:integer
+3          | 4          | 5
+;
+
+overlappingConditions
+required_capability: fn_window_funnel
+ROW code = [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008]
+| MV_EXPAND code
+| EVAL ts = TO_DATETIME((code - 1000) * 1000)
+| STATS
+    w4 = WINDOW_FUNNEL(4 seconds, ts, code <= 1007, code >= 1002, code <= 1006, code >= 1004),
+    w0 = WINDOW_FUNNEL(0 seconds, ts, code <= 1007, code >= 1002, code <= 1006, code >= 1004)
+;
+
+w4:integer | w0:integer
+4          | 4
+;
+
+unsortedInput
+required_capability: fn_window_funnel
+ROW code = [1008, 1003, 1000, 1005, 1001, 1007, 1002, 1006, 1004]
+| MV_EXPAND code
+| EVAL ts = TO_DATETIME((code - 1000) * 1000)
+| STATS
+    three = WINDOW_FUNNEL(1 hour, ts, code == 1000, code == 1001, code == 1002),
+    w2 = WINDOW_FUNNEL(2 seconds, ts, code == 1003, code == 1004, code == 1005, code == 1006, code == 1007)
+;
+
+three:integer | w2:integer
+3             | 3
+;
+
+repeatedCondition
+required_capability: fn_window_funnel
+ROW code = [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008]
+| MV_EXPAND code
+| EVAL ts = TO_DATETIME((code - 1000) * 1000)
+| STATS level = WINDOW_FUNNEL(1 hour, ts, code == 1004, code == 1004, code == 1004)
+;
+
+level:integer
+3
+;
+
+equalTimestampsChainInConditionOrder
+required_capability: fn_window_funnel
+ROW event = ["0:1000", "1:1001", "1:1002", "1:1003", "2:1004"]
+| MV_EXPAND event
+| DISSECT event "%{t}:%{c}"
+| EVAL ts = TO_DATETIME(TO_LONG(t) * 1000), code = TO_INTEGER(c)
+| STATS
+    two_seconds = WINDOW_FUNNEL(2 seconds, ts, code == 1000, code == 1001, code == 1002, code == 1003, code == 1004),
+    one_second = WINDOW_FUNNEL(1 second, ts, code == 1000, code == 1001, code == 1002, code == 1003, code == 1004)
+;
+
+two_seconds:integer | one_second:integer
+5                   | 4
+;
+
+restartAtLatestStart
+required_capability: fn_window_funnel
+ROW event = ["0:a", "1:a", "5:b", "6:c", "20:a", "21:b", "30:c"]
+| MV_EXPAND event
+| DISSECT event "%{t}:%{e}"
+| EVAL ts = TO_DATETIME(TO_LONG(t) * 1000)
+| STATS
+    w5 = WINDOW_FUNNEL(5 seconds, ts, e == "a", e == "b", e == "c"),
+    w4 = WINDOW_FUNNEL(4 seconds, ts, e == "a", e == "b", e == "c"),
+    w10 = WINDOW_FUNNEL(10 seconds, ts, e == "a", e == "b", e == "c")
+;
+
+w5:integer | w4:integer | w10:integer
+3          | 2          | 3
+;
+
+shardedWindowFunnel
+required_capability: fn_window_funnel
+FROM funnel_events_sharded
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") BY user
+| SORT user
+;
+
+level:integer | user:keyword
+4             | u1
+3             | u2
+0             | u3
+2             | u4
+3             | u5
+1             | u6
+0             | u7
+2             | u8
+3             | u9
+;
+
+shardedByDeviceAndCountry
+required_capability: fn_window_funnel
+FROM funnel_events_sharded
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") BY device, country
+| SORT device, country
+;
+
+level:integer | device:keyword | country:keyword
+0             | desktop        | DE
+4             | desktop        | US
+2             | mobile         | DE
+0             | mobile         | FR
+3             | mobile         | US
+2             | tablet         | DE
+3             | tablet         | FR
+;
+
+shardedNoBy
+required_capability: fn_window_funnel
+FROM funnel_events_sharded
+| STATS
+    one_hour = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"),
+    five_minutes = WINDOW_FUNNEL(5 minutes, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase")
+;
+
+one_hour:integer | five_minutes:integer
+4                | 3
+;
+
+shardedLevelDistribution
+required_capability: fn_window_funnel
+FROM funnel_events_sharded
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") BY user
+| STATS users = COUNT(*) BY level
+| SORT level
+;
+
+users:long | level:integer
+2          | 0
+1          | 1
+2          | 2
+3          | 3
+1          | 4
+;
+
+multivaluedBooleanCondition
+required_capability: fn_window_funnel
+ROW ts = TO_DATETIME("2024-01-01T00:00:00Z"), c1 = true, c2 = [true, false]
+| STATS level = WINDOW_FUNNEL(1 hour, ts, c1, c2)
+;
+warning:Line 2:17: evaluation of [WINDOW_FUNNEL(1 hour, ts, c1, c2)] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+level:integer
+1
+;
+
+subqueryBranchesAsSource
+required_capability: fn_window_funnel
+required_capability: subquery_in_from_command
+FROM (FROM funnel_events | WHERE action == "view"), (FROM funnel_events | WHERE action == "cart")
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart") BY user
+| SORT user
+;
+
+level:integer | user:keyword
+2             | u1
+2             | u2
+0             | u3
+2             | u4
+2             | u5
+1             | u6
+0             | u7
+2             | u8
+2             | u9
+;
+
+partiallyMappedTimestamp
+required_capability: fn_window_funnel
+FROM funnel_events, sample_data
+| STATS level = WINDOW_FUNNEL(1 hour, event_nanos, action == "view" OR message IS NOT NULL, action == "cart") BY user
+| SORT user
+;
+
+level:integer | user:keyword
+2             | u1
+2             | u2
+0             | u3
+2             | u4
+2             | u5
+1             | u6
+0             | u7
+2             | u8
+2             | u9
+0             | null
+;
+
+unmappedFieldsNullifyCondition
+required_capability: fn_window_funnel
+required_capability: optional_fields_nullify_tech_preview
+SET unmapped_fields="nullify"\;
+FROM funnel_events
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", no_such_field == "x") BY user
+| SORT user
+;
+
+level:integer | user:keyword
+1             | u1
+1             | u2
+0             | u3
+1             | u4
+1             | u5
+1             | u6
+0             | u7
+1             | u8
+1             | u9
+;
+
+sparklineInsideWindowFunnel
+required_capability: fn_window_funnel
+required_capability: fn_sparkline
+FROM funnel_events
+| WHERE user NOT IN ("u7", "u8")
+| STATS s = SPARKLINE(WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"), @timestamp, 10, "2024-05-01T09:00:00Z", "2024-05-01T19:00:00Z")
+;
+
+s:integer
+[0, 4, 3, 1, 2, 3, 1, 0, 0, 3]
+;
+
+sparklineInsideWindowFunnelBy
+required_capability: fn_window_funnel
+required_capability: fn_sparkline
+FROM funnel_events
+| WHERE user NOT IN ("u7", "u8")
+| STATS s = SPARKLINE(WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"), @timestamp, 10, "2024-05-01T09:00:00Z", "2024-05-01T19:00:00Z") BY user
+| SORT user
+;
+
+s:integer | user:keyword
+[0, 4, 0, 0, 0, 0, 0, 0, 0, 0] | u1
+[0, 2, 3, 0, 0, 0, 0, 0, 0, 0] | u2
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 0] | u3
+[0, 0, 0, 1, 2, 0, 0, 0, 0, 0] | u4
+[0, 0, 0, 0, 0, 3, 0, 0, 0, 0] | u5
+[0, 0, 0, 0, 0, 0, 1, 0, 0, 0] | u6
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 3] | u9
+;
+
+sparklineAlongsideWindowFunnel
+required_capability: fn_window_funnel
+required_capability: fn_sparkline
+FROM funnel_events
+| WHERE user NOT IN ("u7", "u8")
+| STATS s = SPARKLINE(SUM(1), @timestamp, 10, "2024-05-01T09:00:00Z", "2024-05-01T19:00:00Z"), level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase")
+;
+
+s:long | level:integer
+[3, 6, 3, 1, 3, 3, 4, 0, 0, 3] | 4
+;
+
+sparklineAlongsideWindowFunnelBy
+required_capability: fn_window_funnel
+required_capability: fn_sparkline
+FROM funnel_events
+| WHERE user NOT IN ("u7", "u8")
+| STATS s = SPARKLINE(SUM(1), @timestamp, 10, "2024-05-01T09:00:00Z", "2024-05-01T19:00:00Z"), level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") BY user
+| SORT user
+;
+
+s:long | level:integer | user:keyword
+[0, 4, 0, 0, 0, 0, 0, 0, 0, 0] | 4 | u1
+[0, 2, 3, 0, 0, 0, 0, 0, 0, 0] | 3 | u2
+[3, 0, 0, 0, 0, 0, 0, 0, 0, 0] | 0 | u3
+[0, 0, 0, 1, 3, 0, 0, 0, 0, 0] | 2 | u4
+[0, 0, 0, 0, 0, 3, 0, 0, 0, 0] | 3 | u5
+[0, 0, 0, 0, 0, 0, 4, 0, 0, 0] | 1 | u6
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 3] | 3 | u9
+;
+
+sparklineInsideAndAlongsideWindowFunnel
+required_capability: fn_window_funnel
+required_capability: fn_sparkline
+FROM funnel_events
+| WHERE user NOT IN ("u7", "u8")
+| STATS s = SPARKLINE(WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"), @timestamp, 10, "2024-05-01T09:00:00Z", "2024-05-01T19:00:00Z"), level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase")
+;
+
+s:integer | level:integer
+[0, 4, 3, 1, 2, 3, 1, 0, 0, 3] | 4
+;
+
+sparklineInsideAndAlongsideWindowFunnelBy
+required_capability: fn_window_funnel
+required_capability: fn_sparkline
+FROM funnel_events
+| WHERE user NOT IN ("u7", "u8")
+| STATS s = SPARKLINE(WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase"), @timestamp, 10, "2024-05-01T09:00:00Z", "2024-05-01T19:00:00Z"), level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view", action == "cart", action == "checkout", action == "purchase") BY user
+| SORT user
+;
+
+s:integer | level:integer | user:keyword
+[0, 4, 0, 0, 0, 0, 0, 0, 0, 0] | 4 | u1
+[0, 2, 3, 0, 0, 0, 0, 0, 0, 0] | 3 | u2
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 0] | 0 | u3
+[0, 0, 0, 1, 2, 0, 0, 0, 0, 0] | 2 | u4
+[0, 0, 0, 0, 0, 3, 0, 0, 0, 0] | 3 | u5
+[0, 0, 0, 0, 0, 0, 1, 0, 0, 0] | 1 | u6
+[0, 0, 0, 0, 0, 0, 0, 0, 0, 3] | 3 | u9
+;
+
+partiallyMappedConditionsWithMappedTimestamp
+required_capability: fn_window_funnel
+FROM funnel_events, sample_data
+| STATS level = WINDOW_FUNNEL(1 hour, @timestamp, action == "view" OR message IS NOT NULL, action == "cart") BY user
+| SORT user
+;
+
+level:integer | user:keyword
+2             | u1
+2             | u2
+0             | u3
+2             | u4
+2             | u5
+1             | u6
+0             | u7
+2             | u8
+2             | u9
+1             | null
+;
+
+multivaluedBooleanField
+required_capability: fn_window_funnel
+FROM employees
+| WHERE emp_no IN (10001, 10003, 10004, 10008, 10027)
+| STATS level = WINDOW_FUNNEL(1 hour, hire_date, emp_no > 0, is_rehired) BY emp_no
+| SORT emp_no
+;
+warning:Line 3:17: evaluation of [WINDOW_FUNNEL(1 hour, hire_date, emp_no > 0, is_rehired)] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 3:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+level:integer | emp_no:integer
+1             | 10001
+1             | 10003
+2             | 10004
+1             | 10008
+1             | 10027
+;

@@ -59,6 +59,7 @@ public class AggregateWritables {
             DeltaOnlyHistogramMergeOverTime.ENTRY,
             HistogramMergeOverTime.ENTRY,
             Sparkline.ENTRY,
+            WindowFunnelLevel.ENTRY,
             ToPartial.ENTRY,
             FromPartial.ENTRY
         );

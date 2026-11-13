@@ -259,6 +259,13 @@ public final class EsqlTestUtils {
         );
     }
 
+    public static void assumeFunctionEnabled(String functionName) {
+        Assume.assumeTrue(
+            "requires function [" + functionName + "]",
+            EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false).capabilities().contains("fn_" + functionName)
+        );
+    }
+
     public static Highlight soleHighlight(LogicalPlan plan) {
         List<Highlight> highlights = plan.collect(Highlight.class);
         assertThat(highlights, hasSize(1));

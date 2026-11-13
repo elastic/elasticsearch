@@ -101,7 +101,8 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
         Map.entry("top", "TOP(val_long, 3, \"asc\")"),
         Map.entry("sample", "SAMPLE(val_long, 3)"),
         Map.entry("st_centroid_agg", "ST_CENTROID_AGG(val_geo_point)"),
-        Map.entry("st_extent_agg", "ST_EXTENT_AGG(val_geo_point)")
+        Map.entry("st_extent_agg", "ST_EXTENT_AGG(val_geo_point)"),
+        Map.entry("window_funnel", "WINDOW_FUNNEL(1 hour, @timestamp, val_long > 10, val_long > 20)")
     );
 
     @ParametersFactory(argumentFormatting = "%s")

@@ -275,6 +275,10 @@ public class CsvTestsDataLoader {
         new TestDataset("event_alerts"),
         new TestDataset("event_logs"),
         new TestDataset("event_empty").noData(),
+        new TestDataset("funnel_events"),
+        new TestDataset("funnel_events_sharded", "mapping-funnel_events.json", "funnel_events.csv").withSetting(
+            "funnel_events_sharded-settings.json"
+        ),
         new TestDataset("alerts"),
         new TestDataset("sample_data").withIndex("sample_data_str").withTypeMapping(Map.of("client_ip", "keyword")),
         new TestDataset("sample_data").withIndex("sample_data_ts_long")

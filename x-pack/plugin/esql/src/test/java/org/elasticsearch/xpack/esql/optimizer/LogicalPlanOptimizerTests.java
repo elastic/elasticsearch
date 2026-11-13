@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.WindowFunnelLevel;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
@@ -196,6 +197,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeFunctionEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
@@ -8731,6 +8733,81 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             row v = [1, 2, 3], o = concat("d", "sc") | EVAL sd = mv_sort(v, o)
             """));
         assertEquals("Invalid order value in [mv_sort(v, o)], expected one of [ASC, DESC] but got [dsc]", iae.getMessage());
+    }
+
+    public void testWindowFunnelNullMaxspanCheckedAfterFolding() {
+        assumeFunctionEnabled("window_funnel");
+        final String header = "Found 1 problem\nline ";
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> plan("FROM test | STATS WINDOW_FUNNEL(null::time_duration, hire_date, salary > 1000)")
+        );
+        assertEquals(
+            "1:33: first argument of [WINDOW_FUNNEL(null::time_duration, hire_date, salary > 1000)] cannot be null, "
+                + "received [null::time_duration]",
+            e.getMessage().substring(header.length())
+        );
+        e = expectThrows(
+            VerificationException.class,
+            () -> plan("FROM test | INLINE STATS f = WINDOW_FUNNEL(null::time_duration, hire_date, salary > 1000) BY gender")
+        );
+        assertEquals(
+            "1:44: first argument of [WINDOW_FUNNEL(null::time_duration, hire_date, salary > 1000)] cannot be null, "
+                + "received [null::time_duration]",
+            e.getMessage().substring(header.length())
+        );
+        e = expectThrows(
+            VerificationException.class,
+            () -> plan("FROM test | STATS WINDOW_FUNNEL(TO_TIMEDURATION(null), hire_date, salary > 1000)")
+        );
+        assertEquals(
+            "1:33: first argument of [WINDOW_FUNNEL(TO_TIMEDURATION(null), hire_date, salary > 1000)] cannot be null, "
+                + "received [TO_TIMEDURATION(null)]",
+            e.getMessage().substring(header.length())
+        );
+    }
+
+    public void testWindowFunnelNegativeMaxspanCheckedAfterFolding() {
+        assumeFunctionEnabled("window_funnel");
+        final String header = "Found 1 problem\nline ";
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> plan("FROM test | STATS WINDOW_FUNNEL(30 minutes - 1 hour, hire_date, salary > 1000)")
+        );
+        assertEquals(
+            "1:33: first argument of [WINDOW_FUNNEL(30 minutes - 1 hour, hire_date, salary > 1000)] must be a non-negative "
+                + "time_duration, found [30 minutes - 1 hour]",
+            e.getMessage().substring(header.length())
+        );
+        e = expectThrows(
+            VerificationException.class,
+            () -> plan("FROM test | FORK (STATS f = WINDOW_FUNNEL(30 minutes - 1 hour, hire_date, salary > 1000)) (STATS c = COUNT(*))")
+        );
+        assertEquals(
+            "1:43: first argument of [WINDOW_FUNNEL(30 minutes - 1 hour, hire_date, salary > 1000)] must be a non-negative "
+                + "time_duration, found [30 minutes - 1 hour]",
+            e.getMessage().substring(header.length())
+        );
+    }
+
+    public void testWindowFunnelMaxspanIsFolded() {
+        assumeFunctionEnabled("window_funnel");
+        assertThat(foldedWindowFunnelMaxspan("30 minutes + 30 minutes"), equalTo(Duration.ofHours(1)));
+        assertThat(foldedWindowFunnelMaxspan("30 minutes - 30 minutes"), equalTo(Duration.ZERO));
+    }
+
+    public void testWindowFunnelWithInvalidMaxspanIsDroppedByFalseFilter() {
+        assumeFunctionEnabled("window_funnel");
+        LogicalPlan dropped = plan("FROM test | STATS f = WINDOW_FUNNEL(30 minutes - 1 hour, hire_date, salary > 1000) WHERE false");
+        dropped.forEachExpressionDown(WindowFunnelLevel.class, level -> fail("unexpected " + level));
+    }
+
+    private Object foldedWindowFunnelMaxspan(String maxspan) {
+        LogicalPlan plan = plan("FROM test | STATS WINDOW_FUNNEL(" + maxspan + ", hire_date, salary > 1000)");
+        Holder<WindowFunnelLevel> level = new Holder<>();
+        plan.forEachExpressionDown(WindowFunnelLevel.class, level::set);
+        assertNotNull(level.get());
+        return as(level.get().maxspan(), Literal.class).value();
     }
 
     public void testToDatePeriodTimeDurationInvalidIntervals() {

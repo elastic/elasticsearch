@@ -131,6 +131,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 parser,
                 context.isSourceSynthetic(),
                 context.isStrictColumnar(),
+                version,
                 meta.get()
             );
             return new ShapeFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
@@ -157,9 +158,10 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             Orientation orientation,
             Parser<Geometry> parser,
             boolean isSyntheticSource,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
-            this(name, indexed, hasDocValues, orientation, parser, isSyntheticSource, false, meta);
+            this(name, indexed, hasDocValues, orientation, parser, isSyntheticSource, false, indexCreatedVersion, meta);
         }
 
         public ShapeFieldType(
@@ -170,9 +172,10 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             Parser<Geometry> parser,
             boolean isSyntheticSource,
             boolean isColumnar,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues), false, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), false, parser, orientation, indexCreatedVersion, meta);
             this.isSyntheticSource = isSyntheticSource;
             this.isColumnar = isColumnar;
         }
@@ -319,7 +322,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             String name = fieldType().name();
             BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
-                docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN);
+                docValuesField = new BinaryShapeDocValuesField(
+                    name,
+                    CoordinateEncoder.CARTESIAN,
+                    fieldType().supportsGeometryDocValueReconstruction()
+                );
                 context.doc().addWithKey(name, docValuesField);
             }
             docValuesField.add(fields, geometry);

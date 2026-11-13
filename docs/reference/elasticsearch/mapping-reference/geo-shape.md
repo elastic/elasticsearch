@@ -45,7 +45,7 @@ In [GeoJSON](https://datatracker.ietf.org/doc/html/rfc7946) and [WKT](https://ww
 | `ignore_z_value` | If `true` (default) three dimension points will be accepted (stored in source)but only latitude and longitude values will be indexed; the third dimension is ignored. If `false`,geopoints containing any more than latitude and longitude (two dimensions) values throw an exceptionand reject the whole document. | `true` |
 | `coerce` | If `true` unclosed linear rings in polygons will be automatically closed. | `false` |
 | `index` | Should the field be quickly searchable? Accepts `true` (default) and `false`.Fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower. | `true` |
-| `doc_values` | Should the field be stored on disk in a column-stride fashion,so that it can later be used for aggregations or scripting? | `true` |
+| `doc_values` | Should the field be stored on disk in a column-stride fashion, so that it can later be used for aggregations, scripting, or {{esql}} spatial functions? Refer to [Doc values](#geoshape-doc-values). | `true` |
 
 
 ### Indexing approach [geoshape-indexing-approach]
@@ -68,6 +68,10 @@ PUT /example
 }
 ```
 % TESTSETUP
+
+### Doc values [geoshape-doc-values]
+
+When `doc_values` is enabled, each geoshape is also stored on disk as a tree of the triangles in its triangular mesh, encoded at the same precision as the index. Aggregations such as [`geo_bounds`](/reference/aggregations/search-aggregations-metrics-geobounds-aggregation.md), [`geo_centroid`](/reference/aggregations/search-aggregations-metrics-geocentroid-aggregation.md), and the geo grid aggregations read these doc values instead of the `_source`.
 
 ### Input Structure [input-structure]
 

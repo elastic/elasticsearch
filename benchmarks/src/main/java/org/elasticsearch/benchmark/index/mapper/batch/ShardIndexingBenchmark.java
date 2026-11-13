@@ -187,7 +187,9 @@ public class ShardIndexingBenchmark {
                 "half_float.absent10",
                 "long.str",
                 "long.dbl",
-                "integer.noindex" }
+                "integer.noindex",
+                "ip.dense",
+                "ip.mv1to4" }
         )
         public String shape;
 
@@ -259,7 +261,12 @@ public class ShardIndexingBenchmark {
                 "long.dbl",
                 "integer.noindex",
                 "long.nullexplicit",
-                "scaled_float.dense" }
+                "scaled_float.dense",
+                "ip.dense",
+                "ip.mv1to4",
+                "ip.malformed100",
+                "ip.malformedall",
+                "ip.single.nullarr" }
         )
         public String shape;
 
@@ -301,7 +308,7 @@ public class ShardIndexingBenchmark {
     public static class FallbackState extends ShardFixtureState {
 
         @Param({ "long.nullexplicit", "scaled_float.dense" })
-        @ExtraParam({ "double.mv1to4", "float.mv1to4", "half_float.mv1to4" })
+        @ExtraParam({ "double.mv1to4", "float.mv1to4", "half_float.mv1to4", "ip.malformed100", "ip.malformedall", "ip.single.nullarr" })
         public String shape;
 
         @Param({ "5000" })

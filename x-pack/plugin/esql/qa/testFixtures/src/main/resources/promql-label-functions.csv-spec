@@ -269,19 +269,20 @@ result:double | zone:keyword
 ;
 
 
-// label_join with no source labels is valid PromQL and yields dst="" (an empty join). It must plan and execute rather
-// than fail during translation; here dst="" is asserted via a boolean so the empty grouping key is unambiguous.
-label_join_zero_source_labels_yields_empty
+// label_join with no source labels is valid PromQL and yields dst="" (an empty join), which removes dst as in Prometheus.
+// It must plan and execute rather than fail during translation; the absent dst is asserted via a boolean.
+label_join_zero_source_labels_removes_the_label
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_label_functions
+required_capability: fix_promql_label_join_empty_removes_label
 PROMQL index=prom-metrics-name step=1h result=(sum by (dst) (label_join(metrics.requests{pod="podA"}, "dst", "-")))
-| EVAL dst_is_empty = dst == ""
-| KEEP result, dst_is_empty
+| EVAL dst_is_absent = dst IS NULL
+| KEEP result, dst_is_absent
 | SORT result;
 
-result:double | dst_is_empty:boolean
+result:double | dst_is_absent:boolean
 10.0          | true
 ;
 

@@ -599,10 +599,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         );
         var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
-        assertThat(
-            joins.getFirst().leftFields().stream().map(Attribute::name).toList(),
-            containsInAnyOrder("step", PackDims.PACKED_FIELD_NAME)
-        );
+        assertThat(joins.getFirst().leftFields().stream().map(Attribute::name).toList(), containsInAnyOrder("step"));
     }
 
     public void testVectorMatchRejectsOpaqueWithoutOperand() {

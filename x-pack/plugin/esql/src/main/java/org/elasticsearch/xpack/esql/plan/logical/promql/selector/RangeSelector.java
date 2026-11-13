@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.List;
 import java.util.Objects;
@@ -106,9 +104,4 @@ public final class RangeSelector extends Selector {
         return PromqlDataType.RANGE_VECTOR;
     }
 
-    /** A range selector reads the raw samples; the enclosing function call applies the window. */
-    @Override
-    public IntermediateResult translate(TranslationContext context) {
-        return translateSeries(context, series());
-    }
 }

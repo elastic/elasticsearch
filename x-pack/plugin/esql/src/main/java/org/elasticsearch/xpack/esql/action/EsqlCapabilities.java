@@ -4272,6 +4272,12 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS_V2(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL {@code label_join} whose result is empty, such as a join of no labels, removes the destination label as in
+         * Prometheus, rather than setting it to the empty string. Comes with translating PromQL over the label container.
+         */
+        FIX_PROMQL_LABEL_JOIN_EMPTY_REMOVES_LABEL(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),

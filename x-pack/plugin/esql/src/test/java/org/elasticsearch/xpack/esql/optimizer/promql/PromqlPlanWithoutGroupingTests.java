@@ -51,9 +51,9 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -81,15 +81,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         var aggregates = plan.collect(Aggregate.class);
         assertThat(aggregates, not(empty()));
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("pod"));
+        assertThat(sourceViews(plan), equalTo(Set.of(List.of("pod"))));
     }
 
     /**
@@ -104,15 +96,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), empty());
+        assertThat(sourceViews(plan), equalTo(Set.of(List.of())));
     }
 
     /**
@@ -143,27 +127,21 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
      * Regression for #149793: {@code without(label)} must exclude the label by name even when it does not resolve to a
      * dimension {@link org.elasticsearch.xpack.esql.core.expression.FieldAttribute}. Before the fix, the dimension-only
      * filter silently dropped such exclusions, so labels like Prometheus {@code instance} were retained in the
-     * {@code _timeseries} output. Here {@code event} is a mapped non-dimension field, exercising that path.
+     * {@code _timeseries} output. Here {@code event} is a mapped non-dimension field, exercising that path: the label container
+     * holds the dimensions alone, so leaving {@code event} out of it changes nothing and the view leaves out {@code pod} alone.
      */
     public void testWithoutExcludesNonDimensionLabelByName() {
         var plan = logicalOptimizerWithLatestVersion.optimize(
             planPromql("PROMQL index=k8s step=1h result=(sum without (pod, event) (network.bytes_in))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItems("pod", "event"));
+        assertThat(sourceViews(plan), equalTo(Set.of(List.of("pod"))));
     }
 
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {
         String query = "PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))";
-        var logical = logicalOptimizerWithLatestVersion.optimize(planPromql(query, false));
+        // the keyword _timeseries carries what it leaves out to the data nodes
+        var logical = logicalOptimizerWithLatestVersion.optimize(planPromqlKeyword(query, false));
         var physical = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, TransportVersion.current())).optimize(
             new Mapper().map(new Versioned<>(logical, TransportVersion.current()))
         );
@@ -268,10 +246,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
     public void testParentBySynthesizesConsumedBindingFromWithoutCarrier() {
         LogicalPlan analyzed = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))", false);
-        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
-        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
-        assertThat(tsmaList, hasSize(1));
-        assertEquals(((TimeSeriesMetadataAttribute) tsmaList.getFirst()).excludedFields(), Set.of("pod"));
+        assertThat(sourceViews(analyzed), equalTo(Set.of(List.of("pod"))));
         TimeSeriesAggregate innerAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(
             packedDims(innerAggregate.aggregates()).stream()
@@ -336,9 +311,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (does_not_exist) (network.cost)))",
             false
         );
-        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
-        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
-        assertThat(tsmaList, hasSize(1));
+        assertThat(sourceViews(analyzed), equalTo(Set.of(List.of())));
     }
 
     public void testWithoutAllKnownLabelsProducesEmptyGrouping() {
@@ -362,15 +335,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             planPromql("PROMQL index=otel-metrics step=1h result=(sum without (cpu) (metrics.system.cpu.time))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("cpu"));
+        assertThat(sourceViews(plan).stream().flatMap(List::stream).toList(), hasItem(endsWith("cpu")));
     }
 
     /**
@@ -385,15 +350,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             planPromql("PROMQL index=otel-metrics step=1h result=(sum without (host.name) (metrics.system.cpu.time))", false)
         );
 
-        var timeSeriesMetadata = plan.collect(EsRelation.class)
-            .stream()
-            .flatMap(relation -> relation.output().stream())
-            .filter(TimeSeriesMetadataAttribute.class::isInstance)
-            .map(TimeSeriesMetadataAttribute.class::cast)
-            .findFirst()
-            .orElse(null);
-        assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.excludedFields(), hasItem("host.name"));
+        assertThat(sourceViews(plan).stream().flatMap(List::stream).toList(), hasItem(endsWith("host.name")));
     }
 
     public void testWithoutTrailingCommaPlans() {
@@ -412,10 +369,8 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
                 .toList(),
             hasSize(1)
         );
-        // TimeSeriesMetadataAttribute shouldn't be getting created if without has no label
-        EsRelation esRelation = analyzed.collect(EsRelation.class).getFirst();
-        var tsmaList = esRelation.expressions().stream().filter(field -> field instanceof TimeSeriesMetadataAttribute).toList();
-        assertThat(tsmaList, hasSize(0));
+        // without () groups by every label: the full view of the series
+        assertThat(sourceViews(analyzed), equalTo(Set.of(List.of())));
     }
 
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {

@@ -458,7 +458,7 @@ public record TranslationContextV2(
     // -- core --
 
     /**
-     * The synthesized attribute of a PromQL node ({@link PromqlPlan#translate}): its translated subtree and the state not
+     * The synthesized attribute of a PromQL node ({@link #translate}): its translated subtree and the state not
      * yet represented by plan operators. Mid-descent the value is a (possibly not yet materialized) expression parents
      * compose into larger expressions; a finished table's value is a defined column ({@link #valueColumn()}).
      */

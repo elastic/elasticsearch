@@ -2,4 +2,4 @@ area: ES|QL
 issues: []
 pr: 162152
 summary: Filter null metrics through casts and arithmetic in TS
-type: enhancement
+type: bug

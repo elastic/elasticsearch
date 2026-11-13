@@ -4770,6 +4770,12 @@ public class EsqlCapabilities {
          */
         COLUMN_METADATA_FIELD_SEMANTICS(Build.current().isSnapshot()),
 
+        /**
+         * {@code DESCRIBE} and {@code column_metadata} keep the field semantics and units that merged branches agree on,
+         * for views next to indices, {@code FORK} and subqueries.
+         */
+        COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

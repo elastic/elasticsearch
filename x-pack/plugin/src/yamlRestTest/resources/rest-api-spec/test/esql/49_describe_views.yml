@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ describe_command, column_metadata_field_semantics ]
+          capabilities: [ describe_command, column_metadata_field_semantics, column_metadata_merged_branches ]
         - method: GET
           path: /_query/view
           capabilities: [ view_index_abstraction ]

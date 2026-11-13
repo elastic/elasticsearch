@@ -404,7 +404,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 fetchCount,
                 fetchTimeInMillis,
                 fetchCurrent,
-                fetchCount,
+                fetchFailure,
                 scrollCount,
                 scrollTimeInMillis,
                 scrollCurrent,

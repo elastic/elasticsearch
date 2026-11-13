@@ -91,6 +91,7 @@ public final class TaskLoadAttribution {
      * task to the task's target.
      */
     public static void charge(Target target, long nanos, long finishNanos) {
+        assert nanos >= 0 : nanos;
         Task task = task();
         if (task != null && task.running) {
             task.chargedNanos += nanos;
@@ -191,12 +192,12 @@ public final class TaskLoadAttribution {
         }
         Target target = task.target;
         long charged = Math.min(task.chargedNanos, nanos);
+        task.reset(false);
         if (target == null) {
             task.cpuReadNanos = UNREAD;
         } else if (nanos > charged) {
             target.charge(nanos - charged, cpuOf(task, nanos - charged), finishNanos);
         }
-        task.reset(false);
         return target == null ? charged : nanos;
     }
 

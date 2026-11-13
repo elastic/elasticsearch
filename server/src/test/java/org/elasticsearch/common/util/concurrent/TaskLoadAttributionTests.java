@@ -136,6 +136,25 @@ public class TaskLoadAttributionTests extends ESTestCase {
     }
 
     /**
+     * A target that throws is charged once, although the pool completes the task again with the failure.
+     */
+    public void testTargetThatThrowsIsChargedOnce() {
+        onPoolThread(clocks -> {
+            Charges charges = new Charges();
+            TaskLoadAttribution.Target throwing = (nanos, cpuNanos, finishNanos) -> {
+                charges.charge(nanos, cpuNanos, finishNanos);
+                throw new IllegalStateException("boom");
+            };
+            TaskLoadAttribution.taskStarted();
+            TaskLoadAttribution.attribute(throwing);
+            clocks.cpu += 300;
+            expectThrows(IllegalStateException.class, () -> TaskLoadAttribution.taskCompleted(TASK_NANOS, clocks.now));
+            assertThat(TaskLoadAttribution.taskCompleted(TASK_NANOS, clocks.now), equalTo(0L));
+            assertThat(charges, contains(new Charge(TASK_NANOS, 300)));
+        });
+    }
+
+    /**
      * Outside a pool task nothing measures the CPU time, so the time counts as CPU time.
      */
     public void testOutsideAPoolTaskTheTimeCountsAsCpuTime() {

@@ -331,7 +331,7 @@ public final class ShardSearchStats implements SearchOperationListener {
         }
 
         SearchStats.Stats stats() {
-            // one time for all the rates, so the CPU time is never more than the load it is part of
+            // one time for all the rates, so they are comparable
             long now = System.nanoTime();
             return new SearchStats.Stats(
                 queryMetric.count(),

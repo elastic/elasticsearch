@@ -65,6 +65,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -121,11 +122,9 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -1398,7 +1397,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 1,
                 0,
                 0,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,
@@ -1585,7 +1584,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 1,
                 0,
                 100,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,
@@ -2560,7 +2559,7 @@ public class TransportSearchActionTests extends ESTestCase {
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersion.minimumCCSVersion(), true);
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(TransportSearchAction.class.getSimpleName(), settings);
         try {
             TransportService transportService = MockTransportService.createNewService(
                 Settings.EMPTY,
@@ -2612,6 +2611,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
                 new UsageService(),
+                new QuerySinkRegistry(List.of()),
                 new TestActionActionLoggingFieldsProvider(),
                 ActivityLogWriterProvider.NOOP,
                 CrossProjectModeDecider.NOOP

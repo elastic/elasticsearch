@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -19,6 +21,8 @@ import org.junit.Before;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.hasSize;
@@ -27,9 +31,9 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.matchesPattern;
 
 /**
- * The result of a sub-plan ({@code IN} subquery, {@code INLINE STATS}) becomes a local relation of the main plan, capped by
- * {@code esql.intermediate_local_relation_max_size}. An oversized result must fail as soon as the pages collected on the
- * coordinator pass the cap, not after the sub-plan has read its whole input.
+ * The result of a sub-plan ({@code IN} subquery, {@code INLINE STATS}, PromQL vector match) becomes a local relation of the main
+ * plan, capped by {@code esql.intermediate_local_relation_max_size}. An oversized result must fail as soon as the pages collected
+ * on the coordinator pass the cap, not after the sub-plan has read its whole input.
  */
 public class SubPlanResultLimitIT extends AbstractPausableIntegTestCase {
     /**
@@ -83,11 +87,63 @@ public class SubPlanResultLimitIT extends AbstractPausableIntegTestCase {
      */
     public void testOversizedInlineStatsFailsWhileCollecting() {
         setLimitBelowOnePage();
-        Throwable cause = ExceptionsHelper.unwrapCause(
-            expectThrows(Exception.class, () -> run("FROM test | INLINE STATS c = COUNT(*) BY foo"))
+        assertFailsWhileCollecting("FROM test | INLINE STATS c = COUNT(*) BY foo");
+    }
+
+    /**
+     * {@code FORK} inside the subquery puts a {@code MergeExec} in the sub-plan, so it runs through {@code SubPlansExecutor}
+     * instead of the single producer path.
+     */
+    public void testOversizedInSubqueryWithForkFailsWhileCollecting() {
+        setLimitBelowOnePage();
+        assertFailsWhileCollecting("""
+            FROM test
+            | WHERE foo IN (FROM test | FORK (EVAL x = 1) (EVAL x = 2) | KEEP foo)
+            """);
+    }
+
+    /**
+     * Like {@link #testOversizedInSubqueryWithForkFailsWhileCollecting}, with the {@code MergeExec} coming from a
+     * {@code UNION ALL} of subqueries.
+     */
+    public void testOversizedInSubqueryWithUnionAllFailsWhileCollecting() {
+        setLimitBelowOnePage();
+        assertFailsWhileCollecting("""
+            FROM test
+            | WHERE foo IN (
+                FROM (FROM test | WHERE foo % 2 == 0 | KEEP foo), (FROM test | WHERE foo % 2 == 1 | KEEP foo)
+                | KEEP foo
+              )
+            """);
+    }
+
+    /**
+     * A PromQL vector match with {@code on} is planned as a {@code HashJoin}, whose build side runs as a sub-plan.
+     */
+    public void testOversizedPromqlJoinBuildSideFailsWhileCollecting() {
+        assumeTrue("requires PromQL vector matching", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
+        assertAcked(
+            indicesAdmin().prepareCreate("metrics")
+                .setSettings(Settings.builder().put("index.mode", "time_series").putList("index.routing_path", List.of("host")))
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "cpu",
+                    "type=long,time_series_metric=gauge"
+                )
         );
-        assertThat(cause, instanceOf(IllegalArgumentException.class));
-        assertThat(cause.getMessage(), matchesPattern(TOO_LARGE_AT_1B));
+        String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+        assertNoFailures(
+            client().prepareBulk()
+                .add(prepareIndex("metrics").setSource("@timestamp", timestamp, "host", "a", "cpu", 10))
+                .add(prepareIndex("metrics").setSource("@timestamp", timestamp, "host", "b", "cpu", 20))
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
+        );
+        setLimitBelowOnePage();
+        assertFailsWhileCollecting("PROMQL index=metrics step=1m ratio=(sum by (host) (cpu) / on (host) sum by (host) (cpu))");
     }
 
     public void testLimitDoesNotApplyToMainPlan() {
@@ -97,7 +153,23 @@ public class SubPlanResultLimitIT extends AbstractPausableIntegTestCase {
         }
     }
 
+    /**
+     * A main plan with {@code FORK} runs through {@code SubPlansExecutor} too, which must not apply the cap to it.
+     */
+    public void testLimitDoesNotApplyToMainPlanWithFork() {
+        setLimitBelowOnePage();
+        try (EsqlQueryResponse response = run("FROM test | FORK (EVAL x = 1) (EVAL x = 2) | KEEP foo, x | LIMIT 10000")) {
+            assertThat(getValuesList(response), hasSize(2 * numberOfDocs()));
+        }
+    }
+
     private void setLimitBelowOnePage() {
         updateClusterSettings(Settings.builder().put(PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE.getKey(), "1b"));
+    }
+
+    private void assertFailsWhileCollecting(String query) {
+        Throwable cause = ExceptionsHelper.unwrapCause(expectThrows(Exception.class, () -> run(query).close()));
+        assertThat(cause, instanceOf(IllegalArgumentException.class));
+        assertThat(cause.getMessage(), matchesPattern(TOO_LARGE_AT_1B));
     }
 }

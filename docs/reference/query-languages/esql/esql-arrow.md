@@ -26,8 +26,9 @@ Several ES|QL types share an Arrow physical type, so retain this metadata when i
 
 The reference below shows each field's name, Arrow type, nullability, and metadata.
 Expand a type to inspect its schema, then use the tree expanders to show or hide child fields.
-Type labels use the Arrow Java representation: for example, `Int(64, true)` is a signed 64-bit integer,
-while `Int(64, false)` is unsigned.
+Type labels name the Arrow type, followed by its parameters in parentheses where the type has any.
+For example, `Int(bitWidth: 64, isSigned: true)` is a signed 64-bit integer, while `Int(bitWidth: 64, isSigned: false)` is unsigned.
+Types without parameters appear as the bare type name, such as `Utf8`, `Binary`, or `Struct`.
 Nullability describes the field's values, independently at each nesting level.
 
 A column with multivalue positions uses a nullable `List` field.

@@ -17,7 +17,9 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
@@ -40,12 +42,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
- * Streams an {@code INTO} query's pages to its destination as bulk {@code create} requests, with at most
- * {@link #MAX_CONCURRENT_BULKS} in flight per driver, restoring the caller's {@link ThreadContext} around each request.
+ * Streams an {@code INTO} query's pages to its destination as bulk {@code create} requests. At most
+ * {@link #MAX_IN_FLIGHT_BYTES} of source bytes wait for an acknowledgement per driver, and each row's source is
+ * reserved on the request circuit breaker until that bulk settles. The caller's {@link ThreadContext} is restored
+ * around each request.
  */
 public final class IntoPageWriter implements PageConsumer {
     // visible for testing
-    static final int MAX_CONCURRENT_BULKS = 3;
+    static final long MAX_IN_FLIGHT_BYTES = 3L * Operator.TARGET_PAGE_SIZE;
+
+    private static final String BREAKER_LABEL = "into";
 
     /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
     public static final class Factory implements PageConsumer.Factory {
@@ -84,7 +90,7 @@ public final class IntoPageWriter implements PageConsumer {
 
         @Override
         public IntoPageWriter create(DriverContext driverContext) {
-            return new IntoPageWriter(this, Objects.requireNonNull(driverContext));
+            return new IntoPageWriter(this, Objects.requireNonNull(driverContext), LocalCircuitBreaker.forAsyncIo(driverContext.breaker()));
         }
 
         public IntoStats stats() {
@@ -100,16 +106,18 @@ public final class IntoPageWriter implements PageConsumer {
 
     private final Factory sink;
     private final DriverContext driverContext;
+    private final CircuitBreaker breaker;
 
-    private int inFlight;
+    private long inFlightBytes;
     private boolean finished;
     // null whenever no driver is blocked on this writer; allocated in isBlocked() and cleared in wake().
     @Nullable
     private SubscribableListener<Void> waiting;
 
-    private IntoPageWriter(Factory sink, DriverContext driverContext) {
+    private IntoPageWriter(Factory sink, DriverContext driverContext, CircuitBreaker breaker) {
         this.sink = sink;
         this.driverContext = driverContext;
+        this.breaker = breaker;
     }
 
     @Override
@@ -123,37 +131,50 @@ public final class IntoPageWriter implements PageConsumer {
         }
     }
 
-    private BulkRequest bulkFor(Page page) {
+    private ReservedBulk bulkFor(Page page) {
         BulkRequest bulk = new BulkRequest();
-        // Render dates in UTC regardless of the query's time zone so the destination parses them unambiguously.
-        Iterator<Iterator<Object>> rows = ResponseValueUtils.pagesToValues(sink.types, List.of(page), ZoneOffset.UTC);
-        while (rows.hasNext()) {
-            Iterator<Object> values = rows.next();
-            Map<String, Object> source = new LinkedHashMap<>();
-            for (String column : sink.columns) {
-                Object value = values.next();
-                if (value != null) {
-                    source.put(column, value);
+        long reserved = 0;
+        try {
+            // Render dates in UTC regardless of the query's time zone so the destination parses them unambiguously.
+            Iterator<Iterator<Object>> rows = ResponseValueUtils.pagesToValues(sink.types, List.of(page), ZoneOffset.UTC);
+            while (rows.hasNext()) {
+                Iterator<Object> values = rows.next();
+                Map<String, Object> source = new LinkedHashMap<>();
+                for (String column : sink.columns) {
+                    Object value = values.next();
+                    if (value != null) {
+                        source.put(column, value);
+                    }
                 }
+                IndexRequest request = new IndexRequest(sink.destination).opType(DocWriteRequest.OpType.CREATE).source(source);
+                long bytes = request.indexSource().byteLength();
+                breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+                reserved += bytes;
+                bulk.add(request);
             }
-            bulk.add(new IndexRequest(sink.destination).opType(DocWriteRequest.OpType.CREATE).source(source));
+            return new ReservedBulk(bulk, reserved);
+        } catch (Exception e) {
+            release(reserved);
+            throw e;
         }
-        return bulk;
     }
 
-    private void send(BulkRequest bulk) {
+    private void send(ReservedBulk reservedBulk) {
+        BulkRequest bulk = reservedBulk.bulk();
+        long bytes = reservedBulk.bytes();
         int actions = bulk.numberOfActions();
         if (actions == 0) {
+            release(bytes);
             return;
         }
         synchronized (this) {
-            inFlight++;
+            inFlightBytes += bytes;
         }
         sink.total.addAndGet(actions);
         driverContext.addAsyncAction();
         ActionListener<BulkResponse> listener = ActionListener.runAfter(
             ActionListener.wrap(this::onBulkResponse, this::recordFailure),
-            this::settled
+            () -> settle(bytes)
         );
         try (ThreadContext.StoredContext ignored = sink.caller.get()) {
             sink.client.execute(TransportBulkAction.TYPE, bulk, listener);
@@ -188,9 +209,14 @@ public final class IntoPageWriter implements PageConsumer {
     // Complete the async action before unblocking the driver so a finishing driver sees zero pending actions, and do
     // so outside synchronized (this) because removing the last action on a failed driver runs its completion listener
     // synchronously on this thread.
-    private void settled() {
+    private void settle(long bytes) {
+        release(bytes);
         driverContext.removeAsyncAction();
-        wake(() -> inFlight--);
+        wake(() -> inFlightBytes -= bytes);
+    }
+
+    private void release(long bytes) {
+        breaker.addWithoutBreaking(-bytes, BREAKER_LABEL);
     }
 
     @Override
@@ -223,16 +249,18 @@ public final class IntoPageWriter implements PageConsumer {
         return new IsBlockedResult(waiting, "INTO " + sink.destination);
     }
 
-    // Blocking until inFlight == 0 once finished keeps a parked driver from spinning while bulks settle.
+    // Blocking until inFlightBytes == 0 once finished to prevent a parked driver from spinning while bulks settle.
     private boolean mayContinue() {
         if (Thread.holdsLock(this) == false) {
             throw new IllegalStateException("mayContinue() must be called while holding this monitor");
         }
-        return finished ? inFlight == 0 : inFlight < MAX_CONCURRENT_BULKS;
+        return finished ? inFlightBytes == 0 : inFlightBytes < MAX_IN_FLIGHT_BYTES;
     }
 
     @Override
     public synchronized boolean isFinished() {
-        return finished && inFlight == 0;
+        return finished && inFlightBytes == 0;
     }
+
+    private record ReservedBulk(BulkRequest bulk, long bytes) {}
 }

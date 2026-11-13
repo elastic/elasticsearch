@@ -20,6 +20,8 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -31,6 +33,7 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -42,7 +45,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -51,6 +56,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -82,7 +89,14 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
     @After
     public void stopThreadPool() {
-        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        if (client != null) {
+            while (client.listeners.isEmpty() == false) {
+                client.fail(new EsRejectedExecutionException("test cleanup"));
+            }
+        }
+        if (threadPool != null) {
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
     }
 
     private enum Outcome {
@@ -158,17 +172,74 @@ public class IntoPageWriterTests extends ComputeTestCase {
         );
     }
 
-    public void testBackpressureAtMaxConcurrentBulks() {
-        for (int i = 0; i < IntoPageWriter.MAX_CONCURRENT_BULKS; i++) {
+    public void testBackpressureAtInFlightByteLimit() {
+        for (int i = 0; i < 3; i++) {
             assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
-            writer.consume(page("h" + i));
+            writer.consume(widePage());
         }
+        assertThat(driverContext.breaker().getUsed(), greaterThanOrEqualTo(IntoPageWriter.MAX_IN_FLIGHT_BYTES));
         IsBlockedResult blocked = writer.isBlocked();
         assertFalse(blocked.listener().isDone());
 
         client.answer(Outcome.CREATED);
         assertTrue(blocked.listener().isDone());
         assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
+        assertThat(driverContext.breaker().getUsed(), greaterThan(0L));
+
+        client.answer(Outcome.CREATED);
+        client.answer(Outcome.CREATED);
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testSourceBytesChargedUntilBulkSettles() {
+        writer.consume(page("h1", "h2"));
+        long sourceBytes = client.bulks.getFirst()
+            .requests()
+            .stream()
+            .mapToLong(request -> ((IndexRequest) request).indexSource().byteLength())
+            .sum();
+
+        assertThat(sourceBytes, greaterThan(0L));
+        assertThat(driverContext.breaker().getUsed(), equalTo(sourceBytes));
+
+        client.answer(Outcome.CREATED, Outcome.CREATED);
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testCircuitBreakerTripReleasesReservedRows() {
+        writer.consume(page("h1"));
+        long oneRow = driverContext.breaker().getUsed();
+        client.answer(Outcome.CREATED);
+        assertThat(oneRow, greaterThan(0L));
+
+        BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(oneRow));
+        IntoPageWriter limitedWriter = sink.create(new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, limited, null));
+        expectThrows(CircuitBreakingException.class, () -> limitedWriter.consume(page("h1", "h2")));
+        assertThat(client.bulks, empty());
+        assertThat(limited.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testCrankyBreakerReleasesAndStatsMatchWrittenRows() {
+        BlockFactory crankyFactory = crankyBlockFactory();
+        IntoPageWriter crankyWriter = sink.create(new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, crankyFactory, null));
+        int written = 0;
+        boolean tripped = false;
+        for (int i = 0; i < 1000; i++) {
+            try {
+                crankyWriter.consume(page("h" + i));
+            } catch (CircuitBreakingException e) {
+                assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                tripped = true;
+                break;
+            }
+            int actions = client.bulks.getFirst().numberOfActions();
+            client.answer(Outcome.CREATED);
+            written += actions;
+        }
+        assertTrue(tripped);
+        assertThat(client.bulks, empty());
+        assertThat(crankyFactory.breaker().getUsed(), equalTo(0L));
+        assertThat(sink.stats(), equalTo(new IntoStats(written, written)));
     }
 
     public void testFinishWaitsForOutstandingBulks() {
@@ -228,5 +299,11 @@ public class IntoPageWriterTests extends ComputeTestCase {
             }
             return new Page(host.build(), blockFactory.newConstantLongBlockWith(0L, hosts.length));
         }
+    }
+
+    private Page widePage() {
+        byte[] value = new byte[Operator.TARGET_PAGE_SIZE];
+        Arrays.fill(value, (byte) 'a');
+        return page(new String(value, StandardCharsets.UTF_8));
     }
 }

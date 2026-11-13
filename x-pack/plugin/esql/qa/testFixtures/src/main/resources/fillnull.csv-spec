@@ -1575,6 +1575,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 ;
 
 fillNullAllColumnsAfterLookupJoin
+skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
 required_capability: fillnull
 required_capability: join_lookup_v12
 
@@ -1741,6 +1742,7 @@ emp_no:integer | y:keyword | language_name:keyword
 ;
 
 fillNullAllColumnsAfterEnrich
+skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
 required_capability: fillnull
 required_capability: enrich_load
 
@@ -1878,6 +1880,7 @@ count:long | @timestamp:datetime      | type:keyword | pvalue:double
 ;
 
 fillNullInsideOneSubqueryBranchOnly
+skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
 required_capability: fillnull
 required_capability: subquery_in_from_command
 
@@ -1984,6 +1987,7 @@ emp_no:integer | gender:keyword
 ;
 
 fillNullInViewDefinitionQueriedNextToAnIndex
+skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
 required_capability: fillnull
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions

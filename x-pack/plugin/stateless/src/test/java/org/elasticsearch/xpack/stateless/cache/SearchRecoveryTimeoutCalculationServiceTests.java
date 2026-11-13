@@ -2602,8 +2602,9 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    /// Builds a cluster state where shard 0 relocates from `healthy-source`, which is not shutting down, to `target-node`, while `pendingShards` other
-    /// search shards are still STARTED on the shutting-down `shutting-node`, which is marked for REMOVE since `shutdownStartedAtMillis`.
+    /// Builds a cluster state where shard 0 relocates from `healthy-source`, which is not shutting down, to `target-node`,
+    /// while `pendingShards` other search shards are still STARTED on the shutting-down `shutting-node`, which is marked for REMOVE
+    /// since `shutdownStartedAtMillis`.
     private static ClusterState clusterStateRelocationWithOtherNodeShuttingDown(
         int pendingShards,
         Index index,
@@ -2722,9 +2723,9 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
         }
     }
 
-    /// A relocation from a source that is not shutting down while another node shuts down: the target accepts 2 incoming recoveries, and this shard and the
-    /// one pending shard of the shutting-down node fit in them concurrently, so nobody queues and the shard keeps the full
-    /// relocation-with-shutdown timeout.
+    /// A relocation from a source that is not shutting down while another node shuts down: the target accepts 2 incoming recoveries,
+    /// and this shard and the one pending shard of the shutting-down node fit in them concurrently, so nobody queues and the shard keeps
+    /// the full relocation-with-shutdown timeout.
     public void testRelocationWithOtherNodeShutdownKeepsFullTimeoutWhenSlotsAreAvailable() {
         try (
             var threadPool = new FakeTimeThreadPool(

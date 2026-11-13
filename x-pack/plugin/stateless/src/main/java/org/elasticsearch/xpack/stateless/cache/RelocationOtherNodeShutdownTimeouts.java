@@ -206,7 +206,7 @@ class RelocationOtherNodeShutdownTimeouts {
     }
 
     /// The shutdowns of the nodes marked for removal that are still in the cluster. Shutdown metadata outlives the node until it is
-    /// deleted, and the stale entry of a node that has left must not count: its grace deadline is long past and it would hold every
+    /// deleted, and the stale entry of a node that has left must not count: its grace deadline is long past, and it would hold every
     /// other relocation to the shutdown timeouts.
     private static Stream<SingleNodeShutdownMetadata> removalShutdownsOfNodesInCluster(ClusterState state) {
         return state.metadata()

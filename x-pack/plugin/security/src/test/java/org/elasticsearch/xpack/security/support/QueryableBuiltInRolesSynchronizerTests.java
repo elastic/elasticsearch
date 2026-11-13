@@ -695,10 +695,10 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
     }
 
     /**
-     * The incident shape: the first sync's mark task fails (in the incident, creating the security index
-     * failed), a second sync starts, and the first task's stale completions arrive while the second sync is
-     * still running. They must not end the second sync's slot, previously leaving the second sync's own
-     * completion to find an IDLE slot and spin forever on the master service thread.
+     * A sync's mark task fails (e.g. because creating the security index failed), a second sync starts, and
+     * the first task's stale completions arrive while the second sync is still running. They must not end the
+     * second sync's slot, previously leaving the second sync's own completion to find an IDLE slot and spin
+     * forever on the master service thread.
      */
     public void testStaleTaskCompletionDoesNotEndLaterSync() {
         final ClusterState clusterState = setupSyncWithSuperuserRole();

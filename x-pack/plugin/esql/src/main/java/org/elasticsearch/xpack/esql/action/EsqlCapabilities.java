@@ -2793,7 +2793,8 @@ public class EsqlCapabilities {
 
         /**
          * Support for the PromQL {@code offset} modifier, implemented as a constant time shift of the evaluation
-         * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
+         * timestamp. When the two sides of an arithmetic/comparison binary carry different offsets, the operator joins
+         * independent pipelines (see {@link #PROMQL_BINARY_INDEPENDENT_JOIN}) rather than folding into one frame.
          */
         PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
 
@@ -4288,6 +4289,14 @@ public class EsqlCapabilities {
          * computed from the source, such as {@code scalar(sum(x))}, may be the right-hand side.
          */
         FIX_PROMQL_SCALAR_COMPARISON(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL arithmetic/comparison binaries join independent operand pipelines when they cannot share one aggregation:
+         * different {@code offset}s, nested across-series next to another operand, aggregated x raw, and {@code scalar()} x
+         * labeled (step-broadcast). Opaque {@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio} join over a typed
+         * label container; a keyword one still rejects them. Gates csv-spec coverage of those shapes.
+         */
+        PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.

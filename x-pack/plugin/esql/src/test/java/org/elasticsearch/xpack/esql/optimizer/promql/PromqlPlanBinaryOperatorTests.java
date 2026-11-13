@@ -412,14 +412,13 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
     }
 
-    public void testBinaryScalarAndNestedAggregationFailsCleanly() {
-        VerificationException e = assertThrows(
-            VerificationException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1m result=(scalar(network.bytes_in) * 100 / count(count by (pod) (network.total_bytes_in)))"
-            )
+    public void testBinaryScalarAndNestedAggregationBroadcastsOnStep() {
+        // Nested count(count by ...) next to scalar() cannot fold into one aggregate; the scalar broadcasts via a step join.
+        var plan = planPromql(
+            "PROMQL index=k8s step=1m result=(scalar(network.bytes_in) * 100 / count(count by (pod) (network.total_bytes_in)))"
         );
-        assertThat(e.getMessage(), containsString("binary expressions with nested aggregations are not supported at this time"));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+        assertThat(plan.collect(HashJoin.class).isEmpty(), equalTo(false));
     }
 
     public void testNestedBinaryAggregationsWithScalar() {
@@ -923,6 +922,52 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "node_memory_MemAvailable_bytes or node_memory_MemTotal_bytes"
         )) {
             assertNotNull(promql, planPrometheusLayout(promql));
+        }
+    }
+
+    /**
+     * Different {@code offset}s refuse a shared fold frame and join independent pipelines (#158184).
+     * Parentheses are required so {@code offset} does not consume the following binary.
+     */
+    public void testHeterogeneousOffsetBinaryJoins() {
+        assumeTrue("requires independent binary join", EsqlCapabilities.Cap.PROMQL_BINARY_INDEPENDENT_JOIN.isEnabled());
+        assumeTrue("requires offset modifier", EsqlCapabilities.Cap.PROMQL_OFFSET_MODIFIER.isEnabled());
+        for (String promql : List.of(
+            "node_memory_MemAvailable_bytes - (node_memory_MemAvailable_bytes offset 1h)",
+            "sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemAvailable_bytes offset 5m)"
+        )) {
+            var plan = planPrometheusLayout(promql);
+            assertTrue(promql, plan.resolved());
+            assertThat(promql, plan.collect(HashJoin.class).isEmpty(), equalTo(false));
+        }
+        // Same metric + same offset shares one evaluation timestamp and still folds.
+        var sameOffset = planPrometheusLayout("(node_memory_MemAvailable_bytes offset 5m) - (node_memory_MemAvailable_bytes offset 5m)");
+        assertThat(sameOffset.collect(HashJoin.class), hasSize(0));
+    }
+
+    /**
+     * Aggregated x raw, nested across-series x source, and {@code scalar()} x labeled join
+     * ({@link EsqlCapabilities.Cap#PROMQL_BINARY_INDEPENDENT_JOIN}). Opaque reductions join only over a typed label container.
+     */
+    public void testAsymmetricBinaryOperandsJoin() {
+        assumeTrue("requires independent binary join", EsqlCapabilities.Cap.PROMQL_BINARY_INDEPENDENT_JOIN.isEnabled());
+        for (String promql : List.of(
+            "sum(network.eth0.tx) / network.eth0.rx",
+            "sum by (cluster, pod) (network.eth0.tx) / network.eth0.rx",
+            "count(count by (pod) (network.eth0.tx)) / sum(network.eth0.rx)",
+            "scalar(sum(network.eth0.tx)) * network.eth0.rx",
+            "network.eth0.rx / scalar(network.eth0.tx)"
+        )) {
+            var plan = planPromql("PROMQL index=k8s step=5m result=(" + promql + ")");
+            assertTrue(promql, plan.resolved());
+            assertThat(promql, plan.collect(HashJoin.class).isEmpty(), equalTo(false));
+        }
+
+        assumeTrue("opaque topk binaries need typed _timeseries", typedLabelContainer());
+        for (String promql : List.of("topk(1, network.eth0.tx) / topk(1, network.eth0.rx)", "topk(2, network.eth0.tx) * network.eth0.rx")) {
+            var plan = planPromql("PROMQL index=k8s step=5m result=(" + promql + ")");
+            assertTrue(promql, plan.resolved());
+            assertThat(promql, plan.collect(HashJoin.class).isEmpty(), equalTo(false));
         }
     }
 

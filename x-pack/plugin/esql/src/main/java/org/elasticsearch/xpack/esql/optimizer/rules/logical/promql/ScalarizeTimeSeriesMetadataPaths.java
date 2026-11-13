@@ -85,7 +85,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
      * Whether {@code _timeseries} is a typed label container for this query: the feature is on and every participating node reads
      * it. Otherwise the residual containers stay keyword.
      */
-    static boolean usesLabelContainer(AnalyzerContext context) {
+    public static boolean usesLabelContainer(AnalyzerContext context) {
         return EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled()
             && DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion()
                 .supportedOn(context.minimumVersion(), Build.current().isSnapshot());

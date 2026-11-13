@@ -78,6 +78,7 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
         allFilters = ReferringFilterResolver.enter(name(), allFilters);
         List<TokenFilterFactory> filters = new ArrayList<>();
         List<TokenFilterFactory> existingChain = new ArrayList<>(previousTokenFilters);
+        boolean degraded = false;
         for (String filter : filterNames) {
             TokenFilterFactory tff = allFilters.apply(filter);
             if (tff == null) {
@@ -88,7 +89,9 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
             tff = tff.getChainAwareTokenFilterFactory(context, tokenizer, charFilters, existingChain, allFilters);
             filters.add(tff);
             existingChain.add(tff);
+            degraded |= tff.isDegraded();
         }
+        final boolean anyDegraded = degraded;
 
         return new TokenFilterFactory() {
             @Override
@@ -105,6 +108,11 @@ public class ScriptedConditionTokenFilterFactory extends AbstractTokenFilterFact
                     return in;
                 };
                 return new ScriptedConditionTokenFilter(tokenStream, filter, factory.newInstance());
+            }
+
+            @Override
+            public boolean isDegraded() {
+                return anyDegraded;
             }
         };
     }

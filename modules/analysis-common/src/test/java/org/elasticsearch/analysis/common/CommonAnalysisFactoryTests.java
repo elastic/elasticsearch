@@ -16,6 +16,7 @@ import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.apache.lucene.analysis.te.TeluguNormalizationFilterFactory;
 import org.apache.lucene.analysis.te.TeluguStemFilterFactory;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.HashMap;
@@ -295,6 +296,9 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         for (String stopWordsOnly : List.of("persian", "stop")) {
             analyzers.put(stopWordsOnly, settings().affects("stopwords", List.of("foo")).affects("stopwords_case", "true"));
         }
+        // persian and romanian fold the pre/post Lucene 10 chain split into their keys.
+        analyzers.get("persian").gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        analyzers.get("romanian").gatedAt(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
         analyzers.put(
             "fingerprint",
             settings().affects("separator", "+")
@@ -347,11 +351,11 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             "scandinavian_normalization",
             "serbian_normalization",
             "sorani_normalization",
-            "trim",
             "uppercase"
         )) {
             filters.put(stateless, alwaysShares());
         }
+        filters.put("trim", alwaysShares().rejects("update_offsets", "true"));
         for (String stemmer : List.of("brazilian_stem", "dutch_stem", "french_stem", "german_stem")) {
             filters.put(stemmer, settings().affects("stem_exclusion", List.of("foo")));
         }
@@ -381,12 +385,19 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             "elision",
             settings(Map.of("articles", List.of("l"))).affects("articles", List.of("d")).affects("articles_case", "true")
         );
-        // side is also keyed, but setting it emits a deprecation warning the contract run would fail on.
-        filters.put("edge_ngram", settings().affects("min_gram", "2").affects("max_gram", "3").affects("preserve_original", "true"));
+        filters.put(
+            "edge_ngram",
+            settings().affects("min_gram", "2")
+                .affects("max_gram", "3")
+                .affects("preserve_original", "true")
+                .covered("side", "keyed, but probing it emits a deprecation warning the contract run would fail on")
+        );
         filters.put("fingerprint", settings().affects("separator", "+").affects("max_output_size", "10"));
         filters.put(
             "keep",
-            settings(Map.of("keep_words", List.of("foo"))).affects("keep_words", List.of("bar")).affects("keep_words_case", "true")
+            settings(Map.of("keep_words", List.of("foo"))).affects("keep_words", List.of("bar"))
+                .affects("keep_words_case", "true")
+                .rejects("enable_position_increments", "true")
         );
         // keywords_pattern excludes keywords, and updateable file-based keywords never share; SharingKeyTests covers both.
         filters.put(
@@ -395,12 +406,13 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
                 .affects("ignore_case", "true")
                 .affects("keywords_case", "true")
                 .affects("updateable", "true")
+                .covered("keywords_pattern", "mutually exclusive with the keywords base; SharingKeyTests covers it")
         );
         filters.put(
             "keep_types",
             settings(Map.of("types", List.of("<NUM>"))).affects("types", List.of("<ALPHANUM>")).affects("mode", "exclude")
         );
-        filters.put("length", settings().affects("min", "2").affects("max", "10"));
+        filters.put("length", settings().affects("min", "2").affects("max", "10").rejects("enable_position_increments", "true"));
         filters.put("limit", settings().affects("max_token_count", "5").affects("consume_all_tokens", "true"));
         filters.put("lowercase", settings().affects("language", "greek", "irish", "turkish"));
         // with_rotation defaults to true because the default bucket_count is above 1.
@@ -426,11 +438,11 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
                 .affects("replacement", "x")
                 .affects("all", "false")
         );
-        filters.put("snowball", settings().affects("language", "German"));
+        filters.put("snowball", settings().affects("language", "German").affects("name", "German"));
         filters.put("stemmer", settings().affects("language", "german", "light_german").affects("name", "german"));
         filters.put("stemmer_override", settings(Map.of("rules", List.of("running => run"))).affects("rules", List.of("ran => run")));
         filters.put("truncate", settings(Map.of("length", "5")).affects("length", "6"));
-        filters.put("unique", settings().affects("only_on_same_position", "true"));
+        filters.put("unique", settings().affects("only_on_same_position", "true").gatedAt(IndexVersions.UNIQUE_TOKEN_FILTER_POS_FIX));
         for (String wordDelimiter : List.of("word_delimiter", "word_delimiter_graph")) {
             // protected_words_case only applies when there are protected words.
             FactorySettings declaration = settings(Map.of("protected_words", List.of("foo"))).affects("type_table", List.of("$ => DIGIT"))
@@ -517,6 +529,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         // The two filters also never share; CommonAnalysisPluginTests covers that.
         // condition and predicate_token_filter compile a script and hyphenation_decompounder reads a patterns file
         // from the config directory, neither of which the contract's registry has; SharingKeyTests covers them.
+        // The synonym filters need the plugin's circuit breaker and synonyms services, which this harness's
+        // plugin does not have; SharingKeyTests covers their keys.
         return Set.of(
             tokenFilter("nGram"),
             tokenFilter("edgeNGram"),
@@ -524,13 +538,10 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             tokenizer("edgeNGram"),
             tokenFilter("condition"),
             tokenFilter("predicate_token_filter"),
-            tokenFilter("hyphenation_decompounder")
+            tokenFilter("hyphenation_decompounder"),
+            tokenFilter("synonym"),
+            tokenFilter("synonym_graph")
         );
-    }
-
-    @Override
-    protected Set<FactoryRef> factorySettingsPending() {
-        return Set.of(tokenFilter("synonym"), tokenFilter("synonym_graph"));
     }
 
     /**

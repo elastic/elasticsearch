@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.DENSE_VEC
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES_V2;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EQL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE;
@@ -148,6 +149,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "statsAndLookupMessageFromIndex",
         "mvJoinKeyOnTheLookupIndexAfterStats",
         "mvJoinKeyOnFromAfterStats",
+        "lookupBlocksAfterStatsWithRenamesAndLimit",
         // Lookup join after SORT is not supported in CCS yet
         "nullifiedJoinKeyToPurgeTheJoin",
         "sortBeforeAndAfterJoin",
@@ -166,6 +168,9 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin",
         // Lookup join after INLINE STATS (coordinator-only) is not supported in CCS yet
         "Inline stats by and lookup join",
+        "lookupBlocksAroundInlineStats",
+        "aggFilter_NoGroupMatches_ThenLookupJoin_PastInlineJoin",
+        "aggFilter_ThenLookupJoin_PastInlineJoin",
         // Lookup join after STATS (coordinator-only) is not supported in CCS yet
         "Lookup join after stats by",
         // The second LOOKUP JOIN (after STATS) is not supported in CCS yet.
@@ -296,6 +301,14 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
             bothClustersAtCurrentVersion() == false && testCase.requiredCapabilities.contains(DENSE_VECTOR_COMMAND.capabilityName())
         );
 
+        // This harness rewrites a FROM command's index pattern to the remote (*:index) form, but does not rewrite the
+        // EQL command's leading index pattern the same way, so its specs cannot target the remote here. The EQL command
+        // itself supports CCS (a remote:pattern in its leading argument, see CrossClusterEqlCommandIT); this is only a
+        // spec-harness limitation. Skip in CCS.
+        assumeFalse(
+            "EQL command specs are not rewritten for CCS by this harness",
+            testCase.requiredCapabilities.contains(EQL_COMMAND.capabilityName())
+        );
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

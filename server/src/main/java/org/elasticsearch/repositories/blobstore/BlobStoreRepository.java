@@ -106,6 +106,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.plugins.internal.ShardGenerationListener;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
@@ -205,6 +206,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Nullable
     private final ProjectId projectId;
     protected volatile RepositoryMetadata metadata;
+
+    private volatile ShardGenerationListener shardGenerationListener = ShardGenerationListener.NOOP;
 
     protected final ThreadPool threadPool;
 
@@ -738,12 +741,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 target.getUUID(),
                 compress
             );
-            INDEX_SHARD_SNAPSHOTS_FORMAT.write(
-                existingSnapshots.withClone(source.getName(), target.getName()),
-                shardContainer,
-                newGen.getGenerationUUID(),
-                compress
-            );
+            final BlobStoreIndexShardSnapshots clonedSnapshots = existingSnapshots.withClone(source.getName(), target.getName());
+            INDEX_SHARD_SNAPSHOTS_FORMAT.write(clonedSnapshots, shardContainer, newGen.getGenerationUUID(), compress);
+            if (shardGeneration != null) {
+                // only UUID generations; a null shardGeneration means the legacy numeric generation
+                notifyShardGenerationWritten(index, shardNum, newGen, clonedSnapshots);
+            }
             return new ShardSnapshotResult(
                 newGen,
                 ByteSizeValue.ofBytes(sourceMeta.totalSize()),
@@ -1005,15 +1008,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return getRepositoryData(genToLoad);
     }
 
-    /**
-     * Some repositories (i.e. S3) run at extra risk of corruption when using the pre-7.6.0 repository format, against which we try and
-     * protect by adding some delays in between operations so that things have a chance to settle down. This method is the hook that allows
-     * the delete process to add this protection when necessary.
-     */
-    protected ActionListener<RepositoryData> wrapWithWeakConsistencyProtection(ActionListener<RepositoryData> listener) {
-        return listener;
-    }
-
     @Override
     public void deleteSnapshots(
         Set<SnapshotId> snapshotIds,
@@ -1204,7 +1198,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (useShardGenerations) {
                 runWithUniqueShardMetadataNaming(releasingListener, releasingOnCompletion);
             } else {
-                runWithLegacyNumericShardMetadataNaming(wrapWithWeakConsistencyProtection(releasingListener), releasingOnCompletion);
+                runWithLegacyNumericShardMetadataNaming(releasingListener, releasingOnCompletion);
             }
         }
 
@@ -1522,6 +1516,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     writtenGeneration.getGenerationUUID(),
                                     compress
                                 );
+                                notifyShardGenerationWritten(indexId, shardId, writtenGeneration, updatedSnapshots);
                             } else {
                                 writtenGeneration = new ShardGeneration(indexGeneration);
                                 writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots, Collections.emptyMap());
@@ -3525,6 +3520,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         shardSnapshotTaskRunner.enqueueShardSnapshot(context);
     }
 
+    @Override
+    public void setShardGenerationListener(ShardGenerationListener listener) {
+        this.shardGenerationListener = listener;
+    }
+
+    private void notifyShardGenerationWritten(
+        IndexId indexId,
+        int shardId,
+        ShardGeneration generation,
+        BlobStoreIndexShardSnapshots shardSnapshots
+    ) {
+        try {
+            shardGenerationListener.onShardGenerationWritten(getProjectRepo(), indexId, shardId, generation, shardSnapshots);
+        } catch (Exception e) {
+            logger.warn(() -> format("[%s][%s][%s] shard generation listener failed", metadata.name(), indexId, shardId), e);
+        }
+    }
+
     private void doSnapshotShard(SnapshotShardContext context) {
         blobStoreSnapshotMetrics.shardSnapshotStarted(context.status(), threadPool.absoluteTimeInMillis());
         context.addListener(ActionListener.running(() -> blobStoreSnapshotMetrics.shardSnapshotCompleted(context.status())));
@@ -3784,6 +3797,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
                 afterWriteSnapBlob.run();
+                if (writeShardGens) {
+                    notifyShardGenerationWritten(context.indexId(), shardId.id(), indexGeneration, updatedBlobStoreIndexShardSnapshots);
+                }
                 final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(
                     indexGeneration,
                     ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),

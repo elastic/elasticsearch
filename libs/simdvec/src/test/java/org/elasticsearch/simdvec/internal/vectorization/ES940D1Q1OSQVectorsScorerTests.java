@@ -18,6 +18,7 @@ import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.BBQTestUtils;
 import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 
@@ -54,7 +55,7 @@ public class ES940D1Q1OSQVectorsScorerTests extends BaseVectorizationTests {
             }
             try (IndexInput in = dir.openInput("v.bin", IOContext.DEFAULT)) {
                 var scalarScorer = new ES940OSQVectorsScorer(in, new BBQEncoding(1, 1), dims, length);
-                assertEquals(expected, scalarScorer.quantizeScore(query));
+                assertEquals(expected, scalarScorer.quantizeScore(new ScoringQuery(query)));
             }
             try (IndexInput in2 = dir.openInput("v.bin", IOContext.DEFAULT)) {
                 var panamaScorer = MemorySegmentES940OSQVectorsScorer.usingPanama(
@@ -65,7 +66,7 @@ public class ES940D1Q1OSQVectorsScorerTests extends BaseVectorizationTests {
                     ES940OSQVectorsScorer.BULK_SIZE,
                     ES940OSQVectorsScorer.BitEncoding.STRIPED
                 );
-                assertEquals(expected, panamaScorer.quantizeScore(query));
+                assertEquals(expected, panamaScorer.quantizeScore(new ScoringQuery(query)));
             }
         }
     }
@@ -103,7 +104,7 @@ public class ES940D1Q1OSQVectorsScorerTests extends BaseVectorizationTests {
                     ES940OSQVectorsScorer.BULK_SIZE,
                     ES940OSQVectorsScorer.BitEncoding.STRIPED
                 );
-                assertEquals(expected, nativeScorer.quantizeScore(query));
+                assertEquals(expected, nativeScorer.quantizeScore(new ScoringQuery(query)));
             }
         }
     }

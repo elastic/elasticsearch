@@ -552,6 +552,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             seqNoAndPrimaryTerm,
             trackScores,
             optionalSort,
+            sorts,
             highlightBuilder,
             storedFieldsContext,
             docValueFields,
@@ -702,6 +703,16 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                         parser.getTokenLocation()
                                     );
                                 }
+                            }
+                            if (script == null) {
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Script field ["
+                                        + scriptFieldName
+                                        + "] requires a ["
+                                        + SearchSourceBuilder.SCRIPT_FIELD.getPreferredName()
+                                        + "]"
+                                );
                             }
                             scriptFields.add(new ScriptField(scriptFieldName, script, ignoreFailure));
                         } else {

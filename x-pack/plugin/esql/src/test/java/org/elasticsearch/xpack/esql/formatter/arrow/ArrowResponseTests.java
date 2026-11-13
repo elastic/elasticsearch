@@ -59,10 +59,15 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -70,6 +75,8 @@ import org.junit.AfterClass;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -129,7 +136,8 @@ public class ArrowResponseTests extends ESTestCase {
         "ulong",
         factory -> factory.newLongBlockBuilder(0),
         block -> block.appendLong(randomLong()),
-        (block, i, scratch) -> block.getLong(i),
+        // Blocks store unsigned longs with the sign bit flipped
+        (block, i, scratch) -> block.getLong(i) ^ NumericUtils.TWOS_COMPLEMENT_BITMASK,
         UInt8Vector::get
     );
 
@@ -209,6 +217,54 @@ public class ArrowResponseTests extends ESTestCase {
         (v, i) -> new BytesRef(v.get(i))
     );
 
+    /**
+     * Random points or shapes encoded as WKB, as found in ES|QL geo blocks. Values read back from Arrow are
+     * checked to be valid WKB, and the field is checked to be tagged with the {@code geoarrow.wkb} extension type.
+     *
+     * Geo types must declare a CRS, cartesian types must not. Point types get points, shape types get any kind of geometry.
+     */
+    static ValueType wkbValues(DataType type) {
+        boolean geographic = switch (type) {
+            case GEO_POINT, GEO_SHAPE -> true;
+            case CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+            default -> throw new IllegalArgumentException("Not a WKB geometry type: " + type);
+        };
+        boolean point = DataType.isSpatialPoint(type);
+        return new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarBinaryVector>(
+            "wkb",
+            factory -> factory.newBytesRefBlockBuilder(0),
+            block -> block.appendBytesRef(randomWkb(point)),
+            BytesRefBlock::getBytesRef,
+            (v, i) -> {
+                byte[] wkb = v.get(i);
+                // Fails if this isn't valid WKB
+                WellKnownBinary.fromWKB(StandardValidator.instance(true), false, wkb);
+                return new BytesRef(wkb);
+            },
+            metadata -> {
+                assertEquals("geoarrow.wkb", metadata.get("ARROW:extension:name"));
+                String extensionMetadata = metadata.get("ARROW:extension:metadata");
+                if (geographic) {
+                    assertEquals("{\"crs\":\"OGC:CRS84\",\"crs_type\":\"authority_code\"}", extensionMetadata);
+                } else {
+                    assertNull(extensionMetadata);
+                }
+            }
+        );
+    }
+
+    static final ValueType GEO_POINT_VALUES = wkbValues(DataType.GEO_POINT);
+    static final ValueType GEO_SHAPE_VALUES = wkbValues(DataType.GEO_SHAPE);
+    static final ValueType CARTESIAN_POINT_VALUES = wkbValues(DataType.CARTESIAN_POINT);
+    static final ValueType CARTESIAN_SHAPE_VALUES = wkbValues(DataType.CARTESIAN_SHAPE);
+
+    private static BytesRef randomWkb(boolean point) {
+        boolean hasAlt = randomBoolean();
+        // Circles are not supported by WKB.
+        Geometry geometry = point ? GeometryTestUtils.randomPoint(hasAlt) : GeometryTestUtils.randomGeometryWithoutCircle(hasAlt, 20);
+        return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+    }
+
     static final ValueType VERSION_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarCharVector>(
         "version",
         factory -> factory.newBytesRefBlockBuilder(0),
@@ -270,17 +326,18 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.DATE_NANOS, DATE_NANOS_VALUES),
         Map.entry(DataType.IP, IP_VALUES),
         Map.entry(DataType.VERSION, VERSION_VALUES),
+        Map.entry(DataType.TSID_DATA_TYPE, BINARY_VALUES),
         Map.entry(DataType.SOURCE, SOURCE_VALUES),
         Map.entry(DataType.FLATTENED, FLATTENED_VALUES),
 
         Map.entry(DataType.NULL, NULL_VALUES),
         Map.entry(DataType.UNSUPPORTED, NULL_VALUES),
 
-        // All geo types just pass-through WKB, use random binary data
-        Map.entry(DataType.GEO_POINT, BINARY_VALUES),
-        Map.entry(DataType.GEO_SHAPE, BINARY_VALUES),
-        Map.entry(DataType.CARTESIAN_POINT, BINARY_VALUES),
-        Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES),
+        // Geo point/shape types just pass-through WKB
+        Map.entry(DataType.GEO_POINT, GEO_POINT_VALUES),
+        Map.entry(DataType.GEO_SHAPE, GEO_SHAPE_VALUES),
+        Map.entry(DataType.CARTESIAN_POINT, CARTESIAN_POINT_VALUES),
+        Map.entry(DataType.CARTESIAN_SHAPE, CARTESIAN_SHAPE_VALUES),
 
         Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
         Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES)
@@ -290,22 +347,87 @@ public class ArrowResponseTests extends ESTestCase {
     // Tests
 
     /**
-     * Test that we support Arrow output for the same set of ESQL types as the text output
-     * (ignoring those explicitly marked as not yet implemented).
+     * Every response type must have an Arrow formatter or an explicit pending implementation. Compare the enum values
+     * rather than their output names, which can be shared by different types, and include types under construction.
      */
     public void testTypeSupportConsistency() {
-        var arrowTypes = ArrowResponse.ESQL_FORMATTERS.keySet().stream().map(DataType::outputType).sorted().toList();
-
-        var textTypes = DataType.types().stream().filter(t -> {
-            try {
-                ResponseValueUtils.valueExtractorFor(t, ZoneOffset.UTC);
-                return ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS.contains(t) == false;
-            } catch (Exception e) {
-                return false;
+        var responseTypes = EnumSet.noneOf(DataType.class);
+        for (DataType type : DataType.values()) {
+            if (DataType.isRepresentableInOutput(type)) {
+                responseTypes.add(type);
             }
-        }).map(DataType::outputType).sorted().toList();
+        }
 
-        assertEquals("Text and Arrow formats don't have the same ESQL DataType support", textTypes, arrowTypes);
+        var arrowTypes = EnumSet.noneOf(DataType.class);
+        arrowTypes.addAll(ArrowResponse.ESQL_FORMATTERS.keySet());
+        for (DataType type : ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS) {
+            assertTrue("Formatter is both implemented and pending for [" + type + "]", arrowTypes.add(type));
+        }
+        assertEquals("Arrow formatters must cover exactly the response types", responseTypes, arrowTypes);
+    }
+
+    public void testOutputTypesHaveTextSupport() {
+        for (DataType type : DataType.values()) {
+            if (DataType.isRepresentableInOutput(type)) {
+                assertNotNull("Missing text formatter for [" + type + "]", ResponseValueUtils.valueExtractorFor(type, ZoneOffset.UTC));
+            }
+        }
+    }
+
+    public void testSpecialResponseTypes() {
+        for (DataType type : List.of(
+            DataType.COUNTER_INTEGER,
+            DataType.COUNTER_LONG,
+            DataType.COUNTER_DOUBLE,
+            DataType.SOURCE,
+            DataType.UNSUPPORTED
+        )) {
+            assertFalse(
+                "Response support must not enable general-purpose function arguments for [" + type + "]",
+                DataType.isRepresentableInExpression(type)
+            );
+            assertTrue("Expected response support for [" + type + "]", DataType.isRepresentableInOutput(type));
+            assertTrue("Missing Arrow formatter for [" + type + "]", ArrowResponse.ESQL_FORMATTERS.containsKey(type));
+        }
+        assertFalse(DataType.isRepresentableInExpression(DataType.DOC_DATA_TYPE));
+        assertFalse(DataType.isRepresentableInOutput(DataType.DOC_DATA_TYPE));
+    }
+
+    public void testNonResponseTypesRejected() {
+        for (DataType type : DataType.values()) {
+            if (DataType.isRepresentableInOutput(type) == false) {
+                IllegalArgumentException exception = expectThrows(
+                    IllegalArgumentException.class,
+                    "Expected Arrow output to reject [" + type + "]",
+                    () -> new ArrowResponse(List.of(new ArrowResponse.Column(type, "internal")), List.of())
+                );
+                assertEquals(
+                    "Unexpected rejection for [" + type + "]",
+                    "ES|QL type [" + type.outputType() + "] is not supported by the Arrow format",
+                    exception.getMessage()
+                );
+            }
+        }
+    }
+
+    public void testPendingResponseTypesRejected() {
+        for (DataType type : ArrowResponse.TO_BE_IMPLEMENTED_FORMATTERS) {
+            assertTrue("Pending formatter must be for a response type [" + type + "]", DataType.isRepresentableInOutput(type));
+            assertFalse(
+                "Pending formatter must not be registered as implemented [" + type + "]",
+                ArrowResponse.ESQL_FORMATTERS.containsKey(type)
+            );
+            IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                "Expected Arrow output to reject pending type [" + type + "]",
+                () -> new ArrowResponse(List.of(new ArrowResponse.Column(type, "pending")), List.of())
+            );
+            assertEquals(
+                "Unexpected rejection for pending type [" + type + "]",
+                "ES|QL type [" + type.outputType() + "] is not supported by the Arrow format",
+                exception.getMessage()
+            );
+        }
     }
 
     public void testTestHarness() {
@@ -358,6 +480,58 @@ public class ArrowResponseTests extends ESTestCase {
             TestCase testCase = new TestCase(List.of(testColumn), pages);
 
             compareEsqlAndArrow(testCase);
+        }
+    }
+
+    public void testTsidBinaryOutput() throws IOException {
+        BytesRef tsid = (BytesRef) EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value();
+        int padding = randomIntBetween(1, 8);
+        byte[] padded = randomByteArrayOfLength(tsid.length + padding + 1);
+        System.arraycopy(tsid.bytes, tsid.offset, padded, padding, tsid.length);
+
+        BytesRefBlock block;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            block = builder.appendBytesRef(new BytesRef(padded, padding, tsid.length)).appendNull().appendBytesRef(tsid).build();
+        }
+        var column = TestColumn.create("_tsid", DataType.TSID_DATA_TYPE, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            VarBinaryVector vector = (VarBinaryVector) root.getVector("_tsid");
+            assertEquals(Types.MinorType.VARBINARY.getType(), vector.getField().getType());
+            assertEquals("_tsid", vector.getField().getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+            assertEquals(3, vector.getValueCount());
+            assertEquals(tsid, new BytesRef(vector.get(0)));
+            assertTrue(vector.isNull(1));
+            assertEquals(tsid, new BytesRef(vector.get(2)));
+        }
+    }
+
+    public void testUnsignedLongValues() throws IOException {
+        List<BigInteger> values = List.of(
+            BigInteger.ZERO,
+            BigInteger.ONE,
+            BigInteger.valueOf(Long.MAX_VALUE),
+            BigInteger.ONE.shiftLeft(63),
+            BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE)
+        );
+        LongBlock block;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(values.size())) {
+            for (BigInteger value : values) {
+                builder.appendLong(NumericUtils.asLongUnsigned(value));
+            }
+            block = builder.build();
+        }
+        var column = TestColumn.create("ul", DataType.UNSIGNED_LONG, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            UInt8Vector vector = (UInt8Vector) root.getVector("ul");
+            for (int i = 0; i < values.size(); i++) {
+                assertEquals(values.get(i), vector.getObjectNoOverflow(i));
+            }
         }
     }
 
@@ -832,6 +1006,11 @@ public class ArrowResponseTests extends ESTestCase {
         var metadata = root.getSchema().getFields().get(arrowColumn).getMetadata();
         assertEquals(testCase.columns.get(esqlColumn).type.outputType(), metadata.get(BlockArrowFormatter.ESQL_TYPE_METADATA));
 
+        // Check type-specific metadata, that is on the child field for multivalued columns
+        var valueType = testCase.columns.get(esqlColumn).valueType;
+        var valueVector = root.getVector(arrowColumn) instanceof ListVector list ? list.getDataVector() : root.getVector(arrowColumn);
+        valueType.checkMetadata(valueVector.getField().getMetadata());
+
         // Check values
         var esqlValuesIterator = new EsqlValuesIterator(testCase, esqlColumn);
         var arrowValuesIterator = new ArrowValuesIterator(root.getVector(arrowColumn), testCase.columns.get(esqlColumn).valueType);
@@ -1095,6 +1274,12 @@ public class ArrowResponseTests extends ESTestCase {
         Object valueAt(Block block, int position, BytesRef scratch);
 
         Object valueAt(ValueVector arrowVec, int position);
+
+        /**
+         * Check the metadata of the Arrow field that holds the values (the child field for multivalued columns).
+         * Does nothing by default.
+         */
+        default void checkMetadata(Map<String, String> metadata) {}
     }
 
     public static class ValueTypeImpl<BlockBT extends Block.Builder, BlockT extends Block, VectorT extends ValueVector>
@@ -1105,6 +1290,7 @@ public class ArrowResponseTests extends ESTestCase {
         private final Consumer<BlockBT> valueAdder;
         private final TriFunction<BlockT, Integer, BytesRef, Object> blockGetter;
         private final BiFunction<VectorT, Integer, Object> vectorGetter;
+        private final Consumer<Map<String, String>> metadataChecker;
 
         public ValueTypeImpl(
             String name,
@@ -1113,16 +1299,33 @@ public class ArrowResponseTests extends ESTestCase {
             TriFunction<BlockT, Integer, BytesRef, Object> blockGetter,
             BiFunction<VectorT, Integer, Object> vectorGetter
         ) {
+            this(name, builderCreator, valueAdder, blockGetter, vectorGetter, metadata -> {});
+        }
+
+        public ValueTypeImpl(
+            String name,
+            Function<BlockFactory, BlockBT> builderCreator,
+            Consumer<BlockBT> valueAdder,
+            TriFunction<BlockT, Integer, BytesRef, Object> blockGetter,
+            BiFunction<VectorT, Integer, Object> vectorGetter,
+            Consumer<Map<String, String>> metadataChecker
+        ) {
             this.name = name;
             this.builderCreator = builderCreator;
             this.valueAdder = valueAdder;
             this.blockGetter = blockGetter;
             this.vectorGetter = vectorGetter;
+            this.metadataChecker = metadataChecker;
         }
 
         @Override
         public Block.Builder createBlockBuilder(BlockFactory factory) {
             return builderCreator.apply(factory);
+        }
+
+        @Override
+        public void checkMetadata(Map<String, String> metadata) {
+            metadataChecker.accept(metadata);
         }
 
         @Override

@@ -50,6 +50,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         T getInternal(int index);
 
         int size();
+
+        /** Stored bytes behind the value at {@code index}, or 0 when the supplier keeps none. Sizes a decode before it runs. */
+        default int byteLength(int index) {
+            return 0;
+        }
     }
 
     protected final Supplier<T> supplier;
@@ -460,6 +465,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public String getInternal(int index) {
             return bytesToString(values[index].toBytesRef());
+        }
+
+        @Override
+        public int byteLength(int index) {
+            return values[index].length();
         }
 
         @Override

@@ -191,6 +191,61 @@ public class AnthropicToolUtilsTests extends ESTestCase {
             """);
     }
 
+    public void testWriteSystemMessages_writesTopLevelSystemArrayOfTextBlocks() throws IOException {
+        var messages = List.of(
+            new Message(new ContentString("You are a helpful assistant."), "system", null, null),
+            new Message(new ContentString("Hello"), "user", null, null),
+            new Message(
+                new ContentObjects(
+                    List.of(new ContentObject.ContentObjectText("Answer "), new ContentObject.ContentObjectText("briefly."))
+                ),
+                "system",
+                null,
+                null
+            )
+        );
+        assertThat(renderSystemMessages(messages), is(XContentHelper.stripWhitespace("""
+            {
+                "system": [
+                    {"type": "text", "text": "You are a helpful assistant."},
+                    {"type": "text", "text": "Answer briefly."}
+                ]
+            }
+            """)));
+    }
+
+    public void testWriteSystemMessages_noSystemMessagesWritesNothing() throws IOException {
+        assertThat(renderSystemMessages(List.of(new Message(new ContentString("Hello"), "user", null, null))), is("{}"));
+        assertThat(renderSystemMessages(List.of()), is("{}"));
+    }
+
+    public void testExcludeSystemMessages_removesOnlySystemMessagesAndKeepsOrder() {
+        var user = new Message(new ContentString("Hello"), "user", null, null);
+        var assistant = new Message(new ContentString("Hi"), "assistant", null, null);
+        var messages = List.of(
+            new Message(new ContentString("first"), "system", null, null),
+            user,
+            new Message(new ContentString("second"), "system", null, null),
+            assistant
+        );
+
+        assertThat(AnthropicToolUtils.excludeSystemMessages(messages), is(List.of(user, assistant)));
+    }
+
+    public void testExcludeSystemMessages_noSystemMessagesReturnsAllMessages() {
+        var messages = List.of(new Message(new ContentString("Hello"), "user", null, null));
+        assertThat(AnthropicToolUtils.excludeSystemMessages(messages), is(messages));
+    }
+
+    private static String renderSystemMessages(List<Message> messages) throws IOException {
+        try (var builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            AnthropicToolUtils.writeSystemMessages(builder, messages);
+            builder.endObject();
+            return Strings.toString(builder);
+        }
+    }
+
     public void testWriteTools_nullOrEmptyWritesNothing() throws IOException {
         assertToolsJson(null, "{}");
         assertToolsJson(List.of(), "{}");

@@ -200,11 +200,13 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: rate_with_interpolation_v2
 
 PROMQL index=k8s step=5m max(rate(network.total_bytes_in[5m]))
+| EVAL `max(rate(network.total_bytes_in[5m]))` = ROUND(`max(rate(network.total_bytes_in[5m]))`, 6)
+| KEEP `max(rate(network.total_bytes_in[5m]))`, step
 | SORT step DESC | LIMIT 2;
 
 max(rate(network.total_bytes_in[5m])):double | step:datetime
-17.22641509433962                            | 2024-05-10T00:25:00.000Z
-22.359073868541127                           | 2024-05-10T00:20:00.000Z
+17.226415                                    | 2024-05-10T00:25:00.000Z
+22.359074                                    | 2024-05-10T00:20:00.000Z
 ;
 
 oneRateWithSingleTBucket
@@ -221,10 +223,12 @@ max_rate: double | time_bucket:date
 oneRateWithSingleStepPromql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
-PROMQL index=k8s step=1h max(rate(network.total_bytes_in[1h]));
+PROMQL index=k8s step=1h max(rate(network.total_bytes_in[1h]))
+| EVAL `max(rate(network.total_bytes_in[1h]))` = ROUND(`max(rate(network.total_bytes_in[1h]))`, 6)
+| KEEP `max(rate(network.total_bytes_in[1h]))`, step;
 
 max(rate(network.total_bytes_in[1h])):double | step:datetime
-4.379885057471264                            | 2024-05-10T01:00:00.000Z
+4.379885                                     | 2024-05-10T01:00:00.000Z
 ;
 
 twoRatesWithBucket
@@ -667,6 +671,34 @@ cnt:long | cluster:keyword | pod:keyword
 1        | prod            | one
 1        | prod            | two
 1        | prod            | three
+;
+
+statsByTsid
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+required_capability: fix_ts_stats_by_tsid
+
+TS k8s METADATA _tsid
+| STATS BY _tsid
+| STATS series = COUNT(*)
+;
+
+series:long
+9
+;
+
+statsByAliasedTsidWithAggregate
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+required_capability: fix_ts_stats_by_tsid
+
+TS k8s METADATA _tsid
+| STATS bytes = max(last_over_time(network.bytes_in)) BY series = _tsid
+| STATS series = COUNT(series), bytes = max(bytes)
+;
+
+series:long | bytes:long
+9           | 972
 ;
 
 inlineStatsAfterStatsCommand

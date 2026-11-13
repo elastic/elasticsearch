@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -67,6 +68,9 @@ public class EsqlSecurityIT extends ESRestTestCase {
     protected static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
     private static final String INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL = "index-dynamic-disabled";
     private static final String LOOKUP_INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL = "lookup-index-dynamic-disabled";
+    private static final String INDEX_UNMAPPED_CONTAINER = "index-unmapped-container";
+    private static final String INDEX_UNMAPPED_SOURCE = "index-unmapped-source";
+    private static final String INDEX_FLATTENED_KEYS = "index-flattened-keys";
     private static final String INDEX_FULL_MAPPING = "index-full-mapping";
     /** The {@code _unmapped_fields} of the two {@link #INDEX_PARTIAL_MAPPING} documents for a user who may see all of them. */
     private static final Map<String, Object> PARTIAL_MAPPING_SALES = Map.of(
@@ -105,7 +109,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
-        // Federation is only on by default in snapshot builds; the data source and dataset authorization tests need it on.
+        // Pinned so the data source and dataset authorization tests do not depend on the default, which is off on a
+        // stateless release build.
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test-admin", "x-pack-test-password", "test-admin", true)
@@ -130,6 +135,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("fls_user4_1", "x-pack-test-password", "fls_user4_1", false)
         .user("fls_user4_1_alias", "x-pack-test-password", "fls_user4_1_alias", false)
         .user("dls_user", "x-pack-test-password", "dls_user", false)
+        .user("eql_dls_user", "x-pack-test-password", "eql_dls_user", false)
+        .user("eql_fls_user", "x-pack-test-password", "eql_fls_user", false)
         .user("dls_partial_mapping_user", "x-pack-test-password", "dls_partial_mapping", false)
         .user("dls_fls_partial_mapping_user", "x-pack-test-password", "dls_fls_partial_mapping", false)
         .user("dls_unmapped_load_all_user", "x-pack-test-password", "dls_unmapped_load_all", false)
@@ -144,6 +151,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
             false
         )
         .user("fls_unmapped_load_all_lookup_join_user", "x-pack-test-password", "read_unmapped_load_all,fls_user2", false)
+        .user("fls_unmapped_container_user", "x-pack-test-password", "fls_unmapped_container_except_k", false)
+        .user("fls_flattened_key_user", "x-pack-test-password", "fls_flattened_except_key", false)
         .user("lookup_unmapped_load_all_user", "x-pack-test-password", "read_unmapped_load_all,read_lookup_unmapped_load_all", false)
         .user(
             "fls_lookup_unmapped_load_all_user",
@@ -944,6 +953,89 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
     }
 
+    /**
+     * The EQL source command delegates to the EQL search action. That delegated search must run in the caller's security
+     * context — same identity, index authorization and document-level security as any other ES|QL command, never a
+     * privileged origin user. Here {@code eql_dls_user} can read {@code eql-events} but DLS exposes only its process
+     * events: an EQL query for the process events returns them, an EQL query for the (existing) network event comes back
+     * empty rather than leaking it, and {@code user2} — with no privilege on the index — is denied just like FROM.
+     */
+    public void testEqlSourceCommandRunsInCallerSecurityContext() throws IOException {
+        assumeTrue(
+            "requires the EQL source command",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.EQL_COMMAND.capabilityName()))
+        );
+        createIndex("eql-events", Settings.EMPTY, """
+            "properties":{"@timestamp":{"type":"date"},"event":{"properties":{"category":{"type":"keyword"}}},\
+            "message":{"type":"keyword"}}
+            """);
+        for (String doc : List.of("""
+            {"@timestamp":"2024-01-01T00:00:01Z","event":{"category":"process"},"message":"a"}""", """
+            {"@timestamp":"2024-01-01T00:00:02Z","event":{"category":"process"},"message":"b"}""", """
+            {"@timestamp":"2024-01-01T00:00:03Z","event":{"category":"network"},"message":"c"}""")) {
+            Request indexDoc = new Request("POST", "/eql-events/_doc");
+            indexDoc.setJsonEntity(doc);
+            assertOK(client().performRequest(indexDoc));
+        }
+        refresh("eql-events");
+
+        // DLS lets eql_dls_user see only the process events, and the delegated EQL search honors that filter.
+        Response process = runESQLCommand("eql_dls_user", "EQL eql-events \"process where true\" | KEEP message | SORT message");
+        assertOK(process);
+        assertThat(entityAsMap(process).get("values"), equalTo(List.of(List.of("a"), List.of("b"))));
+
+        // The network event exists but is hidden by DLS, so querying for it returns nothing rather than leaking the row.
+        Response network = runESQLCommand("eql_dls_user", "EQL eql-events \"network where true\" | KEEP message");
+        assertOK(network);
+        assertThat(entityAsMap(network).get("values"), equalTo(List.of()));
+
+        // user2 has no privilege on eql-events: the EQL command is denied at resolution exactly like FROM.
+        ResponseException denied = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("user2", "EQL eql-events \"process where true\"")
+        );
+        assertThat(denied.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(denied.getMessage(), containsString("Unknown index [eql-events]"));
+    }
+
+    /**
+     * Field-level security must apply to the delegated EQL search as well: {@code eql_fls_user} is denied the
+     * {@code message} field, so the {@code _source} the command fetches and converts to rows must not carry it — the
+     * same {@code FieldSubsetReader} filtering a {@code FROM} source gets.
+     */
+    public void testEqlSourceCommandHonorsFieldLevelSecurity() throws IOException {
+        assumeTrue(
+            "requires the EQL source command",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.EQL_COMMAND.capabilityName()))
+        );
+        createIndex("eql-events-fls", Settings.EMPTY, """
+            "properties":{"@timestamp":{"type":"date"},"event":{"properties":{"category":{"type":"keyword"}}},\
+            "message":{"type":"keyword"}}
+            """);
+        for (String doc : List.of("""
+            {"@timestamp":"2024-01-01T00:00:01Z","event":{"category":"process"},"message":"secret-a"}""", """
+            {"@timestamp":"2024-01-01T00:00:02Z","event":{"category":"process"},"message":"secret-b"}""")) {
+            Request indexDoc = new Request("POST", "/eql-events-fls/_doc");
+            indexDoc.setJsonEntity(doc);
+            assertOK(client().performRequest(indexDoc));
+        }
+        refresh("eql-events-fls");
+
+        // The delegated EQL search fetches _source, which security filters, so the hidden message field must be absent
+        // from every converted row while the granted fields remain.
+        Response resp = runESQLCommand("eql_fls_user", "EQL eql-events-fls \"process where true\" METADATA _source | KEEP _source");
+        assertOK(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
+        assertThat(values, hasSize(2));
+        for (List<Object> row : values) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) row.get(0);
+            assertThat("FLS-hidden field leaked into the EQL _source: " + source, source, not(hasKey("message")));
+            assertThat("granted field must remain in the EQL _source: " + source, source, hasKey("@timestamp"));
+        }
+    }
+
     public void testFieldLevelSecurityAllow() throws Exception {
         Response resp = runESQLCommand("fls_user", "FROM index* | SORT value | LIMIT 1");
         assertOK(resp);
@@ -1669,6 +1761,122 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertThat(result.values("org"), equalTo(List.of("sales", "engineering", "marketing")));
         assertThat(result.values("value"), equalTo(Arrays.asList(40.0, null, 32.0)));
+    }
+
+    /**
+     * A columnar index with flattened unmapped fields keeps them in its {@code _unmapped} field, which field-level security does
+     * not filter by key. Every unmapped field read or searched there is checked against the role on its own.
+     */
+    public void testFLS_HidesUnmappedFieldKeptInTheUnmappedField() throws Exception {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "unmapped fields are read from the _unmapped field",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.UNMAPPED_FIELDS_RESOLVED_BY_SHARD.capabilityName()))
+        );
+        Settings settings = Settings.builder().put("index.mode", "columnar").put("index.number_of_shards", 1).build();
+        createIndex(
+            INDEX_UNMAPPED_CONTAINER,
+            settings,
+            "\"dynamic\": \"flattened\", \"properties\": { \"other\": { \"type\": \"keyword\" } }"
+        );
+        Request indexDoc = new Request("PUT", INDEX_UNMAPPED_CONTAINER + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            { "k": "a", "visible": "v", "other": "x" }""");
+        client().performRequest(indexDoc);
+
+        String from = "SET unmapped_fields=\"load\"; FROM " + INDEX_UNMAPPED_CONTAINER;
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "v")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | WHERE k == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | STATS c = COUNT(k)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("test-admin", from + " | WHERE k == \"a\" | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(List.of("a", "v")))
+        );
+    }
+
+    /**
+     * Field-level security hides a key of a flattened field as it hides a mapped field: it reads as null and no filter on it
+     * matches, while the other keys read as usual.
+     */
+    public void testFLS_HidesAKeyOfAFlattenedField() throws Exception {
+        assumeTrue(
+            "a name under a flattened field is a field",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FLATTENED_KEYS.capabilityName()))
+        );
+        createIndex(INDEX_FLATTENED_KEYS, Settings.EMPTY, "\"properties\": { \"attrs\": { \"type\": \"flattened\" } }");
+        Request indexDoc = new Request("PUT", INDEX_FLATTENED_KEYS + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            { "attrs": { "bar": "a", "baz": "b" } }""");
+        client().performRequest(indexDoc);
+
+        String from = "FROM " + INDEX_FLATTENED_KEYS;
+        assertMap(
+            entityAsMap(runESQLCommand("test-admin", from + " | KEEP attrs.bar, attrs.baz | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(List.of("a", "b")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", from + " | KEEP attrs.bar, attrs.baz | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "b")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", from + " | WHERE attrs.bar == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+
+        // Under load, an index that does not map attrs makes the key a field some shards may not map
+        createIndex(INDEX_FLATTENED_KEYS + "-other", Settings.EMPTY, "\"dynamic\": false, \"properties\": {}");
+        String load = "SET unmapped_fields=\"load\"; FROM " + INDEX_FLATTENED_KEYS + "*";
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", load + " | KEEP attrs.bar, attrs.baz | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "b")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_flattened_key_user", load + " | WHERE attrs.bar == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+    }
+
+    /**
+     * An index that does not map {@code k} keeps it in {@code _source}, where the shard reads it and runs a pushed filter on it.
+     * Field-level security hides it there as it hides a mapped field: it reads as null and no filter on it matches.
+     */
+    public void testFLS_HidesUnmappedFieldReadFromSource() throws Exception {
+        assumeTrue(
+            "unmapped fields are resolved by each shard",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.UNMAPPED_FIELDS_RESOLVED_BY_SHARD.capabilityName()))
+        );
+        createIndex(INDEX_UNMAPPED_SOURCE, Settings.EMPTY, "\"dynamic\": false, \"properties\": { \"other\": { \"type\": \"keyword\" } }");
+        Request indexDoc = new Request("PUT", INDEX_UNMAPPED_SOURCE + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            { "k": "a", "visible": "v", "other": "x" }""");
+        client().performRequest(indexDoc);
+
+        String from = "SET unmapped_fields=\"load\"; FROM " + INDEX_UNMAPPED_SOURCE;
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "v")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | WHERE k == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | STATS c = COUNT(k)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("test-admin", from + " | WHERE k == \"a\" | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(List.of("a", "v")))
+        );
     }
 
     public void testLookupJoin_UnmappedSourceField_NotReturned_WithUnmappedFieldsLoadAll() throws Exception {

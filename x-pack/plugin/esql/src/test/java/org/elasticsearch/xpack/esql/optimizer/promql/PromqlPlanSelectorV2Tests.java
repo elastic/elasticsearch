@@ -66,7 +66,10 @@ public class PromqlPlanSelectorV2Tests extends AbstractPromqlPlanOptimizerTests 
     public void testNodeWithoutLabelTranslationFails() {
         var e = expectThrows(
             QlIllegalArgumentException.class,
-            () -> planPromqlV2("PROMQL index=k8s step=1h topk(3, network.bytes_in)", false)
+            () -> planPromqlV2(
+                "PROMQL index=k8s step=1h label_replace(sum by (pod) (network.bytes_in), \"dst\", \"$1\", \"pod\", \"(.*)\")",
+                false
+            )
         );
         assertThat(e.getMessage(), containsString("does not translate in V2 yet"));
     }

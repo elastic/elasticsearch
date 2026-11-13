@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -3478,6 +3479,8 @@ public class RetryableStorageObjectTests extends ESTestCase {
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                         if (staleIdentity != null) {
                             threadContext.putHeader(CONTEXT_HEADER, staleIdentity);
+                            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, "stale-project");
+                            threadContext.putHeader(NON_SECURITY_HEADER, "stale-opaque");
                         }
                         if (fail) {
                             listener.onFailure(
@@ -3621,6 +3624,69 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 )
             );
             assertNull(observed.get(10, TimeUnit.SECONDS));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadCarriesIssuingProjectAndDropsStaleHeaders() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 0, "another-querys-user"),
+                new RetryPolicy(3, 1, 10),
+                RetryScheduler.DIRECT,
+                threadContext
+            );
+            threadContext.putHeader(CONTEXT_HEADER, "issuing-user");
+            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, "issuing-project");
+            PlainActionFuture<List<String>> observed = new PlainActionFuture<>();
+            obj.startReadBytesAsync(
+                0,
+                4,
+                len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+                Runnable::run,
+                ActionListener.wrap(
+                    buffer -> observed.onResponse(
+                        Arrays.asList(
+                            threadContext.getHeader(CONTEXT_HEADER),
+                            threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER),
+                            threadContext.getHeader(NON_SECURITY_HEADER)
+                        )
+                    ),
+                    observed::onFailure
+                )
+            );
+            assertThat(observed.get(10, TimeUnit.SECONDS), equalTo(Arrays.asList("issuing-user", "issuing-project", null)));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadRestoresProjectOnEmptyCompletingThread() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 0),
+                new RetryPolicy(3, 1, 10),
+                RetryScheduler.DIRECT,
+                threadContext
+            );
+            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, "issuing-project");
+            PlainActionFuture<String> observed = new PlainActionFuture<>();
+            obj.startReadBytesAsync(
+                0,
+                4,
+                len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+                Runnable::run,
+                ActionListener.wrap(
+                    buffer -> observed.onResponse(threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER)),
+                    observed::onFailure
+                )
+            );
+            assertThat(observed.get(10, TimeUnit.SECONDS), equalTo("issuing-project"));
         } finally {
             terminate(sdkThread);
         }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.NestedField;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 
@@ -696,16 +697,6 @@ public class IndexResolver {
             fields.put(name, field);
         }
 
-        EsField nestedNamespace = NestedScopeField.namespace(indexResponses, fieldsInfo.nestedSourceFailures());
-        if (nestedNamespace != null) {
-            if (rootFields.containsKey(NestedScopeField.NAMESPACE)) {
-                throw new VerificationException(
-                    "NESTED internal namespace conflicts with mapped field [" + NestedScopeField.NAMESPACE + "]"
-                );
-            }
-            rootFields.put(NestedScopeField.NAMESPACE, nestedNamespace);
-        }
-
         boolean allEmpty = true;
         Map<String, IndexProperties> indexProperties = Maps.newMapWithExpectedSize(indexResponses.size());
         Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
@@ -732,7 +723,8 @@ public class IndexResolver {
             // once all remotes support it (v9.3+)
             originalIndexExtractor.apply(indexPattern, fieldsInfo.caps),
             concreteIndices,
-            fieldSemantics
+            fieldSemantics,
+            NestedField.of(indexResponses, fieldsInfo.nestedSourceFailures())
         );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
         return IndexResolution.valid(index, indexProperties.keySet(), failures);
@@ -764,10 +756,12 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
             boolean isNew = indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) <= 1;
             String indexName = response.getIndexName();
-            for (IndexFieldCapabilities fc : response.get().values()) {
-                if (NestedScopeField.pathFor(fc.name(), response.get()) != null) {
+            for (IndexFieldCapabilities mapped : response.get().values()) {
+                if (mapped.type().equals(NestedObjectMapper.CONTENT_TYPE)) {
+                    // Like an object, a nested object only shapes the fields under it
                     continue;
                 }
+                IndexFieldCapabilities fc = NestedField.pathFor(mapped.name(), response.get()) == null ? mapped : flattened(mapped);
                 if (fc.isMetadatafield()) {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
                     continue;
@@ -1127,6 +1121,29 @@ public class IndexResolver {
         );
     }
 
+    /**
+     * A field under a nested object holds the values of all of the parent's objects, which are separate documents, so the
+     * parent's index and doc values hold none of them: queries and aggregations must not be pushed to Lucene.
+     */
+    private static IndexFieldCapabilities flattened(IndexFieldCapabilities fc) {
+        return new IndexFieldCapabilities(
+            fc.name(),
+            fc.type(),
+            fc.isMetadatafield(),
+            fc.isSearchable(),
+            false,
+            fc.isInference(),
+            fc.isDimension(),
+            fc.metricType(),
+            fc.isPassthrough(),
+            fc.meta(),
+            fc.indexAnalyzer(),
+            fc.indexAnalyzerPositionIncrementGap(),
+            fc.indexLocalAnalyzer(),
+            false
+        );
+    }
+
     private static boolean isObject(IndexFieldCapabilities fc) {
         return ObjectMapper.CONTENT_TYPE.equals(fc.type());
     }
@@ -1150,8 +1167,8 @@ public class IndexResolver {
     ) {
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices(Strings.commaDelimitedListToStringArray(index));
-        boolean nestedScope = fieldNames.contains(NestedScopeField.REQUEST_MARKER);
-        request.fields(fieldNames.stream().filter(name -> name.equals(NestedScopeField.REQUEST_MARKER) == false).toArray(String[]::new));
+        boolean nestedScope = fieldNames.contains(NestedField.REQUEST_MARKER);
+        request.fields(fieldNames.stream().filter(name -> name.equals(NestedField.REQUEST_MARKER) == false).toArray(String[]::new));
         request.includeUnmapped(true);
         request.indexFilter(requestFilter);
         request.returnLocalAll(false);
@@ -1159,12 +1176,15 @@ public class IndexResolver {
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         request.indicesOptions(options);
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
-        if (nestedScope == false) {
+        // Snapshot builds read the fields under a nested object as flattened columns, with the nested functions.
+        if (NestedField.FLATTENED_LEAVES) {
             if (includeAllDimensions) {
-                request.filters("-nested", "+dimension");
-            } else {
-                request.filters("-nested");
+                request.filters("+dimension");
             }
+        } else if (includeAllDimensions) {
+            request.filters("-nested", "+dimension");
+        } else {
+            request.filters("-nested");
         }
         request.setMergeResults(false);
         request.includeResolvedTo(includeResolvedTo);

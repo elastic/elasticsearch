@@ -21,6 +21,7 @@ setup:
       parameters: []
       capabilities:
       - nested_expand
+      - nested_flattened_leaves
     reason: "Nested expansion; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
 - do:
     indices.create:
@@ -185,7 +186,8 @@ one row per object repeats the parent columns:
     - [g, west, null, null, null]
 
 ---
-without KEEP only the parent and expanded columns are returned:
+without KEEP the expanded columns replace the flattened ones:
+# The fields under events, which is not expanded, stay flattened columns.
 - do:
     esql.query:
       allow_partial_results: false
@@ -193,6 +195,10 @@ without KEEP only the parent and expanded columns are returned:
         query: FROM ne_orders | NESTED_EXPAND items | SORT order_id, items.sku | LIMIT 1
 - match:
     columns:
+    - name: events.end
+      type: long
+    - name: events.start
+      type: long
     - name: order_id
       type: keyword
     - name: region
@@ -211,7 +217,7 @@ without KEEP only the parent and expanded columns are returned:
       type: keyword
 - match:
     values:
-    - [a, west, book, blue, 10, 3, a1, [new, sale]]
+    - [10, 20, a, west, book, blue, 10, 3, a1, [new, sale]]
 
 ---
 parents without objects keep one row:

@@ -20,14 +20,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -297,17 +295,7 @@ public class NestedReductionsContractTests extends LuceneTestCase {
                 default -> throw new AssertionError(attr.name());
             });
         }
-        Object value = XContentMapValues.extractValue(attr.name(), document.source());
-        if (value == null) {
-            return null;
-        }
-        if (attr.dataType() == DataType.KEYWORD || attr.dataType() == DataType.TEXT) {
-            return new BytesRef(value.toString());
-        }
-        if (attr.dataType() == DataType.LONG) {
-            return ((Number) value).longValue();
-        }
-        throw new AssertionError("unhandled parent input " + attr);
+        return NestedReductionsTestSupport.sourceValue(attr, json(document.source()));
     }
 
     private static String json(Object value) {

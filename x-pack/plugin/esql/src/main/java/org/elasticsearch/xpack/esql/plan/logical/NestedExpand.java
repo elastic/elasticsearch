@@ -14,11 +14,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -192,8 +190,8 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
         if (output == null) {
             List<Attribute> result = new ArrayList<>();
             for (Attribute attribute : child().output()) {
-                // The expanded collection stops being a nested scope: its children are ordinary columns now.
-                if (bound() == false || expandedScope(attribute) == false) {
+                // The expanded columns replace the flattened ones, which hold the values of all of the parent's objects.
+                if (bound() == false || attribute.name().startsWith(path + ".") == false) {
                     result.add(attribute);
                 }
             }
@@ -201,12 +199,6 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
             output = result;
         }
         return output;
-    }
-
-    private boolean expandedScope(Attribute attribute) {
-        return attribute instanceof FieldAttribute field
-            && field.field() instanceof NestedScopeField scope
-            && (scope.path().equals(path) || scope.path().startsWith(path + "."));
     }
 
     @Override

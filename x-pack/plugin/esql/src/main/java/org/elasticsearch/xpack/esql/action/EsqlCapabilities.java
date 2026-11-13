@@ -4841,6 +4841,14 @@ public class EsqlCapabilities {
         NESTED_EXPAND(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
 
         /**
+         * A field under a {@code nested} object reads, outside the nested functions, as a multivalued column holding the values
+         * of all of the parent's objects, like a field under a plain object. The nested object itself is still not a column.
+         * Before, ES|QL hid such fields (<a href="https://github.com/elastic/elasticsearch/issues/154011">#154011</a>). Snapshot
+         * only, with the nested functions.
+         */
+        NESTED_FLATTENED_LEAVES(Build.current().isSnapshot()),
+
+        /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which
          * a sibling branch has, with one type in every branch that has it, reads that column from its own {@code _source}, cast to
          * that type, instead of null-filling it. It makes no difference how the sibling got the column: a mapping, an {@code EVAL}, a

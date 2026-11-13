@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
@@ -35,6 +35,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAll;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedJson;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedStats;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.NestedField;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -55,11 +58,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
-/** Binds reductions before EVAL's aggregate verification; public outputs contain only completed parent values. */
+/**
+ * Binds the nested functions and {@code NESTED_EXPAND} before EVAL's aggregate verification; public outputs contain only
+ * completed parent values. A field under a nested object is an ordinary column, read flattened; these are the only places
+ * where it means one value per object. The mapping tells which columns those are.
+ */
 public final class NestedReductionsAnalysis {
     private static final List<String> METADATA = List.of("_source", "_index");
+    private static final String METADATA_PREFIX = "$$nested_reductions";
     /** Types NESTED_JSON can write and the source loader can convert. */
     private static final Set<DataType> JSON_CHILD_TYPES = Set.of(
         DataType.BOOLEAN,
@@ -84,7 +91,7 @@ public final class NestedReductionsAnalysis {
     private NestedReductionsAnalysis() {}
 
     private static String privateMetadataName(String name) {
-        return Attribute.rawTemporaryName(NestedScopeField.NAMESPACE, "metadata", name);
+        return Attribute.rawTemporaryName(METADATA_PREFIX, "metadata", name);
     }
 
     private static boolean isPrivateMetadataName(String name) {
@@ -119,73 +126,127 @@ public final class NestedReductionsAnalysis {
         return paths;
     }
 
-    private record ScopeSchema(Map<String, FieldAttribute> fields, Map<String, NestedScopeField> roots) {}
-
-    /** Resolve each wrapper against its own input, so later joins and sibling inputs cannot overwrite its schema. */
-    private static ScopeSchema scopeSchema(LogicalPlan input, Nested nested) {
-        Map<String, FieldAttribute> fields = new HashMap<>();
-        Map<String, NestedScopeField> roots = new HashMap<>();
-        Set<String> expanded = expandedPaths(input);
-        for (EsRelation relation : primarySources(input)) {
-            for (Attribute attribute : relation.output()) {
-                if (attribute instanceof FieldAttribute field
-                    && field.field() instanceof NestedScopeField scope
-                    && expanded.stream().noneMatch(path -> inPath(scope.path(), path))) {
-                    FieldAttribute merged = fields.merge(field.name(), field, (left, right) -> mergeBinding(left, right, nested));
-                    if (scope.collection()) {
-                        roots.put(scope.path(), (NestedScopeField) merged.field());
-                    }
-                }
+    /** How the indices of the primary sources of {@code input} map the nested objects and the fields under them. */
+    private static Map<String, NestedField> nestedFields(LogicalPlan input, AnalyzerContext context) {
+        Map<String, EsIndex> indices = new HashMap<>();
+        for (IndexResolution resolution : context.indexResolution().values()) {
+            if (resolution != null && resolution.isValid()) {
+                indices.put(resolution.get().name(), resolution.get());
             }
         }
-        return new ScopeSchema(fields, roots);
+        Set<String> expanded = expandedPaths(input);
+        Map<String, NestedField> fields = new HashMap<>();
+        // The nested functions read each branch's values by the type of the merged column, which the union rules only
+        // settle after these functions are bound.
+        Map<String, DataType> types = new HashMap<>();
+        for (EsRelation relation : primarySources(input)) {
+            EsIndex index = indices.get(relation.indexPattern());
+            if (index == null) {
+                continue;
+            }
+            Map<String, DataType> relationTypes = new HashMap<>();
+            for (Attribute attribute : relation.output()) {
+                if (attribute instanceof FieldAttribute field) {
+                    relationTypes.put(field.fieldName().string(), field.dataType());
+                }
+            }
+            index.nestedFields().forEach((name, field) -> {
+                if (expanded.stream().noneMatch(path -> inPath(field.path(), path))) {
+                    NestedField merged = fields.merge(name, field, NestedReductionsAnalysis::merge);
+                    DataType type = relationTypes.get(name);
+                    DataType previous = type == null ? null : types.putIfAbsent(name, type);
+                    if (previous != null && previous != type && merged.conflict() == null) {
+                        String conflict = "its type is ["
+                            + previous.typeName()
+                            + "] in one branch but ["
+                            + type.typeName()
+                            + "] in another";
+                        fields.put(
+                            name,
+                            new NestedField(merged.path(), merged.indices(), merged.collection(), merged.sourceFailures(), conflict)
+                        );
+                    }
+                }
+            });
+        }
+        return fields;
     }
 
-    private static FieldAttribute mergeBinding(FieldAttribute left, FieldAttribute right, Nested nested) {
-        NestedScopeField first = (NestedScopeField) left.field();
-        NestedScopeField second = (NestedScopeField) right.field();
-        if (first.path().equals(second.path()) == false || first.collection() != second.collection()) {
-            throw error(nested, "NESTED cannot merge different nested paths for [" + left.name() + "] across branches");
-        }
+    /** The same field read by several branches, such as the subqueries of a FROM. */
+    private static NestedField merge(NestedField first, NestedField second) {
         Set<String> indices = new HashSet<>(first.indices());
         indices.addAll(second.indices());
         Map<String, String> sourceFailures = new HashMap<>(first.sourceFailures());
         sourceFailures.putAll(second.sourceFailures());
-        DataType type = first.getDataType() == second.getDataType() ? first.getDataType() : DataType.UNSUPPORTED;
-        // These bindings are already flattened: each child has its own entry and per-index applicability.
-        // Retaining one branch's property tree would misrepresent children supplied only by another branch.
-        return left.withField(
-            new NestedScopeField(
-                first.getName(),
-                type,
-                Map.of(),
-                first.path(),
-                indices,
-                first.collection(),
-                sourceFailures,
-                first.conflict() != null ? first.conflict() : second.conflict()
-            )
-        );
+        String conflict = first.conflict() != null ? first.conflict() : second.conflict();
+        if (conflict == null && (first.path().equals(second.path()) == false || first.collection() != second.collection())) {
+            conflict = "its nested path is [" + first.path() + "] in one branch but [" + second.path() + "] in another";
+        }
+        return new NestedField(first.path(), indices, first.collection(), sourceFailures, conflict);
     }
 
-    /** Reserve names once, before union resolution can rebuild internal attributes without their synthetic flag. */
-    public static final class ValidateNames extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-        @Override
-        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            if (usesNested(plan)) {
-                plan.forEachExpressionDown(NamedExpression.class, expression -> {
-                    if (expression.synthetic() == false
-                        && (isPrivateMetadataName(expression.name())
-                            || expression.name().startsWith(NestedScopeField.PREFIX)
-                            || expression.name().equals(NestedScopeField.NAMESPACE))) {
-                        throw error(expression, "NESTED uses reserved internal metadata and schema names");
-                    }
-                });
+    /**
+     * The field each column of {@code input} reads, by column id, for the columns that read a field of a primary source:
+     * those of the relations themselves, and those a union or FORK merges from its branches.
+     */
+    private static Map<NameId, String> fieldNames(LogicalPlan input) {
+        Map<NameId, String> names = new HashMap<>();
+        for (EsRelation relation : primarySources(input)) {
+            for (Attribute attribute : relation.output()) {
+                if (attribute instanceof FieldAttribute field) {
+                    names.put(field.id(), field.fieldName().string());
+                }
             }
-            return plan;
+        }
+        input.forEachDown(MergePlan.class, merge -> merge.output().forEach(a -> names.putIfAbsent(a.id(), a.name())));
+        return names;
+    }
+
+    /** What the nested functions see of {@code input}: the mapping of its primary sources, and which columns read it. */
+    private record Scope(Map<String, NestedField> fields, Map<NameId, String> names) {
+        static Scope of(LogicalPlan input, AnalyzerContext context) {
+            return new Scope(nestedFields(input, context), fieldNames(input));
+        }
+
+        /** The field under a nested object that {@code expression} reads, or {@code null} if it is not such a column. */
+        String child(Expression expression) {
+            if (expression instanceof Attribute attribute) {
+                String name = names.get(attribute.id());
+                NestedField field = name == null ? null : fields.get(name);
+                if (field != null && field.collection() == false) {
+                    return name;
+                }
+            }
+            return null;
+        }
+
+        /** The nested object {@code expression} names, as {@link Prepare} resolves it, or {@code null}. */
+        NestedField collection(Expression expression) {
+            if (expression instanceof FieldAttribute attribute && attribute.synthetic()) {
+                NestedField field = fields.get(attribute.name());
+                if (field != null && field.collection()) {
+                    return field;
+                }
+            }
+            return null;
+        }
+
+        /** The nested objects, by path. */
+        Map<String, NestedField> roots() {
+            Map<String, NestedField> roots = new HashMap<>();
+            fields.forEach((name, field) -> {
+                if (field.collection()) {
+                    roots.put(field.path(), field);
+                }
+            });
+            return roots;
         }
     }
 
+    /**
+     * Adds the private source metadata the nested functions read to their sources, and resolves the nested objects they
+     * name, which are not columns.
+     */
     public static final class Prepare extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -257,41 +318,18 @@ public final class NestedReductionsAnalysis {
                     return p;
                 }
                 return p.transformExpressionsOnlyUp(Nested.class, nested -> {
-                    LogicalPlan input = p.children().getFirst();
-                    ScopeSchema schema = scopeSchema(input, nested);
-                    Set<String> allPaths = new HashSet<>();
-                    Set<String> expanded = expandedPaths(input);
-                    input.forEachDown(EsRelation.class, relation -> relation.output().forEach(a -> {
-                        if (a instanceof FieldAttribute field
-                            && field.field() instanceof NestedScopeField scope
-                            && scope.collection()
-                            && expanded.stream().noneMatch(path -> inPath(scope.path(), path))) {
-                            allPaths.add(scope.path());
-                        }
-                    }));
-                    Function<UnresolvedAttribute, Expression> scoped = attribute -> {
-                        String name = attribute.name();
-                        String rawName = name.startsWith(NestedScopeField.PREFIX) ? name.substring(NestedScopeField.PREFIX.length()) : name;
-                        boolean primary = schema.roots().keySet().stream().anyMatch(path -> inPath(rawName, path));
-                        if (primary == false && allPaths.stream().anyMatch(path -> inPath(rawName, path))) {
-                            throw error(attribute, "NESTED lookup-side nested scopes are not supported by this PoC");
-                        }
-                        if (name.startsWith(NestedScopeField.PREFIX) == false && primary) {
-                            name = NestedScopeField.PREFIX + name;
-                        }
-                        FieldAttribute field = schema.fields().get(name);
-                        if (field != null) {
-                            return field.withLocation(attribute.source());
-                        }
-                        return name.equals(attribute.name())
-                            ? attribute
-                            : new UnresolvedAttribute(attribute.source(), name, attribute.id(), null);
-                    };
-                    List<Expression> children = nested.children()
-                        .stream()
-                        .map(c -> c.transformUp(UnresolvedAttribute.class, scoped))
-                        .toList();
-                    return children.equals(nested.children()) ? nested : nested.replaceChildren(children);
+                    if (nested.children().getFirst() instanceof UnresolvedAttribute == false) {
+                        return nested;
+                    }
+                    UnresolvedAttribute named = (UnresolvedAttribute) nested.children().getFirst();
+                    NestedField field = nestedFields(p.children().getFirst(), context).get(named.name());
+                    if (field == null || field.collection() == false) {
+                        return nested;
+                    }
+                    EsField object = new EsField(named.name(), DataType.OBJECT, Map.of(), false, EsField.TimeSeriesFieldType.NONE);
+                    List<Expression> children = new ArrayList<>(nested.children());
+                    children.set(0, new FieldAttribute(named.source(), null, null, named.name(), object, true));
+                    return nested.replaceChildren(children);
                 });
             });
         }
@@ -335,7 +373,7 @@ public final class NestedReductionsAnalysis {
                         throw error(nested, nested.functionName() + " requires all nodes to support nested reductions");
                     }
                     var reduction = nested instanceof NestedJson json
-                        ? bindJson(json, p.children().getFirst())
+                        ? bindJson(json, p.children().getFirst(), context)
                         : bind(nested, p.children().getFirst(), context);
                     Alias result = new Alias(
                         nested.source(),
@@ -353,7 +391,7 @@ public final class NestedReductionsAnalysis {
                 if (lowered instanceof Project project) {
                     List<NamedExpression> projected = new ArrayList<>(project.projections());
                     for (Attribute a : project.child().output()) {
-                        if (carriedThroughProject(a) && project.outputSet().contains(a) == false) {
+                        if (a.synthetic() && isPrivateMetadataName(a.name()) && project.outputSet().contains(a) == false) {
                             projected.add(a);
                         }
                     }
@@ -372,7 +410,8 @@ public final class NestedReductionsAnalysis {
 
     private static NestedReduction bind(Nested nested, LogicalPlan input, AnalyzerContext context) {
         String name = nested.functionName();
-        Map<String, NestedScopeField> roots = scopeSchema(input, nested).roots();
+        Scope scope = Scope.of(input, context);
+        Map<String, NestedField> roots = scope.roots();
         Expression body = nested.body();
         if (body.anyMatch(e -> e instanceof Nested || e instanceof FullTextFunction)) {
             throw error(nested, name + " does not allow inner scopes or full-text functions");
@@ -383,15 +422,15 @@ public final class NestedReductionsAnalysis {
         }
         String collection = null;
         if (nested.collection() != null) {
-            if (nested.collection() instanceof FieldAttribute f && f.field() instanceof NestedScopeField n && n.collection()) {
-                if (n.conflict() != null) {
-                    throw error(nested, name + " cannot read [" + publicName(f) + "]: " + n.conflict());
-                }
-                collection = n.path();
-                checkNotReplaced(input, collection, nested, name);
-            } else {
+            NestedField n = scope.collection(nested.collection());
+            if (n == null) {
                 throw error(nested, name + " requires a nested collection first, not [" + nested.collection().sourceText() + "]");
             }
+            if (n.conflict() != null) {
+                throw error(nested, name + " cannot read [" + n.path() + "]: " + n.conflict());
+            }
+            collection = n.path();
+            checkNotReplaced(input, collection, nested, name);
         }
         if (nested instanceof NestedStats == false) {
             if (body.anyMatch(AggregateFunction.class::isInstance)) {
@@ -408,10 +447,10 @@ public final class NestedReductionsAnalysis {
                 throw error(nested, "NESTED BY supports COUNT, SUM, MIN and MAX, not [" + body.sourceText() + "]");
             }
             for (Expression key : keys) {
-                if (key instanceof FieldAttribute == false) {
+                if (key instanceof Attribute == false) {
                     throw error(key, "NESTED BY requires child fields, not [" + key.sourceText() + "]");
                 }
-                if (((FieldAttribute) key).field() instanceof NestedScopeField == false) {
+                if (scope.child(key) == null) {
                     throw error(key, "Field [" + key.sourceText() + "] is outside the nested scope");
                 }
             }
@@ -448,30 +487,33 @@ public final class NestedReductionsAnalysis {
         Set<String> indices = new HashSet<>();
         Map<String, String> sourceFailures = new HashMap<>();
         for (Attribute attr : fields.values()) {
-            if (attr instanceof FieldAttribute f && f.field() instanceof NestedScopeField n) {
-                if (n.conflict() != null) {
-                    throw error(nested, name + " cannot read [" + publicName(f) + "]: " + n.conflict());
-                }
-                if (collection != null && collection.equals(n.path()) == false) {
-                    throw error(nested, "Field [" + publicName(f) + "] is outside the nested scope [" + collection + "]");
-                }
-                if (path != null && path.equals(n.path()) == false) {
-                    throw error(nested, name + " requires one nested path");
-                }
-                path = n.path();
-                indices.addAll(n.indices());
-                sourceFailures.putAll(n.sourceFailures());
+            String child = scope.child(attr);
+            if (child == null) {
+                continue;
             }
+            NestedField n = scope.fields().get(child);
+            if (n.conflict() != null) {
+                throw error(nested, name + " cannot read [" + child + "]: " + n.conflict());
+            }
+            if (collection != null && collection.equals(n.path()) == false) {
+                throw error(nested, "Field [" + child + "] is outside the nested scope [" + collection + "]");
+            }
+            if (path != null && path.equals(n.path()) == false) {
+                throw error(nested, name + " requires one nested path");
+            }
+            path = n.path();
+            indices.addAll(n.indices());
+            sourceFailures.putAll(n.sourceFailures());
         }
         if (path == null) {
             throw error(nested, name + " requires a mapped nested field");
         }
-        String scope = path;
+        String nestedPath = path;
         if (roots.containsKey(path)) {
             indices = new HashSet<>(roots.get(path).indices());
             sourceFailures.putAll(roots.get(path).sourceFailures());
         }
-        if (roots.keySet().stream().anyMatch(parent -> scope.startsWith(parent + "."))) {
+        if (roots.keySet().stream().anyMatch(parent -> nestedPath.startsWith(parent + "."))) {
             throw error(nested, name + " supports one nesting level");
         }
         if (indices.stream().anyMatch(index -> index.contains(":"))) {
@@ -482,17 +524,18 @@ public final class NestedReductionsAnalysis {
         List<Set<String>> mapped = new ArrayList<>();
         Map<NameId, Attribute> replacement = new HashMap<>();
         for (Attribute attr : fields.values()) {
-            if (attr instanceof FieldAttribute == false || ((FieldAttribute) attr).field() instanceof NestedScopeField == false) {
+            String child = scope.child(attr);
+            if (child == null) {
                 throw error(nested, "Field [" + attr.name() + "] is outside the nested scope");
             }
             if (SUPPORTED_CHILD_TYPES.contains(attr.dataType()) == false) {
-                throw error(nested, name + " does not support child type [" + attr.dataType() + "] for [" + attr.name() + "]");
+                throw error(nested, name + " does not support child type [" + attr.dataType() + "] for [" + child + "]");
             }
-            ReferenceAttribute ref = new ReferenceAttribute(attr.source(), attr.name(), attr.dataType());
+            ReferenceAttribute ref = new ReferenceAttribute(attr.source(), child, attr.dataType());
             channels.add(ref);
             replacement.put(attr.id(), ref);
-            paths.add(attr.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1));
-            mapped.add(((NestedScopeField) ((FieldAttribute) attr).field()).indices());
+            paths.add(child.substring(path.length() + 1));
+            mapped.add(scope.fields().get(child).indices());
         }
         Expression bound = body.transformUp(Attribute.class, a -> replacement.get(a.id()));
         List<Attribute> groupings = keys.stream().map(key -> replacement.get(((Attribute) key).id())).toList();
@@ -541,52 +584,54 @@ public final class NestedReductionsAnalysis {
         }
     }
 
-    /** Binds NESTED_JSON to every child field of its collection, in name order, like NESTED_EXPAND. */
-    private static NestedReduction bindJson(NestedJson json, LogicalPlan input) {
-        if ((json.body() instanceof FieldAttribute a && a.field() instanceof NestedScopeField n && n.collection()) == false) {
-            throw error(json, "NESTED_JSON requires a nested collection, not [" + json.body().sourceText() + "]");
-        }
-        FieldAttribute f = (FieldAttribute) json.body();
-        NestedScopeField scope = (NestedScopeField) f.field();
-        if (scope.conflict() != null) {
-            throw error(json, "NESTED_JSON cannot read [" + publicName(f) + "]: " + scope.conflict());
-        }
-        String path = scope.path();
-        checkNotReplaced(input, path, json, "NESTED_JSON");
-        ScopeSchema schema = scopeSchema(input, json);
-        if (schema.roots().keySet().stream().anyMatch(parent -> path.startsWith(parent + "."))) {
-            throw error(json, "NESTED_JSON supports one nesting level");
-        }
-        if (scope.indices().stream().anyMatch(index -> index.contains(":"))) {
-            throw error(json, "NESTED_JSON cross-cluster loading is not supported by this PoC");
-        }
-        List<FieldAttribute> children = new ArrayList<>();
-        for (FieldAttribute field : schema.fields().values()) {
-            NestedScopeField child = (NestedScopeField) field.field();
-            if (child.collection() == false && child.path().equals(path) && child.getDataType() != DataType.OBJECT) {
-                if (JSON_CHILD_TYPES.contains(child.getDataType()) == false) {
-                    throw error(
-                        json,
-                        "NESTED_JSON does not support child type [" + child.getDataType() + "] for [" + publicName(field) + "]"
-                    );
-                }
-                children.add(field);
+    /** The columns of {@code input} that read a field directly under the nested object {@code path}, in name order. */
+    private static List<Attribute> children(LogicalPlan input, Scope scope, String path) {
+        List<Attribute> children = new ArrayList<>();
+        for (Attribute attribute : input.output()) {
+            String child = scope.child(attribute);
+            if (child != null && scope.fields().get(child).path().equals(path) && attribute.dataType() != DataType.OBJECT) {
+                children.add(attribute);
             }
         }
-        children.sort(Comparator.comparing(NestedReductionsAnalysis::publicName));
+        children.sort(Comparator.comparing(scope::child));
+        return children;
+    }
+
+    /** Binds NESTED_JSON to every child field of its collection, in name order, like NESTED_EXPAND. */
+    private static NestedReduction bindJson(NestedJson json, LogicalPlan input, AnalyzerContext context) {
+        Scope scope = Scope.of(input, context);
+        NestedField collection = scope.collection(json.body());
+        if (collection == null) {
+            throw error(json, "NESTED_JSON requires a nested collection, not [" + json.body().sourceText() + "]");
+        }
+        String path = collection.path();
+        if (collection.conflict() != null) {
+            throw error(json, "NESTED_JSON cannot read [" + path + "]: " + collection.conflict());
+        }
+        checkNotReplaced(input, path, json, "NESTED_JSON");
+        if (scope.roots().keySet().stream().anyMatch(parent -> path.startsWith(parent + "."))) {
+            throw error(json, "NESTED_JSON supports one nesting level");
+        }
+        if (collection.indices().stream().anyMatch(index -> index.contains(":"))) {
+            throw error(json, "NESTED_JSON cross-cluster loading is not supported by this PoC");
+        }
         List<Attribute> channels = new ArrayList<>();
         List<String> paths = new ArrayList<>();
         List<Set<String>> mapped = new ArrayList<>();
-        for (FieldAttribute child : children) {
-            channels.add(new ReferenceAttribute(child.source(), child.name(), child.dataType()));
-            paths.add(publicName(child).substring(path.length() + 1));
-            mapped.add(((NestedScopeField) child.field()).indices());
+        for (Attribute child : children(input, scope, path)) {
+            String name = scope.child(child);
+            if (JSON_CHILD_TYPES.contains(child.dataType()) == false) {
+                throw error(json, "NESTED_JSON does not support child type [" + child.dataType() + "] for [" + name + "]");
+            }
+            channels.add(new ReferenceAttribute(child.source(), name, child.dataType()));
+            paths.add(name.substring(path.length() + 1));
+            mapped.add(scope.fields().get(name).indices());
         }
         return new NestedReduction(
             json.source(),
             metadata(json, input),
             path,
-            scope.indices(),
+            collection.indices(),
             Literal.NULL,
             List.of(),
             true,
@@ -594,30 +639,34 @@ public final class NestedReductionsAnalysis {
             channels,
             paths,
             mapped,
-            scope.sourceFailures()
+            collection.sourceFailures()
         );
     }
 
     /**
      * Binds NESTED_EXPAND to a mapped nested collection in its input. An unknown name stays unbound, so the verifier
-     * reports it like any other unknown column.
+     * reports it like any other unknown column. So does a collection whose parent rows the input no longer has, such as
+     * after STATS.
      */
     private static LogicalPlan bindExpand(NestedExpand expand, AnalyzerContext context) {
         NamedExpression target = expand.target();
         String name = target.name();
-        List<Attribute> input = expand.child().output();
-        FieldAttribute root = null;
-        Set<String> collections = new HashSet<>();
-        for (Attribute attribute : input) {
-            if (attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField scope && scope.collection()) {
-                collections.add(scope.path());
-                if (field.name().equals(NestedScopeField.PREFIX + name)) {
-                    root = field;
-                }
-            }
+        LogicalPlan input = expand.child();
+        List<Attribute> metadata = new ArrayList<>();
+        for (String role : METADATA) {
+            input.output()
+                .stream()
+                .filter(a -> a.synthetic() && a.name().equals(privateMetadataName(role)))
+                .findFirst()
+                .ifPresent(metadata::add);
         }
-        if (root == null) {
-            if (input.stream().anyMatch(a -> inPath(a.name(), name) || inPath(a.name(), NestedScopeField.PREFIX + name))) {
+        if (metadata.size() < METADATA.size()) {
+            return expand;
+        }
+        Scope scope = Scope.of(input, context);
+        NestedField collection = scope.fields().get(name);
+        if (collection == null || collection.collection() == false) {
+            if (input.output().stream().anyMatch(a -> inPath(a.name(), name))) {
                 throw error(target, "NESTED_EXPAND requires a mapped nested field, not [" + name + "]");
             }
             return expand;
@@ -625,119 +674,41 @@ public final class NestedReductionsAnalysis {
         if (context.minimumVersion().supports(NestedExpand.VERSION) == false) {
             throw error(target, "NESTED_EXPAND requires all nodes to support nested expansion");
         }
-        NestedScopeField scope = (NestedScopeField) root.field();
-        if (scope.conflict() != null) {
-            throw error(target, "NESTED_EXPAND cannot read [" + name + "]: " + scope.conflict());
+        if (collection.conflict() != null) {
+            throw error(target, "NESTED_EXPAND cannot read [" + name + "]: " + collection.conflict());
         }
-        String path = scope.path();
-        checkNotReplaced(expand.child(), path, target, "NESTED_EXPAND");
-        if (collections.stream().anyMatch(parent -> path.startsWith(parent + "."))) {
+        String path = collection.path();
+        checkNotReplaced(input, path, target, "NESTED_EXPAND");
+        if (scope.roots().keySet().stream().anyMatch(parent -> path.startsWith(parent + "."))) {
             throw error(target, "NESTED_EXPAND supports one nesting level");
         }
-        if (scope.indices().stream().anyMatch(index -> index.contains(":"))) {
+        if (collection.indices().stream().anyMatch(index -> index.contains(":"))) {
             throw error(target, "NESTED_EXPAND cross-cluster loading is not supported by this PoC");
         }
-        List<FieldAttribute> children = new ArrayList<>();
-        for (Attribute attribute : input) {
-            if (attribute instanceof FieldAttribute field
-                && field.field() instanceof NestedScopeField child
-                && child.collection() == false
-                && child.path().equals(path)
-                && child.getDataType() != DataType.OBJECT) {
-                if (SUPPORTED_CHILD_TYPES.contains(child.getDataType()) == false) {
-                    throw error(
-                        target,
-                        "NESTED_EXPAND does not support child type [" + child.getDataType() + "] for [" + publicName(field) + "]"
-                    );
-                }
-                children.add(field);
-            }
-        }
-        children.sort(Comparator.comparing(NestedReductionsAnalysis::publicName));
         List<Attribute> expanded = new ArrayList<>();
         List<String> paths = new ArrayList<>();
         List<Set<String>> mapped = new ArrayList<>();
-        for (FieldAttribute child : children) {
-            String column = publicName(child);
+        for (Attribute child : children(input, scope, path)) {
+            String column = scope.child(child);
+            if (SUPPORTED_CHILD_TYPES.contains(child.dataType()) == false) {
+                throw error(target, "NESTED_EXPAND does not support child type [" + child.dataType() + "] for [" + column + "]");
+            }
             expanded.add(new ReferenceAttribute(expand.source(), column, child.dataType()));
             paths.add(column.substring(path.length() + 1));
-            mapped.add(((NestedScopeField) child.field()).indices());
-        }
-        List<Attribute> metadata = new ArrayList<>();
-        for (String role : METADATA) {
-            Attribute found = input.stream()
-                .filter(a -> a.synthetic() && a.name().equals(privateMetadataName(role)))
-                .findFirst()
-                .orElse(null);
-            if (found == null) {
-                throw error(target, "NESTED_EXPAND input is missing required source metadata [" + role + "]");
-            }
-            metadata.add(found);
+            mapped.add(scope.fields().get(column).indices());
         }
         return new NestedExpand(
             expand.source(),
-            expand.child(),
+            input,
             null,
             metadata,
             path,
-            scope.indices(),
+            collection.indices(),
             expanded,
             paths,
             mapped,
-            scope.sourceFailures()
+            collection.sourceFailures()
         );
-    }
-
-    private static String publicName(FieldAttribute field) {
-        return field.name().substring(NestedScopeField.PREFIX.length());
-    }
-
-    public static final class Cleanup extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-        @Override
-        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            if (plan.anyMatch(
-                p -> p instanceof NestedExpand || p.expressions().stream().anyMatch(e -> e.anyMatch(NestedReduction.class::isInstance))
-            ) == false) {
-                return plan;
-            }
-            return plan.transformUp(p -> {
-                if (p instanceof EsRelation relation) {
-                    return relation.withAttributes(relation.output().stream().filter(a -> isSchema(a) == false).toList());
-                }
-                if (p instanceof MergePlan merge) {
-                    return merge.replaceSubPlansAndOutput(
-                        merge.children(),
-                        merge.output().stream().filter(a -> isSchema(a) == false).toList()
-                    );
-                }
-                if (p instanceof Project project) {
-                    var projections = project.projections().stream().filter(a -> isSchema(a) == false).toList();
-                    return projections.size() == project.projections().size() ? project : project.withProjections(projections);
-                }
-                if (p instanceof Eval eval) {
-                    var fields = eval.fields().stream().filter(a -> isSchema(a) == false).toList();
-                    if (fields.size() != eval.fields().size()) {
-                        if (fields.isEmpty()) {
-                            return eval.child();
-                        }
-                        return eval instanceof NestedReduce
-                            ? new NestedReduce(eval.source(), eval.child(), fields)
-                            : new Eval(eval.source(), eval.child(), fields);
-                    }
-                }
-                return p;
-            });
-        }
-    }
-
-    /** Nested schema and the captured source aliases. The empty-output marker is synthetic and must stay where it is. */
-    private static boolean carriedThroughProject(Attribute attribute) {
-        return isSchema(attribute) || (attribute.synthetic() && isPrivateMetadataName(attribute.name()));
-    }
-
-    private static boolean isSchema(Expression a) {
-        return a instanceof FieldAttribute f && f.field() instanceof NestedScopeField
-            || a instanceof NamedExpression n && n.name().startsWith(NestedScopeField.PREFIX);
     }
 
     private static VerificationException error(Expression expression, String message) {

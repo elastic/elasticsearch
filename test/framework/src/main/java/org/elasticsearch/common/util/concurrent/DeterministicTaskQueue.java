@@ -229,8 +229,13 @@ public class DeterministicTaskQueue {
         this.selectionPolicy = selectionPolicy;
         this.priorityRandom = switch (selectionPolicy) {
             case UNIFORM -> null;
-            case RANDOM_PRIORITY -> new Random(random.nextLong());
+            case RANDOM_PRIORITY -> createPriorityRandom();
         };
+    }
+
+    // visible for testing, so that a test can choose each task's priority
+    Random createPriorityRandom() {
+        return new Random(random.nextLong());
     }
 
     private int pickByPriority() {

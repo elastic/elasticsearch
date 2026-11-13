@@ -15,9 +15,11 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.PrimitiveIterator;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Future;
@@ -122,34 +124,70 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     /**
-     * A task stays pending while a chain of {@code m} tasks, each submitted by the one before, runs to completion with probability
-     * {@code 2^-m} under uniform selection but {@code 1/(m+1)} under random priorities. Over many queues the priority policy should
-     * therefore hold the task back at least once, which uniform selection practically never does for a chain this long.
+     * With the lowest priority, task {@code L} waits for the whole chain {@code C1 -> C2 -> ... -> C5}, each link submitting the next.
      */
-    public void testRandomPriorityHoldsTaskBackAcrossLongChain() {
-        final int chainLength = 20;
-        final int queues = 500; // expect about 24 holds; the chance of none is about e^-24
-        int holds = 0;
-        for (int q = 0; q < queues; q++) {
-            final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(new Random(randomLong()));
-            taskQueue.setSelectionPolicy(DeterministicTaskQueue.SelectionPolicy.RANDOM_PRIORITY);
-            final AtomicInteger chainRun = new AtomicInteger();
-            final AtomicBoolean heldUntilChainEnd = new AtomicBoolean();
-            taskQueue.scheduleNow(() -> heldUntilChainEnd.set(chainRun.get() == chainLength));
-            taskQueue.scheduleNow(new Runnable() {
-                @Override
-                public void run() {
-                    if (chainRun.incrementAndGet() < chainLength) {
-                        taskQueue.scheduleNow(this);
-                    }
+    public void testRandomPriorityHoldsLowPriorityTaskUntilChainEnds() {
+        assertThat(runChainWithPriorities(0.1, 0.9, 0.8, 0.7, 0.6, 0.5), contains("C1", "C2", "C3", "C4", "C5", "L"));
+    }
+
+    /**
+     * Task {@code L} runs as soon as a link of the chain draws a lower priority than it did, and the rest of the chain follows.
+     */
+    public void testRandomPriorityRunsTaskWhenChainLinkDrawsLower() {
+        assertThat(runChainWithPriorities(0.3, 0.9, 0.8, 0.2, 0.7, 0.6), contains("C1", "C2", "L", "C3", "C4", "C5"));
+    }
+
+    public void testRandomPriorityRunsHigherPriorityTaskFirst() {
+        assertThat(runChainWithPriorities(0.9, 0.8, 0.7, 0.6, 0.5, 0.4), contains("L", "C1", "C2", "C3", "C4", "C5"));
+    }
+
+    /**
+     * Runs task {@code L} and the chain {@code C1 -> C2 -> ... -> C5} under {@link DeterministicTaskQueue.SelectionPolicy#RANDOM_PRIORITY}.
+     * Priorities are drawn when a task becomes runnable, so they go to {@code L}, {@code C1}, ..., {@code C5} in that order.
+     *
+     * @return the order in which the tasks ran
+     */
+    private List<String> runChainWithPriorities(double... priorities) {
+        final DeterministicTaskQueue taskQueue = new ScriptedPriorityTaskQueue(priorities);
+        taskQueue.setSelectionPolicy(DeterministicTaskQueue.SelectionPolicy.RANDOM_PRIORITY);
+        final List<String> order = new ArrayList<>();
+        taskQueue.scheduleNow(() -> order.add("L"));
+        taskQueue.scheduleNow(new Runnable() {
+            private int link = 1;
+
+            @Override
+            public void run() {
+                order.add("C" + link);
+                if (link++ < 5) {
+                    taskQueue.scheduleNow(this);
                 }
-            });
-            taskQueue.runAllRunnableTasks();
-            if (heldUntilChainEnd.get()) {
-                holds++;
             }
+        });
+        taskQueue.runAllRunnableTasks();
+        return order;
+    }
+
+    /**
+     * A queue whose priority draws return the given values in order, so a test can choose each task's priority. Overriding the
+     * generator is needed because the real one is seeded from the queue's {@link Random}, so its values cannot be chosen.
+     */
+    private static class ScriptedPriorityTaskQueue extends DeterministicTaskQueue {
+        private final PrimitiveIterator.OfDouble priorities;
+
+        ScriptedPriorityTaskQueue(double... priorities) {
+            super(new Random(0));
+            this.priorities = Arrays.stream(priorities).iterator();
         }
-        assertThat(holds, greaterThan(0));
+
+        @Override
+        Random createPriorityRandom() {
+            return new Random() {
+                @Override
+                public double nextDouble() {
+                    return priorities.nextDouble();
+                }
+            };
+        }
     }
 
     /**

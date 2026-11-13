@@ -43,7 +43,8 @@ import static org.hamcrest.Matchers.equalTo;
  * <p>The array form of a field is split into its elements, and the mapper is handed each in turn, an object included, on its start token.
  * A number accessor read there must throw, as the JSON parser's does, and not return the number that the previous element left behind.
  * With assertions on, the old behavior shows up as an assertion in {@code DocumentParser}, because the object was not consumed. With them
- * off it was silent: {@code [1.5, {"x": 1}]} was accepted and indexed five values, the stale 1.5 three times and the 1 from {@code x} twice.
+ * off it was silent: {@code [1.5, {"x": 1}]} was accepted and indexed five values, the stale 1.5 three times and the 1 from {@code x}
+ * twice.
  */
 public class RowSourceMalformedValueExtrasTests extends MapperServiceTestCase {
 

@@ -73,6 +73,13 @@ public final class SimdJsonDirectWalker {
     private final DoubleParser doubleParser = new DoubleParser();
     private final int maxDepth;
     private byte[] stringBuf = new byte[4096];
+    /**
+     * Holds the unescaped bytes of every string value in the current document that contained an
+     * escape. Reset at the start of each document, so the slices handed to the handler stay valid
+     * until the next {@link #walkDocument} call (see {@link JsonDocumentHandler#stringField}).
+     */
+    private byte[] valueArena = new byte[4096];
+    private int valueArenaPos;
     private int currentDepth;
     private int docCount;
     private int docStart;
@@ -115,14 +122,18 @@ public final class SimdJsonDirectWalker {
 
     private void walkDocument(byte[] buffer, int docStart, BitIndexes bitIndexes, JsonDocumentHandler handler) {
         this.docStart = docStart;
+        this.valueArenaPos = 0;
         try {
             walkDocumentBody(buffer, bitIndexes, handler);
-        } catch (ArrayIndexOutOfBoundsException e) {
+        } catch (IndexOutOfBoundsException e) {
             // Scalar scanning (numbers, literals, strings, escaped names) trusts that a well-formed
             // document is terminated by a structural character, and so reads without bounds checks
             // beyond the value. A truncated document that ends exactly at the end of the buffer
             // violates that and runs off the array. Checking on every byte would cost the hot path,
-            // so the failure is translated here instead. Handlers must not throw this exception.
+            // so the failure is translated here instead. Likewise, unescaping sizes its output from
+            // the structural index after the string; a malformed string that runs past it overflows
+            // the arena, which the vector store reports as a plain IndexOutOfBoundsException.
+            // Handlers must not throw this exception.
             throw new JsonParsingException("Unexpected end of document", e);
         }
     }
@@ -222,9 +233,9 @@ public final class SimdJsonDirectWalker {
                         int strOff = valIdx + 1;
                         int len = stringParser.scanUnescapedLength(buffer, valIdx);
                         if (len < 0) {
-                            strBuf = unescapeString(buffer, valIdx);
+                            strBuf = unescapeString(buffer, valIdx, bi.peek());
                             len = unescapedLength;
-                            strOff = 0;
+                            strOff = unescapedOffset;
                         }
                         handler.stringField(fieldName, strBuf, strOff, len);
                     }
@@ -276,10 +287,8 @@ public final class SimdJsonDirectWalker {
                     if (len >= 0) {
                         handler.arrayElemString(buffer, idx + 1, len);
                     } else {
-                        int rawLen = scalarStringLength(buffer, idx + 1);
-                        byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                        int parsed = stringParser.parseString(buffer, idx, unescaped);
-                        handler.arrayElemString(unescaped, 0, parsed);
+                        byte[] unescaped = unescapeString(buffer, idx, bi.peek());
+                        handler.arrayElemString(unescaped, unescapedOffset, unescapedLength);
                     }
                 }
                 case 't' -> {
@@ -359,9 +368,9 @@ public final class SimdJsonDirectWalker {
                     int strOff = valIdx + 1;
                     int len = stringParser.scanUnescapedLength(buffer, valIdx);
                     if (len < 0) {
-                        strBuf = unescapeString(buffer, valIdx);
+                        strBuf = unescapeString(buffer, valIdx, bi.peek());
                         len = unescapedLength;
-                        strOff = 0;
+                        strOff = unescapedOffset;
                     }
                     handler.stringField(fieldName, strBuf, strOff, len);
                 }
@@ -1080,14 +1089,34 @@ public final class SimdJsonDirectWalker {
     // String helpers
     // ------------------------------------------------------------------
 
+    private int unescapedOffset;
     private int unescapedLength;
 
-    /** Unescapes a string value into a new buffer, leaving the length in {@link #unescapedLength}. Kept out of the field loop. */
-    private byte[] unescapeString(byte[] buffer, int valIdx) {
-        int rawLen = scalarStringLength(buffer, valIdx + 1);
-        byte[] out = new byte[rawLen + StringParser.DESTINATION_PADDING];
-        unescapedLength = stringParser.parseString(buffer, valIdx, out);
-        return out;
+    /**
+     * Unescapes the string value opening at {@code valIdx} into {@link #valueArena}, leaving the
+     * result's position in {@link #unescapedOffset}/{@link #unescapedLength}. Kept out of the field
+     * loop so the common escape-free path stays small.
+     *
+     * <p>{@code nextStructural} is the index of the structural character after the string (the
+     * {@code ,}, {@code }} or {@code ]} following the closing quote), so {@code nextStructural -
+     * valIdx - 2} bounds the raw and therefore the unescaped length. This replaces a byte-at-a-time
+     * pre-scan of the string to size a per-string allocation, which cost more than the unescaping
+     * itself on escape-dense input such as URLs with {@code \/}.
+     */
+    private byte[] unescapeString(byte[] buffer, int valIdx, int nextStructural) {
+        int maxLen = nextStructural - valIdx - 2;
+        int pos = valueArenaPos;
+        if (pos + maxLen + StringParser.DESTINATION_PADDING > valueArena.length) {
+            // Values already handed to the handler keep referencing the old array, so it must not
+            // be copied or reused; only this and later values go into the new one.
+            valueArena = new byte[Math.max(valueArena.length << 1, maxLen + StringParser.DESTINATION_PADDING)];
+            pos = 0;
+        }
+        int end = stringParser.parseStringInto(buffer, valIdx, valueArena, pos);
+        unescapedOffset = pos;
+        unescapedLength = end - pos;
+        valueArenaPos = end;
+        return valueArena;
     }
 
     private static int scalarStringLength(byte[] buffer, int start) {

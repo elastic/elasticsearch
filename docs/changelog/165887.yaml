@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 165887
-summary: Fix PromQL views queried with SET `unmapped_fields`
+summary: Fix `unmapped_fields` handling in views containing `PROMQL`
 type: bug

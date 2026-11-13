@@ -976,7 +976,17 @@ public class SecurityTests extends ESTestCase {
                                 ),
                             Map.of()
                         ),
-                        systemDataStreamDescriptor(uncoveredNoLifecycle, Template.builder(), Map.of())
+                        systemDataStreamDescriptor(uncoveredNoLifecycle, Template.builder(), Map.of()),
+                        new SystemDataStreamDescriptor(
+                            ".uncovered-unmanaged",
+                            "unmanaged system data stream for testing",
+                            SystemDataStreamDescriptor.Type.EXTERNAL_UNMANAGED,
+                            null,
+                            Map.of(),
+                            List.of("test"),
+                            "test",
+                            null
+                        )
                     )
                 )
             )

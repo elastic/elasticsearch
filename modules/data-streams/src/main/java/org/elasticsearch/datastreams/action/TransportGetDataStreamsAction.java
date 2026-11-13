@@ -247,8 +247,10 @@ public class TransportGetDataStreamsAction extends TransportLocalProjectMetadata
             boolean indexTemplatePreferIlmValue = true;
             String ilmPolicyName = null;
             IndexMode indexMode = dataStream.getIndexMode();
-            if (dataStream.isSystem()) {
-                SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStream.getName());
+            final SystemDataStreamDescriptor dataStreamDescriptor = dataStream.isSystem()
+                ? systemIndices.findMatchingDataStreamDescriptor(dataStream.getName())
+                : null;
+            if (dataStream.isSystem() && (dataStreamDescriptor == null || dataStreamDescriptor.isAutomaticallyManaged())) {
                 indexTemplate = dataStreamDescriptor != null ? dataStreamDescriptor.getDataStreamName() : null;
                 if (dataStreamDescriptor != null) {
                     Settings settings = MetadataIndexTemplateService.resolveSettings(

@@ -46,6 +46,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
@@ -59,6 +60,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -359,6 +361,91 @@ public class SystemDataStreamIT extends ESIntegTestCase {
         }
     }
 
+    public void testUnmanagedSystemDataStreamUsesClusterTemplate() throws Exception {
+        String dataStreamName = ".test-unmanaged";
+        RequestOptions productHeader = RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "product").build();
+        try (RestClient restClient = createRestClient()) {
+            Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+            indexRequest.setOptions(productHeader);
+            indexRequest.setJsonEntity("{\"@timestamp\":\"2099-03-08T11:06:07.000Z\",\"first\":\"a\"}");
+            ResponseException re = expectThrows(ResponseException.class, () -> restClient.performRequest(indexRequest));
+            assertThat(re.getMessage(), containsString("no matching index template found for data stream [" + dataStreamName + "]"));
+
+            Request putTemplate = new Request("PUT", "/_index_template/test-unmanaged");
+            putTemplate.setJsonEntity(unmanagedTemplate(dataStreamName, "first"));
+            restClient.performRequest(putTemplate);
+            restClient.performRequest(indexRequest);
+
+            putTemplate.setJsonEntity(unmanagedTemplate(dataStreamName, "second"));
+            restClient.performRequest(putTemplate);
+            Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
+            rolloverRequest.setOptions(productHeader);
+            restClient.performRequest(rolloverRequest);
+
+            var project = internalCluster().clusterService().state().metadata().getProject();
+            var writeIndex = project.index(project.dataStreams().get(dataStreamName).getWriteIndex());
+            assertThat(ObjectPath.eval("properties.second.type", writeIndex.mapping().sourceAsMap()), equalTo("keyword"));
+
+            putTemplate.setJsonEntity(unmanagedTemplate(".test-other", "first"));
+            re = expectThrows(ResponseException.class, () -> restClient.performRequest(putTemplate));
+            assertThat(re.getMessage(), containsString("would cause data streams [" + dataStreamName + "] to no longer match"));
+        }
+    }
+
+    public void testUpdateSettingsAndMappingsOfUnmanagedSystemDataStream() throws Exception {
+        String dataStreamName = ".test-unmanaged";
+        RequestOptions productHeader = RequestOptions.DEFAULT.toBuilder().addHeader("X-elastic-product-origin", "product").build();
+        try (RestClient restClient = createRestClient()) {
+            Request putTemplate = new Request("PUT", "/_index_template/test-unmanaged");
+            putTemplate.setJsonEntity(unmanagedTemplate(dataStreamName, "first"));
+            restClient.performRequest(putTemplate);
+            for (String name : List.of(dataStreamName, ".test-data-stream")) {
+                Request createDataStream = new Request("PUT", "/_data_stream/" + name);
+                createDataStream.setOptions(productHeader);
+                restClient.performRequest(createDataStream);
+            }
+
+            Map<String, String> updates = Map.of(
+                "_mappings",
+                "{\"properties\":{\"second\":{\"type\":\"keyword\"}}}",
+                "_settings",
+                "{\"index.refresh_interval\":\"7s\"}"
+            );
+            for (Map.Entry<String, String> update : updates.entrySet()) {
+                Request unmanagedUpdate = new Request("PUT", "/_data_stream/" + dataStreamName + "/" + update.getKey());
+                unmanagedUpdate.setJsonEntity(update.getValue());
+                Map<String, Object> response = entityAsMap(restClient.performRequest(unmanagedUpdate));
+                assertThat(ObjectPath.eval("data_streams.0.applied_to_data_stream", response), is(false));
+                assertThat(ObjectPath.eval("data_streams.0.error", response), containsString("reserved for system"));
+                unmanagedUpdate.setOptions(productHeader);
+                response = entityAsMap(restClient.performRequest(unmanagedUpdate));
+                assertThat(ObjectPath.eval("data_streams.0.applied_to_data_stream", response), is(true));
+
+                Request managedUpdate = new Request("PUT", "/_data_stream/.test-data-stream/" + update.getKey());
+                managedUpdate.setJsonEntity(update.getValue());
+                response = entityAsMap(restClient.performRequest(managedUpdate));
+                assertThat(ObjectPath.eval("data_streams.0.error", response), equalTo("Cannot update a system data stream"));
+            }
+
+            Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
+            rolloverRequest.setOptions(productHeader);
+            restClient.performRequest(rolloverRequest);
+
+            var project = internalCluster().clusterService().state().metadata().getProject();
+            var writeIndex = project.index(project.dataStreams().get(dataStreamName).getWriteIndex());
+            assertThat(ObjectPath.eval("properties.second.type", writeIndex.mapping().sourceAsMap()), equalTo("keyword"));
+            assertThat(writeIndex.getSettings().get("index.refresh_interval"), equalTo("7s"));
+        }
+    }
+
+    private static String unmanagedTemplate(String indexPattern, String keywordField) {
+        return Strings.format(
+            "{\"index_patterns\":[\"%s\"],\"data_stream\":{},\"template\":{\"mappings\":{\"properties\":{\"%s\":{\"type\":\"keyword\"}}}}}",
+            indexPattern,
+            keywordField
+        );
+    }
+
     @After
     public void cleanup() {
         try {
@@ -422,6 +509,16 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                             )
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),
+                        Map.of(),
+                        List.of("product"),
+                        "product",
+                        ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                    ),
+                    new SystemDataStreamDescriptor(
+                        ".test-unmanaged",
+                        "unmanaged system data stream test",
+                        Type.EXTERNAL_UNMANAGED,
+                        null,
                         Map.of(),
                         List.of("product"),
                         "product",

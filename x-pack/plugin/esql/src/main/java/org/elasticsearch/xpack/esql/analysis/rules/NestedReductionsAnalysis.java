@@ -137,7 +137,16 @@ public final class NestedReductionsAnalysis {
         // These bindings are already flattened: each child has its own entry and per-index applicability.
         // Retaining one branch's property tree would misrepresent children supplied only by another branch.
         return left.withField(
-            new NestedScopeField(first.getName(), type, Map.of(), first.path(), indices, first.collection(), sourceFailures)
+            new NestedScopeField(
+                first.getName(),
+                type,
+                Map.of(),
+                first.path(),
+                indices,
+                first.collection(),
+                sourceFailures,
+                first.conflict() != null ? first.conflict() : second.conflict()
+            )
         );
     }
 
@@ -366,6 +375,9 @@ public final class NestedReductionsAnalysis {
         Map<String, String> sourceFailures = new HashMap<>();
         for (Attribute attr : fields.values()) {
             if (attr instanceof FieldAttribute f && f.field() instanceof NestedScopeField n) {
+                if (n.conflict() != null) {
+                    throw error(nested, "NESTED cannot read [" + publicName(f) + "]: " + n.conflict());
+                }
                 if (path != null && path.equals(n.path()) == false) {
                     throw error(nested, "NESTED requires one nested path");
                 }
@@ -452,6 +464,9 @@ public final class NestedReductionsAnalysis {
             throw error(target, "NESTED_EXPAND requires all nodes to support nested expansion");
         }
         NestedScopeField scope = (NestedScopeField) root.field();
+        if (scope.conflict() != null) {
+            throw error(target, "NESTED_EXPAND cannot read [" + name + "]: " + scope.conflict());
+        }
         String path = scope.path();
         if (collections.stream().anyMatch(parent -> path.startsWith(parent + "."))) {
             throw error(target, "NESTED_EXPAND supports one nesting level");

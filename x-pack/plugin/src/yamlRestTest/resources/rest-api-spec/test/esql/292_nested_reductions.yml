@@ -1924,3 +1924,178 @@ a reduction after a coordinator step reads source:
 - match:
     values:
     - [3]
+
+---
+a nested path conflict does not fail a reduction that does not read it:
+- do:
+    indices.create:
+      index: nr_pc1
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            a:
+              type: nested
+              properties:
+                x:
+                  type: long
+                b:
+                  properties:
+                    c:
+                      type: long
+- do:
+    indices.create:
+      index: nr_pc2
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            a:
+              type: nested
+              properties:
+                x:
+                  type: long
+                b:
+                  type: nested
+                  properties:
+                    c:
+                      type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_pc1
+          _id: one
+      - a:
+        - x: 1
+          b:
+            c: 5
+      - index:
+          _index: nr_pc2
+          _id: two
+      - a:
+        - x: 2
+          b:
+          - c: 6
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_pc1,nr_pc2 | EVAL total = NESTED(SUM(a.x)) | KEEP total | SORT total | LIMIT 10
+- match:
+    values:
+    - [1]
+    - [2]
+
+---
+a reduction that reads a field under different nested paths is rejected:
+- do:
+    indices.create:
+      index: nr_pc1
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            a:
+              type: nested
+              properties:
+                x:
+                  type: long
+                b:
+                  properties:
+                    c:
+                      type: long
+- do:
+    indices.create:
+      index: nr_pc2
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            a:
+              type: nested
+              properties:
+                x:
+                  type: long
+                b:
+                  type: nested
+                  properties:
+                    c:
+                      type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_pc1
+          _id: one
+      - a:
+        - x: 1
+          b:
+            c: 5
+      - index:
+          _index: nr_pc2
+          _id: two
+      - a:
+        - x: 2
+          b:
+          - c: 6
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_pc1,nr_pc2 | EVAL total = NESTED(SUM(a.b.c)) | KEEP total | LIMIT 10
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: "nested path is [a] in [nr_pc1] but [a.b] in [nr_pc2]"
+
+---
+a path nested in one index and an object in another is rejected:
+- do:
+    indices.create:
+      index: nr_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            items:
+              properties:
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_object
+          _id: o
+      - items:
+        - price: 3
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_orders,nr_object | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: "[items] is [nested] in [nr_orders] but [object] in [nr_object]"

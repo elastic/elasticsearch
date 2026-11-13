@@ -794,3 +794,39 @@ synthetic source expands doc values on the data node:
     values:
     - [10]
     - [20]
+
+---
+a path nested in one index and an object in another cannot be expanded:
+- do:
+    indices.create:
+      index: ne_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            items:
+              properties:
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: ne_object
+          _id: o
+      - items:
+        - price: 3
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM ne_orders,ne_object | NESTED_EXPAND items | KEEP items.price | LIMIT 10
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: "[items] is [nested] in [ne_orders] but [object] in [ne_object]"

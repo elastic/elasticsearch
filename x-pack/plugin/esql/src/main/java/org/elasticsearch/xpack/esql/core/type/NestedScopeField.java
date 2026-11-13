@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /** Analysis-only namespace for fields visible exclusively inside an explicit NESTED expression. */
 public final class NestedScopeField extends EsField {
@@ -31,9 +34,13 @@ public final class NestedScopeField extends EsField {
     private final Set<String> indices;
     private final boolean collection;
     private final Map<String, String> sourceFailures;
+    @Nullable
+    private final String conflict;
 
     /**
      * @param sourceFailures why NESTED cannot read the {@code _source} of some of {@code indices}, by index name
+     * @param conflict how the indices disagree on the nested mapping of this field, or {@code null} if they agree. Only a
+     *                 NESTED reduction or expansion that reads the field fails with it.
      */
     public NestedScopeField(
         String name,
@@ -42,13 +49,15 @@ public final class NestedScopeField extends EsField {
         String path,
         Set<String> indices,
         boolean collection,
-        Map<String, String> sourceFailures
+        Map<String, String> sourceFailures,
+        @Nullable String conflict
     ) {
         super(name, type, properties, false, TimeSeriesFieldType.NONE);
         this.path = path;
         this.indices = Set.copyOf(indices);
         this.collection = collection;
         this.sourceFailures = Map.copyOf(sourceFailures);
+        this.conflict = conflict;
     }
 
     public String path() {
@@ -67,9 +76,14 @@ public final class NestedScopeField extends EsField {
         return sourceFailures;
     }
 
+    @Nullable
+    public String conflict() {
+        return conflict;
+    }
+
     @Override
     public EsField withProperties(Map<String, EsField> properties) {
-        return new NestedScopeField(getName(), getDataType(), properties, path, indices, collection, sourceFailures);
+        return new NestedScopeField(getName(), getDataType(), properties, path, indices, collection, sourceFailures, conflict);
     }
 
     @Override
@@ -86,12 +100,13 @@ public final class NestedScopeField extends EsField {
         return path.equals(other.path)
             && indices.equals(other.indices)
             && collection == other.collection
-            && sourceFailures.equals(other.sourceFailures);
+            && sourceFailures.equals(other.sourceFailures)
+            && Objects.equals(conflict, other.conflict);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, indices, collection, sourceFailures);
+        return Objects.hash(super.hashCode(), path, indices, collection, sourceFailures, conflict);
     }
 
     /** Finds the actual nested ancestor in this index, rather than inferring one from dots in a name. */
@@ -118,15 +133,31 @@ public final class NestedScopeField extends EsField {
         Map<String, List<IndexFieldCapabilities>> caps = new TreeMap<>();
         Map<String, Set<String>> indices = new HashMap<>();
         Map<String, String> paths = new HashMap<>();
-        for (var response : responses) {
+        Map<String, String> pathIndex = new HashMap<>();
+        Map<String, String> conflicts = new HashMap<>();
+        List<FieldCapabilitiesIndexResponse> sorted = new ArrayList<>(responses);
+        sorted.sort(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName));
+        for (var response : sorted) {
             for (var fc : response.get().values()) {
                 String path = pathFor(fc.name(), response.get());
                 if (path == null) {
                     continue;
                 }
                 String oldPath = paths.putIfAbsent(fc.name(), path);
+                pathIndex.putIfAbsent(fc.name(), response.getIndexName());
                 if (oldPath != null && oldPath.equals(path) == false) {
-                    throw new IllegalArgumentException("conflicting nested paths for [" + fc.name() + "]");
+                    conflicts.putIfAbsent(
+                        fc.name(),
+                        "its nested path is ["
+                            + oldPath
+                            + "] in ["
+                            + pathIndex.get(fc.name())
+                            + "] but ["
+                            + path
+                            + "] in ["
+                            + response.getIndexName()
+                            + "]"
+                    );
                 }
                 caps.computeIfAbsent(fc.name(), k -> new ArrayList<>()).add(fc);
                 indices.computeIfAbsent(fc.name(), k -> new HashSet<>()).add(response.getIndexName());
@@ -134,6 +165,29 @@ public final class NestedScopeField extends EsField {
         }
         if (caps.isEmpty()) {
             return null;
+        }
+        // A path that another index maps as an object, or anything else, has no child documents there to read.
+        for (String path : new TreeSet<>(paths.values())) {
+            for (var response : sorted) {
+                IndexFieldCapabilities fc = response.get().get(path);
+                if (fc != null && fc.type().equals("nested") == false) {
+                    String conflict = "["
+                        + path
+                        + "] is [nested] in ["
+                        + pathIndex.get(path)
+                        + "] but ["
+                        + fc.type()
+                        + "] in ["
+                        + response.getIndexName()
+                        + "]";
+                    paths.forEach((field, fieldPath) -> {
+                        if (fieldPath.equals(path)) {
+                            conflicts.putIfAbsent(field, conflict);
+                        }
+                    });
+                    break;
+                }
+            }
         }
         Map<String, EsField> roots = new TreeMap<>();
         for (var entry : caps.entrySet()) {
@@ -166,7 +220,19 @@ public final class NestedScopeField extends EsField {
                     fieldFailures.put(index, sourceFailures.get(index));
                 }
             }
-            parent.put(name, new NestedScopeField(name, type, properties, paths.get(fullName), fieldIndices, collection, fieldFailures));
+            parent.put(
+                name,
+                new NestedScopeField(
+                    name,
+                    type,
+                    properties,
+                    paths.get(fullName),
+                    fieldIndices,
+                    collection,
+                    fieldFailures,
+                    conflicts.get(fullName)
+                )
+            );
         }
         return new EsField(NAMESPACE, DataType.OBJECT, roots, false, TimeSeriesFieldType.NONE);
     }

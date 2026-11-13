@@ -78,8 +78,8 @@ public class NestedReductionsContractTests extends LuceneTestCase {
     public static Iterable<Object[]> contracts() throws IOException {
         LogConfigurator.configureESLogging();
         List<Object[]> parameters = new ArrayList<>();
-        parameters.addAll(contracts("292_nested_reductions.yml", 64));
-        parameters.addAll(contracts("295_nested_expand.yml", 26));
+        parameters.addAll(contracts("292_nested_reductions.yml", 67));
+        parameters.addAll(contracts("295_nested_expand.yml", 27));
         parameters.addAll(contracts("296_nested_reductions_pushdown.yml", 8));
         return parameters;
     }

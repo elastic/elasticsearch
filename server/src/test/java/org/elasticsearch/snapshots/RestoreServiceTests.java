@@ -14,6 +14,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -28,6 +30,9 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -66,6 +71,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -790,6 +796,77 @@ public class RestoreServiceTests extends ESTestCase {
         RestoreInProgress.Entry entry = updated.get(restoreUuid);
         assertThat("the entry was rebuilt", entry.shards().get(s.primary().shardId()).state(), equalTo(RestoreInProgress.State.SUCCESS));
         assertTrue(entry.reportShardRestoring());
+    }
+
+    /**
+     * With no data nodes, allocation correctly cannot place restore primaries. That wait must not permanently fail the restore: once a
+     * data node returns, allocation should proceed. Today {@code failAllocationOfNewPrimaries} synthesizes
+     * {@link UnassignedInfo.AllocationStatus#DECIDERS_NO} so cluster health turns red,
+     * {@link RestoreService.RestoreInProgressUpdater} treats that as a terminal restore failure, and
+     * {@link org.elasticsearch.cluster.routing.allocation.decider.RestoreInProgressAllocationDecider} then blocks the shard forever —
+     * forcing a manual retry.
+     */
+    public void testRestoreContinuesAfterTemporaryAbsenceOfDataNodes() {
+        var snapshot = new Snapshot("repository", new SnapshotId("snapshot", UUIDs.randomBase64UUID(random())));
+        var indexId = new IndexId("test", UUIDs.randomBase64UUID(random()));
+        var restoreUUID = UUIDs.randomBase64UUID(random());
+        var recoverySource = new SnapshotRecoverySource(restoreUUID, snapshot, IndexVersion.current(), indexId);
+        var indexMetadata = IndexMetadata.builder("test")
+            // Snapshotted indices carry their in-sync allocation IDs into the restored IndexMetadata.
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID(random())))
+            .build();
+        var shardId = new ShardId(indexMetadata.getIndex(), 0);
+
+        var masterNode = DiscoveryNodeUtils.builder("master").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .addAsNewRestore(indexMetadata, recoverySource, Set.of())
+            )
+            .putCustom(
+                RestoreInProgress.TYPE,
+                new RestoreInProgress.Builder().add(
+                    new RestoreInProgress.Entry(
+                        restoreUUID,
+                        snapshot,
+                        RestoreInProgress.State.STARTED,
+                        false,
+                        List.of(indexMetadata.getIndex().getName()),
+                        Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(masterNode.getId()))
+                    )
+                ).build()
+            )
+            .build();
+
+        var shardSize = randomNonNegativeLong();
+        var allocationService = ESAllocationTestCase.createAllocationService(
+            Settings.EMPTY,
+            new TestGatewayAllocator(),
+            EmptyClusterInfoService.INSTANCE,
+            () -> new SnapshotShardSizeInfo(Map.of(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shardId), shardSize))
+        );
+
+        // Allocation with zero data nodes: the restore primary correctly stays unassigned.
+        clusterState = allocationService.reroute(clusterState, "reroute with no data nodes", ActionListener.noop());
+        var primary = clusterState.routingTable().index("test").shard(0).primaryShard();
+        assertFalse("restore primary must wait while there are no data nodes", primary.assignedToNode());
+
+        // Data node returns: the restore must place the primary rather than staying stuck unassigned.
+        var dataNode = DiscoveryNodeUtils.builder("data").roles(Set.of(DiscoveryNodeRole.DATA_ROLE)).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(dataNode)).build();
+        clusterState = allocationService.reroute(clusterState, "reroute after data node joins", ActionListener.noop());
+
+        primary = clusterState.routingTable().index("test").shard(0).primaryShard();
+        assertThat(
+            "restore primary must be placed once a data node is available again",
+            primary.currentNodeId(),
+            equalTo(dataNode.getId())
+        );
     }
 
     /**

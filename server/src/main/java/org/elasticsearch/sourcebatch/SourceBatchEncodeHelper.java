@@ -10,10 +10,12 @@
 package org.elasticsearch.sourcebatch;
 
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -36,6 +38,19 @@ public final class SourceBatchEncodeHelper {
      */
     public static PackedArray packArray(XContentParser parser) throws IOException {
         return parseArray(parser);
+    }
+
+    /**
+     * The client's spelling of a floating-point token, {@code text}, when it is not the canonical
+     * {@code Double.toString} rendering of {@code value}, which readers fall back to; {@code null} when it is, the
+     * common case, so that nothing is stored for it.
+     */
+    @Nullable
+    public static XContentString.UTF8Bytes lexicalForm(String text, double value) {
+        if (Double.toString(value).equals(text)) {
+            return null;
+        }
+        return new XContentString.UTF8Bytes(text.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

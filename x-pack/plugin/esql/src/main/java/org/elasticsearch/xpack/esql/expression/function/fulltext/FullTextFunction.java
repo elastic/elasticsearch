@@ -91,6 +91,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
@@ -753,18 +754,19 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
-     * Whether wrapping {@code fieldAttribute} in a conversion to {@code targetType} (TEXT via {@code TO_TEXT}, or
-     * KEYWORD via {@code TO_STRING}) changes its matching semantics from what a Lucene pushdown on the raw field
-     * would do. Only TEXT and KEYWORD targets can differ this way (analyzed vs. exact matching), so any other
-     * target is treated as safe without further checks. For a TEXT/KEYWORD target, safe (a no-op) only when the
+     * Whether wrapping {@code fieldAttribute} in a conversion to {@code targetType} (TEXT via {@code TO_TEXT},
+     * KEYWORD via {@code TO_STRING}, or DENSE_VECTOR via {@code TO_DENSE_VECTOR}) changes its matching semantics from what a Lucene
+     * pushdown on the raw field would do. Only TEXT, KEYWORD and DENSE_VECTOR targets can differ this way
+     * (analyzed vs. exact matching for TEXT/KEYWORD, DENSE_VECTOR supports very different kinds of operations), so any other
+     * target is treated as safe without further checks. For these targets, safe (a no-op) only when the
      * field is already {@code targetType} everywhere it's mapped; unsafe for an ordinary field of a different type,
-     * or a union-typed field whose per-branch conversions aren't uniformly a {@code targetType} no-op - covering both
+     * or a union-typed field whose per-branch conversions aren't uniformly a {@code targetType} - covering both
      * {@link UnionTypeEsField} representations (the modern {@code CompactMultiTypeEsField} and the legacy
      * {@code MultiTypeEsField}, the  latter still produced by cross-cluster searches against a remote cluster whose
      * minimum transport version predates {@code compact_multi_type_es_field}).
      */
     private static boolean isUnsafeAnalysisConversion(DataType targetType, FieldAttribute fieldAttribute) {
-        if (targetType != TEXT && targetType != KEYWORD) {
+        if (targetType != TEXT && targetType != KEYWORD && targetType != DENSE_VECTOR) {
             return false;
         }
         if (fieldAttribute.dataType() != targetType) {

@@ -338,7 +338,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     );
                 }
                 return elementType;
-            }, m -> toType(m).fieldType().element.elementType(), XContentBuilder::field, Objects::toString);
+            }, XContentBuilder::field, Objects::toString);
             if (this.indexMode.isVectorDb()) {
                 this.elementType.alwaysSerialize();
             }
@@ -350,7 +350,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
 
                 return XContentMapValues.nodeIntegerValue(o);
-            }, m -> toType(m).fieldType().dims, XContentBuilder::field, Objects::toString).setSerializerCheck((id, ic, v) -> v != null)
+            }, XContentBuilder::field, Objects::toString).setSerializerCheck((id, ic, v) -> v != null)
                 .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current))
                 .addValidator(dims -> {
                     if (dims == null) {
@@ -377,25 +377,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             final boolean defaultBBQHnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
             final boolean defaultBBQDisk = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK);
             this.indexed = Parameter.indexParam(
-                m -> toType(m).fieldType().indexed,
                 indexedByDefaultVersionCheck && (indexDisabledByDefault == false || this.indexMode.isSearchOptimizedColumnar())
             );
             if (indexedByDefaultVersionCheck) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading
                 this.indexed.alwaysSerialize();
             }
-            this.similarity = Parameter.enumParam(
-                "similarity",
-                false,
-                m -> toType(m).fieldType().similarity,
-                (Supplier<VectorSimilarity>) () -> {
-                    if (indexedByDefaultVersionCheck && indexed.getValue()) {
-                        return elementType.getValue().defaultSimilarity();
-                    }
-                    return null;
-                },
-                VectorSimilarity.class
-            ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null).addValidator(vectorSim -> {
+            this.similarity = Parameter.enumParam("similarity", false, (Supplier<VectorSimilarity>) () -> {
+                if (indexedByDefaultVersionCheck && indexed.getValue()) {
+                    return elementType.getValue().defaultSimilarity();
+                }
+                return null;
+            }, VectorSimilarity.class).acceptsNull().setSerializerCheck((id, ic, v) -> v != null).addValidator(vectorSim -> {
                 if (vectorSim == null) {
                     return;
                 }
@@ -410,7 +403,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 true,
                 () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQHnsw, defaultBBQDisk),
                 (n, c, o) -> o == null ? null : parseIndexOptions(n, o, c, experimentalFeaturesEnabled),
-                m -> toType(m).indexOptions,
                 (b, n, v) -> {
                     if (v != null) {
                         b.field(n, v);
@@ -613,7 +605,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexVersionCreated,
-                indexMode,
                 isExcludeSourceVectors,
                 isExcludeSourceVectorsFinal,
                 experimentalFeaturesEnabled,
@@ -4200,7 +4191,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private final DenseVectorIndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
-    private final IndexMode indexMode;
     private final boolean excludeSourceVectorsSetting;
     private final boolean excludeSourceVectors;
     private final boolean experimentalFeaturesEnabled;
@@ -4213,7 +4203,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         BuilderParams params,
         DenseVectorIndexOptions indexOptions,
         IndexVersion indexCreatedVersion,
-        IndexMode indexMode,
         boolean excludeSourceVectorsSetting,
         boolean excludeSourceVectors,
         boolean experimentalFeaturesEnabled,
@@ -4223,7 +4212,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
-        this.indexMode = indexMode;
         this.excludeSourceVectorsSetting = excludeSourceVectorsSetting;
         this.excludeSourceVectors = excludeSourceVectors;
         this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
@@ -4344,19 +4332,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            indexMode,
-            excludeSourceVectorsSetting,
-            experimentalFeaturesEnabled,
-            extraVectorsFormatProviders,
-            indexDisabledByDefault
-        ).init(this);
     }
 
     private static DenseVectorIndexOptions parseIndexOptions(

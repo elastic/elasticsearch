@@ -49,6 +49,7 @@ public final class ParquetReaderCounters implements FormatReadCounters {
     // Row-group filter
     private final LongAdder rowGroupsTotal = new LongAdder();
     private final LongAdder rowGroupsKept = new LongAdder();
+    private final LongAdder rowGroupsDictionaryFilterSkipped = new LongAdder();
 
     // Predicate pushdown (set when a non-null filter predicate was passed into the read path —
     // mirror of OrcReaderCounters.predicatePushdownUsed for cross-format consistency).
@@ -90,13 +91,25 @@ public final class ParquetReaderCounters implements FormatReadCounters {
     /**
      * Records one row group seen by the filter. {@code kept} is true when the row group survived
      * all filter levels and remains a candidate for column-index page filtering. parquet-mr does
-     * not expose which level (stats / dictionary / bloom) rejected a group, so only the total and
-     * the survivor count are tracked.
+     * not expose which level (stats / dictionary / bloom) rejected a group, so per-level rejections
+     * are not tracked; see {@link #addRowGroupsDictionaryFilterSkipped} for the groups on which the
+     * DICTIONARY level did not run at all.
      */
     public void addRowGroupFiltered(boolean kept) {
         rowGroupsTotal.increment();
         if (kept) {
             rowGroupsKept.increment();
+        }
+    }
+
+    /**
+     * Records row groups the filter ran without parquet-mr's DICTIONARY level because the dictionary
+     * pages of the predicate columns were not pre-warmed and reading them would have cost one
+     * synchronous range GET each. Such groups can only be pruned by statistics and bloom filters.
+     */
+    public void addRowGroupsDictionaryFilterSkipped(int count) {
+        if (count > 0) {
+            rowGroupsDictionaryFilterSkipped.add(count);
         }
     }
 
@@ -183,6 +196,7 @@ public final class ParquetReaderCounters implements FormatReadCounters {
             rowGroupsInFile.sum(),
             rowGroupsTotal.sum(),
             rowGroupsKept.sum(),
+            rowGroupsDictionaryFilterSkipped.sum(),
             pageIndexUsed,
             rowsInKeptRowGroups.sum(),
             rowsAfterPageIndex.sum(),

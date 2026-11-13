@@ -248,16 +248,13 @@ public class MsearchEstimationBenchmark {
             profileResults = new SearchProfileResults(shards);
         }
 
-        ShardSearchFailure[] shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+        List<ShardSearchFailure> shardFailures = List.of();
         if (doFailures) {
             // Three failures share one RuntimeException instance. estimateExceptionBytes walks the
             // cause chain independently for each failure, so it charges the exception cost three times —
             // an intentional over-estimate in production code. The benchmark intentionally mirrors that.
             RuntimeException cause = new RuntimeException("simulated shard failure: index out of range in shard [index][0]");
-            shardFailures = new ShardSearchFailure[] {
-                new ShardSearchFailure(cause),
-                new ShardSearchFailure(cause),
-                new ShardSearchFailure(cause) };
+            shardFailures = List.of(new ShardSearchFailure(cause), new ShardSearchFailure(cause), new ShardSearchFailure(cause));
         }
 
         SearchResponse.Clusters clusters;

@@ -461,19 +461,134 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat(re.getMessage(), containsString("include_ccs_metadata"));
     }
 
-    public void testUnmappedFieldsLoadAllRejected() {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> EsqlStreamTestUtils.rawStream(
-                client(),
-                "{\"query\": \"SET unmapped_fields=\\\"LOAD_ALL\\\"; FROM stream-test | LIMIT 1\"}",
-                "streaming=true",
-                "format=ndjson"
-            )
+    /**
+     * Creates a three-shard index with {@code dynamic: false} and one mapped field. Every document carries its own unmapped
+     * field plus a nested unmapped object shared by all, so under {@code LOAD_ALL} each shard contributes different leaves
+     * to the single {@code _unmapped_fields} column. {@code value} is {@code integer} to match {@code stream-load-all-mapped},
+     * so the two indices can be unioned without a type conflict.
+     */
+    private void initLoadAllIndex() throws IOException {
+        Request createIndex = new Request("PUT", "/stream-load-all");
+        createIndex.setJsonEntity("""
+            {
+              "settings": { "number_of_shards": 3, "number_of_replicas": 0 },
+              "mappings": {
+                "dynamic": false,
+                "properties": {
+                  "value": { "type": "integer" }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createIndex));
+
+        StringBuilder bulkBody = new StringBuilder();
+        for (int i = 0; i < 6; i++) {
+            int value = 10 + i;
+            bulkBody.append("{\"index\": {}}\n");
+            bulkBody.append(Strings.format("{\"value\": %d, \"only_%d\": \"v%d\", \"common\": {\"n\": %d}}\n", value, value, value, value));
+        }
+        Request bulk = new Request("POST", "/_bulk?index=stream-load-all&refresh=true");
+        bulk.setJsonEntity(bulkBody.toString());
+        assertOK(client().performRequest(bulk));
+    }
+
+    /**
+     * Creates an index that maps only {@code value} and whose documents carry nothing else, so it has no unmapped fields.
+     * It is unioned with {@code stream-load-all} to get a branch that must be null-filled for {@code _unmapped_fields}.
+     * It deliberately maps nothing besides {@code value}: a field mapped here but not in {@code stream-load-all} (as
+     * {@code stream-test}'s {@code aggregate_metric_double} is) makes the analyzer warn that the field is partially unmapped.
+     */
+    private void initLoadAllMappedIndex() throws IOException {
+        Request createIndex = new Request("PUT", "/stream-load-all-mapped");
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "dynamic": false,
+                "properties": {
+                  "value": { "type": "integer" }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createIndex));
+
+        Request bulk = new Request("POST", "/_bulk?index=stream-load-all-mapped&refresh=true");
+        bulk.setJsonEntity("""
+            {"index": {}}
+            {"value": 1}
+            {"index": {}}
+            {"value": 2}
+            {"index": {}}
+            {"value": 3}
+            {"index": {}}
+            {"value": 4}
+            """);
+        assertOK(client().performRequest(bulk));
+    }
+
+    public void testUnmappedFieldsLoadAllMatchesQuery() throws IOException {
+        initLoadAllIndex();
+        String esql = "SET unmapped_fields=\"LOAD_ALL\"; FROM stream-load-all | SORT value | LIMIT 100";
+        assertStreamAgreesWithQuery(esql);
+
+        List<Map<String, Object>> lines = stream(streamBody(esql), "batch_size=" + AGREEMENT_PAGE_SIZE);
+        Map<String, Object> header = lines.get(0);
+        assertThat(columnNames(header, "columns"), equalTo(List.of("value", "_unmapped_fields")));
+        assertThat(columnList(header, "columns").get(1).get("type"), equalTo("_source"));
+
+        List<List<Object>> rows = streamRows(lines);
+        assertThat(rows, hasSize(6));
+        List<Object> first = rows.get(0);
+        assertThat(((Number) first.get(0)).intValue(), equalTo(10));
+        assertThat(first.get(1), equalTo(Map.of("only_10", "v10", "common.n", 10)));
+    }
+
+    public void testUnmappedFieldsLoadAllWithEvalAndWhere() throws IOException {
+        initLoadAllIndex();
+        assertStreamAgreesWithQuery(
+            "SET unmapped_fields=\"LOAD_ALL\"; FROM stream-load-all | WHERE value > 11 | EVAL v2 = value * 2 | SORT value | LIMIT 100"
         );
-        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("LOAD_ALL"));
-        assertThat(re.getMessage(), containsString("streaming=true"));
+    }
+
+    /**
+     * A branch of a union that has no unmapped fields gets the {@code _unmapped_fields} column null-filled, and the header
+     * must still declare the column before any row of either branch is produced. The second branch is a dedicated index rather
+     * than {@code stream-test}, whose {@code aggregate_metric_double} field is unmapped in {@code stream-load-all} and would make
+     * the analyzer warn that it is partially unmapped (the same warning a normal {@code /_query} gives).
+     */
+    public void testUnmappedFieldsLoadAllUnionNullFill() throws IOException {
+        initLoadAllIndex();
+        initLoadAllMappedIndex();
+        List<Map<String, Object>> lines = stream(
+            streamBody("SET unmapped_fields=\"LOAD_ALL\"; FROM stream-load-all, (FROM stream-load-all-mapped) | SORT value | LIMIT 100"),
+            "batch_size=" + AGREEMENT_PAGE_SIZE
+        );
+        assertThat(columnNames(lines.get(0), "columns"), equalTo(List.of("value", "_unmapped_fields")));
+
+        List<List<Object>> rows = streamRows(lines);
+        assertThat(rows, hasSize(10));
+        for (List<Object> row : rows) {
+            int value = ((Number) row.get(0)).intValue();
+            if (value >= 10) {
+                assertThat("stream-load-all row " + value, row.get(1), instanceOf(Map.class));
+            } else {
+                assertThat("stream-load-all-mapped row " + value + " has no unmapped fields", row.get(1), equalTo(null));
+            }
+        }
+    }
+
+    /**
+     * Streaming only drops columns backed by an index field, so {@code _unmapped_fields} stays in the header even when
+     * {@code drop_null_columns} is set and no row carries a value for it. Normal mode may drop it; that difference is documented.
+     */
+    public void testUnmappedFieldsLoadAllDropNullColumnsKeepsColumn() throws IOException {
+        initLoadAllIndex();
+        List<Map<String, Object>> lines = stream(
+            streamBody("SET unmapped_fields=\"LOAD_ALL\"; FROM stream-load-all | WHERE value < 0 | LIMIT 1"),
+            "drop_null_columns=true"
+        );
+        assertThat(columnNames(lines.get(0), "columns"), hasItem("_unmapped_fields"));
     }
 
     public void testUnmappedFieldsLoadStillWorks() throws IOException {

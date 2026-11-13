@@ -382,15 +382,18 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         signatures = {
             @Signature(params = { "date", "date_period|time_duration" }, returnType = "date"),
             @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING" }, returnType = "date"),
-            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date"),
+            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING", "named_parameters" }, returnType = "date"),
             @Signature(params = { "date_nanos", "date_period|time_duration" }, returnType = "date_nanos"),
             @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING" }, returnType = "date_nanos"),
-            @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date_nanos"),
+            @Signature(
+                params = { "date_nanos", "integer|long", "date|STRING", "date|STRING", "named_parameters" },
+                returnType = "date_nanos"
+            ),
             // unsigned_long is in NUMERIC but not supported by BUCKET; list the accepted numerics explicitly.
             @Signature(params = { "integer|long|double", "double|integer|long" }, returnType = "double"),
             @Signature(params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double" }, returnType = "double"),
             @Signature(
-                params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double", "object" },
+                params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double", "named_parameters" },
                 returnType = "double"
             ),
             // Histograms are bucketed like numbers, but return the non-empty double_range buckets.

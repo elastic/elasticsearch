@@ -38,7 +38,7 @@ public class SubqueryJoinKeyTypeTests extends ESTestCase {
         List<Attribute> leftKeys = List.of(leftKey);
         List<Attribute> rightKeys = List.of(rightKey);
         return List.of(
-            new InnerJoin(Source.EMPTY, left, right, leftKeys, rightKeys, List.of(), true),
+            new HashJoin(Source.EMPTY, left, right, leftKeys, rightKeys, List.of(), true),
             new InlineJoin(Source.EMPTY, left, right, JoinTypes.LEFT, leftKeys, rightKeys),
             new SemiJoin(Source.EMPTY, left, right, leftKeys, rightKeys),
             new AntiJoin(Source.EMPTY, left, right, leftKeys, rightKeys),

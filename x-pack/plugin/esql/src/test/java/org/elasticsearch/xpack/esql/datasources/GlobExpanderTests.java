@@ -7085,6 +7085,63 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * {@code _file.*} promotion of a schema-inference stash is only sound over a listing that saw the
+     * whole pattern: the first reject is then a well-defined choice. A bound that fills with files the
+     * hint drops has not seen the rest; a match may sit past it. The empty truncated listing must
+     * retry unbounded, the same as a partition-value miss, or FIRST_FILE_WINS infers schema from a
+     * file the query excluded.
+     */
+    public void testBoundedFileHintRejectingThePrefixRelistsInFull() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/file%02d.parquet", i), 10));
+        }
+        for (int i = 10; i < 15; i++) {
+            listing.add(entry(String.format(Locale.ROOT, "s3://bucket/data/file%02d.parquet", i), 100));
+        }
+        var hints = List.of(hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 50));
+
+        CountingStubProvider boundedProvider = new CountingStubProvider(listing);
+        FileList bounded = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            boundedProvider,
+            hints,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            new ListingExtents(8),
+            PlanningMemory.NONE
+        );
+
+        CountingStubProvider unboundedProvider = new CountingStubProvider(listing);
+        FileList unbounded = GlobExpander.expand(
+            "s3://bucket/data/*.parquet",
+            unboundedProvider,
+            hints,
+            HIVE_OFF,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            ListingExtents.UNBOUNDED,
+            PlanningMemory.NONE
+        );
+
+        assertEquals("the five files past the bound that survive _file.size > 50", 5, bounded.fileCount());
+        assertEquals(5, unbounded.fileCount());
+        assertEquals("s3://bucket/data/file10.parquet", bounded.path(0).toString());
+        assertEquals("the first file of the retried listing equals the unbounded listing's", unbounded.path(0), bounded.path(0));
+        assertFalse("the retry listed to the end of the pattern", bounded.isTruncated());
+        assertFalse(bounded.isInferenceAnchor());
+        assertEquals("bound 8 then the full 15 on retry", 23, boundedProvider.keysPulled());
+        assertEquals("an unbounded pass lists once", 15, unboundedProvider.keysPulled());
+        for (int i = 0; i < bounded.fileCount(); i++) {
+            assertEquals("index " + i, unbounded.path(i), bounded.path(i));
+            assertEquals(100L, bounded.size(i));
+        }
+    }
+
+    /**
      * The re-list after a narrowing matched nothing is the whole glob, so partition detection folds over all of it.
      * Keeping the partition sample across that retry would type a column from the front of a listing that shipped
      * every file, and leave every file past the sample with no partition values at all.

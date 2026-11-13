@@ -149,7 +149,7 @@ public class HeapAttackFieldsIT extends HeapAttackTestCase {
             setRequestBreakerLimit("20%");
             assertCircuitBreaks(attempt -> fetchBigText(esqlQuery));
 
-            var s = streamQuery(esqlQuery, 1);
+            var s = streamQuery(esqlQuery);
             assertThat("streaming must not surface an error", s.errors(), empty());
             assertThat(s.columns(), hasSize(1));
             assertMap(s.columns().get(0), matchesMap().entry("name", "f").entry("type", "text"));

@@ -13,8 +13,11 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
@@ -176,6 +179,29 @@ public final class EscfColumnBuilder implements Releasable {
 
     public void addBinary(BytesRef value) {
         setBinary(nextAppendRow(), value);
+    }
+
+    /**
+     * Adds a {@code BINARY} value for the next row that {@code writer} writes straight into the column's buffer. A column that
+     * already mixes kinds takes a copy instead. The builder is unusable if {@code writer} throws.
+     */
+    public void addBinary(CheckedConsumer<StreamOutput, IOException> writer) throws IOException {
+        final int row = nextAppendRow();
+        assert lockedKind == -1 || lockedKind == EscfColumnKind.BINARY
+            : "column locked to " + EscfColumnKind.name(lockedKind) + " but received BINARY";
+        if (current == null) {
+            fillGapTo(row);
+            current = newScalarWithBackfill(EscfColumnKind.BINARY);
+        }
+        if (current instanceof VarBuilder var && var.kind() == EscfColumnKind.BINARY) {
+            var.addStreamed(writer);
+            lastWrittenRow = row;
+            return;
+        }
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            writer.accept(out);
+            setBinary(row, out.bytes().toBytesRef());
+        }
     }
 
     /**
@@ -1249,6 +1275,14 @@ public final class EscfColumnBuilder implements Releasable {
             recordOffset();
             writeBytes(data, bytes, offset, length);
             dataLen += length;
+            advancePresent();
+        }
+
+        void addStreamed(CheckedConsumer<StreamOutput, IOException> writer) throws IOException {
+            recordOffset();
+            final long start = data.position();
+            writer.accept(data);
+            dataLen += Math.toIntExact(data.position() - start);
             advancePresent();
         }
 

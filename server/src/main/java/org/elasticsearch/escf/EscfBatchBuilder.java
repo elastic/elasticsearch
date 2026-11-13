@@ -12,7 +12,9 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -20,6 +22,8 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentString;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -162,10 +166,23 @@ public final class EscfBatchBuilder implements Releasable {
                 (XContentString.UTF8Bytes) rowBuffer.scratchVar(col) // the stored spelling, or null
             );
             case SourceValueType.STRING -> builder.addString((XContentString.UTF8Bytes) rowBuffer.scratchVar(col));
-            case SourceValueType.BINARY -> builder.addBinary((BytesRef) rowBuffer.scratchVar(col));
+            case SourceValueType.BINARY -> addBinary(builder, rowBuffer.scratchVar(col));
             case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) rowBuffer.scratchVar(col));
             case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) rowBuffer.scratchVar(col));
             default -> throw new IllegalStateException("unexpected scratch type [" + SourceValueType.name(type) + "]");
+        }
+    }
+
+    @SuppressWarnings("unchecked") // EscfRowBuffer#binaryField stages either the bytes or their writer
+    private static void addBinary(EscfColumnBuilder builder, Object value) {
+        if (value instanceof BytesRef bytes) {
+            builder.addBinary(bytes);
+            return;
+        }
+        try {
+            builder.addBinary((CheckedConsumer<StreamOutput, IOException>) value);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

@@ -53,10 +53,34 @@ public class DeterministicTaskQueue {
 
     public static final String NODE_ID_LOG_CONTEXT_KEY = "nodeId";
 
-    private final List<Runnable> runnableTasks = new ArrayList<>();
+    /**
+     * A runnable task with what {@link SelectionPolicy#RANDOM_PRIORITY} needs to know about it: its priority, and the value of
+     * {@link #picks} when it became runnable.
+     */
+    private record RunnableTask(Runnable task, double priority, long runnableSincePick) {}
+
+    private final List<RunnableTask> runnableTasks = new ArrayList<>();
 
     /**
      * How {@link #runRandomTask()} chooses among the runnable tasks.
+     * <p>
+     * Example: task {@code L} must stay pending while the chain {@code C1 -> C2 -> ... -> Cm} runs, each link submitting the next,
+     * and the runnable tasks are {@code [L, C1, X, Y]}.
+     * <ul>
+     *     <li>{@link #UNIFORM}: picking {@code X} or {@code Y} decides nothing, so what matters is which of {@code L} and {@code C1}
+     *     is picked first, with probability 1/2 each. If {@code C1} wins it submits {@code C2}, and {@code L} faces a fresh coin
+     *     flip. {@code L} has to lose {@code m} flips in a row: {@code 2^-m}.</li>
+     *     <li>{@link #RANDOM_PRIORITY}: {@code L} draws its priority once, say 0.02, and keeps it. Each {@code Ci} draws its own
+     *     and runs before {@code L} if it drew higher. If {@code L} drew low, it keeps losing, so {@code L} outlasts the chain if
+     *     its draw is the lowest of the {@code m+1}: {@code 1/(m+1)}.</li>
+     * </ul>
+     * <pre>
+     *    m   UNIFORM   RANDOM_PRIORITY
+     *    1   1/2       1/2
+     *    5   1/32      1/6
+     *   10   1/1024    1/11
+     *   35   3e-11     1/36
+     * </pre>
      */
     public enum SelectionPolicy {
         /**
@@ -79,14 +103,13 @@ public class DeterministicTaskQueue {
      * Under {@link SelectionPolicy#RANDOM_PRIORITY}, a task passed over more than this many times fails the test rather than
      * being released quietly: reaching it means a zero-delay livelock or starvation by the policy, and either needs a look.
      */
-    static final long PRIORITY_AGE_CAP = 10_000L;
+    static final long DEFAULT_PRIORITY_AGE_CAP = 10_000L;
 
     private SelectionPolicy selectionPolicy = SelectionPolicy.UNIFORM;
     // Separate generator so that priority draws neither shift the uniform policy's draws nor trip the test Random's thread check
     // when a task is submitted from outside the test thread.
     private Random priorityRandom;
-    private final List<Double> runnablePriorities = new ArrayList<>();
-    private final List<Long> runnableSincePick = new ArrayList<>();
+    private final long priorityAgeCap;
     private long picks;
 
     private final Random random;
@@ -97,7 +120,13 @@ public class DeterministicTaskQueue {
     private long latestDeferredExecutionTime;
 
     public DeterministicTaskQueue(Random random) {
+        this(random, DEFAULT_PRIORITY_AGE_CAP);
+    }
+
+    // visible for testing
+    DeterministicTaskQueue(Random random, long priorityAgeCap) {
         this.random = random;
+        this.priorityAgeCap = priorityAgeCap;
     }
 
     public DeterministicTaskQueue() {
@@ -206,53 +235,45 @@ public class DeterministicTaskQueue {
 
     private int pickByPriority() {
         int best = 0;
-        int oldest = 0;
         for (int i = 1; i < runnableTasks.size(); i++) {
-            if (runnablePriorities.get(i) > runnablePriorities.get(best)) {
+            if (runnableTasks.get(i).priority() > runnableTasks.get(best).priority()) {
                 best = i;
             }
-            if (runnableSincePick.get(i) < runnableSincePick.get(oldest)) {
+        }
+        // every other runnable task is passed over once more by this pick
+        int oldest = -1;
+        for (int i = 0; i < runnableTasks.size(); i++) {
+            if (i != best && (oldest == -1 || runnableTasks.get(i).runnableSincePick() < runnableTasks.get(oldest).runnableSincePick())) {
                 oldest = i;
             }
         }
-        final long passedOver = picks - runnableSincePick.get(oldest);
-        if (passedOver > PRIORITY_AGE_CAP) {
-            throw new AssertionError(
-                "priority policy: task passed over ["
-                    + passedOver
-                    + "] times, more than the cap ["
-                    + PRIORITY_AGE_CAP
-                    + "]: "
-                    + runnableTasks.get(oldest)
-            );
+        if (oldest != -1) {
+            final long passedOver = picks + 1 - runnableTasks.get(oldest).runnableSincePick();
+            if (passedOver > priorityAgeCap) {
+                throw new AssertionError(
+                    "priority policy: task passed over ["
+                        + passedOver
+                        + "] times, more than the cap ["
+                        + priorityAgeCap
+                        + "]: "
+                        + runnableTasks.get(oldest).task()
+                );
+            }
         }
         return best;
     }
 
     private void addRunnable(final Runnable task) {
-        switch (selectionPolicy) {
-            case UNIFORM -> runnableTasks.add(task);
-            case RANDOM_PRIORITY -> {
-                // draw first, so the three lists cannot get out of step
-                final double priority = priorityRandom.nextDouble();
-                runnableTasks.add(task);
-                runnablePriorities.add(priority);
-                runnableSincePick.add(picks);
-            }
-        }
+        final double priority = switch (selectionPolicy) {
+            case UNIFORM -> 0.0;
+            case RANDOM_PRIORITY -> priorityRandom.nextDouble();
+        };
+        runnableTasks.add(new RunnableTask(task, priority, picks));
     }
 
     private void runTask(final int index) {
-        final Runnable task = runnableTasks.remove(index);
-        switch (selectionPolicy) {
-            case UNIFORM -> {
-            }
-            case RANDOM_PRIORITY -> {
-                runnablePriorities.remove(index);
-                runnableSincePick.remove(index);
-                picks++;
-            }
-        }
+        final Runnable task = runnableTasks.remove(index).task();
+        picks++;
         logger.trace("running task {} of {}: {}", index, runnableTasks.size() + 1, task);
         task.run();
     }

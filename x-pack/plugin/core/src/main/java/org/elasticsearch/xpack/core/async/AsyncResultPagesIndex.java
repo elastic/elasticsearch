@@ -30,7 +30,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
  * <p>
  * Each document holds a single serialized page in a binary doc-values column so that a result can
  * be read back page by page instead of decoding one large blob. Page {@code 0} of a result holds its
- * metadata. Fields are only stored in doc values: the index is sorted by result and page so that the
+ * metadata. Fields are single-valued and only stored in doc values, so a bulk of pages can be indexed as one
+ * columnar batch. The index is sorted by result and page so that the
  * pages of a result are contiguous and in order. The index is never refreshed on a schedule: writers
  * refresh it once the pages they wrote must become visible.
  */
@@ -80,29 +81,36 @@ public final class AsyncResultPagesIndex {
                 .startObject(ASYNC_ID_FIELD)
                 .field("type", "keyword")
                 .field("index", false)
+                .field("multi_value", false)
                 .endObject()
                 .startObject(PAGE_SEQ_FIELD)
                 .field("type", "integer")
                 .field("index", false)
+                .field("multi_value", false)
                 .endObject()
                 .startObject(FIRST_ROW_FIELD)
                 .field("type", "long")
                 .field("index", false)
+                .field("multi_value", false)
                 .endObject()
                 .startObject(ROW_COUNT_FIELD)
                 .field("type", "integer")
                 .field("index", false)
+                .field("multi_value", false)
                 .endObject()
                 .startObject(TRANSPORT_VERSION_FIELD)
                 .field("type", "integer")
                 .field("index", false)
+                .field("multi_value", false)
                 .endObject()
                 .startObject(EXPIRATION_TIME_FIELD)
                 .field("type", "long")
                 .field("index", false)
+                .field("multi_value", false)
                 .endObject()
                 .startObject(PAGE_FIELD)
                 .field("type", "binary")
+                .field("multi_value", false)
                 .endObject()
                 .endObject()
                 .endObject()

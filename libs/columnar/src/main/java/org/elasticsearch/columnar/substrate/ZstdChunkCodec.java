@@ -67,7 +67,7 @@ final class ZstdChunkCodec {
                     decompressed = IndexInputUtils.withSlice(
                         in,
                         storedLength,
-                        len -> MemorySegment.ofArray(scratch = ArrayUtil.growNoCopy(scratch, len)),
+                        len -> MemorySegment.ofArray(scratch = ArrayUtil.growNoCopy(scratch, len)).asSlice(0, len),
                         src -> ZSTD.decompress(target, src)
                     );
                 } catch (@SuppressWarnings("unused") AlreadyClosedException e) {

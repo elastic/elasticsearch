@@ -123,19 +123,21 @@ public class SplitTargetService {
         ShardId shardId = indexShard.shardId();
 
         assert indexMetadata.getReshardingMetadata() != null;
-        IndexReshardingState.Split splitMetadata = indexMetadata.getReshardingMetadata().getSplit();
+        IndexReshardingState.Split splitState = indexMetadata.getReshardingMetadata().getSplit();
 
         long targetPrimaryTerm = indexShard.getOperationPrimaryTerm();
         final DiscoveryNode sourceNode = indexShard.recoveryState().getSourceNode();
-        ShardId sourceShardId = new ShardId(shardId.getIndex(), splitMetadata.sourceShard(shardId.id()));
+        ShardId sourceShardId = new ShardId(shardId.getIndex(), splitState.sourceShard(shardId.id()));
         long sourcePrimaryTerm = indexMetadata.primaryTerm(sourceShardId.id());
 
-        var split = new Split(shardId, sourceShardId, sourceNode, clusterService.localNode(), sourcePrimaryTerm, targetPrimaryTerm);
+        var split = new Split(shardId, sourceNode, clusterService.localNode(), sourcePrimaryTerm, targetPrimaryTerm);
+        var splitMetadata = new SplitMetadata(shardId, sourceShardId, clusterService.localNode(), targetPrimaryTerm);
 
-        switch (splitMetadata.getTargetShardState(shardId.id())) {
+        switch (splitState.getTargetShardState(shardId.id())) {
             case CLONE -> {
                 var stateMachine = new StateMachine(
                     split,
+                    splitMetadata,
                     indexShard,
                     () -> onGoingSplits.remove(indexShard),
                     reshardIndexService.getReshardMetrics(),
@@ -151,6 +153,7 @@ public class SplitTargetService {
             case HANDOFF -> {
                 var stateMachine = new StateMachine(
                     split,
+                    splitMetadata,
                     indexShard,
                     () -> onGoingSplits.remove(indexShard),
                     reshardIndexService.getReshardMetrics(),
@@ -166,6 +169,7 @@ public class SplitTargetService {
             case SPLIT -> {
                 var stateMachine = new StateMachine(
                     split,
+                    splitMetadata,
                     indexShard,
                     () -> onGoingSplits.remove(indexShard),
                     reshardIndexService.getReshardMetrics(),
@@ -218,6 +222,7 @@ public class SplitTargetService {
             indexShard,
             new StateMachine(
                 split,
+                new SplitMetadata(split.shardId, null, split.targetNode, split.targetPrimaryTerm),
                 indexShard,
                 () -> {},
                 reshardIndexService.getReshardMetrics(),
@@ -244,10 +249,17 @@ public class SplitTargetService {
         return onGoingSplits.keySet().stream().map(IndexShard::shardId).collect(Collectors.toSet());
     }
 
-    record Split(ShardId shardId, ShardId sourceShardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, long sourcePrimaryTerm, long targetPrimaryTerm) {}
+    // Metadata about a split that is currently in progress with an instance of the source shard.
+    record ActiveSourceShard(DiscoveryNode sourceShardNode, long sourcePrimaryTerm) {}
+
+    // Split metadata that doesn't change for this shard instance.
+    record SplitMetadata(ShardId shardId, ShardId sourceShardId, DiscoveryNode localNode, long targetPrimaryTerm) {}
+
+    record Split(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, long sourcePrimaryTerm, long targetPrimaryTerm) {}
 
     private class StateMachine {
         private final Split split;
+        private final SplitMetadata splitMetadata;
         private final IndexShard shard;
         private final Runnable onCompleted;
 
@@ -258,6 +270,7 @@ public class SplitTargetService {
 
         private StateMachine(
             Split split,
+            SplitMetadata splitMetadata,
             IndexShard shard,
             Runnable onCompleted,
             ReshardMetrics reshardMetrics,
@@ -863,8 +876,7 @@ public class SplitTargetService {
     private static class InitiateSplitWithSourceShardAction extends RetryableAction<Void> {
         private final ClusterService clusterService;
         private final Client client;
-
-        private final Split split;
+        private final SplitMetadata splitMetadata;
         private final AtomicBoolean cancelled;
 
         InitiateSplitWithSourceShardAction(
@@ -888,73 +900,74 @@ public class SplitTargetService {
             );
             this.clusterService = clusterService;
             this.client = client;
-            this.split = split;
+            // TODO fix
+            this.splitMetadata = null;
             this.cancelled = cancelled;
         }
 
         @Override
         public void tryAction(ActionListener<Void> listener) {
-            Index index = split.shardId.getIndex();
-
-
-            // Resolve nodeId where the source shard is assigned.
-            // It can change between retries due to failures or relocations.
-            Predicate<ClusterState> predicate = state -> {
-                if (isCancelled()) {
-                    return true;
-                }
-
-                // We don't look at CLOSED since it will trigger cancellation flow.
-                return shard.state() == IndexShardState.STARTED;
-            };
-
-            // We specifically use waitForState because it won't wait for the next cluster state version
-            // if predicate already matches (which is most of the time).
-            ClusterStateObserver.waitForState(
-                clusterService,
-                clusterService.threadPool().getThreadContext(),
-                new ClusterStateObserver.Listener() {
-                    @Override
-                    public void onNewClusterState(ClusterState state) {
-                        if (isCancelled()) {
-                            return;
-                        }
-                        final Index index = shardId.getIndex();
-                        final ProjectMetadata projectMetadata = state.metadata().lookupProject(index).orElse(null);
-                        if (projectMetadata != null) {
-                            if (newPrimaryTerm(index, projectMetadata, shardId, split.targetPrimaryTerm()) == false) {
-                                assert isShardGreen(state, projectMetadata, shardId);
-                                advance(new State.SearchShardsOnline());
-                            }
-                        }
+            SubscribableListener.<ActiveSourceShard>newForked(l -> {
+                // Resolve nodeId where the source shard is assigned.
+                // It can change between retries due to failures or relocations.
+                Predicate<ClusterState> predicate = state -> {
+                    if (isCancelled()) {
+                        return true;
                     }
 
-                    @Override
-                    public void onClusterServiceClose() {
-                        // Nothing to do, shard will be closed when the node closes.
-                    }
+                    return getStartedSourceShardRouting(state).isPresent();
+                };
 
-                    @Override
-                    public void onTimeout(TimeValue timeout) {
-                        if (isCancelled()) {
-                            return;
+                // We specifically use waitForState because it won't wait for the next cluster state version
+                // if predicate already matches (which is most of the time).
+                ClusterStateObserver.waitForState(
+                    clusterService,
+                    clusterService.threadPool().getThreadContext(),
+                    new ClusterStateObserver.Listener() {
+                        @Override
+                        public void onNewClusterState(ClusterState state) {
+                            // Both of these have to be present, it's checked in the predicate.
+                            ShardRouting routing = getStartedSourceShardRouting(state).get();
+                            IndexMetadata indexMetadata = state.metadata().findIndex(splitMetadata.shardId.getIndex()).get();
+
+                            var result = new ActiveSourceShard(
+                                state.nodes().get(routing.currentNodeId()),
+                                indexMetadata.primaryTerm(splitMetadata.sourceShardId.id())
+                            );
+
+                            l.onResponse(result);
                         }
-                        // After the timeout we proceed to SPLIT anyway.
-                        // The timeout is just best effort to ensure search shards are running to prevent downtime.
-                        advance(new State.SearchShardsOnline());
-                    }
-                },
-                // A closed shard has nothing to wait for
-                state -> isCancelled() || searchShardsOnlineOrNewPrimaryTerm(state, shardId, split.targetPrimaryTerm()),
-                searchShardsOnlineTimeout,
-                logger
-            );
 
-            client.execute(
-                TransportReshardSplitAction.TYPE,
-                new TransportReshardSplitAction.SplitRequest(split),
-                listener.map(ignored -> null)
-            );
+                        @Override
+                        public void onClusterServiceClose() {
+                            // Nothing to do, shard will be closed when the node closes.
+                        }
+
+                        @Override
+                        public void onTimeout(TimeValue timeout) {
+                            // There is no timeout except for cancellation logic
+                        }
+                    },
+                    predicate,
+                    null,
+                    logger
+                );
+            }
+
+            ).<Void>andThen((l, activeSourceShard) -> {
+                // TODO fix this BS, there is no need for Split indirection
+                var request = new TransportReshardSplitAction.SplitRequest(
+                    new Split(
+                        splitMetadata.shardId,
+                        activeSourceShard.sourceShardNode,
+                        splitMetadata.localNode,
+                        activeSourceShard.sourcePrimaryTerm,
+                        splitMetadata.targetPrimaryTerm
+                    )
+                );
+
+                client.execute(TransportReshardSplitAction.TYPE, request, l.map(ignored -> null));
+            }).addListener(listener);
         }
 
         @Override
@@ -963,11 +976,13 @@ public class SplitTargetService {
                 return false;
             }
 
+            // TODO adapt this comment
+
             /// We apply internal retries if the source shard is not present/started.
             /// This is because allocation only performs a limited number of retries (at the time of writing)
             /// when a shard fails in recovery (which is what happens if start split RPC fails).
             /// As such it is possible to exhaust this limited number of retries if f.e. source shard is relocating.
-            /// Recovering from this state requires manual intervention which is of course undesireable.
+            /// Recovering from this state requires manual intervention which is of course undesirable.
             ///
             /// Note that it is possible that we observe one of the *NotFound exceptions if the source shard
             /// was moved from this node.
@@ -985,6 +1000,23 @@ public class SplitTargetService {
             return cancelled.get();
         }
 
+        private Optional<ShardRouting> getStartedSourceShardRouting(ClusterState clusterState) {
+            Index index = splitMetadata.shardId.getIndex();
+
+            // This throws `IndexNotFoundException` which we retry.
+            // This is fine, since given that the project/index is deleted
+            // the shard should be closed soon as a result,
+            // and we'll tear everything down using cancelled flag.
+
+            // TODO this shouldn't throw
+            ProjectMetadata projectMetadata = clusterState.metadata().projectFor(index);
+
+            var sourceShardRouting = clusterState.routingTable(projectMetadata.id())
+                .shardRoutingTable(splitMetadata.sourceShardId)
+                .primaryShard();
+
+            return Optional.ofNullable(sourceShardRouting).filter(ShardRouting::started);
+        }
     }
 
     private static class ChangeState extends RetryableAction<ActionResponse> {

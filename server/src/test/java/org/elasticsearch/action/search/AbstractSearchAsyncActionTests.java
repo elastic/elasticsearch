@@ -564,13 +564,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
             action.doRun(Map.of(shardIt, 0, other, 1));
 
-            final ShardSearchFailure[] failures = action.buildShardFailures();
-            assertThat(failures, arrayWithSize(2));
-            final var restoringFailure = Arrays.stream(failures).filter(f -> f.shard().getShardId().equals(restoring.shardId())).findAny();
+            List<ShardSearchFailure> failures = action.buildShardFailures();
+            assertThat(failures, hasSize(2));
+            final var restoringFailure = failures.stream().filter(f -> f.shard().getShardId().equals(restoring.shardId())).findAny();
             assertTrue(restoringFailure.isPresent());
             assertThat(restoringFailure.get().getCause(), instanceOf(ShardRestoringException.class));
             assertThat(restoringFailure.get().status(), equalTo(RestStatus.FORBIDDEN));
-            final var otherFailure = Arrays.stream(failures).filter(f -> f.shard().getShardId().equals(other.shardId())).findAny();
+            final var otherFailure = failures.stream().filter(f -> f.shard().getShardId().equals(other.shardId())).findAny();
             assertTrue(otherFailure.isPresent());
             assertThat(otherFailure.get().getCause(), instanceOf(NoShardAvailableActionException.class));
             assertThat(otherFailure.get().status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -595,11 +595,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             action.onShardFailure(0, target, new ShardRestoringException("index", randomUUID()));
             action.onShardFailure(1, target, new ShardNotFoundException(shardId));
 
-            final ShardSearchFailure[] failures = action.buildShardFailures();
-            assertThat(failures[0].getCause(), instanceOf(ShardRestoringException.class));
-            assertThat(failures[0].status(), equalTo(RestStatus.FORBIDDEN));
-            assertThat(failures[1].getCause(), instanceOf(NoShardAvailableActionException.class));
-            assertThat(failures[1].status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            List<ShardSearchFailure> failures = action.buildShardFailures();
+            assertThat(failures.get(0).getCause(), instanceOf(ShardRestoringException.class));
+            assertThat(failures.get(0).status(), equalTo(RestStatus.FORBIDDEN));
+            assertThat(failures.get(1).getCause(), instanceOf(NoShardAvailableActionException.class));
+            assertThat(failures.get(1).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
     }
 
@@ -619,7 +619,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             )
         );
         PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(
-            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY)
+            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), List.of())
         );
 
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();

@@ -128,6 +128,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -161,6 +162,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
@@ -1315,6 +1317,48 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         PhysicalPlan hashJoin = hashJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
         var e = expectThrows(IllegalArgumentException.class, () -> runHashJoin(hashJoin));
         assertThat(e.getMessage(), containsString("only single valued keys are supported"));
+    }
+
+    public void testHashJoinReadsCopyingLocalSupplierWithoutCopying() throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        AtomicInteger gets = new AtomicInteger();
+        AtomicInteger peeks = new AtomicInteger();
+        Page buildPage = new Page(
+            blockFactory.newLongArrayVector(new long[] { 10, 20, 30 }, 3).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 100, 200, 300 }, 3).asBlock()
+        );
+        // The copy that get() makes uses a non-breaking block factory, so counting the calls is the only way to observe it
+        LocalSupplier counting = new CopyingLocalSupplier(buildPage) {
+            @Override
+            public Page get() {
+                gets.incrementAndGet();
+                return super.get();
+            }
+
+            @Override
+            public Page peek() {
+                peeks.incrementAndGet();
+                return super.peek();
+            }
+        };
+        ReferenceAttribute buildKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        ReferenceAttribute buildValue = new ReferenceAttribute(Source.EMPTY, "v0", DataType.LONG);
+        LocalSourceExec build = new LocalSourceExec(Source.EMPTY, List.of(buildKey, buildValue), counting);
+        ReferenceAttribute probeKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        LocalSourceExec probe = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(probeKey),
+            LocalSupplier.of(new Page(blockFactory.newLongArrayVector(new long[] { 10, 20, 10 }, 3).asBlock()))
+        );
+        PhysicalPlan hashJoin = hashJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
+
+        var plan = planHashJoin(hashJoin);
+        assertThat(gets.get(), equalTo(0));
+        assertThat(peeks.get(), equalTo(1));
+
+        List<Page> results = runPlanned(plan.driverFactories.get(0).driverSupplier().physicalOperation());
+        assertHashJoinOutput(results, List.of(100L, 200L, 100L), List.of(10L, 20L, 10L));
+        assertThat(gets.get(), equalTo(0));
     }
 
     /**

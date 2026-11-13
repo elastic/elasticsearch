@@ -263,14 +263,9 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformIT
   method: testCrossClusterTransform
   issue: https://github.com/elastic/elasticsearch/issues/162405
-- class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
-  method: testShardPrewarming
-  issue: https://github.com/elastic/elasticsearch/issues/162488
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecPrometheusK8sIT
   method: test {csv-spec:prometheus-k8s.derivative_of_gauge_metric_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162491
-- class: org.elasticsearch.search.heappressure.TopHitsLeafCollectorHeapPressureIT
-  issue: https://github.com/elastic/elasticsearch/issues/162932
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichDistinctKeysHeapPressureIT
   issue: https://github.com/elastic/incident-management/issues/2018
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichRepeatedKeyColdHeapPressureIT
@@ -521,6 +516,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/165370
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.1.9#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {STORED}
@@ -594,3 +590,57 @@ tests:
   - :x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest
   method: testIndexingLogsdbColumnar
   issue: https://github.com/elastic/elasticsearch/issues/165787
+- class: org.elasticsearch.index.codec.postings.ES812PostingsFormatTests
+  tasks:
+  - :server:test
+  method: testDocsOnly
+  issue: https://github.com/elastic/elasticsearch/issues/165819
+- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
+  tasks:
+  - :x-pack:plugin:slm:internalClusterTest
+  method: testSnapshotFailureOnMasterStepDown
+  issue: https://github.com/elastic/elasticsearch/issues/165822
+- class: org.elasticsearch.action.search.SearchShardResponseCircuitBreakerIT
+  tasks:
+  - :server:internalClusterTest
+  method: testTripWhileSendingShardRequestLeavesNoReaderContext
+  issue: https://github.com/elastic/elasticsearch/issues/165825
+- class: org.elasticsearch.xpack.vectortile.feature.FeatureFactoryTests
+  tasks:
+  - :x-pack:plugin:vector-tile:test
+  method: testDegeneratedPolygon
+  issue: https://github.com/elastic/elasticsearch/issues/165844
+- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
+  tasks:
+  - :x-pack:plugin:downsample:internalClusterTest
+  method: testConcurrentRequestsForDifferentTargets
+  issue: https://github.com/elastic/elasticsearch/issues/165848
+- class: org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testSlowTranslogUploadIsHedged
+  issue: https://github.com/elastic/elasticsearch/issues/165850
+- class: org.elasticsearch.benchmark.index.mapper.batch.ShardIndexingBenchmarkTests
+  tasks:
+  - :benchmarks:test
+  method: testBenchmarkLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/165852
+- class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
+  tasks:
+  - :x-pack:plugin:esql-datasource-parquet:test
+  method: testConcurrentCompressedTwoPhase
+  issue: https://github.com/elastic/elasticsearch/issues/165927
+- class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT
+  tasks:
+  - :server:internalClusterTest
+  method: testSnapshotWithStuckNode
+  issue: https://github.com/elastic/elasticsearch/issues/165929
+- class: org.elasticsearch.xpack.stateless.StatelessAbortRunningMergesOnRelocationIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testOnlyForceMergesAreAllowedDuringRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/165933
+- class: org.elasticsearch.xpack.esql.action.ExternalProvenanceParityIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/165944

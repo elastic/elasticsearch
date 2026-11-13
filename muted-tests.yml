@@ -612,3 +612,8 @@ tests:
   - :x-pack:plugin:vector-tile:test
   method: testDegeneratedPolygon
   issue: https://github.com/elastic/elasticsearch/issues/165844
+- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
+  tasks:
+  - :x-pack:plugin:downsample:internalClusterTest
+  method: testConcurrentRequestsForDifferentTargets
+  issue: https://github.com/elastic/elasticsearch/issues/165848

@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 165744
+summary: Charge `top_hits` Lucene collectors to the request breaker
+type: enhancement

@@ -113,9 +113,11 @@ public class EqlSourceOperator extends SourceOperator {
                 // response into blocks. We do not own a reference here — the EQL transport action delivers the
                 // response via respondAndRelease and releases it once this listener returns — so we must not
                 // decRef it ourselves (doing so over-releases).
+                // This callback runs on the EQL response thread, outside the driver run loop, so the blocks must come from
+                // the root factory: the driver's local breaker may only be touched by the driver thread.
                 topLevelCount = topLevelResultCount(response);
                 partial = response.isPartial();
-                Page built = EqlPageConverter.toPage(response, mode, schema, driverContext.blockFactory());
+                Page built = EqlPageConverter.toPage(response, mode, schema, driverContext.blockFactory().parent());
                 synchronized (this) {
                     if (closed) {
                         // The operator was closed (cancellation / sibling-operator failure) before the response
@@ -156,11 +158,12 @@ public class EqlSourceOperator extends SourceOperator {
             throw ExceptionsHelper.convertToRuntime(e);
         }
         if (page != null) {
+            // Warn before handing off the page: if a warning throws, the page is still held and close() releases it.
+            maybeWarnPartial();
+            maybeWarnTruncated();
             Page result = page;
             page = null;
             emitted = true;
-            maybeWarnPartial();
-            maybeWarnTruncated();
             return result;
         }
         return null;

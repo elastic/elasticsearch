@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.logstashbridge.threadpool;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.common.SettingsBridge;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -28,7 +30,13 @@ public interface ThreadPoolBridge extends StableBridgeAPI<ThreadPool> {
     boolean terminate(long timeout, TimeUnit timeUnit);
 
     static ThreadPoolBridge create(final SettingsBridge bridgedSettings) {
-        final ThreadPool internal = new ThreadPool(bridgedSettings.toInternal(), MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        Settings settings = bridgedSettings.toInternal();
+        final ThreadPool internal = new ThreadPool(
+            new ThreadContext(settings),
+            settings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        );
         return new ProxyInternal(internal);
     }
 

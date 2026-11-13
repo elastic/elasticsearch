@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ccr.index.engine;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -884,7 +885,7 @@ public class FollowingEngineTests extends ESTestCase {
                         1L,
                         VersionType.EXTERNAL,
                         Engine.Operation.Origin.PRIMARY,
-                        threadPool.relativeTimeInMillis(),
+                        System.nanoTime(),
                         -1,
                         true,
                         SequenceNumbers.UNASSIGNED_SEQ_NO,
@@ -901,21 +902,25 @@ public class FollowingEngineTests extends ESTestCase {
                         1L,
                         VersionType.EXTERNAL,
                         Engine.Operation.Origin.PRIMARY,
-                        threadPool.relativeTimeInMillis(),
+                        System.nanoTime(),
                         SequenceNumbers.UNASSIGNED_SEQ_NO,
                         0
                     )
                 );
             } else {
-                operations.add(
-                    new Engine.NoOp(i, primaryTerm.get(), Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis(), "test-" + i)
-                );
+                operations.add(new Engine.NoOp(i, primaryTerm.get(), Engine.Operation.Origin.PRIMARY, System.nanoTime(), "test-" + i));
             }
         }
         Randomness.shuffle(operations);
         final long oldTerm = randomLongBetween(1, Integer.MAX_VALUE);
         primaryTerm.set(oldTerm);
-        try (Store store = createStore(shardId, indexSettings, newDirectory())) {
+        final BaseDirectoryWrapper directory = newDirectory();
+        if (useSyntheticId) {
+            // Synthetic _id terms report docFreq/totalTermFreq as 0 (postings are synthesized), which CheckIndex rejects. A merge can
+            // trigger a flush, which commits a segment with synthetic _id terms that CheckIndex then visits when the directory closes.
+            directory.setCheckIndexOnClose(false);
+        }
+        try (Store store = createStore(shardId, indexSettings, directory)) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeExecutorService, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(operations.size() - 1L);

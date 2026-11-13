@@ -17,6 +17,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheMetrics.ProbationPromotion;
+import org.elasticsearch.blobcache.BlobCacheMetrics.RegionFillOrigin;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
@@ -333,6 +335,48 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         Setting.Property.NodeScope
     );
 
+    /**
+     * Capacity of the ghost table remembering the regions recently evicted under cache pressure, as a multiple of the number of
+     * regions. The ghost table identifies re-fetches, i.e. regions fetched again from the blob store after the cache had to give
+     * them up, which are reported by {@link BlobCacheMetrics#BLOB_CACHE_REGION_FETCH_TOTAL}. The table costs between 27 and 35 bytes
+     * of heap per entry and is preallocated; its capacity is capped so that it uses at most 1% of the maximum heap. {@code 0}
+     * disables it.
+     */
+    public static final Setting<Float> SHARED_CACHE_GHOST_SIZE_RATIO_SETTING = Setting.floatSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "ghost.size_ratio",
+        0f,
+        0f,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Reads of a region within this window after the demand read that brought it into the cache are considered part of that
+     * same access, since a region serves many small reads; only later reads mark the region as re-accessed (see
+     * {@link BlobCacheMetrics#BLOB_CACHE_PRESSURE_EVICTED_REGIONS_TOTAL}).
+     */
+    public static final Setting<TimeValue> SHARED_CACHE_REACCESS_WINDOW_SETTING = Setting.timeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "reaccess_window",
+        TimeValue.timeValueSeconds(10L),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Size of the probation tier of the cache, as a fraction of the number of regions, in {@code [0, 1]}. New regions enter
+     * the cache at frequency 1, which is then capped to this size: when it is exceeded, its oldest regions move to frequency 2
+     * if they were re-accessed (see {@link #SHARED_CACHE_REACCESS_WINDOW_SETTING}) or are protected by the eviction policy, and
+     * are evicted otherwise, so that regions read once (scans, merges, unused warms) leave the cache quickly instead of
+     * competing with frequently read regions until a decay. Regions remembered by the ghost table (see
+     * {@link #SHARED_CACHE_GHOST_SIZE_RATIO_SETTING}) skip the probation tier when they are fetched again. This is the
+     * small-queue of the S3-FIFO policy, for which {@code 0.1} is the reference size. {@code 0} disables it.
+     */
+    public static final Setting<Float> SHARED_CACHE_PROBATION_SIZE_RATIO_SETTING = Setting.floatSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "probation.size_ratio",
+        0f,
+        0f,
+        Setting.Property.NodeScope
+    );
+
     // used in tests
     void computeDecay() {
         if (cache instanceof LFUCache lfuCache) {
@@ -353,7 +397,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     private interface Cache<K, T> extends Releasable {
-        CacheEntry<T> get(K cacheKey, long fileLength, int region, long timestampMillis);
+        CacheEntry<T> get(K cacheKey, long fileLength, int region, long timestampMillis, RegionFillOrigin origin);
 
         /// Returns the entry for the provided `cacheKey` and `region` if it exists and is fully initialized
         /// (i.e. its IO slot has been assigned), or `null` otherwise.
@@ -600,7 +644,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region, long timestampMillis) {
-        return cache.get(cacheKey, fileLength, region, timestampMillis).chunk;
+        return get(cacheKey, fileLength, region, timestampMillis, RegionFillOrigin.Demand);
+    }
+
+    CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region, long timestampMillis, RegionFillOrigin origin) {
+        return cache.get(cacheKey, fileLength, region, timestampMillis, origin).chunk;
     }
 
     /**
@@ -691,7 +739,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 listener.onResponse(false);
                 return;
             }
-            final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region, timestampMillis);
+            final CacheFileRegion<KeyType> entry = get(
+                cacheKey,
+                blobLength,
+                region,
+                timestampMillis,
+                force ? RegionFillOrigin.ForcedSpeculative : RegionFillOrigin.Speculative
+            );
             entry.populate(regionRange, writer, fetchExecutor, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -789,7 +843,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 listener.onResponse(false);
                 return;
             }
-            final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region, timestampMillis);
+            final CacheFileRegion<KeyType> entry = get(
+                cacheKey,
+                blobLength,
+                region,
+                timestampMillis,
+                force ? RegionFillOrigin.ForcedSpeculative : RegionFillOrigin.Speculative
+            );
             entry.populate(
                 regionRange,
                 writerWithOffset(writer, Math.toIntExact(range.start() - getRegionStart(region))),
@@ -2339,10 +2399,33 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             LFUCacheEntry next;
             int freq;
             volatile long lastAccessedEpoch;
+            // the kind of fill that brought this region into the cache
+            final RegionFillOrigin origin;
+            // relative time in millis at which this entry was created
+            final long createdAtMillis;
+            // whether the region was read again after the fill that brought it in (see markReaccessed). Written without
+            // synchronization: it only ever goes from false to true, and a stale read only delays the observation.
+            boolean reaccessed;
+            // like reaccessed, but cleared when the region is moved out of the probation tier, so that a region coming back to
+            // frequency 1 through decay has to be re-accessed again to avoid eviction
+            boolean probationReaccessed;
+            // set when a demand read asks for this region while it is still waiting for its slot, so that a region created by a
+            // speculative fill is not blamed for evictions that a search is in fact waiting on
+            volatile boolean demandWaiting;
 
-            LFUCacheEntry(CacheFileRegion<KeyType> chunk, long lastAccessed) {
+            /**
+             * @return the kind of fill that needs this entry's slot: demand as soon as a demand read waits for it, whatever kind of
+             * fill created the entry
+             */
+            RegionFillOrigin slotRequestOrigin() {
+                return demandWaiting ? RegionFillOrigin.Demand : origin;
+            }
+
+            LFUCacheEntry(CacheFileRegion<KeyType> chunk, long lastAccessed, RegionFillOrigin origin, long createdAtMillis) {
                 super(chunk);
                 this.lastAccessedEpoch = lastAccessed;
+                this.origin = origin;
+                this.createdAtMillis = createdAtMillis;
                 // todo: consider whether freq=1 is still right for new entries.
                 // it could risk decaying to level 0 right after and thus potentially be evicted
                 // if the freq 1 LRU chain was short.
@@ -2352,9 +2435,22 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
 
             void touch() {
+                markReaccessed();
                 long now = epoch.get();
                 if (now > lastAccessedEpoch) {
                     maybePromote(now, this);
+                }
+            }
+
+            /**
+             * Records a demand read of the region. Any demand read of a speculatively filled region counts as a re-access. For a
+             * region brought in by a demand read, the reads within the re-access window are part of the access that filled it.
+             */
+            void markReaccessed() {
+                if (probationReaccessed == false
+                    && (origin != RegionFillOrigin.Demand || threadPool.relativeTimeInMillis() - createdAtMillis >= reaccessWindowMillis)) {
+                    probationReaccessed = true;
+                    reaccessed = true;
                 }
             }
         }
@@ -2370,6 +2466,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private final long initialDecayPollCount;
 
         private final EvictionPolicy<KeyType> evictionPolicy;
+
+        // remembers the regions recently evicted under pressure to detect re-fetches, null if disabled
+        @Nullable
+        private final RegionGhostTable ghostTable;
+        private final long reaccessWindowMillis;
+        // maximum number of regions at frequency 1 before the oldest ones are promoted or evicted, -1 if the probation tier is
+        // disabled
+        private final int probationCap;
 
         @SuppressWarnings("unchecked")
         LFUCache(Settings settings, EvictionPolicy<KeyType> evictionPolicy) {
@@ -2391,6 +2495,32 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             // If EvictionPolicy requires access to FreqLevel[] then we could use some factory here to pass down the freqs array while
             // instantiating the EvictionPolicy, eg. this.evictionPolicy = evictionPolicyFactory.create(FreqLevel[], maxFreq);
             this.evictionPolicy = Objects.requireNonNull(evictionPolicy);
+            final double ghostSizeRatio = SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.get(settings);
+            final long requestedGhostCapacity = (long) Math.ceil(numRegions * ghostSizeRatio);
+            final long ghostCapacity = Math.min(
+                requestedGhostCapacity,
+                RegionGhostTable.maxCapacityForHeap(Runtime.getRuntime().maxMemory())
+            );
+            if (ghostCapacity < requestedGhostCapacity) {
+                logger.warn(
+                    "capping the shared blob cache ghost table at [{}] entries instead of the requested [{}] to bound its heap usage, "
+                        + "consider lowering [{}]",
+                    ghostCapacity,
+                    requestedGhostCapacity,
+                    SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.getKey()
+                );
+            }
+            this.ghostTable = ghostCapacity > 0 ? new RegionGhostTable(Math.toIntExact(ghostCapacity)) : null;
+            this.reaccessWindowMillis = SHARED_CACHE_REACCESS_WINDOW_SETTING.get(settings).millis();
+            final float probationSizeRatio = SHARED_CACHE_PROBATION_SIZE_RATIO_SETTING.get(settings);
+            if (probationSizeRatio > 0f && maxFreq <= 2) {
+                logger.warn(
+                    "disabling the shared blob cache probation tier, it requires [{}] to be at least 3 but was [{}]",
+                    SHARED_CACHE_MAX_FREQ_SETTING.getKey(),
+                    maxFreq
+                );
+            }
+            this.probationCap = probationSizeRatio > 0f && maxFreq > 2 ? Math.max(1, (int) (numRegions * probationSizeRatio)) : -1;
         }
 
         @Override
@@ -2405,7 +2535,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         @Override
-        public LFUCacheEntry get(KeyType cacheKey, long fileLength, int region, long timestampMillis) {
+        public LFUCacheEntry get(KeyType cacheKey, long fileLength, int region, long timestampMillis, RegionFillOrigin origin) {
             final var regionKey = new RegionKey<>(cacheKey, region);
             final long now = epoch.get();
             // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path
@@ -2418,12 +2548,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     regionKey,
                     key -> new LFUCacheEntry(
                         new CacheFileRegion<KeyType>(SharedBlobCacheService.this, key, effectiveRegionSize, timestampMillis),
-                        now
+                        now,
+                        origin,
+                        threadPool.relativeTimeInMillis()
                     )
                 );
             }
             // checks using volatile, double locking is fine, as long as we assign io last.
             if (entry.chunk.volatileIO() == null) {
+                if (origin == RegionFillOrigin.Demand) {
+                    entry.demandWaiting = true;
+                }
                 synchronized (entry.chunk) {
                     if (entry.chunk.volatileIO() == null && entry.chunk.isEvicted() == false) {
                         return initChunk(entry);
@@ -2431,6 +2566,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             }
             assert assertChunkActiveOrEvicted(entry);
+            if (origin == RegionFillOrigin.Demand) {
+                entry.markReaccessed();
+            }
 
             // existing item, check if we need to promote it
             if (now > entry.lastAccessedEpoch) {
@@ -2455,6 +2593,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 return null;
             }
             assert assertChunkActiveOrEvicted(entry);
+            entry.markReaccessed();
 
             // existing item, check if we need to promote it
             if (now > entry.lastAccessedEpoch) {
@@ -2484,6 +2623,37 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             unlink(entry);
             removeKeyMappingForEntry(entry);
             evictionPolicy.onEvicted(entry.chunk);
+        }
+
+        /**
+         * Called for every region evicted to make room for another one. Forced evictions are not reported: they remove regions
+         * whose data was deleted or is no longer wanted, which will not be fetched again.
+         *
+         * @param evictedBy the kind of fill that needs the slot
+         */
+        private void onPressureEviction(LFUCacheEntry entry, RegionFillOrigin evictedBy) {
+            assert Thread.holdsLock(SharedBlobCacheService.this);
+            blobCacheMetrics.recordPressureEviction(entry.origin, entry.reaccessed);
+            if (ghostTable != null) {
+                ghostTable.add(ghostKey(entry), threadPool.relativeTimeInMillis(), evictedBy, entry.origin);
+            }
+        }
+
+        private long ghostKey(LFUCacheEntry entry) {
+            return RegionGhostTable.fingerprint(entry.chunk.regionKey.file().hashCode(), entry.chunk.regionKey.region());
+        }
+
+        private void recordRegionFetch(LFUCacheEntry entry, @Nullable RegionGhostTable.Ghost ghost) {
+            if (ghost == null) {
+                blobCacheMetrics.recordRegionFirstFetch(entry.origin);
+            } else {
+                blobCacheMetrics.recordRegionRefetch(
+                    entry.origin,
+                    ghost.evictedBy(),
+                    (double) ghost.evictionsSince() / numRegions,
+                    threadPool.relativeTimeInMillis() - ghost.evictedAtMillis()
+                );
+            }
         }
 
         @Override
@@ -2641,6 +2811,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         private void assignToSlot(LFUCacheEntry entry, SharedBytes.IO freeSlot) {
             assert regionOwners.put(freeSlot, entry.chunk) == null;
+            final RegionGhostTable.Ghost ghost;
             final long afterLockNanoTime;
             final long beforeLockNanoTime = relativeNanosProvider.getAsLong();
             synchronized (SharedBlobCacheService.this) {
@@ -2653,12 +2824,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     blobCacheMetrics.recordLockAcquire(afterLockNanoTime - beforeLockNanoTime, SlotAssignment);
                     throwAlreadyClosed("evicted during free region allocation");
                 }
+                ghost = ghostTable != null ? ghostTable.remove(ghostKey(entry)) : null;
+                if (ghost != null && probationCap > 0) {
+                    // the region was evicted recently enough to still be remembered, so it is read more than once: skip probation
+                    entry.freq = 2;
+                    entry.chunk.maybeUpdateMaxReachedFreq(entry.freq);
+                }
                 pushEntryToBack(entry);
                 // assign io only when chunk is ready for use. Under lock to avoid concurrent tryEvict.
                 entry.chunk.volatileIO(freeSlot);
                 evictionPolicy.onCached(entry.chunk);
             }
             blobCacheMetrics.recordLockAcquire(afterLockNanoTime - beforeLockNanoTime, SlotAssignment);
+            if (ghostTable != null) {
+                recordRegionFetch(entry, ghost);
+            }
         }
 
         private void pushEntryToBack(final LFUCacheEntry entry) {
@@ -2862,7 +3042,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Evicted, entriesScanned[0]);
                 return result;
             }
-            for (int currentFreq = 1; currentFreq < maxFreq; currentFreq++) {
+            if (probationCap > 0) {
+                result = maybeEvictFromProbation(incoming, evictedNotification, entriesScanned, canEvict);
+                if (result != null) {
+                    logAndMetricEvictionScan(relativeNanosProvider.getAsLong() - startNanos, AllFrequencies, Evicted, entriesScanned[0]);
+                    return result;
+                }
+            }
+            for (int i = 1; i < maxFreq; i++) {
+                // with a probation tier within its cap, evict from the main tier (frequencies 2 and up) first and from the probation
+                // tier (frequency 1) only as a last resort
+                final int currentFreq = probationCap > 0 ? (i == maxFreq - 1 ? 1 : i + 1) : i;
                 // recheck this per freq in case we raced an eviction with an incref'er.
                 SharedBytes.IO freeRegion = freeRegions.poll();
                 if (freeRegion != null) {
@@ -2911,32 +3101,102 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     continue;
                 }
 
-                boolean evicted = entry.chunk.tryEvictNoDecRef();
-                if (evicted) {
-                    try {
-                        SharedBytes.IO ioRef = entry.chunk.volatileIO();
-                        if (ioRef != null) {
-                            try {
-                                if (entry.chunk.refCount() == 1) {
-                                    // we own that one refcount (since we CAS'ed evicted to 1)
-                                    // grab io, rely on incref'ers also checking evicted field.
-                                    entry.chunk.volatileIO(null);
-                                    assert regionOwners.remove(ioRef) == entry.chunk;
-                                    return ioRef;
-                                }
-                            } finally {
-                                unlinkAndRemoveForEviction(entry);
-                            }
-                        }
-                    } finally {
-                        entry.chunk.decRef();
-                        if (freq > 0) {
-                            evictedNotification.run();
-                        }
+                if (entry.chunk.tryEvictNoDecRef()) {
+                    final SharedBytes.IO ioRef = takeEvicted(entry, incoming, evictedNotification);
+                    if (ioRef != null) {
+                        return ioRef;
                     }
                 }
             }
             return null;
+        }
+
+        /**
+         * Completes the eviction of an entry that was just marked as evicted with {@link CacheFileRegion#tryEvictNoDecRef()},
+         * taking over its slot for {@code incoming} if no one else holds a reference to it.
+         *
+         * @return the slot of the evicted entry, or null if it is still referenced and will be returned to the free list on release
+         */
+        private SharedBytes.IO takeEvicted(final LFUCacheEntry entry, final LFUCacheEntry incoming, final Runnable evictedNotification) {
+            assert Thread.holdsLock(SharedBlobCacheService.this);
+            assert entry.chunk.isEvicted();
+            final int freq = entry.freq;
+            try {
+                SharedBytes.IO ioRef = entry.chunk.volatileIO();
+                if (ioRef != null) {
+                    try {
+                        if (entry.chunk.refCount() == 1) {
+                            // we own that one refcount (since we CAS'ed evicted to 1)
+                            // grab io, rely on incref'ers also checking evicted field.
+                            entry.chunk.volatileIO(null);
+                            assert regionOwners.remove(ioRef) == entry.chunk;
+                            return ioRef;
+                        }
+                    } finally {
+                        // the region is evicted whether or not its slot is handed to the incoming fill (a reader may still
+                        // hold a reference), and even if unlinking fails, so it is always reported
+                        try {
+                            unlinkAndRemoveForEviction(entry);
+                        } finally {
+                            onPressureEviction(entry, incoming.slotRequestOrigin());
+                        }
+                    }
+                }
+            } finally {
+                entry.chunk.decRef();
+                if (freq > 0) {
+                    evictedNotification.run();
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Brings the probation tier (frequency 1) back within its cap, oldest regions first: re-accessed regions and regions the
+         * eviction policy protects move to the main tier (frequency 2), and the first region that can be evicted is.
+         *
+         * @return the slot of the evicted region, or null if none was evicted or its slot is still referenced
+         */
+        private SharedBytes.IO maybeEvictFromProbation(
+            final LFUCacheEntry incoming,
+            final Runnable evictedNotification,
+            final int[] entriesScanned,
+            final Predicate<CacheRegion<KeyType>> canEvict
+        ) {
+            assert Thread.holdsLock(SharedBlobCacheService.this);
+            assert probationCap > 0;
+            final FreqLevel probation = freqs[1];
+            LFUCacheEntry entry = probation.head;
+            while (entry != null && probation.count > probationCap) {
+                // captured first since promoting or evicting the entry unlinks it
+                final LFUCacheEntry next = entry.next;
+                entriesScanned[0]++;
+                if (entry.probationReaccessed) {
+                    promoteFromProbation(entry, ProbationPromotion.Reaccessed);
+                } else if (canEvict.test(entry.chunk) == false) {
+                    promoteFromProbation(entry, ProbationPromotion.Protected);
+                } else if (entry.chunk.tryEvictNoDecRef()) {
+                    final SharedBytes.IO ioRef = takeEvicted(entry, incoming, evictedNotification);
+                    if (ioRef != null) {
+                        return ioRef;
+                    }
+                }
+                // else the region is in use: leave it for a later scan
+                entry = next;
+            }
+            return null;
+        }
+
+        private void promoteFromProbation(final LFUCacheEntry entry, final ProbationPromotion reason) {
+            assert Thread.holdsLock(SharedBlobCacheService.this);
+            assert entry.freq == 1 : entry.freq;
+            unlink(entry);
+            entry.freq = 2;
+            entry.chunk.maybeUpdateMaxReachedFreq(entry.freq);
+            entry.lastAccessedEpoch = epoch.get();
+            entry.probationReaccessed = false;
+            pushEntryToBack(entry);
+            blobCacheMetrics.recordProbationPromotion(reason);
         }
 
         /**
@@ -2999,15 +3259,25 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             synchronized (SharedBlobCacheService.this) {
                 afterLockAndBeforeScanningNanoTime = relativeNanosProvider.getAsLong();
                 final Predicate<CacheRegion<KeyType>> canEvict = createEvictionPredicate(evictionPolicy, incoming);
+                // with a probation tier, a decay can bring regions created within the re-access window to frequency 0: leave them
+                // to demand reads rather than handing them to a best-effort fill before they had a chance to be re-accessed
+                final long youngestEvictableCreatedAtMillis = probationCap > 0
+                    ? threadPool.relativeTimeInMillis() - reaccessWindowMillis
+                    : Long.MAX_VALUE;
                 for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
                     entriesScanned++;
-                    if (canEvict.test(entry.chunk) == false) {
+                    if (entry.createdAtMillis > youngestEvictableCreatedAtMillis || canEvict.test(entry.chunk) == false) {
                         continue;
                     }
 
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
-                        unlinkAndRemoveForEviction(entry);
+                        try {
+                            unlinkAndRemoveForEviction(entry);
+                        } finally {
+                            // only called by fills that may not evict above the lowest frequency
+                            onPressureEviction(entry, RegionFillOrigin.Speculative);
+                        }
                         found = true;
                         break;
                     }

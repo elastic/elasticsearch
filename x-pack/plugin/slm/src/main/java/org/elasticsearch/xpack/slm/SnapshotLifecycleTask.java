@@ -153,30 +153,16 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 @Override
                 public void onFailure(Exception e) {
                     // Does not indicate the snapshot creation has definitely failed: it could be that the creation was added to
-                    // `SnapshotsInProgress` (and registered in `RegisteredPolicySnapshots`) and then the master failed over. In that case,
-                    // we might be on the cluster applier thread on which reading `clusterService.state()` may expose a stale state and is
-                    // therefore forbidden.
+                    // `SnapshotsInProgress` and then the master failed over. In that case we might be on the cluster applier thread,
+                    // where reading `clusterService.state()` may expose a stale state and is therefore forbidden.
                     //
-                    // However for SLM it does not matter as long as we proceed based on a state no older than the previous state, so it's
-                    // ok to dispatch this work to a different threadpool:
-                    client.threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
-                        // Capture never-registered from the same cluster state used for the completed-snapshot lookup.
-                        // If it is registered now, a concurrent cleanup may remove it before WriteJobStatus runs; skip then.
-                        // SnapshotInfo failures pass recordFailureIfUnregistered=false so a peer cleanup is not confused
-                        // with a never-registered CreateSnapshot failure (#136759).
-                        ProjectState currentProjectState = clusterService.state().projectState(projectId);
-                        final boolean snapshotNeverRegistered = currentProjectState.metadata()
-                            .custom(RegisteredPolicySnapshots.TYPE, RegisteredPolicySnapshots.EMPTY)
-                            .contains(snapshotId) == false;
-                        recordSnapshotFailure(e, snapshotNeverRegistered, currentProjectState);
-                    });
+                    // Recording the failure indexes SLM history, which reads the cluster state. For SLM it does not matter as long as we
+                    // proceed based on a state no older than the previous one, so dispatch this work to another thread:
+                    client.threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(() -> recordSnapshotFailure(e));
                 }
 
-                private void recordSnapshotFailure(Exception e, boolean recordFailureIfUnregistered, ProjectState currentProjectState) {
-                    logger.warn(
-                        () -> format("failed to create snapshot for snapshot lifecycle policy [%s]", policyMetadata.getPolicy().getId()),
-                        e
-                    );
+                private void recordSnapshotFailure(Exception e) {
+                    logger.error("failed to create snapshot for snapshot lifecycle policy [{}]: {}", policyMetadata.getPolicy().getId(), e);
                     final long timestamp = Instant.now().toEpochMilli();
                     submitUnbatchedTask(
                         clusterService,

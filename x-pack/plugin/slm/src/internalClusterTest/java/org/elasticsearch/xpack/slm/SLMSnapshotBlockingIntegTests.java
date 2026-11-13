@@ -347,6 +347,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             waitForBlockOnAnyDataNode(REPO);
             final String initialMaster = internalCluster().getMasterName();
             final long initialTerm = internalCluster().getInstance(ClusterService.class, initialMaster).state().term();
+            final int clusterSize = internalCluster().size();
 
             // Keep the snapshot out of finalization so SnapshotsService fails its listener immediately on losing mastership.
             // Step down without stopping the node so its state applier notifies SLM's pending completion listener.
@@ -356,19 +357,34 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 new MockLog.SeenEventExpectation(
                     "SLM handles the snapshot failure after stepping down",
                     SnapshotLifecycleTask.class.getCanonicalName(),
-                    Level.WARN,
+                    Level.ERROR,
                     "failed to create snapshot for snapshot lifecycle policy [" + policyName + "]"
                 )
             );
 
             awaitClusterState(initialMaster, state -> state.term() > initialTerm && state.nodes().getMasterNode() != null);
-            ensureStableCluster(masterNodeNames.size() + dataNodeNames.size());
+            ensureStableCluster(clusterSize);
             unblockAllDataNodes(REPO);
             awaitNoMoreRunningOperations();
             assertSnapshotSuccessful(snapshotName);
         } finally {
             unblockAllDataNodes(REPO);
         }
+    }
+
+    private void assertSnapshotSuccessful(String snapshotName) throws Exception {
+        assertBusy(() -> {
+            final SnapshotInfo snapshotInfo;
+            try {
+                GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO)
+                    .setSnapshots(snapshotName)
+                    .get();
+                snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            } catch (SnapshotMissingException sme) {
+                throw new AssertionError(sme);
+            }
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        });
     }
 
     private void testUnsuccessfulSnapshotRetention(boolean partialSuccess) throws Exception {

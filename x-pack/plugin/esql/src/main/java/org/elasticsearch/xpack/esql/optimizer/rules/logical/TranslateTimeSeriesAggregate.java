@@ -600,51 +600,23 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
     }
 
     /**
-     * Makes {@code tsid} available to this aggregate: injects it into the time-series source relation(s) and adjusts their index mode,
-     * mirroring the traversal scope of {@link #findTimeSeriesSourceTsid}. It never descends into the right-hand side of a
-     * {@code BinaryPlan}, so nested subqueries keep their own {@code _tsid} untouched.
-     * <p>
-     * The rule runs after the analyzer has fixed the outputs of the plans between the source and the aggregate, so {@code _tsid} is also
-     * carried up through them: a {@code Project} (e.g. a {@code KEEP}) whose input has it keeps it, and a {@code MergePlan} gets it as
-     * one more output column. Each branch of a merge gets its own {@code _tsid}, carried up to the branch output, which the merge
-     * lines up with its {@code _tsid} column by name.
+     * Makes {@code tsid} available to this aggregate: injects it into the time-series source relation(s), adjusts their index mode and
+     * carries it up to the aggregate - see {@link TranslateTimeSeriesUtils#addToTimeSeriesSource}. Each branch of a merge groups by its
+     * own {@code _tsid}, found the same way as {@link #findTimeSeriesSourceTsid} finds the aggregate's.
      */
     private static LogicalPlan addTsidToTimeSeriesSource(LogicalPlan plan, Attribute tsid, boolean requiredTimeSeriesSource) {
-        if (plan instanceof EsRelation relation) {
+        return TranslateTimeSeriesUtils.addToTimeSeriesSource(plan, List.of(tsid), (relation, tsids) -> {
             IndexMode indexMode = requiredTimeSeriesSource ? relation.indexMode() : IndexMode.STANDARD;
-            if (relation.output().contains(tsid) == false) {
-                return relation.withIndexMode(indexMode).withAttributes(CollectionUtils.combine(relation.output(), tsid));
-            }
-            return relation.withIndexMode(indexMode);
-        }
-        if (plan instanceof MergePlan merge) {
-            List<LogicalPlan> branches = new ArrayList<>(merge.children().size());
-            for (LogicalPlan branch : merge.children()) {
-                Attribute branchTsid = findTimeSeriesSourceTsid(branch);
-                if (branchTsid == null) {
-                    branchTsid = newTsid(branch.source());
-                }
-                branches.add(addTsidToTimeSeriesSource(branch, branchTsid, requiredTimeSeriesSource));
-            }
-            List<Attribute> output = merge.output().contains(tsid) ? merge.output() : CollectionUtils.combine(merge.output(), tsid);
-            return merge.replaceSubPlansAndOutput(branches, output);
-        }
-        if (plan instanceof BinaryPlan binary) {
-            LogicalPlan newLeft = addTsidToTimeSeriesSource(binary.left(), tsid, requiredTimeSeriesSource);
-            return newLeft == binary.left() ? binary : binary.replaceLeft(newLeft);
-        }
-        List<LogicalPlan> newChildren = new ArrayList<>(plan.children().size());
-        boolean changed = false;
-        for (LogicalPlan child : plan.children()) {
-            LogicalPlan newChild = addTsidToTimeSeriesSource(child, tsid, requiredTimeSeriesSource);
-            changed |= newChild != child;
-            newChildren.add(newChild);
-        }
-        LogicalPlan newPlan = changed ? plan.replaceChildren(newChildren) : plan;
-        if (newPlan instanceof Project project && project.output().contains(tsid) == false && project.inputSet().contains(tsid)) {
-            return project.withProjections(CollectionUtils.combine(project.projections(), tsid));
-        }
-        return newPlan;
+            EsRelation withIndexMode = relation.withIndexMode(indexMode);
+            List<Attribute> missing = tsids.stream()
+                .filter(t -> relation.outputSet().contains(t) == false)
+                .map(Attribute.class::cast)
+                .toList();
+            return missing.isEmpty() ? withIndexMode : withIndexMode.withAttributes(CollectionUtils.combine(relation.output(), missing));
+        }, (branch, mergeTsid) -> {
+            Attribute branchTsid = findTimeSeriesSourceTsid(branch);
+            return branchTsid != null ? branchTsid : newTsid(branch.source());
+        });
     }
 
     static LogicalPlan usePackDimsAgg(LogicalPlan plan, AnalyzerContext context) {

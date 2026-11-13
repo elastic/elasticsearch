@@ -12123,4 +12123,27 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             assertThat(branchTsid.getFirst().dataType(), equalTo(DataType.TSID_DATA_TYPE));
         }
     }
+
+    /**
+     * A {@code WITHOUT} grouping over a {@code FORK} lowers to a {@code _timeseries} attribute that the branches extract. Like
+     * {@code _tsid}, it has to reach the {@code FORK} output.
+     */
+    public void testTimeSeriesWithoutGroupingOverFork() {
+        assumeTrue("requires WITHOUT grouping", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        assumeTrue("requires TS STATS over FORK fix", EsqlCapabilities.Cap.FIX_TS_STATS_OVER_FORK.isEnabled());
+        for (String grouping : List.of("WITHOUT(pod)", "dims = WITHOUT(pod)")) {
+            var plan = planMetrics("""
+                TS k8s
+                | FORK (WHERE cluster == "prod") (WHERE cluster != "prod")
+                | STATS m = MAX(LAST_OVER_TIME(network.cost)) BY\s""" + grouping);
+            String groupingName = grouping.startsWith("dims") ? "dims" : MetadataAttribute.TIMESERIES;
+            assertThat(Expressions.names(plan.output()), equalTo(List.of("m", groupingName)));
+            assertTsidFlowsThroughFork(plan);
+            Fork fork = plan.collect(Fork.class).getFirst();
+            assertThat(Expressions.names(fork.output()), hasItem(MetadataAttribute.TIMESERIES));
+            for (LogicalPlan branch : fork.children()) {
+                assertThat(Expressions.names(branch.output()), hasItem(MetadataAttribute.TIMESERIES));
+            }
+        }
+    }
 }

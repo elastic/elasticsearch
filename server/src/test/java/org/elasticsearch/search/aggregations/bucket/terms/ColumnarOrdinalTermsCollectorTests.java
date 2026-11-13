@@ -37,6 +37,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.string.DictionaryFingerprint;
 import org.elasticsearch.columnar.string.DictionaryStringColumnReader;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -199,10 +200,14 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
         assertThat("every other document went to its bucket", outcome.knownBucket, equalTo(valued(docs) - outcome.hashed));
     }
 
-    /** The bucket of an ordinal is for one segment, so each segment starts over, whatever the last one held. */
-    public void testEachSegmentHashesItsTermsAgain() throws IOException {
+    /**
+     * The bucket of an ordinal is for one dictionary, so a segment whose dictionary differs from the last one's starts over,
+     * and one with the same dictionary goes on with what the last one cached.
+     */
+    public void testEachSegmentWithANewDictionaryHashesItsTermsAgain() throws IOException {
         final List<String[]> segments = new ArrayList<>();
         int hashed = 0;
+        Set<String> previous = null;
         final int segmentCount = randomIntBetween(2, 5);
         for (int segment = 0; segment < segmentCount; segment++) {
             // Overlapping vocabularies, so a term has a different ordinal from one segment to the next.
@@ -212,14 +217,39 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
                 docs[i] = "term-" + (from + randomIntBetween(0, 4));
             }
             segments.add(docs);
-            hashed += distinct(docs).size();
+            // Every term repeats, so the dictionary is every distinct term.
+            final Set<String> dictionary = distinct(docs);
+            if (dictionary.equals(previous) == false) {
+                hashed += dictionary.size();
+            }
+            previous = dictionary;
         }
         final Search search = new Search(segments, Set.of(), null, null, false);
         final Outcome outcome = search(search);
         assertThat(outcome.counts(0), equalTo(expected(search, null)));
         assertThat(outcome.leaves, equalTo(segments.size()));
         assertThat(outcome.ordinalLeaves, equalTo(segments.size()));
-        assertThat("each term once for each segment", outcome.hashed, equalTo(hashed));
+        assertThat("each term once for each new dictionary", outcome.hashed, equalTo(hashed));
+    }
+
+    /** Segments that share a dictionary share the cache, so a term is hashed once for all of them. */
+    public void testSegmentsWithTheSameDictionaryHashOnce() throws IOException {
+        final List<String[]> segments = new ArrayList<>();
+        final int segmentCount = randomIntBetween(2, 5);
+        for (int segment = 0; segment < segmentCount; segment++) {
+            final String[] docs = new String[randomIntBetween(500, 2000)];
+            for (int i = 0; i < docs.length; i++) {
+                // Every term in every segment, many times over, so they all write the same dictionary.
+                docs[i] = i < COMMON.length ? COMMON[i] : randomFrom(COMMON);
+            }
+            segments.add(docs);
+        }
+        final Search search = new Search(segments, Set.of(), null, null, false);
+        final Outcome outcome = search(search);
+        assertThat(outcome.counts(0), equalTo(expected(search, null)));
+        assertThat(outcome.ordinalLeaves, equalTo(segments.size()));
+        assertThat("each term once, for all the segments", outcome.hashed, equalTo(COMMON.length));
+        assertThat("every other document went to its bucket", outcome.knownBucket, equalTo(valued(search.docs()) - COMMON.length));
     }
 
     /** A document with no field, and one whose slot is null, hold no value. */
@@ -400,7 +430,7 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
         assertThat("the growth, not the whole size again", charged[0], equalTo(100L * Long.BYTES + 900L * Long.BYTES));
     }
 
-    /** A segment never sees what the last one cached. */
+    /** A segment whose dictionary is not known to be the last one's never sees what the last one cached. */
     public void testBucketsAreClearedForEachSegment() {
         final ColumnarOrdinalTermsCollector.OrdinalBuckets buckets = new ColumnarOrdinalTermsCollector.OrdinalBuckets();
         long[] cache = buckets.reset(100, bytes -> {});
@@ -409,6 +439,31 @@ public class ColumnarOrdinalTermsCollectorTests extends ESTestCase {
         for (int ordinal = 0; ordinal < 60; ordinal++) {
             assertThat("no bucket known yet, which the collector marks as -1", cache[ordinal], equalTo(-1L));
         }
+    }
+
+    /** The cache is kept only for the dictionary it was filled for, and only from one segment to the next. */
+    public void testBucketsAreKeptForTheSameDictionary() {
+        final DictionaryFingerprint a = new DictionaryFingerprint(randomLong(), randomLong());
+        final DictionaryFingerprint b = randomValueOtherThan(a, () -> new DictionaryFingerprint(randomLong(), randomLong()));
+        final ColumnarOrdinalTermsCollector.OrdinalBuckets buckets = new ColumnarOrdinalTermsCollector.OrdinalBuckets();
+
+        long[] cache = buckets.reset(100, a, bytes -> {});
+        Arrays.fill(cache, 0, 100, 7);
+        cache = buckets.reset(100, new DictionaryFingerprint(a.high(), a.low()), bytes -> {});
+        assertThat("the same dictionary keeps its buckets", cache[99], equalTo(7L));
+
+        cache = buckets.reset(100, b, bytes -> {});
+        assertThat("another dictionary starts over", cache[99], equalTo(-1L));
+        Arrays.fill(cache, 0, 100, 7);
+        cache = buckets.reset(100, a, bytes -> {});
+        assertThat("only the last dictionary is remembered", cache[99], equalTo(-1L));
+
+        Arrays.fill(cache, 0, 100, 7);
+        cache = buckets.reset(100, null, bytes -> {});
+        assertThat("a column with no fingerprint starts over", cache[99], equalTo(-1L));
+        Arrays.fill(cache, 0, 100, 7);
+        cache = buckets.reset(100, null, bytes -> {});
+        assertThat("and so does the next one", cache[99], equalTo(-1L));
     }
 
     /** A document is {@code null} for no field, {@link #NULL_SLOT} for a null value, or its value. */

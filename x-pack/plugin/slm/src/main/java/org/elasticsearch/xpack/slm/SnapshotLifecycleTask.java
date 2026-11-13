@@ -28,6 +28,7 @@ import org.elasticsearch.snapshots.RegisteredPolicySnapshots.PolicySnapshot;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicySecurityClient;
@@ -151,6 +152,16 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
                 @Override
                 public void onFailure(Exception e) {
+                    // Does not indicate the snapshot creation has definitely failed: it could be that the creation was added to
+                    // `SnapshotsInProgress` and then the master failed over. In that case we might be on the cluster applier thread,
+                    // where reading `clusterService.state()` may expose a stale state and is therefore forbidden.
+                    //
+                    // Recording the failure indexes SLM history, which reads the cluster state. For SLM it does not matter as long as we
+                    // proceed based on a state no older than the previous one, so dispatch this work to another thread:
+                    client.threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(() -> recordSnapshotFailure(e));
+                }
+
+                private void recordSnapshotFailure(Exception e) {
                     logger.error("failed to create snapshot for snapshot lifecycle policy [{}]: {}", policyMetadata.getPolicy().getId(), e);
                     final long timestamp = Instant.now().toEpochMilli();
                     submitUnbatchedTask(

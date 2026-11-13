@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware.FinishedTranslatable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -50,7 +51,8 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * Runs {@code WHERE NESTED(<predicate>)} in Lucene as a {@code nested} query, so only parents with a matching child document
  * leave the index. The in-memory check reads the child values from doc values, so a query on the indexed child fields gives
  * the same answer when every child field is searchable and has doc values here. A predicate that translates exactly replaces
- * the reduction; one that needs a recheck is pushed and still evaluated; anything else stays in memory.
+ * the reduction; one that needs a recheck is pushed and still evaluated; anything else stays in memory. A {@code true}
+ * predicate, as in {@code NESTED(items, true)}, matches any child document.
  */
 public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     FilterExec,
@@ -76,9 +78,14 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
         for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
             NestedReduction reduction = conjunct instanceof ReferenceAttribute ref ? reductions.get(ref.id()) : null;
             Expression predicate = reduction == null ? null : childPredicate(reduction, context.searchStats());
-            FinishedTranslatable translatable = predicate == null ? FinishedTranslatable.NO : translatable(predicate, children).finish();
+            boolean anyChild = Literal.TRUE.equals(predicate);
+            FinishedTranslatable translatable = predicate == null ? FinishedTranslatable.NO
+                : anyChild ? FinishedTranslatable.YES
+                : translatable(predicate, children).finish();
             if (translatable != FinishedTranslatable.NO) {
-                QueryBuilder query = TRANSLATOR_HANDLER.asQuery(children, predicate).toQueryBuilder();
+                QueryBuilder query = anyChild
+                    ? QueryBuilders.matchAllQuery()
+                    : TRANSLATOR_HANDLER.asQuery(children, predicate).toQueryBuilder();
                 queries.add(new NestedQueryBuilder(reduction.path(), query, ScoreMode.None).ignoreUnmapped(true));
             }
             if (translatable == FinishedTranslatable.YES) {

@@ -303,7 +303,7 @@ public final class NestedReductionsAnalysis {
                     throw error(p.expressions().getFirst(), "NESTED reductions must be completed in EVAL before outer STATS");
                 }
                 p.forEachExpression(Nested.class, nested -> {
-                    if (nested.field().anyMatch(Nested.class::isInstance)) {
+                    if (nested.children().stream().anyMatch(c -> c.anyMatch(Nested.class::isInstance))) {
                         throw error(nested, "NESTED wrappers cannot be nested");
                     }
                 });
@@ -351,13 +351,24 @@ public final class NestedReductionsAnalysis {
 
     private static NestedReduction bind(Nested nested, LogicalPlan input, AnalyzerContext context) {
         Map<String, NestedScopeField> roots = scopeSchema(input, nested).roots();
-        Expression body = nested.field();
+        Expression body = nested.body();
         if (body.anyMatch(e -> e instanceof Nested || e instanceof FullTextFunction)) {
             throw error(nested, "NESTED does not allow inner scopes or full-text functions");
         }
         List<Expression> keys = nested.keys();
         if (nested.extraArguments().isEmpty() == false) {
-            throw error(nested, "NESTED takes one expression");
+            throw error(nested, "NESTED takes a collection and one expression");
+        }
+        String collection = null;
+        if (nested.collection() != null) {
+            if (nested.collection() instanceof FieldAttribute f && f.field() instanceof NestedScopeField n && n.collection()) {
+                if (n.conflict() != null) {
+                    throw error(nested, "NESTED cannot read [" + publicName(f) + "]: " + n.conflict());
+                }
+                collection = n.path();
+            } else {
+                throw error(nested, "NESTED requires a nested collection first, not [" + nested.collection().sourceText() + "]");
+            }
         }
         if (keys.isEmpty() == false) {
             if (body instanceof Count == false
@@ -398,13 +409,16 @@ public final class NestedReductionsAnalysis {
         Map<NameId, Attribute> fields = new LinkedHashMap<>();
         body.forEachDown(Attribute.class, a -> fields.putIfAbsent(a.id(), a));
         keys.forEach(key -> fields.putIfAbsent(((Attribute) key).id(), (Attribute) key));
-        String path = null;
+        String path = collection;
         Set<String> indices = new HashSet<>();
         Map<String, String> sourceFailures = new HashMap<>();
         for (Attribute attr : fields.values()) {
             if (attr instanceof FieldAttribute f && f.field() instanceof NestedScopeField n) {
                 if (n.conflict() != null) {
                     throw error(nested, "NESTED cannot read [" + publicName(f) + "]: " + n.conflict());
+                }
+                if (collection != null && collection.equals(n.path()) == false) {
+                    throw error(nested, "Field [" + publicName(f) + "] is outside the nested scope [" + collection + "]");
                 }
                 if (path != null && path.equals(n.path()) == false) {
                     throw error(nested, "NESTED requires one nested path");

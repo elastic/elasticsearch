@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -37,13 +38,13 @@ public final class Nested extends Function implements OptionalArgument {
         @Param(
             name = "expression",
             type = { "boolean", "integer", "long", "double", "keyword", "text", "_source" },
-            description = "Expression using fields from one nested path."
+            description = "Expression using fields from one nested path, or the nested collection the next expression reads."
         ) Expression child,
         @Param(
             name = "keys",
             type = { "boolean", "integer", "long", "double", "keyword", "text" },
             optional = true,
-            description = "Child fields after `BY` to group the nested objects by."
+            description = "The expression over the named collection, then the child fields after `BY` to group the nested objects by."
         ) List<Expression> rest
     ) {
         super(source, children(child, rest));
@@ -56,8 +57,21 @@ public final class Nested extends Function implements OptionalArgument {
         return children;
     }
 
-    public Expression field() {
-        return children().getFirst();
+    /** The arguments before the {@code BY} keys. */
+    private List<Expression> beforeKeys() {
+        List<Expression> children = children();
+        return children.getLast() instanceof NestedGroupings ? children.subList(0, children.size() - 1) : children;
+    }
+
+    /** The nested collection named before the expression, or {@code null} when the expression's child fields give it. */
+    @Nullable
+    public Expression collection() {
+        return beforeKeys().size() > 1 ? beforeKeys().getFirst() : null;
+    }
+
+    /** The expression evaluated over each parent's nested objects. */
+    public Expression body() {
+        return beforeKeys().get(collection() == null ? 0 : 1);
     }
 
     /** The {@code BY} keys, or empty when the reduction is not grouped. */
@@ -65,16 +79,15 @@ public final class Nested extends Function implements OptionalArgument {
         return children().getLast() instanceof NestedGroupings keys ? keys.children() : List.of();
     }
 
-    /** Arguments other than the expression and the {@code BY} keys, which NESTED does not accept. */
+    /** Arguments after the collection and the expression, which NESTED does not accept. */
     public List<Expression> extraArguments() {
-        List<Expression> children = children();
-        int end = children.getLast() instanceof NestedGroupings ? children.size() - 1 : children.size();
-        return children.subList(Math.min(1, end), end);
+        List<Expression> arguments = beforeKeys();
+        return arguments.subList(Math.min(2, arguments.size()), arguments.size());
     }
 
     @Override
     public DataType dataType() {
-        return keys().isEmpty() ? field().dataType() : DataType.KEYWORD;
+        return keys().isEmpty() ? body().dataType() : DataType.KEYWORD;
     }
 
     @Override
@@ -84,7 +97,7 @@ public final class Nested extends Function implements OptionalArgument {
 
     @Override
     protected NodeInfo<Nested> info() {
-        return NodeInfo.create(this, Nested::new, field(), children().subList(1, children().size()));
+        return NodeInfo.create(this, Nested::new, children().getFirst(), children().subList(1, children().size()));
     }
 
     @Override

@@ -13,18 +13,24 @@ import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentParser;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Charges a circuit breaker for the heap that parsing a request's content takes, and holds the charge until the response is sent.
+ * Charges a circuit breaker for the heap that parsing a request's content takes, and holds the charge until the response is sent, or
+ * until the work that keeps the parsed request ends if that is later.
  *
  * <p>What a request is parsed into can be far larger than its content, since every token becomes at least one object. The in-flight
  * requests breaker only charges the content, so parsers from {@link #track} charge for what they read. A request that responds before
- * its work ends, such as an async search or a task started with {@code wait_for_completion=false}, releases the charge at that
- * response, though its work may still keep the parsed request.
+ * its work ends, such as an async search, keeps the parsed request after the response, so its work holds the charge until it ends, see
+ * {@link #hold(ThreadContext)}. Other such requests, such as a task started with {@code wait_for_completion=false}, still release the
+ * charge at the response.
  *
  * <p>A request can be read by many parsers, such as one per {@code _msearch} line. The reservation counts what they charge without a
  * check, so the request is checked once per chunk however small each parser is.
@@ -40,11 +46,14 @@ public final class ParsedContentReservation implements Releasable {
      */
     public static final String TRANSIENT_NAME = "_parsed_content_reservation";
 
-    /** Marks a closed reservation. Charges only add to the count, so it never reaches this. */
-    private static final long CLOSED = Long.MIN_VALUE;
+    /** Marks a released reservation. Charges only add to the count, so it never reaches this. */
+    private static final long RELEASED = Long.MIN_VALUE;
 
     private final CircuitBreaker breaker;
     private final boolean canTrip;
+    /** One reference for the request, dropped by {@link #close}, and one for each hold. The last one releases the charge. */
+    private final RefCounted refs = AbstractRefCounted.of(this::release);
+    private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicLong reserved = new AtomicLong();
     /** Charged without a check since the last check. */
     private final AtomicLong unchecked = new AtomicLong();
@@ -86,10 +95,10 @@ public final class ParsedContentReservation implements Releasable {
 
     /**
      * Charges {@code bytes}, checking the limit unless the request must not trip it. The check also covers earlier charges made without
-     * one. Once the reservation is closed, nothing is charged or checked.
+     * one. Once the charge is released, nothing is charged or checked.
      */
     void reserve(long bytes) {
-        if (reserved.get() == CLOSED) {
+        if (reserved.get() == RELEASED) {
             return;
         }
         // Taken before the check, so that two checks at the same time cannot both take it.
@@ -108,11 +117,11 @@ public final class ParsedContentReservation implements Releasable {
     }
 
     /**
-     * Charges {@code bytes} without checking the limit, for memory already in use. The next check covers them. Once the reservation is
-     * closed, nothing is charged.
+     * Charges {@code bytes} without checking the limit, for memory already in use. The next check covers them. Once the charge is
+     * released, nothing is charged.
      */
     void reserveWithoutBreaking(long bytes) {
-        if (reserved.get() == CLOSED) {
+        if (reserved.get() == RELEASED) {
             return;
         }
         breaker.addWithoutBreaking(bytes, LABEL);
@@ -128,26 +137,51 @@ public final class ParsedContentReservation implements Releasable {
     }
 
     private void record(long bytes) {
-        // A forked parser can still charge after its request completed. A charge that raced with close is released at once.
-        if (reserved.getAndUpdate(r -> r == CLOSED ? CLOSED : r + bytes) == CLOSED) {
+        // A forked parser can still charge after its request completed. A charge that raced with the release is released at once.
+        if (reserved.getAndUpdate(r -> r == RELEASED ? RELEASED : r + bytes) == RELEASED) {
             breaker.addWithoutBreaking(-bytes, LABEL);
         }
     }
 
     /**
-     * The bytes charged, until the reservation is closed.
+     * The bytes charged, until the charge is released.
      */
     public long reservedBytes() {
         final long r = reserved.get();
-        return r == CLOSED ? 0 : r;
+        return r == RELEASED ? 0 : r;
     }
 
     /**
-     * Releases everything charged. Later charges are ignored.
+     * Holds the charge until the returned releasable is closed, even if this reservation is closed before. Charges made meanwhile are
+     * held too. Does nothing if the charge is released already.
+     */
+    Releasable hold() {
+        return refs.tryIncRef() ? Releasables.releaseOnce(refs::decRef) : () -> {};
+    }
+
+    /**
+     * Holds the charge of the reservation of the REST request handled in {@code threadContext} until the returned releasable is closed,
+     * even if the reservation is closed before. Charges made meanwhile are held too. For work that keeps the parsed request after the
+     * response is sent, such as an async search. Does nothing if there is no reservation, or its charge is released already.
+     */
+    public static Releasable hold(ThreadContext threadContext) {
+        final ParsedContentReservation reservation = threadContext.getTransient(TRANSIENT_NAME);
+        return reservation == null ? () -> {} : reservation.hold();
+    }
+
+    /**
+     * Drops the request's own reference. Once no {@link #hold(ThreadContext) hold} remains either, everything charged is released and
+     * later charges are ignored.
      */
     @Override
     public void close() {
-        final long toRelease = reserved.getAndSet(CLOSED);
+        if (closed.compareAndSet(false, true)) {
+            refs.decRef();
+        }
+    }
+
+    private void release() {
+        final long toRelease = reserved.getAndSet(RELEASED);
         if (toRelease > 0) {
             breaker.addWithoutBreaking(-toRelease, LABEL);
         }

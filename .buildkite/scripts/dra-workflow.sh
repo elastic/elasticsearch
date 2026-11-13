@@ -176,7 +176,7 @@ steps:
       machineType: n2-standard-8
       diskSizeGb: 100
     plugins:
-      - elastic/dra-prep#v0.1.6:
+      - elastic/dra-prep#v0.1.8:
           product_id: elasticsearch
           stack_version: "${BASE_VERSION}"
           workflow: "${WORKFLOW}"

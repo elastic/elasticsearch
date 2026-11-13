@@ -1909,6 +1909,126 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         }
     }
 
+    /**
+     * Lucene 10.6 normalizes Thai text before tokenizing, so a doubled sara e ({@code เเ}) is indexed as sara ae ({@code แ}). This test
+     * ensures that search results on old indices using the "thai" analyzer don't change after the upgrade, including for documents
+     * indexed into the old index after the upgrade.
+     */
+    public void testThaiAnalyzerBWC() throws Exception {
+        assumeTrue(
+            "Don't run this test if both versions already normalize Thai text",
+            getOldClusterIndexVersion().luceneVersion().onOrAfter(org.apache.lucene.util.Version.LUCENE_10_6_0) == false
+        );
+        final String indexName = "test_thai_normalization";
+        Settings idxSettings = indexSettings(1, 1).build();
+        String doubledSaraE = "เเมว";
+        String saraAe = "แมว";
+
+        String mapping = """
+                {
+                  "properties": {
+                    "textfield" : {
+                      "type": "text",
+                      "analyzer": "thai"
+                    }
+                  }
+                }
+            """;
+
+        // query that uses the sara ae form
+        String query = """
+                {
+                  "query": {
+                    "match": {
+                      "textfield": "แมว"
+                    }
+                  }
+                }
+            """;
+
+        if (isRunningAgainstOldCluster()) {
+            createIndex(client(), indexName, idxSettings, mapping);
+            ensureGreen(indexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", doubledSaraE)
+                    )
+                )
+            );
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/2",
+                        (builder, params) -> builder.field("textfield", saraAe)
+                    )
+                )
+            );
+            refresh(indexName);
+
+            assertNumHits(indexName, 2, 1);
+
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+        } else {
+            // old index should still only return one doc
+            Request searchRequest = new Request("POST", "/" + indexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+
+            // a doubled sara e document indexed into the old index after the upgrade is still not normalized
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + indexName + "/" + "_doc/3",
+                        (builder, params) -> builder.field("textfield", doubledSaraE)
+                    )
+                )
+            );
+            refresh(indexName);
+            assertTotalHits(1, entityAsMap(client().performRequest(searchRequest)));
+
+            String newIndexName = indexName + "_new";
+            createIndex(client(), newIndexName, idxSettings, mapping);
+            ensureGreen(newIndexName);
+
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/1",
+                        (builder, params) -> builder.field("textfield", doubledSaraE)
+                    )
+                )
+            );
+            assertOK(
+                client().performRequest(
+                    newXContentRequest(
+                        HttpMethod.POST,
+                        "/" + newIndexName + "/" + "_doc/2",
+                        (builder, params) -> builder.field("textfield", saraAe)
+                    )
+                )
+            );
+            refresh(newIndexName);
+
+            searchRequest = new Request("POST", "/" + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(2, entityAsMap(client().performRequest(searchRequest)));
+
+            // searching both indices (old and new analysis version) we should get 1 hit from the old and 2 from the new index
+            searchRequest = new Request("POST", "/" + indexName + "," + newIndexName + "/_search");
+            searchRequest.setJsonEntity(query);
+            assertTotalHits(3, entityAsMap(client().performRequest(searchRequest)));
+        }
+    }
+
     public void testForbidDisableSoftDeletesOnRestore() throws Exception {
         final String snapshot = "snapshot-" + index;
         if (isRunningAgainstOldCluster()) {

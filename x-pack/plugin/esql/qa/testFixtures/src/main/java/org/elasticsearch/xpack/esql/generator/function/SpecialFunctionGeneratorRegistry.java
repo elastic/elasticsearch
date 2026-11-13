@@ -191,10 +191,10 @@ public final class SpecialFunctionGeneratorRegistry {
 
         // ---- Scoring functions ----------------------------------------------
 
-        // decay(value, origin, scale[, options]): origin and scale must be compile-time constants.
-        // Numeric overloads only: double uses 0.0/1.0, integer uses 0/1.
-        // Skip long/unsigned_long (literals need explicit casts) and all geo/date/keyword overloads
-        // whose other required params (geo_point, time_duration, etc.) are already unsupported.
+        // decay(value, origin, scale[, options]): origin, scale and options must be compile-time constants.
+        // Numeric overloads only: double uses 0.0/1.0, integer uses 0/1, long casts 0/1.
+        // Skip unsigned_long and all geo/date/keyword overloads whose other required params
+        // (geo_point, time_duration, etc.) are already unsupported.
         r.put("decay", (name, sig, cols, unmapped, depth, recurse) -> {
             String originType = sig.params().get(1).type();
             String valueLiteral;
@@ -205,12 +205,24 @@ public final class SpecialFunctionGeneratorRegistry {
             } else if ("integer".equals(originType)) {
                 valueLiteral = "0";
                 scaleLiteral = "1";
+            } else if ("long".equals(originType)) {
+                valueLiteral = "0::long";
+                scaleLiteral = "1::long";
             } else {
                 return null;
             }
             String valueExpr = recurse.recurse(sig.params().get(0).type(), cols, unmapped, depth - 1);
             if (valueExpr == null) return null;
-            return name + "(" + valueExpr + ", " + valueLiteral + ", " + scaleLiteral + ")";
+            String options = randomBoolean()
+                ? ""
+                : ", {\"type\": \""
+                    + randomFrom("linear", "exp", "gauss")
+                    + "\", \"decay\": "
+                    + randomFrom("0.1", "0.5", "0.9")
+                    + ", \"offset\": "
+                    + randomIntBetween(0, 2)
+                    + "}";
+            return name + "(" + valueExpr + ", " + valueLiteral + ", " + scaleLiteral + options + ")";
         });
 
         // ---- IP functions ---------------------------------------------------

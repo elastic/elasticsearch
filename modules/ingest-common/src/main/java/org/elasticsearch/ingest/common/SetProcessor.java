@@ -11,8 +11,10 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.FieldPath;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.ValueSource;
@@ -33,9 +35,10 @@ public final class SetProcessor extends AbstractProcessor {
     public static final String TYPE = "set";
 
     private final boolean overrideEnabled;
-    private final TemplateScript.Factory field;
+    private final FieldPath field;
     private final ValueSource value;
-    private final String copyFrom;
+    @Nullable
+    private final FieldPath copyFrom;
     private final boolean ignoreEmptyValue;
 
     SetProcessor(String tag, String description, TemplateScript.Factory field, ValueSource value, String copyFrom) {
@@ -53,9 +56,9 @@ public final class SetProcessor extends AbstractProcessor {
     ) {
         super(tag, description);
         this.overrideEnabled = overrideEnabled;
-        this.field = field;
+        this.field = FieldPath.of(field);
         this.value = value;
-        this.copyFrom = copyFrom;
+        this.copyFrom = FieldPath.ofNullable(copyFrom);
         this.ignoreEmptyValue = ignoreEmptyValue;
     }
 
@@ -63,7 +66,7 @@ public final class SetProcessor extends AbstractProcessor {
         return overrideEnabled;
     }
 
-    public TemplateScript.Factory getField() {
+    public FieldPath getField() {
         return field;
     }
 
@@ -71,7 +74,8 @@ public final class SetProcessor extends AbstractProcessor {
         return value;
     }
 
-    public String getCopyFrom() {
+    @Nullable
+    public FieldPath getCopyFrom() {
         return copyFrom;
     }
 
@@ -81,7 +85,10 @@ public final class SetProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        String path = document.renderTemplate(field);
+        // With override off the field has to be looked at before anything is written to it, so it is resolved (once) here. Otherwise
+        // it is only used to write to, so it is left for IngestDocument to resolve if (and only if) there turns out to be something to
+        // write, which matters for a field that is a template, as what it renders as depends on the document.
+        FieldPath path = overrideEnabled ? field : field.resolve(document);
         if (overrideEnabled || document.hasField(path) == false || document.getFieldValue(path, Object.class) == null) {
             if (copyFrom != null) {
                 Object fieldValue = document.getFieldValue(copyFrom, Object.class, ignoreEmptyValue);

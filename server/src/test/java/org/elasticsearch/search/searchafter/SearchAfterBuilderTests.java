@@ -257,6 +257,9 @@ public class SearchAfterBuilderTests extends ESTestCase {
         type = extractSortType(new SortedNumericSortField("field", SortField.Type.DOUBLE));
         assertThat(type, equalTo(SortField.Type.DOUBLE));
 
+        type = extractSortType(SortField.withoutPruning(new SortedNumericSortField("field", SortField.Type.LONG)));
+        assertThat(type, equalTo(SortField.Type.LONG));
+
         type = extractSortType(new SortedSetSortField("field", false));
         assertThat(type, equalTo(SortField.Type.STRING));
 

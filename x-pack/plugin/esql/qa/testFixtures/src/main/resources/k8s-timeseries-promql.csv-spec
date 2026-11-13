@@ -63,6 +63,23 @@ sum(avg_over_time(network.cost[5m] offset -5m)):double | step:date
 51.59375                                               | 2024-05-10T00:20:00.000Z
 ;
 
+// Exponentiation applies to the offset selector, including when the offset has an explicit positive sign.
+positive_offset_before_power
+required_capability: fix_promql_offset_precedence
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: promql_offset_modifier
+PROMQL index=k8s step=5m start="2024-05-10T00:25:00.000Z" end="2024-05-10T00:30:00.000Z" result=(
+  sum(network.cost offset +5m ^ 2 - (network.cost offset 5m) ^ 2)
+)
+| SORT step;
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:25:00.000Z
+0.0           | 2024-05-10T00:30:00.000Z
+;
+
 auto_step_buckets
 required_capability: promql_command_v0
 required_capability: promql_buckets_parameter

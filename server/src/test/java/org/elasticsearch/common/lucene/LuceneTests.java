@@ -849,6 +849,18 @@ public class LuceneTests extends ESTestCase {
         }
     }
 
+    public void testRewriteMergeSortFieldUnwrapsNonPruningSortField() {
+        SortedNumericSortField numeric = new SortedNumericSortField("n", SortField.Type.LONG, false, SortedNumericSelector.Type.MAX, 0L);
+        SortField wrapped = SortField.withoutPruning(numeric);
+        SortField rewritten = Lucene.rewriteMergeSortField(wrapped);
+        assertEquals(SortField.Type.LONG, rewritten.getType());
+        assertEquals("n", rewritten.getField());
+        assertFalse(rewritten.getReverse());
+        assertEquals(0L, rewritten.getMissingValue());
+        assertSame(numeric, Lucene.unwrapSortField(wrapped));
+        assertSame(numeric, Lucene.unwrapSortField(numeric));
+    }
+
     public void testRewriteMergeSortFieldForBinaryDocValues() {
         for (BinaryDocValuesFormat format : BinaryDocValuesFormat.values()) {
             for (boolean reverse : new boolean[] { false, true }) {

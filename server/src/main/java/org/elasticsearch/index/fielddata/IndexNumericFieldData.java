@@ -102,7 +102,17 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         boolean requiresCustomComparator = nested != null
             || (sortMode != MultiValueMode.MAX && sortMode != MultiValueMode.MIN)
             || targetNumericType != getNumericType();
-        return buildSortField(targetNumericType, missingValue, sortMode, nested, reverse, false, requiresCustomComparator == false, null);
+        return buildSortField(
+            targetNumericType,
+            missingValue,
+            sortMode,
+            nested,
+            reverse,
+            false,
+            requiresCustomComparator == false,
+            null,
+            false
+        );
     }
 
     private SortField buildSortField(
@@ -113,13 +123,13 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         boolean reverse,
         boolean useNativeSortField,
         boolean optimizeSortWithPoints,
-        IndexVersion indexCreatedVersion
+        IndexVersion indexCreatedVersion,
+        boolean indexSort
     ) {
         XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
         if (useNativeSortField == false || sortRequiresCustomComparator()) {
             SortField sortField = new SortField(getFieldName(), source, reverse);
-            sortField.setOptimizeSortWithPoints(optimizeSortWithPoints && canUseOptimizedSort(indexType()));
-            return sortField;
+            return maybeDisablePruning(sortField, optimizeSortWithPoints && canUseOptimizedSort(indexType()), indexSort);
         }
 
         assert nested == null;
@@ -145,8 +155,18 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             selectorType,
             missingObject
         );
-        sortField.setOptimizeSortWithPoints(optimizeSortWithPoints && canUseOptimizedSort(indexType()));
-        return sortField;
+        return maybeDisablePruning(sortField, optimizeSortWithPoints && canUseOptimizedSort(indexType()), indexSort);
+    }
+
+    /**
+     * Disables indexed-data pruning for search sorts that cannot use it.
+     * {@link SortField#withoutPruning} is search-only: it cannot be used as an index sort.
+     */
+    private static SortField maybeDisablePruning(SortField sortField, boolean optimize, boolean indexSort) {
+        if (optimize || indexSort) {
+            return sortField;
+        }
+        return SortField.withoutPruning(sortField);
     }
 
     private static boolean canUseOptimizedSort(IndexType indexType) {
@@ -203,7 +223,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             reverse,
             useNativeSortField,
             useBwcLongSort == false && hasNativeSelector,
-            indexCreatedVersion
+            indexCreatedVersion,
+            indexSort
         );
     }
 

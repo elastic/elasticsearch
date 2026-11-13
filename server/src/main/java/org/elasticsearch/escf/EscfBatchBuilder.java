@@ -162,6 +162,7 @@ public final class EscfBatchBuilder implements Releasable {
                 (XContentString.UTF8Bytes) rowBuffer.scratchVar(col) // the stored spelling, or null
             );
             case SourceValueType.STRING -> builder.addString((XContentString.UTF8Bytes) rowBuffer.scratchVar(col));
+            case SourceValueType.BINARY -> builder.addBinary((BytesRef) rowBuffer.scratchVar(col));
             case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> builder.addArray(type, (byte[]) rowBuffer.scratchVar(col));
             case SourceValueType.KEY_VALUE -> builder.addKeyValue((byte[]) rowBuffer.scratchVar(col));
             default -> throw new IllegalStateException("unexpected scratch type [" + SourceValueType.name(type) + "]");

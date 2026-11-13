@@ -82,7 +82,10 @@ public final class ShardBatchMapper {
      * sequential path.
      */
     public static BatchMapperResolution resolveMappers(SourceBatch batch, MappingLookup lookup, IndexSettings indexSettings) {
-        return resolveMappers(batch.schema(), lookup, indexSettings, batch::isEmptyObjectColumn);
+        ColumnSupport columnSupport = batch instanceof EscfBatch escf
+            ? (mapper, leaf) -> mapper.supportsColumnKind(escf.column(leaf).kind())
+            : (mapper, leaf) -> true;
+        return resolveMappers(batch.schema(), lookup, indexSettings, batch::isEmptyObjectColumn, columnSupport);
     }
 
     /**
@@ -90,14 +93,22 @@ public final class ShardBatchMapper {
      * cannot be detected and any unmapped leaf under a dynamic parent causes the usual fallback.
      */
     public static BatchMapperResolution resolveMappers(SourceSchema schema, MappingLookup lookup, IndexSettings indexSettings) {
-        return resolveMappers(schema, lookup, indexSettings, leaf -> false);
+        return resolveMappers(schema, lookup, indexSettings, leaf -> false, (mapper, leaf) -> true);
+    }
+
+    /**
+     * Whether {@code mapper} takes the column of schema leaf {@code leaf}.
+     */
+    private interface ColumnSupport {
+        boolean test(FieldMapper mapper, int leaf);
     }
 
     private static BatchMapperResolution resolveMappers(
         SourceSchema schema,
         MappingLookup lookup,
         IndexSettings indexSettings,
-        IntPredicate isEmptyObjectColumn
+        IntPredicate isEmptyObjectColumn,
+        ColumnSupport columnSupport
     ) {
         // Runtime fields or index-time scripts anywhere in the mapping would require the normal
         // parsing flow; the batch path does not support them.
@@ -305,6 +316,10 @@ public final class ShardBatchMapper {
                     fullPath,
                     fieldMapper.typeName()
                 );
+                return null;
+            }
+            if (columnSupport.test(fieldMapper, leaf) == false) {
+                logger.debug("columnar batch mapping disabled: mapper at [{}] does not take this batch's column kind", fullPath);
                 return null;
             }
             // Two schema leaves can share a full path when a batch mixes the dotted and nested spellings of the same

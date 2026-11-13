@@ -156,6 +156,17 @@ public final class EscfRowBuffer {
         return stringField(name, new XContentString.UTF8Bytes(bytes, offset, length));
     }
 
+    /**
+     * Stages a raw binary value. The bytes are copied on {@link EscfBatchBuilder#commit}, so they must not change before.
+     * Returns the leaf column index.
+     */
+    public int binaryField(String name, BytesRef value) {
+        int colIdx = addLeaf(name);
+        scratchType[colIdx] = SourceValueType.BINARY;
+        scratchVar[colIdx] = value;
+        return colIdx;
+    }
+
     /** Stages a boolean value. Returns the leaf column index. */
     public int booleanField(String name, boolean value) {
         int colIdx = addLeaf(name);

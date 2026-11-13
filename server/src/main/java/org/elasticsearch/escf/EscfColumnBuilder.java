@@ -174,6 +174,10 @@ public final class EscfColumnBuilder implements Releasable {
         setString(nextAppendRow(), utf8);
     }
 
+    public void addBinary(BytesRef value) {
+        setBinary(nextAppendRow(), value);
+    }
+
     /**
      * Adds a packed inline array. Fixed single-kind arrays are decoded into the columnar child;
      * heterogeneous/nested arrays, or a child-kind mismatch, go inline on a union (rewriting if needed).

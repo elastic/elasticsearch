@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162426
+pr: 165839
+summary: Fix data type when partial fold drops values
+type: bug

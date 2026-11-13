@@ -9,12 +9,16 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
+import org.elasticsearch.columnar.numeric.NumericColumnMetadata;
 import org.elasticsearch.columnar.numeric.NumericColumnReader;
+import org.elasticsearch.columnar.numeric.SkipIndexCodec;
 import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
@@ -45,6 +49,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     /** The terms, and an ordinal into them for every value. */
     private final ValueStream.Reader dictionary;
     private final NumericColumnReader ordinals;
+    /** The bounds of the ordinals by interval, or null where the column has none. */
+    private final NumericColumnMetadata.Skipper ordinalSkipperMeta;
+    private final IndexInput skipIndex;
     /** Set when any value escaped the dictionary: their bytes, and where each one's is. */
     private final ValueStream.Reader escapes;
     private final LongValues escapeRanks;
@@ -71,11 +78,13 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
 
     private final PageTerms pageTerms = new PageTerms();
 
-    DictionaryStringColumnReader(StringColumnMetadata.Dictionary column, ColumnInputs inputs) throws IOException {
+    DictionaryStringColumnReader(StringColumnMetadata.Dictionary column, ColumnInputs inputs, IndexInput skipIndex) throws IOException {
         // The ordinals are what this column addresses in blocks; the dictionary keeps one term to a block.
         super(column, inputs, column.ordinals().blockSize());
         this.dictionary = column.dictionary().open(inputs);
         this.ordinals = new NumericColumnReader(column.ordinals(), inputs);
+        this.ordinalSkipperMeta = column.ordinals().skipper();
+        this.skipIndex = skipIndex;
         this.dictionarySize = column.dictionarySize();
         this.escapeOrdinal = column.escapeOrdinal();
         if (column.hasEscapes()) {
@@ -412,7 +421,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             SlotBlocks.of(ordinals),
             windowRanges(lowOrdinal, highOrdinal, escapeOrdinal, escapesCanMatch)
         );
-        final Slots candidates = slotsHeld(window);
+        final Slots candidates = slotsHeld(window, presenceForOrdinalRange(lowOrdinal, highOrdinal - 1L));
         if (escapesCanMatch == false) {
             return settledBy(candidates);
         }
@@ -584,6 +593,20 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         return low;
     }
 
+    /**
+     * The documents that hold a value, without those of an interval whose ordinals all fall outside
+     * {@code lowOrdinal} to {@code highOrdinal}, both included. A column with no bounds walks every document.
+     */
+    private ColumnIterator presenceForOrdinalRange(long lowOrdinal, long highOrdinal) throws IOException {
+        final ColumnIterator presence = iterator();
+        if (ordinalSkipperMeta == null) {
+            return presence;
+        }
+        assert escapeCount == 0 : "a column with escapes has no ordinal skip index";
+        final DocValuesSkipper skipper = SkipIndexCodec.forId(ordinalSkipperMeta.codecId()).reader(ordinalSkipperMeta, skipIndex);
+        return new OrdinalRangePresence(presence, skipper, lowOrdinal, highOrdinal);
+    }
+
     @Override
     protected DocIdSetIterator unorderedRangeMatches(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper)
         throws IOException {
@@ -601,7 +624,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
             SlotBlocks.of(ordinals),
             windowRanges(lowOrdinal, highOrdinal, escapeOrdinal, escapesCanMatch)
         );
-        final Slots candidates = slotsHeld(window);
+        final Slots candidates = slotsHeld(window, presenceForOrdinalRange(lowOrdinal, highOrdinal - 1L));
         if (escapesCanMatch == false) {
             return settledBy(candidates);
         }
@@ -679,7 +702,9 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         if (escapesCanMatch == false) {
             final long[] runs = runsOf(matching, end, MAX_WINDOW_RUNS);
             if (runs != null) {
-                return settledBy(slotsHeld(new SlotWindow(SlotBlocks.of(ordinals), runs)));
+                return settledBy(
+                    slotsHeld(new SlotWindow(SlotBlocks.of(ordinals), runs), presenceForOrdinalRange(runs[0], runs[runs.length - 1]))
+                );
             }
         }
         final ColumnIterator presence = iterator();

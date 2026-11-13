@@ -37,7 +37,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,6 +48,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
@@ -76,9 +76,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -501,7 +499,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
         String queryName = this.name != null ? this.name : pft.name();
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, pft.mapUnmappedFieldsAsText, context);
 
-        return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
+        return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context);
     }
 
     public String getField() {
@@ -601,8 +599,10 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
         CheckedSupplier<BytesRef, IOException> fallbackSource
     ) throws IOException {
         try (
-            InputStream in = new ByteArrayInputStream(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-            StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in, bytesRef.length), registry)
+            StreamInput input = new NamedWriteableAwareStreamInput(
+                StreamInput.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length),
+                registry
+            )
         ) {
             // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
             // to encode multiple binary values into a single binary doc values field.
@@ -626,7 +626,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
                 // set the transportversion here - only read vints so far, so can change the version freely at this point
                 input.setTransportVersion(transportVersion);
                 queryBuilder = input.readNamedWriteable(QueryBuilder.class);
-                assert in.read() == -1;
+                assert input.available() == 0;
             } else {
                 // incompatible transport version, try the fallback
                 queryBuilder = readQueryBuilder(fallbackSource.get(), registry, indexVersion, null);
@@ -644,101 +644,10 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
      * @param mapUnmappedFieldsAsText Controls unmapped fields behavior
      * @return A copy of the source context with overrides
      */
-    static SearchExecutionContext newPercolateSearchContext(SearchExecutionContext source, boolean mapUnmappedFieldsAsText) {
+    static PercolateSearchExecutionContext newPercolateSearchContext(SearchExecutionContext source, boolean mapUnmappedFieldsAsText) {
         assert source.getClass().isAnonymousClass() == false
             : "source must not be an anonymous class as overridden methods will be lost when a new SearchExecutionContext is created";
-        var wrapped = new SearchExecutionContext(source) {
-
-            private final ConcurrentMap<String, AtomicLong> perIterationCharges = new ConcurrentHashMap<>();
-
-            @Override
-            public IndexReader getIndexReader() {
-                // The reader that matters in this context is not the reader of the shard but
-                // the reader of the MemoryIndex. We just use `null` for simplicity.
-                return null;
-            }
-
-            @Override
-            public BitSetProducer bitsetFilter(Query query) {
-                return context -> {
-                    final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-                    final IndexSearcher searcher = new IndexSearcher(topLevelContext);
-                    searcher.setQueryCache(null);
-                    final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                    final Scorer s = weight.scorer(context);
-
-                    if (s != null) {
-                        return BitSet.of(s.iterator(), context.reader().maxDoc());
-                    } else {
-                        return null;
-                    }
-                };
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public <IFD extends IndexFieldData<?>> IFD getForField(
-                MappedFieldType fieldType,
-                MappedFieldType.FielddataOperation fielddataOperation
-            ) {
-                IndexFieldData.Builder builder = fieldType.fielddataBuilder(
-                    new FieldDataContext(
-                        source.getFullyQualifiedIndex().getName(),
-                        source.getIndexSettings(),
-                        source::lookup,
-                        this::sourcePath,
-                        () -> false,
-                        fielddataOperation
-                    )
-                );
-                IndexFieldDataCache cache = new IndexFieldDataCache.None();
-                CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
-                return (IFD) builder.build(cache, circuitBreaker);
-            }
-
-            // When expanding wildcard fields for term queries, we don't expand to fields that are empty.
-            // This is sane behavior for typical usage. But for percolator, the fields for the may not have any terms
-            // Consequently, we may erroneously skip expanding those term fields.
-            // This override allows mapped field values to expand via wildcard input, even if the field is empty in the shard.
-            @Override
-            public boolean fieldExistsInIndex(String fieldname) {
-                return true;
-            }
-
-            @Override
-            public void addNamedQuery(String name, Query query) {
-                source.addNamedQuery(name, query);
-            }
-
-            @Override
-            public void addCircuitBreakerMemory(long bytes, String label) {
-                source.addCircuitBreakerMemory(bytes, label);
-                perIterationCharges.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(bytes);
-            }
-
-            @Override
-            public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
-                source.addCircuitBreakerMemory(bytes, heldBreakerBytes, label);
-                perIterationCharges.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(bytes - heldBreakerBytes);
-            }
-
-            @Override
-            public long getQueryConstructionMemoryUsed() {
-                return source.getQueryConstructionMemoryUsed();
-            }
-
-            @Override
-            public void releaseQueryConstructionMemory() {
-                for (Map.Entry<String, AtomicLong> entry : perIterationCharges.entrySet()) {
-                    long bytes = entry.getValue().getAndSet(0);
-                    if (bytes > 0) {
-                        source.releaseQueryConstructionMemory(bytes, entry.getKey());
-                    }
-                }
-                perIterationCharges.clear();
-                clearQueryConstructionState();
-            }
-        };
+        var wrapped = new PercolateSearchExecutionContext(source);
 
         // This means that fields in the query need to exist in the mapping prior to registering this query
         // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
@@ -758,6 +667,118 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
         wrapped.setRewriteToNamedQueries();
 
         return wrapped;
+    }
+
+    static class PercolateSearchExecutionContext extends SearchExecutionContext {
+        private final ConcurrentMap<String, AtomicLong> perIterationCharges = new ConcurrentHashMap<>();
+        private boolean containsConstantField = false;
+        private final SearchExecutionContext source;
+
+        PercolateSearchExecutionContext(SearchExecutionContext source) {
+            super(source);
+            this.source = source;
+        }
+
+        @Override
+        protected MappedFieldType fieldType(String name) {
+            MappedFieldType fieldType = super.fieldType(name);
+            if (fieldType instanceof ConstantFieldType && isMetadataField(fieldType.name()) == false) {
+                containsConstantField = true;
+            }
+            return fieldType;
+        }
+
+        @Override
+        public IndexReader getIndexReader() {
+            // The reader that matters in this context is not the reader of the shard but
+            // the reader of the MemoryIndex. We just use `null` for simplicity.
+            return null;
+        }
+
+        @Override
+        public BitSetProducer bitsetFilter(Query query) {
+            return context -> {
+                final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
+                final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+                searcher.setQueryCache(null);
+                final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                final Scorer s = weight.scorer(context);
+
+                if (s != null) {
+                    return BitSet.of(s.iterator(), context.reader().maxDoc());
+                } else {
+                    return null;
+                }
+            };
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <IFD extends IndexFieldData<?>> IFD getForField(
+            MappedFieldType fieldType,
+            MappedFieldType.FielddataOperation fielddataOperation
+        ) {
+            IndexFieldData.Builder builder = fieldType.fielddataBuilder(
+                new FieldDataContext(
+                    source.getFullyQualifiedIndex().getName(),
+                    source.getIndexSettings(),
+                    source::lookup,
+                    this::sourcePath,
+                    () -> false,
+                    fielddataOperation
+                )
+            );
+            IndexFieldDataCache cache = new IndexFieldDataCache.None();
+            CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
+            return (IFD) builder.build(cache, circuitBreaker);
+        }
+
+        // When expanding wildcard fields for term queries, we don't expand to fields that are empty.
+        // This is sane behavior for typical usage. But for percolator, the fields for the may not have any terms
+        // Consequently, we may erroneously skip expanding those term fields.
+        // This override allows mapped field values to expand via wildcard input, even if the field is empty in the shard.
+        @Override
+        public boolean fieldExistsInIndex(String fieldname) {
+            return true;
+        }
+
+        @Override
+        public void addNamedQuery(String name, Query query) {
+            source.addNamedQuery(name, query);
+        }
+
+        @Override
+        public void addCircuitBreakerMemory(long bytes, String label) {
+            source.addCircuitBreakerMemory(bytes, label);
+            perIterationCharges.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(bytes);
+        }
+
+        @Override
+        public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
+            source.addCircuitBreakerMemory(bytes, heldBreakerBytes, label);
+            perIterationCharges.computeIfAbsent(label, k -> new AtomicLong()).addAndGet(bytes - heldBreakerBytes);
+        }
+
+        @Override
+        public long getQueryConstructionMemoryUsed() {
+            return source.getQueryConstructionMemoryUsed();
+        }
+
+        @Override
+        public void releaseQueryConstructionMemory() {
+            for (Map.Entry<String, AtomicLong> entry : perIterationCharges.entrySet()) {
+                long bytes = entry.getValue().getAndSet(0);
+                if (bytes > 0) {
+                    source.releaseQueryConstructionMemory(bytes, entry.getKey());
+                }
+            }
+            perIterationCharges.clear();
+            clearQueryConstructionState();
+        }
+
+        boolean containsConstantField() {
+            return containsConstantField;
+        }
     }
 
     @Override

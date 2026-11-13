@@ -20,17 +20,16 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -224,11 +223,6 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             this.useLegacyFormat = useLegacyFormat(indexSettings);
         }
 
-        public Builder(SemanticTextFieldMapper mapper) {
-            super(mapper);
-            this.useLegacyFormat = useLegacyFormat(indexSettings);
-        }
-
         @Override
         public Builder setInferenceId(String id) {
             return (SemanticTextFieldMapper.Builder) super.setInferenceId(id);
@@ -298,8 +292,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                         false,
                         experimentalFeaturesEnabled,
                         vectorsFormatProviders,
-                        false,
-                        indexSettings.getPostFilterSelectivityThreshold()
+                        false
                     );
                     ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                         ? getExtendedDenseVectorIndexOptions(indexOptions.get())
@@ -430,7 +423,12 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        protected SemanticTextFieldMapper buildMapper(String fullName, ObjectMapper inferenceField, BuilderParams builderParams) {
+        protected SemanticTextFieldMapper buildMapper(
+            String fullName,
+            ObjectMapper inferenceField,
+            BuilderParams builderParams,
+            boolean sourceColumnarStored
+        ) {
             return new SemanticTextFieldMapper(
                 leafName(),
                 new SemanticTextFieldType(
@@ -443,13 +441,13 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                     inferenceField,
                     useLegacyFormat,
                     storesOriginalValuesInDocValues(useLegacyFormat, indexVersionCreated, indexSettings.getMode()),
+                    ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings),
                     meta.getValue()
                 ),
                 builderParams,
                 indexVersionCreated,
                 indexSettings.getMode(),
-                modelRegistry,
-                vectorsFormatProviders
+                sourceColumnarStored
             );
         }
 
@@ -461,19 +459,13 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
 
     private SemanticTextFieldMapper(
         String simpleName,
-        MappedFieldType mappedFieldType,
+        SemanticTextFieldType mappedFieldType,
         BuilderParams builderParams,
         IndexVersion indexCreatedVersion,
         IndexMode indexMode,
-        ModelRegistry modelRegistry,
-        List<VectorsFormatProvider> vectorsFormatProviders
+        boolean sourceColumnarStored
     ) {
-        super(simpleName, mappedFieldType, builderParams, indexCreatedVersion, indexMode, modelRegistry, vectorsFormatProviders);
-    }
-
-    @Override
-    public SemanticTextFieldMapper.Builder getMergeBuilder() {
-        return new Builder(this);
+        super(simpleName, mappedFieldType, builderParams, indexCreatedVersion, indexMode, sourceColumnarStored);
     }
 
     @Override
@@ -547,14 +539,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
         }
-        // UNSORTED keeps the values in document order (and keeps duplicates), so multi-valued fields round-trip exactly.
-        MultiValuedBinaryDocValuesField.addToBinaryFieldInDoc(
-            context.doc(),
-            SemanticTextField.getOriginalValuesFieldName(fullPath()),
-            new BytesRef(parser.text()),
-            MultiValuedBinaryDocValuesField.ValueOrdering.UNSORTED,
-            indexCreatedVersion
-        );
+        recordOriginalValue(context, new BytesRef(parser.text()));
     }
 
     @Override
@@ -625,6 +610,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             ObjectMapper inferenceField,
             boolean useLegacyFormat,
             boolean storesOriginalValuesInDocValues,
+            boolean columnarOriginalValues,
             Map<String, String> meta
         ) {
             super(
@@ -636,6 +622,7 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                 indexOptions,
                 inferenceField,
                 storesOriginalValuesInDocValues,
+                columnarOriginalValues,
                 meta
             );
             this.useLegacyFormat = useLegacyFormat;
@@ -703,7 +690,10 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
             // instead of reading it through _source (which would rebuild _source from doc values).
             if (storesOriginalValuesInDocValues
                 && (blContext.mappingLookup().isSourceSynthetic() || blContext.mappingLookup().isSourceColumnarStored())) {
-                return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(SemanticTextField.getOriginalValuesFieldName(name()));
+                return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(
+                    SemanticTextField.getOriginalValuesFieldName(name()),
+                    originalValuesFormat()
+                );
             }
             return super.blockLoader(blContext);
         }

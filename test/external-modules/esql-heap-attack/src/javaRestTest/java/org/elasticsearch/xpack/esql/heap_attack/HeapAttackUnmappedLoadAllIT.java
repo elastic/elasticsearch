@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.heap_attack;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
@@ -19,7 +22,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 
 /**
@@ -100,9 +105,9 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     public void testFewDocsWithHugeNumberOfDistinctFields() throws IOException {
         String index = "load_all_huge_docs";
         boolean serverless = isServerless();
-        int docs = serverless ? 50 : 5;
+        int docs = 50;
         int objectsPerDoc = 1_000;
-        int leavesPerObject = serverless ? 100 : 1_000;
+        int leavesPerObject = 100;
         createMostlyUnmappedIndex(index);
         for (int d = 0; d < docs; d++) {
             StringBuilder bulk = new StringBuilder();
@@ -129,21 +134,21 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
 
     /**
      * A single document whose {@code _source} is one array of many tiny objects ({@code "a":[{"x":1},{"x":1},...]}): a few bytes
-     * per element, but it materialises into a {@code Map}/{@code List} graph many times its own size while flattening to a single
+     * per element, but parsed into a {@code Map}/{@code List} graph it takes many times its own size while flattening to a single
      * {@code a.x} leaf - so it is the parse that grows, not the output. This
      * must trip a graceful {@code circuit_breaking_exception} rather than exhaust the heap.
      * <p>
-     * Before materialising {@code _source} the data node reserves {@code SOURCE_RESERVATION_FACTOR} (10x) its length on the request
-     * breaker (in {@code UnmappedFieldsBlockLoader}). That reservation is proportional to the {@code _source} length, so on this
+     * Before reading {@code _source} the data node reserves {@code SOURCE_RESERVATION_FACTOR} (10x) its length on the request
+     * breaker (in {@code UnmappedFields#blockLoader}). That reservation is proportional to the {@code _source} length, so on this
      * small 512MB-heap node a document big enough to cross the default breaker can no longer be indexed. The request breaker is
      * lowered instead, standing in for the headroom a normally provisioned node has: the 10x reservation on a small, easily indexed
-     * document then crosses it and breaks up front, before the object graph is built. The base class resets cluster settings after
+     * document then crosses it and breaks up front, before {@code _source} is read. The base class resets cluster settings after
      * the test.
      */
     public void testArrayOfTinyObjectsCircuitBreaksInSourceLoading() throws IOException {
-        setRequestBreakerLimit("20%");
+        setRequestBreakerLimit("15%");
         assertCircuitBreaksVia(attempt -> {
-            // ~1.5M+ {"x":1} elements is ~12MB+ of _source; the 10x reservation (~120MB+) then crosses the ~102MB (20%) breaker.
+            // ~1.5M+ {"x":1} elements is ~12MB+ of _source; the 10x reservation (~120MB+) then crosses the 15% breaker (~80MB).
             int elements = 1_500_000 * attempt;
             String index = "load_all_array_" + attempt;
             createMostlyUnmappedIndex(index);
@@ -163,7 +168,86 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
             query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
             query.append("FROM ").append(index).append("\n| LIMIT 1\"}");
             return responseAsMap(query(query.toString(), "columns"));
-        }, "UnmappedFieldsBlockLoader");
+        }, "UnmappedFields$AllFieldsBlockLoader");
+    }
+
+    /** The circuit break of the values held while an array is read, not that of the reservation made before. */
+    private static final MapMatcher HELD_VALUES_BREAK = matchesMap().entry("status", 429)
+        .entry(
+            "error",
+            matchesMap().extraOk()
+                .entry("type", "circuit_breaking_exception")
+                .entry("reason", containsString("[unmapped fields held values]"))
+        );
+
+    /**
+     * Index:
+     * <ul>
+     *     <li>One document with an array of 7M one-character strings, indexed as CBOR: 14MB of {@code _source}</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>{@code LOAD_ALL} over every document</li>
+     * </ul>
+     * Expected: circuit break while the values of the array are held
+     * <p>
+     * An element of 2 bytes of CBOR {@code _source} is held as a {@code String} that takes about 50, so what is held is more than the
+     * reservation of 10 times the size of {@code _source} stands for. On the 512MB heap of this suite an array of this many strings,
+     * with the request breaker at its default limit, killed the node before the held values were charged. The cluster allows the
+     * document to be indexed, see {@link Clusters}, and CBOR keeps it small enough to be indexed on a larger heap as well, see
+     * {@link #indexCborDocument}. The document and its reservation fit under the breaker, and what is held does not.
+     */
+    public void testArrayOfShortStringsCircuitBreaksWhileItsValuesAreHeld() throws IOException {
+        String index = "load_all_short_strings";
+        indexDocumentWithArrays(index, scaleToHeap(7_000_000), false);
+        assertCircuitBreaks(attempt -> loadAllOneRow(index), HELD_VALUES_BREAK);
+    }
+
+    /**
+     * Index:
+     * <ul>
+     *     <li>One document with {@code "a.b"} and {@code "a": {"b": ...}} each an array of 3M one-character strings, indexed as CBOR:
+     *     12MB of {@code _source}</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>{@code LOAD_ALL} over every document</li>
+     * </ul>
+     * Expected: circuit break while the values are held
+     * <p>
+     * A document that spells a field in two ways is read again with all of its values held, not just those of an array.
+     */
+    public void testFieldSpelledInTwoWaysCircuitBreaksWhileItsValuesAreHeld() throws IOException {
+        String index = "load_all_two_spellings";
+        indexDocumentWithArrays(index, scaleToHeap(3_000_000), true);
+        assertCircuitBreaks(attempt -> loadAllOneRow(index), HELD_VALUES_BREAK);
+    }
+
+    /** One document with the array {@code a} of {@code elements} one-character strings, or two arrays that are the field {@code a.b}. */
+    private void indexDocumentWithArrays(String index, int elements, boolean spelledInTwoWays) throws IOException {
+        createMostlyUnmappedIndex(index);
+        try (XContentBuilder doc = XContentFactory.cborBuilder()) {
+            doc.startObject().field(MAPPED_FIELD, "0");
+            if (spelledInTwoWays) {
+                arrayOfShortStrings(doc, "a.b", elements);
+                doc.startObject("a");
+                arrayOfShortStrings(doc, "b", elements);
+                doc.endObject();
+            } else {
+                arrayOfShortStrings(doc, "a", elements);
+            }
+            doc.endObject();
+            indexCborDocument(index, doc);
+        }
+        // Everything is indexed already; this only force-merges and refreshes.
+        initIndex(index, "");
+    }
+
+    private Map<String, Object> loadAllOneRow(String index) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
+        query.append("FROM ").append(index).append("\n| LIMIT 1\"}");
+        return responseAsMap(query(query.toString(), "columns"));
     }
 
     private void createMostlyUnmappedIndex(String index) throws IOException {
@@ -180,7 +264,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     /**
      * Runs {@code LOAD_ALL} over all of {@code index} and asserts the response is exactly {@link #MAPPED_FIELD} and the single
      * {@code _unmapped_fields} column, with no warning about dropped fields. Only the columns are fetched: {@code filter_path} drops
-     * the values on the server, after the response has been built, so the flattening is fully exercised without shipping every
+     * the values on the server, after the response has been built, so every row is fully loaded without shipping every
      * row's JSON object to the test.
      */
     private void assertLoadAllSingleColumn(String index, int limit) throws IOException {

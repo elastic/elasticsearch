@@ -6,6 +6,9 @@
 * [`avg_over_time`](/reference/query-languages/promql/functions/range-vector.md#promql-fn-avg_over_time) {applies_to}`stack: preview 9.4, ga 9.5`
   :::{include} ../brief-summary/avg_over_time.md
   :::
+* [`changes`](/reference/query-languages/promql/functions/range-vector.md#promql-fn-changes) {applies_to}`stack: ga 9.6`
+  :::{include} ../brief-summary/changes.md
+  :::
 * [`count_over_time`](/reference/query-languages/promql/functions/range-vector.md#promql-fn-count_over_time) {applies_to}`stack: preview 9.4, ga 9.5`
   :::{include} ../brief-summary/count_over_time.md
   :::
@@ -35,6 +38,9 @@
   :::
 * [`min_over_time`](/reference/query-languages/promql/functions/range-vector.md#promql-fn-min_over_time) {applies_to}`stack: preview 9.4, ga 9.5`
   :::{include} ../brief-summary/min_over_time.md
+  :::
+* [`predict_linear`](/reference/query-languages/promql/functions/range-vector.md#promql-fn-predict_linear) {applies_to}`stack: ga 9.7`
+  :::{include} ../brief-summary/predict_linear.md
   :::
 * [`present_over_time`](/reference/query-languages/promql/functions/range-vector.md#promql-fn-present_over_time) {applies_to}`stack: preview 9.4, ga 9.5`
   :::{include} ../brief-summary/present_over_time.md

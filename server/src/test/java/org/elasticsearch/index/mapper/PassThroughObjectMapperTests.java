@@ -194,7 +194,9 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             new ObjectMapper.Builder("metrics").add(new KeywordFieldMapper.Builder("cpu_usage", defaultIndexSettings()))
         );
 
-        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE);
+        MapperMergeContext mergeContext = new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).sourceSynthetic(isSourceSynthetic)
+            .dataStream(true)
+            .build();
         RootObjectMapper merged = (RootObjectMapper) passThroughBuilder.mergeWith(objectBuilder, mergeContext)
             .build(mergeContext.getMapperBuilderContext());
         assertThat(merged.getMapper("metrics"), instanceOf(PassThroughObjectMapper.class));
@@ -210,7 +212,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> passThroughBuilder2.mergeWith(
                 objectWithSubObjectTrue,
-                MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+                new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).sourceSynthetic(isSourceSynthetic).dataStream(true).build()
             )
         );
         assertThat(
@@ -227,7 +229,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> passThroughBuilder3.mergeWith(
                 rootObjectBuilder,
-                MapperMergeContext.root(isSourceSynthetic, true, MAPPING_UPDATE, Long.MAX_VALUE)
+                new TestRootMapperMergeContextBuilder(MAPPING_UPDATE).sourceSynthetic(isSourceSynthetic).dataStream(true).build()
             )
         );
         assertThat(

@@ -273,6 +273,10 @@ public class EsqlDataTypeConverter {
     public static final String INVALID_INTERVAL_ERROR =
         "Invalid interval value in [{}], expected integer followed by one of {} but got [{}]";
 
+    public static boolean isStringImplicitlyCastableTo(DataType type) {
+        return type == DATETIME || type == DATE_NANOS || type == IP || type == VERSION || type == BOOLEAN;
+    }
+
     public static Converter converterFor(DataType from, DataType to, Configuration configuration) {
         // TODO move EXPRESSION_TO_LONG here if there is no regression
         if (isString(from)) {
@@ -1167,6 +1171,25 @@ public class EsqlDataTypeConverter {
             }
         }
         return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count);
+    }
+
+    /**
+     * The cast that reads {@code keyword}, a value without a declared type, as {@code type}. Returns {@code null} when no such cast
+     * exists (e.g., {@code text}, {@code aggregate_metric_double}); a keyword target needs no cast, so the returned function is a
+     * no-op there.
+     */
+    public static @Nullable AbstractConvertFunction castFromKeyword(DataType type, Expression keyword, Configuration configuration) {
+        // ToDenseVector reads hexadecimal strings, but an unmapped dense_vector arrives from _source as an array of numbers
+        // (#152184), so the implicit cast would yield garbage. Same carve-out as ResolveTwoLeggedPunksInEsRelation.
+        if (type == DENSE_VECTOR) {
+            return null;
+        }
+        var convertFactory = converterFunctionFactory(type);
+        if (convertFactory == null) {
+            return null;
+        }
+        AbstractConvertFunction convert = convertFactory.apply(keyword.source(), keyword, configuration);
+        return convert.supportedTypes().contains(KEYWORD) ? convert : null;
     }
 
     public static TriFunction<Source, Expression, Configuration, AbstractConvertFunction> converterFunctionFactory(DataType toType) {

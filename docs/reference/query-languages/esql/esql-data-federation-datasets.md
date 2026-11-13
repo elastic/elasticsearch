@@ -2,13 +2,13 @@
 navigation_title: "Datasets"
 description: "Learn what an ES|QL Data Federation dataset defines and find the references for defining, creating, and querying datasets."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
 ---
 
-# Datasets in {{esql}} Data Federation
+# External datasets in {{esql}} Data Federation
 
 A dataset makes a named collection of files in external storage available to {{esql}}. It records which connected data source and files to use, together with any settings or schema definitions needed to interpret them. You can query the dataset by name without ingesting its data into {{es}}.
 

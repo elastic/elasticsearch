@@ -942,6 +942,76 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * An interrupt of the segmentator in {@code waitForRecycledBuffer} must fail the read.
+     * Parallelism 2 uses a 3-buffer pool. Every parser is gated so those buffers stay in flight;
+     * {@code execute} waits until the parser has entered the gate so the segmentator cannot inline
+     * the chunk and park on {@code putPage} instead. Production drain ({@code tryAdvanceOrPark} /
+     * {@code isExhausted}) must throw, not treat the exit as EOF.
+     */
+    public void testSegmentatorInterruptedWaitingForBufferFailsTheRead() throws Exception {
+        int lineCount = 2000;
+        int chunkSize = 64;
+        int parallelism = 2;
+        CountDownLatch gate = new CountDownLatch(1);
+        AtomicInteger parsersAtGate = new AtomicInteger();
+        List<Thread> poolThreads = new CopyOnWriteArrayList<>();
+        ExecutorService pool = Executors.newFixedThreadPool(6, runnable -> {
+            Thread thread = new Thread(runnable);
+            poolThreads.add(thread);
+            return thread;
+        });
+        AtomicBoolean segmentatorSubmitted = new AtomicBoolean();
+        Executor executor = command -> {
+            if (segmentatorSubmitted.compareAndSet(false, true)) {
+                pool.execute(command);
+                return;
+            }
+            int before = parsersAtGate.get();
+            pool.execute(command);
+            try {
+                assertBusy(() -> assertThat(parsersAtGate.get(), Matchers.greaterThan(before)), 5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new RuntimeException("parser never entered the read gate", e);
+            }
+        };
+        CloseableIterator<Page> iterator = null;
+        try {
+            CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                new AllChunksGatedLineFormatReader(chunkSize, gate, parsersAtGate),
+                new ByteArrayInputStream(buildContent(lineCount).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                8,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            iterator = it;
+            AtomicReference<Thread> segmentator = new AtomicReference<>();
+            assertBusy(() -> {
+                Thread found = findParkedWaitForRecycledBufferThread(poolThreads);
+                assertNotNull("segmentator never parked in waitForRecycledBuffer", found);
+                segmentator.set(found);
+            }, 10, TimeUnit.SECONDS);
+
+            segmentator.get().interrupt();
+            gate.countDown();
+
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> drainLinesViaTryAdvanceOrPark(it));
+            String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
+            assertThat(chain, Matchers.containsString("InterruptedException"));
+        } finally {
+            gate.countDown();
+            if (iterator != null) {
+                try {
+                    iterator.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+            pool.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
     private static boolean isParkedOnBufferPollOrInlinePagePut(List<Thread> threads) {
         String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
         for (Thread thread : threads) {
@@ -1309,6 +1379,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
             gate.countDown();
             List<String> rows = done.actionGet(TimeValue.timeValueSeconds(30));
+            assertTrue("drain finished so the iterator must be exhausted", iter.isExhausted());
             assertEquals("every row across the gated gap must be delivered", linesPerFile, rows.size());
             for (int i = 0; i < linesPerFile; i++) {
                 assertEquals("row order preserved across the gap", "line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
@@ -1321,6 +1392,178 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 } catch (IOException ignored) {}
             }
             pool.shutdownNow();
+        }
+    }
+
+    /**
+     * Leftover parser after an inline steal can publish into a chunk that {@code dispatchChunk}
+     * has offered but not yet counted. Readiness must use the same {@code chunksDispatched} guard
+     * as {@code takeNextPage}, otherwise {@code tryAdvanceOrPark} sees done+null+not-exhausted and
+     * hits its retry-cap assert (#162111).
+     */
+    public void testPageReadyIgnoresUncountedOfferedChunk() throws Exception {
+        int lineCount = 40;
+        int chunkSize = 32;
+        int batchSize = 8;
+        int parallelism = 2;
+
+        CountDownLatch offeredChunk1 = new CountDownLatch(1);
+        CountDownLatch releaseChunk1 = new CountDownLatch(1);
+        AtomicReference<Runnable> segmentator = new AtomicReference<>();
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        Executor executor = command -> {
+            if (segmentator.compareAndSet(null, command)) {
+                return;
+            }
+            pool.execute(command);
+        };
+        StreamingParallelParsingCoordinator.StreamingParallelIterator it = null;
+        try {
+            it = (StreamingParallelParsingCoordinator.StreamingParallelIterator) StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(chunkSize),
+                new ByteArrayInputStream(buildContent(lineCount).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                batchSize,
+                parallelism,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            it.afterOfferBeforeDispatchCount = index -> {
+                if (index != 1) {
+                    return;
+                }
+                offeredChunk1.countDown();
+                try {
+                    if (releaseChunk1.await(30, TimeUnit.SECONDS) == false) {
+                        throw new AssertionError("timed out holding dispatch of chunk 1");
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError("interrupted holding dispatch of chunk 1", e);
+                }
+            };
+            Runnable start = segmentator.get();
+            assertNotNull("admission must submit the segmentator", start);
+            pool.execute(start);
+
+            assertTrue("chunk 1 never offered", offeredChunk1.await(30, TimeUnit.SECONDS));
+
+            List<String> rows = new ArrayList<>();
+            BytesRef scratch = new BytesRef();
+            // Drain chunk 0 with tryAdvance only. waitForReady would skip the chunk-0 POISON,
+            // sit on the uncounted gap, and park with no one to wake it.
+            long drainDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (it.consumerChunkIndex() < 1) {
+                if (System.nanoTime() > drainDeadline) {
+                    fail("timed out draining chunk 0 before the uncounted gap");
+                }
+                Page page = it.tryAdvance();
+                if (page != null) {
+                    BytesRefBlock block = page.getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        rows.add(block.getBytesRef(i, scratch).utf8ToString());
+                    }
+                    page.releaseBlocks();
+                    continue;
+                }
+                Thread.onSpinWait();
+            }
+            assertEquals("consumer must sit on the uncounted gap", 1, it.consumerChunkIndex());
+            assertThat(rows.size(), Matchers.both(Matchers.greaterThan(0)).and(Matchers.lessThan(lineCount)));
+
+            it.runParserOnce();
+            assertTrue("leftover parser must have published into the uncounted slot", it.uncountedSlotHasPage());
+            assertFalse("gap is not EOF", it.isExhausted());
+
+            SubscribableListener<Void> ready = it.waitForReady();
+            assertFalse("page in an offered-but-uncounted slot must not report ready", ready.isDone());
+
+            Holder<SubscribableListener<Void>> blockedOn = new Holder<>();
+            Page raced = ExternalSourceDrainUtils.tryAdvanceOrPark(it, blockedOn);
+            if (raced != null) {
+                raced.releaseBlocks();
+            }
+            assertNull("uncounted chunk must not be readable yet", raced);
+            assertNotNull("drain must park until chunksDispatched catches up", blockedOn.get());
+            assertFalse("parked listener must not be done until dispatch count advances", blockedOn.get().isDone());
+
+            releaseChunk1.countDown();
+            awaitListener(blockedOn.get());
+
+            rows.addAll(drainLinesViaTryAdvanceOrPark(it));
+            assertEquals(lineCount, rows.size());
+            for (int i = 0; i < lineCount; i++) {
+                assertEquals("line-" + String.format(Locale.ROOT, "%04d", i), rows.get(i));
+            }
+        } finally {
+            releaseChunk1.countDown();
+            if (it != null) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * {@code putPoisonAndSignal} must not re-set the interrupt flag inside {@code queue.put}.
+     * After one interrupt that loop would throw immediately and the parser would spin until
+     * suite leak. Close drains the full slot, so the parser must exit and join promptly.
+     * Parallelism 2 is required: 1 falls back to a sequential read.
+     */
+    public void testPoisonPutInterruptExitsOnClose() throws Exception {
+        int pageQueueCapacity = StreamingParallelParsingCoordinator.StreamingParallelIterator.PAGE_QUEUE_CAPACITY;
+        List<Thread> poolThreads = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(6, runnable -> {
+            Thread thread = new Thread(runnable);
+            poolThreads.add(thread);
+            return thread;
+        });
+        try (
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                new LineFormatReader(1024),
+                new ByteArrayInputStream(buildContent(pageQueueCapacity).getBytes(StandardCharsets.UTF_8)),
+                List.of("line"),
+                1,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            )
+        ) {
+            AtomicReference<Thread> parser = new AtomicReference<>();
+            assertBusy(() -> {
+                Thread found = findParkedPoisonPutThread(poolThreads);
+                assertNotNull("parser never blocked in putPoisonAndSignal", found);
+                parser.set(found);
+            }, 10, TimeUnit.SECONDS);
+
+            parser.get().interrupt();
+            CountDownLatch closed = new CountDownLatch(1);
+            AtomicReference<Exception> closeFailure = new AtomicReference<>();
+            Thread closer = new Thread(() -> {
+                try {
+                    iterator.close();
+                } catch (Exception e) {
+                    closeFailure.set(e);
+                } finally {
+                    closed.countDown();
+                }
+            }, "poison-put-closer");
+            try {
+                closer.start();
+                assertTrue("close() must return after poison-put interrupt", closed.await(10, TimeUnit.SECONDS));
+            } finally {
+                closer.join(TimeUnit.SECONDS.toMillis(10));
+            }
+            assertFalse("closer must exit after close", closer.isAlive());
+            assertNull(closeFailure.get());
+            executor.shutdown();
+            assertTrue("parser spun after poison-put interrupt; pool did not terminate", executor.awaitTermination(10, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+            executor.awaitTermination(10, TimeUnit.SECONDS);
         }
     }
 
@@ -2857,6 +3100,40 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    private static Thread findParkedWaitForRecycledBufferThread(List<Thread> threads) {
+        String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
+        for (Thread thread : threads) {
+            if (thread.getState() != Thread.State.TIMED_WAITING) {
+                continue;
+            }
+            StackTraceElement[] stack = thread.getStackTrace();
+            boolean bufferWait = Arrays.stream(stack)
+                .anyMatch(frame -> iteratorClass.equals(frame.getClassName()) && "waitForRecycledBuffer".equals(frame.getMethodName()));
+            boolean poll = Arrays.stream(stack)
+                .anyMatch(frame -> ArrayBlockingQueue.class.getName().equals(frame.getClassName()) && "poll".equals(frame.getMethodName()));
+            if (bufferWait && poll) {
+                return thread;
+            }
+        }
+        return null;
+    }
+
+    private static Thread findParkedPoisonPutThread(List<Thread> threads) {
+        String iteratorClass = StreamingParallelParsingCoordinator.StreamingParallelIterator.class.getName();
+        for (Thread thread : threads) {
+            Thread.State state = thread.getState();
+            if (state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
+                continue;
+            }
+            for (StackTraceElement frame : thread.getStackTrace()) {
+                if (iteratorClass.equals(frame.getClassName()) && "putPoisonAndSignal".equals(frame.getMethodName())) {
+                    return thread;
+                }
+            }
+        }
+        return null;
+    }
+
     private static void awaitListener(SubscribableListener<Void> ready) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -3669,11 +3946,12 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         // Non-strict: truncate at the cap-hit and return the prefix records parsed so far.
+        // Drain through production tryAdvance/isExhausted so a reachedEof gate cannot
+        // mis-classify this opted-into truncation as a failure.
         ExecutorService lenientExecutor = Executors.newFixedThreadPool(6);
-        try {
-            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(512);
+        try (
             var lenientIterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
-                reader,
+                new QuoteAwareLineFormatReader(512),
                 new ByteArrayInputStream(bytes),
                 null,
                 List.of("line"),
@@ -3688,8 +3966,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 -1L,
                 StripeColumnScope.PROJECTED,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
-            );
-            List<String> got = collectLines(lenientIterator);
+            )
+        ) {
+            List<String> got = drainLinesViaTryAdvanceOrPark(lenientIterator);
             assertEquals("non-strict policy must return the records parsed before the cap-hit", leadingRecords, got.size());
             for (int i = 0; i < leadingRecords; i++) {
                 assertEquals("rec-" + String.format(Locale.ROOT, "%04d", i), got.get(i));
@@ -4453,6 +4732,78 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public FormatReader withSchema(List<Attribute> schema) {
             return new GatedLineFormatReader((LineFormatReader) delegate.withSchema(schema), gatedChunkIndex, gate, gatedReached);
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return delegate.rowPositionStrategy();
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public String formatName() {
+            return delegate.formatName();
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
+     * Like {@link GatedLineFormatReader} but every chunk's parse waits on {@code gate}, so a test can
+     * pin all pool buffers in flight and park the segmentator in {@code waitForRecycledBuffer}.
+     */
+    private static final class AllChunksGatedLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+        private final LineFormatReader delegate;
+        private final CountDownLatch gate;
+        private final AtomicInteger parsersAtGate;
+
+        AllChunksGatedLineFormatReader(long minSegment, CountDownLatch gate, AtomicInteger parsersAtGate) {
+            this(new LineFormatReader(minSegment), gate, parsersAtGate);
+        }
+
+        private AllChunksGatedLineFormatReader(LineFormatReader delegate, CountDownLatch gate, AtomicInteger parsersAtGate) {
+            this.delegate = delegate;
+            this.gate = gate;
+            this.parsersAtGate = parsersAtGate;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            parsersAtGate.incrementAndGet();
+            try {
+                gate.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted waiting on gate", e);
+            }
+            return delegate.read(object, context);
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return new AllChunksGatedLineFormatReader((LineFormatReader) delegate.withSchema(schema), gate, parsersAtGate);
         }
 
         @Override

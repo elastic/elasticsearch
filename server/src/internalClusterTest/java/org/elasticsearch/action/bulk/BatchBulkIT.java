@@ -12,7 +12,10 @@ package org.elasticsearch.action.bulk;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -22,28 +25,39 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -53,6 +67,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -62,16 +77,23 @@ import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, numClientNodes = 1)
 public class BatchBulkIT extends ESIntegTestCase {
@@ -90,20 +112,37 @@ public class BatchBulkIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getKey(), "memory")
             .build();
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // DataStreamsPlugin is needed by the pre-built-batch tests that target a data stream rather than a
         // concrete index. MapperExtrasPlugin registers match_only_text, used by testColumnarTextBatchMode.
+        // MockTransportService holds shard requests in testBatchPagesComeFromTheNodeRecycler.
         return CollectionUtils.appendToCopyNoNullElements(
-            CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), DataStreamsPlugin.class),
-            MapperExtrasPlugin.class
+            super.nodePlugins(),
+            DataStreamsPlugin.class,
+            MapperExtrasPlugin.class,
+            MockTransportService.TestPlugin.class
         );
     }
 
+    /** Always installs {@link NodeMocksPlugin}, so every run checks for leaked and double-released pages. */
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        Set<Class<? extends Plugin>> mocks = new LinkedHashSet<>(super.getMockPlugins());
+        mocks.add(NodeMocksPlugin.class);
+        return mocks;
+    }
+
     private void createBatchIndex(String index, int shards, int replicas) throws IOException {
+        createBatchIndex(index, shards, replicas, true);
+    }
+
+    private void createBatchIndex(String index, int shards, int replicas, boolean batchIndexing) throws IOException {
         XContentBuilder mapping = getMapping();
         assertAcked(
             indicesAdmin().prepareCreate(index)
@@ -112,6 +151,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_replicas", replicas)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), batchIndexing)
                 )
                 .setMapping(mapping)
         );
@@ -545,6 +585,212 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat(statsResponse.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(numDocs * 2L));
     }
 
+    /**
+     * Per-index opt-in: in one bulk, only the index with {@code index.batch_indexing} enabled gets a batch on its shard requests, while
+     * the disabled index is indexed from inline source. Both must be fully indexed, with replicas, and no pages may leak.
+     */
+    public void testMixedBulkBatchesOnlyEnabledIndex() throws Exception {
+        String enabledIndex = "test-batch-enabled";
+        String disabledIndex = "test-batch-disabled";
+        createBatchIndex(enabledIndex, 2, 1, true);
+        createBatchIndex(disabledIndex, 2, 1, false);
+        String coordinatingNode = findCoordinatingNode();
+
+        Set<String> indicesWithBatch = ConcurrentCollections.newConcurrentSet();
+        Set<String> indicesWithoutBatch = ConcurrentCollections.newConcurrentSet();
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(TransportShardBulkAction.ACTION_NAME + "[p]", (handler, request, channel, task) -> {
+                    // the primary action receives the request wrapped for its target allocation id
+                    BulkShardRequest shardRequest = (BulkShardRequest) ((TransportReplicationAction.ConcreteShardRequest<?>) request)
+                        .getRequest();
+                    (shardRequest.getBulkShardBatch() != null ? indicesWithBatch : indicesWithoutBatch).add(
+                        shardRequest.shardId().getIndexName()
+                    );
+                    handler.messageReceived(request, channel, task);
+                });
+        }
+        int docsPerIndex = randomIntBetween(10, 50);
+        try {
+            BulkRequestBuilder bulk = client(coordinatingNode).prepareBulk();
+            for (int i = 0; i < docsPerIndex; i++) {
+                for (String index : List.of(enabledIndex, disabledIndex)) {
+                    bulk.add(
+                        new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE)
+                            .source(Map.of("name", "doc-" + i, "value", i, "message", "hello world " + i))
+                    );
+                }
+            }
+            assertNoFailures(bulk.get());
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
+
+        assertThat(indicesWithBatch, equalTo(Set.of(enabledIndex)));
+        assertThat(indicesWithoutBatch, equalTo(Set.of(disabledIndex)));
+        refresh(enabledIndex, disabledIndex);
+        for (String index : List.of(enabledIndex, disabledIndex)) {
+            assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), response -> {
+                assertNoFailures(response);
+                assertThat(response.getHits().getTotalHits().value(), equalTo((long) docsPerIndex));
+            });
+        }
+    }
+
+    /**
+     * Batch pages come from the coordinating node's recycler. The mock recycler installed by {@link NodeMocksPlugin} charges each page
+     * to the request breaker, so the breaker rises while the shard requests are held and drops back once the bulk completes. The
+     * production recycler does not charge a breaker. The same bulk is first sent with batch indexing off as a control, so anything
+     * else that charges the request breaker during the held window cancels out instead of satisfying the assertion on its own.
+     */
+    public void testBatchPagesComeFromTheNodeRecycler() throws Exception {
+        String index = randomIndexName();
+        createBatchIndex(index, 2, 0);
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(20, 100);
+
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
+        long rowPathDelta;
+        try {
+            rowPathDelta = requestBreakerDeltaWhileShardRequestsHeld(coordinatingNode, index, numDocs);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        }
+        long batchPathDelta = requestBreakerDeltaWhileShardRequestsHeld(coordinatingNode, index, numDocs);
+
+        // Both runs must charge the breaker the same way apart from the batch pages. If the request breaker starts charging something
+        // that varies between two otherwise identical bulks, this comparison flakes rather than going vacuous.
+        assertThat(batchPathDelta, greaterThanOrEqualTo(rowPathDelta + PageCacheRecycler.BYTE_PAGE_SIZE));
+    }
+
+    private long requestBreakerDeltaWhileShardRequestsHeld(String coordinatingNode, String index, int numDocs) throws Exception {
+        CircuitBreaker requestBreaker = awaitRequestBreakerIdle(coordinatingNode);
+        long baseline = 0L;
+
+        CountDownLatch shardRequestArrived = new CountDownLatch(1);
+        CountDownLatch releaseShardRequests = new CountDownLatch(1);
+        String[] nodes = internalCluster().getNodeNames();
+        for (String node : nodes) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(TransportShardBulkAction.ACTION_NAME + "[p]", (handler, request, channel, task) -> {
+                    shardRequestArrived.countDown();
+                    safeAwait(releaseShardRequests);
+                    handler.messageReceived(request, channel, task);
+                });
+        }
+        try {
+            BulkRequestBuilder bulk = client(coordinatingNode).prepareBulk();
+            for (int i = 0; i < numDocs; i++) {
+                bulk.add(
+                    new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE)
+                        .source(Map.of("name", "doc-" + i, "value", i, "message", "hello world " + i))
+                );
+            }
+            ActionFuture<BulkResponse> response = bulk.execute();
+            safeAwait(shardRequestArrived);
+            long delta = requestBreaker.getUsed() - baseline;
+
+            releaseShardRequests.countDown();
+            assertNoFailures(safeGet(response));
+            assertBusy(() -> assertThat(requestBreaker.getUsed(), lessThanOrEqualTo(baseline)));
+            return delta;
+        } finally {
+            releaseShardRequests.countDown();
+            for (String node : nodes) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
+    }
+
+    public void testPreBuiltBatchPagesReleasedOnSuccess() throws Exception {
+        String index = randomIndexName();
+        createBatchIndex(index, randomIntBetween(1, 3), 0);
+        String coordinatingNode = findCoordinatingNode();
+        CircuitBreaker requestBreaker = awaitRequestBreakerIdle(coordinatingNode);
+        int numDocs = randomIntBetween(10, 40);
+
+        BulkRequest bulkRequest = preBuiltBatchBulkRequestFromNodeRecycler(coordinatingNode, index, numDocs, null);
+        assertThat(requestBreaker.getUsed(), greaterThan(0L));
+
+        assertNoFailures(safeGet(client(coordinatingNode).bulk(bulkRequest)));
+        assertBusy(() -> assertThat(requestBreaker.getUsed(), equalTo(0L)));
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setTrackTotalHits(true), response -> {
+            assertNoFailures(response);
+            assertThat(response.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+    }
+
+    public void testPreBuiltBatchPagesReleasedWhenRejectedBeforeRouting() throws Exception {
+        String index = randomIndexName();
+        createBatchIndex(index, randomIntBetween(1, 3), 0);
+        String pipeline = "prebuilt-batch-noop-pipeline";
+        putJsonPipeline(pipeline, "{\"processors\": []}");
+        String coordinatingNode = findCoordinatingNode();
+        CircuitBreaker requestBreaker = awaitRequestBreakerIdle(coordinatingNode);
+        int numDocs = randomIntBetween(10, 40);
+
+        BulkRequest withPipeline = preBuiltBatchBulkRequestFromNodeRecycler(coordinatingNode, index, numDocs, pipeline);
+        assertThat(requestBreaker.getUsed(), greaterThan(0L));
+        var pipelineRejection = safeAwaitFailure(
+            IllegalArgumentException.class,
+            BulkResponse.class,
+            l -> client(coordinatingNode).bulk(withPipeline, l)
+        );
+        assertThat(pipelineRejection.getMessage(), containsString("cannot run ingest pipelines"));
+        assertBusy(() -> assertThat(requestBreaker.getUsed(), equalTo(0L)));
+
+        BulkRequest batchIndexingOff = preBuiltBatchBulkRequestFromNodeRecycler(coordinatingNode, index, numDocs, null);
+        assertThat(requestBreaker.getUsed(), greaterThan(0L));
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
+        try {
+            var routerRejection = safeAwaitFailure(
+                IllegalStateException.class,
+                BulkResponse.class,
+                l -> client(coordinatingNode).bulk(batchIndexingOff, l)
+            );
+            assertThat(routerRejection.getMessage(), containsString("batch indexing is not supported"));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        }
+        assertBusy(() -> assertThat(requestBreaker.getUsed(), equalTo(0L)));
+    }
+
+    private CircuitBreaker awaitRequestBreakerIdle(String node) throws Exception {
+        CircuitBreaker requestBreaker = internalCluster().getInstance(CircuitBreakerService.class, node).getBreaker(CircuitBreaker.REQUEST);
+        assertBusy(() -> assertThat(requestBreaker.getUsed(), equalTo(0L)));
+        return requestBreaker;
+    }
+
+    private BulkRequest preBuiltBatchBulkRequestFromNodeRecycler(String node, String index, int numDocs, @Nullable String pipeline)
+        throws IOException {
+        Recycler<BytesRef> recycler = internalCluster().getInstance(BigArrays.class, node).bytesRefRecycler();
+        SourceBatch batch;
+        try (EscfEncoder encoder = new EscfEncoder(recycler)) {
+            for (int i = 0; i < numDocs; i++) {
+                XContentBuilder doc = JsonXContent.contentBuilder();
+                doc.startObject();
+                doc.field("name", "name-" + i);
+                doc.field("value", (long) i);
+                doc.endObject();
+                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
+                encoder.commitScratchTo(0);
+            }
+            batch = encoder.buildPartition(0);
+        }
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest ir = new IndexRequest(index).id("doc-" + i).opType(DocWriteRequest.OpType.INDEX).setPipeline(pipeline);
+            ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
+            bulkRequest.add(ir);
+        }
+        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
+        return bulkRequest;
+    }
+
     public void testBatchModeWithVersionConflicts() throws IOException {
         String index = "test-batch-version-conflict";
         createBatchIndex(index, 1, 0);
@@ -701,6 +947,64 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat(getResponse.getSourceAsMap().get("name"), equalTo("explicit-0"));
     }
 
+    public void testTrailingContentAfterObjectRejectedInBatchMode() throws IOException {
+        String index = "test-batch-trailing";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping("""
+                    {"dynamic":"strict","properties":{"name":{"type":"keyword"},"value":{"type":"long"}}}""")
+        );
+        ensureGreen(index);
+        String coordinatingNode = findCoordinatingNode();
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            assertNoFailures(client(coordinatingNode).bulk(trailingContentBulk(index, null)).actionGet());
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        String malformed = "{\"name\":\"first\",\"value\":1}{\"name\":\"second\",\"value\":2}";
+        BulkResponse response = client(coordinatingNode).bulk(trailingContentBulk(index, malformed)).actionGet();
+        BulkItemResponse[] items = response.getItems();
+        for (int i = 0; i < items.length - 1; i++) {
+            assertFalse(items[i].getFailureMessage(), items[i].isFailed());
+        }
+        BulkItemResponse last = items[items.length - 1];
+        assertTrue("trailing content must be rejected, but got: " + last.getResponse(), last.isFailed());
+        assertThat(last.getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(last.getFailure().getMessage(), containsString("extra data after parsing"));
+    }
+
+    private static BulkRequest trailingContentBulk(String index, String malformed) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < 3; i++) {
+            bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(Map.of("name", "ok-" + i, "value", i)));
+        }
+        if (malformed != null) {
+            bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(malformed, XContentType.JSON));
+        }
+        return bulkRequest;
+    }
+
     public void testBatchModeWithParseFailures() throws IOException {
         String index = "test-batch-failures";
         createBatchIndex(index, 2, 1);
@@ -761,7 +1065,12 @@ public class BatchBulkIT extends ESIntegTestCase {
         String index = "test-mixed-ops";
         assertAcked(
             indicesAdmin().prepareCreate(index)
-                .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1))
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
                 .setMapping(getMapping())
         );
         ensureGreen(index);
@@ -894,6 +1203,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
@@ -1057,7 +1367,12 @@ public class BatchBulkIT extends ESIntegTestCase {
 
         assertAcked(
             indicesAdmin().prepareCreate(index)
-                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
                 .setMapping(mapping)
         );
         ensureGreen(index);
@@ -1142,6 +1457,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
@@ -1269,6 +1585,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                         .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("metricset"))
                         .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
                         .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2100-01-01T00:00:00.000Z")
@@ -1367,6 +1684,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
@@ -1514,6 +1832,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                         .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("resource_id"))
                         .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
                         .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2100-01-01T00:00:00.000Z")
@@ -1703,6 +2022,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                         .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("resource_id"))
                         .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
                         .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2100-01-01T00:00:00.000Z")
@@ -1842,6 +2162,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
@@ -2148,6 +2469,113 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
+     * Under root {@code dynamic: flattened}, the {@code _unmapped} sink absorbs the unmapped leaves of a batch through its column group,
+     * and what it writes must read back exactly as the same documents indexed one at a time.
+     */
+    public void testUnmappedSinkBatchMatchesRowPath() {
+        assumeTrue("flattened_unmapped_fields feature flag must be enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        final String batched = "test-unmapped-sink-batched";
+        final String sequential = "test-unmapped-sink-sequential";
+        createUnmappedSinkIndex(batched);
+        createUnmappedSinkIndex(sequential);
+
+        final int numDocs = randomIntBetween(20, 100);
+        final Map<String, Map<String, Object>> sources = new LinkedHashMap<>();
+        for (int i = 0; i < numDocs; i++) {
+            final Map<String, Object> source = new LinkedHashMap<>();
+            source.put("host", "srv-" + (i % 5));
+            source.put("env", randomFrom("prod", "staging", "dev"));
+            if (randomBoolean()) {
+                source.put("attrs", Map.of("region", randomAlphanumericOfLength(6), "zone", Map.of("id", randomAlphanumericOfLength(4))));
+            }
+            if (randomBoolean()) {
+                source.put("tags", List.of(randomAlphanumericOfLength(5), randomAlphanumericOfLength(5), randomAlphanumericOfLength(5)));
+            }
+            if (randomBoolean()) {
+                source.put("count", randomIntBetween(0, 1000));
+            }
+            sources.put("doc-" + i, source);
+        }
+        final String coordinatingNode = findCoordinatingNode();
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "sink batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            assertNoFailures(client(coordinatingNode).bulk(unmappedSinkBulk(batched, sources)).actionGet());
+            // Without this the test would pass just as well on the row path, proving nothing.
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        // The same documents again with batch indexing off, so this index is written a document at a time through
+        // UnmappedSinkFieldMapper.absorb.
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
+        try {
+            assertNoFailures(client(coordinatingNode).bulk(unmappedSinkBulk(sequential, sources)).actionGet());
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        }
+        refresh(batched, sequential);
+
+        // Synthetic source rebuilds every unmapped leaf from the sink's doc values, so this reads back what each path wrote into the sink.
+        final MultiGetRequest batchGets = new MultiGetRequest();
+        final MultiGetRequest rowGets = new MultiGetRequest();
+        for (String id : sources.keySet()) {
+            batchGets.add(batched, id);
+            rowGets.add(sequential, id);
+        }
+        final MultiGetItemResponse[] fromBatch = client().multiGet(batchGets).actionGet().getResponses();
+        final MultiGetItemResponse[] fromRow = client().multiGet(rowGets).actionGet().getResponses();
+        assertThat(fromBatch.length, equalTo(fromRow.length));
+        for (int i = 0; i < fromBatch.length; i++) {
+            final String id = fromBatch[i].getId();
+            assertNull("batch path failed to read [" + id + "]: " + fromBatch[i].getFailure(), fromBatch[i].getFailure());
+            assertNull("row path failed to read [" + id + "]: " + fromRow[i].getFailure(), fromRow[i].getFailure());
+            assertTrue("batch path lost document [" + id + "]", fromBatch[i].getResponse().isExists());
+            final Map<String, Object> batchSource = fromBatch[i].getResponse().getSourceAsMap();
+            assertThat("source of [" + id + "]", batchSource, equalTo(fromRow[i].getResponse().getSourceAsMap()));
+            // Synthetic source renders absorbed leaves under their own paths. env is in every document, so two empty sinks cannot pass as
+            // equal.
+            assertThat(
+                "unmapped leaf of [" + id + "]",
+                XContentMapValues.extractValue("env", batchSource),
+                equalTo(sources.get(id).get("env"))
+            );
+        }
+    }
+
+    private void createUnmappedSinkIndex(String index) {
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping("{\"dynamic\":\"flattened\",\"properties\":{\"host\":{\"type\":\"keyword\"}}}")
+        );
+        ensureGreen(index);
+    }
+
+    private static BulkRequest unmappedSinkBulk(String index, Map<String, Map<String, Object>> sources) {
+        final BulkRequest request = new BulkRequest();
+        sources.forEach((id, source) -> request.add(new IndexRequest(index).id(id).source(source).opType(DocWriteRequest.OpType.CREATE)));
+        return request;
+    }
+
+    /**
      * Regression test: a keyword field with {@code multi_value: false, on_failure: ignore} indexed via the batch
      * path must index the first value as a normal doc value and route the second (violating) value to
      * {@code ._on_failure} so that synthetic source can reconstruct the full array.
@@ -2167,12 +2595,8 @@ public class BatchBulkIT extends ESIntegTestCase {
                     mapping.startObject("field");
                     {
                         mapping.field("type", "keyword");
-                        mapping.startObject("doc_values");
-                        {
-                            mapping.field("multi_value", false);
-                            mapping.field("on_failure", "ignore");
-                        }
-                        mapping.endObject();
+                        mapping.field("multi_value", false);
+                        mapping.field("on_failure", "ignore");
                     }
                     mapping.endObject();
                 }
@@ -2267,6 +2691,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", numShards)
                         .put("index.number_of_replicas", 1)
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                         .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
                 )
                 .setMapping(mapping)
@@ -2701,7 +3126,6 @@ public class BatchBulkIT extends ESIntegTestCase {
      * seen once, so the column is written over the shapes its layout is chosen from rather than one of them.
      */
     public void testColumnarCodecBatchMatchesRowPath() throws IOException {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         final String batched = "test-columnar-codec-batched";
         final String sequential = "test-columnar-codec-sequential";
 
@@ -2859,15 +3283,10 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), true)
                 )
                 .setMapping(mapping)
         );
         ensureGreen(index);
-        // The cluster kill switch overrules the request setting, and an index that came back without the codec
-        // would read back the same on both paths while saying nothing about the format this test is here for.
-        final Settings created = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, index).get().getIndexToSettings().get(index);
-        assumeTrue("columnar codec is disabled for [" + index + "]", IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.get(created));
     }
 
     /**
@@ -3044,6 +3463,266 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
             assertNoFailures(searchResponse);
             assertThat("both docs should be indexed after fallback", searchResponse.getHits().getTotalHits().value(), equalTo(2L));
+        });
+    }
+
+    /**
+     * A leaf array with more elements than fit in a sorted doc value ({@code IndexWriter.MAX_TERM_LENGTH} bytes of encoded
+     * offsets) cannot be indexed through the columnar path: {@code ColumnarOffsetsBuilder} bails out, the batch falls back to
+     * the row path, and only that document is rejected, with an explicit error instead of Lucene's. The other documents in
+     * the bulk request are indexed by the row path, with their array order intact.
+     */
+    public void testColumnarOversizedArrayOffsetsRejectOnlyThatDocument() throws IOException {
+        final String index = "test-columnar-oversized-offsets";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping("""
+                    {"dynamic":"strict","properties":{"n":{"type":"long"}}}""")
+        );
+        ensureGreen(index);
+        final String coordinatingNode = findCoordinatingNode();
+
+        final Map<String, String> sources = new LinkedHashMap<>();
+        final int numDocs = between(3, 10);
+        for (int i = 0; i < numDocs; i++) {
+            // Out-of-order values with duplicates, so the offsets sidecar carries real ordering information.
+            sources.put("doc-" + i, "{\"n\":[3,1,3,2," + i + "]}");
+        }
+        // One more slot than the limit guarantees the encoded offsets exceed it, since every slot takes at least one byte.
+        final StringBuilder oversized = new StringBuilder("{\"n\":[");
+        final int numSlots = IndexWriter.MAX_TERM_LENGTH + between(1, 500);
+        for (int i = 0; i < numSlots; i++) {
+            oversized.append(i == 0 ? "" : ",").append(randomInt(3));
+        }
+        oversized.append("]}");
+        sources.put("oversized", oversized.toString());
+
+        final BulkResponse response;
+        try (var mockLog = MockLog.capture(ShardBatchMapper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "columnar batch mapping bails out",
+                    ShardBatchMapper.class.getName(),
+                    Level.WARN,
+                    "columnar batch mapping failed on *, falling back"
+                )
+            );
+            response = client(coordinatingNode).bulk(bulkOf(index, sources)).actionGet();
+            mockLog.assertAllExpectationsMatched();
+        }
+
+        assertTrue(response.hasFailures());
+        for (BulkItemResponse item : response.getItems()) {
+            if (item.getId().equals("oversized")) {
+                assertTrue("oversized array must be rejected, but got: " + item.getResponse(), item.isFailed());
+                assertThat(item.getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
+                assertThat(item.getFailure().getMessage(), containsString("encoded offsets of field [n.offsets] are too large to store"));
+                assertThat(item.getFailure().getMessage(), containsString("cannot be preserved in [_ignored_source]"));
+            } else {
+                assertFalse(item.getFailureMessage(), item.isFailed());
+            }
+        }
+
+        refresh(index);
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+        // A document the row path indexed after the fallback still reproduces its array order and duplicates.
+        var getResponse = client().get(new GetRequest(index).id("doc-0")).actionGet();
+        assertTrue(getResponse.isExists());
+        assertThat(getResponse.getSourceAsMap().get("n"), equalTo(List.of(3, 1, 3, 2, 0)));
+    }
+
+    /**
+     * Fields with {@code ignore_malformed} are outside what the columnar batch path indexes, so the batch falls back to the row path,
+     * which parses each document in place from its row with {@code SourceRowXContentParser}. That parser must treat a value a mapper
+     * cannot use the way the JSON parser does: the mapper ignores it when it is a scalar, and the document is rejected when it is not.
+     * The wrong answer was to hand the mapper a value left over from an earlier token, or a number wrapped around by a narrowing cast.
+     * Every document is checked through the real bulk API with batch indexing on: what is ignored and indexed, and what {@code _source}
+     * gives back for it.
+     */
+    public void testMalformedValuesOnTheRowPathAreIgnoredAsFromJson() throws IOException {
+        final String index = "test-row-path-malformed";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
+                .setMapping("""
+                    {
+                      "dynamic": "strict",
+                      "properties": {
+                        "name": { "type": "keyword" },
+                        "int_field": { "type": "integer", "ignore_malformed": true },
+                        "short_field": { "type": "short", "ignore_malformed": true },
+                        "double_field": { "type": "double", "ignore_malformed": true },
+                        "bool_field": { "type": "boolean", "ignore_malformed": true }
+                      }
+                    }
+                    """)
+        );
+        ensureGreen(index);
+
+        final Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("valid", """
+            {"name":"a","int_field":5,"short_field":7,"double_field":1.5,"bool_field":true}""");
+        // A boolean where a number is expected.
+        sources.put("bool_for_numbers", """
+            {"name":"b","int_field":false,"double_field":true}""");
+        // Numbers too big for the field, which a plain cast would have wrapped around into a value that is indexed.
+        sources.put("too_big", """
+            {"name":"c","int_field":3000000000,"short_field":70000}""");
+        sources.put("text", """
+            {"name":"d","int_field":"int garbage","bool_field":"bool garbage"}""");
+        sources.put("number_for_bool", """
+            {"name":"e","bool_field":5}""");
+        // An object cannot be ignored. The second element is read while the parser has just left a number.
+        sources.put("object", """
+            {"name":"f","int_field":[7,{"x":1}]}""");
+
+        final BulkResponse response = client(findCoordinatingNode()).bulk(bulkOf(index, sources)).actionGet();
+        final Map<String, BulkItemResponse> items = new LinkedHashMap<>();
+        for (BulkItemResponse item : response.getItems()) {
+            items.put(item.getId(), item);
+        }
+        for (String id : List.of("valid", "bool_for_numbers", "too_big", "text", "number_for_bool")) {
+            assertFalse("[" + id + "] failed: " + items.get(id).getFailureMessage(), items.get(id).isFailed());
+        }
+        assertTrue("an object where a number is expected is rejected", items.get("object").isFailed());
+        assertThat(items.get("object").getFailureMessage(), containsString("failed to parse field [int_field] of type [integer]"));
+
+        refresh(index);
+        // Synthetic source gives back what was ignored as it was sent.
+        assertThat(
+            sourceOf(index, "valid"),
+            equalTo(Map.of("name", "a", "int_field", 5, "short_field", 7, "double_field", 1.5, "bool_field", true))
+        );
+        assertThat(sourceOf(index, "bool_for_numbers"), equalTo(Map.of("name", "b", "int_field", false, "double_field", true)));
+        assertThat(sourceOf(index, "too_big"), equalTo(Map.of("name", "c", "int_field", 3000000000L, "short_field", 70000)));
+        assertThat(sourceOf(index, "text"), equalTo(Map.of("name", "d", "int_field", "int garbage", "bool_field", "bool garbage")));
+        assertThat(sourceOf(index, "number_for_bool"), equalTo(Map.of("name", "e", "bool_field", 5)));
+
+        // The valid document is indexed under its values, and none of the others are indexed under a value they did not have.
+        assertHitIds(index, QueryBuilders.termQuery("int_field", 5), "valid");
+        assertHitIds(index, QueryBuilders.termQuery("short_field", 7), "valid");
+        assertHitIds(index, QueryBuilders.termQuery("bool_field", true), "valid");
+        assertHitIds(index, QueryBuilders.rangeQuery("int_field").gte(Integer.MIN_VALUE).lte(Integer.MAX_VALUE), "valid");
+        assertHitIds(index, QueryBuilders.rangeQuery("double_field").gte(-1e300).lte(1e300), "valid");
+        assertHitIds(index, QueryBuilders.existsQuery("_ignored"), "bool_for_numbers", "too_big", "text", "number_for_bool");
+    }
+
+    /**
+     * Without {@code ignore_malformed}, a value a numeric or boolean field cannot hold must reject the document with a parse error
+     * (a 400), as it does from JSON. A field that is not mapped for columnar parsing, as every field of an index that is not in a
+     * columnar or time series mode is not, is parsed from its row by {@code SourceRowXContentParser}, which used to narrow with a plain
+     * cast: {@code 70000} became the short {@code 4464}, and the document was indexed under a value it never had. A boolean field given
+     * an object did not consume it, so the document was rejected for the wrong reason (the object was taken for an unmapped field).
+     * The valid document in the same bulk request is indexed.
+     */
+    public void testValuesThatDoNotFitAreRejectedOnTheRowPathNotWrappedAround() throws IOException {
+        final String index = "test-row-path-no-wraparound";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
+                .setMapping("""
+                    {
+                      "dynamic": "strict",
+                      "properties": {
+                        "name": { "type": "keyword" },
+                        "int_field": { "type": "integer" },
+                        "short_field": { "type": "short" },
+                        "long_field": { "type": "long" },
+                        "bool_field": { "type": "boolean" }
+                      }
+                    }
+                    """)
+        );
+        ensureGreen(index);
+
+        final Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("valid", """
+            {"name":"a","int_field":2147483647,"short_field":-32768,"long_field":9223372036854775807,"bool_field":true}""");
+        // Each of these used to be indexed, as 4464, -1294967296 and Long.MAX_VALUE.
+        sources.put("short_too_big", """
+            {"name":"b","short_field":70000}""");
+        sources.put("int_too_big", """
+            {"name":"c","int_field":3000000000}""");
+        sources.put("long_too_big", """
+            {"name":"d","long_field":1.0E19}""");
+        // A control: this was rejected correctly before, and must stay so.
+        sources.put("bool_for_int", """
+            {"name":"e","int_field":false}""");
+        // Used to be rejected for the wrong reason: the object was not consumed, and was read as an unmapped field.
+        sources.put("object_for_bool", """
+            {"name":"f","bool_field":{"object":"wow"}}""");
+
+        final BulkResponse response = client(findCoordinatingNode()).bulk(bulkOf(index, sources)).actionGet();
+        final Map<String, BulkItemResponse> items = new LinkedHashMap<>();
+        for (BulkItemResponse item : response.getItems()) {
+            items.put(item.getId(), item);
+        }
+        assertFalse("[valid] failed: " + items.get("valid").getFailureMessage(), items.get("valid").isFailed());
+        final Map<String, String> rejected = Map.of(
+            "short_too_big",
+            "failed to parse field [short_field] of type [short]",
+            "int_too_big",
+            "failed to parse field [int_field] of type [integer]",
+            "long_too_big",
+            "failed to parse field [long_field] of type [long]",
+            "bool_for_int",
+            "failed to parse field [int_field] of type [integer]",
+            "object_for_bool",
+            "failed to parse field [bool_field] of type [boolean]"
+        );
+        // Collect every difference, so that a failure shows which documents were handled wrongly.
+        final List<String> problems = new ArrayList<>();
+        rejected.forEach((id, expectedMessage) -> {
+            final BulkItemResponse item = items.get(id);
+            if (item.isFailed() == false) {
+                problems.add("[" + id + "] was indexed, not rejected");
+            } else if (item.getFailureMessage().contains(expectedMessage) == false
+                || item.getFailure().getStatus() != RestStatus.BAD_REQUEST) {
+                    problems.add("[" + id + "] failed with " + item.getFailure().getStatus() + ": " + item.getFailureMessage());
+                }
+        });
+        assertThat(problems, equalTo(List.of()));
+
+        refresh(index);
+        assertHitIds(index, QueryBuilders.matchAllQuery(), "valid");
+        // Nothing was indexed under the value a cast would have wrapped it to.
+        assertHitIds(index, QueryBuilders.termQuery("short_field", 4464));
+        assertHitIds(index, QueryBuilders.termQuery("int_field", -1294967296));
+        assertHitIds(index, QueryBuilders.termQuery("long_field", Long.MAX_VALUE), "valid");
+    }
+
+    private Map<String, Object> sourceOf(String index, String id) {
+        return client().prepareGet(index, id).get().getSourceAsMap();
+    }
+
+    private void assertHitIds(String index, QueryBuilder query, String... expectedIds) {
+        assertResponse(prepareSearch(index).setQuery(query).setSize(10), response -> {
+            final Set<String> ids = new LinkedHashSet<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                ids.add(hit.getId());
+            }
+            assertThat(query.toString(), ids, equalTo(Set.of(expectedIds)));
         });
     }
 

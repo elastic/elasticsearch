@@ -28,11 +28,21 @@ import java.util.function.Function;
 import static org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation.SCRIPT;
 import static org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation.SEARCH;
 
+/**
+ * The {@code doc} map that scripts use to read doc values for the current document.
+ * <p>
+ * Fields are resolved lazily by name, so this map has no set of entries to enumerate. The read and enumeration
+ * methods that would need one ({@link #size}, {@link #isEmpty}, {@link #containsValue}, {@link #keySet},
+ * {@link #values} and {@link #entrySet}) throw an {@link IllegalArgumentException}: reaching them means a script
+ * enumerated or returned the whole map, which is a mistake in the request. The mutators throw an
+ * {@link UnsupportedOperationException}, as any unmodifiable map does.
+ */
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup;
     private final LeafReaderContext reader;
+    private final ScriptFieldMemoryEstimator scriptFieldMemoryEstimator;
 
     /*
       Field factories require a privileged action to advance to docids (files could be loaded). This wrapper
@@ -77,9 +87,19 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         LeafReaderContext reader
     ) {
+        this(fieldTypeLookup, fieldDataLookup, reader, ScriptFieldMemoryEstimator.NO_OP);
+    }
+
+    LeafDocLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
+        LeafReaderContext reader,
+        ScriptFieldMemoryEstimator scriptFieldMemoryEstimator
+    ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
         this.reader = reader;
+        this.scriptFieldMemoryEstimator = scriptFieldMemoryEstimator;
     }
 
     public void setDocument(int docId) {
@@ -106,14 +126,28 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         // uses doc values then we share to avoid double-loading
         FieldFactoryWrapper fieldFactory;
         if (docFactory != null && indexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
+            // Shared with the doc-access reader, which was already accounted for when it was opened.
             fieldFactory = docFactory;
         } else {
             fieldFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
+            accountDecodeMemory(fieldName, fieldFactory);
         }
 
         fieldFactoryCache.put(fieldName, fieldFactory);
 
         return fieldFactory;
+    }
+
+    /**
+     * Accounts the decode buffer a newly opened reader retains, if it reports one, against the request circuit breaker.
+     * Called once per reader opened by this leaf lookup; the accounted memory is released when the leaf is done being
+     * collected, or at the latest when the request ends. See {@link ScriptFieldMemoryEstimator}.
+     */
+    private void accountDecodeMemory(String fieldName, FieldFactoryWrapper wrapper) {
+        long decodeBytes = wrapper.factory.maxDecodeBytes();
+        if (decodeBytes > 0) {
+            scriptFieldMemoryEstimator.account(decodeBytes, fieldName, reader);
+        }
     }
 
     public Field<?> getScriptField(String fieldName) {
@@ -155,6 +189,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         if (docFactory == null) {
             IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SEARCH);
             docFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
+            accountDecodeMemory(fieldName, docFactory);
         }
 
         docFactoryCache.put(fieldName, docFactory);
@@ -183,17 +218,17 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     @Override
     public int size() {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("size");
     }
 
     @Override
     public boolean isEmpty() {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("isEmpty");
     }
 
     @Override
     public boolean containsValue(Object value) {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("containsValue");
     }
 
     @Override
@@ -218,16 +253,22 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     @Override
     public Set<String> keySet() {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("keySet");
     }
 
     @Override
     public Collection<ScriptDocValues<?>> values() {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("values");
     }
 
     @Override
     public Set<Map.Entry<String, ScriptDocValues<?>>> entrySet() {
-        throw new UnsupportedOperationException();
+        throw notEnumerable("entrySet");
+    }
+
+    private static IllegalArgumentException notEnumerable(String method) {
+        return new IllegalArgumentException(
+            "[doc] does not support [" + method + "]; access fields by name, e.g. doc['field'], and check them with containsKey"
+        );
     }
 }

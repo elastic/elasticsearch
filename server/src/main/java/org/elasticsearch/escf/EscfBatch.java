@@ -36,6 +36,7 @@ public final class EscfBatch implements SourceBatch {
     private final EscfColumn[] columns;
     private final Releasable releasable;
     private BytesReference serialized;
+    private boolean closed;
 
     /** In-memory construction path used by {@link EscfEncoder#buildPartition(int)}. */
     EscfBatch(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
@@ -75,6 +76,16 @@ public final class EscfBatch implements SourceBatch {
         return EscfBatchCodec.parse(data, releasable);
     }
 
+    /**
+     * In-memory construction path for builders outside this package that manage their own
+     * {@link SourceSchema} and {@link EscfColumnData} array — for example a domain-specific builder with a
+     * fixed, pre-registered schema (see {@code AbstractOTLPBatchBuilder} in the {@code otel-data} plugin).
+     * Equivalent to the package-internal constructor used by {@link EscfBatchBuilder#buildPartition}.
+     */
+    public static EscfBatch of(SourceSchema schema, int docCount, EscfColumnData[] columnData, Releasable releasable) {
+        return new EscfBatch(schema, docCount, columnData, releasable);
+    }
+
     @Override
     public int docCount() {
         return docCount;
@@ -87,6 +98,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public BytesReference data() {
+        assertOpen();
         // TODO: Eventually optimize to be more stream like on the serialization path.
         if (serialized == null) {
             EscfColumnData[] dataForSerialize = new EscfColumnData[columns.length];
@@ -105,14 +117,32 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceRow row(int docIndex) {
+        assertOpen();
         if (docIndex < 0 || docIndex >= docCount) {
             throw new IndexOutOfBoundsException("docIndex " + docIndex + " out of range [0, " + docCount + ")");
         }
         return new EscfRow(this, docIndex);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>A slice view sizes only its own rows: its columns are already windowed to the slice, so every
+     * column adds exactly {@link #docCount()} entries.
+     */
+    @Override
+    public int[] rowSizesInBytes() {
+        assertOpen();
+        final int[] sizes = new int[docCount];
+        for (EscfColumn column : columns) {
+            column.addSizesInBytes(sizes);
+        }
+        return sizes;
+    }
+
     /** The typed view for {@code columnIndex}. */
     public EscfColumn column(int columnIndex) {
+        assertOpen();
         return columns[columnIndex];
     }
 
@@ -123,6 +153,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceBatch slice(int from, int to) {
+        assertOpen();
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");
         }
@@ -139,7 +170,13 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public void close() {
+        assertOpen();
+        closed = true;
         releasable.close();
+    }
+
+    private void assertOpen() {
+        assert closed == false : "batch already closed";
     }
 
     /**
@@ -164,8 +201,9 @@ public final class EscfBatch implements SourceBatch {
     /** Raw value bytes of one column: the payload ref length, or the kind-specific equivalent when there is no payload. */
     private static int valueBytes(EscfColumnData col) {
         return switch (col.kind()) {
-            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION ->
-                (int) refLen(col.data());
+            case EscfColumnKind.LONG, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION -> (int) refLen(col.data());
+            // account for stored spellings too
+            case EscfColumnKind.DOUBLE -> (int) (refLen(col.data()) + (col.lexicalForms() == null ? 0 : refLen(col.lexicalForms().data())));
             // BOOL has no byte payload: values are one bit per document
             case EscfColumnKind.BOOL -> EscfBatchCodec.bitsetBytes(col.docCount());
             // ARRAY has no payload of its own: the elements live in the child column
@@ -206,6 +244,9 @@ public final class EscfBatch implements SourceBatch {
             .offsets() != null ? col.offsets().length * 4L : 0L) + refLen(col.data());
         if (col.child() != null) {
             total += columnRamBytes(col.child());
+        }
+        if (col.lexicalForms() != null) {
+            total += columnRamBytes(col.lexicalForms());
         }
         return total;
     }

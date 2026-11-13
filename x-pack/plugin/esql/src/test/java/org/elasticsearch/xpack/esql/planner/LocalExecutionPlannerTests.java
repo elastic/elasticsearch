@@ -32,6 +32,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -49,6 +51,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
+import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
@@ -63,9 +66,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
@@ -82,6 +85,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -96,14 +100,22 @@ import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.Connector;
+import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
@@ -116,6 +128,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -132,6 +145,7 @@ import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.DenseVectorExec;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -148,16 +162,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -477,6 +496,147 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
+     * The credential backstop: a source with no registered dataset behind it cannot be bound to this node's definitions,
+     * and on a release build nothing honest plans one, so the operator build refuses it. The same exec passes on a
+     * snapshot build, where the inline {@code EXTERNAL} command legitimately has no dataset.
+     */
+    public void testExternalSourceWithoutDatasetRefusedOnReleaseBuild() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("file", capturingProvider(captured)),
+            Runnable::run
+        );
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data.ndjson",
+            "file",
+            attrs,
+            Map.of("auth", "federated_identity", "role_arn", "arn:aws:iam::123456789012:role/attacker"),
+            Map.of(),
+            null,
+            10
+        );
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> planner(operatorFactoryRegistry, true, null, false).plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                exec,
+                EmptyIndexedByShardId.instance(),
+                randomBoolean()
+            )
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("external dataset [] is not registered on this node"));
+        assertNull("no operator must be built for a refused source", captured.get());
+
+        planner(operatorFactoryRegistry, true, null, true).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+        assertNotNull("a snapshot build plans the inline-EXTERNAL shape", captured.get());
+    }
+
+    /**
+     * A plan-carried source type must not dispatch a registered dataset's file settings through another source factory.
+     */
+    public void testRegisteredDatasetRefusedThroughConnectorSourceType() throws IOException {
+        AtomicReference<Map<String, Object>> opened = new AtomicReference<>();
+        ConnectorFactory connector = new ConnectorFactory() {
+            @Override
+            public String type() {
+                return "flight";
+            }
+
+            @Override
+            public boolean canHandle(String location) {
+                return true;
+            }
+
+            @Override
+            public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                ConfigKeyValidator.check(config, List.of());
+            }
+
+            @Override
+            public Connector open(Map<String, Object> config) {
+                opened.set(config);
+                throw new AssertionError("a registered dataset must never reach a connector");
+            }
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of("flight", connector), Map.of(), Runnable::run);
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "flight");
+        assertNull(opened.get());
+    }
+
+    public void testRegisteredDatasetRefusedThroughTableCatalogSourceType() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        TableCatalog catalog = new TableCatalog() {
+            @Override
+            public String catalogType() {
+                return "catalog";
+            }
+
+            @Override
+            public boolean canHandle(String path) {
+                return true;
+            }
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                ConfigKeyValidator.check(config, List.of());
+            }
+
+            @Override
+            public SourceMetadata metadata(String tablePath, Map<String, Object> config) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public List<TableCatalog.DataFile> planScan(String tablePath, Map<String, Object> config, List<Object> predicates) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void close() {}
+
+            @Override
+            public SourceOperatorFactoryProvider operatorFactory() {
+                return capturingProvider(captured);
+            }
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of("catalog", catalog), Map.of(), Runnable::run);
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "catalog");
+        assertNull(captured.get());
+    }
+
+    public void testRegisteredDatasetRefusedThroughLegacyPluginFactory() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("legacy", capturingProvider(captured)),
+            Runnable::run
+        );
+        assertRegisteredDatasetRefusedForNonFileSourceType(operatorFactoryRegistry, "legacy");
+        assertNull(captured.get());
+    }
+
+    /**
      * {@link LocalExecutionPlanner} must pass {@link OperatorFactoryRegistry#executor()} and
      * {@link OperatorFactoryRegistry#fileReadExecutor()} into {@link SourceOperatorContext} separately.
      * Production wires the main executor to external-source work and {@code fileReadExecutor} to
@@ -692,19 +852,44 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {
+        mappingKeepsUnmappedFields = true;
         var blockLoader = constructBlockLoader();
-        assertUnmappedFieldLoader(blockLoader.loader());
+        assertThat(blockLoader.loader().toString(), startsWith("UnmappedFields.Named["));
     }
 
-    public void testPlanUnmappedFieldExtractSyntheticSource() throws Exception {
+    /**
+     * A shard reads a field it does not map from {@code _source} as a {@code keyword}: a column of another type that names the
+     * field without a conversion reads null there, as on a shard that cannot hold it.
+     */
+    public void testPlanUnmappedFieldOfAnotherTypeReadsNull() throws Exception {
+        mappingKeepsUnmappedFields = true;
+        var blockLoader = constructBlockLoader(
+            new FieldAttribute(
+                Source.EMPTY,
+                "potentially_unmapped",
+                new EsField("potentially_unmapped", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        assertThat(blockLoader.loader(), sameInstance(ConstantNull.INSTANCE));
+    }
+
+    /**
+     * A shard whose mapping maps every field, and that skipped none, holds no unmapped field to read.
+     */
+    public void testPlanUnmappedFieldExtractStoredSourceWithoutUnmappedFields() throws Exception {
+        var blockLoader = constructBlockLoader();
+        assertThat(blockLoader.loader(), sameInstance(ConstantNull.INSTANCE));
+    }
+
+    /**
+     * A synthetic {@code _source} keeps unmapped fields in {@code _ignored_source}, which no segment of these shards has.
+     */
+    public void testPlanUnmappedFieldExtractSyntheticSourceWithoutUnmappedFields() throws Exception {
         settings = Settings.builder().put(settings).put("index.mapping.source.mode", "synthetic").build();
+        mappingKeepsUnmappedFields = true;
 
         var blockLoader = constructBlockLoader();
-        assertUnmappedFieldLoader(blockLoader.loader());
-    }
-
-    private static void assertUnmappedFieldLoader(BlockLoader loader) {
-        assertThat(loader, instanceOf(UnmappedKeywordBlockLoader.class));
+        assertThat(blockLoader.loader(), sameInstance(ConstantNull.INSTANCE));
     }
 
     public void testTimeSeries() throws IOException {
@@ -742,7 +927,6 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE,
             MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE,
             10,
-            PlannerSettings.LOAD_ALL_MAX_FIELDS.getDefault(Settings.EMPTY),
             PlannerSettings.SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
             PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
             PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
@@ -754,7 +938,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeBatchPages(),
             PlannerSettings.DEFAULTS.minCompetitiveGlobalMergeMaxPendingKeys(),
             PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold(),
-            PlannerSettings.DEFAULTS.aggregationPartitioningMemoryThreshold()
+            PlannerSettings.DEFAULTS.aggregationPartitioningMemoryThreshold(),
+            PlannerSettings.DEFAULTS.tsInfoSampleMinRows(),
+            PlannerSettings.DEFAULTS.tsInfoSampleLimitMultiplier(),
+            PlannerSettings.DEFAULTS.tsInfoPartialEmitThreshold()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
@@ -871,7 +1058,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             estimatedRowSize,
             List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
         );
-        PageStreamPublisher pageStream = new PageStreamPublisher(randomIntBetween(1, 1000));
+        PageStreamPublisher pageStream = new PageStreamPublisher();
         StreamingOutputExec streamingOutput = new StreamingOutputExec(Source.EMPTY, esQueryExec, pageStream);
 
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
@@ -900,6 +1087,12 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter constructBlockLoader() throws IOException {
+        return constructBlockLoader(
+            new FieldAttribute(Source.EMPTY, "potentially_unmapped", new PotentiallyUnmappedKeywordEsField("potentially_unmapped"))
+        );
+    }
+
+    private ValuesSourceReaderOperator.LoaderAndConverter constructBlockLoader(FieldAttribute attribute) throws IOException {
         EsQueryExec queryExec = new EsQueryExec(
             Source.EMPTY,
             EsIndexGenerator.esIndex("test").name(),
@@ -913,9 +1106,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         FieldExtractExec fieldExtractExec = new FieldExtractExec(
             Source.EMPTY,
             queryExec,
-            List.of(
-                new FieldAttribute(Source.EMPTY, "potentially_unmapped", new PotentiallyUnmappedKeywordEsField("potentially_unmapped"))
-            ),
+            List.of(attribute),
             MappedFieldType.FieldExtractPreference.NONE
         );
         var plan = planner().plan(
@@ -982,11 +1173,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         };
     }
 
-    public void testPlanInnerJoinManyToOne() throws IOException {
+    public void testPlanHashJoinManyToOne() throws IOException {
         // LEFT hash-join emits the lookup ordinal and loads values; FilterExec drops misses (null ordinal);
         // the final Project drops the ordinal.
         assertThat(
-            planInnerJoinFactories(false),
+            planHashJoinFactories(false),
             contains(
                 RowInTableLookupOperator.Factory.class,
                 ColumnLoadOperator.Factory.class,
@@ -996,11 +1187,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
-    public void testPlanInnerJoinOneToOneHasDistinctByGuard() throws IOException {
+    public void testPlanHashJoinOneToOneHasDistinctByGuard() throws IOException {
         // unique=true adds an OrdinalIntKeyFactory guard after the filter, keyed on the lookup ordinal
         // (unique per build row), independent of the join key types and count.
         assertThat(
-            planInnerJoinFactories(true),
+            planHashJoinFactories(true),
             contains(
                 RowInTableLookupOperator.Factory.class,
                 ColumnLoadOperator.Factory.class,
@@ -1011,100 +1202,100 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
-    public void testInnerJoinUniqueDuplicateBuildKeyThrows() {
+    public void testHashJoinUniqueDuplicateBuildKeyThrows() {
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> runInnerJoin(innerJoinExec(true, new long[] { 10 }, new long[] { 10, 10, 20 }, new long[] { 100, 100, 200 }))
+            () -> runHashJoin(hashJoinExec(true, new long[] { 10 }, new long[] { 10, 10, 20 }, new long[] { 100, 100, 200 }))
         );
         assertThat(e.getMessage(), containsString("found a duplicate row"));
     }
 
-    public void testInnerJoinManyToOneGathersAndDropsMisses() throws IOException {
+    public void testHashJoinManyToOneGathersAndDropsMisses() throws IOException {
         // group_left: many probe rows per build row; the miss (99) is dropped by the inner-join filter.
-        // Final page order matches InnerJoin.output(): added build columns, then left join keys.
-        List<Page> results = runInnerJoin(
-            innerJoinExec(false, new long[] { 10, 20, 10, 99, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
+        // Final page order matches HashJoin.output(): added build columns, then left join keys.
+        List<Page> results = runHashJoin(
+            hashJoinExec(false, new long[] { 10, 20, 10, 99, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
         );
-        assertInnerJoinOutput(results, List.of(100L, 200L, 100L, 300L), List.of(10L, 20L, 10L, 30L));
+        assertHashJoinOutput(results, List.of(100L, 200L, 100L, 300L), List.of(10L, 20L, 10L, 30L));
     }
 
-    public void testInnerJoinOneToOneUniqueProbe() throws IOException {
-        List<Page> results = runInnerJoin(
-            innerJoinExec(true, new long[] { 10, 20, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
+    public void testHashJoinOneToOneUniqueProbe() throws IOException {
+        List<Page> results = runHashJoin(
+            hashJoinExec(true, new long[] { 10, 20, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
         );
-        assertInnerJoinOutput(results, List.of(100L, 200L, 300L), List.of(10L, 20L, 30L));
+        assertHashJoinOutput(results, List.of(100L, 200L, 300L), List.of(10L, 20L, 30L));
     }
 
-    public void testInnerJoinOneToOneProbeDuplicatesThrows() {
+    public void testHashJoinOneToOneProbeDuplicatesThrows() {
         // unique=true requires probe-side uniqueness; duplicate probe keys matching the same build row throw.
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> runInnerJoin(innerJoinExec(true, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 }))
+            () -> runHashJoin(hashJoinExec(true, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 }))
         );
         assertThat(e.getMessage(), equalTo("input must not have duplicates when [failOnDuplicate] set to [true]"));
     }
 
-    public void testInnerJoinDuplicateBuildKeyThrows() {
+    public void testHashJoinDuplicateBuildKeyThrows() {
         // A duplicate key on the build ("one") side is rejected when the lookup table is built.
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> runInnerJoin(innerJoinExec(false, new long[] { 10 }, new long[] { 10, 10, 20 }, new long[] { 100, 100, 200 }))
+            () -> runHashJoin(hashJoinExec(false, new long[] { 10 }, new long[] { 10, 10, 20 }, new long[] { 100, 100, 200 }))
         );
         assertThat(e.getMessage(), containsString("found a duplicate row"));
     }
 
-    public void testInnerJoinManyToOneFanOutAllowsProbeDuplicates() throws IOException {
+    public void testHashJoinManyToOneFanOutAllowsProbeDuplicates() throws IOException {
         // group_left: several probe rows share one build key. Unlike 1:1 there is no guard, so probe
         // duplicates are allowed and each row fans out carrying the same build value.
-        List<Page> results = runInnerJoin(
-            innerJoinExec(false, new long[] { 10, 10, 10, 20 }, new long[] { 10, 20 }, new long[] { 100, 200 })
+        List<Page> results = runHashJoin(
+            hashJoinExec(false, new long[] { 10, 10, 10, 20 }, new long[] { 10, 20 }, new long[] { 100, 200 })
         );
-        assertInnerJoinOutput(results, List.of(100L, 100L, 100L, 200L), List.of(10L, 10L, 10L, 20L));
+        assertHashJoinOutput(results, List.of(100L, 100L, 100L, 200L), List.of(10L, 10L, 10L, 20L));
     }
 
-    public void testInnerJoinMultiColumnKey() throws IOException {
+    public void testHashJoinMultiColumnKey() throws IOException {
         // The real join key spans (labels..., step): a match requires equality on BOTH key columns.
         // Probe (10, 2) matches only the first column of build (10, 1) -> miss, dropped.
-        // Output after Project: [v0, k0, k1] per InnerJoin.output().
-        PhysicalPlan innerJoin = innerJoinExec(
+        // Output after Project: [v0, k0, k1] per HashJoin.output().
+        PhysicalPlan hashJoin = hashJoinExec(
             false,
             List.of(new long[] { 10, 20, 10 }, new long[] { 1, 1, 2 }), // probe (k0, k1)
             List.of(new long[] { 10, 20, 30 }, new long[] { 1, 1, 1 }), // build (k0, k1)
             List.of(new long[] { 100, 200, 300 })                       // build v0
         );
-        assertInnerJoinRows(runInnerJoin(innerJoin), List.of(List.of(100L, 10L, 1L), List.of(200L, 20L, 1L)));
+        assertHashJoinRows(runHashJoin(hashJoin), List.of(List.of(100L, 10L, 1L), List.of(200L, 20L, 1L)));
     }
 
-    public void testInnerJoinCopiesMultipleBuildColumns() throws IOException {
+    public void testHashJoinCopiesMultipleBuildColumns() throws IOException {
         // group_left(l1, l2): more than one build column is gathered onto each surviving probe row.
-        // Output after Project: [v0, v1, k0] per InnerJoin.output().
-        PhysicalPlan innerJoin = innerJoinExec(
+        // Output after Project: [v0, v1, k0] per HashJoin.output().
+        PhysicalPlan hashJoin = hashJoinExec(
             false,
             List.of(new long[] { 10, 20, 10 }),                        // probe (k0)
             List.of(new long[] { 10, 20 }),                            // build (k0)
             List.of(new long[] { 100, 200 }, new long[] { 111, 222 })  // build (v0, v1)
         );
-        assertInnerJoinRows(runInnerJoin(innerJoin), List.of(List.of(100L, 111L, 10L), List.of(200L, 222L, 20L), List.of(100L, 111L, 10L)));
+        assertHashJoinRows(runHashJoin(hashJoin), List.of(List.of(100L, 111L, 10L), List.of(200L, 222L, 20L), List.of(100L, 111L, 10L)));
     }
 
-    public void testInnerJoinEmptyBuildProducesNoRows() throws IOException {
+    public void testHashJoinEmptyBuildProducesNoRows() throws IOException {
         // Empty "one" side -> every probe row misses -> the inner join drops everything.
-        List<Page> results = runInnerJoin(innerJoinExec(false, new long[] { 10, 20 }, new long[] {}, new long[] {}));
-        assertInnerJoinOutput(results, List.of(), List.of());
+        List<Page> results = runHashJoin(hashJoinExec(false, new long[] { 10, 20 }, new long[] {}, new long[] {}));
+        assertHashJoinOutput(results, List.of(), List.of());
     }
 
-    public void testInnerJoinEmptyProbeProducesNoRows() throws IOException {
-        List<Page> results = runInnerJoin(innerJoinExec(false, new long[] {}, new long[] { 10, 20 }, new long[] { 100, 200 }));
-        assertInnerJoinOutput(results, List.of(), List.of());
+    public void testHashJoinEmptyProbeProducesNoRows() throws IOException {
+        List<Page> results = runHashJoin(hashJoinExec(false, new long[] {}, new long[] { 10, 20 }, new long[] { 100, 200 }));
+        assertHashJoinOutput(results, List.of(), List.of());
     }
 
-    public void testInnerJoinAllProbeRowsMissProduceNoRows() throws IOException {
+    public void testHashJoinAllProbeRowsMissProduceNoRows() throws IOException {
         // Non-empty build, but no probe key exists on the build side -> empty inner-join result.
-        List<Page> results = runInnerJoin(innerJoinExec(false, new long[] { 1, 2, 3 }, new long[] { 10, 20 }, new long[] { 100, 200 }));
-        assertInnerJoinOutput(results, List.of(), List.of());
+        List<Page> results = runHashJoin(hashJoinExec(false, new long[] { 1, 2, 3 }, new long[] { 10, 20 }, new long[] { 100, 200 }));
+        assertHashJoinOutput(results, List.of(), List.of());
     }
 
-    public void testInnerJoinMultivaluedBuildKeyThrows() {
+    public void testHashJoinMultivaluedBuildKeyThrows() {
         // The lookup table only supports single-valued keys; a multivalued build key is rejected.
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
         ReferenceAttribute buildKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
@@ -1123,20 +1314,62 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             List.of(probeKey),
             LocalSupplier.of(new Page(blockFactory.newLongArrayVector(new long[] { 10 }, 1).asBlock()))
         );
-        PhysicalPlan innerJoin = innerJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
-        var e = expectThrows(IllegalArgumentException.class, () -> runInnerJoin(innerJoin));
+        PhysicalPlan hashJoin = hashJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
+        var e = expectThrows(IllegalArgumentException.class, () -> runHashJoin(hashJoin));
         assertThat(e.getMessage(), containsString("only single valued keys are supported"));
     }
 
-    /**
-     * Builds the physical plan shape Mapper produces for InnerJoin:
-     * LEFT HashJoin(lookup ordinal as added field) -> Filter(ordinal IS NOT NULL) -> [DistinctBy(ordinal) when unique] -> Project.
-     */
-    private PhysicalPlan innerJoinExec(boolean unique, long[] probeKeys, long[] buildKeys, long[] buildValues) {
-        return innerJoinExec(unique, List.of(probeKeys), List.of(buildKeys), List.of(buildValues));
+    public void testHashJoinReadsCopyingLocalSupplierWithoutCopying() throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        AtomicInteger gets = new AtomicInteger();
+        AtomicInteger peeks = new AtomicInteger();
+        Page buildPage = new Page(
+            blockFactory.newLongArrayVector(new long[] { 10, 20, 30 }, 3).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 100, 200, 300 }, 3).asBlock()
+        );
+        // The copy that get() makes uses a non-breaking block factory, so counting the calls is the only way to observe it
+        LocalSupplier counting = new CopyingLocalSupplier(buildPage) {
+            @Override
+            public Page get() {
+                gets.incrementAndGet();
+                return super.get();
+            }
+
+            @Override
+            public Page peek() {
+                peeks.incrementAndGet();
+                return super.peek();
+            }
+        };
+        ReferenceAttribute buildKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        ReferenceAttribute buildValue = new ReferenceAttribute(Source.EMPTY, "v0", DataType.LONG);
+        LocalSourceExec build = new LocalSourceExec(Source.EMPTY, List.of(buildKey, buildValue), counting);
+        ReferenceAttribute probeKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        LocalSourceExec probe = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(probeKey),
+            LocalSupplier.of(new Page(blockFactory.newLongArrayVector(new long[] { 10, 20, 10 }, 3).asBlock()))
+        );
+        PhysicalPlan hashJoin = hashJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
+
+        var plan = planHashJoin(hashJoin);
+        assertThat(gets.get(), equalTo(0));
+        assertThat(peeks.get(), equalTo(1));
+
+        List<Page> results = runPlanned(plan.driverFactories.get(0).driverSupplier().physicalOperation());
+        assertHashJoinOutput(results, List.of(100L, 200L, 100L), List.of(10L, 20L, 10L));
+        assertThat(gets.get(), equalTo(0));
     }
 
-    private PhysicalPlan innerJoinExec(boolean unique, List<long[]> probeKeyCols, List<long[]> buildKeyCols, List<long[]> buildValueCols) {
+    /**
+     * Builds the physical plan shape Mapper produces for HashJoin:
+     * LEFT HashJoin(lookup ordinal as added field) -> Filter(ordinal IS NOT NULL) -> [DistinctBy(ordinal) when unique] -> Project.
+     */
+    private PhysicalPlan hashJoinExec(boolean unique, long[] probeKeys, long[] buildKeys, long[] buildValues) {
+        return hashJoinExec(unique, List.of(probeKeys), List.of(buildKeys), List.of(buildValues));
+    }
+
+    private PhysicalPlan hashJoinExec(boolean unique, List<long[]> probeKeyCols, List<long[]> buildKeyCols, List<long[]> buildValueCols) {
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
 
         List<Attribute> buildKeyAttrs = new ArrayList<>();
@@ -1176,10 +1409,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             LocalSupplier.of(new Page(probeBlocks.toArray(new Block[0])))
         );
 
-        return innerJoinPhysical(unique, probe, build, probeKeyAttrs, buildKeyAttrs, buildValueAttrs);
+        return hashJoinPhysical(unique, probe, build, probeKeyAttrs, buildKeyAttrs, buildValueAttrs);
     }
 
-    private static PhysicalPlan innerJoinPhysical(
+    private static PhysicalPlan hashJoinPhysical(
         boolean unique,
         LocalSourceExec probe,
         LocalSourceExec build,
@@ -1205,24 +1438,24 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         return new ProjectExec(Source.EMPTY, join, output);
     }
 
-    private LocalExecutionPlanner.LocalExecutionPlan planInnerJoin(PhysicalPlan innerJoin) throws IOException {
+    private LocalExecutionPlanner.LocalExecutionPlan planHashJoin(PhysicalPlan hashJoin) throws IOException {
         return planner().plan(
             "test",
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
-            innerJoin,
+            hashJoin,
             EmptyIndexedByShardId.instance(),
             randomBoolean()
         );
     }
 
     /**
-     * Classes of the intermediate operator factories for the Mapper-shaped InnerJoin physical plan.
+     * Classes of the intermediate operator factories for the Mapper-shaped HashJoin physical plan.
      */
-    private List<Class<?>> planInnerJoinFactories(boolean unique) throws IOException {
-        PhysicalPlan innerJoin = innerJoinExec(unique, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 });
+    private List<Class<?>> planHashJoinFactories(boolean unique) throws IOException {
+        PhysicalPlan hashJoin = hashJoinExec(unique, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 });
         List<Class<?>> factories = new ArrayList<>();
-        for (var factory : planInnerJoin(innerJoin).driverFactories.get(0)
+        for (var factory : planHashJoin(hashJoin).driverFactories.get(0)
             .driverSupplier()
             .physicalOperation().intermediateOperatorFactories) {
             factories.add(factory.getClass());
@@ -1231,14 +1464,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * Plans then runs a Mapper-shaped InnerJoin physical plan end to end.
+     * Plans then runs a Mapper-shaped HashJoin physical plan end to end.
      */
-    private List<Page> runInnerJoin(PhysicalPlan innerJoin) throws IOException {
-        return runPlanned(planInnerJoin(innerJoin).driverFactories.get(0).driverSupplier().physicalOperation());
+    private List<Page> runHashJoin(PhysicalPlan hashJoin) throws IOException {
+        return runPlanned(planHashJoin(hashJoin).driverFactories.get(0).driverSupplier().physicalOperation());
     }
 
-    /** Asserts single-key InnerJoin pages in InnerJoin.output() order: build value, then left key. */
-    private void assertInnerJoinOutput(List<Page> results, List<Long> expectedValues, List<Long> expectedKeys) {
+    /** Asserts single-key HashJoin pages in HashJoin.output() order: build value, then left key. */
+    private void assertHashJoinOutput(List<Page> results, List<Long> expectedValues, List<Long> expectedKeys) {
         List<Long> values = new ArrayList<>();
         List<Long> keys = new ArrayList<>();
         for (Page page : results) {
@@ -1254,10 +1487,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * Asserts the full output rows of a Mapper-shaped InnerJoin plan whose output is entirely {@code LONG}
-     * columns, in InnerJoin.output() order (added build columns, then left join keys).
+     * Asserts the full output rows of a Mapper-shaped HashJoin plan whose output is entirely {@code LONG}
+     * columns, in HashJoin.output() order (added build columns, then left join keys).
      */
-    private void assertInnerJoinRows(List<Page> results, List<List<Long>> expectedRows) {
+    private void assertHashJoinRows(List<Page> results, List<List<Long>> expectedRows) {
         assertThat(longRows(results), equalTo(expectedRows));
     }
 
@@ -1332,6 +1565,105 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             assertThat(rows.get(1).get(columns + i), equalTo(-1L));
             assertThat(rows.get(2).get(columns + i), equalTo(2L * i));
         }
+    }
+
+    public void testScorePredicateInFilterSeesItsSearchScore() throws IOException {
+        double foxScore = matchScore("fox", "quick fox");
+        assertThat(foxScore, greaterThan(0.0));
+        Expression condition = new And(
+            Source.EMPTY,
+            runtimeMatch("fox"),
+            greaterThanOf(SCORE, new Literal(Source.EMPTY, foxScore / 2, DataType.DOUBLE))
+        );
+        List<Double> scores = scoresAfterFilter(condition, "quick fox", "lazy dog");
+        // Only the row matching "fox" passes, with the search's score rather than the 0.0 from before it.
+        assertThat(scores, contains(foxScore));
+    }
+
+    public void testScorePredicateInOrSeesOtherSearchScore() throws IOException {
+        double foxScore = matchScore("fox", "quick fox");
+        assertThat(foxScore, greaterThan(0.0));
+        Expression scoreInOr = new Or(
+            Source.EMPTY,
+            runtimeMatch("dog"),
+            greaterThanOf(SCORE, new Literal(Source.EMPTY, foxScore / 2, DataType.DOUBLE))
+        );
+        List<Double> scores = scoresAfterFilter(new And(Source.EMPTY, runtimeMatch("fox"), scoreInOr), "quick fox", "lazy dog", "fox dog");
+        // "quick fox" passes on the score of the "fox" match, rather than the 0.0 from before it, and "fox dog" scores both.
+        assertThat(scores, contains(foxScore, matchScore("fox", "fox dog") + matchScore("dog", "fox dog")));
+    }
+
+    public void testConditionWithoutSearchBeforeScorePredicateIsNotScored() throws IOException {
+        Expression scoreInOr = new Or(
+            Source.EMPTY,
+            runtimeMatch("fox"),
+            greaterThanOf(SCORE, new Literal(Source.EMPTY, 0.5, DataType.DOUBLE))
+        );
+        var operation = planFilter(new And(Source.EMPTY, new IsNotNull(Source.EMPTY, CONTENT), scoreInOr), "quick fox");
+        // IS NOT NULL holds no search, so it is filtered without a scorer, and only the conjunct holding the match is scored.
+        assertThat(
+            operation.intermediateOperatorFactories.stream().map(Object::getClass).toList(),
+            contains(
+                FilterOperator.FilterOperatorFactory.class,
+                FilterOperator.FilterOperatorFactory.class,
+                ScoreOperator.ScoreOperatorFactory.class
+            )
+        );
+    }
+
+    private static final ReferenceAttribute CONTENT = new ReferenceAttribute(Source.EMPTY, "content", DataType.TEXT);
+    private static final MetadataAttribute SCORE = new MetadataAttribute(Source.EMPTY, MetadataAttribute.SCORE, DataType.DOUBLE, false);
+
+    private static Match runtimeMatch(String query) {
+        Match match = new Match(Source.EMPTY, CONTENT, Literal.keyword(Source.EMPTY, query), null);
+        assertTrue(match.isRuntimeSearch());
+        return match;
+    }
+
+    /** The score a runtime match on {@code query} gives a row of {@code content}. */
+    private double matchScore(String query, String content) throws IOException {
+        List<Double> scores = scoresAfterFilter(runtimeMatch(query), content);
+        assertThat(scores, hasSize(1));
+        return scores.get(0);
+    }
+
+    /** The {@code _score} of each row of {@code contents}, all starting at 0.0, that passes a filter on {@code condition}. */
+    private List<Double> scoresAfterFilter(Expression condition, String... contents) throws IOException {
+        List<Double> scores = new ArrayList<>();
+        for (Page page : runPlanned(planFilter(condition, contents))) {
+            DoubleBlock scoreBlock = page.getBlock(1);
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                scores.add(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(p)));
+            }
+        }
+        return scores;
+    }
+
+    /** Plans a filter on {@code condition} over a row for each of {@code contents}, each with a {@code _score} of 0.0. */
+    private LocalExecutionPlanner.PhysicalOperation planFilter(Expression condition, String... contents) throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        Block contentBlock;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(contents.length)) {
+            for (String content : contents) {
+                builder.appendBytesRef(new BytesRef(content));
+            }
+            contentBlock = builder.build();
+        }
+        Page input = new Page(contentBlock, blockFactory.newDoubleArrayVector(new double[contents.length], contents.length).asBlock());
+        PhysicalPlan plan = new FilterExec(
+            Source.EMPTY,
+            new LocalSourceExec(Source.EMPTY, List.of(CONTENT, SCORE), LocalSupplier.of(input)),
+            condition
+        );
+
+        return planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            plan,
+            EmptyIndexedByShardId.instance(),
+            false
+        ).driverFactories.get(0).driverSupplier().physicalOperation();
     }
 
     private Add add(Expression left, Expression right) {
@@ -1535,6 +1867,36 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         return new InferenceService(mock(Client.class), clusterService);
     }
 
+    private void assertRegisteredDatasetRefusedForNonFileSourceType(OperatorFactoryRegistry operatorFactoryRegistry, String sourceType)
+        throws IOException {
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data/*.parquet",
+            sourceType,
+            attrs,
+            Map.of("endpoint", "https://s3.example"),
+            Map.of(),
+            null,
+            10
+        ).withDatasetName("logs");
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> planner(operatorFactoryRegistry, true, null, randomBoolean()).plan(
+                "test",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                exec,
+                EmptyIndexedByShardId.instance(),
+                randomBoolean()
+            )
+        );
+        assertThat(e.getMessage(), equalTo("external dataset [logs] cannot be read through non-file source type [" + sourceType + "]"));
+    }
+
     private LocalExecutionPlanner planner() throws IOException {
         return planner(null);
     }
@@ -1551,6 +1913,16 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         OperatorFactoryRegistry operatorFactoryRegistry,
         boolean federationEnabled,
         InferenceService inferenceService
+    ) throws IOException {
+        // Most tests here plan a bare ExternalSourceExec with no dataset behind it, which only a snapshot build allows.
+        return planner(operatorFactoryRegistry, federationEnabled, inferenceService, true);
+    }
+
+    private LocalExecutionPlanner planner(
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        boolean federationEnabled,
+        InferenceService inferenceService,
+        boolean snapshotBuild
     ) throws IOException {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
@@ -1577,10 +1949,12 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
             esPhysicalOperationProviders(shardContexts),
             operatorFactoryRegistry,
+            snapshotBuild,
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null  // client - not needed for these tests
         );
     }
 
@@ -1608,6 +1982,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
         return new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromList<>(shardContexts),
             null,
             PlannerSettings.DEFAULTS,
@@ -1615,6 +1990,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             QueryWarnings.EMIT
         );
     }
+
+    /** Whether the mapping of the shards is one under which documents keep the fields it does not declare. */
+    private boolean mappingKeepsUnmappedFields = false;
 
     private List<EsPhysicalOperationProviders.ShardContext> createShardContexts() throws IOException {
         int numShards = randomIntBetween(1, 1000);
@@ -1627,11 +2005,20 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             true
         );
         for (int i = 0; i < numShards; i++) {
-            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(createMapperService(mapping(b -> {
-                b.startObject("point").field("type", "geo_point").endObject();
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(createMapperService(topMapping(b -> {
+                if (mappingKeepsUnmappedFields) {
+                    b.field("dynamic", false);
+                }
+                b.startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject();
             })), searcher);
+            // As the compute service does, the shard resolves the field the plan reads that some shards may not map
+            EsqlSearchExecutionContext esqlContext = new EsqlSearchExecutionContext(
+                searchExecutionContext,
+                QueryWarnings.EMIT,
+                Set.of("potentially_unmapped")
+            );
             shardContexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(i, new NoOpReleasable(), searchExecutionContext, AliasFilter.EMPTY)
+                new EsPhysicalOperationProviders.DefaultShardContext(i, new NoOpReleasable(), esqlContext, AliasFilter.EMPTY)
             );
         }
         releasables.add(searcher);

@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredEx
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -99,7 +101,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
@@ -141,6 +142,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
+import java.util.function.IntPredicate;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -6861,6 +6864,113 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
     }
 
+    private record ChangedDuringResolution(ExternalSourceResolution resolution, Exception failure, int listings) {}
+
+    /**
+     * Resolves the two-file union-by-name glob through a reader that finds the object gone since its listing was cached
+     * for as long as {@code missingWhileListings} holds for the number of listings so far.
+     */
+    private ChangedDuringResolution resolveWithMissingReads(IntPredicate missingWhileListings) throws Exception {
+        return resolveWithStaleReads(
+            missingWhileListings,
+            null,
+            object -> new ExternalClientException(ExternalException.Condition.OBJECT_NOT_FOUND, object.path(), "", "")
+        );
+    }
+
+    /**
+     * Resolves the two-file union-by-name glob through a reader that finds the object rewritten since its listing was cached
+     * for as long as {@code changedWhileListings} holds for the number of listings so far. Returns the outcome and how many
+     * times the store was listed.
+     */
+    private ChangedDuringResolution resolveWithChangedReads(IntPredicate changedWhileListings, RuntimeException otherFailure)
+        throws Exception {
+        return resolveWithStaleReads(changedWhileListings, otherFailure, object -> new ExternalObjectChangedException(object.path()));
+    }
+
+    private ChangedDuringResolution resolveWithStaleReads(
+        IntPredicate staleWhileListings,
+        RuntimeException otherFailure,
+        Function<StorageObject, RuntimeException> stale
+    ) throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+        FormatReader reader = new StubFormatReader(schemasByPath) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                if (otherFailure != null) {
+                    throw otherFailure;
+                }
+                if (staleWhileListings.test(provider.listCallCount.get())) {
+                    throw stale.apply(object);
+                }
+                return super.metadata(object);
+            }
+        };
+        String glob = "s3://bucket/data/*.parquet";
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithReader(provider, reader, cacheService);
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME))), future);
+            try {
+                return new ChangedDuringResolution(future.actionGet(30, TimeUnit.SECONDS), null, provider.listCallCount.get());
+            } catch (Exception e) {
+                return new ChangedDuringResolution(null, e, provider.listCallCount.get());
+            }
+        }
+    }
+
+    /**
+     * A read during resolution finds the object rewritten since its listing was cached. Nothing has run yet, so resolution
+     * drops the cached listing and resolves once more: it lists the store again and succeeds.
+     */
+    public void testObjectChangedDuringResolutionListsAgainAndSucceeds() throws Exception {
+        // Changed until the store is listed again, which is what a rewrite looks like through a cached listing.
+        ChangedDuringResolution outcome = resolveWithChangedReads(listings -> listings < 2, null);
+        assertNull(outcome.failure());
+        assertEquals(2, outcome.resolution().resolvedSource("s3://bucket/data/*.parquet").fileList().fileCount());
+        assertEquals("the failure dropped the cached listing, so the second pass listed again", 2, outcome.listings());
+    }
+
+    /** The retry runs once: an object that is still changed on the second pass fails the resolution with the condition. */
+    public void testObjectChangedTwiceDuringResolutionIsReturned() throws Exception {
+        ChangedDuringResolution outcome = resolveWithChangedReads(listings -> true, null);
+        assertNotNull(outcome.failure());
+        assertTrue(ExternalException.hasCondition(outcome.failure(), ExternalException.Condition.OBJECT_CHANGED));
+        assertEquals("two passes, no third", 2, outcome.listings());
+    }
+
+    /** Only a stale cached object is retried: any other failure during resolution is returned after one pass. */
+    public void testOtherFailureDuringResolutionIsNotRetried() throws Exception {
+        ChangedDuringResolution outcome = resolveWithChangedReads(listings -> false, new IllegalStateException("not an object change"));
+        assertNotNull(outcome.failure());
+        assertFalse(ExternalException.hasCondition(outcome.failure(), ExternalException.Condition.OBJECT_CHANGED));
+        assertEquals(1, outcome.listings());
+    }
+
+    /**
+     * A read during resolution finds the object gone since its listing was cached. Nothing has run yet, so resolution
+     * drops the cached listing and resolves once more: it lists the store again and succeeds.
+     */
+    public void testObjectNotFoundDuringResolutionListsAgainAndSucceeds() throws Exception {
+        ChangedDuringResolution outcome = resolveWithMissingReads(listings -> listings < 2);
+        assertNull(outcome.failure());
+        assertEquals(2, outcome.resolution().resolvedSource("s3://bucket/data/*.parquet").fileList().fileCount());
+        assertEquals("the failure dropped the cached listing, so the second pass listed again", 2, outcome.listings());
+    }
+
+    /** The retry runs once: an object that is still missing on the second pass fails the resolution with the condition. */
+    public void testObjectNotFoundTwiceDuringResolutionIsReturned() throws Exception {
+        ChangedDuringResolution outcome = resolveWithMissingReads(listings -> true);
+        assertNotNull(outcome.failure());
+        assertTrue(ExternalException.hasCondition(outcome.failure(), ExternalException.Condition.OBJECT_NOT_FOUND));
+        assertEquals("two passes, no third", 2, outcome.listings());
+    }
+
     /**
      * Concurrent UNION_BY_NAME resolves of the same glob (no hints) must issue one LIST.
      * {@code Cache.computeIfAbsent} single-flights that key. Different WHERE clauses still
@@ -6876,15 +6986,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
         List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
         final int threadCount = 8;
         AtomicInteger inResolve = new AtomicInteger();
+        AtomicReference<Throwable> failure = new AtomicReference<>();
         CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath) {
             @Override
             public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
-                try {
-                    assertBusy(
-                        () -> assertEquals("LIST must wait until every resolver thread is in resolve()", threadCount, inResolve.get())
+                // Never throw from here: the listing cache only completes its in-flight entry for an Exception, so an
+                // Error (such as the one assertBusy raises) would leave every other resolver waiting on it forever and
+                // surface only as "did not finish". Record the cause and carry on instead.
+                if (waitUntil(() -> inResolve.get() == threadCount, 20, TimeUnit.SECONDS) == false) {
+                    failure.compareAndSet(
+                        null,
+                        new AssertionError(
+                            "LIST must wait until every resolver thread is in resolve(), but only " + inResolve.get() + " were"
+                        )
                     );
-                } catch (Exception e) {
-                    throw new AssertionError(e);
                 }
                 return super.listObjects(prefix, recursive);
             }
@@ -6894,7 +7009,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountDownLatch start = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(threadCount);
         CyclicBarrier aligned = new CyclicBarrier(threadCount);
-        AtomicReference<Throwable> failure = new AtomicReference<>();
         ExecutorService exec = Executors.newFixedThreadPool(threadCount);
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
@@ -6925,8 +7039,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 });
             }
             start.countDown();
-            assertTrue("concurrent UNION_BY_NAME resolves did not finish", done.await(30, TimeUnit.SECONDS));
+            boolean finished = done.await(60, TimeUnit.SECONDS);
             Throwable t = failure.get();
+            if (finished == false) {
+                throw new AssertionError("concurrent UNION_BY_NAME resolves did not finish", t);
+            }
             if (t != null) {
                 throw new AssertionError("concurrent UNION_BY_NAME resolve failed", t);
             }
@@ -8417,27 +8534,28 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * A breaker that admits one gathered file but not the next stops the FIRST_FILE_WINS stats gather: the remaining
-     * footers are not read, the resolve degrades to partial stats, and the results run is released.
+     * footers are not read, the resolve fails with a {@link CircuitBreakingException} (429), and the results run and
+     * planning reservation are released.
      */
-    public void testStatsGatherTripsBreakerAndDegradesToPartialStats() throws Exception {
-        assertStatsGatherTripsBreakerAndDegradesToPartialStats(null, null);
+    public void testStatsGatherTripsBreakerAndFailsWith429() throws Exception {
+        assertStatsGatherTripsBreakerAndFailsWith429(null, null);
     }
 
     /**
-     * Same as {@link #testStatsGatherTripsBreakerAndDegradesToPartialStats} with the schema cache enabled, the
+     * Same as {@link #testStatsGatherTripsBreakerAndFailsWith429} with the schema cache enabled, the
      * production default: the gather goes through {@code readAndAggregateAllFileStatsWithCache} and stores
      * cache-backed metadata. Each resolver gets its own cold cache so the narrow run reads the same footers.
      */
-    public void testStatsGatherTripsBreakerAndDegradesToPartialStatsWithCache() throws Exception {
+    public void testStatsGatherTripsBreakerAndFailsWith429WithCache() throws Exception {
         try (
             ExternalSourceCacheService wideCache = new ExternalSourceCacheService(cacheEnabledSettings());
             ExternalSourceCacheService narrowCache = new ExternalSourceCacheService(cacheEnabledSettings())
         ) {
-            assertStatsGatherTripsBreakerAndDegradesToPartialStats(wideCache, narrowCache);
+            assertStatsGatherTripsBreakerAndFailsWith429(wideCache, narrowCache);
         }
     }
 
-    private void assertStatsGatherTripsBreakerAndDegradesToPartialStats(
+    private void assertStatsGatherTripsBreakerAndFailsWith429(
         @Nullable ExternalSourceCacheService wideCache,
         @Nullable ExternalSourceCacheService narrowCache
     ) throws Exception {
@@ -8492,29 +8610,87 @@ public class ExternalSourceResolverTests extends ESTestCase {
         EsqlExecutionInfo narrowInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         ExternalPlanningReservation narrowReservation = bindPlanning(narrowResolver, narrowInfo, narrow);
         int[] charged = { 0 };
-        narrowResolver.gatherResultsRunProbe = run -> charged[0]++;
+        ExternalPlanningReservation.Run[] capturedRun = new ExternalPlanningReservation.Run[1];
+        narrowResolver.gatherResultsRunProbe = run -> {
+            capturedRun[0] = run;
+            charged[0]++;
+        };
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         narrowResolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
-        ExternalSourceResolution resolution = future.actionGet();
+        CircuitBreakingException cbe = expectThrows(CircuitBreakingException.class, future::actionGet);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(cbe));
+        assertThat(cbe.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
 
         assertEquals(1, charged[0]);
         // The gather is sequential here (direct executor): the file that tripped is read but never charged, and every
         // later file is drained without a read, so exactly (files - 2) reads are saved against the full gather.
         assertEquals(files - 2, wideReads.get() - narrowReads.get());
-        // Partial stats keep the anchor (first) file's own statistics, not the dataset-wide sum.
-        assertEquals(
-            fixture.rowCounts().get(fixture.paths().get(0)).longValue(),
-            ((Number) resolution.resolvedSource(StatsGatherFixture.GLOB)
-                .metadata()
-                .sourceMetadata()
-                .get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
-        );
-        assertEquals(
-            Boolean.TRUE,
-            resolution.resolvedSource(StatsGatherFixture.GLOB).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
-        );
+        assertNotNull(capturedRun[0]);
+        assertEquals(0L, capturedRun[0].held());
         assertEquals(narrowReservation.queryHeld() + wideBaseline, narrow.getUsed());
+    }
+
+    /**
+     * A {@link CircuitBreakingException} thrown from a non-anchor file's {@code metadata()} on the FIRST_FILE_WINS
+     * stats gather fails the resolve with a 429. The gather must not degrade to partial stats, and later files are
+     * not read. The factory loop wraps the trip in an {@link IllegalArgumentException}, so the gather has to unwrap
+     * it the same way {@code mapResolveFailure} does.
+     */
+    public void testStatsGatherNonAnchorMetadataBreakerTripFailsWith429() throws Exception {
+        assertStatsGatherNonAnchorMetadataBreakerTripFailsWith429(null);
+    }
+
+    /**
+     * Same as {@link #testStatsGatherNonAnchorMetadataBreakerTripFailsWith429} on the cached gather handler.
+     */
+    public void testStatsGatherNonAnchorMetadataBreakerTripFailsWith429WithCache() throws Exception {
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            assertStatsGatherNonAnchorMetadataBreakerTripFailsWith429(cache);
+        }
+    }
+
+    private void assertStatsGatherNonAnchorMetadataBreakerTripFailsWith429(@Nullable ExternalSourceCacheService cache) throws Exception {
+        int files = 4;
+        StatsGatherFixture fixture = statsGatherFixture(files, 4);
+        String tripPath = fixture.paths().get(1);
+        List<String> unread = fixture.paths().subList(2, files);
+        List<String> readPaths = new ArrayList<>();
+        CircuitBreakingException trip = new CircuitBreakingException("over limit", 100, 50, CircuitBreaker.Durability.TRANSIENT);
+        StubFormatReaderWithStats reader = new StubFormatReaderWithStats(fixture.schemas(), fixture.rowCounts()) {
+            @Override
+            public SourceMetadata metadata(StorageObject object) {
+                String path = object.path().toString();
+                readPaths.add(path);
+                if (path.equals(tripPath)) {
+                    throw trip;
+                }
+                return super.metadata(object);
+            }
+        };
+
+        CircuitBreaker breaker = requestBreaker("1gb");
+        ExternalSourceResolver resolver = planningResolver(reader, fixture.schemas(), fixture.listings(), breaker, cache);
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        ExternalPlanningReservation reservation = bindPlanning(resolver, info, breaker);
+        long baseline = breaker.getUsed();
+        ExternalPlanningReservation.Run[] capturedRun = new ExternalPlanningReservation.Run[1];
+        resolver.gatherResultsRunProbe = run -> capturedRun[0] = run;
+
+        PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+        resolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
+        CircuitBreakingException cbe = expectThrows(CircuitBreakingException.class, future::actionGet);
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(cbe));
+        assertThat(cbe.getMessage(), containsString("over limit"));
+
+        assertThat(readPaths, hasItem(fixture.paths().get(0)));
+        assertThat(readPaths, hasItem(tripPath));
+        for (String path : unread) {
+            assertThat("later files must not be read after the non-anchor trip", readPaths, not(hasItem(path)));
+        }
+        assertNotNull(capturedRun[0]);
+        assertEquals(0L, capturedRun[0].held());
+        assertEquals(reservation.queryHeld() + baseline, breaker.getUsed());
     }
 
     /** A FIRST_FILE_WINS glob whose files all share a wide schema and report row-count statistics. */

@@ -28,10 +28,20 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     private final ShardSearchFailure[] shardFailures;
     private final ElasticsearchException guessedCause; // log4j requires a stable cause!
 
+    @Deprecated // Use List<ShardSearchFailure> instead
     public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
         this(phaseName, msg, null, shardFailures);
     }
 
+    public SearchPhaseExecutionException(String phaseName, String msg, List<ShardSearchFailure> shardFailures) {
+        this(phaseName, msg, null, shardFailures);
+    }
+
+    public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, List<ShardSearchFailure> shardFailures) {
+        this(phaseName, msg, cause, shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY));
+    }
+
+    @Deprecated // Use List<ShardSearchFailure> instead
     @SuppressWarnings("this-escape")
     public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
         super(msg, deduplicateCause(cause, shardFailures));
@@ -120,15 +130,16 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     }
 
     @Override
-    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel, Throwable[] additionalSuppressed)
+        throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this, nestedLevel);
+            generateThrowableXContent(builder, params, this, nestedLevel, additionalSuppressed);
         } else {
             // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
             // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
             // be rendered twice (one in the "cause" field, one in "failed_shards")
-            innerToXContent(builder, params, this, getBodyHeaders(), getMetadata(), super.getCause(), nestedLevel);
+            innerToXContent(builder, params, this, getBodyHeaders(), getMetadata(), super.getCause(), nestedLevel, additionalSuppressed);
         }
         return builder;
     }

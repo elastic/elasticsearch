@@ -15,6 +15,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -154,7 +155,15 @@ public final class EscfColumnBuilder implements Releasable {
     }
 
     public void addDouble(double value) {
-        setDouble(nextAppendRow(), value);
+        addDouble(value, null);
+    }
+
+    /**
+     * Appends a double together with {@code lexicalForm}, the client's spelling when it is not the canonical
+     * {@code Double.toString} rendering of {@code value}; {@code null} appends a plain double.
+     */
+    public void addDouble(double value, @Nullable XContentString.UTF8Bytes lexicalForm) {
+        setDouble(nextAppendRow(), value, lexicalForm);
     }
 
     public void addBoolean(boolean value) {
@@ -255,11 +264,19 @@ public final class EscfColumnBuilder implements Releasable {
     }
 
     public void setDouble(int row, double value) {
+        setDouble(row, value, null);
+    }
+
+    public void setDouble(int row, double value, @Nullable XContentString.UTF8Bytes lexicalForm) {
+        byte[] text = lexicalForm == null ? null : lexicalForm.bytes();
+        // Position is needed to store the spellings when available.
+        int off = lexicalForm == null ? 0 : lexicalForm.offset();
+        int len = lexicalForm == null ? 0 : lexicalForm.length();
         if (row == lastWrittenRow) {
-            sameRowScalar(EscfColumnKind.DOUBLE, 0L, value, null, 0, 0);
+            sameRowScalar(EscfColumnKind.DOUBLE, 0L, value, text, off, len);
             return;
         }
-        newRowScalar(row, EscfColumnKind.DOUBLE, 0L, value, null, 0, 0);
+        newRowScalar(row, EscfColumnKind.DOUBLE, 0L, value, text, off, len);
     }
 
     public void setBoolean(int row, boolean value) {
@@ -313,12 +330,21 @@ public final class EscfColumnBuilder implements Releasable {
      * {@link Double#doubleToRawLongBits(double)}.
      */
     public void setRawFixed64(int row, byte kind, long bits) {
+        setRawFixed64(row, kind, bits, null);
+    }
+
+    /** Like {@link #setRawFixed64(int, byte, long)}, carrying a DOUBLE value's stored spelling when it has one. */
+    public void setRawFixed64(int row, byte kind, long bits, @Nullable BytesRef lexicalForm) {
         assert kind == EscfColumnKind.LONG || kind == EscfColumnKind.DOUBLE;
+        assert lexicalForm == null || kind == EscfColumnKind.DOUBLE : "only doubles carry a lexical form";
+        byte[] text = lexicalForm == null ? null : lexicalForm.bytes;
+        int off = lexicalForm == null ? 0 : lexicalForm.offset;
+        int len = lexicalForm == null ? 0 : lexicalForm.length;
         if (row == lastWrittenRow) {
-            sameRowScalar(kind, bits, Double.longBitsToDouble(bits), null, 0, 0);
+            sameRowScalar(kind, bits, Double.longBitsToDouble(bits), text, off, len);
             return;
         }
-        newRowScalar(row, kind, bits, Double.longBitsToDouble(bits), null, 0, 0);
+        newRowScalar(row, kind, bits, Double.longBitsToDouble(bits), text, off, len);
     }
 
     /**
@@ -456,6 +482,32 @@ public final class EscfColumnBuilder implements Releasable {
     }
 
     /**
+     * Appends {@code additionalCopies} more copies of the last row, which is typically more efficient than just
+     * re-encoding the value multiple times.
+     * Write the value once (closing an array cell with {@link #endArray()} if one was opened), then
+     * call this to materialise the remaining copies.
+     *
+     * <p>An absent last row is repeated as {@code additionalCopies} more absent rows. Because the copies are byte-level,
+     * every value of a row must be written before it is repeated: a same-row write after a repeat (the
+     * {@link CollisionPolicy#MERGE} multi-value path) extends the last copy only.
+     */
+    public void repeatLastRow(int additionalCopies) {
+        assert arrayOpen == false : "repeatLastRow while an array is open";
+        assert finished == false : "repeatLastRow after finish";
+        assert additionalCopies >= 0 : "additionalCopies must not be negative, got " + additionalCopies;
+        assert (current == null ? leadingAbsents : current.rowsConsumed()) > 0 : "repeatLastRow before any row was written";
+        if (additionalCopies == 0) {
+            return;
+        }
+        if (current != null && lastWrittenRow == current.rowsConsumed() - 1) {
+            current.repeatLastRow(additionalCopies);
+            lastWrittenRow += additionalCopies;
+        } else {
+            addAbsents(additionalCopies);
+        }
+    }
+
+    /**
      * Determines the column kind and serialises it. An all-absent (or empty) column finishes as
      * {@link EscfColumnKind#LONG} with an all-absent bitset.
      */
@@ -493,8 +545,11 @@ public final class EscfColumnBuilder implements Releasable {
         }
     }
 
-    /** The next fresh row index for the append surface. */
-    private int nextAppendRow() {
+    /**
+     * Returns the next fresh row index for the append surface, i.e. the number of rows (present + absent)
+     * recorded so far — the row index the next {@code addX}/{@code addAbsent} call would land on.
+     */
+    public int nextAppendRow() {
         return current == null ? leadingAbsents : current.rowsConsumed();
     }
 
@@ -575,7 +630,7 @@ public final class EscfColumnBuilder implements Releasable {
     private static void writeScalar(TypedBuilder b, byte kind, long longBits, double dbl, byte[] bytes, int off, int len) {
         switch (kind) {
             case EscfColumnKind.LONG -> b.addLong(longBits);
-            case EscfColumnKind.DOUBLE -> b.addDouble(dbl);
+            case EscfColumnKind.DOUBLE -> b.addDouble(dbl, bytes, off, len);
             case EscfColumnKind.STRING, EscfColumnKind.BINARY -> b.addBytes(kind, bytes, off, len);
             default -> throw new AssertionError("not a scalar kind: " + EscfColumnKind.name(kind));
         }
@@ -816,7 +871,8 @@ public final class EscfColumnBuilder implements Releasable {
 
         void addLong(long value);
 
-        void addDouble(double value);
+        /** {@code lexicalForm/off/len} is the double's stored spelling, or {@code null} when its canonical rendering is its spelling. */
+        void addDouble(double value, byte[] lexicalForm, int off, int len);
 
         void addBoolean(boolean value);
 
@@ -832,6 +888,12 @@ public final class EscfColumnBuilder implements Releasable {
                 addAbsent();
             }
         }
+
+        /**
+         * Appends {@code additionalCopies} more copies of the last row by replicating its bytes and offsets rather than
+         * re-encoding its value. The last row must be present.
+         */
+        void repeatLastRow(int additionalCopies);
 
         /** Near-free promotion to a union (adopts the value buffer where the layout allows). */
         UnionBuilder promote(Recycler<BytesRef> recycler);
@@ -889,6 +951,15 @@ public final class EscfColumnBuilder implements Releasable {
             count++;
         }
 
+        /** Marks {@code n} consecutive rows present; grows and fills the validity bitset once, if one exists. */
+        final void bulkAdvancePresent(int n) {
+            if (validity != null) {
+                validity = FixedBitSet.ensureCapacity(validity, count + n);
+                validity.set(count, count + n);
+            }
+            count += n;
+        }
+
         final boolean isAbsentAt(int d) {
             return validity != null && validity.get(d) == false;
         }
@@ -899,7 +970,7 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
-        public void addDouble(double value) {
+        public void addDouble(double value, byte[] lexicalForm, int off, int len) {
             throw unsupported("double");
         }
 
@@ -926,13 +997,21 @@ public final class EscfColumnBuilder implements Releasable {
         }
     }
 
-    /** LONG / DOUBLE: 8-byte slots (LE), one per document; absent slots are written as zero. */
+    /**
+     * LONG / DOUBLE: 8-byte slots (LE), one per document; absent slots are written as zero. A DOUBLE column keeps
+     * the stored spellings of its values in a {@link VarBuilder} sidecar that is created on the first spelling and
+     * kept in lockstep (one row per document, zero-length where there is none) from then on.
+     */
     private static final class FixedNumericBuilder extends BaseBuilder {
         private final byte kind;
+        private final Recycler<BytesRef> recycler;
         private RecyclerBytesStreamOutput data;
+        /** DOUBLE only; {@code null} while no value has a stored spelling. */
+        private VarBuilder lexicalForms;
 
         FixedNumericBuilder(byte kind, Recycler<BytesRef> recycler) {
             this.kind = kind;
+            this.recycler = recycler;
             this.data = newStream(recycler);
         }
 
@@ -948,14 +1027,24 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
-        public void addDouble(double value) {
+        public void addDouble(double value, byte[] lexicalForm, int off, int len) {
             writeLongLE(data, Double.doubleToRawLongBits(value));
+            if (lexicalForm != null) {
+                lexicalForms().addBytes(EscfColumnKind.STRING, lexicalForm, off, len);
+            } else if (lexicalForms != null) {
+                // Add empty to indicate the lack of spelling in a particular row
+                lexicalForms.addEmpty();
+            }
             advancePresent();
         }
 
         @Override
         public void addAbsent() {
             writeLongLE(data, 0L);
+            if (lexicalForms != null) {
+                // Add empty to indicate the lack of spelling in a missing row
+                lexicalForms.addEmpty();
+            }
             advanceAbsent();
         }
 
@@ -968,11 +1057,41 @@ public final class EscfColumnBuilder implements Releasable {
                 writeBytes(data, ZERO_BYTES, 0, chunk);
                 remaining -= chunk;
             }
+            if (lexicalForms != null) {
+                // Add empty to indicate the lack of spelling in absent rows
+                lexicalForms.addEmpties(n);
+            }
             bulkAdvanceAbsent(n);
+        }
+
+        /** The spellings sidecar, created on first use with an empty entry for every row written so far. */
+        private VarBuilder lexicalForms() {
+            if (lexicalForms == null) {
+                assert kind == EscfColumnKind.DOUBLE : "only doubles carry a lexical form";
+                lexicalForms = new VarBuilder(EscfColumnKind.STRING, recycler);
+                lexicalForms.addEmpties(count);
+            }
+            return lexicalForms;
+        }
+
+        @Override
+        public void repeatLastRow(int additionalCopies) {
+            data.repeatLastBytes(Long.BYTES, additionalCopies);
+            if (lexicalForms != null) {
+                // One sidecar row per value: the copies need its spelling, or its empty entry, too.
+                lexicalForms.repeatLastRow(additionalCopies);
+            }
+            bulkAdvancePresent(additionalCopies);
         }
 
         @Override
         public UnionBuilder promote(Recycler<BytesRef> recycler) {
+            if (lexicalForms != null) {
+                // TODO: Union rows cannot carry a stored spelling yet, so a promoted column loses them and its string
+                // consumers see the canonical rendering again (the row keeps the same double).
+                lexicalForms.discard();
+                lexicalForms = null;
+            }
             byte present = kind == EscfColumnKind.LONG ? SourceValueType.LONG : SourceValueType.DOUBLE;
             byte[] typeVec = new byte[count];
             int[] offsets = new int[count + 1];
@@ -989,6 +1108,9 @@ public final class EscfColumnBuilder implements Releasable {
 
         @Override
         public ArrayBuilder promoteToArray(Recycler<BytesRef> recycler) {
+            // Only MERGE promotes a scalar column to an array, and spellings are only recorded under SPLIT (the
+            // encoder and the scatterer); a MERGE builder therefore never has a sidecar to carry over.
+            assert lexicalForms == null : "a column with stored spellings is never promoted to an array";
             int[] rowOffsets = new int[Math.max(16, count + 1)];
             if (validity == null) {
                 // Dense: positional == element-packed. Adopt the data buffer; null out to prevent double-close via discard().
@@ -1027,12 +1149,16 @@ public final class EscfColumnBuilder implements Releasable {
         @Override
         public EscfColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
+            if (lexicalForms != null) {
+                return EscfColumnData.ofDouble(docCount, validity, data.moveToBytesReference(), lexicalForms.finish(docCount));
+            }
             return EscfColumnData.ofFixed64(kind, docCount, validity, data.moveToBytesReference());
         }
 
         @Override
         public void discard() {
             if (data != null) data.close();
+            if (lexicalForms != null) lexicalForms.discard();
         }
     }
 
@@ -1063,6 +1189,17 @@ public final class EscfColumnBuilder implements Releasable {
         @Override
         public void addAbsents(int n) {
             bulkAdvanceAbsent(n);
+        }
+
+        @Override
+        public void repeatLastRow(int additionalCopies) {
+            // The bitset is only grown up to its last true, so a null or short one means the last value is false,
+            // which needs no bits set at all.
+            if (values != null && count - 1 < values.length() && values.get(count - 1)) {
+                values = FixedBitSet.ensureCapacity(values, count + additionalCopies);
+                values.set(count, count + additionalCopies);
+            }
+            bulkAdvancePresent(additionalCopies);
         }
 
         @Override
@@ -1123,6 +1260,29 @@ public final class EscfColumnBuilder implements Releasable {
             offsets = ensureIntCapacity(offsets, count + n);
             Arrays.fill(offsets, count, count + n, dataLen);
             bulkAdvanceAbsent(n);
+        }
+
+        @Override
+        public void repeatLastRow(int additionalCopies) {
+            int blockBytes = dataLen - offsets[count - 1];
+            offsets = ensureIntCapacity(offsets, count + additionalCopies);
+            repeatIntBlock(offsets, count - 1, additionalCopies, blockBytes);
+            data.repeatLastBytes(blockBytes, additionalCopies);
+            dataLen += blockBytes * additionalCopies;
+            bulkAdvancePresent(additionalCopies);
+        }
+
+        /** Records a present, zero-length row. Used for the spellings sidecar of a value that has none. */
+        void addEmpty() {
+            recordOffset();
+            advancePresent();
+        }
+
+        /** Records {@code n} present, zero-length rows. */
+        void addEmpties(int n) {
+            offsets = ensureIntCapacity(offsets, count + n);
+            Arrays.fill(offsets, count, count + n, dataLen);
+            bulkAdvancePresent(n);
         }
 
         private void recordOffset() {
@@ -1257,6 +1417,31 @@ public final class EscfColumnBuilder implements Releasable {
             rowOffsets = ensureIntCapacity(rowOffsets, count + n);
             Arrays.fill(rowOffsets, count, count + n, elemCount);
             bulkAdvanceAbsent(n);
+        }
+
+        @Override
+        public void repeatLastRow(int additionalCopies) {
+            assert sealed == false : "repeatLastRow would invalidate the sealed row and child fences";
+            final int firstElem = rowOffsets[count - 1];
+            final int blockElems = elemCount - firstElem;
+            rowOffsets = ensureIntCapacity(rowOffsets, count + additionalCopies);
+            repeatIntBlock(rowOffsets, count - 1, additionalCopies, blockElems);
+            if (blockElems > 0) {
+                final int blockBytes;
+                if (childKind == EscfColumnKind.LONG || childKind == EscfColumnKind.DOUBLE) {
+                    // A fixed child keeps element e at byte e * 8 and never consults childOffsets, so only the
+                    // payload has to be replicated.
+                    blockBytes = blockElems * Long.BYTES;
+                } else {
+                    blockBytes = childDataLen - childOffsets[firstElem];
+                    childOffsets = ensureIntCapacity(childOffsets, elemCount + blockElems * additionalCopies);
+                    repeatIntBlock(childOffsets, firstElem, blockElems, additionalCopies, blockBytes);
+                }
+                childData.repeatLastBytes(blockBytes, additionalCopies);
+                childDataLen += blockBytes * additionalCopies;
+                elemCount += blockElems * additionalCopies;
+            }
+            bulkAdvancePresent(additionalCopies);
         }
 
         /** Begins a new present row; the caller then appends zero or more elements. */
@@ -1407,7 +1592,8 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
-        public void addDouble(double value) {
+        public void addDouble(double value, byte[] lexicalForm, int off, int len) {
+            // TODO: A union row cannot carry a stored spelling yet; the double is written without it.
             prep(SourceValueType.DOUBLE);
             writeLongLE(data, Double.doubleToRawLongBits(value));
             dataLen += 8;
@@ -1496,6 +1682,18 @@ public final class EscfColumnBuilder implements Releasable {
             bulkAdvanceAbsent(n);
         }
 
+        @Override
+        public void repeatLastRow(int additionalCopies) {
+            int blockBytes = dataLen - offsets[count - 1];
+            offsets = ensureIntCapacity(offsets, count + additionalCopies);
+            typeVec = ensureByteCapacity(typeVec, count + additionalCopies);
+            repeatIntBlock(offsets, count - 1, additionalCopies, blockBytes);
+            Arrays.fill(typeVec, count, count + additionalCopies, typeVec[count - 1]);
+            data.repeatLastBytes(blockBytes, additionalCopies);
+            dataLen += blockBytes * additionalCopies;
+            bulkAdvancePresent(additionalCopies);
+        }
+
         private void prep(byte type) {
             offsets = ensureIntCapacity(offsets, count + 1);
             typeVec = ensureByteCapacity(typeVec, count + 1);
@@ -1561,6 +1759,34 @@ public final class EscfColumnBuilder implements Releasable {
             src.slice(offset, length).writeTo(out);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     *  Single-entry {@link #repeatIntBlock}, for the per-row vectors: one entry per repeated row.
+     *  Microbenchmarking showed that this method is actually faster than the generic {@link #repeatIntBlock} one.
+     */
+    private static void repeatIntBlock(int[] values, int blockStart, int additionalCopies, int delta) {
+        final int value = values[blockStart];
+        for (int i = 1; i <= additionalCopies; i++) {
+            values[blockStart + i] = value + i * delta;
+        }
+    }
+
+    /**
+     * Appends {@code additionalCopies} more copies of the {@code rows} entries at {@code blockStart} directly behind them,
+     * adding {@code delta} per copy so that a monotonically increasing offset vector stays consistent. Used for
+     * the per-element child offsets, where one repeated row carries a whole block of entries.
+     */
+    private static void repeatIntBlock(int[] values, int blockStart, int rows, int additionalCopies, int delta) {
+        int dst = blockStart + rows;
+        int shift = delta;
+        for (int j = 0; j < additionalCopies; j++) {
+            for (int i = 0; i < rows; i++) {
+                values[dst + i] = values[blockStart + i] + shift;
+            }
+            dst += rows;
+            shift += delta;
         }
     }
 

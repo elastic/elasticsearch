@@ -27,9 +27,11 @@ import org.elasticsearch.xpack.esql.datasources.ColumnStatTypeSupport;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -602,6 +604,8 @@ public class ExternalSourceCacheService implements Closeable {
         FileList racedResult = listingStore.get(key);
         if (racedResult != null) {
             inFlightListings.remove(key, newFuture);
+            // Followers may have subscribed to newFuture since the putIfAbsent above; leaving it incomplete would strand them.
+            newFuture.onResponse(racedResult);
             listener.onResponse(racedResult);
             return;
         }
@@ -1888,6 +1892,65 @@ public class ExternalSourceCacheService implements Closeable {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    /**
+     * Drops the listings of the datasets a query read, so the next query lists them again. A query whose read failed with the
+     * object-changed condition names the listings it used, and every cached listing of those datasets goes too: a dataset is cached
+     * under one key per filter-hint set, and split discovery builds keys that the query did not record. A dataset is matched by
+     * its scheme, bucket, prefix and storage identity, so another store with the same bucket and prefix keeps its listings, as
+     * do other datasets. Entries that differ only in their credentials or dataset definition read the same objects, so they are
+     * dropped too.
+     */
+    public void invalidateListings(Collection<ListingCacheKey> used) {
+        Set<List<String>> datasets = new HashSet<>();
+        for (ListingCacheKey key : used) {
+            datasets.add(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob(), key.storageIdentity()));
+        }
+        List<ListingCacheKey> matches = new ArrayList<>();
+        for (ListingCacheKey key : listingStore.cache().keys()) {
+            if (datasets.contains(List.of(key.scheme(), key.bucketOrContainer(), key.prefixAndGlob(), key.storageIdentity()))) {
+                matches.add(key);
+            }
+        }
+        for (ListingCacheKey key : matches) {
+            listingStore.cache().invalidate(key);
+        }
+    }
+
+    /**
+     * Drops every cached listing of the dataset at {@code location} for {@code storageIdentity}, so the next list of
+     * that prefix runs against the store. Hint variants and credential identities that share the scheme, bucket,
+     * prefix and storage identity all go: a deleted object is gone for every filter over that prefix. Another dataset
+     * or another endpoint that happens to share the bucket name keeps its listings.
+     */
+    public void invalidateListingsAt(StoragePath location, String storageIdentity) {
+        if (location == null) {
+            return;
+        }
+        String scheme = Objects.toString(location.scheme(), "");
+        String bucket = Objects.toString(location.host(), "");
+        String prefix = Objects.toString(location.path(), "");
+        String identity = Objects.toString(storageIdentity, "");
+        List<ListingCacheKey> matches = new ArrayList<>();
+        for (ListingCacheKey key : listingStore.cache().keys()) {
+            if (scheme.equals(key.scheme())
+                && bucket.equals(key.bucketOrContainer())
+                && prefix.equals(key.prefixAndGlob())
+                && identity.equals(key.storageIdentity())) {
+                matches.add(key);
+            }
+        }
+        for (ListingCacheKey key : matches) {
+            listingStore.cache().invalidate(key);
+        }
+    }
+
+    /** Drops the given file-metadata entries; see {@link #invalidateListings}. */
+    public void invalidateFileMetadata(Collection<FileMetadataCacheKey> keys) {
+        for (FileMetadataCacheKey key : keys) {
+            fileMetadataCache.invalidate(key);
+        }
     }
 
     public void clearAll() {

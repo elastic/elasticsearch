@@ -10,14 +10,20 @@ import org.elasticsearch.core.TimeValue;
 
 record ChunkedDataExtractorContext(
     String jobId,
-    int scrollSize,
+    Integer scrollSize,
     long start,
     long end,
     TimeValue chunkSpan,
     TimeAligner timeAligner,
     boolean hasAggregations,
-    Long histogramInterval
+    Long histogramInterval,
+    boolean hasEsqlQuery,
+    boolean injectsEsqlRowLimit
 ) {
+    ChunkedDataExtractorContext {
+        assert injectsEsqlRowLimit == false || hasEsqlQuery;
+    }
+
     interface TimeAligner {
         long alignToFloor(long value);
 

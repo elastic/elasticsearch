@@ -11,8 +11,9 @@ import org.elasticsearch.rest.RestStatus;
 
 /**
  * The object being read was replaced with a different generation while the query was in flight.
- * Maps to {@code 503 Service Unavailable}: the caller's data was valid at query start, and a retry
- * of the query may land on a consistent generation. Distinct from
+ * Maps to {@code 503 Service Unavailable}: the caller's data was valid at query start. The client should
+ * retry the request. The failure drops the listing that query read, so the next attempt lists the object
+ * again and reads its new generation. The server does not retry the query itself. Distinct from
  * {@link ExternalUnavailableException} so the storage retry/resume layer does not loop the same
  * generation pin (If-Match / generationMatch) until the budget is exhausted.
  */

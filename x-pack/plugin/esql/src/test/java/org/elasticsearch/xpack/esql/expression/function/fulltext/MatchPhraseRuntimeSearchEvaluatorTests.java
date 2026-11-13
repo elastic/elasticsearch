@@ -434,6 +434,19 @@ public class MatchPhraseRuntimeSearchEvaluatorTests extends AbstractRuntimeSearc
         assertArrayEquals(new Boolean[] { false }, result);
     }
 
+    public void testPhraseMatchAnalyzerOverridesQuerySideOfValuesAnalyzer() {
+        // values are whitespace-analyzed (case kept); match_phrase's standard query analyzer lowercases the phrase,
+        // like search_analyzer overriding the query side on an indexed field
+        Boolean[] result = evaluate(
+            runtimeMatchPhraseOnToText("whitespace", "BROWN FOX", mapOptions("analyzer", "standard")),
+            factory -> bytesRefBlock(factory, builder -> {
+                builder.appendBytesRef(new BytesRef("the brown fox runs"));
+                builder.appendBytesRef(new BytesRef("the Brown Fox runs"));
+            })
+        );
+        assertArrayEquals(new Boolean[] { true, false }, result);
+    }
+
     public void testPhraseStopwordAnalyzerKeepsPositionGaps() {
         // The stop analyzer removes "and" from the query, leaving a position gap: quick@0, fox@2. Like Lucene on an
         // indexed stop-analyzed field, the phrase must honor that gap — matching a value whose surviving tokens sit

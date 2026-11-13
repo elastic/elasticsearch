@@ -1,0 +1,6 @@
+FROM employees
+| SORT first_name
+| LIMIT 10
+| STATS c = COUNT(*) BY first_name
+| SORT first_name
+| LIMIT 100

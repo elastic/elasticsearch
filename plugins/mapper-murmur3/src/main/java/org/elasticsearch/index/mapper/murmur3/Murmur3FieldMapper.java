@@ -41,7 +41,7 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType().isStored(), false);
+        final Parameter<Boolean> stored = Parameter.storeParam(false);
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -106,11 +106,6 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     protected Murmur3FieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
         super(simpleName, mappedFieldType, builderParams);
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
     }
 
     @Override

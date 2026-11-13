@@ -44,11 +44,11 @@
           ],
           "parts": {
             "index": {
-              "type": "string",
-              "description": "Index name(s) to count; a single index or a comma-separated list is supported"
+              "type": "list",
+              "description": "A comma-separated list of indices to restrict the results"
             },
             "_slice": {
-              "type": "string",
+              "type": "list",
               "description": "Slice identifier(s) for a slice-enabled index (`index.slice.enabled=true`). A single slice, a comma-separated list (for example `tenant-a,tenant-b`), or the reserved token `_all` to count across all slices.",
               "feature_flag": "es.slice_indexing_feature_flag_enabled"
             }

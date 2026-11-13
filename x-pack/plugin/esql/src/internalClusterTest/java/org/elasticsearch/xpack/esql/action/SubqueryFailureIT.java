@@ -567,8 +567,38 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Four leaf branches nested three merge levels deep. Each inner {@code LIMIT} applies across its union's combined
+     * output, so compaction cannot splice the inner branches into the outer union; without them the analyzer flattens
+     * the filter-only nesting into a single four-branch union (see
+     * {@link #testFilterOnlyNestedSubqueryFlattensBelowBranchLevelLimit}) and the plan never nests. The limits are
+     * high enough to let every row through, so tests that execute the query see the same results either way.
+     */
     private static String fourLeafThreeLevelQuery() {
         return """
+            FROM
+               ( FROM ok | WHERE id == 1 ),
+               ( FROM
+                    ( FROM ok | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM ok | WHERE id == 3 ),
+                         ( FROM ok | WHERE id == 4 )
+                    | LIMIT 1000
+                    )
+               | LIMIT 1000
+               )
+            | KEEP id
+            """;
+    }
+
+    /**
+     * Filter-only nested subqueries compact into a single flat union during analysis, so a query that syntactically
+     * nests three levels deep resolves to one union level and passes a level limit it would have exceeded before
+     * compaction. {@link #fourLeafThreeLevelQuery()} blocks that compaction with inner limits when the nesting itself
+     * is under test.
+     */
+    public void testFilterOnlyNestedSubqueryFlattensBelowBranchLevelLimit() {
+        var query = """
             FROM
                ( FROM ok | WHERE id == 1 ),
                ( FROM
@@ -580,6 +610,13 @@ public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
                )
             | KEEP id
             """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_BRANCH_LEVEL.getKey(), 2).build());
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            // The flattened union must also be equivalent: each branch contributes its rows exactly once.
+            // The ok index holds ids 1-3, so the id == 4 branch is a legitimately empty branch in the flat union.
+            List<Integer> ids = EsqlTestUtils.getValuesList(resp).stream().map(row -> (Integer) row.get(0)).sorted().toList();
+            assertThat(ids, equalTo(List.of(1, 2, 3)));
+        }
     }
 
     private static QueryPragmas batchPragmas(int batchSize) {

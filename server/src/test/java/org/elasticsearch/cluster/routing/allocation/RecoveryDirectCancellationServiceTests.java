@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -126,7 +128,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         );
 
         final var routingAllocation = createRoutingAllocationFrom(clusterState);
-        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, routingAllocation);
+        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, routingAllocation, true);
 
         assertThat(requests.entrySet(), hasSize(1));
         final var node1 = clusterState.nodes().get("node-1");
@@ -142,11 +144,105 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var routingAllocationWithForbidRemain = createRoutingAllocationFrom(clusterState, forbidRemainOnNode1);
         final var escalatedRequests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(
             balance,
-            routingAllocationWithForbidRemain
+            routingAllocationWithForbidRemain,
+            true
         );
 
         assertThat(escalatedRequests.entrySet(), hasSize(1));
         assertTrue(escalatedRequests.get(node1).cancellations().getFirst().cancelIfStarted());
+    }
+
+    /// For a desired balance that did not converge with the latest input, only undesired recoveries that also cannot
+    /// remain on their current node are cancelled, and never once started.
+    public void testComputeUndesiredRecoveryCancellationsForNotConvergedBalance() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 4, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var undesiredCanRemainShardId = new ShardId(index, 0);
+        final var undesiredCannotRemainShardId = new ShardId(index, 1);
+        final var desiredCannotRemainShardId = new ShardId(index, 2);
+        final var undesiredCannotRemainPrimaryShardId = new ShardId(index, 3);
+        final var undesiredCanRemainAllocationId = AllocationId.newInitializing(randomIdentifier("undesired-can-remain-"));
+        final var undesiredCannotRemainAllocationId = AllocationId.newInitializing(randomIdentifier("undesired-cannot-remain-"));
+        final var desiredCannotRemainAllocationId = AllocationId.newInitializing(randomIdentifier("desired-cannot-remain-"));
+        final var undesiredCannotRemainPrimaryAllocationId = AllocationId.newInitializing(randomIdentifier("primary-cannot-remain-"));
+
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(newShardRouting(undesiredCanRemainShardId, "node-0", true, STARTED))
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(undesiredCanRemainShardId, "node-1", false, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(undesiredCanRemainAllocationId)
+                    .build()
+            )
+            .addShard(newShardRouting(undesiredCannotRemainShardId, "node-0", true, STARTED))
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(undesiredCannotRemainShardId, "node-1", false, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(undesiredCannotRemainAllocationId)
+                    .build()
+            )
+            .addShard(newShardRouting(desiredCannotRemainShardId, "node-0", true, STARTED))
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(desiredCannotRemainShardId, "node-1", false, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(desiredCannotRemainAllocationId)
+                    .build()
+            )
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(undesiredCannotRemainPrimaryShardId, "node-1", true, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(undesiredCannotRemainPrimaryAllocationId)
+                    .build()
+            );
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable))
+            .build();
+
+        final Map<ShardId, ShardAssignment> assignments = Map.of(
+            undesiredCanRemainShardId,
+            new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0),
+            undesiredCannotRemainShardId,
+            new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0),
+            desiredCannotRemainShardId,
+            new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0),
+            undesiredCannotRemainPrimaryShardId,
+            new ShardAssignment(Set.of("node-2"), 1, 0, 0)
+        );
+        final var routingAllocation = createRoutingAllocationFrom(
+            clusterState,
+            forbidRemainDecider(undesiredCannotRemainShardId, "node-1", false),
+            forbidRemainDecider(desiredCannotRemainShardId, "node-1", false),
+            forbidRemainDecider(undesiredCannotRemainPrimaryShardId, "node-1", true)
+        );
+        final var balance = new DesiredBalance(1, assignments);
+        final var notConvergedRequests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(
+            balance,
+            routingAllocation,
+            false
+        );
+
+        final var node1 = clusterState.nodes().get("node-1");
+        assertThat(notConvergedRequests.keySet(), equalTo(Set.of(node1)));
+        assertThat(
+            notConvergedRequests.get(node1).cancellations(),
+            containsInAnyOrder(
+                new ShardRecoveryCancellation(undesiredCannotRemainShardId, undesiredCannotRemainAllocationId.getId(), false),
+                new ShardRecoveryCancellation(undesiredCannotRemainPrimaryShardId, undesiredCannotRemainPrimaryAllocationId.getId(), false)
+            )
+        );
+
+        final var convergedRequests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(
+            balance,
+            routingAllocation,
+            true
+        );
+        assertThat(convergedRequests.keySet(), equalTo(Set.of(node1)));
+        assertThat(
+            convergedRequests.get(node1).cancellations(),
+            containsInAnyOrder(
+                new ShardRecoveryCancellation(undesiredCanRemainShardId, undesiredCanRemainAllocationId.getId(), false),
+                new ShardRecoveryCancellation(undesiredCannotRemainShardId, undesiredCannotRemainAllocationId.getId(), true),
+                new ShardRecoveryCancellation(undesiredCannotRemainPrimaryShardId, undesiredCannotRemainPrimaryAllocationId.getId(), false)
+            )
+        );
     }
 
     public void testDirectCancellationCandidatesForInitializingPrimary() {
@@ -172,7 +268,8 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
 
         final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(
             balance,
-            createRoutingAllocationFrom(clusterState, forbidRemain)
+            createRoutingAllocationFrom(clusterState, forbidRemain),
+            true
         );
 
         assertThat(requests.entrySet(), hasSize(1));
@@ -210,10 +307,10 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
                 "test-setup",
                 allocation.changes(),
-                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
 
-        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, allocation);
+        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, allocation, true);
 
         assertThat(requests.entrySet(), hasSize(1));
         final var request = requests.get(clusterState.nodes().get("node-1"));
@@ -248,10 +345,10 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             .build();
 
         final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)));
-        final var forbidRemain = forbidRemainDecider(shardId, "node-1", true);
+        final var forbidRemain = forbidRemainDecider(shardId, "node-1", false);
 
         final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
-        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, allocation);
+        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, allocation, true);
 
         assertThat(requests.entrySet(), hasSize(1));
         final var request = requests.get(clusterState.nodes().get("node-1"));
@@ -295,7 +392,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         final var forbidRemain = forbidRemainDecider(shardId, "node-1", false);
 
         final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
-        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, allocation);
+        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, allocation, true);
 
         assertThat(requests.entrySet(), hasSize(1));
         final var request = requests.get(clusterState.nodes().get("node-1"));
@@ -305,6 +402,202 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertThat(cancellation.shardId(), equalTo(shardId));
         assertThat(cancellation.allocationId(), equalTo(initializingSearchOnlyAllocationId.getId()));
         assertTrue(cancellation.cancelIfStarted());
+    }
+
+    public void testDirectCancellationCandidatesEscalateSearchRelocationTargetWhenSourceIsRelocating() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        // The relocating source on node-2 is the only active search copy. It is still searchable and its node is not
+        // being removed, so cancelling the relocation target on the shutting down node-1 after it started is safe.
+        final var relocatingSource = TestShardRouting.shardRoutingBuilder(shardId, "node-2", false, RELOCATING)
+            .withRelocatingNodeId("node-1")
+            .withRole(ShardRouting.Role.SEARCH_ONLY)
+            .build();
+        final var relocationTarget = relocatingSource.getTargetRelocatingShard();
+
+        final var indexRoutingTable = RoutingTable.builder()
+            .add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "node-0", true, STARTED)).addShard(relocatingSource));
+        final var shutdownMetadata = new NodesShutdownMetadata(
+            Map.of(
+                "node-1",
+                nodeShutdownMetadata(
+                    "node-1",
+                    randomFrom(
+                        SingleNodeShutdownMetadata.Type.REMOVE,
+                        SingleNodeShutdownMetadata.Type.REPLACE,
+                        SingleNodeShutdownMetadata.Type.SIGTERM
+                    )
+                )
+            )
+        );
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(4))
+            .metadata(Metadata.builder().put(indexMetadata, true).putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata))
+            .routingTable(indexRoutingTable)
+            .build();
+
+        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-3"), 2, 0, 0)));
+
+        final var allocation = createRoutingAllocationFrom(clusterState, new NodeShutdownAllocationDecider());
+        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, allocation, true);
+
+        assertThat(requests.entrySet(), hasSize(1));
+        final var request = requests.get(clusterState.nodes().get("node-1"));
+        assertNotNull(request);
+        assertThat(request.cancellations(), hasSize(1));
+        final var cancellation = request.cancellations().getFirst();
+        assertThat(cancellation.shardId(), equalTo(shardId));
+        assertThat(cancellation.allocationId(), equalTo(relocationTarget.allocationId().getId()));
+        assertTrue(cancellation.cancelIfStarted());
+    }
+
+    public void testDirectCancellationCandidatesDoNotEscalateSearchRelocationTargetWhenSourceNodeIsShuttingDown() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final var relocatingSource = TestShardRouting.shardRoutingBuilder(shardId, "node-2", false, RELOCATING)
+            .withRelocatingNodeId("node-1")
+            .withRole(ShardRouting.Role.SEARCH_ONLY)
+            .build();
+        final var relocationTarget = relocatingSource.getTargetRelocatingShard();
+
+        final var indexRoutingTable = RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(index)
+                    .addShard(newShardRouting(shardId, "node-0", true, STARTED))
+                    .addShard(relocatingSource)
+                    .addShard(
+                        TestShardRouting.shardRoutingBuilder(shardId, "node-3", false, STARTED)
+                            .withRole(ShardRouting.Role.SEARCH_ONLY)
+                            .build()
+                    )
+            );
+        final Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+        shutdowns.put(
+            "node-2",
+            nodeShutdownMetadata(
+                "node-2",
+                randomFrom(
+                    SingleNodeShutdownMetadata.Type.REMOVE,
+                    SingleNodeShutdownMetadata.Type.REPLACE,
+                    SingleNodeShutdownMetadata.Type.SIGTERM
+                )
+            )
+        );
+        // The relocation target cannot remain on node-1, either because node-1 is also shutting down or because of some
+        // other decider returning NO. Either way, it would be escalated if it weren't for the source node shutting down.
+        final boolean targetNodeShuttingDown = randomBoolean();
+        if (targetNodeShuttingDown) {
+            shutdowns.put(
+                "node-1",
+                nodeShutdownMetadata(
+                    "node-1",
+                    randomFrom(
+                        SingleNodeShutdownMetadata.Type.REMOVE,
+                        SingleNodeShutdownMetadata.Type.REPLACE,
+                        SingleNodeShutdownMetadata.Type.SIGTERM
+                    )
+                )
+            );
+        }
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(4))
+            .metadata(
+                Metadata.builder().put(indexMetadata, true).putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdowns))
+            )
+            .routingTable(indexRoutingTable)
+            .build();
+
+        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-3"), 2, 0, 0)));
+        final AllocationDecider forbidRemain = targetNodeShuttingDown
+            ? new NodeShutdownAllocationDecider()
+            : forbidRemainDecider(shardId, "node-1", false);
+
+        final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
+        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, allocation, true);
+
+        assertThat(requests.entrySet(), hasSize(1));
+        final var request = requests.get(clusterState.nodes().get("node-1"));
+        assertNotNull(request);
+        assertThat(request.cancellations(), hasSize(1));
+        final var cancellation = request.cancellations().getFirst();
+        assertThat(cancellation.shardId(), equalTo(shardId));
+        assertThat(cancellation.allocationId(), equalTo(relocationTarget.allocationId().getId()));
+        assertFalse(cancellation.cancelIfStarted());
+    }
+
+    public void testDirectCancellationCandidatesDoNotEscalatePrimaryRelocationWhenSourceNodeIsShuttingDown() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        final var index = indexMetadata.getIndex();
+        final var shardId = new ShardId(index, 0);
+
+        final Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+        shutdowns.put(
+            "node-0",
+            nodeShutdownMetadata(
+                "node-0",
+                randomFrom(
+                    SingleNodeShutdownMetadata.Type.REMOVE,
+                    SingleNodeShutdownMetadata.Type.REPLACE,
+                    SingleNodeShutdownMetadata.Type.SIGTERM
+                )
+            )
+        );
+        // The relocation target cannot remain on node-1, either because node-1 is also shutting down or because of some
+        // other decider. Either way, it would be escalated if it weren't for the source node shutting down.
+        final boolean targetNodeShuttingDown = randomBoolean();
+        if (targetNodeShuttingDown) {
+            shutdowns.put(
+                "node-1",
+                nodeShutdownMetadata(
+                    "node-1",
+                    randomFrom(
+                        SingleNodeShutdownMetadata.Type.REMOVE,
+                        SingleNodeShutdownMetadata.Type.REPLACE,
+                        SingleNodeShutdownMetadata.Type.SIGTERM
+                    )
+                )
+            );
+        }
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(
+                Metadata.builder().put(indexMetadata, true).putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdowns))
+            )
+            .routingTable(
+                RoutingTable.builder().add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "node-0", true, STARTED)))
+            )
+            .build();
+
+        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-2"), 1, 0, 0)));
+        final AllocationDecider forbidRemain = targetNodeShuttingDown
+            ? new NodeShutdownAllocationDecider()
+            : forbidRemainDecider(shardId, "node-1", true);
+
+        final var allocation = createRoutingAllocationFrom(clusterState, forbidRemain);
+        final var startedPrimary = allocation.routingNodes().node("node-0").getByShardId(shardId);
+        allocation.routingNodes()
+            .relocateShard(
+                startedPrimary,
+                "node-1",
+                ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                "test-setup",
+                allocation.changes(),
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            );
+
+        final var requests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(balance, allocation, true);
+
+        assertThat(requests.entrySet(), hasSize(1));
+        final var request = requests.get(clusterState.nodes().get("node-1"));
+        assertNotNull(request);
+        assertThat(request.cancellations(), hasSize(1));
+        final var cancellation = request.cancellations().getFirst();
+        assertThat(cancellation.shardId(), equalTo(shardId));
+        assertFalse(cancellation.cancelIfStarted());
     }
 
     @TestLogging(
@@ -360,7 +653,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                     "*is disabled, would have sent direct recovery cancellations*" + expectedCancellation.allocationId() + "*"
                 )
             );
-            service.cancelUndesiredRecoveries(desiredBalance, routingAllocation);
+            service.cancelUndesiredRecoveries(desiredBalance, routingAllocation, true);
             taskQueue.runAllRunnableTasks();
             mockLog.assertAllExpectationsMatched();
         }
@@ -421,7 +714,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                     "*not every node in the cluster supports direct recovery cancellation yet*" + expectedCancellation.allocationId() + "*"
                 )
             );
-            service.cancelUndesiredRecoveries(desiredBalance, routingAllocation);
+            service.cancelUndesiredRecoveries(desiredBalance, routingAllocation, true);
             taskQueue.runAllRunnableTasks();
             mockLog.assertAllExpectationsMatched();
         }
@@ -494,7 +787,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                     new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)
                 )
             );
-            service.cancelUndesiredRecoveries(balance, createRoutingAllocationFrom(clusterState));
+            service.cancelUndesiredRecoveries(balance, createRoutingAllocationFrom(clusterState), true);
             taskQueue.runAllRunnableTasks();
 
             assertThat(sentRequests, hasSize(1));
@@ -547,7 +840,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                     new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)
                 )
             );
-            service.cancelUndesiredRecoveries(balance, createRoutingAllocationFrom(clusterState));
+            service.cancelUndesiredRecoveries(balance, createRoutingAllocationFrom(clusterState), true);
             taskQueue.runAllRunnableTasks();
 
             assertThat(sentRequests, hasSize(1));
@@ -605,7 +898,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
 
         final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0)));
 
-        service.cancelUndesiredRecoveries(balance, createRoutingAllocationFrom(clusterState));
+        service.cancelUndesiredRecoveries(balance, createRoutingAllocationFrom(clusterState), true);
         taskQueue.runAllRunnableTasks();
 
         assertThat(sentRequests, hasSize(1));
@@ -614,7 +907,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertThat(firstRoundCancellations.getFirst(), equalTo(new ShardRecoveryCancellation(shardId, allocationId.getId(), false)));
 
         sentRequests.clear();
-        service.cancelUndesiredRecoveries(balance, createRoutingAllocationFrom(clusterState));
+        service.cancelUndesiredRecoveries(balance, createRoutingAllocationFrom(clusterState), true);
         taskQueue.runAllRunnableTasks();
 
         assertThat(sentRequests, hasSize(1));
@@ -668,7 +961,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         );
         service.start();
         // First round: cancelIfStarted=false
-        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterState));
+        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterState), true);
         taskQueue.runAllRunnableTasks();
 
         assertThat(sentRequests, hasSize(1));
@@ -679,7 +972,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         // Second round: cancelIfStarted=true
         sentRequests.clear();
         final var forbidRemain = forbidRemainDecider(shardId, "node-1", false);
-        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterState, forbidRemain));
+        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterState, forbidRemain), true);
         taskQueue.runAllRunnableTasks();
 
         assertThat(sentRequests, hasSize(1));
@@ -689,7 +982,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
 
         // Third round: cancelIfStarted=true again
         sentRequests.clear();
-        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterState, forbidRemain));
+        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterState, forbidRemain), true);
         taskQueue.runAllRunnableTasks();
         assertThat(sentRequests, hasSize(0));
     }
@@ -737,7 +1030,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             .build();
 
         // First round with term=1, cancellation is sent
-        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermOne));
+        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermOne), true);
         taskQueue.runAllRunnableTasks();
 
         assertThat(sentRequests, hasSize(1));
@@ -747,7 +1040,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
 
         // Second round with term=1, cancellation is deduplicated
         sentRequests.clear();
-        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermOne));
+        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermOne), true);
         taskQueue.runAllRunnableTasks();
         assertThat(sentRequests, hasSize(0));
 
@@ -758,7 +1051,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             .metadata(Metadata.builder().put(indexMetadata, true).coordinationMetadata(CoordinationMetadata.builder().term(2L).build()))
             .routingTable(RoutingTable.builder().add(indexRoutingTable))
             .build();
-        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermTwo));
+        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermTwo), true);
         taskQueue.runAllRunnableTasks();
 
         assertThat(sentRequests, hasSize(1));
@@ -822,12 +1115,12 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
             .build();
 
         // Request sent but held in-flight
-        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermOne));
+        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermOne), true);
         taskQueue.runAllRunnableTasks();
 
         // Term changed, bypass fires, new request sent and acknowledged
         sentRequests.clear();
-        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermTwo));
+        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermTwo), true);
         taskQueue.runAllRunnableTasks();
         assertThat(sentRequests, hasSize(1));
 
@@ -838,7 +1131,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
 
         // Next request is deduplicated
         sentRequests.clear();
-        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermTwo));
+        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterStateWithTermTwo), true);
         taskQueue.runAllRunnableTasks();
         assertThat(sentRequests, hasSize(0));
     }
@@ -998,7 +1291,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
                 .build();
 
             actualSentThisRound.clear();
-            service.cancelUndesiredRecoveries(balance, createRoutingAllocationFrom(clusterStateThisRound, cancelIfStartedDecider));
+            service.cancelUndesiredRecoveries(balance, createRoutingAllocationFrom(clusterStateThisRound, cancelIfStartedDecider), true);
             taskQueue.runAllRunnableTasks();
 
             assertThat("round " + round + ": sent expected allocation IDs", actualSentThisRound, equalTo(expectedSentThisRound));
@@ -1272,7 +1565,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         capturedCancellations.clear();
 
         // Desired-balance path with cancelIfStarted=false, deduplicated
-        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterState));
+        service.cancelUndesiredRecoveries(desiredBalance, createRoutingAllocationFrom(clusterState), true);
         taskQueue.runAllRunnableTasks();
 
         assertThat(capturedCancellations, hasSize(0));
@@ -1280,7 +1573,8 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         // Desired-balance path with canRemain=NO produces cancelIfStarted=true
         service.cancelUndesiredRecoveries(
             desiredBalance,
-            createRoutingAllocationFrom(clusterState, forbidRemainDecider(shardId, "node-1", true))
+            createRoutingAllocationFrom(clusterState, forbidRemainDecider(shardId, "node-1", true)),
+            true
         );
         taskQueue.runAllRunnableTasks();
 

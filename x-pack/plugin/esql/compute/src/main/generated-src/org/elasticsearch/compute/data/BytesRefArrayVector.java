@@ -88,6 +88,13 @@ public final class BytesRefArrayVector extends AbstractVector implements BytesRe
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        // The array sums its values as they are appended. When it holds more than this vector, scale its average.
+        final long size = values.size();
+        return size == getPositionCount() || size == 0 ? values.totalBytes() : values.totalBytes() * getPositionCount() / size;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
     }

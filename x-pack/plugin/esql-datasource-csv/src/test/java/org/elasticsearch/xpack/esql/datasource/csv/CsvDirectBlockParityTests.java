@@ -389,7 +389,7 @@ public class CsvDirectBlockParityTests extends ESTestCase {
 
     public void testQuotedEmbeddedNewline() throws IOException {
         String csv = "a:keyword,b:keyword\n\"line1\nline2\",tail\n";
-        List<List<Object>> rows = read(false, Map.of(), csv);
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), csv);
         assertEquals(List.of(row(br("line1\nline2"), br("tail"))), rows);
     }
 
@@ -1378,17 +1378,17 @@ public class CsvDirectBlockParityTests extends ESTestCase {
     }
 
     public void testEscapedNewlineUnquotedStaysInField() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\na\\\nb\n");
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), "k:keyword\na\\\nb\n");
         assertEquals(List.of(row(br("a\nb"))), rows);
     }
 
     public void testEscapedNewlineInQuotesStaysInField() throws IOException {
-        List<List<Object>> rows = read(false, Map.of(), "k:keyword\n\"a\\\nb\"\n");
+        List<List<Object>> rows = read(false, Map.of("multiline_fields", true), "k:keyword\n\"a\\\nb\"\n");
         assertEquals(List.of(row(br("a\nb"))), rows);
     }
 
     public void testTrailingLoneEscapeDropped() throws IOException {
-        List<List<Object>> rows = read(false, Map.of("trim_spaces", true), "k:keyword\nab\\\n");
+        List<List<Object>> rows = read(false, Map.of("trim_spaces", true, "multiline_fields", true), "k:keyword\nab\\\n");
         assertEquals(List.of(row(br("ab"))), rows);
     }
 

@@ -78,7 +78,8 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 // MV_EXPAND and NESTED_EXPAND can increase the number of rows, so we cannot just push the limit down
                 // (we also have to preserve the LIMIT afterwards)
                 // To avoid repeating this infinitely, we have to set duplicated = true.
-                return duplicateLimitAsFirstGrandchild(limit, false);
+                // NESTED_EXPAND reads its children from the index on data nodes, so its copy must not move it to the coordinator.
+                return duplicateLimitAsFirstGrandchild(limit, unary instanceof NestedExpand);
             } else if (unary instanceof Enrich enrich) {
                 if (enrich.mode() == Enrich.Mode.REMOTE) {
                     return duplicateLimitAsFirstGrandchild(limit, true);

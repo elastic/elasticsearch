@@ -11,10 +11,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -24,14 +28,19 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Emits one row per object of a mapped nested field, read from each parent's stored source. Parent blocks are
- * repeated once per object; one block per child field is appended. A parent without objects keeps one row with
- * null child values. Each input page becomes one output page, so its size grows with the number of objects.
+ * Emits one row per object of a mapped nested field. Parent blocks are repeated once per object; one block per child
+ * field is appended. A parent without objects keeps one row with null child values. Each input page becomes one output
+ * page, so its size grows with the number of objects.
+ * <p>
+ * The objects are read from the index when {@code shards} is set, and from each parent's stored source otherwise.
+ * Both give the same maps, so everything after that does not depend on where they came from.
  */
 public final class NestedExpandOperator extends AbstractPageMappingOperator {
     public record Factory(
         int sourceChannel,
         int indexChannel,
+        int docChannel,
+        @Nullable IndexedByShardId<NestedIndexObjects.Shard> shards,
         String path,
         Set<String> indices,
         List<DataType> types,
@@ -45,16 +54,19 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "NestedExpandOperator[path=" + path + "]";
+            return "NestedExpandOperator[path=" + path + ", loader=" + (shards == null ? "source" : "index") + "]";
         }
     }
 
     private final DriverContext context;
     private final Factory factory;
+    @Nullable
+    private final NestedIndexObjects indexed;
 
     private NestedExpandOperator(DriverContext context, Factory factory) {
         this.context = context;
         this.factory = factory;
+        this.indexed = factory.shards() == null ? null : new NestedIndexObjects(factory.shards(), factory.paths());
     }
 
     @Override
@@ -73,6 +85,7 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
             }
             Block source = page.getBlock(factory.sourceChannel());
             Block index = page.getBlock(factory.indexChannel());
+            DocVector docs = indexed == null ? null : ((DocBlock) page.getBlock(factory.docChannel())).asVector();
             int[] positions = new int[page.getPositionCount()];
             int rows = 0;
             for (int row = 0; row < page.getPositionCount(); row++) {
@@ -85,13 +98,19 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
                 long estimate = 0;
                 ParsedContentReservation parsedSource = null;
                 try {
-                    if (factory.indices().contains(indexName)) {
+                    if (factory.indices().contains(indexName) && indexed != null) {
+                        objects = indexed.objects(docs, row, context);
+                        long bytes = 64L * objects.size() * (1 + columns);
+                        context.breaker().addEstimateBytesAndMaybeBreak(bytes, "nested_expand_frame");
+                        estimate = bytes;
+                    } else if (factory.indices().contains(indexName)) {
                         if (source.isNull(row)) {
                             throw new IllegalArgumentException("NESTED_EXPAND source-backed PoC requires stored, unfiltered _source");
                         }
                         BytesRef bytes = NestedSource.singleMetadata(source, row, "_source");
-                        estimate = 256L + 8L * bytes.length;
-                        context.breaker().addEstimateBytesAndMaybeBreak(estimate, "nested_expand_frame");
+                        long frame = 256L + 8L * bytes.length;
+                        context.breaker().addEstimateBytesAndMaybeBreak(frame, "nested_expand_frame");
+                        estimate = frame;
                         // Parser charges outlive parser close: decoded objects stay in use until this parent's rows are built.
                         parsedSource = new ParsedContentReservation(context.breaker(), true);
                         objects = NestedSource.objects(factory.path(), bytes, parsedSource, context);

@@ -5,6 +5,8 @@
 # NESTED_EXPAND <nested field> turns one parent row into one row per object of that nested field.
 # Parent columns repeat on every row. The child fields become ordinary columns named by their full path.
 # A parent with no objects (empty, null or missing) keeps one row whose child columns are null, as MV_EXPAND does.
+# On a data node, child values come from doc values, like an ordinary field. The expansion reads _source instead
+# when it runs on the coordinator or when a child field has no doc values.
 ---
 setup:
 - requires:
@@ -466,6 +468,123 @@ another nested field still reduces on each expanded row:
     values:
     - [b1, 2]
     - [b2, 2]
+
+---
+expansion on the data node reads doc values like an ordinary field:
+- do:
+    indices.create:
+      index: ne_tags
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                tags:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: ne_tags
+          _id: x
+      - id: x
+        items:
+        - tags: [sale, new, sale]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM ne_tags | NESTED_EXPAND items | KEEP items.tags | LIMIT 10
+- match:
+    values:
+    - [[new, sale]]
+
+---
+expansion after a coordinator sort reads source order:
+- do:
+    indices.create:
+      index: ne_tags
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                tags:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: ne_tags
+          _id: x
+      - id: x
+        items:
+        - tags: [sale, new, sale]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM ne_tags | SORT id | LIMIT 1 | NESTED_EXPAND items | KEEP items.tags
+- match:
+    values:
+    - [[sale, new, sale]]
+
+---
+a child field without doc values makes the expansion read source:
+- do:
+    indices.create:
+      index: ne_text
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                tags:
+                  type: keyword
+                note:
+                  type: text
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: ne_text
+          _id: x
+      - id: x
+        items:
+        - tags: [sale, new, sale]
+          note: hello
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM ne_text | NESTED_EXPAND items | KEEP items.tags, items.note | LIMIT 10
+- match:
+    values:
+    - [[sale, new, sale], hello]
 
 ---
 ordinary keyword field cannot be expanded:

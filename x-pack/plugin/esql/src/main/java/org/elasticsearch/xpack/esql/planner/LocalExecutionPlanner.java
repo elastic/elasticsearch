@@ -2874,10 +2874,16 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(expand.child(), context);
         Layout.Builder layout = source.layout.builder();
         expand.expanded().forEach(layout::append);
+        Attribute doc = expand.child().output().stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
+        var shards = doc == null || source.layout.get(doc.id()) == null
+            ? null
+            : physicalOperationProviders.nestedShards(expand.path(), expand.paths().stream().map(p -> expand.path() + "." + p).toList());
         return source.with(
             new NestedExpandOperator.Factory(
                 source.layout.get(expand.metadata().get(0).id()).channel(),
                 source.layout.get(expand.metadata().get(1).id()).channel(),
+                shards == null ? -1 : source.layout.get(doc.id()).channel(),
+                shards,
                 expand.path(),
                 expand.indices(),
                 expand.expanded().stream().map(Attribute::dataType).toList(),

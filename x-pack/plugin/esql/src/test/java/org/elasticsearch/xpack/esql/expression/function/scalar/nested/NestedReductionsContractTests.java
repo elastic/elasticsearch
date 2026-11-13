@@ -62,12 +62,18 @@ public class NestedReductionsContractTests extends LuceneTestCase {
      */
     private static final String FIELD_RESOLUTION_ONLY = "synthetic source is rejected";
 
+    /**
+     * This harness runs without Lucene, so NESTED_EXPAND always reads source here. The doc-values case is checked
+     * by the REST test.
+     */
+    private static final String INDEXED_ONLY = "expansion on the data node reads doc values like an ordinary field";
+
     @ParametersFactory
     public static Iterable<Object[]> contracts() throws IOException {
         LogConfigurator.configureESLogging();
         List<Object[]> parameters = new ArrayList<>();
         parameters.addAll(contracts("292_nested_reductions.yml", 62));
-        parameters.addAll(contracts("295_nested_expand.yml", 23));
+        parameters.addAll(contracts("295_nested_expand.yml", 25));
         return parameters;
     }
 
@@ -90,7 +96,7 @@ public class NestedReductionsContractTests extends LuceneTestCase {
                 setup = (List<Map<String, Object>>) parsed.get("setup");
             } else {
                 for (var entry : parsed.entrySet()) {
-                    if (entry.getKey().equals(FIELD_RESOLUTION_ONLY) == false) {
+                    if (entry.getKey().equals(FIELD_RESOLUTION_ONLY) == false && entry.getKey().equals(INDEXED_ONLY) == false) {
                         parameters.add(new Object[] { new Contract(entry.getKey(), setup, (List<Map<String, Object>>) entry.getValue()) });
                     }
                 }

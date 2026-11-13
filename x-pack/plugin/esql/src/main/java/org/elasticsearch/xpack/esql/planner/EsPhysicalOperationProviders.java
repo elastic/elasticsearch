@@ -43,6 +43,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -90,6 +91,7 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedIndexObjects;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -291,6 +293,44 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ),
             layout.build()
         );
+    }
+
+    @Override
+    public IndexedByShardId<NestedIndexObjects.Shard> nestedShards(String path, List<String> fields) {
+        if (shardContexts.isEmpty()) {
+            return null;
+        }
+        for (ShardContext shard : shardContexts.iterable()) {
+            if (shard instanceof DefaultShardContext == false) {
+                return null;
+            }
+            if (shard.mappingLookup().nestedLookup().getNestedMappers().containsKey(path)) {
+                for (String field : fields) {
+                    MappedFieldType type = shard.fieldType(field);
+                    if (type != null && type.hasDocValues() == false) {
+                        return null;
+                    }
+                }
+            }
+        }
+        return shardContexts.map(shard -> {
+            SearchExecutionContext context = ((DefaultShardContext) shard).executionContext();
+            var nested = context.nestedLookup().getNestedMappers().get(path);
+            List<IndexFieldData<?>> data = new ArrayList<>(fields.size());
+            for (String field : fields) {
+                MappedFieldType type = shard.fieldType(field);
+                if (type != null && type.hasDocValues() == false) {
+                    throw new IllegalStateException("NESTED_EXPAND child field [" + field + "] has no doc values on a later shard");
+                }
+                data.add(type == null || nested == null ? null : context.getForField(type, MappedFieldType.FielddataOperation.SEARCH));
+            }
+            return new NestedIndexObjects.Shard(
+                shard.searcher().getIndexReader(),
+                context.bitsetFilter(newNonNestedFilter(context.indexVersionCreated())),
+                nested == null ? null : context.bitsetFilter(nested.nestedTypeFilter()),
+                data
+            );
+        });
     }
 
     @Override

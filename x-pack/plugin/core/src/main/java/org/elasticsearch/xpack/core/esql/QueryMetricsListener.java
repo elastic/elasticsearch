@@ -13,11 +13,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Called once per ES|QL query that read federated sources, on the coordinating node, with the {@link Outcome} of the query. At
- * the moment only the queries that succeeded are reported.
+ * Called once per ES|QL query that read federated sources, on the coordinating node, with the {@link Outcome} of the query: it
+ * succeeded, failed or was cancelled.
  * Implementations must be cheap and non-blocking — no I/O, no locks, only atomic operations.
  * <p>
- * The metrics collected are raw profile-based metrics, no computation is performed on them at collection time.
+ * The metrics collected are raw profile-based metrics, no computation is performed on them at collection time. For a query that
+ * did not succeed they hold what is known to have been done before it ended, which can be less than what was done: the work of a
+ * data node that died is not known.
  * </p>
  * <p>
  * A listener that only implements {@link #onQueryCompleted(Map)} is called for the queries that succeeded and for no others, so

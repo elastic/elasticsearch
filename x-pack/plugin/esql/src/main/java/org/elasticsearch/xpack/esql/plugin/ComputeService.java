@@ -1518,7 +1518,7 @@ public class ComputeService {
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
                 updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo, exchangeSinkSupplier == null);
                 return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo, null);
-            }))) {
+            }), execInfo::addFailedWork)) {
                 runCompute(
                     rootTask,
                     computeContext,
@@ -1580,7 +1580,7 @@ public class ComputeService {
                 execInfo.markEndQuery();
             }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
-        }))) {
+        }), execInfo::addFailedWork)) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
@@ -1606,7 +1606,8 @@ public class ComputeService {
                                 });
                             }
                             l.onResponse(completionInfo);
-                        })
+                        }),
+                        execInfo::addFailedWork
                     )
                 ) {
                     runCompute(
@@ -1758,7 +1759,7 @@ public class ComputeService {
                 execInfo.markEndQuery();
             }
             l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo, null));
-        }))) {
+        }), execInfo::addFailedWork)) {
             // Run the coordinator plan
             runCompute(
                 rootTask,

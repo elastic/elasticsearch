@@ -27,15 +27,18 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -236,6 +239,8 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
         DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
+        // The metrics of the query are reported once, with the first outcome that is decided for it.
+        AtomicBoolean metricsCollected = new AtomicBoolean();
 
         PlanRunner planRunner = new PlanRunner() {
             @Override
@@ -369,7 +374,18 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(versionedResult -> {
                 Result result = versionedResult.inner();
-                TransportEsqlQueryAction.failIfCancelled(task, result);
+                try {
+                    TransportEsqlQueryAction.failIfCancelled(task, result);
+                } catch (TaskCancelledException cancelled) {
+                    // The compute completed, and the query turns into a failure: its work is not lost with the result.
+                    transportEsqlQueryAction.collectMetricsOnce(
+                        metricsCollected,
+                        executionInfo,
+                        result.completionInfo(),
+                        QueryMetricsListener.Outcome.CANCELLED
+                    );
+                    throw cancelled;
+                }
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, null);
                 markPartialFromCompletionInfo(result);
                 resultRef.set(result);
@@ -385,6 +401,13 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings())
                     );
                     if (startFailure != null) {
+                        // The compute completed and nobody reads the result: its work is still reported.
+                        transportEsqlQueryAction.collectMetricsOnce(
+                            metricsCollected,
+                            executionInfo,
+                            result.completionInfo(),
+                            PlanExecutor.outcomeOf(startFailure)
+                        );
                         listener.onFailure(startFailure);
                         return;
                     }
@@ -416,10 +439,21 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                     )
                 );
                 planExecutor.metrics().recordTook(tookMillis);
-                transportEsqlQueryAction.collectMetrics(result);
+                transportEsqlQueryAction.collectMetricsOnce(
+                    metricsCollected,
+                    executionInfo,
+                    result.completionInfo(),
+                    QueryMetricsListener.Outcome.SUCCESS
+                );
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }, ex -> {
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
+                transportEsqlQueryAction.collectMetricsOnce(
+                    metricsCollected,
+                    executionInfo,
+                    workDoneBeforeFailure(executionInfo, resultRef.get()),
+                    PlanExecutor.outcomeOf(ex)
+                );
                 PageStreamPublisher.StreamFooter footer = failureFooter(
                     ex,
                     executionInfo,
@@ -434,6 +468,16 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 listener.onFailure(ex);
             })
         );
+    }
+
+    /**
+     * What is known to have been done by a query that failed. If its final compute completed and the failure came after it, for
+     * example while the footer was written, that is everything the query did: its completion info includes the intermediate computes.
+     * Otherwise it is what the computes that failed and the sub-plans that completed before them did, see
+     * {@link EsqlExecutionInfo#addFailedWork}.
+     */
+    static DriverCompletionInfo workDoneBeforeFailure(EsqlExecutionInfo executionInfo, @Nullable Result finalResult) {
+        return finalResult != null ? finalResult.completionInfo() : executionInfo.failedWork();
     }
 
     static ToXContent footerClusters(EsqlExecutionInfo executionInfo) {

@@ -249,7 +249,12 @@ final class SubPlansExecutor {
             this.description = description;
             this.planTimeProfile = planTimeProfile;
             this.exchange = new LocalExchange(queryPragmas.exchangeBufferSize());
-            this.computeListener = new ComputeListener(cancelOnFailure, ActionListener.runBefore(listener, blocked::close));
+            this.computeListener = new ComputeListener(
+                cancelOnFailure,
+                ActionListener.runBefore(listener, blocked::close),
+                // what the branches that succeeded did is lost with the failure of the query unless it is reported here
+                execInfo::addFailedWork
+            );
             List<SubPlan> children = merge.children();
             final MergeExec.Kind mergeKind = merge.kind();
             final int childCount = children.size();

@@ -18,6 +18,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -296,5 +297,24 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
         List<Measurement> found = measurements(type, name);
         assertThat("expected exactly one measurement for [" + name + "]", found, hasSize(1));
         return found.get(0);
+    }
+
+    /**
+     * The outcome the metering listener is called with and the one the by_outcome counters are published with are one
+     * classification, see {@link PlanExecutor#outcomeOf}.
+     */
+    public void testOutcomeOf() {
+        assertThat(PlanExecutor.outcomeOf(null), equalTo(QueryMetricsListener.Outcome.SUCCESS));
+        assertThat(PlanExecutor.outcomeOf(new IllegalStateException("broken")), equalTo(QueryMetricsListener.Outcome.FAILED));
+        assertThat(
+            PlanExecutor.outcomeOf(new CircuitBreakingException("too big", CircuitBreaker.Durability.PERMANENT)),
+            equalTo(QueryMetricsListener.Outcome.FAILED)
+        );
+        assertThat(PlanExecutor.outcomeOf(new TaskCancelledException("cancelled")), equalTo(QueryMetricsListener.Outcome.CANCELLED));
+        // a cancellation reaches the coordinator wrapped, for example by the transport of the node that was cancelled
+        assertThat(
+            PlanExecutor.outcomeOf(new ElasticsearchException("wrapped", new TaskCancelledException("cancelled"))),
+            equalTo(QueryMetricsListener.Outcome.CANCELLED)
+        );
     }
 }

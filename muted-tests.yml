@@ -451,3 +451,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testCacheMissWaitTimeHeader
   issue: https://github.com/elastic/elasticsearch/issues/165322
+- class: org.elasticsearch.xpack.stateless.StatelessRecoveryIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRelocateIndexingShardDoesNotReadFromTranslog
+  issue: https://github.com/elastic/elasticsearch/issues/165841

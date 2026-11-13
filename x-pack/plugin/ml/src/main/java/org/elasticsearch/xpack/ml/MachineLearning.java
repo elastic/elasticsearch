@@ -319,7 +319,9 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.UnavailableEsqlQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -593,6 +595,13 @@ public class MachineLearning extends Plugin
         }
         if (machineLearningExtension.get() == null) {
             machineLearningExtension.set(new DefaultMachineLearningExtension());
+        }
+        if (loader != null) {
+            // The ES|QL plugin provides the analyzer; a second provider fails node startup on the SetOnce.
+            loader.loadExtensions(EsqlQueryAnalyzer.class).forEach(esqlQueryAnalyzer::set);
+        }
+        if (esqlQueryAnalyzer.get() == null) {
+            esqlQueryAnalyzer.set(new UnavailableEsqlQueryAnalyzer());
         }
     }
 
@@ -953,6 +962,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterService = new SetOnce<>();
 
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
+    private final SetOnce<EsqlQueryAnalyzer> esqlQueryAnalyzer = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
         this.settings = settings;

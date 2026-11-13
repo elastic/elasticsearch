@@ -783,7 +783,12 @@ public final class GraphExpandDriver {
             Alias capped = new Alias(
                 source,
                 pointerField.name(),
-                new MvSlice(source, pointerField, new Literal(source, 0, DataType.INTEGER), new Literal(source, hubDegree, DataType.INTEGER))
+                new MvSlice(
+                    source,
+                    pointerField,
+                    new Literal(source, 0, DataType.INTEGER),
+                    new Literal(source, hubDegree, DataType.INTEGER)
+                )
             );
             beforeExpand = new Eval(source, edges, List.of(degree, capped));
             expandSource = capped.toAttribute();

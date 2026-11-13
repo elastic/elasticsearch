@@ -90,6 +90,14 @@ final class EscfUnionColumn extends EscfColumn {
 
     @Override
     public Text getStringValue(int row) {
+        // A numeric row's payload is the raw value, not text: render it canonically for numerics/
+        byte type = byteAt(typeVec, row);
+        if (type == SourceValueType.LONG) {
+            return new Text(Long.toString(getLongValue(row)));
+        }
+        if (type == SourceValueType.DOUBLE) {
+            return new Text(Double.toString(getDoubleValue(row)));
+        }
         BytesRef ref = value(row);
         return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
     }

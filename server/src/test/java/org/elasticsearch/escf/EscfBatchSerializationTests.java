@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -68,6 +69,49 @@ public class EscfBatchSerializationTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /** Stored spellings of floating-point values in a dense DOUBLE column travel through the wire format (#163555). */
+    public void testLexicalFormsSurviveSerialization() throws IOException {
+        String[] docs = { "{\"d\":-1.90,\"s\":\"a\"}", "{\"d\":3.14}", "{\"d\":1e3,\"s\":\"b\"}" };
+        try (EscfBatch inMemory = encode(docs)) {
+            assertEquals(EscfColumnKind.DOUBLE, columnKind(inMemory, "d"));
+            BytesReference bytes = inMemory.data();
+            try (EscfBatch parsed = EscfBatch.parse(bytes, () -> {})) {
+                assertEquals(List.of("-1.90", "3.14", "1e3"), spellings(parsed, "d"));
+                for (int i = 0; i < docs.length; i++) {
+                    assertEquals("row " + i + " vs source", asMap(docs[i]), reconstruct(parsed, i));
+                }
+                assertEquals(bytes, parsed.data());
+            }
+            // a slice re-serializes the sidecar at its new base
+            try (EscfBatch reparsed = EscfBatch.parse(inMemory.slice(1, 3).data(), () -> {})) {
+                assertEquals(List.of("3.14", "1e3"), spellings(reparsed, "d"));
+            }
+        }
+    }
+
+    /** The utf8 renderings of every value of the column at {@code path}, in cursor order; {@code null} for JSON null. */
+    private static List<String> spellings(EscfBatch batch, String path) {
+        List<String> out = new ArrayList<>();
+        var cursor = EscfColumnTransforms.utf8Cursor(column(batch, path), true);
+        while (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            out.add(cursor.value() == null ? null : cursor.value().utf8ToString());
+        }
+        return out;
+    }
+
+    private static byte columnKind(EscfBatch batch, String path) {
+        return column(batch, path).kind();
+    }
+
+    private static EscfColumn column(EscfBatch batch, String path) {
+        for (int i = 0; i < batch.schema().leafCount(); i++) {
+            if (path.equals(batch.schema().getFullPath(i))) {
+                return batch.column(i);
+            }
+        }
+        throw new AssertionError("Column '" + path + "' not found in batch schema");
     }
 
     private static EscfBatch encode(String[] docs) throws IOException {

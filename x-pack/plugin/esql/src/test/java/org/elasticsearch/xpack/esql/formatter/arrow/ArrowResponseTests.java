@@ -59,6 +59,10 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
@@ -72,6 +76,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -212,6 +217,54 @@ public class ArrowResponseTests extends ESTestCase {
         (v, i) -> new BytesRef(v.get(i))
     );
 
+    /**
+     * Random points or shapes encoded as WKB, as found in ES|QL geo blocks. Values read back from Arrow are
+     * checked to be valid WKB, and the field is checked to be tagged with the {@code geoarrow.wkb} extension type.
+     *
+     * Geo types must declare a CRS, cartesian types must not. Point types get points, shape types get any kind of geometry.
+     */
+    static ValueType wkbValues(DataType type) {
+        boolean geographic = switch (type) {
+            case GEO_POINT, GEO_SHAPE -> true;
+            case CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+            default -> throw new IllegalArgumentException("Not a WKB geometry type: " + type);
+        };
+        boolean point = DataType.isSpatialPoint(type);
+        return new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarBinaryVector>(
+            "wkb",
+            factory -> factory.newBytesRefBlockBuilder(0),
+            block -> block.appendBytesRef(randomWkb(point)),
+            BytesRefBlock::getBytesRef,
+            (v, i) -> {
+                byte[] wkb = v.get(i);
+                // Fails if this isn't valid WKB
+                WellKnownBinary.fromWKB(StandardValidator.instance(true), false, wkb);
+                return new BytesRef(wkb);
+            },
+            metadata -> {
+                assertEquals("geoarrow.wkb", metadata.get("ARROW:extension:name"));
+                String extensionMetadata = metadata.get("ARROW:extension:metadata");
+                if (geographic) {
+                    assertEquals("{\"crs\":\"OGC:CRS84\",\"crs_type\":\"authority_code\"}", extensionMetadata);
+                } else {
+                    assertNull(extensionMetadata);
+                }
+            }
+        );
+    }
+
+    static final ValueType GEO_POINT_VALUES = wkbValues(DataType.GEO_POINT);
+    static final ValueType GEO_SHAPE_VALUES = wkbValues(DataType.GEO_SHAPE);
+    static final ValueType CARTESIAN_POINT_VALUES = wkbValues(DataType.CARTESIAN_POINT);
+    static final ValueType CARTESIAN_SHAPE_VALUES = wkbValues(DataType.CARTESIAN_SHAPE);
+
+    private static BytesRef randomWkb(boolean point) {
+        boolean hasAlt = randomBoolean();
+        // Circles are not supported by WKB.
+        Geometry geometry = point ? GeometryTestUtils.randomPoint(hasAlt) : GeometryTestUtils.randomGeometryWithoutCircle(hasAlt, 20);
+        return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+    }
+
     static final ValueType VERSION_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarCharVector>(
         "version",
         factory -> factory.newBytesRefBlockBuilder(0),
@@ -280,11 +333,11 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.NULL, NULL_VALUES),
         Map.entry(DataType.UNSUPPORTED, NULL_VALUES),
 
-        // All geo types just pass-through WKB, use random binary data
-        Map.entry(DataType.GEO_POINT, BINARY_VALUES),
-        Map.entry(DataType.GEO_SHAPE, BINARY_VALUES),
-        Map.entry(DataType.CARTESIAN_POINT, BINARY_VALUES),
-        Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES),
+        // Geo point/shape types just pass-through WKB
+        Map.entry(DataType.GEO_POINT, GEO_POINT_VALUES),
+        Map.entry(DataType.GEO_SHAPE, GEO_SHAPE_VALUES),
+        Map.entry(DataType.CARTESIAN_POINT, CARTESIAN_POINT_VALUES),
+        Map.entry(DataType.CARTESIAN_SHAPE, CARTESIAN_SHAPE_VALUES),
 
         Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
         Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES)
@@ -953,6 +1006,11 @@ public class ArrowResponseTests extends ESTestCase {
         var metadata = root.getSchema().getFields().get(arrowColumn).getMetadata();
         assertEquals(testCase.columns.get(esqlColumn).type.outputType(), metadata.get(BlockArrowFormatter.ESQL_TYPE_METADATA));
 
+        // Check type-specific metadata, that is on the child field for multivalued columns
+        var valueType = testCase.columns.get(esqlColumn).valueType;
+        var valueVector = root.getVector(arrowColumn) instanceof ListVector list ? list.getDataVector() : root.getVector(arrowColumn);
+        valueType.checkMetadata(valueVector.getField().getMetadata());
+
         // Check values
         var esqlValuesIterator = new EsqlValuesIterator(testCase, esqlColumn);
         var arrowValuesIterator = new ArrowValuesIterator(root.getVector(arrowColumn), testCase.columns.get(esqlColumn).valueType);
@@ -1216,6 +1274,12 @@ public class ArrowResponseTests extends ESTestCase {
         Object valueAt(Block block, int position, BytesRef scratch);
 
         Object valueAt(ValueVector arrowVec, int position);
+
+        /**
+         * Check the metadata of the Arrow field that holds the values (the child field for multivalued columns).
+         * Does nothing by default.
+         */
+        default void checkMetadata(Map<String, String> metadata) {}
     }
 
     public static class ValueTypeImpl<BlockBT extends Block.Builder, BlockT extends Block, VectorT extends ValueVector>
@@ -1226,6 +1290,7 @@ public class ArrowResponseTests extends ESTestCase {
         private final Consumer<BlockBT> valueAdder;
         private final TriFunction<BlockT, Integer, BytesRef, Object> blockGetter;
         private final BiFunction<VectorT, Integer, Object> vectorGetter;
+        private final Consumer<Map<String, String>> metadataChecker;
 
         public ValueTypeImpl(
             String name,
@@ -1234,16 +1299,33 @@ public class ArrowResponseTests extends ESTestCase {
             TriFunction<BlockT, Integer, BytesRef, Object> blockGetter,
             BiFunction<VectorT, Integer, Object> vectorGetter
         ) {
+            this(name, builderCreator, valueAdder, blockGetter, vectorGetter, metadata -> {});
+        }
+
+        public ValueTypeImpl(
+            String name,
+            Function<BlockFactory, BlockBT> builderCreator,
+            Consumer<BlockBT> valueAdder,
+            TriFunction<BlockT, Integer, BytesRef, Object> blockGetter,
+            BiFunction<VectorT, Integer, Object> vectorGetter,
+            Consumer<Map<String, String>> metadataChecker
+        ) {
             this.name = name;
             this.builderCreator = builderCreator;
             this.valueAdder = valueAdder;
             this.blockGetter = blockGetter;
             this.vectorGetter = vectorGetter;
+            this.metadataChecker = metadataChecker;
         }
 
         @Override
         public Block.Builder createBlockBuilder(BlockFactory factory) {
             return builderCreator.apply(factory);
+        }
+
+        @Override
+        public void checkMetadata(Map<String, String> metadata) {
+            metadataChecker.accept(metadata);
         }
 
         @Override

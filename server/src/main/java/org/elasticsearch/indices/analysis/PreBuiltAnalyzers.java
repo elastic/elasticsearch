@@ -9,15 +9,14 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.classic.ClassicAnalyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.analysis.AsciiStandardAnalyzer;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
 import java.util.Locale;
@@ -27,7 +26,7 @@ public enum PreBuiltAnalyzers {
     STANDARD(CachingStrategy.INDEX) {
         @Override
         protected Analyzer create(IndexVersion version) {
-            return new StandardAnalyzer(CharArraySet.EMPTY_SET);
+            return new AsciiStandardAnalyzer();
         }
     },
 

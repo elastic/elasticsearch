@@ -210,15 +210,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 final Executor executorService = rarely() ? rarelyExecutor : commonExecutor;
                 executorService.execute(() -> {
                     counter.decrementAndGet();
-                    var response = SearchResponseUtils.emptyWithTotalHits(
-                        null,
-                        0,
-                        0,
-                        0,
-                        0L,
-                        ShardSearchFailure.EMPTY_ARRAY,
-                        SearchResponse.Clusters.EMPTY
-                    );
+                    var response = SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, List.of(), SearchResponse.Clusters.EMPTY);
                     try {
                         listener.onResponse(response);
                     } finally {
@@ -980,19 +972,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1, null);
         sections.adoptCoordinatorFetchCharge(() -> {});
         try {
-            return new SearchResponse(
-                sections,
-                null,
-                1,
-                1,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY,
-                null,
-                null,
-                null
-            );
+            return new SearchResponse(sections, null, 1, 1, 0, 0, List.of(), SearchResponse.Clusters.EMPTY, null, null, null);
         } finally {
             sections.close();
         }

@@ -4844,6 +4844,18 @@ public class EsqlCapabilities {
         COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
 
         /**
+         * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
+         * with a filter combined several aggregate functions, such as {@code max(...) - min(...) WHERE ...}.
+         */
+        FIX_TS_FILTER_ON_EXPRESSION_OF_AGGREGATES,
+
+        /**
+         * Fixes a bug in the planner where {@code TS} queries grouping by {@code _tsid}, such as
+         * {@code TS k8s METADATA _tsid | STATS BY _tsid}, failed with an {@link IllegalStateException}.
+         */
+        FIX_TS_STATS_BY_TSID,
+
+        /**
          * A {@code FORK} between the {@code TS} source and the first aggregation is rejected with a clear error. Before, the
          * {@code STATS} failed in the planner with "optimized incorrectly due to missing references [_tsid]".
          * See <a href="https://github.com/elastic/elasticsearch/issues/160269">#160269</a>.

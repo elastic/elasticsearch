@@ -55,6 +55,11 @@ import java.util.concurrent.TimeUnit;
  * and keys the access-ordered map by that token, whose equality is identity. Hashing and equality of the role key then run
  * outside the monitor, and only an identity lookup and the LRU promotion run under it.
  * <p>
+ * The {@code segmented} variant splits the access-ordered map into a fixed number of segments chosen by the key's hash, each
+ * with its own lock and its own LRU order. The hash is computed before taking any lock, and equality and LRU promotion run under
+ * the lock of one segment only. Each segment may hold the full maximum, so uneven hashing never turns a hit into a miss; a
+ * production version would need a per-segment bound, which makes eviction only approximately LRU.
+ * <p>
  * Each thread cycles through the cached roles from its own starting offset, so with more than one role the threads promote
  * different entries rather than hammering one. With a single role the LRU promotion is a no-op in both implementations and
  * hashing and equality are still measured. Lookup keys and their name sets are equal to, but distinct from, the cached keys,
@@ -94,10 +99,10 @@ public class RoleCacheHitBenchmark {
     /**
      * {@code cache}: the previous implementation, {@link Cache}. {@code monitor}: the current implementation, a synchronized
      * access-ordered {@link LinkedHashMap}. {@code prehashed}: the same map with hashing before the monitor.
-     * {@code interned}: the same map keyed by interned tokens. {@code concurrent}: a {@link ConcurrentHashMap} with no
-     * eviction, as a floor.
+     * {@code interned}: the same map keyed by interned tokens. {@code segmented}: the map split into independently locked
+     * segments. {@code concurrent}: a {@link ConcurrentHashMap} with no eviction, as a floor.
      */
-    @Param({ "cache", "monitor", "prehashed", "interned", "concurrent" })
+    @Param({ "cache", "monitor", "prehashed", "interned", "segmented", "concurrent" })
     private String impl;
 
     private RoleCache roleCache;
@@ -128,6 +133,7 @@ public class RoleCacheHitBenchmark {
             case "monitor" -> new MonitorRoleCache(roles);
             case "prehashed" -> new PrehashedRoleCache(roles);
             case "interned" -> new InternedRoleCache(roles);
+            case "segmented" -> new SegmentedRoleCache(roles);
             case "concurrent" -> new ConcurrentRoleCache();
             default -> throw new IllegalArgumentException("unknown impl [" + impl + "]");
         };
@@ -343,6 +349,53 @@ public class RoleCacheHitBenchmark {
         @Override
         public synchronized void put(ProjectId projectId, RoleKey roleKey, Role role) {
             map.putIfAbsent(interned.computeIfAbsent(new ProjectScoped<>(projectId, roleKey), InternedKey::new), role);
+        }
+    }
+
+    /**
+     * An access-ordered map split into segments by key hash, each guarded by its own monitor. The key's hash is computed once,
+     * before any lock, and both selects the segment and serves as the map's hash code.
+     */
+    private static final class SegmentedRoleCache implements RoleCache {
+        private static final int SEGMENTS = 16; // must be a power of two
+
+        private final Map<PrehashedKey, Role>[] segments;
+
+        @SuppressWarnings("unchecked") // generic array creation; every element is assigned below
+        SegmentedRoleCache(int maximumSize) {
+            segments = (Map<PrehashedKey, Role>[]) new Map<?, ?>[SEGMENTS];
+            for (int i = 0; i < SEGMENTS; i++) {
+                segments[i] = new LinkedHashMap<>(16, 0.75f, true) {
+                    @Override
+                    protected boolean removeEldestEntry(Map.Entry<PrehashedKey, Role> eldest) {
+                        return size() > maximumSize;
+                    }
+                };
+            }
+        }
+
+        private Map<PrehashedKey, Role> segmentFor(PrehashedKey key) {
+            final int h = key.hash();
+            // spread the high bits into the low bits, as HashMap does, since only the low bits select the segment
+            return segments[(h ^ (h >>> 16)) & (SEGMENTS - 1)];
+        }
+
+        @Override
+        public Role get(ProjectId projectId, RoleKey roleKey) {
+            final PrehashedKey key = new PrehashedKey(projectId, roleKey);
+            final Map<PrehashedKey, Role> segment = segmentFor(key);
+            synchronized (segment) {
+                return segment.get(key);
+            }
+        }
+
+        @Override
+        public void put(ProjectId projectId, RoleKey roleKey, Role role) {
+            final PrehashedKey key = new PrehashedKey(projectId, roleKey);
+            final Map<PrehashedKey, Role> segment = segmentFor(key);
+            synchronized (segment) {
+                segment.put(key, role);
+            }
         }
     }
 

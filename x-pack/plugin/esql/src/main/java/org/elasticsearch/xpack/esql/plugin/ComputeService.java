@@ -109,7 +109,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
-import org.elasticsearch.xpack.esql.fetch.FetchContextService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
@@ -221,7 +220,6 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final FetchContextService fetchContextService;
     private final InferenceService inferenceService;
     private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
@@ -270,8 +268,6 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.fetchContextService = new FetchContextService(searchService, transportService);
-        fetchContextService.registerHandlers();
         this.inferenceService = transportActionServices.inferenceService();
         this.client = transportActionServices.client();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
@@ -338,13 +334,6 @@ public class ComputeService {
                 l.onFailure(e);
             }
         });
-    }
-
-    /**
-     * The reader contexts this node keeps open for the fetch phase, as a data node.
-     */
-    FetchContextService fetchContextService() {
-        return fetchContextService;
     }
 
     FormatReaderRegistry formatReaderRegistry() {

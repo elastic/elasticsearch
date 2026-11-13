@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -59,7 +60,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -635,7 +635,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             false,
             false,
             splits,
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            null
         );
     }
 
@@ -973,7 +974,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
                 ActionListener.runAfter(
-                    listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures)),
+                    listener.map(
+                        profiles -> new DataNodeComputeResponse(
+                            profiles,
+                            shardLevelFailures,
+                            // the coordinator owns these from now on
+                            fetchContexts == null ? List.of() : fetchContexts.handOffContributing()
+                        )
+                    ),
                     () -> Releasables.close(sortBound)
                 )
             )
@@ -1257,40 +1265,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.singleNodeOptimizations(),
             request.externalSplits(),
             request.requiredClusterStateVersion(),
-            request.fetchContextsKeepAlive()
+            request.readerContextKeepAlive()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false;
-        final NodeFetchContexts fetchContexts = request.keepFetchContexts()
-            ? computeService.fetchContextService().newNodeContexts(task, request.fetchContextsKeepAlive())
-            : null;
+        final NodeFetchContexts fetchContexts = request.keepFetchContexts() ? newFetchContexts(task, request) : null;
         var computeSearchContexts = new AcquiredSearchContexts(
             request.shards().size(),
             fetchContexts == null ? DocOriginResolver.NONE : fetchContexts
         );
-        ActionListener<DataNodeComputeResponse> responseListener;
-        if (fetchContexts != null) {
-            task.addListener(() -> fetchContexts.freeAll("the request was cancelled"));
-            // the search contexts of the query phase close before the fetch contexts, so the request drops the last
-            // reference to each reader on the generic pool
-            responseListener = ActionListener.releaseAfter(new ActionListener<>() {
-                @Override
-                public void onResponse(DataNodeComputeResponse response) {
-                    // the response lists the contexts the coordinator owns from now on
-                    List<ShardSearchContextId> open = fetchContexts.listOpenContributing();
-                    listener.onResponse(response.withOpenContexts(open, fetchContexts.keepAlive()));
-                    fetchContexts.responded();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fetchContexts.freeAll("the request failed");
-                    listener.onFailure(e);
-                }
-            }, Releasables.wrap(computeSearchContexts, fetchContexts));
-        } else {
-            responseListener = ActionListener.releaseAfter(listener, computeSearchContexts);
-        }
         runComputeOnDataNode(
             task,
             sessionId,
@@ -1301,8 +1284,25 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             fetchContexts,
             computeService.plannerSettings().get(),
             planTimeProfile,
-            responseListener
+            // the search contexts of the query phase close before the fetch contexts free the ones the coordinator didn't take
+            ActionListener.releaseAfter(listener, Releasables.wrap(computeSearchContexts, fetchContexts))
         );
+    }
+
+    private NodeFetchContexts newFetchContexts(Task task, DataNodeRequest request) {
+        TimeValue keepAlive = readerContextKeepAlive(request, clusterService.getClusterSettings());
+        return new NodeFetchContexts(searchService, threadPool.generic(), task, keepAlive);
+    }
+
+    /**
+     * The keep-alive of the fetch contexts of {@code request}: the keep-alive of the request, but at most
+     * {@code search.max_keep_alive} of this node, which can be shorter than the one of the coordinator. {@code _search}
+     * rejects a longer keep-alive, but here the coordinator picked it, not the user.
+     */
+    static TimeValue readerContextKeepAlive(DataNodeRequest request, ClusterSettings clusterSettings) {
+        TimeValue maxKeepAlive = clusterSettings.get(SearchService.MAX_KEEPALIVE_SETTING);
+        TimeValue requested = request.readerContextKeepAlive();
+        return requested.compareTo(maxKeepAlive) <= 0 ? requested : maxKeepAlive;
     }
 
     /**

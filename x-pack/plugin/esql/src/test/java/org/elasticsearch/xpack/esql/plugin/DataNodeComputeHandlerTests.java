@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -22,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,7 +48,30 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
         DataNodeComputeHandler.validateFetchContexts(plan, request(plan, randomPositiveTimeValue()));
     }
 
-    private static DataNodeRequest request(ExchangeSinkExec plan, @Nullable TimeValue fetchContextsKeepAlive) {
+    /**
+     * A node keeps no fetch context longer than its {@code search.max_keep_alive}, also when the coordinator asks for a
+     * longer keep-alive.
+     */
+    public void testTheReaderContextKeepAliveStaysWithinTheMaxKeepAliveOfTheNode() {
+        TimeValue maxKeepAlive = TimeValue.timeValueMinutes(between(1, 60));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.builder().put(SearchService.MAX_KEEPALIVE_SETTING.getKey(), maxKeepAlive).build(),
+            Set.of(SearchService.MAX_KEEPALIVE_SETTING)
+        );
+        ExchangeSinkExec plan = new ExchangeSinkExec(
+            Source.EMPTY,
+            List.of(),
+            false,
+            new ExchangeSourceExec(Source.EMPTY, List.of(), false)
+        );
+
+        TimeValue shorter = TimeValue.timeValueMillis(between(1, (int) maxKeepAlive.millis()));
+        assertThat(DataNodeComputeHandler.readerContextKeepAlive(request(plan, shorter), clusterSettings), equalTo(shorter));
+        TimeValue longer = TimeValue.timeValueMillis(maxKeepAlive.millis() + between(1, 3_600_000));
+        assertThat(DataNodeComputeHandler.readerContextKeepAlive(request(plan, longer), clusterSettings), equalTo(maxKeepAlive));
+    }
+
+    private static DataNodeRequest request(ExchangeSinkExec plan, @Nullable TimeValue readerContextKeepAlive) {
         return new DataNodeRequest(
             "session",
             TaskId.EMPTY_TASK_ID,
@@ -60,7 +87,7 @@ public class DataNodeComputeHandlerTests extends ESTestCase {
             false,
             List.of(),
             0L,
-            fetchContextsKeepAlive
+            readerContextKeepAlive
         );
     }
 }

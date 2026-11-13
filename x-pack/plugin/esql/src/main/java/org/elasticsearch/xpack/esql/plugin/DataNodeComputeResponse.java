@@ -14,8 +14,6 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.TransportResponse;
@@ -36,37 +34,22 @@ final class DataNodeComputeResponse extends TransportResponse {
     private final DriverCompletionInfo completionInfo;
     private final Map<ShardId, Exception> shardLevelFailures;
     private final List<ShardSearchContextId> openContexts;
-    /**
-     * The keep-alive the data node gave {@link #openContexts}, {@code null} without them.
-     */
-    @Nullable
-    private final TimeValue fetchContextsKeepAlive;
 
     DataNodeComputeResponse(DriverCompletionInfo completionInfo, Map<ShardId, Exception> shardLevelFailures) {
-        this(completionInfo, shardLevelFailures, List.of(), null);
+        this(completionInfo, shardLevelFailures, List.of());
     }
 
     /**
-     * @param openContexts           the fetch contexts the data node keeps open after this response, for the coordinator to
-     *                               free
-     * @param fetchContextsKeepAlive the keep-alive the data node gave them, which the coordinator refreshes them within.
-     *                               {@code null} exactly when there are none.
+     * @param openContexts the fetch contexts the data node keeps open after this response, for the coordinator to free
      */
-    private DataNodeComputeResponse(
+    DataNodeComputeResponse(
         DriverCompletionInfo completionInfo,
         Map<ShardId, Exception> shardLevelFailures,
-        List<ShardSearchContextId> openContexts,
-        @Nullable TimeValue fetchContextsKeepAlive
+        List<ShardSearchContextId> openContexts
     ) {
-        if (openContexts.isEmpty() != (fetchContextsKeepAlive == null)) {
-            throw new IllegalArgumentException(
-                "open fetch contexts " + openContexts + " need their keep-alive, but it was [" + fetchContextsKeepAlive + "]"
-            );
-        }
         this.completionInfo = completionInfo;
         this.shardLevelFailures = shardLevelFailures;
         this.openContexts = openContexts;
-        this.fetchContextsKeepAlive = fetchContextsKeepAlive;
     }
 
     DataNodeComputeResponse(StreamInput in, ThreadContext threadContext) throws IOException {
@@ -75,15 +58,12 @@ final class DataNodeComputeResponse extends TransportResponse {
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             if (in.getTransportVersion().supports(DataNodeRequest.ESQL_FETCH_CONTEXTS)) {
                 this.openContexts = in.readCollectionAsImmutableList(ShardSearchContextId::new);
-                this.fetchContextsKeepAlive = openContexts.isEmpty() ? null : in.readTimeValue();
             } else {
                 this.openContexts = List.of();
-                this.fetchContextsKeepAlive = null;
             }
             return;
         }
         this.openContexts = List.of();
-        this.fetchContextsKeepAlive = null;
         if (DataNodeComputeHandler.supportShardLevelRetryFailure(in.getTransportVersion())) {
             this.completionInfo = new DriverCompletionInfo(
                 0,
@@ -119,9 +99,6 @@ final class DataNodeComputeResponse extends TransportResponse {
             out.writeMap(shardLevelFailures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
             if (out.getTransportVersion().supports(DataNodeRequest.ESQL_FETCH_CONTEXTS)) {
                 out.writeCollection(openContexts);
-                if (openContexts.isEmpty() == false) {
-                    out.writeTimeValue(fetchContextsKeepAlive);
-                }
             }
             return;
         }
@@ -150,20 +127,5 @@ final class DataNodeComputeResponse extends TransportResponse {
 
     List<ShardSearchContextId> openContexts() {
         return openContexts;
-    }
-
-    /**
-     * The keep-alive the data node gave {@link #openContexts()}, {@code null} without them.
-     */
-    @Nullable
-    TimeValue fetchContextsKeepAlive() {
-        return fetchContextsKeepAlive;
-    }
-
-    /**
-     * This response, listing the fetch contexts the data node keeps open with {@code keepAlive}.
-     */
-    DataNodeComputeResponse withOpenContexts(List<ShardSearchContextId> openContexts, TimeValue keepAlive) {
-        return new DataNodeComputeResponse(completionInfo, shardLevelFailures, openContexts, openContexts.isEmpty() ? null : keepAlive);
     }
 }

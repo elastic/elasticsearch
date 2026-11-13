@@ -171,7 +171,6 @@ import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -801,7 +800,6 @@ public class SnapshotResiliencyTestHelper {
                     new FetchPhase(Collections.emptyList()),
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                    Tracer.NOOP,
                     OnlinePrewarmingService.NOOP,
                     transportService.getTaskManager()
                 );

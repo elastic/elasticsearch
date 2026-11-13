@@ -255,12 +255,46 @@ setup:
   - match: { values.1: [7, 9] }
 
 ---
-"no mapped type can convert to the target":
+"no mapped type can convert to the target returns null everywhere":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_lenient_cast_nothing_converts]
+      reason: "Lenient casts of union-typed fields where no type converts"
   - do:
-      catch: '/Cannot convert field \[f\] to \[IP\]: no type can be converted: \[boolean\] in \[lenient_bool\], \[long\] in \[lenient_long\]/'
+      warnings:
+        - "Field [f] of type [boolean] in [lenient_bool], [long] in [lenient_long] cannot be converted to [IP] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM lenient_long,lenient_bool | EVAL x = f::ip | KEEP x'
+          query: 'FROM lenient_long,lenient_bool | EVAL x = f::ip | KEEP id, x | SORT id'
+  - length: { values: 2 }
+  - match: { columns.1.type: "ip" }
+  - match: { values.0: [4, null] }
+  - match: { values.1: [5, null] }
+
+---
+"no mapped type can convert used in WHERE, STATS and SORT":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_lenient_cast_nothing_converts]
+      reason: "Lenient casts of union-typed fields where no type converts"
+  - do:
+      warnings:
+        - "Field [f] of type [boolean] in [lenient_bool], [long] in [lenient_long] cannot be converted to [IP] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long,lenient_bool | WHERE f::ip IS NULL | STATS c = COUNT(*), n = COUNT(f::ip) BY g = f::ip | SORT g'
+  - length: { values: 1 }
+  - match: { values.0: [2, 0, null] }
 
 ---
 "cast not wrapping the field directly stays an error":
@@ -351,16 +385,22 @@ setup:
   - match: { values.1: [null] }
 
 ---
-"no convertible type lists the unsupported type in the error":
+"no convertible type lists the unsupported type in the warning":
   - requires:
       capabilities:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_lenient_cast_unsupported_types]
-      reason: "Lenient casts of union-typed fields with unsupported types"
+          capabilities: [union_types_lenient_cast_nothing_converts]
+      reason: "Lenient casts of union-typed fields where no type converts"
   - do:
-      catch: '/Cannot convert field \[f\] to \[IP\]: no type can be converted: \[boolean\] in \[lenient_bool\], \[rank_feature\] in \[lenient_rank\]/'
+      warnings:
+        - "Field [f] of type [boolean] in [lenient_bool], [rank_feature] in [lenient_rank] cannot be converted to [IP] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM lenient_rank,lenient_bool | EVAL x = f::ip | KEEP x'
+  - length: { values: 2 }
+  - match: { values.0: [null] }
+  - match: { values.1: [null] }

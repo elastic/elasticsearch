@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -2865,12 +2867,32 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * Reproducer for #150375.
+     * Neither the mapped {@code ip} nor the {@code keyword} loaded from {@code _source} converts, so the cast is null everywhere.
      */
-    public void testTwoLeggedPunkConvertFunctionRejectingKeywordFails() {
+    public void testTwoLeggedPunkConvertFunctionRejectingKeywordIsNull() {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
 
-        analyzer().addIndex(partialIpIndex())
+        var plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(partialIpIndex())
+            .statement(setUnmappedLoad("FROM idx* | EVAL x = TO_DEGREES(partial_ip) | KEEP x"));
+        var eval = as(as(as(plan, Limit.class).child(), Project.class).child(), Eval.class);
+        Literal literal = as(eval.fields().get(0).child(), Literal.class);
+        assertNull(literal.value());
+        assertThat(literal.dataType(), equalTo(DataType.DOUBLE));
+        assertWarnings(
+            "Field [partial_ip] of type [ip] cannot be converted to [DOUBLE] and will be null in those indices.",
+            "Field [partial_ip] of type [keyword] due to loading from _source cannot be converted to [DOUBLE] and will be null in those indices."
+        );
+    }
+
+    /**
+     * Reproducer for #150375.
+     */
+    public void testTwoLeggedPunkConvertFunctionRejectingKeywordFailsOnOlderNodes() {
+        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
+
+        analyzer().minimumTransportVersion(TransportVersion.minimumCompatible())
+            .addIndex(partialIpIndex())
             .statementError(
                 setUnmappedLoad("FROM idx* | EVAL x = TO_DEGREES(partial_ip) | KEEP x"),
                 containsString("[partial_ip] is loaded as [KEYWORD] where unmapped, but [TO_DEGREES(partial_ip)] does not accept [KEYWORD]")

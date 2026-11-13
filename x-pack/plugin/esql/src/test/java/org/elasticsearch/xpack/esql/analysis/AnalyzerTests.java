@@ -202,6 +202,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
@@ -6311,7 +6312,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     /**
      * Reproducer for #150375. {@code ::double} accepts {@code datetime} but not {@code date_nanos}, so the nanos leg is
-     * nulled. {@code ::ip} accepts neither date type, so the cast still fails.
+     * nulled. {@code ::ip} accepts neither date type, so the cast is null everywhere.
      */
     public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleType() {
         IndexResolution index = indexWithDateDateNanosUnionType();
@@ -6321,13 +6322,66 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertWarnings(
             "Field [date_and_date_nanos] of type [date_nanos] cannot be converted to [DOUBLE] and will be null in those indices."
         );
-        analyzer().addIndex(index)
+        LogicalPlan plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(index)
+            .query("FROM index* | EVAL x = date_and_date_nanos::ip");
+        assertWarnings(
+            "Field [date_and_date_nanos] of type [date_nanos], [datetime] cannot be converted to [IP] and will be null in those indices."
+        );
+        assertNullLiteral(as(as(plan, Limit.class).child(), Eval.class).fields().get(0).child(), IP);
+    }
+
+    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleTypeFailsOnOlderNodes() {
+        analyzer().minimumTransportVersion(TransportVersion.minimumCompatible())
+            .addIndex(indexWithDateDateNanosUnionType())
             .error(
                 "FROM index* | EVAL x = date_and_date_nanos::ip",
                 containsString(
                     "Mapped types [date_nanos, datetime] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::ip]"
                 )
             );
+    }
+
+    /**
+     * When no mapped type converts, the cast is null in every index, with a warning naming every type.
+     */
+    public void testCastOnUnionWhereNoTypeConvertsIsNull() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "boolean"))
+            ),
+            List.of()
+        );
+        LogicalPlan plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(mergedResolution("foo,bar", caps))
+            .query("FROM foo, bar | EVAL x = value::ip");
+        assertWarnings(
+            "Field [value] of type [boolean] in [bar], [long] in [foo] cannot be converted to [IP] and will be null in those indices."
+        );
+        assertNullLiteral(as(as(plan, Limit.class).child(), Eval.class).fields().get(0).child(), IP);
+    }
+
+    public void testCastOnUnionWhereNoTypeConvertsFailsOnOlderNodes() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "boolean"))
+            ),
+            List.of()
+        );
+        analyzer().minimumTransportVersion(TransportVersion.minimumCompatible())
+            .addIndex(mergedResolution("foo,bar", caps))
+            .error(
+                "FROM foo, bar | EVAL x = value::ip",
+                containsString("Cannot use field [value] due to ambiguities being mapped as [2] incompatible types")
+            );
+    }
+
+    private static void assertNullLiteral(Expression expression, DataType type) {
+        Literal literal = as(expression, Literal.class);
+        assertNull(literal.value());
+        assertEquals(type, literal.dataType());
     }
 
     public void testGroupingOverridesInStats() {

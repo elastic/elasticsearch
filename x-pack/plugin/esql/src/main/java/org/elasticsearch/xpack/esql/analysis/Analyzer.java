@@ -4337,8 +4337,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <ol>
          *   <li>If the field has unresolved type conflicts ({@link TypeConflictedField}), we try to build a {@link UnionTypeEsField} with
          *   per-type conversions.</li>
-         *   <li>If the field was already implicitly cast to a union type ({@link UnionTypeEsField}), rewrap with the explicit cast, or
-         *   return an {@link UnresolvedAttribute} if the cast cannot consume one of the field's original mapped types.</li>
+         *   <li>If the field was already implicitly cast to a union type ({@link UnionTypeEsField}), rewrap with the explicit cast. On
+         *   older nodes, return an {@link UnresolvedAttribute} if the cast cannot consume one of the field's original mapped types.</li>
          *   <li>If the convert's input is itself a convert, e.g.: {@code foo::long::double}, recurse and resolve the inner one first.</li>
          * </ol>
          *
@@ -4402,11 +4402,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
                 if (lenient) {
-                    return new UnresolvedAttribute(
-                        fa.source(),
-                        fa.name(),
-                        nothingConvertibleMessage(fa.name(), tcf, supportedTypes, convertExpression)
-                    );
+                    // No type converts, so the cast is null in every index.
+                    warnLenientDroppedTypes(context, fa.name(), tcf, supportedTypes, convertExpression);
+                    return new Literal(convertExpression.source(), null, convertExpression.dataType());
                 }
             } else if (convert.field() instanceof FieldAttribute fa
                 && fa.synthetic() == false // UnionTypeEsField in EsRelation created by DateMillisToNanosInEsRelation or
@@ -4432,7 +4430,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         Expression unmappedExprForSupport = unionTypeEsField.getUnmappedConversionExpression();
                         boolean unmappedKeywordSupported = unmappedExprForSupport instanceof AbstractConvertFunction
                             && supportedTypes.contains(KEYWORD);
-                        if (lenient == false || (anyMapped == false && unmappedKeywordSupported == false)) {
+                        if (lenient == false) {
                             return new UnresolvedAttribute(
                                 fa.source(),
                                 fa.name(),
@@ -4440,6 +4438,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             );
                         }
                         warnLenientDroppedUnionTypes(context, fa.name(), unionTypeEsField, supportedTypes, convertExpression);
+                        if (anyMapped == false && unmappedKeywordSupported == false) {
+                            // No type converts, so the cast is null in every index.
+                            if (unmappedExprForSupport != null) {
+                                context.deferredHeaderWarnings()
+                                    .add(
+                                        lenientNullWarning(
+                                            fa.name(),
+                                            "[keyword] due to loading from _source",
+                                            castTargetName(convertExpression)
+                                        )
+                                    );
+                            }
+                            return new Literal(convertExpression.source(), null, convertExpression.dataType());
+                        }
                         castField = unionTypeEsField.retainingSupportedSourceTypes(supportedTypes);
                     }
 
@@ -4599,30 +4611,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (tcf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD) == false && dropped.contains(KEYWORD.typeName()) == false) {
                 context.deferredHeaderWarnings().add(lenientNullWarning(fieldName, "[keyword] due to loading from _source", target));
             }
-        }
-
-        private static String nothingConvertibleMessage(
-            String fieldName,
-            TypeConflictedField tcf,
-            Set<DataType> supportedTypes,
-            Expression convertExpression
-        ) {
-            Set<String> dropped = new LinkedHashSet<>();
-            for (DataType type : tcf.types()) {
-                dropped.add(type.typeName());
-            }
-            dropped.addAll(tcf.getUnsupportedTypesToIndices().keySet());
-            String described = tcf.describeTypes(dropped);
-            if (tcf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD) == false && dropped.contains(KEYWORD.typeName()) == false) {
-                String unmapped = "[keyword] due to loading from _source";
-                described = described.isEmpty() ? unmapped : unmapped + ", " + described;
-            }
-            return Strings.format(
-                "Cannot convert field [%s] to [%s]: no type can be converted: %s",
-                fieldName,
-                castTargetName(convertExpression),
-                described
-            );
         }
 
         private static void warnLenientDroppedUnionTypes(

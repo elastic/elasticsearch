@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Every {@code union_*} catalog index paired with every other, cast to every conversion target.
- * A lenient union cast either returns a value or null, or fails because nothing can convert.
+ * A lenient union cast returns a value or null, even when nothing can convert.
  * It must not fail with the generic "due to ambiguities" error, and it must not 5xx.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
@@ -154,14 +154,9 @@ public class LenientUnionCastIT extends ESRestTestCase {
         } catch (ResponseException e) {
             int status = e.getResponse().getStatusLine().getStatusCode();
             String reason = String.valueOf(entityAsMap(e.getResponse()).get("error"));
-            // Cannot convert field [field] to [IP]: no type can be converted: [aggregate_metric_double] in [union_aggregate_metric_double],
-            // [boolean] in [union_boolean]
-            boolean allowed = reason.contains("no type can be converted")
-                // Mapped types [date_nanos, datetime] of [field] cannot be accepted in [TO_IP(field)]
-                || reason.contains("cannot be accepted")
-                // An object index doesn't map the field, so paired with an object the field has a single type:
-                // argument of [TO_IP(field)] must be [ip or string], found value [field] type [boolean]
-                || reason.contains("argument of [");
+            // An object index doesn't map the field, so paired with an object the field has a single type:
+            // argument of [TO_IP(field)] must be [ip or string], found value [field] type [boolean]
+            boolean allowed = reason.contains("argument of [");
             if (status >= 500 || reason.contains("due to ambiguities") || allowed == false) {
                 failures.add(label + " status " + status + " " + abbreviate(reason));
             }

@@ -41,6 +41,21 @@ public class RerankOperator extends InferenceOperator {
 
     public static final int DEFAULT_BATCH_SIZE = 10;
 
+    /**
+     * Inference endpoints known to use a pointwise reranker, which scores each document on its own. Scores from separate
+     * requests are comparable for these, so they keep the batched, concurrent {@link RerankOperator}. Every other endpoint
+     * may be listwise and uses {@link SingleRequestRerankOperator}.
+     * <p>
+     * Endpoints don't say whether their reranker is pointwise or listwise, so this lists them by ID until they do.
+     * {@link Rerank#DEFAULT_INFERENCE_ID}, the default {@code RERANK} endpoint, runs Elastic's reranker, a cross-encoder.
+     * </p>
+     */
+    private static final Set<String> KNOWN_POINTWISE_INFERENCE_IDS = Set.of(Rerank.DEFAULT_INFERENCE_ID);
+
+    static boolean isKnownPointwise(String inferenceId) {
+        return KNOWN_POINTWISE_INFERENCE_IDS.contains(inferenceId);
+    }
+
     private final String queryText;
 
     private final int scoreChannel;
@@ -90,21 +105,6 @@ public class RerankOperator extends InferenceOperator {
 
     public String toString() {
         return "RerankOperator[inference_id=[" + inferenceId() + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
-    }
-
-    /**
-     * Inference endpoints known to use a pointwise reranker, which scores each document on its own. Scores from separate
-     * requests are comparable for these, so they keep the batched, concurrent {@link RerankOperator}. Every other endpoint
-     * may be listwise and uses {@link SingleRequestRerankOperator}.
-     * <p>
-     * Endpoints don't say whether their reranker is pointwise or listwise, so this lists them by ID until they do.
-     * {@link Rerank#DEFAULT_INFERENCE_ID}, the default {@code RERANK} endpoint, runs Elastic's reranker, a cross-encoder.
-     * </p>
-     */
-    private static final Set<String> KNOWN_POINTWISE_INFERENCE_IDS = Set.of(Rerank.DEFAULT_INFERENCE_ID);
-
-    static boolean isKnownPointwise(String inferenceId) {
-        return KNOWN_POINTWISE_INFERENCE_IDS.contains(inferenceId);
     }
 
     /**

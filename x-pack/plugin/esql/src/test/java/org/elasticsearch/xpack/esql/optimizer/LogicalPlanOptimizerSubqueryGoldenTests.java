@@ -28,6 +28,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
@@ -1323,7 +1324,8 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     private static ExternalSourceResolution salariesExternalSourceResolution() {
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            salariesDatasetMetadata(),
             Map.of(
                 SALARIES_INT_RESOURCE,
                 salariesSource(SALARIES_INT_RESOURCE, DataType.INTEGER),
@@ -1369,7 +1371,8 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
     }
 
     private static ExternalSourceResolution heavyExternalSourceResolution() {
-        return new ExternalSourceResolution(
+        return externalResolutionFor(
+            heavyDatasetMetadata(),
             Map.of(
                 RESOURCE_A,
                 new ExternalSourceResolution.ResolvedSource(schemaFor(RESOURCE_A), FileList.UNRESOLVED, Map.of()),

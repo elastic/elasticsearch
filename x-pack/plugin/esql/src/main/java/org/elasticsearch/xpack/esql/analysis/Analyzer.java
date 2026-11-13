@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSpec;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
@@ -903,8 +904,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return plan;
             }
 
-            // Get pre-resolved source (metadata + file set) from context
-            var resolvedSource = context.externalSourceResolution().resolvedSource(tablePath);
+            // Rebuilt through ExternalSourceSpec.of, the same factory EsqlSession collected the specs with, so the
+            // session and the analyzer cannot derive a key differently for one relation.
+            var resolvedSource = context.externalSourceResolution().resolvedSource(ExternalSourceSpec.of(plan));
             if (resolvedSource == null) {
                 // Still unresolved - return as-is to keep the error message
                 return plan;

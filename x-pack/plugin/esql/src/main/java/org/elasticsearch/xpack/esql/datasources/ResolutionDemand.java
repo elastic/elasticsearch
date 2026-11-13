@@ -43,14 +43,20 @@ public enum ResolutionDemand {
     EAGER_STATS;
 
     /**
-     * @param requiringStats paths under an ungrouped aggregate, or {@code null} to resolve every path eagerly
-     * @param readingNoRows  paths whose rows are all discarded, or {@code null} if the shape was not examined
+     * Keyed by the {@link ExternalSourceSpec}, as resolution is.
+     *
+     * @param requiringStats specs under an ungrouped aggregate, or {@code null} to resolve every spec eagerly
+     * @param readingNoRows  specs whose rows are all discarded, or {@code null} if the shape was not examined
      */
-    public static ResolutionDemand of(String path, Set<String> requiringStats, Set<String> readingNoRows) {
-        if (requiringStats == null || requiringStats.contains(path)) {
+    public static ResolutionDemand of(
+        ExternalSourceSpec spec,
+        Set<ExternalSourceSpec> requiringStats,
+        Set<ExternalSourceSpec> readingNoRows
+    ) {
+        if (requiringStats == null || requiringStats.contains(spec)) {
             return EAGER_STATS;
         }
-        return readingNoRows != null && readingNoRows.contains(path) ? SCHEMA_DISCOVERY : ROWS;
+        return readingNoRows != null && readingNoRows.contains(spec) ? SCHEMA_DISCOVERY : ROWS;
     }
 
     /** Whether resolution must eagerly aggregate global statistics across every file. */
@@ -59,8 +65,8 @@ public enum ResolutionDemand {
     }
 
     /**
-     * Whether the query discards every row from this path. No longer decides how far a listing runs - the
-     * dataset's mode does that - and its one remaining caller is the declared rail's coercibility check, which a
+     * Whether the query discards every row this spec reads. No longer decides how far a listing runs - the
+     * dataset's mode does that - and its one remaining caller is the declared-mapping path's coercibility check, which a
      * query reading no rows never performs the cast for.
      */
     public boolean isSchemaDiscovery() {

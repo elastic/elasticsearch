@@ -120,6 +120,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -175,6 +176,98 @@ import static org.mockito.Mockito.mock;
  */
 public class ExternalSourceResolverTests extends ESTestCase {
 
+    /**
+     * Resolves one read per path, for a test that holds a path and the configuration it is read under.
+     * <p>
+     * A plan cannot use this shape. Two relations can read one path under two configurations, which is two reads and
+     * two resolutions, and a path-keyed call can only express one of them -- so production resolves through
+     * {@link ExternalSourceResolver#resolve} with the reads its relations denote, and this lifting lives here.
+     */
+    private static void resolvePaths(
+        ExternalSourceResolver resolver,
+        List<String> paths,
+        Map<String, Map<String, Object>> pathConfigs,
+        ActionListener<ExternalSourceResolution> listener
+    ) {
+        resolvePaths(resolver, paths, pathConfigs, null, null, null, null, listener);
+    }
+
+    /** As {@link #resolvePaths(ExternalSourceResolver, List, Map, ActionListener)}, with declared mappings and the eager-stats set. */
+    private static void resolvePaths(
+        ExternalSourceResolver resolver,
+        List<String> paths,
+        Map<String, Map<String, Object>> pathConfigs,
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        Map<String, DatasetMapping> declaredMappings,
+        Set<String> pathsRequiringStats,
+        ActionListener<ExternalSourceResolution> listener
+    ) {
+        resolvePaths(resolver, paths, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, null, listener);
+    }
+
+    /** As {@link #resolvePaths(ExternalSourceResolver, List, Map, ActionListener)}, also naming the paths whose rows the query discards. */
+    private static void resolvePaths(
+        ExternalSourceResolver resolver,
+        List<String> paths,
+        Map<String, Map<String, Object>> pathConfigs,
+        Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
+        Map<String, DatasetMapping> declaredMappings,
+        Set<String> pathsRequiringStats,
+        Set<String> pathsReadingNoRows,
+        ActionListener<ExternalSourceResolution> listener
+    ) {
+        if (paths == null) {
+            // A null path list is an empty resolution rather than a failure, which is what a caller with nothing
+            // to resolve passes. Pinned by testNullPathListReturnsEmptyResolution.
+            resolver.resolve(null, null, declaredMappings, null, null, null, listener);
+            return;
+        }
+        List<ExternalSourceSpec> specs = new ArrayList<>(paths.size());
+        // The demand sets are spec-keyed, so a path-keyed caller's sets are lifted the same way its paths are:
+        // one path carries one configuration here, which is the premise this whole shape rests on.
+        Set<ExternalSourceSpec> specsRequiringStats = pathsRequiringStats == null ? null : new HashSet<>();
+        Set<ExternalSourceSpec> specsReadingNoRows = pathsReadingNoRows == null ? null : new HashSet<>();
+        Map<ExternalSourceSpec, List<PartitionFilterHintExtractor.PartitionFilterHint>> specHints = filterHints == null
+            ? null
+            : new HashMap<>();
+        for (String path : paths) {
+            ExternalSourceSpec spec = new ExternalSourceSpec(path, pathConfigs.getOrDefault(path, Map.of()));
+            specs.add(spec);
+            if (specHints != null && filterHints.get(path) != null) {
+                specHints.put(spec, filterHints.get(path));
+            }
+            if (specsRequiringStats != null && pathsRequiringStats.contains(path)) {
+                specsRequiringStats.add(spec);
+            }
+            if (specsReadingNoRows != null && pathsReadingNoRows.contains(path)) {
+                specsReadingNoRows.add(spec);
+            }
+        }
+        resolver.resolve(specs, specHints, declaredMappings, specsRequiringStats, specsReadingNoRows, null, listener);
+    }
+
+    /**
+     * The resolution of the <b>only</b> spec over {@code path}. A test knows the configuration it resolved under, so
+     * it can ask by path; a plan cannot, and asks by {@link ExternalSourceSpec} through
+     * {@link ExternalSourceResolution#resolvedSource}. Throws rather than guess when a path carries two specs.
+     *
+     * @throws IllegalStateException if more than one spec over {@code path} resolved
+     */
+    private static ExternalSourceResolution.ResolvedSource soleResolvedSource(ExternalSourceResolution resolution, String path) {
+        ExternalSourceResolution.ResolvedSource found = null;
+        for (Map.Entry<ExternalSourceSpec, ExternalSourceResolution.ResolvedSource> entry : resolution.resolved().entrySet()) {
+            if (entry.getKey().path().equals(path)) {
+                if (found != null) {
+                    throw new IllegalStateException(
+                        "path [" + path + "] was read more than one way; ask for a ResolvedSource by its ExternalSourceSpec"
+                    );
+                }
+                found = entry.getValue();
+            }
+        }
+        return found;
+    }
+
     // _file.* columns are no longer auto-attached to the resolved schema (they are request-driven),
     // so the resolved-schema width assertions below count data columns + partition columns only.
 
@@ -228,7 +321,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 ExternalSourceResolution resolution = resolveWithDeclaredMapping(List.of(attr("event_ts", numeric)), props, dynamic);
                 assertNotNull(
                     "[format] on a [" + numeric.typeName() + "] physical must resolve (dynamic=" + dynamic + ")",
-                    resolution.resolvedSource(DECLARED_GLOB)
+                    soleResolvedSource(resolution, DECLARED_GLOB)
                 );
             }
         }
@@ -284,7 +377,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             DatasetMapping.Dynamic.TRUE
         );
 
-        List<Attribute> schema = resolution.resolvedSource(DECLARED_GLOB).metadata().schema();
+        List<Attribute> schema = soleResolvedSource(resolution, DECLARED_GLOB).metadata().schema();
         assertEquals(List.of("id", "dept"), schema.stream().map(Attribute::name).toList());
         assertEquals(DataType.KEYWORD, schema.get(1).dataType());
         assertThat(resolution.warnings(), hasItem(SkipWarnings.absentColumnMessage("department")));
@@ -309,7 +402,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             DatasetMapping.Dynamic.FALSE
         );
 
-        List<Attribute> schema = resolution.resolvedSource(DECLARED_GLOB).metadata().schema();
+        List<Attribute> schema = soleResolvedSource(resolution, DECLARED_GLOB).metadata().schema();
         assertThat(schema.get(0).name(), equalTo("msg"));
         assertThat(schema.get(0).dataType(), equalTo(DataType.KEYWORD));
 
@@ -348,7 +441,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(DECLARED_GLOB), Map.of(DECLARED_GLOB, new HashMap<>()), null, Map.of(), null, future);
+        resolvePaths(resolver, List.of(DECLARED_GLOB), Map.of(DECLARED_GLOB, new HashMap<>()), null, Map.of(), null, future);
 
         assertThat(future.actionGet().warnings(), empty());
     }
@@ -383,7 +476,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(
+        resolvePaths(
+            resolver,
             List.of(DECLARED_GLOB),
             Map.of(DECLARED_GLOB, new HashMap<>()),
             null,
@@ -391,7 +485,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null,
             future
         );
-        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(DECLARED_GLOB);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(future.actionGet(), DECLARED_GLOB);
 
         assertNotNull(resolved);
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
@@ -434,7 +528,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger discoveryReads = new AtomicInteger();
         CountingStorageProvider discoveryProvider = new CountingStorageProvider(listings, schemas);
         ExternalSourceResolver discovery = buildStatsResolver(discoveryProvider, stats, discoveryReads, null);
-        assertNotNull(resolveDeclared(discovery, mapping, Set.of(DECLARED_GLOB)).resolvedSource(DECLARED_GLOB));
+        assertNotNull(soleResolvedSource(resolveDeclared(discovery, mapping, Set.of(DECLARED_GLOB)), DECLARED_GLOB));
         assertEquals("no footer is parsed when no rows are read", 0, discoveryReads.get());
         assertEquals("and no object is opened at all", 0, discoveryProvider.schemaCallCount.get());
         assertEquals("the listing itself still happens, once", 1, discoveryProvider.listCallCount.get());
@@ -443,13 +537,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // that is where the silent-null cast this guards would happen.
         AtomicInteger readingReads = new AtomicInteger();
         ExternalSourceResolver reading = buildStatsResolver(new StubStorageProvider(listings, schemas), stats, readingReads, null);
-        assertNotNull(resolveDeclared(reading, mapping, Set.of()).resolvedSource(DECLARED_GLOB));
+        assertNotNull(soleResolvedSource(resolveDeclared(reading, mapping, Set.of()), DECLARED_GLOB));
         assertThat("a query that reads rows still validates the declaration", readingReads.get(), greaterThan(0));
     }
 
     private ExternalSourceResolution resolveDeclared(ExternalSourceResolver resolver, DatasetMapping mapping, Set<String> noRowPaths) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(
+        resolvePaths(
+            resolver,
             List.of(DECLARED_GLOB),
             Map.of(DECLARED_GLOB, new HashMap<>()),
             null,
@@ -486,7 +581,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(
+        resolvePaths(
+            resolver,
             List.of(DECLARED_GLOB),
             Map.of(DECLARED_GLOB, new HashMap<>()),
             null,
@@ -495,7 +591,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Set.of(DECLARED_GLOB),
             future
         );
-        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(DECLARED_GLOB);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(future.actionGet(), DECLARED_GLOB);
 
         assertNotNull(resolved);
         assertTrue("the listing must have been bounded for this to be the case under test", resolved.fileList().isTruncated());
@@ -541,7 +637,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> future1 = new PlainActionFuture<>();
-            resolver.resolve(
+            resolvePaths(
+                resolver,
                 List.of(DECLARED_GLOB),
                 Map.of(DECLARED_GLOB, new HashMap<>()),
                 null,
@@ -549,14 +646,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Set.of(),
                 future1
             );
-            ExternalSourceResolution.ResolvedSource first = future1.actionGet().resolvedSource(DECLARED_GLOB);
+            ExternalSourceResolution.ResolvedSource first = soleResolvedSource(future1.actionGet(), DECLARED_GLOB);
             assertNotNull(first);
             // Without this the test passes on the unbounded rail, which shared before this change.
             assertTrue("resolution must have listed a bounded prefix, or this pins the wrong rail", first.fileList().isTruncated());
             int listsAfterFirst = provider.listCallCount.get();
 
             PlainActionFuture<ExternalSourceResolution> future2 = new PlainActionFuture<>();
-            resolver.resolve(
+            resolvePaths(
+                resolver,
                 List.of(DECLARED_GLOB),
                 Map.of(DECLARED_GLOB, new HashMap<>()),
                 null,
@@ -564,7 +662,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Set.of(),
                 future2
             );
-            ExternalSourceResolution.ResolvedSource second = future2.actionGet().resolvedSource(DECLARED_GLOB);
+            ExternalSourceResolution.ResolvedSource second = soleResolvedSource(future2.actionGet(), DECLARED_GLOB);
             assertNotNull(second);
 
             assertEquals("second resolve does not list again", listsAfterFirst, provider.listCallCount.get());
@@ -586,7 +684,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties));
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(
+        resolvePaths(
+            resolver,
             List.of(DECLARED_GLOB),
             Map.of(DECLARED_GLOB, new HashMap<>()),
             null,
@@ -618,7 +717,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals("dynamic=" + dynamic, RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
             assertNotNull(
                 "dynamic=" + dynamic,
-                resolveDeclaredWithConfig(fileSchema, props, dynamic, Map.of("schema_max_fields", 2), null).resolvedSource(DECLARED_GLOB)
+                soleResolvedSource(
+                    resolveDeclaredWithConfig(fileSchema, props, dynamic, Map.of("schema_max_fields", 2), null),
+                    DECLARED_GLOB
+                )
             );
         }
     }
@@ -636,7 +738,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> config = Map.of("schema_max_fields", 2);
 
         ExternalSourceResolution strict = resolveDeclaredWithConfig(fileSchema, props, DatasetMapping.Dynamic.FALSE, config, capsSeen);
-        assertNotNull(strict.resolvedSource(DECLARED_GLOB));
+        assertNotNull(soleResolvedSource(strict, DECLARED_GLOB));
         assertThat("the probe read the footer at the ceiling", capsSeen, hasItem(ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS));
 
         List<Object> inferredCaps = new CopyOnWriteArrayList<>();
@@ -664,7 +766,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         capped.put("schema_max_fields", 4);
         ExternalSourceResolution atCap = resolveMultiFileWithConfig(DECLARED_GLOB, schemasByPath, listing, capped);
-        assertEquals(4, atCap.resolvedSource(DECLARED_GLOB).metadata().schema().size());
+        assertEquals(4, soleResolvedSource(atCap, DECLARED_GLOB).metadata().schema().size());
     }
 
     /**
@@ -694,7 +796,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(dynamic, properties));
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(
+        resolvePaths(
+            resolver,
             List.of(DECLARED_GLOB),
             Map.of(DECLARED_GLOB, new HashMap<>(config)),
             null,
@@ -764,7 +867,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         props.put("id", new DatasetFieldMapping("integer", null));
         DatasetMapping strict = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, props));
         PlainActionFuture<ExternalSourceResolution> strictFuture = new PlainActionFuture<>();
-        resolver.resolve(
+        resolvePaths(
+            resolver,
             List.of(DECLARED_GLOB),
             Map.of(DECLARED_GLOB, new HashMap<>()),
             null,
@@ -775,7 +879,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("strict reads no file, the notice must still arrive", List.of(notice), strictFuture.actionGet().warnings());
 
         PlainActionFuture<ExternalSourceResolution> inferredFuture = new PlainActionFuture<>();
-        resolver.resolve(List.of(DECLARED_GLOB), Map.of(DECLARED_GLOB, new HashMap<>()), inferredFuture);
+        resolvePaths(resolver, List.of(DECLARED_GLOB), Map.of(DECLARED_GLOB, new HashMap<>()), inferredFuture);
         assertEquals(
             "inferred reads metadata per file, the notice must arrive once",
             List.of(notice),
@@ -806,10 +910,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolverWithReader(provider, reader, null);
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), future);
+        resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>()), future);
         ExternalSourceResolution resolution = future.actionGet();
 
-        assertEquals(1, resolution.resolvedSource(glob).fileList().fileCount());
+        assertEquals(1, soleResolvedSource(resolution, glob).fileList().fileCount());
         assertEquals(List.of(notice), resolution.warnings());
     }
 
@@ -858,7 +962,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 configFor(strategy)
             );
 
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             List<String> expectedDataNames = expectedDataColumnNames.get(strategy);
             List<Attribute> resolvedSchema = resolved.metadata().schema();
@@ -868,7 +972,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }
 
         ExternalSourceResolution omitted = resolveMultiFileWithConfig("s3://bucket/data/*.parquet", schemasByPath, listing, Map.of());
-        ExternalSourceResolution.ResolvedSource omittedResolved = omitted.resolvedSource("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource omittedResolved = soleResolvedSource(omitted, "s3://bucket/data/*.parquet");
         List<String> omittedNames = omittedResolved.metadata().schema().stream().map(Attribute::name).toList();
         assertEquals("omitted schema_resolution must match first_file_wins width", 2, omittedNames.size());
         assertEquals("omitted schema_resolution must match first_file_wins columns", List.of("emp_no", "name"), omittedNames);
@@ -912,7 +1016,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 configFor(strategy)
             );
 
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             List<String> expectedDataNames = expectedDataColumnNames.get(strategy);
             List<Attribute> resolvedSchema = resolved.metadata().schema();
@@ -942,7 +1046,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 configFor(strategy)
             );
 
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             List<Attribute> resolvedSchema = resolved.metadata().schema();
             assertEquals("[" + strategy + "] resolved schema width", 2, resolvedSchema.size());
@@ -1533,7 +1637,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
         assertEquals(2, schemaMap.size());
@@ -1574,7 +1678,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 listing,
                 configFor(strategy)
             );
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             Object partial = resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL);
             assertEquals("[" + strategy + "] STATS_PARTIAL must be true when not every file reports statistics", Boolean.TRUE, partial);
@@ -1609,7 +1713,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 listing,
                 configFor(strategy)
             );
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             Object fileCount = resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_FILE_COUNT);
             assertEquals("[" + strategy + "] STATS_FILE_COUNT must equal the number of discovered files", 3L, fileCount);
@@ -1641,7 +1745,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
         assertEquals("schemaMap must have one entry per matched file", 3, schemaMap.size());
@@ -1679,7 +1783,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/z.parquet", 100), entry("s3://bucket/data/a.parquet", 200)),
             configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
         );
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
         assertEquals("wide", resolved.metadata().schema().get(0).name());
     }
 
@@ -1763,7 +1867,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 configFor(strategy)
             );
 
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
             assertEquals("[" + strategy + "] schemaMap must have one entry per matched file", 3, schemaMap.size());
@@ -1872,7 +1976,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 configFor(strategy)
             );
 
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             assertNull(
                 "[" + strategy + "] STATS_PARTIAL must be absent for single-file matches",
@@ -1916,7 +2020,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 configFor(strategy)
             );
 
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             Map<String, Object> meta = resolved.metadata().sourceMetadata();
             assertEquals("[" + strategy + "] aggregated row count", 6000L, meta.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
@@ -1944,7 +2048,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger metadataReads = new AtomicInteger();
         ExternalSourceResolution resolution = resolveFfwWithRequirement(threeFileStats(), metadataReads, Set.of(), null);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, GLOB);
         assertNotNull(resolved);
         assertEquals("defer must read only the anchor footer", 1, metadataReads.get());
         Map<String, Object> meta = resolved.metadata().sourceMetadata();
@@ -1965,7 +2069,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger metadataReads = new AtomicInteger();
         ExternalSourceResolution resolution = resolveFfwWithRequirement(threeFileStats(), metadataReads, Set.of(GLOB), null);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, GLOB);
         assertNotNull(resolved);
         // anchor schema read (1) + per-file stats reads across all 3 files (3) = 4.
         assertEquals("eager must read the anchor footer plus all file footers", 4, metadataReads.get());
@@ -1987,7 +2091,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ThreeFileStats withoutRowCounts = new ThreeFileStats(threeFileSchemas(), Map.of());
         ExternalSourceResolution resolution = resolveFfwWithRequirement(withoutRowCounts, metadataReads, Set.of(GLOB), null);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, GLOB);
         assertNotNull(resolved);
         assertEquals("anchor footer plus the single read that kills the fold", 2, metadataReads.get());
         Map<String, Object> meta = resolved.metadata().sourceMetadata();
@@ -2010,7 +2114,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = buildStatsResolver(provider, withoutRowCounts, metadataReads, cacheService);
 
             ExternalSourceResolution resolution = resolveFfw(resolver, Set.of(GLOB));
-            assertNotNull(resolution.resolvedSource(GLOB));
+            assertNotNull(soleResolvedSource(resolution, GLOB));
             // Anchor read (1) plus the two non-anchor files; the anchor itself is served from the schema
             // cache inside the stats loop, as testFirstFileWinsEagerCacheableColdLoadsAllFiles pins. The
             // number that matters is that it is not 2: the gather did not stop.
@@ -2035,20 +2139,20 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = buildStatsResolver(provider, withoutRowCounts, metadataReads, cacheService);
 
             ExternalSourceResolution resolution = resolveFfw(resolver, Set.of(GLOB));
-            assertNotNull(resolution.resolvedSource(GLOB));
+            assertNotNull(soleResolvedSource(resolution, GLOB));
             assertEquals("a refused fan-out stops at the sizing read", 2, metadataReads.get());
         }
     }
 
     /**
-     * Legacy {@code null} overload: a {@code null} {@code pathsRequiringStats} keeps the original
-     * eager-for-every-path behavior, so all footers are read regardless of query shape.
+     * A {@code null} {@code specsRequiringStats} keeps the original eager-for-every-spec behavior, so all footers
+     * are read regardless of query shape.
      */
     public void testFirstFileWinsLegacyNullSetReadsAllFooters() throws Exception {
         AtomicInteger metadataReads = new AtomicInteger();
         ExternalSourceResolution resolution = resolveFfwWithRequirement(threeFileStats(), metadataReads, null, null);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, GLOB);
         assertNotNull(resolved);
         assertEquals("legacy null set is eager for all paths", 4, metadataReads.get());
         Map<String, Object> meta = resolved.metadata().sourceMetadata();
@@ -2066,7 +2170,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = buildStatsResolver(provider, threeFileStats(), null, cacheService);
 
             ExternalSourceResolution resolution = resolveFfw(resolver, Set.of());
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, GLOB);
             assertNotNull(resolved);
             assertEquals("defer loads only the anchor schema", 1, provider.schemaCallCount.get());
             assertEquals(Boolean.TRUE, resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL));
@@ -2092,7 +2196,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, cacheService);
 
             resolveFfw(resolver, Set.of(GLOB));
-            ExternalSourceResolution.ResolvedSource deferred = resolveFfw(resolver, Set.of()).resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource deferred = soleResolvedSource(resolveFfw(resolver, Set.of()), GLOB);
             assertNotNull(deferred);
             SchemaReconciliation.FileSchemaInfo driftInfo = deferred.schemaMap().get(StoragePath.of(driftPath));
             assertNotNull(driftInfo);
@@ -2118,7 +2222,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
         ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
 
-        ExternalSourceResolution.ResolvedSource deferred = resolveFfw(resolver, Set.of()).resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource deferred = soleResolvedSource(resolveFfw(resolver, Set.of()), GLOB);
         SchemaReconciliation.FileSchemaInfo anchorInfo = deferred.schemaMap().get(StoragePath.of(anchorPath));
         SchemaReconciliation.FileSchemaInfo driftInfo = deferred.schemaMap().get(StoragePath.of(driftPath));
         assertNotNull(anchorInfo);
@@ -2138,7 +2242,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
         ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolveFfw(resolver, Set.of()).resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolveFfw(resolver, Set.of()), GLOB);
         SchemaReconciliation.FileSchemaInfo info = resolved.schemaMap().get(StoragePath.of(anchorPath));
         assertNotNull(info);
         assertEquals(Map.of("x", DataType.INTEGER), info.inferredTypes());
@@ -2154,7 +2258,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
         ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolveFfw(resolver, Set.of()).resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolveFfw(resolver, Set.of()), GLOB);
         SchemaReconciliation.FileSchemaInfo info = resolved.schemaMap().get(StoragePath.of(anchorPath));
         assertNotNull(info);
         assertEquals(Map.of("x", DataType.INTEGER), info.inferredTypes());
@@ -2243,7 +2347,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(
+        resolvePaths(
+            resolver,
             List.of(GLOB),
             Map.of(GLOB, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
             null,
@@ -2251,7 +2356,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Set.of(),
             future
         );
-        SchemaReconciliation.FileSchemaInfo driftInfo = future.actionGet().resolvedSource(GLOB).schemaMap().get(StoragePath.of(driftPath));
+        SchemaReconciliation.FileSchemaInfo driftInfo = soleResolvedSource(future.actionGet(), GLOB).schemaMap()
+            .get(StoragePath.of(driftPath));
         assertNotNull(driftInfo);
         assertNull(driftInfo.inferredTypes());
     }
@@ -2280,7 +2386,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             config.put("error_mode", errorMode);
 
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(GLOB), Map.of(GLOB, config), null, Map.of(GLOB, mapping), Set.of(), future);
+            resolvePaths(resolver, List.of(GLOB), Map.of(GLOB, config), null, Map.of(GLOB, mapping), Set.of(), future);
             if (errorMode.equals("fail_fast")) {
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
                 assertEquals(
@@ -2288,7 +2394,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     e.getMessage()
                 );
             } else {
-                ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
+                ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(future.actionGet(), GLOB);
                 assertEquals(DataType.BOOLEAN, resolved.metadata().schema().get(0).dataType());
             }
         }
@@ -2316,8 +2422,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         config.put("error_mode", "fail_fast");
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(GLOB), Map.of(GLOB, config), null, Map.of(GLOB, mapping), Set.of(GLOB), future);
-        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
+        resolvePaths(resolver, List.of(GLOB), Map.of(GLOB, config), null, Map.of(GLOB, mapping), Set.of(GLOB), future);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(future.actionGet(), GLOB);
 
         assertEquals(DataType.BOOLEAN, resolved.metadata().schema().get(0).dataType());
         SchemaReconciliation.FileSchemaInfo driftInfo = resolved.schemaMap().get(StoragePath.of(driftPath));
@@ -2346,8 +2452,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         config.put("partition_detection", "hive");
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, config), null, Map.of(glob, mapping), Set.of(), future);
-        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(glob);
+        resolvePaths(resolver, List.of(glob), Map.of(glob, config), null, Map.of(glob, mapping), Set.of(), future);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(future.actionGet(), glob);
         SchemaReconciliation.FileSchemaInfo anchorInfo = resolved.schemaMap().get(StoragePath.of(anchorPath));
         SchemaReconciliation.FileSchemaInfo driftInfo = resolved.schemaMap().get(StoragePath.of(driftPath));
 
@@ -2373,7 +2479,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = buildStatsResolver(provider, threeFileStats(), null, cacheService);
 
             ExternalSourceResolution resolution = resolveFfw(resolver, Set.of(GLOB));
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, GLOB);
             assertNotNull(resolved);
             assertEquals("eager cold-loads all 3 file schemas exactly once", 3, provider.schemaCallCount.get());
             Map<String, Object> meta = resolved.metadata().sourceMetadata();
@@ -2391,7 +2497,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger metadataReads = new AtomicInteger();
         ExternalSourceResolution resolution = resolveFfwWithRequirement(threeFileStats(), metadataReads, Set.of(), null);
 
-        Map<String, Object> meta = resolution.resolvedSource(GLOB).metadata().sourceMetadata();
+        Map<String, Object> meta = soleResolvedSource(resolution, GLOB).metadata().sourceMetadata();
         assertEquals(Boolean.TRUE, meta.get(SourceStatisticsSerializer.STATS_PARTIAL));
         assertNull(
             "deferred (partial) anchor stats must not resolve as global split stats",
@@ -2413,7 +2519,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             // empty pathsRequiringStats would defer under FFW; the reconciliation path ignores it.
             ExternalSourceResolution resolution = resolveFfwWithRequirement(threeFileStats(), metadataReads, Set.of(), strategy);
 
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, GLOB);
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             assertEquals("[" + strategy + "] reconciliation must read all files", 3, metadataReads.get());
             Map<String, Object> meta = resolved.metadata().sourceMetadata();
@@ -2468,7 +2574,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     /**
      * Non-cacheable FFW resolve that counts footer reads (format-reader metadata calls) and threads a
-     * {@code pathsRequiringStats} set through the new 5-arg {@code resolve} overload.
+     * {@code specsRequiringStats} set through {@link #resolvePaths}, which lifts paths to specs for the one
+     * {@code resolve}.
      */
     private ExternalSourceResolution resolveFfwWithRequirement(
         ThreeFileStats stats,
@@ -2521,8 +2628,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     ) {
         ExternalSourceResolver resolver = createResolver(schemas, Map.of(PREFIX, listing));
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), null, null, Set.of(), pathsReadingNoRows, future);
-        return future.actionGet().resolvedSource(glob).fileList().partitionMetadata().partitionColumns();
+        resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>(config)), null, null, Set.of(), pathsReadingNoRows, future);
+        return soleResolvedSource(future.actionGet(), glob).fileList().partitionMetadata().partitionColumns();
     }
 
     public void testTheSchemasListingCostsTheSameWhateverTheQueryAsksFor() throws Exception {
@@ -2545,7 +2652,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolution discovery = resolveWithNoRowPaths(resolver, Set.of(GLOB));
             // Each resolve gets its own provider and resolver, so the second is as cold as the first: a warm schema
             // cache would otherwise make the reading query look cheaper than it is.
-            ExternalSourceResolution.ResolvedSource bounded = discovery.resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource bounded = soleResolvedSource(discovery, GLOB);
             assertNotNull(bounded);
             assertEquals("schema discovery stops at the key bound", 1000, bounded.fileList().fileCount());
             assertTrue("and says that it did", bounded.fileList().isTruncated());
@@ -2556,7 +2663,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolution.ResolvedSource full;
             try (ExternalSourceCacheService readingCache = new ExternalSourceCacheService(cacheEnabledSettings())) {
                 ExternalSourceResolver readingResolver = buildStatsResolver(readingProvider, stats, null, readingCache);
-                full = resolveWithNoRowPaths(readingResolver, Set.of()).resolvedSource(GLOB);
+                full = soleResolvedSource(resolveWithNoRowPaths(readingResolver, Set.of()), GLOB);
             }
             assertNotNull(full);
 
@@ -2574,7 +2681,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             // report success - is held by the key rather than by refusing the cache: the extent is part of the
             // address, so only a query asking for the same bound can be served this entry. Asking for the same
             // bound is asking the same question, and the answer is the same listing.
-            ExternalSourceResolution.ResolvedSource second = resolveWithNoRowPaths(resolver, Set.of(GLOB)).resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource second = soleResolvedSource(resolveWithNoRowPaths(resolver, Set.of(GLOB)), GLOB);
             assertNotNull(second);
             assertEquals(
                 "a second resolve asking for the same bound is served the cached prefix",
@@ -2612,8 +2719,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, listing), schemas);
             ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(configFor(mode))), null, null, Set.of(), Set.of(GLOB), future);
-            ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(GLOB);
+            resolvePaths(resolver, List.of(GLOB), Map.of(GLOB, new HashMap<>(configFor(mode))), null, null, Set.of(), Set.of(GLOB), future);
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(future.actionGet(), GLOB);
             assertNotNull(resolved);
             assertEquals(
                 mode + " reconciles every file by contract, so a prefix would answer a narrower schema",
@@ -2650,13 +2757,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
             CountingStorageProvider provider = new CountingStorageProvider(Map.of(PREFIX, listing), schemas);
             ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, cacheService);
 
-            ExternalSourceResolution.ResolvedSource first = resolveForSchemaDiscovery(resolver, config).resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource first = soleResolvedSource(resolveForSchemaDiscovery(resolver, config), GLOB);
             assertNotNull(first);
             assertFalse("a dataset ordering the glob itself cannot be answered from a prefix", first.fileList().isTruncated());
             assertEquals(1500, first.fileList().fileCount());
             int listsAfterFirst = provider.listCallCount.get();
 
-            ExternalSourceResolution.ResolvedSource second = resolveForSchemaDiscovery(resolver, config).resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource second = soleResolvedSource(resolveForSchemaDiscovery(resolver, config), GLOB);
             assertNotNull(second);
             assertEquals(1500, second.fileList().fileCount());
             assertEquals("the second resolve must be served from the listing cache", listsAfterFirst, provider.listCallCount.get());
@@ -2685,7 +2792,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         StubStorageProvider provider = new StubStorageProvider(Map.of(PREFIX, listing), schemas);
         ExternalSourceResolver resolver = buildStatsResolver(provider, stats, null, null);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolveForSchemaDiscovery(resolver, config).resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolveForSchemaDiscovery(resolver, config), GLOB);
         assertNotNull(resolved);
         assertEquals("the bound is whatever the dataset says", configured, resolved.fileList().fileCount());
         assertTrue(resolved.fileList().isTruncated());
@@ -2745,10 +2852,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolver resolver = createResolver(schemas, Map.of("s3://bucket/data/", listing));
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(GLOB), Map.of(GLOB, config), Map.of(GLOB, List.of(hint)), null, Set.of(), Set.of(GLOB), future);
+        resolvePaths(resolver, List.of(GLOB), Map.of(GLOB, config), Map.of(GLOB, List.of(hint)), null, Set.of(), Set.of(GLOB), future);
         ExternalSourceResolution resolved = future.actionGet();
 
-        ExternalSourceResolution.ResolvedSource source = resolved.resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource source = soleResolvedSource(resolved, GLOB);
         assertEquals(1, source.fileList().fileCount());
         assertEquals("s3://bucket/data/c.parquet", source.fileList().path(0).toString());
         assertEquals(
@@ -2784,9 +2891,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Map.of(PREFIX, listing, "s3://bucket/data/year=2025/", List.of(entry("s3://bucket/data/year=2025/b.parquet", 200)))
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, config), Map.of(glob, List.of(hint)), null, Set.of(), Set.of(glob), future);
+        resolvePaths(resolver, List.of(glob), Map.of(glob, config), Map.of(glob, List.of(hint)), null, Set.of(), Set.of(glob), future);
 
-        ExternalSourceResolution.ResolvedSource source = future.actionGet().resolvedSource(glob);
+        ExternalSourceResolution.ResolvedSource source = soleResolvedSource(future.actionGet(), glob);
         assertEquals(1, source.fileList().fileCount());
         assertEquals("s3://bucket/data/year=2025/b.parquet", source.fileList().path(0).toString());
         assertThat(source.metadata().schema().stream().map(Attribute::name).toList(), hasItem("from_2025"));
@@ -2824,7 +2931,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Map.of(PREFIX, listing, "s3://bucket/data/year=2025/", List.of(entry("s3://bucket/data/year=2025/b.parquet", 200)))
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(
+        resolvePaths(
+            resolver,
             List.of(glob),
             Map.of(glob, config),
             Map.of(glob, List.of(hint)),
@@ -2834,7 +2942,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             future
         );
 
-        ExternalSourceResolution.ResolvedSource source = future.actionGet().resolvedSource(glob);
+        ExternalSourceResolution.ResolvedSource source = soleResolvedSource(future.actionGet(), glob);
         assertEquals("declared mapping must still list only the matching folder", 1, source.fileList().fileCount());
         assertEquals("s3://bucket/data/year=2025/b.parquet", source.fileList().path(0).toString());
     }
@@ -2873,8 +2981,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         // null pathsRequiringStats is legacy eager-all (unbounded). The soak billed the year on that rail.
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), hints, null, null, future);
-        FileList listing = future.actionGet().resolvedSource(glob).fileList();
+        resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>()), hints, null, null, future);
+        FileList listing = soleResolvedSource(future.actionGet(), glob).fileList();
         assertEquals("default FFW must list the hinted day, not the year", 24, listing.fileCount());
         for (int i = 0; i < listing.fileCount(); i++) {
             assertTrue(listing.path(i).toString().startsWith("s3://bucket/data/year=2026/month=07/day=13/"));
@@ -2892,11 +3000,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // eager listing cannot stand in for it.
         ExternalSourceResolver bounded = createResolver(schemas, Map.of("s3://bucket/data/", files));
         PlainActionFuture<ExternalSourceResolution> boundedFuture = new PlainActionFuture<>();
-        bounded.resolve(List.of(glob), Map.of(glob, new HashMap<>()), hints, null, Set.of(), boundedFuture);
+        resolvePaths(bounded, List.of(glob), Map.of(glob, new HashMap<>()), hints, null, Set.of(), boundedFuture);
         assertEquals(
             "bounded FFW (no eager stats) must still list the hinted day",
             24,
-            boundedFuture.actionGet().resolvedSource(glob).fileList().fileCount()
+            soleResolvedSource(boundedFuture.actionGet(), glob).fileList().fileCount()
         );
     }
 
@@ -3061,13 +3169,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     private ExternalSourceResolution resolveForSchemaDiscovery(ExternalSourceResolver resolver, Map<String, Object> config) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, Set.of(), Set.of(GLOB), future);
+        resolvePaths(resolver, List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, Set.of(), Set.of(GLOB), future);
         return future.actionGet();
     }
 
     private ExternalSourceResolution resolveWithNoRowPaths(ExternalSourceResolver resolver, Set<String> pathsReadingNoRows) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(
+        resolvePaths(
+            resolver,
             List.of(GLOB),
             Map.of(GLOB, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
             null,
@@ -3089,7 +3198,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> config
     ) {
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, pathsRequiringStats, future);
+        resolvePaths(resolver, List.of(GLOB), Map.of(GLOB, new HashMap<>(config)), null, null, pathsRequiringStats, future);
         return future.actionGet();
     }
 
@@ -3459,7 +3568,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
             ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, null);
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(
+            resolvePaths(
+                resolver,
                 List.of(glob),
                 Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
                 null,
@@ -3467,7 +3577,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Set.of(glob),
                 future
             );
-            assertNotNull(future.actionGet().resolvedSource(glob));
+            assertNotNull(soleResolvedSource(future.actionGet(), glob));
             assertEquals("the refused fan-out must be counted once", 1L, cacheService.usageStats().get("schema_fan_out.refused"));
             assertNotNull("the budget it was compared against is reported too", cacheService.usageStats().get("schema_budget_bytes"));
         }
@@ -3500,7 +3610,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = ndjsonPromiseResolver(provider, schemas, Map.of(), cacheService, reads);
 
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(
+            resolvePaths(
+                resolver,
                 List.of(glob),
                 Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
                 null,
@@ -3508,7 +3619,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Set.of(glob),
                 future
             );
-            assertNotNull(future.actionGet().resolvedSource(glob));
+            assertNotNull(soleResolvedSource(future.actionGet(), glob));
             Map<String, Object> stats = cacheService.usageStats();
             return new long[] {
                 reads.get(),
@@ -3571,8 +3682,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             config.put(ErrorPolicy.CONFIG_ERROR_MODE, errorMode);
 
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), Map.of(glob, config), null, null, Set.of(glob), future);
-            assertNotNull(future.actionGet().resolvedSource(glob));
+            resolvePaths(resolver, List.of(glob), Map.of(glob, config), null, null, Set.of(glob), future);
+            assertNotNull(soleResolvedSource(future.actionGet(), glob));
             return metadataReads.get();
         }
     }
@@ -3614,8 +3725,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             config.put(ErrorPolicy.CONFIG_ERROR_MODE, errorMode);
 
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), Map.of(glob, config), null, null, Set.of(glob), future);
-            assertNotNull(future.actionGet().resolvedSource(glob));
+            resolvePaths(resolver, List.of(glob), Map.of(glob, config), null, null, Set.of(glob), future);
+            assertNotNull(soleResolvedSource(future.actionGet(), glob));
 
             assertEquals(errorMode + ": wrong read count for this error policy", expectedReads, metadataReads.get());
         }
@@ -3695,12 +3806,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
                 Map<String, Object> config = configFor(strategy);
                 PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-                resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), null, null, Set.of(glob), future);
+                resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>(config)), null, null, Set.of(glob), future);
                 ExternalSourceResolution resolution = future.actionGet();
                 assertEquals(
                     "[" + strategy + "] an incomplete per-file merge must mark stats partial (the promise-registration path)",
                     Boolean.TRUE,
-                    resolution.resolvedSource(glob).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
+                    soleResolvedSource(resolution, glob).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
                 );
 
                 // Resolve stamps the inferred format onto config so unrecognized listed objects still use
@@ -3973,7 +4084,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution resolution = resolveMultiFile("s3://bucket/data/*.parquet", schemasByPath, entries);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         FileList fileList = resolved.fileList();
         assertTrue(fileList.isResolved());
@@ -3994,7 +4105,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/dir/x.parquet", 50))
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/dir/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/dir/*.parquet");
         assertNotNull(resolved);
         assertEquals("s3://bucket/dir/*.parquet", resolved.fileList().originalPattern());
     }
@@ -4039,7 +4150,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolver resolver = createResolverWithCancellation(schemasByPath, listingsByPrefix, isCancelled, reads);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of("s3://bucket/data/*.parquet"), Map.of(), future);
+        resolvePaths(resolver, List.of("s3://bucket/data/*.parquet"), Map.of(), future);
 
         // Cancellation surfaces unwrapped (not wrapped in a generic "Failed to resolve external source").
         expectThrows(TaskCancelledException.class, future::actionGet);
@@ -4073,7 +4184,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger reads = new AtomicInteger(0);
         ExternalSourceResolver resolver = createResolverWithCancellation(schemasByPath, listingsByPrefix, () -> true, reads);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of("s3://bucket/data/*.parquet"), Map.of(), future);
+        resolvePaths(resolver, List.of("s3://bucket/data/*.parquet"), Map.of(), future);
 
         expectThrows(TaskCancelledException.class, future::actionGet);
         assertEquals("a query cancelled before resolution must read zero footers", 0, reads.get());
@@ -4129,7 +4240,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 failOnPathSuffix
             );
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(
+            resolvePaths(
+                resolver,
                 List.of("s3://bucket/data/*.parquet"),
                 Map.of("s3://bucket/data/*.parquet", new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
                 future
@@ -4188,7 +4300,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 failOnPathSuffix
             );
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(
+            resolvePaths(
+                resolver,
                 List.of("s3://bucket/data/*.parquet"),
                 Map.of("s3://bucket/data/*.parquet", new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
                 future
@@ -4209,7 +4322,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution resolution = resolveSingleFile("s3://bucket/data/single.parquet", schemasByPath);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/single.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/single.parquet");
         assertNotNull(resolved);
         FileList fileList = resolved.fileList();
         assertTrue(fileList.isResolved());
@@ -4232,7 +4345,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution resolution = resolveSingleFile("s3://bucket/data/single.parquet", schemasByPath);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/single.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/single.parquet");
         assertNotNull(resolved);
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = resolved.schemaMap();
         assertEquals("single-file schemaMap must have exactly one entry", 1, schemaMap.size());
@@ -4252,7 +4365,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
 
         ExternalSourceResolution resolution = resolveSingleFileWithConfig(path, schemasByPath, Map.of("partition_detection", "hive"));
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, path);
         assertNotNull(resolved);
         FileList fileList = resolved.fileList();
         assertTrue(fileList.isResolved());
@@ -4276,7 +4389,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> config = Map.of("partition_detection", "template", "partition_path", "{year}/{month}");
 
         ExternalSourceResolution resolution = resolveSingleFileWithConfig(path, schemasByPath, config);
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, path);
         assertNotNull(resolved);
         FileList fileList = resolved.fileList();
         assertTrue(fileList.isResolved());
@@ -4297,7 +4410,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
 
         ExternalSourceResolution resolution = resolveSingleFile(path, schemasByPath);
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, path);
         assertNotNull(resolved);
         FileList fileList = resolved.fileList();
         assertTrue(fileList.isResolved());
@@ -4318,7 +4431,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
 
         ExternalSourceResolution resolution = resolveSingleFileWithConfig(path, schemasByPath, Map.of("partition_detection", "none"));
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, path);
         assertNotNull(resolved);
         FileList fileList = resolved.fileList();
         assertTrue(fileList.isResolved());
@@ -4344,9 +4457,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution commaResolution = resolveResourceWithConfig(comma, schemasByPath, Map.of(), Map.of());
 
         Set<String> expected = Set.of("value", "year", "month");
-        assertEquals(expected, columnNames(concrete.resolvedSource(file1).metadata().schema()));
-        assertEquals(expected, columnNames(globResolution.resolvedSource(glob).metadata().schema()));
-        assertEquals(expected, columnNames(commaResolution.resolvedSource(comma).metadata().schema()));
+        assertEquals(expected, columnNames(soleResolvedSource(concrete, file1).metadata().schema()));
+        assertEquals(expected, columnNames(soleResolvedSource(globResolution, glob).metadata().schema()));
+        assertEquals(expected, columnNames(soleResolvedSource(commaResolution, comma).metadata().schema()));
     }
 
     public void testSingleFilePartitionShadowNarrowsMapping() throws Exception {
@@ -4355,7 +4468,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
 
         ExternalSourceResolution resolution = resolveSingleFile(path, schemasByPath);
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, path);
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(2, resolvedSchema.size());
@@ -4393,8 +4506,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolver resolver = createResolver(schemasByPath, Map.of());
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, declared), null, future);
-        ExternalSourceResolution.ResolvedSource resolved = future.actionGet().resolvedSource(path);
+        resolvePaths(resolver, List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, declared), null, future);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(future.actionGet(), path);
         assertNotNull(resolved);
 
         List<Attribute> resolvedSchema = resolved.metadata().schema();
@@ -4420,7 +4533,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolver resolver = createResolver(schemasByPath, Map.of());
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, declared), null, future);
+        resolvePaths(resolver, List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, declared), null, future);
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertThat(e.getMessage(), containsString("collides with a partition column"));
     }
@@ -4435,7 +4548,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolver resolver = createResolver(schemasByPath, Map.of());
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, overlay), null, future);
+        resolvePaths(resolver, List.of(path), Map.of(path, new HashMap<>()), null, Map.of(path, overlay), null, future);
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertThat(e.getMessage(), containsString("collides with a partition column"));
     }
@@ -4446,7 +4559,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, List<Attribute>> schemasByPath = Map.of(path, schema);
 
         ExternalSourceResolution resolution = resolveSingleFile(path, schemasByPath);
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(path);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, path);
         assertNotNull(resolved);
         assertThat(columnNames(resolved.metadata().schema()), hasItem("_partition._index"));
         assertThat(resolution.warnings(), hasItem("partition key [_index] is named [_partition._index]"));
@@ -4472,7 +4585,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/typed.parquet", 100))
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(5, resolvedSchema.size());
         assertEquals(DataType.LONG, resolvedSchema.get(0).dataType());
@@ -4522,11 +4635,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
             listingsByPrefix
         );
 
-        ExternalSourceResolution.ResolvedSource resolved1 = resolution.resolvedSource("s3://bucket/dir1/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved1 = soleResolvedSource(resolution, "s3://bucket/dir1/*.parquet");
         assertNotNull(resolved1);
         assertEquals("a", resolved1.metadata().schema().get(0).name());
 
-        ExternalSourceResolution.ResolvedSource resolved2 = resolution.resolvedSource("s3://bucket/dir2/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved2 = soleResolvedSource(resolution, "s3://bucket/dir2/*.parquet");
         assertNotNull(resolved2);
         assertEquals("b", resolved2.metadata().schema().get(0).name());
     }
@@ -4548,7 +4661,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             config
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         assertEquals("test-key", resolved.metadata().config().get("access_key"));
         assertEquals("test-secret", resolved.metadata().config().get("secret_key"));
@@ -4569,7 +4682,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/year=2024/file1.parquet", 100), entry("s3://bucket/data/year=2023/file2.parquet", 200))
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/year=*/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(3, resolvedSchema.size());
@@ -4592,7 +4705,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/year=2024/file1.parquet", 100), entry("s3://bucket/data/year=2023/file2.parquet", 200))
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/year=*/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(2, resolvedSchema.size());
@@ -4650,7 +4763,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 configFor(strategy)
             );
 
-            ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/year=*/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
 
             // Coordinator schema: physical 'year' shadowed, partition 'year' (INTEGER from path) appended after data.
@@ -4704,7 +4817,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/file1.parquet", 100), entry("s3://bucket/data/file2.parquet", 200))
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(2, resolvedSchema.size());
@@ -4728,7 +4841,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             )
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/month=*/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/data/year=*/month=*/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(3, resolvedSchema.size());
@@ -4938,7 +5051,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolver resolver = createStrictValidationResolver(schemasByPath, Map.of(), new AtomicInteger());
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(
+        resolvePaths(
+            resolver,
             List.of("s3://bucket/data/file.parquet"),
             Map.of("s3://bucket/data/file.parquet", Map.of("bogus_unknown_key", "value")),
             future
@@ -4960,7 +5074,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
         AtomicInteger readerCallCount = new AtomicInteger();
         ExternalSourceResolver resolver = createStrictValidationResolver(schemasByPath, Map.of(), readerCallCount);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(
+        resolvePaths(
+            resolver,
             List.of("s3://bucket/data/file.parquet"),
             Map.of("s3://bucket/data/file.parquet", Map.of("bogus_unknown_key", "value")),
             future
@@ -5006,7 +5121,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 null
             );
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(path), Map.of(), future);
+            resolvePaths(resolver, List.of(path), Map.of(), future);
 
             ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, future::actionGet);
             assertEquals("format [" + formatName + "] must surface 503", RestStatus.SERVICE_UNAVAILABLE, e.status());
@@ -5035,7 +5150,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     cacheService
                 );
                 PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-                resolver.resolve(List.of(path), Map.of(), future);
+                resolvePaths(resolver, List.of(path), Map.of(), future);
 
                 ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, future::actionGet);
                 assertEquals("format [" + formatName + "] must surface 503", RestStatus.SERVICE_UNAVAILABLE, e.status());
@@ -5062,7 +5177,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 null
             );
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(path), Map.of(), future);
+            resolvePaths(resolver, List.of(path), Map.of(), future);
 
             EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
             assertEquals("format [" + formatName + "] must surface 429", RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(e));
@@ -5088,7 +5203,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     cacheService
                 );
                 PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-                resolver.resolve(List.of(path), Map.of(), future);
+                resolvePaths(resolver, List.of(path), Map.of(), future);
 
                 EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
                 assertEquals("format [" + formatName + "] must surface 429", RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(e));
@@ -5123,7 +5238,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 null
             );
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(path), Map.of(), future);
+            resolvePaths(resolver, List.of(path), Map.of(), future);
 
             String where = "format [" + formatName + "]";
             Exception e = expectThrows(Exception.class, future::actionGet);
@@ -5151,7 +5266,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(), future);
+        resolvePaths(resolver, List.of(path), Map.of(), future);
 
         Exception e = expectThrows(Exception.class, future::actionGet);
         String msg = e.getMessage();
@@ -5178,7 +5293,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     cacheService
                 );
                 PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-                resolver.resolve(List.of(path), Map.of(), future);
+                resolvePaths(resolver, List.of(path), Map.of(), future);
                 messages.add(expectThrows(Exception.class, future::actionGet).getMessage());
             }
             // Runs on the cacheable rail deliberately: distinctness has to survive the ExecutionException wrapper,
@@ -5372,10 +5487,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             AtomicInteger reads = new AtomicInteger();
             ExternalSourceResolver resolver = buildStatsResolver(storageProvider, stats, reads, cacheService);
             Map<String, Object> config = configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS);
-            assertNotNull(resolveFfwWithConfig(resolver, Set.of(GLOB), config).resolvedSource(GLOB));
+            assertNotNull(soleResolvedSource(resolveFfwWithConfig(resolver, Set.of(GLOB), config), GLOB));
             int readsAfterCold = reads.get();
             assertTrue("premise: the cold eager resolve read every footer", readsAfterCold >= 3);
-            ExternalSourceResolution.ResolvedSource warm = resolveFfwWithConfig(resolver, Set.of(), config).resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource warm = soleResolvedSource(resolveFfwWithConfig(resolver, Set.of(), config), GLOB);
             assertNotNull(warm);
             assertEquals("the warm deferred resolve must read no footer", readsAfterCold, reads.get());
             int withStats = 0;
@@ -5412,9 +5527,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemas);
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
-            assertNotNull(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(glob));
+            assertNotNull(soleResolvedSource(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS), glob));
             long coldMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
-            assertNotNull(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(glob));
+            assertNotNull(soleResolvedSource(resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS), glob));
             long warmMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
             assertEquals(
                 "a warm columnar resolve must book no statistics-store miss (cold=" + coldMisses + " warm=" + warmMisses + ")",
@@ -5442,9 +5557,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         CountingStorageProvider provider = new CountingStorageProvider(Map.of("s3://bucket/data/", List.of(entry(file, 100))), schemas);
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemas, cacheService);
-            assertNotNull(resolveWith(resolver, file, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(file));
+            assertNotNull(soleResolvedSource(resolveWith(resolver, file, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS), file));
             long coldMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
-            assertNotNull(resolveWith(resolver, file, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS).resolvedSource(file));
+            assertNotNull(soleResolvedSource(resolveWith(resolver, file, Map.of(), FormatReader.SchemaResolution.FIRST_FILE_WINS), file));
             long warmMisses = ((Number) cacheService.usageStats().get("statistics_cache.misses")).longValue();
             assertEquals(
                 "a warm single-file columnar resolve must book no statistics-store miss (cold=" + coldMisses + " warm=" + warmMisses + ")",
@@ -5459,7 +5574,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testEmptyPathListReturnsEmptyResolution() throws Exception {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(), Map.of(), future);
+        resolvePaths(resolver, List.of(), Map.of(), future);
         ExternalSourceResolution resolution = future.actionGet();
         assertTrue(resolution.isEmpty());
     }
@@ -5467,7 +5582,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testNullPathListReturnsEmptyResolution() throws Exception {
         ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(null, Map.of(), future);
+        resolvePaths(resolver, null, Map.of(), future);
         ExternalSourceResolution resolution = future.actionGet();
         assertTrue(resolution.isEmpty());
     }
@@ -5500,7 +5615,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Map.of("format", "parquet")
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/vpcflow/*");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/vpcflow/*");
         assertNotNull("explicit format must claim unrecognized extensions on the multi-file path", resolved);
         assertEquals(List.of("srcaddr", "bytes"), resolved.metadata().schema().stream().map(Attribute::name).toList());
     }
@@ -6154,7 +6269,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         config.put("format", "parquet");
 
         ExternalSourceResolution resolution = resolveMultiFileWithConfig("s3://bucket/vpcflow/*", schemasByPath, listing, config);
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/vpcflow/*");
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, "s3://bucket/vpcflow/*");
         assertNotNull("explicit format must claim the FIRST_FILE_WINS anchor too", resolved);
         assertEquals(List.of("srcaddr"), resolved.metadata().schema().stream().map(Attribute::name).toList());
     }
@@ -6280,7 +6395,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Exception e = expectThrows(Exception.class, () -> {
             ExternalSourceResolver resolver = createCsvAndParquetResolver(schemasByPath, Map.of());
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(resource), Map.of(), future);
+            resolvePaths(resolver, List.of(resource), Map.of(), future);
             future.actionGet();
         });
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
@@ -6322,8 +6437,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
                 Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(strategy)));
                 PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-                resolver.resolve(List.of(glob), pathConfigs, f1);
-                ExternalSourceResolution.ResolvedSource cold = f1.actionGet().resolvedSource(glob);
+                resolvePaths(resolver, List.of(glob), pathConfigs, f1);
+                ExternalSourceResolution.ResolvedSource cold = soleResolvedSource(f1.actionGet(), glob);
                 assertEquals("[" + strategy + "]", 2, cold.schemaMap().size());
                 for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : cold.schemaMap().entrySet()) {
                     SourceStatistics stats = e.getValue().statistics();
@@ -6333,8 +6448,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 }
 
                 PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-                resolver.resolve(List.of(glob), pathConfigs, f2);
-                ExternalSourceResolution.ResolvedSource warm = f2.actionGet().resolvedSource(glob);
+                resolvePaths(resolver, List.of(glob), pathConfigs, f2);
+                ExternalSourceResolution.ResolvedSource warm = soleResolvedSource(f2.actionGet(), glob);
                 assertEquals("[" + strategy + "]", 2, warm.schemaMap().size());
                 for (Map.Entry<StoragePath, SchemaReconciliation.FileSchemaInfo> e : warm.schemaMap().entrySet()) {
                     SourceStatistics stats = e.getValue().statistics();
@@ -6370,8 +6485,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolverWithReader(provider, reader, null);
 
         for (FormatReader.SchemaResolution strategy : MULTI_FILE_STRATEGIES) {
-            ExternalSourceResolution.ResolvedSource resolved = resolveFfwWithConfig(resolver, Set.of(GLOB), configFor(strategy))
-                .resolvedSource(GLOB);
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(
+                resolveFfwWithConfig(resolver, Set.of(GLOB), configFor(strategy)),
+                GLOB
+            );
             assertNotNull(resolved);
             assertEquals(1L, resolved.metadata().sourceMetadata().get(SourceStatisticsSerializer.columnMinKey("x")));
             assertEquals(2, resolved.schemaMap().size());
@@ -6396,11 +6513,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             oneReader,
             null
         );
-        ExternalSourceResolution.ResolvedSource one = resolveFfwWithConfig(
-            oneResolver,
-            Set.of(GLOB),
-            configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)
-        ).resolvedSource(GLOB);
+        ExternalSourceResolution.ResolvedSource one = soleResolvedSource(
+            resolveFfwWithConfig(oneResolver, Set.of(GLOB), configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS)),
+            GLOB
+        );
         SourceStatistics anchorStats = one.schemaMap().get(StoragePath.of(a)).statistics();
         assertNotNull(anchorStats);
         assertTrue("a one-file listing keeps the anchor column harvest", anchorStats.columnStatistics().isPresent());
@@ -6454,8 +6570,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 cacheService
             );
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(GLOB), Map.of(GLOB, config), future);
-            assertNotNull(future.actionGet().resolvedSource(GLOB));
+            resolvePaths(resolver, List.of(GLOB), Map.of(GLOB, config), future);
+            assertNotNull(soleResolvedSource(future.actionGet(), GLOB));
             assertNotNull(
                 "a listing that does not fit must not evict an unrelated schema entry",
                 cacheService.getSchemaIfPresent(sentinelKey)
@@ -6512,15 +6628,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
 
             PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-            resolver.resolve(List.of(path), Map.of(), f1);
-            SourceStatistics coldStatistics = f1.actionGet().resolvedSource(path).schemaMap().get(storagePath).statistics();
+            resolvePaths(resolver, List.of(path), Map.of(), f1);
+            SourceStatistics coldStatistics = soleResolvedSource(f1.actionGet(), path).schemaMap().get(storagePath).statistics();
             assertNotNull(coldStatistics);
             assertEquals(11L, coldStatistics.rowCount().getAsLong());
             assertEquals(1L, coldStatistics.readableUnitCount().orElse(-1));
 
             PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-            resolver.resolve(List.of(path), Map.of(), f2);
-            SourceStatistics warmStatistics = f2.actionGet().resolvedSource(path).schemaMap().get(storagePath).statistics();
+            resolvePaths(resolver, List.of(path), Map.of(), f2);
+            SourceStatistics warmStatistics = soleResolvedSource(f2.actionGet(), path).schemaMap().get(storagePath).statistics();
             assertNotNull(warmStatistics);
             assertEquals(11L, warmStatistics.rowCount().getAsLong());
             assertEquals(1L, warmStatistics.readableUnitCount().orElse(-1));
@@ -6565,14 +6681,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 assertEquals(
                     "[" + strategy + "] a file-name hint keeps only the matching file",
                     1,
-                    filtered.resolvedSource(glob).fileList().fileCount()
+                    soleResolvedSource(filtered, glob).fileList().fileCount()
                 );
 
                 ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of(), strategy);
                 assertEquals(
                     "[" + strategy + "] the unfiltered query must see every file, not the filtered query's cached subset",
                     3,
-                    unfiltered.resolvedSource(glob).fileList().fileCount()
+                    soleResolvedSource(unfiltered, glob).fileList().fileCount()
                 );
             }
         }
@@ -6610,14 +6726,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 assertEquals(
                     "[" + strategy + "] a partition hint keeps only the matching folder",
                     1,
-                    filtered.resolvedSource(glob).fileList().fileCount()
+                    soleResolvedSource(filtered, glob).fileList().fileCount()
                 );
 
                 ExternalSourceResolution unfiltered = resolveWith(resolver, glob, Map.of(), strategy);
                 assertEquals(
                     "[" + strategy + "] the unfiltered query must enumerate every partition, not the filtered query's single folder",
                     2,
-                    unfiltered.resolvedSource(glob).fileList().fileCount()
+                    soleResolvedSource(unfiltered, glob).fileList().fileCount()
                 );
             }
         }
@@ -6660,7 +6776,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             )) {
                 ExternalSourceResolver resolver = createResolver(schemas, listingsByPrefix, cap, null, null, null, cacheService);
                 ExternalSourceResolution resolution = resolveWith(resolver, glob, Map.of(glob, List.of(hint)), strategy);
-                ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(glob);
+                ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, glob);
                 assertEquals(1, resolved.fileList().fileCount());
                 assertTrue(resolved.fileList().isInferenceAnchor());
                 assertEquals(
@@ -6700,13 +6816,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Map.of(glob, List.of(hint)),
                 FormatReader.SchemaResolution.UNION_BY_NAME
             );
-            assertEquals(1, hinted.resolvedSource(glob).fileList().fileCount());
-            assertTrue(hinted.resolvedSource(glob).fileList().isInferenceAnchor());
+            assertEquals(1, soleResolvedSource(hinted, glob).fileList().fileCount());
+            assertTrue(soleResolvedSource(hinted, glob).fileList().isInferenceAnchor());
             int afterHinted = provider.listCallCount.get();
 
             ExternalSourceResolution unhinted = resolveWith(resolver, glob, Map.of(), FormatReader.SchemaResolution.UNION_BY_NAME);
-            assertEquals(3, unhinted.resolvedSource(glob).fileList().fileCount());
-            assertFalse(unhinted.resolvedSource(glob).fileList().isInferenceAnchor());
+            assertEquals(3, soleResolvedSource(unhinted, glob).fileList().fileCount());
+            assertFalse(soleResolvedSource(unhinted, glob).fileList().isInferenceAnchor());
             assertTrue("unhinted query must list again, not reuse the hinted one-file entry", provider.listCallCount.get() > afterHinted);
         }
     }
@@ -6732,12 +6848,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolver(schemas, listingsByPrefix, Settings.EMPTY, null, null, null, cacheService);
-            ExternalSourceResolution.ResolvedSource resolved = resolveWith(
-                resolver,
-                glob,
-                Map.of(glob, List.of(hint)),
-                FormatReader.SchemaResolution.UNION_BY_NAME
-            ).resolvedSource(glob);
+            ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(
+                resolveWith(resolver, glob, Map.of(glob, List.of(hint)), FormatReader.SchemaResolution.UNION_BY_NAME),
+                glob
+            );
             assertTrue(resolved.fileList().isInferenceAnchor());
             List<String> names = resolved.metadata().schema().stream().map(Attribute::name).toList();
             assertFalse("leftover year=2024 file has no y; UBN must not union the pruned year", names.contains("y"));
@@ -6753,7 +6867,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     ) {
         Map<String, Map<String, Object>> pathConfigs = Map.of(glob, new HashMap<>(configFor(strategy)));
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), pathConfigs, filterHints, null, null, future);
+        resolvePaths(resolver, List.of(glob), pathConfigs, filterHints, null, null, future);
         return future.actionGet();
     }
 
@@ -6791,18 +6905,24 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
 
                 PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-                resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f1);
+                resolvePaths(resolver, List.of("s3://bucket/data/*.parquet"), pathConfigs, f1);
                 ExternalSourceResolution res1 = f1.actionGet();
-                assertNotNull("[" + strategy + "] first resolve must produce a source", res1.resolvedSource("s3://bucket/data/*.parquet"));
+                assertNotNull(
+                    "[" + strategy + "] first resolve must produce a source",
+                    soleResolvedSource(res1, "s3://bucket/data/*.parquet")
+                );
                 int listCallsAfterFirst = countingProvider.listCallCount.get();
                 int schemaCallsAfterFirst = countingProvider.schemaCallCount.get();
                 assertTrue("[" + strategy + "] listing loader must be invoked on first resolve", listCallsAfterFirst > 0);
                 assertTrue("[" + strategy + "] schema loader must be invoked on first resolve", schemaCallsAfterFirst > 0);
 
                 PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-                resolver.resolve(List.of("s3://bucket/data/*.parquet"), pathConfigs, f2);
+                resolvePaths(resolver, List.of("s3://bucket/data/*.parquet"), pathConfigs, f2);
                 ExternalSourceResolution res2 = f2.actionGet();
-                assertNotNull("[" + strategy + "] second resolve must produce a source", res2.resolvedSource("s3://bucket/data/*.parquet"));
+                assertNotNull(
+                    "[" + strategy + "] second resolve must produce a source",
+                    soleResolvedSource(res2, "s3://bucket/data/*.parquet")
+                );
 
                 assertEquals(
                     "[" + strategy + "] listing loader must not be called again on second resolve (cache hit invariant)",
@@ -6815,6 +6935,49 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     countingProvider.schemaCallCount.get()
                 );
             }
+        }
+    }
+
+    /**
+     * One resolve call, one glob, two configurations: two resolutions come back, each retrievable under its own read,
+     * and the store was listed once per spec.
+     * <p>
+     * This is the resolver's half of the defect. Both specs are in the one call the session makes, and keyed by the
+     * resource alone the second would overwrite the first in the accumulation map — one entry back, one listing, and
+     * whichever relation lost the race listed and inferred under the other's settings. The two configurations here are
+     * the pair the suite already knows produce different listings (first-file-wins sorts by {@code list}, union-by-name
+     * by {@code name}), so a shared entry would also be the wrong file order.
+     */
+    public void testOneGlobReadTwoWaysResolvesTwice() throws Exception {
+        List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
+        Map<String, List<Attribute>> schemasByPath = new HashMap<>();
+        schemasByPath.put("s3://bucket/data/a.parquet", schema);
+        schemasByPath.put("s3://bucket/data/b.parquet", schema);
+        List<StorageEntry> listing = List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200));
+        CountingStorageProvider countingProvider = new CountingStorageProvider(Map.of("s3://bucket/data/", listing), schemasByPath);
+        String glob = "s3://bucket/data/*.parquet";
+        ExternalSourceSpec asFirstFileWins = new ExternalSourceSpec(glob, configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
+        ExternalSourceSpec asUnionByName = new ExternalSourceSpec(glob, configFor(FormatReader.SchemaResolution.UNION_BY_NAME));
+
+        try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
+            ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
+
+            PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
+            resolver.resolve(List.of(asFirstFileWins, asUnionByName), null, null, null, null, null, future);
+            ExternalSourceResolution resolution = future.actionGet();
+
+            assertThat(
+                "one glob read two ways is two resolutions",
+                resolution.resolved().keySet(),
+                equalTo(Set.of(asFirstFileWins, asUnionByName))
+            );
+            assertNotNull("the first-file-wins read must be retrievable", resolution.resolvedSource(asFirstFileWins));
+            assertNotNull("the union-by-name read must be retrievable", resolution.resolvedSource(asUnionByName));
+            assertEquals(2, resolution.resolvedSource(asFirstFileWins).fileList().fileCount());
+            assertEquals(2, resolution.resolvedSource(asUnionByName).fileList().fileCount());
+            assertEquals("each read lists for itself; the two orders share no cache entry", 2, countingProvider.listCallCount.get());
+            // And the path alone no longer identifies a resolution, which is why the lookup takes a read.
+            expectThrows(IllegalStateException.class, () -> soleResolvedSource(resolution, glob));
         }
     }
 
@@ -6836,14 +6999,19 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> ffw = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))), ffw);
-            assertEquals(2, ffw.actionGet().resolvedSource(glob).fileList().fileCount());
+            resolvePaths(
+                resolver,
+                List.of(glob),
+                Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS))),
+                ffw
+            );
+            assertEquals(2, soleResolvedSource(ffw.actionGet(), glob).fileList().fileCount());
             int listCallsAfterFfw = countingProvider.listCallCount.get();
             assertTrue("FIRST_FILE_WINS must list at least once", listCallsAfterFfw > 0);
 
             PlainActionFuture<ExternalSourceResolution> ubn = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME))), ubn);
-            assertEquals(2, ubn.actionGet().resolvedSource(glob).fileList().fileCount());
+            resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME))), ubn);
+            assertEquals(2, soleResolvedSource(ubn.actionGet(), glob).fileList().fileCount());
             assertTrue(
                 "default FFW (list) and UBN (name) must not share a listing-cache entry",
                 countingProvider.listCallCount.get() > listCallsAfterFfw
@@ -6853,8 +7021,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             Map<String, Object> ffwByName = new HashMap<>(configFor(FormatReader.SchemaResolution.FIRST_FILE_WINS));
             ffwByName.put("file_sort_by", "name");
             PlainActionFuture<ExternalSourceResolution> named = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), Map.of(glob, ffwByName), named);
-            assertEquals(2, named.actionGet().resolvedSource(glob).fileList().fileCount());
+            resolvePaths(resolver, List.of(glob), Map.of(glob, ffwByName), named);
+            assertEquals(2, soleResolvedSource(named.actionGet(), glob).fileList().fileCount());
             assertEquals(
                 "FFW file_sort_by=name is the same listing order as UBN, so it reuses that cache entry",
                 listCallsAfterUbn,
@@ -6894,7 +7062,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createResolverWithReader(provider, reader, cacheService);
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME))), future);
+            resolvePaths(
+                resolver,
+                List.of(glob),
+                Map.of(glob, new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME))),
+                future
+            );
             try {
                 return new ChangedDuringResolution(future.actionGet(30, TimeUnit.SECONDS), null, provider.listCallCount.get());
             } catch (Exception e) {
@@ -6911,7 +7084,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // Changed until the store is listed again, which is what a rewrite looks like through a cached listing.
         ChangedDuringResolution outcome = resolveWithChangedReads(listings -> listings < 2, null);
         assertNull(outcome.failure());
-        assertEquals(2, outcome.resolution().resolvedSource("s3://bucket/data/*.parquet").fileList().fileCount());
+        assertEquals(2, soleResolvedSource(outcome.resolution(), "s3://bucket/data/*.parquet").fileList().fileCount());
         assertEquals("the failure dropped the cached listing, so the second pass listed again", 2, outcome.listings());
     }
 
@@ -6984,10 +7157,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
                                 new HashMap<>(configFor(FormatReader.SchemaResolution.UNION_BY_NAME))
                             );
                             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-                            resolver.resolve(List.of(glob), pathConfigs, future);
+                            resolvePaths(resolver, List.of(glob), pathConfigs, future);
                             ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
-                            assertNotNull(resolution.resolvedSource(glob));
-                            assertEquals(2, resolution.resolvedSource(glob).fileList().fileCount());
+                            assertNotNull(soleResolvedSource(resolution, glob));
+                            assertEquals(2, soleResolvedSource(resolution, glob).fileList().fileCount());
                         } finally {
                             inResolve.decrementAndGet();
                         }
@@ -7031,19 +7204,19 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> first = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), pathConfigs, first);
+            resolvePaths(resolver, List.of(glob), pathConfigs, first);
             ExternalSourceResolution res1 = first.actionGet();
-            assertEquals(1, res1.resolvedSource(glob).fileList().fileCount());
-            assertEquals(List.of(), res1.resolvedSource(glob).fileList().listingWarnings());
+            assertEquals(1, soleResolvedSource(res1, glob).fileList().fileCount());
+            assertEquals(List.of(), soleResolvedSource(res1, glob).fileList().listingWarnings());
             assertEquals("the exclusion is not a response warning", List.of(), res1.warnings());
             int listCallsAfterFirst = countingProvider.listCallCount.get();
             assertTrue("first resolve must list", listCallsAfterFirst > 0);
 
             PlainActionFuture<ExternalSourceResolution> second = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), pathConfigs, second);
+            resolvePaths(resolver, List.of(glob), pathConfigs, second);
             ExternalSourceResolution res2 = second.actionGet();
-            assertEquals(1, res2.resolvedSource(glob).fileList().fileCount());
-            assertEquals(List.of(), res2.resolvedSource(glob).fileList().listingWarnings());
+            assertEquals(1, soleResolvedSource(res2, glob).fileList().fileCount());
+            assertEquals(List.of(), soleResolvedSource(res2, glob).fileList().listingWarnings());
             assertEquals("second resolve must be a listing cache hit", listCallsAfterFirst, countingProvider.listCallCount.get());
             assertEquals("nor on a cached listing", List.of(), res2.warnings());
         }
@@ -7263,10 +7436,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
             ExternalSourceResolution res1 = f1.actionGet();
-            assertNotNull(res1.resolvedSource("s3://bucket/data/single.parquet"));
-            assertEquals(1, res1.resolvedSource("s3://bucket/data/single.parquet").fileList().fileCount());
+            assertNotNull(soleResolvedSource(res1, "s3://bucket/data/single.parquet"));
+            assertEquals(1, soleResolvedSource(res1, "s3://bucket/data/single.parquet").fileList().fileCount());
 
             Map<String, Object> stats1 = cacheService.usageStats();
             assertEquals(1L, stats1.get("schema_cache.misses"));
@@ -7274,10 +7447,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals(1, stats1.get("schema_cache.count"));
 
             PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
             ExternalSourceResolution res2 = f2.actionGet();
-            assertNotNull(res2.resolvedSource("s3://bucket/data/single.parquet"));
-            assertEquals(1, res2.resolvedSource("s3://bucket/data/single.parquet").fileList().fileCount());
+            assertNotNull(soleResolvedSource(res2, "s3://bucket/data/single.parquet"));
+            assertEquals(1, soleResolvedSource(res2, "s3://bucket/data/single.parquet").fileList().fileCount());
 
             Map<String, Object> stats2 = cacheService.usageStats();
             assertEquals(1L, stats2.get("schema_cache.misses"));
@@ -7308,8 +7481,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
-            assertNotNull(f1.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
+            assertNotNull(soleResolvedSource(f1.actionGet(), "s3://bucket/data/single.parquet"));
             assertEquals("cold resolve probes the object exactly once", 1, countingProvider.metadataProbeCount.get());
 
             Map<String, Object> stats1 = cacheService.usageStats();
@@ -7318,10 +7491,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals(1, stats1.get("file_metadata_cache.count"));
 
             PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
             ExternalSourceResolution res2 = f2.actionGet();
-            assertNotNull(res2.resolvedSource("s3://bucket/data/single.parquet"));
-            assertEquals(1, res2.resolvedSource("s3://bucket/data/single.parquet").fileList().fileCount());
+            assertNotNull(soleResolvedSource(res2, "s3://bucket/data/single.parquet"));
+            assertEquals(1, soleResolvedSource(res2, "s3://bucket/data/single.parquet").fileList().fileCount());
             assertEquals("warm resolve issues zero additional probes", 1, countingProvider.metadataProbeCount.get());
 
             Map<String, Object> stats2 = cacheService.usageStats();
@@ -7355,16 +7528,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
-            assertNotNull(f1.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
+            assertNotNull(soleResolvedSource(f1.actionGet(), "s3://bucket/data/single.parquet"));
             assertEquals(1, countingProvider.metadataProbeCount.get());
 
             // Let the entry expire (it remains lazily cached but is TTL-dead), then resolve again.
             Thread.sleep(1200);
 
             PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
-            assertNotNull(f2.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
+            assertNotNull(soleResolvedSource(f2.actionGet(), "s3://bucket/data/single.parquet"));
             assertEquals("expired metadata entry must be re-probed", 2, countingProvider.metadataProbeCount.get());
 
             Map<String, Object> stats = cacheService.usageStats();
@@ -7395,17 +7568,17 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(countingProvider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
-            assertNotNull(f1.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), f1);
+            assertNotNull(soleResolvedSource(f1.actionGet(), "s3://bucket/data/single.parquet"));
             assertEquals("cold resolve probes the object", 1, countingProvider.metadataProbeCount.get());
             assertEquals("the cold resolve is a schema miss", 1L, cacheService.usageStats().get("schema_cache.misses"));
 
             safeSleep(10);  // Cross the file-metadata window, so this resolve asks storage rather than being answered from it.
             PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), f2);
             ExternalSourceResolution res2 = f2.actionGet();
-            assertNotNull(res2.resolvedSource("s3://bucket/data/single.parquet"));
-            assertEquals(1, res2.resolvedSource("s3://bucket/data/single.parquet").fileList().fileCount());
+            assertNotNull(soleResolvedSource(res2, "s3://bucket/data/single.parquet"));
+            assertEquals(1, soleResolvedSource(res2, "s3://bucket/data/single.parquet").fileList().fileCount());
             assertEquals("warm resolve probes again", 2, countingProvider.metadataProbeCount.get());
             assertEquals(
                 "the schema still comes from the cache: the probe is retaken, the derived facts are not",
@@ -7444,8 +7617,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             for (int i = 1; i <= 2; i++) {
                 safeSleep(10);  // Cross the file-metadata window, so this resolve asks storage rather than being answered from it.
                 PlainActionFuture<ExternalSourceResolution> f = new PlainActionFuture<>();
-                resolver.resolve(List.of(file), Map.of(file, new HashMap<>()), null, Map.of(file, mapping), null, f);
-                assertNotNull(f.actionGet().resolvedSource(file));
+                resolvePaths(resolver, List.of(file), Map.of(file, new HashMap<>()), null, Map.of(file, mapping), null, f);
+                assertNotNull(soleResolvedSource(f.actionGet(), file));
                 assertEquals("strict resolve " + i + " probes the object", i, provider.metadataProbeCount.get());
             }
         }
@@ -7471,8 +7644,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> f = new PlainActionFuture<>();
-            resolver.resolve(List.of(file), Map.of(file, new HashMap<>()), null, Map.of(file, mapping), null, f);
-            assertNotNull("a missing modification time is not a failure to resolve", f.actionGet().resolvedSource(file));
+            resolvePaths(resolver, List.of(file), Map.of(file, new HashMap<>()), null, Map.of(file, mapping), null, f);
+            assertNotNull("a missing modification time is not a failure to resolve", soleResolvedSource(f.actionGet(), file));
         }
     }
 
@@ -7500,14 +7673,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> cold = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), cold);
-            assertNotNull(cold.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), cold);
+            assertNotNull(soleResolvedSource(cold.actionGet(), "s3://bucket/data/single.parquet"));
 
             provider.readRevoked.set(true);
 
             safeSleep(10);  // Cross the file-metadata window, so this resolve asks storage rather than being answered from it.
             PlainActionFuture<ExternalSourceResolution> warm = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), warm);
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), warm);
             Exception e = expectThrows(Exception.class, warm::actionGet);
             ExternalException unavailable = (ExternalException) ExceptionsHelper.unwrapCause(e);
             assertEquals(
@@ -7541,8 +7714,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(provider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> cold = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), cold);
-            assertNotNull(cold.actionGet().resolvedSource("s3://bucket/data/single.parquet"));
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), cold);
+            assertNotNull(soleResolvedSource(cold.actionGet(), "s3://bucket/data/single.parquet"));
             assertEquals("cold resolve probes the object", 1, provider.metadataProbeCount.get());
 
             // The store begins refusing this object. Nothing in the dataset's own configuration changes, so no
@@ -7551,7 +7724,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             safeSleep(10);  // Cross the file-metadata window, so this resolve asks storage rather than being answered from it.
             PlainActionFuture<ExternalSourceResolution> warm = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/single.parquet"), Map.of(), warm);
+            resolvePaths(resolver, List.of("s3://bucket/data/single.parquet"), Map.of(), warm);
             ExternalClientException denied = expectThrows(ExternalClientException.class, warm::actionGet);
             assertEquals(Condition.ACCESS_DENIED, denied.condition());
         }
@@ -7575,9 +7748,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             for (int i = 0; i < 3; i++) {
                 PlainActionFuture<ExternalSourceResolution> f = new PlainActionFuture<>();
-                resolver.resolve(List.of("s3://bucket/d/file.parquet"), Map.of(), f);
+                resolvePaths(resolver, List.of("s3://bucket/d/file.parquet"), Map.of(), f);
                 ExternalSourceResolution res = f.actionGet();
-                assertNotNull(res.resolvedSource("s3://bucket/d/file.parquet"));
+                assertNotNull(soleResolvedSource(res, "s3://bucket/d/file.parquet"));
             }
 
             Map<String, Object> stats = cacheService.usageStats();
@@ -7613,7 +7786,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             for (int i = 0; i < 3; i++) {
                 PlainActionFuture<ExternalSourceResolution> f = new PlainActionFuture<>();
-                resolver.resolve(List.of("s3://bucket/d/*.parquet"), Map.of(), f);
+                resolvePaths(resolver, List.of("s3://bucket/d/*.parquet"), Map.of(), f);
                 f.actionGet();
             }
 
@@ -7646,16 +7819,16 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithCache(nullMtimeProvider, schemasByPath, cacheService);
 
             PlainActionFuture<ExternalSourceResolution> f1 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/null-mtime.parquet"), Map.of(), f1);
+            resolvePaths(resolver, List.of("s3://bucket/data/null-mtime.parquet"), Map.of(), f1);
             ExternalSourceResolution res1 = f1.actionGet();
-            assertNotNull(res1.resolvedSource("s3://bucket/data/null-mtime.parquet"));
-            assertEquals(1, res1.resolvedSource("s3://bucket/data/null-mtime.parquet").fileList().fileCount());
+            assertNotNull(soleResolvedSource(res1, "s3://bucket/data/null-mtime.parquet"));
+            assertEquals(1, soleResolvedSource(res1, "s3://bucket/data/null-mtime.parquet").fileList().fileCount());
 
             // Second resolve should hit the cache without NPE
             PlainActionFuture<ExternalSourceResolution> f2 = new PlainActionFuture<>();
-            resolver.resolve(List.of("s3://bucket/data/null-mtime.parquet"), Map.of(), f2);
+            resolvePaths(resolver, List.of("s3://bucket/data/null-mtime.parquet"), Map.of(), f2);
             ExternalSourceResolution res2 = f2.actionGet();
-            assertNotNull(res2.resolvedSource("s3://bucket/data/null-mtime.parquet"));
+            assertNotNull(soleResolvedSource(res2, "s3://bucket/data/null-mtime.parquet"));
 
             Map<String, Object> stats = cacheService.usageStats();
             assertEquals(1L, stats.get("schema_cache.misses"));
@@ -7791,10 +7964,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
 
-        // The resolver treats a missing path key and a present-but-empty config map identically
-        // (see ExternalSourceResolver.resolve: pathConfigs.getOrDefault(path, Map.of())), so
-        // always forward the per-path config — no special-casing the empty case.
-        resolver.resolve(List.of(globPattern), Map.of(globPattern, new HashMap<>(config)), future);
+        // The lifting treats a missing path key and a present-but-empty config map identically
+        // (see resolvePaths: pathConfigs.getOrDefault(path, Map.of())), so always forward the
+        // per-path config — no special-casing the empty case.
+        resolvePaths(resolver, List.of(globPattern), Map.of(globPattern, new HashMap<>(config)), future);
         return future.actionGet();
     }
 
@@ -7810,7 +7983,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     ) throws Exception {
         ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(resource), Map.of(resource, new HashMap<>(config)), future);
+        resolvePaths(resolver, List.of(resource), Map.of(resource, new HashMap<>(config)), future);
         return future.actionGet();
     }
 
@@ -7837,7 +8010,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         ExternalSourceResolution resolution = resolveResourceWithConfig(resource, schemasByPath, listingsByPrefix, config);
-        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource(resource);
+        ExternalSourceResolution.ResolvedSource resolved = soleResolvedSource(resolution, resource);
         assertNotNull(resolved);
         FileList fileList = resolved.fileList();
         assertEquals(schemaPath, fileList.path(0).toString());
@@ -7916,10 +8089,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolver resolver = new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        // The resolver treats a missing path key and a present-but-empty config map identically
-        // (see ExternalSourceResolver.resolve: pathConfigs.getOrDefault(path, Map.of())), so
-        // always forward the per-path config — no special-casing the empty case.
-        resolver.resolve(List.of(globPattern), Map.of(globPattern, new HashMap<>(config)), future);
+        // The lifting treats a missing path key and a present-but-empty config map identically
+        // (see resolvePaths: pathConfigs.getOrDefault(path, Map.of())), so always forward the
+        // per-path config — no special-casing the empty case.
+        resolvePaths(resolver, List.of(globPattern), Map.of(globPattern, new HashMap<>(config)), future);
         return future.actionGet();
     }
 
@@ -7940,7 +8113,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private ExternalSourceResolution resolveSingleFile(String path, Map<String, List<Attribute>> schemasByPath) throws Exception {
         ExternalSourceResolver resolver = createResolver(schemasByPath, Map.of());
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(), future);
+        resolvePaths(resolver, List.of(path), Map.of(), future);
         return future.actionGet();
     }
 
@@ -7951,7 +8124,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     ) throws Exception {
         ExternalSourceResolver resolver = createResolver(schemasByPath, Map.of());
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(path, new HashMap<>(config)), future);
+        resolvePaths(resolver, List.of(path), Map.of(path, new HashMap<>(config)), future);
         return future.actionGet();
     }
 
@@ -7966,7 +8139,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     ) throws Exception {
         ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(paths, Map.of(), future);
+        resolvePaths(resolver, paths, Map.of(), future);
         return future.actionGet();
     }
 
@@ -7995,9 +8168,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         long baseline = wide.getUsed();
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
+        resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>(config)), future);
         ExternalSourceResolution resolution = future.actionGet();
-        FileList listing = resolution.resolvedSource(glob).fileList();
+        FileList listing = soleResolvedSource(resolution, glob).fileList();
         assertThat(listing.planningBytes(), greaterThan(listing.estimatedBytes()));
         long expected = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(expected, greaterThan(0L));
@@ -8013,7 +8186,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         EsqlExecutionInfo trippedInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         ExternalPlanningReservation trippedReservation = bindPlanning(tripped, trippedInfo, narrow);
         PlainActionFuture<ExternalSourceResolution> trippedFuture = new PlainActionFuture<>();
-        tripped.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), trippedFuture);
+        resolvePaths(tripped, List.of(glob), Map.of(glob, new HashMap<>(config)), trippedFuture);
         CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, trippedFuture::actionGet);
         assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
         assertEquals(0, trippedReads.get());
@@ -8055,9 +8228,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         long baseline = wide.getUsed();
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), null, Map.of(glob, strict), null, future);
+        resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>()), null, Map.of(glob, strict), null, future);
         ExternalSourceResolution resolution = future.actionGet();
-        FileList listing = resolution.resolvedSource(glob).fileList();
+        FileList listing = soleResolvedSource(resolution, glob).fileList();
         assertThat(listing.planningBytes(), greaterThan(listing.estimatedBytes()));
         long expected = ExternalSourceResolver.listingPlanningCharge(listing);
         assertThat(expected, greaterThan(0L));
@@ -8073,7 +8246,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         EsqlExecutionInfo trippedInfo = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
         ExternalPlanningReservation trippedReservation = bindPlanning(tripped, trippedInfo, narrow);
         PlainActionFuture<ExternalSourceResolution> trippedFuture = new PlainActionFuture<>();
-        tripped.resolve(List.of(glob), Map.of(glob, new HashMap<>()), null, Map.of(glob, strict), null, trippedFuture);
+        resolvePaths(tripped, List.of(glob), Map.of(glob, new HashMap<>()), null, Map.of(glob, strict), null, trippedFuture);
         CircuitBreakingException broke = expectThrows(CircuitBreakingException.class, trippedFuture::actionGet);
         assertThat(broke.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
         assertEquals(0, trippedReads.get());
@@ -8099,10 +8272,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         long baseline = breaker.getUsed();
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(file), Map.of(file, new HashMap<>()), future);
+        resolvePaths(resolver, List.of(file), Map.of(file, new HashMap<>()), future);
         ExternalSourceResolution resolution = future.actionGet();
 
-        assertEquals(1, resolution.resolvedSource(file).fileList().fileCount());
+        assertEquals(1, soleResolvedSource(resolution, file).fileList().fileCount());
         assertThat(metadataReads.get(), greaterThan(0));
         assertEquals(baseline, breaker.getUsed());
         assertEquals(0L, reservation.queryHeld());
@@ -8123,10 +8296,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         long baseline = breaker.getUsed();
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(file), Map.of(file, new HashMap<>()), future);
+        resolvePaths(resolver, List.of(file), Map.of(file, new HashMap<>()), future);
         ExternalSourceResolution resolution = future.actionGet();
 
-        assertEquals(Set.of("value", "year", "month"), columnNames(resolution.resolvedSource(file).metadata().schema()));
+        assertEquals(Set.of("value", "year", "month"), columnNames(soleResolvedSource(resolution, file).metadata().schema()));
         assertThat(metadataReads.get(), greaterThan(0));
         assertEquals(baseline, breaker.getUsed());
         assertEquals(0L, reservation.queryHeld());
@@ -8176,7 +8349,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         long baseline = breaker.getUsed();
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(file), Map.of(file, new HashMap<>()), null, Map.of(file, overlay), null, future);
+        resolvePaths(resolver, List.of(file), Map.of(file, new HashMap<>()), null, Map.of(file, overlay), null, future);
         future.actionGet();
 
         assertThat(metadataReads.get(), greaterThan(0));
@@ -8235,9 +8408,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
         long[] expectedHolder = new long[1];
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), ActionListener.wrap(resolution -> {
+        resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>(config)), ActionListener.wrap(resolution -> {
             // Still inside the gather completion. An earlier close would already have released the run.
-            FileList listing = resolution.resolvedSource(glob).fileList();
+            FileList listing = soleResolvedSource(resolution, glob).fileList();
             long expectedNow = ExternalSourceResolver.listingPlanningCharge(listing);
             expectedHolder[0] = expectedNow;
             assertNotNull(openRun[0]);
@@ -8249,7 +8422,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         }, future::onFailure));
         ExternalSourceResolution resolution = future.actionGet();
         long expected = expectedHolder[0];
-        FileList listing = resolution.resolvedSource(glob).fileList();
+        FileList listing = soleResolvedSource(resolution, glob).fileList();
         assertEquals(expected, ExternalSourceResolver.listingPlanningCharge(listing));
 
         assertEquals(bothLists, whileOpen[0]);
@@ -8276,7 +8449,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         tripped.schemaGatherRunProbe = run -> trippedRun[0] = run;
         PlainActionFuture<ExternalSourceResolution> trippedFuture = new PlainActionFuture<>();
         long[] heldDuringFailure = new long[1];
-        tripped.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), ActionListener.wrap(trippedFuture::onResponse, e -> {
+        resolvePaths(tripped, List.of(glob), Map.of(glob, new HashMap<>(config)), ActionListener.wrap(trippedFuture::onResponse, e -> {
             // The failure notification runs before the gather completion releases the run.
             assertNotNull(trippedRun[0]);
             heldDuringFailure[0] = trippedRun[0].held();
@@ -8326,7 +8499,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         };
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
+        resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>(config)), future);
         future.actionGet();
 
         // Probe was invoked; each file's gatheredFileBytes was charged.
@@ -8369,7 +8542,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalPlanningReservation wideReservation = bindPlanning(wideResolver, wideInfo, wide);
         long wideBaseline = wide.getUsed();
         PlainActionFuture<ExternalSourceResolution> wideFuture = new PlainActionFuture<>();
-        wideResolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), wideFuture);
+        resolvePaths(wideResolver, List.of(glob), Map.of(glob, new HashMap<>(config)), wideFuture);
         wideFuture.actionGet();
         long listingCredit = wideReservation.queryHeld();
         assertThat(listingCredit, greaterThan(0L));
@@ -8384,7 +8557,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalPlanningReservation narrowReservation = bindPlanning(narrowResolver, narrowInfo, narrow);
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        narrowResolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
+        resolvePaths(narrowResolver, List.of(glob), Map.of(glob, new HashMap<>(config)), future);
         CircuitBreakingException cbe = expectThrows(CircuitBreakingException.class, future::actionGet);
         assertThat(cbe.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
 
@@ -8475,7 +8648,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         };
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
+        resolvePaths(resolver, List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
         future.actionGet();
 
         assertEquals(3, held.size());
@@ -8538,7 +8711,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         List<Long> usedAtProbe = new ArrayList<>();
         wideResolver.gatherResultsRunProbe = run -> usedAtProbe.add(wide.getUsed());
         PlainActionFuture<ExternalSourceResolution> wideFuture = new PlainActionFuture<>();
-        wideResolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), wideFuture);
+        resolvePaths(wideResolver, List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), wideFuture);
         ExternalSourceResolution wideResolution = wideFuture.actionGet();
         assertEquals(files, usedAtProbe.size());
         if (wideCache != null) {
@@ -8546,13 +8719,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
             assertEquals((long) files, ((Number) wideCache.usageStats().get("schema_cache.count")).longValue());
         }
         assertNull(
-            wideResolution.resolvedSource(StatsGatherFixture.GLOB).metadata().sourceMetadata().get(SourceStatisticsSerializer.STATS_PARTIAL)
+            soleResolvedSource(wideResolution, StatsGatherFixture.GLOB).metadata()
+                .sourceMetadata()
+                .get(SourceStatisticsSerializer.STATS_PARTIAL)
         );
         long fullRowCount = fixture.rowCounts().values().stream().mapToLong(Long::longValue).sum();
         assertEquals(
             fullRowCount,
-            ((Number) wideResolution.resolvedSource(StatsGatherFixture.GLOB)
-                .metadata()
+            ((Number) soleResolvedSource(wideResolution, StatsGatherFixture.GLOB).metadata()
                 .sourceMetadata()
                 .get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
         );
@@ -8577,7 +8751,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         };
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        narrowResolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
+        resolvePaths(narrowResolver, List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
         CircuitBreakingException cbe = expectThrows(CircuitBreakingException.class, future::actionGet);
         assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(cbe));
         assertThat(cbe.getMessage(), containsString(EsqlExecutionInfo.EXTERNAL_PLANNING_LABEL));
@@ -8638,7 +8812,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         resolver.gatherResultsRunProbe = run -> capturedRun[0] = run;
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
+        resolvePaths(resolver, List.of(StatsGatherFixture.GLOB), Map.of(StatsGatherFixture.GLOB, fixture.config()), future);
         CircuitBreakingException cbe = expectThrows(CircuitBreakingException.class, future::actionGet);
         assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(cbe));
         assertThat(cbe.getMessage(), containsString("over limit"));
@@ -9366,9 +9540,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithAsyncReader(schemasByPath, listingsByPrefix, reader, resolverExecutor, 4);
             resolver.planningCpu(tracker);
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), future);
+            resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), future);
             ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
-            assertNotNull(resolution.resolvedSource(glob));
+            assertNotNull(soleResolvedSource(resolution, glob));
             assertEquals(fileCount, calls.get());
             assertEquals("every metadata read must run inside a planning CPU measurement", 0, unmetered.get());
             assertThat(tracker.cpuNanos(), greaterThanOrEqualTo(fileCount * burnNanos));
@@ -9408,13 +9582,13 @@ public class ExternalSourceResolverTests extends ESTestCase {
             resolver.planningCpu(tracker);
             Thread caller = new Thread(() -> tracker.meteredCpu(() -> {
                 burnCpu(burnNanos);
-                resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), future);
+                resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>()), future);
                 // Holds the measurement open, as a slow unwind would, until planning has finished.
                 safeAwait(finished);
             }));
             caller.start();
             try {
-                assertNotNull(future.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob));
+                assertNotNull(soleResolvedSource(future.actionGet(30, TimeUnit.SECONDS), glob));
                 assertThat(tracker.finish(), greaterThanOrEqualTo(burnNanos));
             } finally {
                 finished.countDown();
@@ -9507,9 +9681,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
             resolver.planningCpu(tracker);
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), future);
+            resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), future);
             ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
-            assertNotNull(resolution.resolvedSource(glob));
+            assertNotNull(soleResolvedSource(resolution, glob));
             assertEquals(fileCount, reader.totalReads.get());
             assertEquals("the initial dispatch loop must use up its permits", permits, dispatchedByInitialLoop.get());
             assertEquals(fileCount, dispatches.get());
@@ -9582,8 +9756,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
             resolver.planningCpu(tracker);
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), future);
-            assertNotNull(future.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob));
+            resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>(Map.of("schema_resolution", "union_by_name"))), future);
+            assertNotNull(soleResolvedSource(future.actionGet(30, TimeUnit.SECONDS), glob));
             assertThat(tracker.finish() - committedBeforeReads.get(), greaterThanOrEqualTo(fileCount * burnNanos));
         } finally {
             finished.countDown();
@@ -9628,7 +9802,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 Map.of("schema_resolution", "union_by_name")
             );
 
-            assertNotNull(resolution.resolvedSource(glob));
+            assertNotNull(soleResolvedSource(resolution, glob));
             assertEquals("max in-flight reads must equal the permit count", permits, reader.maxInFlight.get());
             assertEquals("all files must be read", fileCount, reader.totalReads.get());
         } finally {
@@ -9672,7 +9846,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolver resolver = createResolverWithAsyncReader(schemasByPath, listingsByPrefix, reader, resolverExecutor, 4);
 
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
+            resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>(config)), future);
 
             Exception e = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
             // Read failure with a URI-bearing message surfaces as a 400 with the path redacted.
@@ -9737,10 +9911,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 future.onResponse(resolution);
             }, future::onFailure);
 
-            resolver.resolve(List.of(glob), Map.of(glob, Map.of()), capturingListener);
+            resolvePaths(resolver, List.of(glob), Map.of(glob, Map.of()), capturingListener);
             ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
 
-            assertNotNull(resolution.resolvedSource(glob));
+            assertNotNull(soleResolvedSource(resolution, glob));
             assertNotEquals(
                 "the completion must run off this test thread to actually exercise cross-thread context restoration",
                 Thread.currentThread(),
@@ -9831,8 +10005,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 assertNull(threadContext.getHeader(headerName));
-                resolver.resolve(List.of(glob), Map.of(glob, Map.of()), future);
-                assertNotNull(future.actionGet(30, TimeUnit.SECONDS).resolvedSource(glob));
+                resolvePaths(resolver, List.of(glob), Map.of(glob, Map.of()), future);
+                assertNotNull(soleResolvedSource(future.actionGet(30, TimeUnit.SECONDS), glob));
             }
             assertNull("foreign I/O thread must not inherit the request header", headerOnForeignThread.get());
             assertEquals(
@@ -9895,10 +10069,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 future.onResponse(resolution);
             }, future::onFailure);
 
-            resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>()), capturingListener);
+            resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>()), capturingListener);
             ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
 
-            assertNotNull(resolution.resolvedSource(glob));
+            assertNotNull(soleResolvedSource(resolution, glob));
             assertNotEquals(
                 "the completion must run off this test thread to actually exercise cross-thread warning propagation",
                 Thread.currentThread(),
@@ -9943,7 +10117,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         listingsByPrefix.put(sp.patternPrefix().toString(), listing);
         ExternalSourceResolver resolver = createResolverWithAsyncReader(schemasByPath, listingsByPrefix, reader, resolverExecutor, permits);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, new HashMap<>(config)), future);
+        resolvePaths(resolver, List.of(glob), Map.of(glob, new HashMap<>(config)), future);
         return future.actionGet(30, TimeUnit.SECONDS);
     }
 
@@ -10819,7 +10993,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), future);
+        resolvePaths(resolver, List.of(prefix + "*.parquet"), Map.of(), future);
 
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertEquals("too wide a glob is the caller's mistake, not a server fault", RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
@@ -10862,14 +11036,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build());
         PlainActionFuture<ExternalSourceResolution> fail = new PlainActionFuture<>();
-        resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), fail);
+        resolvePaths(resolver, List.of(prefix + "*.parquet"), Map.of(), fail);
         Exception e = expectThrows(Exception.class, fail::actionGet);
         assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
 
         clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 10).build());
         PlainActionFuture<ExternalSourceResolution> ok = new PlainActionFuture<>();
-        resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), ok);
-        assertEquals(5, ok.actionGet().resolvedSource(prefix + "*.parquet").fileList().fileCount());
+        resolvePaths(resolver, List.of(prefix + "*.parquet"), Map.of(), ok);
+        assertEquals(5, soleResolvedSource(ok.actionGet(), prefix + "*.parquet").fileList().fileCount());
     }
 
     /**
@@ -10904,12 +11078,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
 
             PlainActionFuture<ExternalSourceResolution> warm = new PlainActionFuture<>();
-            resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), warm);
-            assertEquals(5, warm.actionGet().resolvedSource(prefix + "*.parquet").fileList().fileCount());
+            resolvePaths(resolver, List.of(prefix + "*.parquet"), Map.of(), warm);
+            assertEquals(5, soleResolvedSource(warm.actionGet(), prefix + "*.parquet").fileList().fileCount());
 
             clusterSettings.applySettings(Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 2).build());
             PlainActionFuture<ExternalSourceResolution> fail = new PlainActionFuture<>();
-            resolver.resolve(List.of(prefix + "*.parquet"), Map.of(), fail);
+            resolvePaths(resolver, List.of(prefix + "*.parquet"), Map.of(), fail);
             Exception e = expectThrows(Exception.class, fail::actionGet);
             assertThat(e.getMessage(), containsString("esql.external.max_discovered_files"));
         }
@@ -10935,7 +11109,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             );
 
             PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-            resolver.resolve(List.of(path), Map.of(path, Map.of("schema_sample_size", "0")), future);
+            resolvePaths(resolver, List.of(path), Map.of(path, Map.of("schema_sample_size", "0")), future);
 
             Exception e = expectThrows(Exception.class, future::actionGet);
             assertEquals(
@@ -10980,9 +11154,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         resolver.planning(reservation);
 
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(), future);
+        resolvePaths(resolver, List.of(path), Map.of(), future);
         ExternalSourceResolution resolution = future.actionGet(30, TimeUnit.SECONDS);
-        assertNotNull(resolution.resolvedSource(path));
+        assertNotNull(soleResolvedSource(resolution, path));
         assertThat(
             "inference GET must land in the reservation installed after construction",
             reservation.planningIo().bytesRead(),
@@ -11055,7 +11229,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         for (FormatReader.SchemaResolution strategy : FormatReader.SchemaResolution.values()) {
             ExternalSourceResolution resolution = resolveCsvGlob(createMeteredCsvResolver(files, null), "s3://bucket/data/*.csv", strategy);
             int expected = strategy == FormatReader.SchemaResolution.FIRST_FILE_WINS ? 800 : 800 / 4;
-            assertEquals("[" + strategy + "]", expected, resolution.resolvedSource("s3://bucket/data/*.csv").metadata().sampleRows());
+            assertEquals("[" + strategy + "]", expected, soleResolvedSource(resolution, "s3://bucket/data/*.csv").metadata().sampleRows());
         }
     }
 
@@ -11099,11 +11273,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
         try (ExternalSourceCacheService cacheService = new ExternalSourceCacheService(cacheEnabledSettings())) {
             ExternalSourceResolver resolver = createMeteredCsvResolver(files, cacheService);
 
-            assertEquals(400, resolveCsvGlob(resolver, pair, strategy).resolvedSource(pair).metadata().sampleRows());
-            assertEquals(200, resolveCsvGlob(resolver, all, strategy).resolvedSource(all).metadata().sampleRows());
+            assertEquals(400, soleResolvedSource(resolveCsvGlob(resolver, pair, strategy), pair).metadata().sampleRows());
+            assertEquals(200, soleResolvedSource(resolveCsvGlob(resolver, all, strategy), all).metadata().sampleRows());
             ExternalPlanningReservation reservation = new ExternalPlanningReservation(NoopCircuitBreaker.INSTANCE);
             resolver.planning(reservation);
-            assertEquals(400, resolveCsvGlob(resolver, pair, strategy).resolvedSource(pair).metadata().sampleRows());
+            assertEquals(400, soleResolvedSource(resolveCsvGlob(resolver, pair, strategy), pair).metadata().sampleRows());
             assertEquals("the share-2 entries must still be cached", 0L, reservation.planningIo().bytesRead());
         }
     }
@@ -11285,8 +11459,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     private static DataType columnType(ExternalSourceResolution resolution, String path, String column) {
-        return resolution.resolvedSource(path)
-            .metadata()
+        return soleResolvedSource(resolution, path).metadata()
             .schema()
             .stream()
             .filter(a -> a.name().equals(column))
@@ -11332,7 +11505,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>(configFor(strategy));
         config.put("schema_sample_size", schemaSampleSize);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(glob, config), future);
+        resolvePaths(resolver, List.of(glob), Map.of(glob, config), future);
         return future.actionGet();
     }
 

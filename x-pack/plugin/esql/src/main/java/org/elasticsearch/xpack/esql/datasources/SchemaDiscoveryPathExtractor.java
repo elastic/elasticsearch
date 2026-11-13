@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -29,8 +28,8 @@ import java.util.Set;
  * plan is emptied. The parsed plan is available there, which is what makes the shape knowable in time.
  * <p>This says only that no rows will be read; how much of the glob a schema needs is the dataset's business,
  * and the resolver decides it.
- * <p>Unlike {@link ExternalStatsRequirementExtractor}, which unions, this subtracts: one resolution feeds every
- * branch, so a path read for its rows in <em>any</em> branch must resolve as a reading query.
+ * <p>Unlike {@link ExternalStatsRequirementExtractor}, which unions, this subtracts: a spec read for its rows in
+ * <em>any</em> branch must resolve as a reading query. Keyed by {@link ExternalSourceSpec}, as resolution is.
  * <p>{@code LIMIT 0 BY k} is a {@code LimitBy} and an unfolded zero is not a {@link Literal}; both are missed,
  * and both only leave work switched on.
  */
@@ -39,22 +38,27 @@ public final class SchemaDiscoveryPathExtractor {
     private SchemaDiscoveryPathExtractor() {}
 
     /**
-     * Returns the literal {@code tablePath} of every {@link UnresolvedExternalRelation} whose occurrences all
-     * sit below a {@link Limit} of literal zero. Path keys are derived as {@code PreAnalyzer} and
-     * {@code EsqlSession#extractExternalConfigs} derive them, so they line up with the resolver's paths.
+     * Every {@link UnresolvedExternalRelation} whose occurrences all sit below a {@link Limit} of literal zero, as
+     * the spec it denotes.
      *
      * @param unresolvedPlan the root of the unresolved logical plan
-     * @return the set of literal path strings whose resolution needs no rows read
+     * @return the specs whose resolution needs no rows read
      */
-    public static Set<String> pathsReadingNoRows(LogicalPlan unresolvedPlan) {
-        Set<String> underZeroLimit = new HashSet<>();
-        Set<String> read = new HashSet<>();
+    public static Set<ExternalSourceSpec> specsReadingNoRows(LogicalPlan unresolvedPlan) {
+        Set<ExternalSourceSpec> underZeroLimit = new HashSet<>();
+        Set<ExternalSourceSpec> read = new HashSet<>();
         collect(unresolvedPlan, false, false, underZeroLimit, read);
         underZeroLimit.removeAll(read);
         return underZeroLimit;
     }
 
-    private static void collect(Node<?> node, boolean zeroLimitAbove, boolean describeAbove, Set<String> underZeroLimit, Set<String> read) {
+    private static void collect(
+        Node<?> node,
+        boolean zeroLimitAbove,
+        boolean describeAbove,
+        Set<ExternalSourceSpec> underZeroLimit,
+        Set<ExternalSourceSpec> read
+    ) {
         if (node instanceof Limit limit && isLiteralZero(limit.limit())) {
             zeroLimitAbove = true;
         }
@@ -73,9 +77,9 @@ public final class SchemaDiscoveryPathExtractor {
         }
 
         if (node instanceof UnresolvedExternalRelation relation) {
-            String path = extractPath(relation);
-            if (path != null) {
-                (zeroLimitAbove || describeAbove ? underZeroLimit : read).add(path);
+            ExternalSourceSpec spec = ExternalSourceSpec.ofOrNull(relation);
+            if (spec != null) {
+                (zeroLimitAbove || describeAbove ? underZeroLimit : read).add(spec);
             }
             return; // leaf: no children below a relation
         }
@@ -95,17 +99,4 @@ public final class SchemaDiscoveryPathExtractor {
         return limit instanceof Literal literal && Integer.valueOf(0).equals(literal.value());
     }
 
-    /**
-     * Path-key derivation kept in lockstep with {@code PreAnalyzer#externalSourcePaths} and
-     * {@code EsqlSession#extractExternalConfigs}. Returns {@code null} for a non-literal
-     * {@code tablePath} so detection never throws; that path is then absent from the set and
-     * resolves as a reading query.
-     */
-    private static String extractPath(UnresolvedExternalRelation relation) {
-        Expression tablePath = relation.tablePath();
-        if (tablePath instanceof Literal literal && literal.value() != null) {
-            return BytesRefs.toString(literal.value());
-        }
-        return null;
-    }
 }

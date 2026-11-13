@@ -514,36 +514,24 @@ public final class PartitionSpec {
     }
 
     /**
-     * Closed {@code @timestamp} bounds from the request filter, as listing hints, on paths whose
-     * spec binds that column. Other paths keep {@code hints}. An open range is not represented here:
-     * the extractor only returns bounds when both ends parsed.
+     * {@code hints} with the request filter's closed {@code @timestamp} bounds prepended, as listing hints, or
+     * {@code hints} unchanged when this spec does not bind that column or the range is not closed. An open range is
+     * not represented here: the extractor only returns bounds when both ends parsed.
      */
-    public static Map<String, List<PartitionFilterHint>> addTimestampBounds(
-        Map<String, List<PartitionFilterHint>> hints,
-        @Nullable Map<String, Map<String, Object>> pathConfigs,
+    public List<PartitionFilterHint> withTimestampBounds(
+        @Nullable List<PartitionFilterHint> hints,
         @Nullable Instant start,
         @Nullable Instant end
     ) {
-        if (start == null || end == null || start.isAfter(end) || pathConfigs == null || pathConfigs.isEmpty()) {
+        if (start == null || end == null || start.isAfter(end) || bindsColumn(MetadataAttribute.TIMESTAMP_FIELD) == false) {
             return hints;
         }
-        Map<String, List<PartitionFilterHint>> withBounds = null;
-        for (Map.Entry<String, Map<String, Object>> entry : pathConfigs.entrySet()) {
-            PartitionSpec spec = fromConfig(entry.getValue());
-            if (spec.bindsColumn(MetadataAttribute.TIMESTAMP_FIELD) == false) {
-                continue;
-            }
-            if (withBounds == null) {
-                withBounds = new LinkedHashMap<>(hints);
-            }
-            List<PartitionFilterHint> existing = withBounds.getOrDefault(entry.getKey(), List.of());
-            List<PartitionFilterHint> merged = new ArrayList<>(existing.size() + 2);
-            merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.GREATER_THAN_OR_EQUAL, List.of(start)));
-            merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.LESS_THAN_OR_EQUAL, List.of(end)));
-            merged.addAll(existing);
-            withBounds.put(entry.getKey(), List.copyOf(merged));
-        }
-        return withBounds == null ? hints : withBounds;
+        List<PartitionFilterHint> existing = hints == null ? List.of() : hints;
+        List<PartitionFilterHint> merged = new ArrayList<>(existing.size() + 2);
+        merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.GREATER_THAN_OR_EQUAL, List.of(start)));
+        merged.add(new PartitionFilterHint(MetadataAttribute.TIMESTAMP_FIELD, Operator.LESS_THAN_OR_EQUAL, List.of(end)));
+        merged.addAll(existing);
+        return List.copyOf(merged);
     }
 
     private boolean bindsColumn(String column) {

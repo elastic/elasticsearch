@@ -13,6 +13,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -43,6 +44,12 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -162,8 +169,161 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
     }
 
+<<<<<<< HEAD
     // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523):
     // shard stats no longer match after the per-(segment, query) hook change.
+=======
+    /**
+     * Matches every document, like {@link DummyQuery}, but a search asking for its scorer parks until {@code release} opens, after
+     * counting down {@code arrived}, so that concurrent searches can be held at that point. The scorer supplier also counts how it was
+     * asked for the scorer: the cache populates an entry through {@link ScorerSupplier#bulkScorer}, and a search that was denied
+     * population runs the query uncached through {@link ScorerSupplier#get}.
+     */
+    private static class ParkingQuery extends Query {
+
+        private final CountDownLatch arrived;
+        private final CountDownLatch release;
+        final AtomicInteger populatingScorers = new AtomicInteger();
+        final AtomicInteger uncachedScorers = new AtomicInteger();
+
+        ParkingQuery(CountDownLatch arrived, CountDownLatch release) {
+            this.arrived = arrived;
+            this.release = release;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
+            return new ConstantScoreWeight(this, boost) {
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) {
+                    final int maxDoc = context.reader().maxDoc();
+                    return new ScorerSupplier() {
+                        @Override
+                        public Scorer get(long leadCost) {
+                            uncachedScorers.incrementAndGet();
+                            return scorer();
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() {
+                            populatingScorers.incrementAndGet();
+                            return new Weight.DefaultBulkScorer(scorer());
+                        }
+
+                        private Scorer scorer() {
+                            arrived.countDown();
+                            safeAwait(release);
+                            return new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.all(maxDoc));
+                        }
+
+                        @Override
+                        public long cost() {
+                            return maxDoc;
+                        }
+                    };
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    return true;
+                }
+            };
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public String toString(String field) {
+            return "parking";
+        }
+
+        /** All instances are equal, so that concurrent searches ask the cache for the same entry. */
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
+        }
+    }
+
+    /**
+     * Concurrent searches that miss the cache on the same entry must not each build their own copy of it: one populates the cache while
+     * the others run uncached, and nothing of that is left behind once they are done. The searches are parked while getting their scorers
+     * so that they all overlap.
+     */
+    public void testConcurrentSearchesPopulateTheSameEntryOnce() throws Exception {
+        final int searches = randomIntBetween(2, 8);
+        final int docs = randomIntBetween(1, 100);
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        for (int i = 0; i < docs; i++) {
+            w.addDocument(new Document());
+        }
+        w.forceMerge(1);
+        DirectoryReader r = DirectoryReader.open(w);
+        w.close();
+        ShardId shard = new ShardId("index", "_na_", 0);
+        r = ElasticsearchDirectoryReader.wrap(r, shard);
+        assertThat(r.leaves().size(), equalTo(1));
+        IndexSearcher searcher = new IndexSearcher(r);
+        searcher.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
+
+        Settings settings = Settings.builder()
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
+        IndicesQueryCache cache = new IndicesQueryCache(settings);
+        searcher.setQueryCache(cache);
+
+        final CountDownLatch arrived = new CountDownLatch(searches);
+        final CountDownLatch release = new CountDownLatch(1);
+        final ParkingQuery query = new ParkingQuery(arrived, release);
+        final ExecutorService executor = Executors.newFixedThreadPool(searches);
+        final List<Future<Integer>> counts = new ArrayList<>();
+        try {
+            for (int i = 0; i < searches; i++) {
+                counts.add(executor.submit(() -> searcher.count(query)));
+            }
+
+            // every search is now getting its scorer: one of them is populating the cache, the others gave up on it
+            safeAwait(arrived);
+            assertThat(cache.inFlightPopulationCount(), equalTo(1));
+            assertThat(query.populatingScorers.get(), equalTo(1));
+            assertThat(query.uncachedScorers.get(), equalTo(searches - 1));
+        } finally {
+            // always unpark the searches, otherwise a failed assertion above would leave them hanging
+            release.countDown();
+            executor.shutdown();
+        }
+        assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        // assert on the results of the searches here rather than inside their threads
+        for (Future<Integer> count : counts) {
+            assertEquals(docs, safeGet(count).intValue());
+        }
+
+        // the one population made it to the cache and nothing is in flight anymore
+        assertThat(cache.inFlightPopulationCount(), equalTo(0));
+        QueryCacheStats stats = cache.getStats(shard, () -> 0L);
+        assertEquals(1L, stats.getCacheCount());
+        assertEquals(1L, stats.getCacheSize());
+        // a later search is answered from the cache without building anything
+        assertEquals(docs, searcher.count(query));
+        assertThat(query.populatingScorers.get(), equalTo(1));
+        assertThat(query.uncachedScorers.get(), equalTo(searches - 1));
+        assertEquals(1L, cache.getStats(shard, () -> 0L).getHitCount());
+
+        IOUtils.close(r, dir);
+        cache.onClose(shard);
+        cache.close(); // asserts nothing is in flight
+    }
+
+>>>>>>> 11c9a36db53de1de79450d13212a5be3105121a3
     public void testBasics() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());

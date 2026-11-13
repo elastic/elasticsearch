@@ -988,6 +988,47 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
+    /**
+     * Dataset enable/disable resolve their names like delete does: an explicit name that is not a dataset is a 404, while a
+     * wildcard that matches no dataset is an acknowledged no-op, and a wildcard that matches flips every matching dataset.
+     */
+    public void testEnableDisableDatasetResolution() throws Exception {
+        final String dsName = "toggle_resolution_ds";
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("toggle_res_a", dsName, "test://a/", Map.of())));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("toggle_res_b", dsName, "test://b/", Map.of())));
+        try {
+            ExecutionException missing = expectThrows(
+                ExecutionException.class,
+                () -> client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("toggle_res_missing")).get()
+            );
+            assertThat(missing.getCause(), instanceOf(ResourceNotFoundException.class));
+            missing = expectThrows(
+                ExecutionException.class,
+                () -> client().execute(EnableDatasetAction.INSTANCE, enableDatasetRequest("toggle_res_missing")).get()
+            );
+            assertThat(missing.getCause(), instanceOf(ResourceNotFoundException.class));
+
+            // A wildcard matching nothing acknowledges and changes nothing.
+            assertAcked(client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("no_such_prefix_*")));
+            for (Dataset dataset : client().execute(GetDatasetAction.INSTANCE, getDatasetRequest("toggle_res_*")).get().getDatasets()) {
+                assertThat(dataset.name(), dataset.enabled(), equalTo(true));
+            }
+
+            assertAcked(client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("toggle_res_*")));
+            for (Dataset dataset : client().execute(GetDatasetAction.INSTANCE, getDatasetRequest("toggle_res_*")).get().getDatasets()) {
+                assertThat(dataset.name(), dataset.enabled(), equalTo(false));
+            }
+            assertAcked(client().execute(EnableDatasetAction.INSTANCE, enableDatasetRequest("toggle_res_*")));
+            for (Dataset dataset : client().execute(GetDatasetAction.INSTANCE, getDatasetRequest("toggle_res_*")).get().getDatasets()) {
+                assertThat(dataset.name(), dataset.enabled(), equalTo(true));
+            }
+        } finally {
+            assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("toggle_res_*")));
+            assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+        }
+    }
+
     static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
         return new PutDataSourceAction.Request(TEST_TIMEOUT, TEST_TIMEOUT, name, "test", null, new HashMap<>(settings));
     }

@@ -544,11 +544,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRelocationSourceWaitsForEarlyPrewarmBeforeHandoff
   issue: https://github.com/elastic/elasticsearch/issues/165656
-- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
-  tasks:
-  - :server:test
-  method: testRequiredMultiFieldIsPresentWhenItsParentIs
-  issue: https://github.com/elastic/elasticsearch/issues/165673
 - class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
   tasks:
   - :x-pack:plugin:transform:yamlRestTest
@@ -573,6 +568,10 @@ tests:
   tasks:
   - :server:test
   issue: https://github.com/elastic/elasticsearch/issues/165732
+- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
+  tasks:
+  - :x-pack:plugin:esql:qa:security:javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/165735
 - class: org.elasticsearch.xpack.spatial.SpatialDiskUsageIT
   tasks:
   - :x-pack:plugin:spatial:internalClusterTest
@@ -637,3 +636,8 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/165944
+- class: org.elasticsearch.xpack.stateless.recovery.StatelessRecoveryMetricsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRecoveryMetricPublicationOnIndexingShardRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/166001

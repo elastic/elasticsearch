@@ -9,7 +9,6 @@
 
 package org.elasticsearch.columnar.numeric;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
@@ -26,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.columnar.ColumnarTestUtils.multiValuedCursor;
 import static org.elasticsearch.columnar.ColumnarTestUtils.randomValidBlockSize;
 import static org.elasticsearch.columnar.ColumnarTestUtils.readNumericMeta;
 
@@ -134,7 +134,7 @@ public class NumericColumnTests extends ESTestCase {
                     docValues.length,
                     numValues,
                     false,
-                    () -> cursor(docValues),
+                    () -> multiValuedCursor(docValues),
                     NumericPipeline.defaultPipeline(randomValidBlockSize()),
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
@@ -234,7 +234,7 @@ public class NumericColumnTests extends ESTestCase {
                     numDocsWithField,
                     numValues,
                     true,
-                    () -> cursor(docValues),
+                    () -> multiValuedCursor(docValues),
                     NumericPipeline.defaultPipeline(randomValidBlockSize()),
                     BlockBytesCodec.forId(BlockBytesCodec.IDENTITY_ID),
                     SkipIndexCodec.forId(SkipIndexCodec.MULTI_LEVEL_ID),
@@ -270,50 +270,6 @@ public class NumericColumnTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    /** A fresh {@link SortedNumericDocValues} over the per-document values, yielding them in array order. */
-    private static NumericColumnValues cursor(long[][] docValues) {
-        return new NumericColumnValues() {
-            private int doc = -1;
-            private int valueIndex;
-
-            @Override
-            public int valueCount() {
-                return docValues[doc].length;
-            }
-
-            @Override
-            public long nextValue() {
-                return docValues[doc][valueIndex++];
-            }
-
-            @Override
-            public int docID() {
-                return doc;
-            }
-
-            @Override
-            public int nextDoc() {
-                for (doc = doc + 1; doc < docValues.length; doc++) {
-                    if (docValues[doc] != null && docValues[doc].length > 0) {
-                        valueIndex = 0;
-                        return doc;
-                    }
-                }
-                return doc = DocIdSetIterator.NO_MORE_DOCS;
-            }
-
-            @Override
-            public int advance(int target) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long cost() {
-                return docValues.length;
-            }
-        };
     }
 
 }

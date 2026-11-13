@@ -376,6 +376,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // translate metric aggregates early before they are converted to nested expressions
                 new TranslateTimeSeriesAggregate(),
                 new ApplyWindowFilter(),
+                // Must run after TranslateTimeSeriesAggregate, which can give a union's branches a new column (_timeseries).
+                new AddLateUnionAllColumns(),
                 // Must run before ResolveHighlightIndexKey, which reads the mappings it sets.
                 new ResolveHighlightFieldMappings(),
                 // Must run before UnionTypesCleanup, which drops the synthetic key from the output.

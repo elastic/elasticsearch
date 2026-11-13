@@ -1159,6 +1159,28 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
+     * A caller SET keeps the view as its own branch. A bare time-series aggregation in that view only gets its implicit
+     * {@code _timeseries} column after the branch's columns are determined, and the view must still return it, in the same
+     * position as the view queried without SET, or its body run directly.
+     */
+    public void testCallerSetUnmappedKeepsImplicitTimeSeriesColumnOfView() {
+        String body = "TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)";
+        List<String> expected = List.of("rate", "_timeseries", "tbucket");
+        assertThat(outputNames(analyzer().addK8s().statement(body)), equalTo(expected));
+        assertThat(outputNames(analyzer().addK8s().addView("v", body).statement("FROM v")), equalTo(expected));
+        for (Function<String, String> set : List.<Function<String, String>>of(
+            AnalyzerUnmappedTestBase::setUnmappedNullify,
+            AnalyzerUnmappedTestBase::setUnmappedLoad
+        )) {
+            assertThat(outputNames(analyzer().addK8s().addView("v", body).statement(set.apply("FROM v"))), equalTo(expected));
+        }
+    }
+
+    private static List<String> outputNames(LogicalPlan plan) {
+        return plan.output().stream().map(Attribute::name).toList();
+    }
+
+    /**
      * The caller's setting answers a reference the view does not output with a null column at the view's output. The view
      * body is analysed without the setting, so its projections are plain {@link Project}s; surfacing the null column must
      * not reach into them, which would e.g. replace a RENAME's alias with a reference nothing produces, or let a field the

@@ -522,6 +522,70 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
         }
     }
 
+    private static final String TIMESTAMP = "2024-01-01T00:00:00.000Z";
+
+    private MapperService createStrictColumnarMapperService() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR).getName())
+            .build();
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
+        mapping.startObject("@timestamp").field("type", "date").endObject();
+        mapping.startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject();
+        mapping.startObject("obj").startObject("properties").startObject("field");
+        minimalMapping(mapping);
+        mapping.endObject().endObject().endObject();
+        mapping.endObject().endObject().endObject();
+        return createMapperService(settings, mapping);
+    }
+
+    /**
+     * In a strictly columnar index a null counts only as an element of the field's own array, whichever way the field stores array order
+     * (see {@link MultiValuedBinaryDocValuesField#keepsNullSlot}). A bare null, on its own or under an object, is the field being absent,
+     * and a null in an array of objects is dropped like any other bare null. A null inside the field's own array keeps its slot.
+     */
+    public void testStrictColumnarKeepsOnlyNullsInsideTheFieldsArray() throws Exception {
+        try (var mapperService = createStrictColumnarMapperService()) {
+            DocumentMapper mapper = mapperService.documentMapper();
+            String absent = syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP));
+            assertEquals(absent, syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP).nullField("field")));
+            assertEquals(
+                absent,
+                syntheticSource(mapper, b -> b.field("@timestamp", TIMESTAMP).startObject("obj").nullField("field").endObject())
+            );
+
+            Object value = randomValue();
+            int nullsBefore = between(0, 3);
+            int nullsAfter = between(nullsBefore == 0 ? 1 : 0, 3);
+            String valueOnly = syntheticSource(
+                mapper,
+                b -> b.field("@timestamp", TIMESTAMP).startArray("obj").startObject().field("field", value).endObject().endArray()
+            );
+            assertEquals(valueOnly, syntheticSource(mapper, b -> {
+                b.field("@timestamp", TIMESTAMP).startArray("obj");
+                for (int i = 0; i < nullsBefore; i++) {
+                    b.startObject().nullField("field").endObject();
+                }
+                b.startObject().field("field", value).endObject();
+                for (int i = 0; i < nullsAfter; i++) {
+                    b.startObject().nullField("field").endObject();
+                }
+                b.endArray();
+            }));
+
+            int numNulls = between(1, 5);
+            String nulls = String.join(",", Collections.nCopies(numNulls, "null"));
+            assertEquals("{\"@timestamp\":\"" + TIMESTAMP + "\",\"field\":[" + nulls + "]}", syntheticSource(mapper, b -> {
+                b.field("@timestamp", TIMESTAMP).startArray("field");
+                for (int i = 0; i < numNulls; i++) {
+                    b.nullValue();
+                }
+                b.endArray();
+            }));
+        }
+    }
+
     protected void minimalMapping(XContentBuilder b) throws IOException {
         String fieldTypeName = getFieldTypeName();
         assertThat(fieldTypeName, notNullValue());

@@ -173,12 +173,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // TODO tighten this up.
     private final Set<ProjectRepo> repositoriesRunningRepositoryDataWriteTasks = Collections.synchronizedSet(new HashSet<>());
 
-    /// Set of snapshots that are currently being finalized or failed by this node. Indicates that the finalization process has claimed
-    /// ownership of the corresponding [#snapshotFinalizationListeners] entries, preventing them from being completed by a master failover.
-    // Previously this was also used to avoid duplicate finalization submissions but that's no longer the case. Also there's no real need
-    // to prevent these listeners failing on a master failover (this protection isn't watertight anyway). TODO remove this
-    private final Set<Snapshot> endingSnapshots = Collections.synchronizedSet(new HashSet<>());
-
     /** Set of currently initializing clone operations */
     private final Set<Snapshot> initializingClones = Collections.synchronizedSet(new HashSet<>());
 
@@ -290,25 +284,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         this.externalChangesBatcher = new SnapshotExternalChangesBatcher(
             clusterService,
             initializingClones::contains,
-            (entry, metadata) -> submitFinalizeSnapshotRepositoryDataWriteTask(
-                entry,
-                metadata,
-                // Unlike SnapshotDeletionStartBatcher$FinalizeTaskSubmitter we do not need the latest RepositoryData to process external
-                // changes, so we pass a null RepositoryData here which causes it to be loaded from the repository (only) if this submission
-                // starts immediately, which means that no other task is currently updating it.
-                null
-            ),
             this::runReadyShardClonesInCluster,
-            (entry, minVersion) -> submitDeleteSnapshotsRepositoryDataWriteTask(
-                entry.projectId(),
-                entry.repoName(),
-                entry,
-                // Unlike SnapshotDeletionStartBatcher$DeleteTaskSubmitter we do not need the latest RepositoryData to process external
-                // changes, so we pass a null RepositoryData here which causes it to be loaded from the repository (only) if this submission
-                // starts immediately, which means that no other task is currently updating it.
-                null,
-                minVersion
-            )
+            this::ensureRepositoryDataWriteTaskRunning
         );
 
         this.shardSnapshotUpdateCompletionHandler = this::handleShardSnapshotUpdateCompletion;
@@ -573,7 +550,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         // Exception handler for IO exceptions with loading index and repo metadata
         final Consumer<Exception> onFailure = e -> {
-            endingSnapshots.add(targetSnapshot);
             initializingClones.remove(targetSnapshot);
             logger.info(() -> "Failed to start snapshot clone [" + cloneEntry + "]", e);
             removeFailedSnapshotFromClusterState(targetSnapshot, e, null, UpdatedShardGenerations.EMPTY);
@@ -980,9 +956,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         projectId,
                         request.repository(),
                         this::notifyAbortedByDeletion,
-                        this::submitFinalizeSnapshotRepositoryDataWriteTask,
+                        this::ensureRepositoryDataWriteTaskRunning,
                         this::completeOrAddDeleteListener,
-                        this::submitDeleteSnapshotsRepositoryDataWriteTask,
                         this::protectedRestoreSources
                     )
                 );
@@ -992,14 +967,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private void notifyAbortedByDeletion(Snapshot snapshot) {
-        if (endingSnapshots.add(snapshot)) {
-            logger.info("snapshot [{}] aborted", snapshot);
-            failSnapshotCompletionListeners(
-                snapshot,
-                new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT),
-                Runnable::run
-            );
-        }
+        logger.info("snapshot [{}] aborted", snapshot);
+        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT), Runnable::run);
     }
 
     private void completeOrAddDeleteListener(@Nullable String deleteUUID, ActionListener<Void> listener) {
@@ -1011,24 +980,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             snapshotDeletionListeners.computeIfAbsent(deleteUUID, k -> new CopyOnWriteArrayList<>())
                 .add(ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()));
         }
-    }
-
-    /// Submit a ready-to-run delete-snapshots task to the conceptual executor of [RepositoryData] write tasks for that repository. See
-    /// [#ensureRepositoryDataWriteTaskRunning] for more information.
-    private void submitDeleteSnapshotsRepositoryDataWriteTask(
-        ProjectId projectId,
-        String repositoryName,
-        SnapshotDeletionsInProgress.Entry deleteEntry,
-        @Nullable /* if the triggering task did not have access to the latest RepositoryData (e.g. it didn't just update it) */
-        RepositoryData repositoryData,
-        IndexVersion minNodeVersion
-    ) {
-        assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED : deleteEntry;
-        // Retained for the submitter API. The running task reads the minimum node version from the current cluster state.
-        Objects.requireNonNull(minNodeVersion);
-        // The delete is already STARTED in the cluster state, which is what makes it the next RepositoryData write for this repository.
-        // If another write is running, that write observes the cluster state before going idle.
-        ensureRepositoryDataWriteTaskRunning(projectId, repositoryName, repositoryData);
     }
 
     /** Deletes snapshot from repository
@@ -1183,17 +1134,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 return currentState;
             }
             final SnapshotDeletionsInProgress newDeletions = filterDeletions(updatedDeletions);
-            // May move a WAITING delete to STARTED now that the removed delete no longer blocks it. `readyDeletions()` checks all
+            // May move a WAITING delete to STARTED now that the removed delete no longer blocks it. `startReadyDeletions()` checks all
             // repositories in the target project for ready-to-start deletions, but in fact can only change the state of the repository of
             // deleteEntry since any other ready-to-start deletion would have been moved to `STARTED` when it became ready.
-            return SnapshotsServiceUtils.readyDeletions(
+            return SnapshotsServiceUtils.startReadyDeletions(
                 SnapshotsServiceUtils.updateWithSnapshots(
                     currentState,
                     updatedSnapshotsInProgress(currentState, newDeletions),
                     newDeletions
                 ),
                 deleteEntry.projectId()
-            ).v1();
+            );
         }
 
         @Override
@@ -1420,35 +1371,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         null
                     );
                 }
-            } else {
-                final List<Runnable> readyToResolveListeners = new ArrayList<>();
-                // line-up mutating concurrent operations which can be in form of clusterApplierService and masterService tasks
-                // to completion and deletion listeners, see #failAllListenersOnMasterFailOver
-                synchronized (repositoriesRunningRepositoryDataWriteTasks) {
-                    // We have snapshot listeners but are not the master anymore. Fail all waiting listeners except for those that
-                    // already have their snapshots finalizing (those that are already finalizing will fail on their own from to update
-                    // the cluster state).
-                    for (final Snapshot snapshot : snapshotFinalizationListeners.keySet()) {
-                        if (endingSnapshots.add(snapshot)) {
-                            failSnapshotCompletionListeners(
-                                snapshot,
-                                new SnapshotException(snapshot, "no longer master"),
-                                readyToResolveListeners::add
-                            );
-                            assert endingSnapshots.contains(snapshot) == false : snapshot;
-                        }
-                    }
-                    if (snapshotDeletionListeners.isEmpty() == false) {
-                        final Exception cause = new NotMasterException("no longer master");
-                        for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
-                            final List<ActionListener<Void>> listeners = it.next();
-                            readyToResolveListeners.add(() -> SnapshotsServiceUtils.failListenersIgnoringException(listeners, cause));
-                            it.remove();
-                        }
-                    }
-                }
-                // fail snapshot listeners outside mutex
-                readyToResolveListeners.forEach(Runnable::run);
+            } else if (snapshotFinalizationListeners.isEmpty() == false || snapshotDeletionListeners.isEmpty() == false) {
+                // Fail all local listeners on master failure. In principle, we could keep these listeners until we apply a state that
+                // has a different master, allowing to preserve these listeners across a brief re-election. But this gets kinda complicated
+                // as we may never fully join the different master, but then get elected again, and the latest cluster state may not match
+                // our pending listeners any more.
+
+                // BUG (see #165373): this might not be enough, we can still technically register listeners on the master-service thread
+                // after failing them here on the cluster applier thread. Usually we'll apply another cluster state update here and go down
+                // this branch again, or else become master again without any intervening updates, but in rare cases we can still leak them.
+                failAllListenersOnMasterFailOver(new NotMasterException("no longer master"));
             }
 
             // Clean up any now-obsolete deletion-start batchers
@@ -1496,21 +1428,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         submitUnbatchedTask("assertConsistentWithClusterStateAtEndOfPublish", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState state) {
-                final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
-                if (snapshotsInProgress.isEmpty() == false) {
-                    synchronized (endingSnapshots) {
-                        final Set<Snapshot> runningSnapshots = Stream.concat(
-                            snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot),
-                            endingSnapshots.stream()
-                        ).collect(Collectors.toSet());
-                        final Set<Snapshot> snapshotListenerKeys = snapshotFinalizationListeners.keySet();
-                        assert runningSnapshots.containsAll(snapshotListenerKeys)
-                            : "Saw completion listeners for unknown snapshots in "
-                                + snapshotListenerKeys
-                                + " but running snapshots are "
-                                + runningSnapshots;
-                    }
-                }
+                final Set<Snapshot> runningSnapshots = SnapshotsInProgress.get(state)
+                    .asStream()
+                    .map(SnapshotsInProgress.Entry::snapshot)
+                    .collect(Collectors.toSet());
+                final Set<Snapshot> snapshotListenerKeys = snapshotFinalizationListeners.keySet();
+                assert runningSnapshots.containsAll(snapshotListenerKeys)
+                    : "Saw completion listeners for unknown snapshots in "
+                        + snapshotListenerKeys
+                        + " but running snapshots are "
+                        + runningSnapshots;
                 final SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(state);
                 if (snapshotDeletionsInProgress.hasDeletionsInProgress()) {
                     final Set<String> runningDeletes = snapshotDeletionsInProgress.getEntries()
@@ -1603,8 +1530,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         // handles the completion of some shard-snapshot updates, performing the next possible actions
         private final ShardSnapshotUpdateCompletionHandler completionHandler;
 
-        // entries that became complete due to this batch of updates
-        private final List<SnapshotsInProgress.Entry> newlyCompletedEntries = new ArrayList<>();
+        // repositories containing entries that became complete due to this batch of updates
+        private final Set<ProjectRepo> repositoriesWithNewlyCompletedEntries = new HashSet<>();
 
         /**
          * Sets up {@link #updatesByRepo} to organize the {@link ShardSnapshotUpdate} tasks by repository name.
@@ -1652,7 +1579,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     final var newEntry = applyUpdatesToEntry(entry, updates.getValue());
                     newEntries.add(newEntry);
                     if (newEntry != entry && newEntry.state().completed()) {
-                        newlyCompletedEntries.add(newEntry);
+                        repositoriesWithNewlyCompletedEntries.add(projectRepo);
                     }
                 }
                 updated = updated.createCopyWithUpdatedEntriesForRepo(projectRepo.projectId(), projectRepo.name(), newEntries);
@@ -1680,12 +1607,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 return;
             }
 
-            final var result = new ShardSnapshotUpdateResult(initialState.metadata(), snapshotsInProgress);
             try (
                 // Set up this callback (handleShardSnapshotUpdateCompletion) to run after all the individual update requests receive
                 // responses.
                 var onCompletionRefs = new RefCountingRunnable(
-                    () -> completionHandler.handleCompletion(result, newlyCompletedEntries, updatesByRepo.keySet())
+                    () -> completionHandler.handleCompletion(
+                        snapshotsInProgress,
+                        repositoriesWithNewlyCompletedEntries,
+                        updatesByRepo.keySet()
+                    )
                 )
             ) {
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -1693,7 +1623,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         final var ref = onCompletionRefs.acquire();
                         taskContext.success(() -> {
                             try (ref) {
-                                task.listener.onResponse(result);
+                                task.listener.onResponse(snapshotsInProgress);
                             }
                         });
                     }
@@ -1999,31 +1929,22 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    /**
-     * The result of a {@link ShardSnapshotUpdate}, capturing the info needed to finalize the relevant snapshot if appropriate.
-     */
-    record ShardSnapshotUpdateResult(Metadata metadata, SnapshotsInProgress snapshotsInProgress) {}
-
     interface ShardSnapshotUpdateCompletionHandler {
         void handleCompletion(
-            ShardSnapshotUpdateResult shardSnapshotUpdateResult,
-            List<SnapshotsInProgress.Entry> newlyCompletedEntries,
+            SnapshotsInProgress snapshotsInProgress,
+            Set<ProjectRepo> repositoriesWithNewlyCompletedEntries,
             Set<ProjectRepo> updatedRepositories
         );
     }
 
     private void handleShardSnapshotUpdateCompletion(
-        ShardSnapshotUpdateResult shardSnapshotUpdateResult,
-        List<SnapshotsInProgress.Entry> newlyCompletedEntries,
+        SnapshotsInProgress snapshotsInProgress,
+        Set<ProjectRepo> repositoriesWithNewlyCompletedEntries,
         Set<ProjectRepo> updatedRepositories
     ) {
-        // Maybe this state update completed one or more snapshots. If we are not already ending them because of some earlier update, end
-        // them now.
-        final var snapshotsInProgress = shardSnapshotUpdateResult.snapshotsInProgress();
-        for (final var newlyCompletedEntry : newlyCompletedEntries) {
-            if (endingSnapshots.contains(newlyCompletedEntry.snapshot()) == false) {
-                submitFinalizeSnapshotRepositoryDataWriteTask(newlyCompletedEntry, shardSnapshotUpdateResult.metadata, null);
-            }
+        // Maybe this state update completed one or more snapshots, so ensure their repositories are running write tasks.
+        for (final var repository : repositoriesWithNewlyCompletedEntries) {
+            ensureRepositoryDataWriteTaskRunning(repository.projectId(), repository.name(), null);
         }
         // Likewise this state update may enable some new shard clones on any affected repository, so check them all.
         for (final var updatedRepository : updatedRepositories) {
@@ -2047,14 +1968,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         private final ShardId shardId;
         private final RepositoryShardId repoShardId;
         private final ShardSnapshotStatus updatedState;
-        private final ActionListener<ShardSnapshotUpdateResult> listener;
+        private final ActionListener<SnapshotsInProgress> listener;
 
         ShardSnapshotUpdate(
             Snapshot snapshot,
             ShardId shardId,
             RepositoryShardId repoShardId,
             ShardSnapshotStatus updatedState,
-            ActionListener<ShardSnapshotUpdateResult> listener
+            ActionListener<SnapshotsInProgress> listener
         ) {
             assert shardId != null ^ repoShardId != null;
             this.snapshot = snapshot;
@@ -2388,7 +2309,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 snapshotMetrics.snapshotsStartedCounter().incrementBy(1, attributes);
                 createSnapshotTask.listener.onResponse(snapshot);
                 if (newEntry.state().completed()) {
-                    submitFinalizeSnapshotRepositoryDataWriteTask(newEntry, currentState.metadata(), createSnapshotTask.repositoryData);
+                    ensureRepositoryDataWriteTaskRunning(
+                        snapshot.getProjectId(),
+                        snapshot.getRepository(),
+                        createSnapshotTask.repositoryData
+                    );
                 }
             });
             return res;
@@ -2399,23 +2324,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // Snapshot finalization
     // ------------------------------------------------------------------------------------------------------------------------------------
 
-    /// Submit a ready-to-run finalize-snapshot task to the conceptual executor of [RepositoryData] write tasks for that repository. See
-    /// [#ensureRepositoryDataWriteTaskRunning] for more information.
-    private void submitFinalizeSnapshotRepositoryDataWriteTask(
-        SnapshotsInProgress.Entry entry,
-        Metadata metadata,
-        @Nullable /* if the triggering task did not have access to the latest RepositoryData (e.g. it didn't just update it) */
-        RepositoryData repositoryData
-    ) {
-        final Snapshot snapshot = entry.snapshot();
-        // The snapshot entry is already completed in the cluster state. The metadata passed by the caller is not used: finalization reads
-        // the cluster state when the task actually starts.
-        Objects.requireNonNull(metadata);
-        ensureRepositoryDataWriteTaskRunning(snapshot.getProjectId(), snapshot.getRepository(), repositoryData);
-    }
-
     private void finalizeSnapshotEntry(Snapshot snapshot, Metadata metadata, RepositoryData repositoryData) {
-        endingSnapshots.add(snapshot);
         final ProjectId projectId = snapshot.getProjectId();
         final Metadata effectiveMetadata;
         if (serializeProjectMetadata) {
@@ -2632,7 +2541,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             // get a hold of the listeners for this snapshot here and store them in the future so they can be used
                             // by the snapshot info callback below and won't be failed needlessly if choosing the next RepositoryData write
                             // runs into a fatal like e.g. this node stopped being the master node
-                            snapshotListeners.onResponse(endAndGetListenersToResolve(snapshot));
+                            snapshotListeners.onResponse(snapshotFinalizationListeners.remove(snapshot));
                             runNextRepositoryDataWriteTask(projectId, repository, updatedRepositoryData);
                         },
                             e -> handleFinalizationFailure(
@@ -2735,17 +2644,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     /**
-     * Remove a snapshot from {@link #endingSnapshots} set and return its completion listeners that must be resolved.
-     */
-    private List<ActionListener<SnapshotInfo>> endAndGetListenersToResolve(Snapshot snapshot) {
-        // get listeners before removing from the ending snapshots set to not trip assertion in #assertConsistentWithClusterState that
-        // makes sure we don't have listeners for snapshots that aren't tracked in any internal state of this class
-        final List<ActionListener<SnapshotInfo>> listenersToComplete = snapshotFinalizationListeners.remove(snapshot);
-        endingSnapshots.remove(snapshot);
-        return listenersToComplete;
-    }
-
-    /**
      * Handles failure to finalize a snapshot. If the exception indicates that this node was unable to publish a cluster state and stopped
      * being the master node, then fail this snapshot's listeners and mark only this repository's RepositoryData write slot idle. Other
      * repositories' write tasks keep running. If this node is already master again, processing of ready tasks is restarted here; otherwise
@@ -2806,8 +2704,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     snapshot,
                     updatedShardGenerations
                 );
-                assert updatedState == currentState || endingSnapshots.contains(snapshot)
-                    : "did not track [" + snapshot + "] in ending snapshots while removing it from the cluster state";
                 // now check if there are any delete operations that refer to the just failed snapshot and remove the snapshot from them
                 return SnapshotsServiceUtils.updateWithSnapshots(
                     updatedState,
@@ -2860,6 +2756,14 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // RepositoryData write executor
     // ------------------------------------------------------------------------------------------------------------------------------------
 
+    /// Ensures that ready snapshot finalizations or deletions for a repository are eventually processed.
+    @FunctionalInterface
+    interface RepositoryDataWriteTaskRunner {
+        /// Start a repository write if one is not already running.
+        /// @param repositoryData latest repository generation if available, otherwise `null` to load it before starting the write
+        void ensureRepositoryDataWriteTaskRunning(ProjectId projectId, String repository, @Nullable RepositoryData repositoryData);
+    }
+
     /// Start a [RepositoryData] write for `repository` if one is not already running. Ready work is whatever the current [ClusterState]
     /// says is ready: the first completed snapshot entry, or otherwise a [SnapshotDeletionsInProgress.State#STARTED] deletion. Duplicate
     /// submissions, including across master failovers, are collapsed by
@@ -2893,10 +2797,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final var repositoryData = getSafeRepositoryData(projectId, repository, lastKnownRepositoryData, clusterState);
 
         // Check for `STARTED` delete operations _before_ `complete()` snapshots. It is possible for a repository to have both: a delete
-        // operation moves to `STARTED` only if there are no snapshots in progress in that repository, but once the delete operation is
-        // running another snapshot creation may be enqueued for that repository and may then become `complete()` without interacting with
-        // the repository (e.g. because all its shards failed). The existence of the `STARTED` delete operation means that we should not
-        // start any finalization operations yet.
+        // operation moves to `STARTED` only if there are no snapshots in progress in that repository (or if an earlier delete operation
+        // just finished), but once the delete operations are running another snapshot creation may be enqueued for that repository and may
+        // then become `complete()` without interacting with the repository (e.g. because all its shards failed). The existence of the
+        // `STARTED` delete operation means that we should not start any finalization operations yet.
+        //
+        // Note that in this context "snapshots in progress" excludes initializing clones. An uninitialized clone does not block deletions.
 
         for (var entry : SnapshotDeletionsInProgress.get(clusterState).getEntries()) {
             if (entry.state() == SnapshotDeletionsInProgress.State.STARTED
@@ -3005,7 +2911,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // ------------------------------------------------------------------------------------------------------------------------------------
 
     private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e, Consumer<Runnable> failingListenersConsumer) {
-        final List<ActionListener<SnapshotInfo>> listeners = endAndGetListenersToResolve(snapshot);
+        final List<ActionListener<SnapshotInfo>> listeners = snapshotFinalizationListeners.remove(snapshot);
         failingListenersConsumer.accept(() -> SnapshotsServiceUtils.failListenersIgnoringException(listeners, e));
     }
 
@@ -3214,7 +3120,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      */
     public boolean assertAllListenersResolved() {
         final DiscoveryNode localNode = clusterService.localNode();
-        assert endingSnapshots.isEmpty() : "Found leaked ending snapshots " + endingSnapshots + " on [" + localNode + "]";
         assert snapshotFinalizationListeners.isEmpty()
             : "Found leaked snapshot finalization listeners " + snapshotFinalizationListeners + " on [" + localNode + "]";
         assert repositoriesRunningRepositoryDataWriteTasks.isEmpty()

@@ -17,7 +17,6 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
@@ -35,7 +34,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
-import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -78,12 +76,14 @@ public class APMTracerTests extends ESTestCase {
     private static final Traceable TRACEABLE2 = new TestTraceable("id2");
     private static final Traceable TRACEABLE3 = new TestTraceable("id3");
 
+    private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
     /**
      * The two-arg constructor accepting a {@code Supplier<MeterProvider>} should construct without
      * throwing regardless of the supplier's return value.
      */
     public void testConstructorWithMeterProviderSupplierDoesNotThrow() {
-        assertNotNull(new APMTracer(Settings.EMPTY, MeterProvider::noop));
+        new APMTracer(new ThreadContext(Settings.EMPTY), Settings.EMPTY, MeterProvider::noop);
     }
 
     /**
@@ -93,7 +93,7 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+        apmTracer.startTrace(TRACEABLE1, "name1", null);
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -108,7 +108,7 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+        apmTracer.startTrace(TRACEABLE1, "name1", null);
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -120,10 +120,9 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        ThreadContext traceContext = new ThreadContext(settings);
-        apmTracer.startTrace(traceContext, TRACEABLE1, "name1", null);
+        apmTracer.startTrace(TRACEABLE1, "name1", null);
 
-        assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
+        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
         assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
     }
@@ -136,10 +135,9 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        ThreadContext traceContext = new ThreadContext(settings);
-        apmTracer.startTrace(traceContext, TRACEABLE1, "name1_discard", null);
+        apmTracer.startTrace(TRACEABLE1, "name1_discard", null);
 
-        assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
 
@@ -150,15 +148,14 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        ThreadContext traceContext = new ThreadContext(settings);
-        apmTracer.startTrace(traceContext, TRACEABLE1, "name1", null);
-        try (var ignore1 = traceContext.newTraceContext()) {
-            apmTracer.startTrace(traceContext, TRACEABLE2, "name2_discard", null);
-            assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+        apmTracer.startTrace(TRACEABLE1, "name1", null);
+        try (var ignore1 = threadContext.newTraceContext()) {
+            apmTracer.startTrace(TRACEABLE2, "name2_discard", null);
+            assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
 
-            try (var ignore2 = traceContext.newTraceContext()) {
-                apmTracer.startTrace(traceContext, TRACEABLE3, "name3_discard", null);
-                assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+            try (var ignore2 = threadContext.newTraceContext()) {
+                apmTracer.startTrace(TRACEABLE3, "name3_discard", null);
+                assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
             }
         }
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
@@ -172,13 +169,12 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        TraceContext traceContext = new ThreadContext(settings);
         // 1_000_000L because of "toNanos" conversions that overflow for large long millis
         Instant spanStartTime = Instant.ofEpochMilli(randomLongBetween(0, Long.MAX_VALUE / 1_000_000L));
-        traceContext.putTransient(Task.TRACE_START_TIME, spanStartTime);
-        apmTracer.startTrace(traceContext, TRACEABLE1, "name1", null);
+        threadContext.putTransient(Task.TRACE_START_TIME, spanStartTime);
+        apmTracer.startTrace(TRACEABLE1, "name1", null);
 
-        assertThat(traceContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
+        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
         assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
         assertThat(((SpyAPMTracer) apmTracer).getSpanStartTime("name1"), is(spanStartTime));
@@ -191,43 +187,10 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+        apmTracer.startTrace(TRACEABLE1, "name1", null);
         apmTracer.stopTrace(TRACEABLE1);
         apmTracer.stopTrace(TRACEABLE2); // stopping a non-existent trace is a noop
 
-        assertThat(apmTracer.getSpans(), anEmptyMap());
-    }
-
-    /**
-     * Check that {@link APMTracer#setStatusToError} sets the OTel span's status to {@link StatusCode#ERROR},
-     * verifying the direct integration with the underlying OpenTelemetry span.
-     */
-    public void test_setStatusToError_setsSpanStatusToError() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings);
-
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
-        Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
-        assertThat(span, notNullValue());
-
-        String description = "500 INTERNAL_SERVER_ERROR";
-        apmTracer.setStatusToError(TRACEABLE1, description);
-
-        Mockito.verify(span).setStatus(StatusCode.ERROR, description);
-    }
-
-    /**
-     * Check that {@link APMTracer#setStatusToError} is a no-op when the traceable has no active span,
-     * i.e. it was never started or has already been stopped.
-     */
-    public void test_setStatusToError_noopWhenSpanNotFound() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings);
-
-        // TRACEABLE1 was never started — span map is empty
-        assertThat(apmTracer.getSpans(), anEmptyMap());
-        apmTracer.setStatusToError(TRACEABLE1, "should be ignored");
-        // no exception thrown and spans map remains empty
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
 
@@ -242,8 +205,7 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        ThreadContext threadContext = new ThreadContext(settings);
-        apmTracer.startTrace(threadContext, TRACEABLE1, "name1", null);
+        apmTracer.startTrace(TRACEABLE1, "name1", null);
         assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
     }
 
@@ -256,9 +218,8 @@ public class APMTracerTests extends ESTestCase {
         APMTracer apmTracer = buildTracer(settings);
 
         String projectId = randomAlphaOfLength(16);
-        ThreadContext threadContext = new ThreadContext(settings);
         threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
-        apmTracer.startTrace(threadContext, TRACEABLE1, "name1", null);
+        apmTracer.startTrace(TRACEABLE1, "name1", null);
 
         Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
         assertThat(span, notNullValue());
@@ -273,7 +234,7 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", null);
+        apmTracer.startTrace(TRACEABLE1, "name1", null);
 
         Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
         assertThat(span, notNullValue());
@@ -297,9 +258,9 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name-aaa", null);
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE2, "name-bbb", null);
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE3, "name-ccc", null);
+        startTraceInNewContext(apmTracer, TRACEABLE1, "name-aaa");
+        startTraceInNewContext(apmTracer, TRACEABLE2, "name-bbb");
+        startTraceInNewContext(apmTracer, TRACEABLE3, "name-ccc");
 
         assertThat(apmTracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
         assertThat(apmTracer.getSpans(), hasKey(TRACEABLE2.getSpanId()));
@@ -320,7 +281,7 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name-aaa", null);
+        startTraceInNewContext(apmTracer, TRACEABLE1, "name-aaa");
 
         assertThat(apmTracer.getSpans(), not(hasKey("id1")));
     }
@@ -342,9 +303,9 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name-aaa", null);
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE2, "name-bbb", null);
-        apmTracer.startTrace(new ThreadContext(settings), TRACEABLE3, "name-ccc", null);
+        startTraceInNewContext(apmTracer, TRACEABLE1, "name-aaa");
+        startTraceInNewContext(apmTracer, TRACEABLE2, "name-bbb");
+        startTraceInNewContext(apmTracer, TRACEABLE3, "name-ccc");
 
         assertThat(apmTracer.getSpans(), not(hasKey(TRACEABLE1.getSpanId())));
         assertThat(apmTracer.getSpans(), not(hasKey(TRACEABLE2.getSpanId())));
@@ -400,13 +361,12 @@ public class APMTracerTests extends ESTestCase {
 
         final String traceId = "0af7651916cd43dd8448eb211c80319c";
         final String remoteParentSpanId = "b7ad6b7169203331";
-        ThreadContext traceContext = new ThreadContext(settings);
         // Simulate transport propagation: the transport layer copies TRACE_PARENT_HTTP_HEADER into the
         // PARENT_TRACE_PARENT_HEADER transient on the receiving node. getRemoteParentContext() reads this transient.
-        traceContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, "00-" + traceId + "-" + remoteParentSpanId + "-01");
+        threadContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, "00-" + traceId + "-" + remoteParentSpanId + "-01");
         // PARENT_APM_TRACE_CONTEXT is intentionally absent — transients are not serialised over transport.
 
-        apmTracer.startTrace(traceContext, TRACEABLE1, "name1", null);
+        apmTracer.startTrace(TRACEABLE1, "name1", null);
 
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
         Context spanContext = apmTracer.getSpans().get(TRACEABLE1.getSpanId());
@@ -427,29 +387,39 @@ public class APMTracerTests extends ESTestCase {
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setTracerProvider(tracerProvider).build();
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, () -> sdk, 0, false);
+        APMTracer tracer = new APMTracer(threadContext, settings, () -> sdk, 0, false);
         tracer.setNodeName("test-node");
         tracer.setClusterName("test-cluster");
         tracer.start();
 
-        startAndStopSpan(tracer, settings, TRACEABLE1, "resume-test-1");
+        startAndStopSpan(tracer, TRACEABLE1, "resume-test-1");
         assertThat(exporter.getFinishedSpanItems(), hasSize(1));
 
         tracer.setEnabled(false);
         exporter.reset();
-        startAndStopSpan(tracer, settings, TRACEABLE2, "resume-test-2");
+        startAndStopSpan(tracer, TRACEABLE2, "resume-test-2");
         assertThat(exporter.getFinishedSpanItems(), empty());
 
         tracer.setEnabled(true);
-        startAndStopSpan(tracer, settings, TRACEABLE3, "resume-test-3");
+        startAndStopSpan(tracer, TRACEABLE3, "resume-test-3");
         assertThat(exporter.getFinishedSpanItems(), hasSize(1));
 
         sdk.close();
     }
 
-    private static void startAndStopSpan(APMTracer tracer, Settings settings, Traceable traceable, String spanName) {
-        tracer.startTrace(new ThreadContext(settings), traceable, spanName, null);
+    private void startAndStopSpan(APMTracer tracer, Traceable traceable, String spanName) {
+        startTraceInNewContext(tracer, traceable, spanName);
         tracer.stopTrace(traceable);
+    }
+
+    /**
+     * The tracer stores the span context in a transient header, which can only be set once per context, so spans that
+     * are not nested must each be started in their own context.
+     */
+    private void startTraceInNewContext(APMTracer tracer, Traceable traceable, String spanName) {
+        try (var ignored = threadContext.newEmptyContext()) {
+            tracer.startTrace(traceable, spanName, null);
+        }
     }
 
     private APMTracer buildTracer(Settings settings) {
@@ -461,13 +431,13 @@ public class APMTracerTests extends ESTestCase {
     }
 
     private APMTracer buildTracer(Settings settings, int maxTraceDepth, boolean recordExceptionStacks) {
-        APMTracer tracer = new SpyAPMTracer(settings, OpenTelemetry.noop(), maxTraceDepth, recordExceptionStacks);
+        APMTracer tracer = new SpyAPMTracer(threadContext, settings, OpenTelemetry.noop(), maxTraceDepth, recordExceptionStacks);
         tracer.doStart();
         return tracer;
     }
 
     private APMTracer buildTracerWithW3CPropagator(Settings settings) {
-        APMTracer tracer = new SpyAPMTracer(settings, openTelemetryWithW3CPropagator(), 0, false);
+        APMTracer tracer = new SpyAPMTracer(threadContext, settings, openTelemetryWithW3CPropagator(), 0, false);
         tracer.doStart();
         return tracer;
     }
@@ -480,10 +450,9 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildTracer(settings, 0);
 
-        ThreadContext threadContext = new ThreadContext(settings);
         threadContext.putTransient(Task.PARENT_APM_TRACE_CONTEXT, Context.root());
 
-        tracer.startTrace(threadContext, TRACEABLE1, "child-span", Map.of());
+        tracer.startTrace(TRACEABLE1, "child-span", Map.of());
 
         assertThat(tracer.getSpans(), anEmptyMap());
     }
@@ -493,7 +462,7 @@ public class APMTracerTests extends ESTestCase {
         APMTracer tracer = buildTracer(settings, 0);
 
         // No PARENT_APM_TRACE_CONTEXT transient => no local parent => this is a root span.
-        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "root-span", Map.of());
+        tracer.startTrace(TRACEABLE1, "root-span", Map.of());
 
         assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
     }
@@ -502,10 +471,9 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildTracer(settings, 1);
 
-        ThreadContext threadContext = new ThreadContext(settings);
         threadContext.putTransient(Task.PARENT_APM_TRACE_CONTEXT, Context.root());
 
-        tracer.startTrace(threadContext, TRACEABLE1, "child-span", Map.of());
+        tracer.startTrace(TRACEABLE1, "child-span", Map.of());
 
         assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
     }
@@ -520,13 +488,11 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildTracer(settings, 1);
 
-        ThreadContext traceContext = new ThreadContext(settings);
-
-        tracer.startTrace(traceContext, TRACEABLE1, "root", Map.of());
-        try (var ignore1 = traceContext.newTraceContext()) {
-            tracer.startTrace(traceContext, TRACEABLE2, "child", Map.of());
-            try (var ignore2 = traceContext.newTraceContext()) {
-                tracer.startTrace(traceContext, TRACEABLE3, "grandchild", Map.of());
+        tracer.startTrace(TRACEABLE1, "root", Map.of());
+        try (var ignore1 = threadContext.newTraceContext()) {
+            tracer.startTrace(TRACEABLE2, "child", Map.of());
+            try (var ignore2 = threadContext.newTraceContext()) {
+                tracer.startTrace(TRACEABLE3, "grandchild", Map.of());
             }
         }
 
@@ -548,11 +514,10 @@ public class APMTracerTests extends ESTestCase {
         APMTracer tracer = buildTracer(settings, 5);
         Traceable child3 = new TestTraceable("id4");
 
-        ThreadContext traceContext = new ThreadContext(settings);
-        tracer.startTrace(traceContext, TRACEABLE1, "root", Map.of());
+        tracer.startTrace(TRACEABLE1, "root", Map.of());
         for (Traceable child : List.of(TRACEABLE2, TRACEABLE3, child3)) {
-            try (var ignored = traceContext.newTraceContext()) {
-                tracer.startTrace(traceContext, child, "child", Map.of());
+            try (var ignored = threadContext.newTraceContext()) {
+                tracer.startTrace(child, "child", Map.of());
             }
         }
 
@@ -565,13 +530,12 @@ public class APMTracerTests extends ESTestCase {
 
         final String traceId = "0af7651916cd43dd8448eb211c80319c";
         final String remoteParentSpanId = "b7ad6b7169203331";
-        ThreadContext traceContext = new ThreadContext(settings);
         // PARENT_APM_TRACE_CONTEXT is intentionally absent: this simulates a fresh entry from a remote caller.
-        traceContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, "00-" + traceId + "-" + remoteParentSpanId + "-01");
+        threadContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, "00-" + traceId + "-" + remoteParentSpanId + "-01");
 
-        tracer.startTrace(traceContext, TRACEABLE1, "entry-span", Map.of());
-        try (var ignored = traceContext.newTraceContext()) {
-            tracer.startTrace(traceContext, TRACEABLE2, "local-child", Map.of());
+        tracer.startTrace(TRACEABLE1, "entry-span", Map.of());
+        try (var ignored = threadContext.newTraceContext()) {
+            tracer.startTrace(TRACEABLE2, "local-child", Map.of());
         }
 
         assertThat(tracer.getSpans().keySet(), equalTo(Set.of(TRACEABLE1.getSpanId())));
@@ -583,7 +547,7 @@ public class APMTracerTests extends ESTestCase {
     public void test_addError_withStacksDisabled_emitsTypeAndMessageOnly() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildTracer(settings, 0, false);
-        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
+        tracer.startTrace(TRACEABLE1, "span-with-error", Map.of());
         Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
 
         tracer.addError(TRACEABLE1, new IllegalStateException("boom"));
@@ -599,7 +563,7 @@ public class APMTracerTests extends ESTestCase {
     public void test_addError_withStacksEnabled_delegatesToRecordException() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildTracer(settings, 0, true);
-        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
+        tracer.startTrace(TRACEABLE1, "span-with-error", Map.of());
         Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
 
         Exception failure = new IllegalStateException("boom");
@@ -612,7 +576,7 @@ public class APMTracerTests extends ESTestCase {
     public void test_addError_withNullMessage_omitsMessageAttribute() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildTracer(settings, 0, false);
-        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
+        tracer.startTrace(TRACEABLE1, "span-with-error", Map.of());
         Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
 
         tracer.addError(TRACEABLE1, new IllegalStateException());
@@ -626,7 +590,7 @@ public class APMTracerTests extends ESTestCase {
     public void test_setAttributes_callsSetAllAttributes() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildTracer(settings);
-        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "name1", Map.of());
+        tracer.startTrace(TRACEABLE1, "name1", Map.of());
         Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
 
         Attributes attributes = Attributes.of(AttributeKey.stringKey("http.method"), "GET", AttributeKey.longKey("http.status_code"), 200L);
@@ -673,8 +637,14 @@ public class APMTracerTests extends ESTestCase {
         Map<String, Instant> spanStartTimeMap;
         private final OpenTelemetry openTelemetry;
 
-        SpyAPMTracer(Settings settings, OpenTelemetry openTelemetry, int maxTraceDepth, boolean recordExceptionStacks) {
-            super(settings, () -> openTelemetry, maxTraceDepth, recordExceptionStacks);
+        SpyAPMTracer(
+            ThreadContext threadContext,
+            Settings settings,
+            OpenTelemetry openTelemetry,
+            int maxTraceDepth,
+            boolean recordExceptionStacks
+        ) {
+            super(threadContext, settings, () -> openTelemetry, maxTraceDepth, recordExceptionStacks);
             this.openTelemetry = openTelemetry;
             this.spanStartTimeMap = new HashMap<>();
         }

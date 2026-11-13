@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -95,6 +96,7 @@ import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.PrewarmWaitOutcome;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -132,13 +134,18 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETT
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.PREWARM_WAIT_TIMEOUT_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY;
+import static org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_SECONDS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1491,9 +1498,224 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             // the shard is started, so any warming or read by its recovery has happened by now
             assertBccHeaderPrewarms.run();
             assertEquals(0L, BlobStoreCacheDirectory.unwrapDirectory(shard.store().directory()).totalBytesReadFromObjectStore());
+            // we did not send a prewarm message because shard was hollowable
+            assertPrewarmWaitOutcome(indexNodeA, PrewarmWaitOutcome.NOT_SENT);
         } else {
             assertBusy(assertBccHeaderPrewarms);
         }
+    }
+
+    // verify that during a primary relocation the target replies to the prewarm request only after completing its prewarming
+    // and that the source waits for that reply before sending the handoff (the prewarm wait timeout is set high enough so not to expire)
+    public void testRelocationSourceWaitsForEarlyPrewarmBeforeHandoff() {
+        startMasterOnlyNode();
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            // disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // set to be high enough so the source "never" stops waiting for the prewarm
+            .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))
+            .build();
+
+        final var sourceNode = startIndexNode(nodeSettings);
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(100, 1000));
+        flush(indexName);
+
+        final var targetNode = startIndexNode(nodeSettings);
+        ensureStableCluster(3);
+
+        // hold the early prewarming on the target before it starts
+        final var earlyPrewarmingBlocked = new CountDownLatch(1);
+        final var releaseEarlyPrewarming = new CountDownLatch(1);
+        getSharedBlobCacheWarmingService(targetNode).addBeforeWarmingStartsListener(type -> {
+            if (type == Type.INDEXING_EARLY) {
+                earlyPrewarmingBlocked.countDown();
+                safeAwait(releaseEarlyPrewarming);
+            }
+        });
+
+        // completed when the early prewarming has finished
+        final var earlyPrewarmingDone = new PlainActionFuture<CompletedWarmingDetails>();
+        runOnWarmingComplete(targetNode, Type.INDEXING_EARLY, earlyPrewarmingDone);
+
+        final var prewarmReplied = new AtomicBoolean();
+        final var earlyPrewarmingDoneAtPrewarmReply = new AtomicBoolean();
+        final var prewarmRepliedAtHandoff = new AtomicBoolean();
+        final var targetTransportService = MockTransportService.getInstance(targetNode);
+        targetTransportService.addRequestHandlingBehavior(
+            PREWARM_RELOCATION_ACTION_NAME,
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                new TestTransportChannel(new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, response) -> {
+                    // corresponds when the target is about to reply to the `prewarm` request
+                    earlyPrewarmingDoneAtPrewarmReply.set(earlyPrewarmingDone.isDone());
+                    prewarmReplied.set(true);
+                    l.onResponse(response);
+                })),
+                task
+            )
+        );
+        targetTransportService.addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+            // corresponds to when the target is about to receive the `primary_context_handoff` request
+            prewarmRepliedAtHandoff.set(prewarmReplied.get());
+            handler.messageReceived(request, channel, task);
+        });
+
+        // trigger a relocation (note we only have 2 index nodes, so index has to move to `targetNode`)
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNode), indexName);
+
+        // the source is now waiting for the prewarm reply, which the target cannot send until the early prewarming is released
+        safeAwait(earlyPrewarmingBlocked);
+
+        // make the source node wait at least `minWaitInMillis` before we release the prewarming, so we can then verify prewarm metric
+        final var sourceThreadPool = internalCluster().getInstance(ThreadPool.class, sourceNode);
+        final long start = sourceThreadPool.relativeTimeInMillis();
+        final long minWaitInMillis = randomLongBetween(10, 100);
+        assertTrue(waitUntil(() -> sourceThreadPool.relativeTimeInMillis() - start >= minWaitInMillis));
+
+        releaseEarlyPrewarming.countDown();
+        ensureGreen(indexName);
+
+        assertTrue("target replies to the prewarm only once its early prewarming has completed", earlyPrewarmingDoneAtPrewarmReply.get());
+        assertTrue(
+            "source sends the handoff after the prewarm reply (due to the long `PREWARM_WAIT_TIMEOUT_SETTING`)",
+            prewarmRepliedAtHandoff.get()
+        );
+        final double recordedWaitInSeconds = assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.COMPLETED);
+        assertThat(
+            "recorded wait covers the time the prewarm was held",
+            recordedWaitInSeconds,
+            greaterThanOrEqualTo(minWaitInMillis / 1000.0)
+        );
+    }
+
+    // verify that the source stops waiting for the prewarm reply once the prewarm wait timeout expires and proceeds with the handoff
+    public void testRelocationSourceProceedsWithHandoffAfterPrewarmWaitTimeout() {
+        startMasterOnlyNode();
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            // disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // set to a small value so we do not wait too much in the test
+            .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(10))
+            .build();
+
+        final var sourceNode = startIndexNode(nodeSettings);
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(100, 1000));
+        flush(indexName);
+
+        final var targetNode = startIndexNode(nodeSettings);
+        ensureStableCluster(3);
+
+        // hold the early prewarming on the target, so that it cannot reply to the prewarm on time
+        final var releaseEarlyPrewarming = new CountDownLatch(1);
+        getSharedBlobCacheWarmingService(targetNode).addBeforeWarmingStartsListener(type -> {
+            if (type == Type.INDEXING_EARLY) {
+                safeAwait(releaseEarlyPrewarming);
+            }
+        });
+
+        final var prewarmReplied = new CountDownLatch(1);
+        final var prewarmRepliedAtHandoff = new AtomicBoolean();
+        final var handoffReceived = new CountDownLatch(1);
+        final var targetTransportService = MockTransportService.getInstance(targetNode);
+        targetTransportService.addRequestHandlingBehavior(
+            PREWARM_RELOCATION_ACTION_NAME,
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                // corresponds to when the target is about to reply to the `prewarm` request (with a response or a failure)
+                new TestTransportChannel(ActionListener.runBefore(new ChannelActionListener<>(channel), prewarmReplied::countDown)),
+                task
+            )
+        );
+        targetTransportService.addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+            // corresponds to when the target is about to receive the `primary_context_handoff` request
+            prewarmRepliedAtHandoff.set(prewarmReplied.getCount() == 0);
+            handoffReceived.countDown();
+            handler.messageReceived(request, channel, task);
+        });
+
+        // trigger a relocation (note we only have 2 index nodes, so index has to move to `targetNode`)
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNode), indexName);
+
+        // the early prewarming is still held, so the handoff can only arrive once the source has stopped waiting for the prewarm reply
+        safeAwait(handoffReceived);
+        assertFalse("source sends the handoff without the prewarm reply after the timeout", prewarmRepliedAtHandoff.get());
+        assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.TIMED_OUT);
+
+        releaseEarlyPrewarming.countDown();
+        ensureGreen(indexName);
+        // the late prewarm reply is ignored by the source, but wait for it so no request is in flight when the test ends
+        safeAwait(prewarmReplied);
+    }
+
+    // verify that the source stops waiting as soon as the prewarm fails (before the timeout) and proceeds with the handoff
+    public void testRelocationSourceProceedsWithHandoffWhenPrewarmFails() {
+        startMasterOnlyNode();
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            // disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // set to be high enough so the handoff can only arrive because the source stopped waiting upon the prewarm failure
+            .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))
+            .build();
+
+        final var sourceNode = startIndexNode(nodeSettings);
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(100, 1000));
+        flush(indexName);
+
+        final var targetNode = startIndexNode(nodeSettings);
+        ensureStableCluster(3);
+
+        final var prewarmFailed = new AtomicBoolean();
+        final var prewarmFailedAtHandoff = new AtomicBoolean();
+        final var handoffReceived = new CountDownLatch(1);
+        final var targetTransportService = MockTransportService.getInstance(targetNode);
+        targetTransportService.addRequestHandlingBehavior(PREWARM_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+            // the target responds to the `prewarm` request with a failure
+            prewarmFailed.set(true);
+            channel.sendResponse(new ElasticsearchException("simulated prewarm failure"));
+        });
+
+        targetTransportService.addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+            // corresponds to when the target is about to receive the `primary_context_handoff` request
+            prewarmFailedAtHandoff.set(prewarmFailed.get());
+            handoffReceived.countDown();
+            handler.messageReceived(request, channel, task);
+        });
+
+        // trigger a relocation (note we only have 2 index nodes, so index has to move to `targetNode`)
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNode), indexName);
+
+        safeAwait(handoffReceived);
+        assertTrue("source sends the handoff after the prewarm failure, without waiting for the timeout", prewarmFailedAtHandoff.get());
+        assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.FAILED);
+
+        ensureGreen(indexName);
+    }
+
+    private static double assertPrewarmWaitOutcome(String node, PrewarmWaitOutcome expectedOutcome) {
+        final var telemetry = getTelemetryPlugin(node);
+        telemetry.collect();
+        final var measurements = telemetry.getDoubleHistogramMeasurement(RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_SECONDS);
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).attributes(), equalTo(Map.of(PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY, expectedOutcome.attributeValue())));
+        return measurements.get(0).getDouble();
     }
 
     /**

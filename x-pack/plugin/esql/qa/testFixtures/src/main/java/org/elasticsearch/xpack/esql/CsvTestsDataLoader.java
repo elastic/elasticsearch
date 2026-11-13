@@ -559,6 +559,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_promql_absent_label", List.of(EsqlCapabilities.Cap.PROMQL_ABSENT_LABEL_MATCHING)),
         new ViewConfig("view_k8s_mixed_subqueries", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW)),
         new ViewConfig("employees_in_eval_subquery", List.of(WHERE_IN_SUBQUERY_WITH_VIEW, EVAL_IN_SUBQUERY)),

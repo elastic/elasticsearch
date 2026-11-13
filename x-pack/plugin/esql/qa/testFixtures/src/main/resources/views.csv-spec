@@ -1196,6 +1196,59 @@ count:long | cluster:keyword
 2          | staging
 ;
 
+// A PROMQL view over a label missing from the mapping; PROMQL matches absent labels as "".
+promqlViewAbsentLabel
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: promql_absent_label_matching
+
+FROM view_k8s_promql_absent_label
+;
+
+result:double | step:datetime
+61.0          | 2024-05-10T01:00:00.000Z
+;
+
+// The caller's SET keeps the view boundary; the PROMQL body must still nullify the missing label in its own scope.
+promqlViewAbsentLabelSetUnmappedNullify
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: promql_absent_label_matching
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_promql_view_with_caller_unmapped_fields
+
+SET unmapped_fields="nullify"\;
+FROM view_k8s_promql_absent_label
+;
+
+result:double | step:datetime
+61.0          | 2024-05-10T01:00:00.000Z
+;
+
+promqlViewAbsentLabelSetUnmappedLoad
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_unmapped_fields_filter_nulls
+required_capability: promql_absent_label_matching
+required_capability: optional_fields_v5
+required_capability: fix_promql_view_with_caller_unmapped_fields
+
+SET unmapped_fields="load"\;
+FROM view_k8s_promql_absent_label
+;
+
+result:double | step:datetime
+61.0          | 2024-05-10T01:00:00.000Z
+;
+
 tsViewWildcard
 required_capability: views_with_branching
 required_capability: views_crud_as_index_actions

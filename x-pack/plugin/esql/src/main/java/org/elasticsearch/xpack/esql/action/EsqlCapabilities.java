@@ -4664,6 +4664,13 @@ public class EsqlCapabilities {
          */
         METRICS_INFO_FIELD_PRESENCE,
 
+        /**
+         * A view whose body is {@code PROMQL} nullifies missing labels and metrics in its own scope when the caller
+         * {@code SET unmapped_fields}, as the same {@code PROMQL} does directly, rather than failing with "Unknown column".
+         * See esql-planning#2509.
+         */
+        FIX_PROMQL_VIEW_WITH_CALLER_UNMAPPED_FIELDS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

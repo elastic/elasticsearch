@@ -126,7 +126,18 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         this.threadPool = threadPool;
         this.clientWithOrigin = clientWithOrigin;
         clusterService.getClusterSettings().initializeAndWatch(TASK_RESULTS_RETENTION_PERIOD_SETTING, v -> this.retentionPeriod = v);
-        clusterService.getClusterSettings().initializeAndWatch(TASK_RESULTS_CLEANUP_INTERVAL_SETTING, v -> this.cleanupInterval = v);
+        clusterService.getClusterSettings().initializeAndWatch(TASK_RESULTS_CLEANUP_INTERVAL_SETTING, v -> {
+            boolean isCleanupEnabledBefore = isCleanupEnabled();
+            this.cleanupInterval = v;
+            boolean isCleanupEnabledAfter = isCleanupEnabled();
+            if (logger.isTraceEnabled() && isCleanupEnabledBefore != isCleanupEnabledAfter) {
+                if (isCleanupEnabledAfter) {
+                    logger.trace("task results cleanup is now enabled");
+                } else {
+                    logger.trace("task results cleanup is now disabled");
+                }
+            }
+        });
     }
 
     @Override
@@ -190,8 +201,9 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
             return OptionalLong.empty();
         }
         this.projectsToCleanup = projectsOnLocalNode;
+        logger.trace("found task results to cleanup for projects {}", projectsToCleanup);
         if (isCleanupRunning) {
-            // task cleanup is already toggled
+            // task cleanup is already enabled, so #projectsToCleanup is picked up upon the next scheduled execution
             return OptionalLong.empty();
         }
         isCleanupRunning = true;
@@ -220,6 +232,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         final Collection<ProjectId> projects;
         synchronized (this) {
             if (isCleanupRunning == false || generation != cleanupGeneration) {
+                logger.trace("task results cleanup and reschedule skipped for generation {}", generation);
                 return;
             }
             projects = projectsToCleanup;
@@ -231,7 +244,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
             MAX_CONCURRENT_PROJECT_CLEANUPS,
             () -> scheduleNextCleanupForGeneration(generation),
             threadPool.generic(),
-            // the remaining projects are skipped, but the iteration still completes so the next cleanup is scheduled as usual
+            // the remaining projects are skipped, but #scheduleNextCleanupForGeneration is still invoked, so they'll be picked up next
             e -> logger.warn("failed to continue task results cleanup with the next project; it will be retried on the next cleanup", e)
         );
     }

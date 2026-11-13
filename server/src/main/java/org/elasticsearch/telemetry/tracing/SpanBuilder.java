@@ -92,7 +92,8 @@ public interface SpanBuilder {
     /**
      * Starts the span. Users <b>must</b> manually call {@code span.end()} to end the span.
      *
-     * <p>Note that this does not modify the current {@link ThreadContext}; that's what {@link Span#storeInThreadContext()} is for.
+     * <p>Note that this does not inject the newly started span into the current {@link ThreadContext}; that's what
+     * {@link Span#storeInThreadContext()} is for.
      *
      * @return a started span
      */

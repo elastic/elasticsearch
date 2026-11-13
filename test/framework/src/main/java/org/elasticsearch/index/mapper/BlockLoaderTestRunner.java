@@ -9,14 +9,27 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterCodecReader;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -33,11 +46,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -120,6 +135,19 @@ public class BlockLoaderTestRunner {
         return this;
     }
 
+    private ParsedDocument emptyDocument(long timestamp) {
+        if (mapperService == null) {
+            throw new IllegalStateException("need to set mapperService");
+        }
+        Map<String, Object> emptyPayloadDoc = Map.of(
+            "@timestamp",
+            timestamp,
+            BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD,
+            mapDoc().get(BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD)
+        );
+        return parseDocument(emptyPayloadDoc);
+    }
+
     /**
      * The document being parsed.
      */
@@ -131,24 +159,29 @@ public class BlockLoaderTestRunner {
             if (mapperService == null) {
                 throw new IllegalStateException("need to set mapperService");
             }
-            try {
-                var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapDoc);
-                var source = new SourceToParse(
-                    "1",
-                    new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
-                    null,
-                    Map.of(),
-                    Map.of(),
-                    XContentMeteringParserDecorator.NOOP,
-                    null
-                );
-                doc = mapperService.documentMapper().parse(source);
-                return doc;
-            } catch (IOException e) {
-                throw new RuntimeException("shouldn't be possible", e);
-            }
+            doc = parseDocument(mapDoc);
+            return doc;
         }
         throw new IllegalStateException("need to set doc");
+    }
+
+    private ParsedDocument parseDocument(Map<String, Object> docToParse) {
+        try {
+            var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(docToParse);
+            var source = new SourceToParse(
+                // In Time series the _id is derived from document
+                params.indexMode() == IndexMode.TIME_SERIES ? null : "1",
+                new BytesSource(BytesReference.bytes(documentXContent), XContentType.JSON, true),
+                params.indexMode() == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(randomInt()) : null,
+                Map.of(),
+                Map.of(),
+                XContentMeteringParserDecorator.NOOP,
+                null
+            );
+            return mapperService.documentMapper().parse(source);
+        } catch (IOException e) {
+            throw new RuntimeException("shouldn't be possible", e);
+        }
     }
 
     /**
@@ -174,6 +207,10 @@ public class BlockLoaderTestRunner {
         if (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.LOGSDB_COLUMNAR) {
             document.putIfAbsent("@timestamp", ESTestCase.randomMillisUpToYear9999());
         }
+        if (indexMode == IndexMode.TIME_SERIES) {
+            document.putIfAbsent("@timestamp", ESTestCase.randomMillisUpToYear9999());
+            document.putIfAbsent(BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD, ESTestCase.randomAlphanumericOfLength(10));
+        }
         return document;
     }
 
@@ -192,6 +229,38 @@ public class BlockLoaderTestRunner {
         matcher.match(expected, setupAndInvokeBlockLoader());
     }
 
+    /**
+     * With synthetic {@code _id} the codec wraps the stored fields reader in a {@link TSDBStoredFieldsFormat.TSDBStoredFieldsReader}
+     * that materializes the {@code _id} from doc values, which is asserted against on merge threads. In production
+     * {@code PruningMergePolicy} unwraps it during merges (so Lucene can also bulk-merge); this does the same for the test writer.
+     */
+    private static MergePolicy unwrapSyntheticIdOnMerge(MergePolicy in) {
+        return new OneMergeWrappingMergePolicy(in, toWrap -> new MergePolicy.OneMerge(toWrap.segments) {
+            @Override
+            public CodecReader wrapForMerge(CodecReader reader) throws IOException {
+                return new FilterCodecReader(toWrap.wrapForMerge(reader)) {
+                    @Override
+                    public StoredFieldsReader getFieldsReader() {
+                        StoredFieldsReader fieldsReader = super.getFieldsReader();
+                        return fieldsReader instanceof TSDBStoredFieldsFormat.TSDBStoredFieldsReader tsdbReader
+                            ? tsdbReader.getStoredFieldsReader()
+                            : fieldsReader;
+                    }
+
+                    @Override
+                    public CacheHelper getCoreCacheHelper() {
+                        return null;
+                    }
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return null;
+                    }
+                };
+            }
+        });
+    }
+
     private Object setupAndInvokeBlockLoader() throws IOException {
         if (mapperService == null) {
             throw new IllegalStateException("need to set mapperService");
@@ -203,7 +272,23 @@ public class BlockLoaderTestRunner {
             throw new IllegalStateException("need to set fieldName");
         }
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            // disable index checks on directory close, this is needed
+            // for time_series that requires pseudo-empty docs, docs that
+            // contains only the @timestamp and the dimensions and doesn't
+            // have any terms.
+            if (mapperService.getIndexSettings().useTimeSeriesSyntheticId()) {
+                if (directory instanceof BaseDirectoryWrapper directoryWrapper) {
+                    directoryWrapper.setCheckIndexOnClose(false);
+                }
+            }
+
+            final Random rg = random();
+            final RandomIndexWriter iw;
+            if (params.indexMode() == IndexMode.TIME_SERIES) {
+                iw = new RandomIndexWriter(rg, directory, indexWriterConfigForTimeSeries(rg));
+            } else {
+                iw = new RandomIndexWriter(rg, directory);
+            }
 
             LuceneDocument doc = this.document().rootDoc();
 
@@ -211,7 +296,18 @@ public class BlockLoaderTestRunner {
              * Add three documents with doc id 0, 1, 2. The real document is 1.
              * The other two are empty documents.
              */
-            iw.addDocuments(List.of(List.of(), doc, List.of()));
+            if (params.indexMode() == IndexMode.TIME_SERIES) {
+                // The index is sorted by _tsid asc, @timestamp desc, so the empty docs get the same
+                // dimension and a later/earlier timestamp than the real doc: after sorting the
+                // real doc is still doc id 1.
+                long timestamp = ((Number) mapDoc().get("@timestamp")).longValue();
+                // Added one by one: a document block requires a parent field when the index is sorted.
+                iw.addDocument(emptyDocument(timestamp + 1).rootDoc());
+                iw.addDocument(doc);
+                iw.addDocument(emptyDocument(timestamp - 1).rootDoc());
+            } else {
+                iw.addDocuments(List.of(List.of(), doc, List.of()));
+            }
             iw.close();
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
@@ -219,6 +315,23 @@ public class BlockLoaderTestRunner {
                 return load(createBlockLoader(fieldName), context);
             }
         }
+    }
+
+    /**
+     * The synthetic {@code _id} terms are computed from doc values walking the docs in doc id order, which is only
+     * a valid (increasing) term order if the segment is sorted by {@code _tsid} asc, {@code @timestamp} desc.
+     * Production enforces that through the index sort, so the test writer must configure it too.
+     */
+    private IndexWriterConfig indexWriterConfigForTimeSeries(Random rg) {
+        IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(rg, new MockAnalyzer(rg));
+        Sort indexSort = new IndexSortConfig(mapperService.getIndexSettings()).buildIndexSort(
+            mapperService::fieldType,
+            (ft, searchLookup) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
+        );
+        if (indexSort != null) {
+            config.setIndexSort(indexSort);
+        }
+        return config;
     }
 
     private Object load(BlockLoader blockLoader, LeafReaderContext context) throws IOException {

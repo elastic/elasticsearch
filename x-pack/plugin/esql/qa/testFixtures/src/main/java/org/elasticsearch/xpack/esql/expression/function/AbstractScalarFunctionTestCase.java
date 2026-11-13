@@ -45,6 +45,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvUnio
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -109,6 +111,8 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
 
         // Special empty/null handling functions
         JsonString.class, // JSON_STRING("key", NULL) = {"key":null};
+        TimeSeriesMetadataFilter.class, // filter(NULL, "pod") = {}: null is the empty label container
+        TimeSeriesMetadataSet.class, // set(c, "pod", NULL) removes pod: PromQL has no empty label
 
         // Non-evaluatable grouping functions
         Categorize.class,

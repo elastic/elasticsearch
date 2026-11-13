@@ -2028,7 +2028,8 @@ public class EsqlSession {
         }
         Set<String> fieldNames = new HashSet<>(result.fieldNames());
         fieldNames.addAll(referenced.fieldNames());
-        return new PreAnalysisResult(fieldNames, result.wildcardJoinIndices());
+        Set<String> parentPaths = FieldNameUtils.onlyParentPaths(result.parentPaths(), new HashSet<>(referenced.fieldNames()));
+        return new PreAnalysisResult(fieldNames, parentPaths, result.wildcardJoinIndices());
     }
 
     private void resolveIndicesAndAnalyze(
@@ -2059,7 +2060,9 @@ public class EsqlSession {
                 configuration,
                 executionInfo,
                 trackedUnmappedFieldIndices,
-                configuration.flattenedKeys() ? FieldNameUtils.namedFields(parsed) : null,
+                configuration.flattenedKeys()
+                    ? new IndexResolver.NamedFields(FieldNameUtils.namedFields(parsed), result.parentPaths())
+                    : null,
                 result,
                 requestFilter,
                 viewInternalIndexPatterns(parsed),
@@ -2832,7 +2835,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable IndexResolver.NamedFields namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         Set<IndexPattern> viewInternalPatterns,
@@ -2941,7 +2944,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable IndexResolver.NamedFields namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -3084,7 +3087,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable IndexResolver.NamedFields namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -3124,7 +3127,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
-        @Nullable Set<String> namedFields,
+        @Nullable IndexResolver.NamedFields namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
@@ -3477,6 +3480,8 @@ public class EsqlSession {
 
     public record PreAnalysisResult(
         Set<String> fieldNames,
+        // the names in fieldNames that field caps is asked for only to find the flattened fields above the names the query uses
+        Set<String> parentPaths,
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
         // the exemplar data streams of the time series relations, resolved for SET exemplars=true; null when there are none
@@ -3496,8 +3501,13 @@ public class EsqlSession {
     ) {
 
         public PreAnalysisResult(Set<String> fieldNames, Set<String> wildcardJoinIndices) {
+            this(fieldNames, Set.of(), wildcardJoinIndices);
+        }
+
+        public PreAnalysisResult(Set<String> fieldNames, Set<String> parentPaths, Set<String> wildcardJoinIndices) {
             this(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 new HashMap<>(),
                 null,
@@ -3530,6 +3540,7 @@ public class EsqlSession {
         PreAnalysisResult withExemplarsResolution(IndexResolution exemplarsResolution) {
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3547,6 +3558,7 @@ public class EsqlSession {
         PreAnalysisResult withEnrichResolution(EnrichResolution enrichResolution) {
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3564,6 +3576,7 @@ public class EsqlSession {
         PreAnalysisResult withInferenceResolution(InferenceResolution inferenceResolution) {
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3581,6 +3594,7 @@ public class EsqlSession {
         PreAnalysisResult withExternalSourceResolution(ExternalSourceResolution externalSourceResolution) {
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3604,6 +3618,7 @@ public class EsqlSession {
             }
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,
@@ -3621,6 +3636,7 @@ public class EsqlSession {
         PreAnalysisResult withIndexViewOrigins(IndexViewOrigins indexViewOrigins) {
             return new PreAnalysisResult(
                 fieldNames,
+                parentPaths,
                 wildcardJoinIndices,
                 indexResolution,
                 exemplarsResolution,

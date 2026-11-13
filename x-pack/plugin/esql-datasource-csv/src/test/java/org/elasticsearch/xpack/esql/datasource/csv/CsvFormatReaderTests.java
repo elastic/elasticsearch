@@ -3857,6 +3857,39 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Invalid integer value [abc]"));
     }
 
+    public void testWithConfigSchemaSampleBytesZeroIsRejected() {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> reader.withConfig(Map.of("schema_sample_bytes", "0"))
+        );
+        assertThat(e.getMessage(), containsString("schema_sample_bytes must be positive"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+    }
+
+    /**
+     * A byte budget exhausted before a later widening value is sampled infers from the prefix actually
+     * read: the column stays INTEGER, matching a row-budget cut at the same boundary.
+     */
+    public void testSchemaSampleBytesStopsBeforeTypeWideningRow() throws IOException {
+        String csv = "id\n1\n2\nhello\n";
+        StorageObject object = createStorageObject(csv);
+        // 4 bytes is smaller than header plus two data rows, so sampling stops after the first
+        // numeric row (at least one complete record is always kept) and never reaches hello.
+        CsvFormatReader cut = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("schema_sample_size", 10, "schema_sample_bytes", "4b")
+        );
+        assertEquals(
+            "a 4-byte budget must stop after the first numeric row and keep INTEGER",
+            DataType.INTEGER,
+            cut.schema(object).get(0).dataType()
+        );
+        CsvFormatReader full = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("schema_sample_size", 10, "schema_sample_bytes", csv.length() + "b")
+        );
+        assertEquals("a budget that covers hello must still widen to KEYWORD", DataType.KEYWORD, full.schema(object).get(0).dataType());
+    }
+
     /**
      * A sample shared by several files takes an even share of the configured rows from each, never fewer than the
      * floor, and keeps the harvest fingerprint: the data node reads with the unshared configuration, so its statistics

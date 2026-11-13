@@ -58,6 +58,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         expected.add("null_value");
         expected.add("quote");
         expected.add("schema_max_fields");
+        expected.add("schema_sample_bytes");
         expected.add("schema_sample_size");
         expected.add("skip_rows");
         expected.add("trim_spaces");
@@ -195,6 +196,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             case "trim_spaces" -> true;
             case "schema_max_fields" -> 500;
             case "schema_sample_size" -> 10;
+            case "schema_sample_bytes" -> "1mb";
             case "skip_rows" -> 2;
             default -> throw new AssertionError("update sampleValueFor() for new recognised key: " + key);
         };
@@ -293,6 +295,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         list.add(Map.entry("mode", "quoted"));
         list.add(Map.entry("encoding", "UTF-8"));
         list.add(Map.entry("encoding", "ISO-8859-1"));
+        list.add(Map.entry("schema_sample_bytes", "1mb"));
         list.add(Map.entry("quote", "'"));
         list.add(Map.entry("escape", "\\\\"));
         return list;
@@ -307,6 +310,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         list.add(Map.entry("max_field_size", "abc"));     // non-integer
         list.add(Map.entry("max_field_size", -1));        // negative integer
         list.add(Map.entry("header_row", "banana"));      // non-boolean
+        list.add(Map.entry("schema_sample_bytes", "0"));  // zero byte budget
         return list;
     }
 
@@ -412,6 +416,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             case "trim_spaces" -> false;
             case "schema_max_fields" -> 600;
             case "schema_sample_size" -> 20;
+            case "schema_sample_bytes" -> "2mb";
             case "skip_rows" -> 3;
             default -> throw new AssertionError("update otherSampleValueFor() for new recognised key: " + key);
         };

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -489,6 +490,30 @@ public final class ExternalSourceSettings {
                 e
             );
         }
+    }
+
+    /**
+     * Default byte budget for text-format schema inference (CSV, TSV, NDJSON). Stops the coordinating-node
+     * sample when this many decoded bytes have been read, even if {@code schema_sample_size} rows remain.
+     * 64 MiB covers a 40,000-row CSV of ~1.6 KiB rows, so typical files keep inferring as they do today,
+     * while a file of wide free-text or base64 cells cannot pull an unbounded prefix onto the coordinator.
+     */
+    public static final ByteSizeValue DEFAULT_SCHEMA_SAMPLE_BYTES = ByteSizeValue.ofMb(64);
+
+    /**
+     * Parses a dataset's {@code schema_sample_bytes}. Accepts the same byte-size strings as other dataset
+     * size keys ({@code 32mb}, {@code 1048576}). Returns {@code defaultValue} when the dataset does not
+     * set the key. Zero and negative values are refused: a zero budget would infer from an empty prefix.
+     */
+    public static long parseDatasetSchemaSampleBytes(Object value, String key, long defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), key);
+        if (parsed.getBytes() <= 0) {
+            throw new IllegalArgumentException(key + " must be positive, got: " + parsed);
+        }
+        return parsed.getBytes();
     }
 
     /**

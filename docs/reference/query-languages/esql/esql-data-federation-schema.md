@@ -30,7 +30,7 @@ The following table shows where each [supported file format](esql-data-federatio
 | CSV and TSV without a header row | Sampled rows | `col0`, `col1`, and so on, by position. The [`column_prefix`](esql-data-federation-dataset-settings.md#csv-column-prefix) setting controls the prefix. |
 | NDJSON | Sampled rows | JSON keys. Nested objects use dotted names, such as `user.id`. |
 
-Parquet metadata can also contain column statistics and bloom filters that let queries skip irrelevant data. For text formats, use `schema_sample_size` for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-schema-sample-size) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-schema-sample-size) to control how many rows or lines are sampled.
+Parquet metadata can also contain column statistics and bloom filters that let queries skip irrelevant data. For text formats, use `schema_sample_size` for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-schema-sample-size) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-schema-sample-size) to control how many rows or lines are sampled, and `schema_sample_bytes` for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-schema-sample-bytes) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-schema-sample-bytes) to cap the decoded bytes those rows occupy. Sampling stops at whichever bound is reached first.
 
 ### How the sample is shared across files [shared-schema-sample]
 ```{applies_to}

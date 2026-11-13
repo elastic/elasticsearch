@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stack;
+package org.elasticsearch.xpack.contextengine.aiindex;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
@@ -31,17 +31,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.CRC32;
 
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_MANAGED_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_PATTERN;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_SETTINGS_COMPONENT_NAME;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_DS_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_MANAGED_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_PATTERN;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_IDX_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.AI_INDEX_MAPPINGS_COMPONENT_NAME;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.DOT_AI_INDEX_DS_PATTERN;
-import static org.elasticsearch.xpack.stack.AiIndexTemplateRegistry.DOT_AI_INDEX_IDX_PATTERN;
+import static org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry.AI_INDEX_DS_MANAGED_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry.AI_INDEX_DS_PATTERN;
+import static org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry.AI_INDEX_DS_SETTINGS_COMPONENT_NAME;
+import static org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry.AI_INDEX_DS_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry.AI_INDEX_IDX_MANAGED_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry.AI_INDEX_IDX_PATTERN;
+import static org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry.AI_INDEX_IDX_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry.AI_INDEX_MANAGED_MAPPINGS_COMPONENT_NAME;
+import static org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry.AI_INDEX_MAPPINGS_COMPONENT_NAME;
+import static org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry.DOT_AI_INDEX_DS_PATTERN;
+import static org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry.DOT_AI_INDEX_IDX_PATTERN;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;

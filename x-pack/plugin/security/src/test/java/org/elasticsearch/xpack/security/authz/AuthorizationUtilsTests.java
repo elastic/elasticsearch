@@ -160,7 +160,8 @@ public class AuthorizationUtilsTests extends ESTestCase {
             ClientHelper.MONITORING_ORIGIN,
             PersistentTasksService.PERSISTENT_TASK_ORIGIN,
             ClientHelper.INDEX_LIFECYCLE_ORIGIN,
-            ClientHelper.DATA_RECOVERY_ORIGIN
+            ClientHelper.DATA_RECOVERY_ORIGIN,
+            ClientHelper.CONTEXT_ENGINE_ORIGIN
         )) {
             assertSwitchBasedOnOriginAndExecute(origin, InternalUsers.XPACK_USER, randomTransportVersion());
         }

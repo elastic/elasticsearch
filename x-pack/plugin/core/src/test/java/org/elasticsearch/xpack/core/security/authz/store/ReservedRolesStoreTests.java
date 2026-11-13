@@ -831,6 +831,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/put", request, authentication));
         assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/inference/delete", request, authentication));
 
+        // Context Engine
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/context_engine/session_memory/remember", request, authentication));
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/context_engine/session_memory/search", request, authentication));
+        assertTrue(kibanaRole.cluster().check("cluster:admin/xpack/context_engine/session_events/save", request, authentication));
+
         // Enrich
         assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/put", request, authentication), is(true));
         assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/execute", request, authentication), is(true));

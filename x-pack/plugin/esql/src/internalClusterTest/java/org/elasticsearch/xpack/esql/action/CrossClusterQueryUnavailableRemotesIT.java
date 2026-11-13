@@ -11,14 +11,26 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportMessageListener;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster.Status;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.StreamSupport;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -473,6 +485,91 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
                 assertThat(ExceptionsHelper.isRemoteUnavailableException(exception), is(true));
             }
         } finally {
+            clearSkipUnavailable(numClusters);
+        }
+    }
+
+    public void testAllowPartialResultsWithClusterDisconnectedBeforePlanning() throws Exception {
+        int numClusters = 3;
+        setupClusters(numClusters);
+        setSkipUnavailable(REMOTE_CLUSTER_1, null);
+        setSkipUnavailable(REMOTE_CLUSTER_2, null);
+
+        try {
+            cluster(REMOTE_CLUSTER_1).close();
+
+            try (
+                var result = runQuery(
+                    syncEsqlQueryRequest("FROM *:logs-* | STATS count()").allowPartialResults(true).includeCCSMetadata(true)
+                )
+            ) {
+                // each cluster has 10 rows. We only get rows from the second one
+                assertThat(EsqlTestUtils.getValuesList(result), equalTo(List.of(List.of(10L))));
+                assertThat(result.isPartial(), equalTo(true));
+                assertThat(result.getExecutionInfo().clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
+                assertThat(result.getExecutionInfo().getCluster(REMOTE_CLUSTER_1).getStatus(), equalTo(Status.SKIPPED));
+                assertThat(result.getExecutionInfo().getCluster(REMOTE_CLUSTER_2).getStatus(), equalTo(Status.SUCCESSFUL));
+            }
+        } finally {
+            clearSkipUnavailable(numClusters);
+        }
+    }
+
+    public void testAllowPartialResultsWithClusterDisconnectedBeforeExecution() throws Exception {
+        int numClusters = 3;
+        setupClusters(numClusters);
+        setSkipUnavailable(REMOTE_CLUSTER_1, null);
+        setSkipUnavailable(REMOTE_CLUSTER_2, null);
+
+        var localTransports = cluster(LOCAL_CLUSTER).getInstances(TransportService.class);
+        Set<String> remoteNodeIds = StreamSupport.stream(
+            cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class).spliterator(),
+            false
+        ).map(it -> it.getLocalNode().getId()).collect(toSet());
+
+        var resolved = new CountDownLatch(1);
+        var disconnected = new CountDownLatch(1);
+        var responses = new AtomicInteger(0);
+
+        var listener = new TransportMessageListener() {
+            @Override
+            @SuppressWarnings("rawtypes")
+            public void onResponseReceived(long requestId, Transport.ResponseContext context, int networkMessageSize) {
+                if (context != null && EsqlResolveFieldsAction.NAME.equals(context.action())) {
+                    logger.info("Received index resolution response from {}", context.connection().getNode());
+                    if (responses.incrementAndGet() == 2) {// one from each remote
+                        // a cluster cannot be closed from a transport thread, so hold the response until the test thread closes it
+                        resolved.countDown();
+                        safeAwait(disconnected);
+                        logger.info("Disconnected remote cluster");
+                    }
+                }
+            }
+        };
+        try {
+            for (TransportService localTransport : localTransports) {
+                asInstanceOf(MockTransportService.class, localTransport).addMessageListener(listener);
+            }
+            var request = syncEsqlQueryRequest("FROM *:logs-* | STATS count()").allowPartialResults(true).includeCCSMetadata(true);
+            var response = client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request);
+            safeAwait(resolved);
+            try {
+                cluster(REMOTE_CLUSTER_1).close();
+            } finally {
+                disconnected.countDown();
+            }
+
+            try (var result = response.actionGet(30, TimeUnit.SECONDS)) {
+                assertThat(EsqlTestUtils.getValuesList(result), equalTo(List.of(List.of(10L))));
+                assertThat(result.isPartial(), equalTo(true));
+                assertThat(result.getExecutionInfo().clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
+                assertThat(result.getExecutionInfo().getCluster(REMOTE_CLUSTER_1).getStatus(), equalTo(Status.SKIPPED));
+                assertThat(result.getExecutionInfo().getCluster(REMOTE_CLUSTER_2).getStatus(), equalTo(Status.SUCCESSFUL));
+            }
+        } finally {
+            for (TransportService localTransport : localTransports) {
+                asInstanceOf(MockTransportService.class, localTransport).removeMessageListener(listener);
+            }
             clearSkipUnavailable(numClusters);
         }
     }

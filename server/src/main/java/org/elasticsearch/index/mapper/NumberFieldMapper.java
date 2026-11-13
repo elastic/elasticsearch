@@ -2872,8 +2872,6 @@ public class NumberFieldMapper extends FieldMapper {
     private final FieldValues<Number> scriptValues;
     private final boolean dimension;
     private final boolean writeDimensionRouting;
-    private final ScriptCompiler scriptCompiler;
-    private final Script script;
     private final MetricType metricType;
     private boolean allowMultipleValues;
     private final boolean isSyntheticSource;
@@ -2909,8 +2907,6 @@ public class NumberFieldMapper extends FieldMapper {
         this.writeDimensionRouting = this.dimension
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
-        this.scriptCompiler = builder.scriptCompiler;
-        this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
         this.allowMultipleValues = builder.allowMultipleValues;
         this.isSyntheticSource = isSyntheticSource;
@@ -2980,6 +2976,12 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || nullValue != null;
+    }
+
+    @Override
+    protected boolean readsEmptyStringAsNull() {
+        // value(XContentParser) reads an empty string as null when coercing, and rejects it as malformed otherwise.
+        return coerce();
     }
 
     @Override

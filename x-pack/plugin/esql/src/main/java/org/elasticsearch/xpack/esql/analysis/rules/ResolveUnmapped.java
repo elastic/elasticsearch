@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -99,6 +100,24 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
         return applyScoped(plan, context.unmappedResolution(), null, context);
+    }
+
+    /**
+     * The {@link EqlRelation} counterpart of {@link Analyzer.ResolveRefs#withAdditionalAttributesUnlessLookup}: appends the unmapped-field
+     * columns to the EQL source's output. Same {@code NO_FIELDS}-marker replacement as {@code EsRelation}, and an empty
+     * add returns the same instance so the analyzer batch reaches a fixed point.
+     */
+    private static EqlRelation withAdditionalAttributes(EqlRelation eqlr, List<? extends Attribute> fields) {
+        if (fields.isEmpty()) {
+            return eqlr;
+        }
+        if (eqlr.output().equals(Analyzer.NO_FIELDS)) {
+            return eqlr.withAttributes(new ArrayList<>(fields));
+        }
+        List<Attribute> combined = new ArrayList<>(eqlr.output().size() + fields.size());
+        combined.addAll(eqlr.output());
+        combined.addAll(fields);
+        return eqlr.withAttributes(combined);
     }
 
     /**
@@ -223,6 +242,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
                 List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
                 return withAdditionalAttributesUnlessLookup(esr, fieldsToNullify, true);
             }
+            // The EQL source has a real value channel too: add the null-typed columns to its output, like EsRelation.
+            if (p instanceof EqlRelation eqlr) {
+                return withAdditionalAttributes(eqlr, fieldsToNullify(unresolved, Expressions.names(eqlr.output())));
+            }
             return p;
         });
         // Under NULLIFY the view's own rows would be null for the field anyway, so the boundary changes nothing worth reporting.
@@ -236,9 +259,12 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * like {@code ROW x = 1 | EVAL y = unmapped_field}.
      */
     private static LogicalPlan nullifyNonEsRelationSources(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
+        // EqlRelation was already handled above (fields added to its output), so it must be excluded here — otherwise
+        // the Eval-atop fallback would reach assertSourceType, whose default arm throws on the EQL source.
         return ViewUtils.transformUpOutsideViews(plan, p -> switch (p) {
-            case UnaryPlan unary when unary.child() instanceof LeafPlan leaf && leaf instanceof EsRelation == false ->
-                evalUnresolvedAtopUnary(unary, nullAliases(unresolved));
+            case UnaryPlan unary when unary.child() instanceof LeafPlan leaf
+                && leaf instanceof EsRelation == false
+                && leaf instanceof EqlRelation == false -> evalUnresolvedAtopUnary(unary, nullAliases(unresolved));
             case UnaryPlan unary -> unary;
             case LeafPlan leaf -> leaf;
             default -> evalUnresolvedAtopNaryNonEsRelation(p, nullAliases(unresolved));
@@ -377,6 +403,9 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
                 List<FieldAttribute> fieldsToLoad = fieldsToLoad(toLoad, Expressions.names(esr.output()));
                 return withAdditionalAttributesUnlessLookup(esr, fieldsToLoad, true);
             }
+            if (p instanceof EqlRelation eqlr) {
+                return withAdditionalAttributes(eqlr, fieldsToLoad(toLoad, Expressions.names(eqlr.output())));
+            }
             return p;
         });
     }
@@ -447,7 +476,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         boolean changed = false;
         for (int i = 0; i < nAry.children().size(); i++) {
             LogicalPlan child = nAry.children().get(i);
-            if (child instanceof LeafPlan source && source instanceof EsRelation == false && ViewUtils.isViewBody(nAry, i) == false) {
+            if (child instanceof LeafPlan source
+                && source instanceof EsRelation == false
+                && source instanceof EqlRelation == false
+                && ViewUtils.isViewBody(nAry, i) == false) {
                 assertSourceType(source);
                 child = new Eval(source.source(), source, nullAliases);
                 changed = true;

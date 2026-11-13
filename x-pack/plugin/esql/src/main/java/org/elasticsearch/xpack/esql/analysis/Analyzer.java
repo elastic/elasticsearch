@@ -1458,7 +1458,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         failures,
                         context.maxBranchCountPerMerge(),
                         context.maxBranchCountPerMergeLimitSource(),
-                        PromqlCommand.containerFunctions(context.minimumVersion())
+                        ScalarizeTimeSeriesMetadataPaths.usesLabelContainer(context)
                     );
                     if (failures.hasFailures()) {
                         throw new VerificationException(failures);

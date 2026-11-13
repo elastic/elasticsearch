@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -54,9 +57,14 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
             .minimumTransportVersion(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
     }
 
-    /** Whether every node of the test's minimum version knows the label container functions, which some PromQL shapes take. */
-    protected boolean containerFunctions() {
-        return PromqlCommand.containerFunctions(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
+    /**
+     * Whether {@code _timeseries} is a typed label container for {@link #tsAnalyzer()}'s minimum version. A view is then read as
+     * a typed label container without its labels instead of a keyword column without them.
+     */
+    protected boolean typedLabelContainer() {
+        return EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled()
+            && DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion()
+                .supportedOn(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE), Build.current().isSnapshot());
     }
 
     protected LogicalPlan planPromql(String query) {

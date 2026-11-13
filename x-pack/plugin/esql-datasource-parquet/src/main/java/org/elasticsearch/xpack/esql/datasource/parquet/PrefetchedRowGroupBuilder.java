@@ -20,6 +20,7 @@ import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompre
 import org.apache.parquet.format.DataPageHeader;
 import org.apache.parquet.format.DataPageHeaderV2;
 import org.apache.parquet.format.DictionaryPageHeader;
+import org.apache.parquet.format.InvalidParquetMetadataException;
 import org.apache.parquet.format.PageHeader;
 import org.apache.parquet.format.PageType;
 import org.apache.parquet.format.Util;
@@ -292,7 +293,7 @@ final class PrefetchedRowGroupBuilder {
             // byte-based loop can spuriously continue into bytes that belong to the next column.
             // parquet-mr uses the same value-count termination in ColumnChunkPageReadStore.
             while (valueCount < totalValues) {
-                PageHeader header = Util.readPageHeader(stream);
+                PageHeader header = readPageHeader(stream, column.getPath().toDotString(), rowGroupOrdinal);
                 int compressedPageSize = header.getCompressed_page_size();
                 ByteBuffer payload = stream.readPayload(compressedPageSize);
 
@@ -306,9 +307,9 @@ final class PrefetchedRowGroupBuilder {
                                 + "]"
                         );
                     }
-                    dictPage = makeDictionaryPage(header, payload);
+                    dictPage = makeDictionaryPage(header, payload, column.getPath().toDotString(), rowGroupOrdinal);
                 } else if (header.type == PageType.DATA_PAGE || header.type == PageType.DATA_PAGE_V2) {
-                    DataPage page = makeDataPage(header, payload, primitiveType, -1L, -1);
+                    DataPage page = makeDataPage(header, payload, primitiveType, -1L, -1, column.getPath().toDotString(), rowGroupOrdinal);
                     // Sequential path: no offset index, so we cannot recover firstRowIndex per
                     // page. Pair with -1; PageColumnReader treats that as "page starts at the
                     // current cursor" and falls back to its rowRanges overlap check (which is
@@ -343,7 +344,7 @@ final class PrefetchedRowGroupBuilder {
         InputStream stream = bufferAsStream(dictSlice);
         try {
             int before = stream.available();
-            PageHeader header = Util.readPageHeader(stream);
+            PageHeader header = readPageHeader(stream, column.getPath().toDotString(), rowGroupOrdinal);
             int headerLen = before - stream.available();
             int compressedPageSize = header.getCompressed_page_size();
             ByteBuffer payload = sliceFromBuffer(dictSlice, headerLen, compressedPageSize);
@@ -360,7 +361,7 @@ final class PrefetchedRowGroupBuilder {
                         + "]"
                 );
             }
-            return makeDictionaryPage(header, payload);
+            return makeDictionaryPage(header, payload, column.getPath().toDotString(), rowGroupOrdinal);
         } catch (IOException e) {
             throw ParquetReadFailures.wrap(
                 e,
@@ -380,11 +381,11 @@ final class PrefetchedRowGroupBuilder {
         InputStream stream = bufferAsStream(pageSlice);
         try {
             int before = stream.available();
-            PageHeader header = Util.readPageHeader(stream);
+            PageHeader header = readPageHeader(stream, path, rowGroupOrdinal);
             int headerLen = before - stream.available();
             int compressedPageSize = header.getCompressed_page_size();
             ByteBuffer payload = sliceFromBuffer(pageSlice, headerLen, compressedPageSize);
-            return makeDataPage(header, payload, primitiveType, firstRowIndex, indexRowCount);
+            return makeDataPage(header, payload, primitiveType, firstRowIndex, indexRowCount, path, rowGroupOrdinal);
         } catch (IOException e) {
             throw ParquetReadFailures.wrap(
                 e,
@@ -398,10 +399,13 @@ final class PrefetchedRowGroupBuilder {
         ByteBuffer payload,
         PrimitiveType primitiveType,
         long firstRowIndex,
-        int indexRowCount
+        int indexRowCount,
+        String path,
+        int rowGroupOrdinal
     ) {
         if (header.type == PageType.DATA_PAGE) {
             DataPageHeader dph = header.data_page_header;
+            requirePageHeaderStruct(dph, header.type, "data_page_header", path, rowGroupOrdinal);
             Encoding rl = METADATA_CONVERTER.getEncoding(dph.repetition_level_encoding);
             Encoding dl = METADATA_CONVERTER.getEncoding(dph.definition_level_encoding);
             Encoding values = METADATA_CONVERTER.getEncoding(dph.encoding);
@@ -427,6 +431,7 @@ final class PrefetchedRowGroupBuilder {
         }
         if (header.type == PageType.DATA_PAGE_V2) {
             DataPageHeaderV2 dph = header.data_page_header_v2;
+            requirePageHeaderStruct(dph, header.type, "data_page_header_v2", path, rowGroupOrdinal);
             Encoding dataEnc = METADATA_CONVERTER.getEncoding(dph.encoding);
             // See note on per-page stats above (V1 branch).
             Statistics<?> stats = Statistics.getBuilderForReading(primitiveType).build();
@@ -460,11 +465,12 @@ final class PrefetchedRowGroupBuilder {
                 dph.is_compressed
             );
         }
-        throw new IllegalStateException("Unexpected page type while building data page: " + header.type);
+        throw malformedPage(path, rowGroupOrdinal, "declared type [" + header.type + "] is not a data page");
     }
 
-    private static DictionaryPage makeDictionaryPage(PageHeader header, ByteBuffer payload) {
+    private static DictionaryPage makeDictionaryPage(PageHeader header, ByteBuffer payload, String path, int rowGroupOrdinal) {
         DictionaryPageHeader dph = header.dictionary_page_header;
+        requirePageHeaderStruct(dph, header.type, "dictionary_page_header", path, rowGroupOrdinal);
         Encoding encoding = METADATA_CONVERTER.getEncoding(dph.encoding);
         // PrefetchedPageReader takes the breaker-accounted defensive copy. Keep this page as a
         // zero-copy alias until construction so the charge always precedes the allocation.
@@ -551,9 +557,12 @@ final class PrefetchedRowGroupBuilder {
             return buffer.remaining();
         }
 
-        ByteBuffer readPayload(int length) {
+        ByteBuffer readPayload(int length) throws IOException {
+            if (length < 0) {
+                throw new IOException("Negative compressed page size " + length);
+            }
             if (buffer.remaining() < length) {
-                throw new IllegalStateException("Need " + length + " payload bytes but only " + buffer.remaining() + " remain");
+                throw new IOException("Need " + length + " payload bytes but only " + buffer.remaining() + " remain");
             }
             ByteBuffer slice = buffer.slice();
             slice.limit(length);
@@ -605,5 +614,40 @@ final class PrefetchedRowGroupBuilder {
         slice.position(source.position() + offsetFromPosition);
         slice.limit(slice.position() + length);
         return BytesInput.from(slice.slice());
+    }
+
+    /**
+     * {@link Util#readPageHeader} raises the parquet-format library's unchecked metadata
+     * rejection for values it already knows are illegal (negative compressed size, etc.).
+     * Translate at the call site — do not add that type to {@code MALFORMED_DATA_EXCEPTIONS}.
+     */
+    private static PageHeader readPageHeader(InputStream stream, String path, int rowGroupOrdinal) throws IOException {
+        try {
+            return Util.readPageHeader(stream);
+        } catch (InvalidParquetMetadataException e) {
+            String detail = e.getMessage();
+            throw malformedPage(path, rowGroupOrdinal, detail == null || detail.isEmpty() ? e.getClass().getSimpleName() : detail, e);
+        }
+    }
+
+    /**
+     * A page header whose declared {@link PageType} does not carry the matching struct is corrupt
+     * input, not a broken invariant. {@link IllegalArgumentException} classifies as HTTP 400.
+     */
+    private static void requirePageHeaderStruct(Object struct, PageType declared, String structName, String path, int rowGroupOrdinal) {
+        if (struct == null) {
+            throw malformedPage(path, rowGroupOrdinal, "declared type [" + declared + "] but " + structName + " is missing");
+        }
+    }
+
+    private static IllegalArgumentException malformedPage(String path, int rowGroupOrdinal, String detail) {
+        return malformedPage(path, rowGroupOrdinal, detail, null);
+    }
+
+    private static IllegalArgumentException malformedPage(String path, int rowGroupOrdinal, String detail, Throwable cause) {
+        return new IllegalArgumentException(
+            "Malformed Parquet page for column [" + path + "] in row group [" + rowGroupOrdinal + "]: " + detail,
+            cause
+        );
     }
 }

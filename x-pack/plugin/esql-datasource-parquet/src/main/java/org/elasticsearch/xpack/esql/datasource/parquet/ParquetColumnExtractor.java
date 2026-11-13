@@ -1108,8 +1108,9 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         BlockFactory blockFactory,
         ParquetDecodeBudget decodeBudget
     ) throws IOException {
-        try (
-            PrefetchedPageReadStore store = PrefetchedRowGroupBuilder.build(
+        PrefetchedPageReadStore store;
+        try {
+            store = PrefetchedRowGroupBuilder.build(
                 block,
                 bucket.rowGroupIndex,
                 projectedSchema,
@@ -1120,8 +1121,11 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 reader.codecFactory(),
                 blockFactory.breaker(),
                 decodeBudget
-            )
-        ) {
+            );
+        } catch (IllegalArgumentException e) {
+            throw ParquetReadFailures.wrap(e, "Failed to read Parquet column [" + columnName + "] in file [" + messageLocation + "]");
+        }
+        try (store) {
             if (info.maxRepLevel() == 0) {
                 return decodeFlat(bucket, info, store, rgRowCount, blockFactory);
             }

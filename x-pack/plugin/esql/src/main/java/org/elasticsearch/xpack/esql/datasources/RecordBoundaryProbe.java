@@ -394,39 +394,11 @@ final class RecordBoundaryProbe {
         long windowBytes,
         BooleanSupplier isCancelled
     ) throws IOException {
-        return stridedOutcomes(
-            splitter,
-            storageObject,
-            fileLength,
-            positions,
-            minSegment,
-            strideBytes,
-            maxRecordBytes,
-            windowBytes,
-            isCancelled,
-            CANCELLED_MESSAGE
-        );
-    }
-
-    static List<Outcome> stridedOutcomes(
-        RecordSplitter splitter,
-        StorageObject storageObject,
-        long fileLength,
-        List<Long> positions,
-        long minSegment,
-        long strideBytes,
-        int maxRecordBytes,
-        long windowBytes,
-        BooleanSupplier isCancelled,
-        String cancelledMessage
-    ) throws IOException {
         long window = gridWindow(strideBytes, windowBytes);
         return StorageRetryCancellation.callWithCancellation(isCancelled, () -> {
             List<Outcome> outcomes = new ArrayList<>(positions.size());
             for (long pos : positions) {
-                outcomes.add(
-                    probeAt(splitter, storageObject, pos, fileLength, minSegment, maxRecordBytes, window, isCancelled, cancelledMessage)
-                );
+                outcomes.add(probeAt(splitter, storageObject, pos, fileLength, minSegment, maxRecordBytes, window, isCancelled));
             }
             return outcomes;
         });

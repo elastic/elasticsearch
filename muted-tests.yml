@@ -89,9 +89,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/152599
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.highlight/30_max_analyzed_offset/Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL}
-  issue: https://github.com/elastic/elasticsearch/issues/158519
 - class: org.elasticsearch.compute.aggregation.SumDenseVectorGroupingAggregatorFunctionTests
   method: testManyInitialManyPartialFinalRunner
   issue: https://github.com/elastic/elasticsearch/issues/158614
@@ -199,11 +196,6 @@ tests:
   - :x-pack:plugin:downsample:test
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
-  method: test {yaml=indices.get_field_mapping/20_missing_field/Return empty object if field doesn't exist, but index does}
-  issue: https://github.com/elastic/elasticsearch/issues/163303
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
   - :qa:mixed-cluster:v8.19.24#mixedClusterTest
@@ -228,11 +220,6 @@ tests:
   tasks:
   - :x-pack:plugin:sql:qa:server:security:with-ssl:javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/164747
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
-  method: test {yaml=synonyms/110_synonyms_invalid/Reload index with an invalid synonym rule with lenient set to false}
-  issue: https://github.com/elastic/elasticsearch/issues/164897
 - class: org.elasticsearch.search.CCSDuelIT
   tasks:
   - :qa:multi-cluster-search:v9.4.10#multi-cluster
@@ -251,10 +238,6 @@ tests:
   tasks:
   - :qa:multi-cluster-search:v9.4.10#multi-cluster
   issue: https://github.com/elastic/elasticsearch/issues/165287
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
-  issue: https://github.com/elastic/elasticsearch/issues/165497
 
 # Examples:
 #

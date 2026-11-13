@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Marker interface for PromQL-specific logical plan nodes.
@@ -29,6 +31,15 @@ public interface PromqlPlan {
      * and should not be added by implementations of this interface.
      */
     List<Attribute> output();
+
+    /**
+     * The labels this node's tags label leaves out of its series: the ones it removes or writes and the ones its input left out.
+     * Meaningful only when {@link #output()} has a tags label; read through {@link PromqlLabels#excluded}. Translation states the
+     * same with the label container functions; the verifier reads it before translation. A node passes its input's on.
+     */
+    default Set<String> excludedLabels() {
+        return this instanceof UnaryPlan unary ? PromqlLabels.excludedWith(unary.child(), Set.of()) : Set.of();
+    }
 
     /**
      * The PromQL return type of this plan node.

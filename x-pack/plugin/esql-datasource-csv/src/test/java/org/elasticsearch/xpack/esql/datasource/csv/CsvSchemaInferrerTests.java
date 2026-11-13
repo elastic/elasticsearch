@@ -128,6 +128,29 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertEquals(DataType.KEYWORD, schema.get(0).dataType());
     }
 
+    public void testImpossibleCalendarDayIsNotATimestamp() {
+        for (String value : new String[] { "2024-02-30T10:00:00Z", "2024-02-30 10:00:00", "2024-02-30", "2024-02-30T24:00:00Z" }) {
+            assertEquals(value, DataType.KEYWORD, inferOne(value));
+        }
+    }
+
+    /** One impossible day among real timestamps widens the column to text, whichever order the rows arrive in. */
+    public void testImpossibleCalendarDayWidensTimestampColumnToKeyword() {
+        assertEquals(DataType.KEYWORD, inferOne("2024-02-28T10:00:00Z", "2024-02-30T10:00:00Z"));
+        assertEquals(DataType.KEYWORD, inferOne("2024-02-30T10:00:00Z", "2024-02-28T10:00:00Z"));
+    }
+
+    public void testRealEdgeDatesStillInferDatetime() {
+        for (String value : new String[] {
+            "2024-02-29",
+            "2024-02-29T10:00:00Z",
+            "2024-01-31",
+            "2024-12-31 23:59:59",
+            "2024-06-01T24:00:00Z" }) {
+            assertEquals(value, DataType.DATETIME, inferOne(value));
+        }
+    }
+
     public void testNullValuesPreserveCandidate() {
         String[] cols = { "value" };
         List<String[]> rows = List.of(new String[] { "42" }, new String[] { null }, new String[] { "" }, new String[] { "7" });

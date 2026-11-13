@@ -5917,26 +5917,58 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("-999-05-12 14:30:45"));
     }
 
-    public void testDatetimeFastPathInvalidIsoFallsThroughCleanly() throws IOException {
+    public void testDatetimeImpossibleDayUnderFailFastFailsNamingTheValue() throws IOException {
         // Regression for the Stage 1 catch path: an ISO-shaped but calendar-invalid input like
         // 2021-02-30T10:00:00 succeeds in Iso8601Parser's lexical parse but fails inside
         // DateFormatters.from(...) with a generic DateTimeException (not DateTimeParseException).
-        // Without the catch, the batch would abort with an uncaught exception. The catch routes
-        // the row through Stage 3, whose JDK SMART resolver leniently maps Feb 30 to Feb 28 (same
-        // behaviour as before this change). The second row is a sanity-check that the batch
-        // continues normally.
+        // The Stage 1 catch routes the row to Stage 3, whose strict resolver refuses Feb 30, so the cell is an
+        // invalid field handled by error_mode instead of being read as another date. Without the catch, the
+        // batch would abort with an uncaught exception. This test and the two that follow pin one error_mode
+        // each: fail_fast, null_field and skip_row.
         String csv = "ts:datetime\n2021-02-30T10:00:00\n2021-01-01T00:00:00Z\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "fail_fast"));
+
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+                iterator.next();
+            }
+        });
+        assertThat(e.getMessage(), containsString("2021-02-30T10:00:00"));
+        drainWarnings();
+    }
+
+    public void testDatetimeImpossibleDayUnderNullFieldNullsCellAndWarns() throws IOException {
+        String csv = "ts:datetime\n2021-02-30T10:00:00\n2021-01-01T00:00:00Z\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader nullField = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "null_field"));
+        try (CloseableIterator<Page> iterator = nullField.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            LongBlock block = page.getBlock(0);
+            assertTrue(block.isNull(0));
+            assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), block.getLong(1));
+        }
+        List<String> warnings = drainWarnings();
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("cannot read [2021-02-30T10:00:00]")));
+    }
+
+    public void testDatetimeImpossibleDayUnderSkipRowDropsRowAndWarns() throws IOException {
+        String csv = "ts:datetime,n:long\n2021-02-30T10:00:00,1\n2021-01-01T00:00:00Z,2\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "skip_row"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
-            assertEquals(2, page.getPositionCount());
-            LongBlock block = (LongBlock) page.getBlock(0);
-            assertEquals(Instant.parse("2021-02-28T10:00:00Z").toEpochMilli(), block.getLong(0));
-            assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), block.getLong(1));
+            assertEquals(1, page.getPositionCount());
+            assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(2L, ((LongBlock) page.getBlock(1)).getLong(0));
         }
+        List<String> warnings = drainWarnings();
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.contains("cannot be read; skipping them")));
+        assertTrue("got: " + warnings, warnings.stream().anyMatch(w -> w.startsWith("row [1]")));
     }
 
     public void testDatetimeFastPathRouting() throws IOException {

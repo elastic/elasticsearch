@@ -196,6 +196,19 @@ public class DataTypeConversionTests extends ESTestCase {
         }
     }
 
+    public void testConversionToDateTimeRejectsImpossibleDay() {
+        Converter conversion = converterFor(KEYWORD, DATETIME);
+        for (String value : new String[] { "2024-02-30", "2024-02-30T10:00:00Z", "2024-02-30T24:00:00Z" }) {
+            Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(value));
+            assertTrue(e.getMessage(), e.getMessage().startsWith("cannot cast [" + value + "] to [datetime]"));
+        }
+        assertEquals(asDateTime("2024-02-29T00:00:00Z"), conversion.convert("2024-02-29"));
+        assertEquals(asDateTime("2024-02-29T10:00:00Z"), conversion.convert("2024-02-29 10:00:00"));
+        assertEquals(asDateTime("2024-06-02T00:00:00Z"), conversion.convert("2024-06-01T24:00:00Z"));
+        assertEquals(asDateTime("2024-06-02T00:00:00Z"), conversion.convert("2024-06-01 24:00:00"));
+        expectThrows(InvalidArgumentException.class, () -> conversion.convert("2024-06-01T24:30:00Z"));
+    }
+
     public void testConversionToFloat() {
         DataType to = FLOAT;
         {

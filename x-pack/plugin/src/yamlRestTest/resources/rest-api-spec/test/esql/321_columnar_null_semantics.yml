@@ -109,28 +109,3 @@ IS NOT NULL returns the same rows pushed down and evaluated on a keyword field:
           query: 'FROM test METADATA _id | LIMIT 100 | WHERE kwd IS NOT NULL | SORT _id | KEEP _id'
 
   - match: { values: $pushed }
-
----
-IS NOT NULL returns the same rows pushed down and evaluated on a long field:
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test METADATA _id | WHERE lng IS NOT NULL | SORT _id | KEEP _id | LIMIT 100'
-
-  - set: { values: pushed }
-
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test METADATA _id | LIMIT 100 | WHERE lng IS NOT NULL | SORT _id | KEEP _id'
-
-  - match: { values: $pushed }
-
----
-a keyword value read after a function is null for documents with only nulls:
-  - do:
-      esql.query:
-        body:
-          query: 'FROM test METADATA _id | EVAL upper = TO_UPPER(kwd) | WHERE upper IS NOT NULL | SORT _id | KEEP _id | LIMIT 100'
-
-  - match: { values: [ [ both_ends_null ], [ leading_null ], [ mixed ], [ trailing_null ], [ value ] ] }

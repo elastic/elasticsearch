@@ -30,6 +30,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
@@ -471,6 +473,12 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public void visit(IntsRef ref) throws IOException {
+            checkAndThrowWithSampling();
+            in.visit(ref);
+        }
+
+        @Override
         public void visit(int docID, byte[] packedValue) throws IOException {
             checkAndThrowWithSampling();
             in.visit(docID, packedValue);
@@ -705,6 +713,17 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
                 return advance;
             }
 
+            @Override
+            public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                queryCancellation.checkCancelled();
+                delegate.intoBitSet(upTo, bitSet, offset);
+            }
+
+            @Override
+            public int docIDRunEnd() throws IOException {
+                return delegate.docIDRunEnd();
+            }
+
             private void checkAndThrowWithSampling() {
                 if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
                     queryCancellation.checkCancelled();
@@ -745,6 +764,17 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public long cost() {
             return in.cost();
+        }
+
+        @Override
+        public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+            queryCancellation.checkCancelled();
+            in.intoBitSet(upTo, bitSet, offset);
+        }
+
+        @Override
+        public int docIDRunEnd() throws IOException {
+            return in.docIDRunEnd();
         }
 
         private void checkAndThrowWithSampling() {

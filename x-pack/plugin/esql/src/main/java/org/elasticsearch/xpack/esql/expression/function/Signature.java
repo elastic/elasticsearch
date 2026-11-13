@@ -26,6 +26,11 @@ import java.lang.annotation.Target;
  *     (same, after {@code DataType.noText()}). Type groups and {@code |} unions are
  *     not allowed in the return type.
  * </p>
+ * <p>
+ *     A {@link MapParam} argument is not a data type. That position is the token
+ *     {@link FunctionSignatures#NAMED_PARAMETERS}. It cannot be mixed into a union
+ *     or type group, and it cannot be a return type.
+ * </p>
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({})
@@ -33,7 +38,8 @@ public @interface Signature {
     /**
      * Argument types for this overload. Optional trailing parameters are omitted
      * rather than listed as nullable. Use {@code |} for a union and/or a
-     * {@link TypeGroup} name in one position.
+     * {@link TypeGroup} name in one position. A {@link MapParam} position is
+     * {@link FunctionSignatures#NAMED_PARAMETERS}.
      */
     String[] params();
 

@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.lucene.search.cost.QueryCacheEntryCostEstimator;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -40,6 +42,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
@@ -69,7 +72,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         Property.NodeScope
     );
 
-    private final LRUQueryCache cache;
+    private final ElasticsearchLRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
@@ -80,8 +83,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
      * participate in the cache, shards whose calculated share is zero will not be contained in the map at all. As a consequence, the
      * correct pattern for using the returned map will be via {@link Map#getOrDefault(Object, Object)} with a {@code defaultValue} of
      * {@code 0L}.
+     *
      * @return an unmodifiable map from {@link ShardId} to the calculated share of the query cache's shared RAM size for each shard,
-     *         omitting shards with a zero share
+     * omitting shards with a zero share
      */
     public static Map<ShardId, Long> getSharedRamSizeForAllShards(IndicesService indicesService) {
         Map<ShardId, Long> shardIdToSharedRam = new HashMap<>();
@@ -131,12 +135,20 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return cache;
     }
 
+    /**
+     * The number of cache populations running right now, across all threads. Visible for testing.
+     */
+    int inFlightPopulationCount() {
+        return cache.inFlightPopulations.size();
+    }
+
     private static QueryCacheStats toQueryCacheStatsSafe(@Nullable Stats stats) {
         return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
     }
 
     /**
      * Computes the total cache size in bytes, and the total shard count in the cache for all shards.
+     *
      * @param indicesService the IndicesService instance to retrieve cache information from
      * @return A CacheTotals object containing the computed total number of items in the cache and the number of shards seen in the cache
      */
@@ -159,7 +171,8 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     /**
      * This method computes the shared RAM size in bytes for the given indexShard.
-     * @param shardId The shard to compute the shared RAM size for.
+     *
+     * @param shardId     The shard to compute the shared RAM size for.
      * @param cacheTotals Shard totals computed in {@link #getCacheTotalsForAllShards(IndicesService)}.
      * @return the shared RAM size in bytes allocated to the given shard, or 0 if unavailable
      */
@@ -203,7 +216,38 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     public record CacheTotals(long totalItemsInCache, int shardCount) {}
 
-    /** Get usage statistics for the given shard. */
+    /**
+     * Identifies one cache entry being built: the segment cache key plus the query.
+     */
+    private static final class SegmentQueryKey {
+        private final Object segmentKey;
+        private final Query query;
+        // Query#hashCode can be expensive and this key is hashed on both add and remove
+        private final int hash;
+
+        SegmentQueryKey(Object segmentKey, Query query) {
+            this.segmentKey = segmentKey;
+            this.query = query;
+            this.hash = Objects.hash(segmentKey, query);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof SegmentQueryKey other
+                && hash == other.hash
+                && segmentKey.equals(other.segmentKey)
+                && query.equals(other.query);
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
+    }
+
+    /**
+     * Get usage statistics for the given shard.
+     */
     public QueryCacheStats getStats(ShardId shard, Supplier<Long> precomputedSharedRamBytesUsed) {
         final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
         queryCacheStats.addRamBytesUsed(precomputedSharedRamBytesUsed.get());
@@ -212,6 +256,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
+        // A query may hand its child's already cached weight back to the searcher, which then caches it again (ConstantScoreQuery
+        // does this when scores are not needed). The accounting wrapper the searcher adds around such a weight is redundant: the
+        // one inside the cached weight is kept, like the unwrapping below and in LRUQueryCache keeps a single cache layer.
+        if (weight instanceof CachePopulationAccountingWeight accounting && accounting.wrapped() instanceof CachingWeightWrapper) {
+            weight = accounting.wrapped();
+        }
         while (weight instanceof CachingWeightWrapper) {
             weight = ((CachingWeightWrapper) weight).in;
         }
@@ -254,7 +304,9 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
     }
 
-    /** Clear all entries that belong to the given index. */
+    /**
+     * Clear all entries that belong to the given index.
+     */
     public void clearIndex(String index) {
         final Set<Object> coreCacheKeys = shardKeyMap.getCoreKeysForIndex(index);
         for (Object coreKey : coreCacheKeys) {
@@ -275,6 +327,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         assert shardKeyMap.size() == 0 : shardKeyMap.size();
         assert shardStats.isEmpty() : shardStats.keySet();
         assert stats2.isEmpty() : stats2;
+        assert cache.inFlightPopulations.isEmpty() : cache.inFlightPopulations;
 
         // This cache stores two things: filters, and doc id sets. At this time
         // we only know that there are no more doc id sets, but we still track
@@ -345,6 +398,13 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     }
 
     private class ElasticsearchLRUQueryCache extends LRUQueryCache {
+
+        /**
+         * The cache populations running right now, so that concurrent searches do not each build their own copy of the same entry. An
+         * entry is added when {@link #tryPopulateCache} starts building a doc id set and removed when it returns, so the set never holds
+         * more entries than there are threads populating the cache, and is empty on an idle node.
+         */
+        private final Set<SegmentQueryKey> inFlightPopulations = ConcurrentCollections.newConcurrentSet();
 
         ElasticsearchLRUQueryCache(int maxSize, long maxRamBytesUsed, Predicate<LeafReaderContext> leavesToCache, float skipFactor) {
             super(maxSize, maxRamBytesUsed, leavesToCache, skipFactor);
@@ -455,6 +515,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
             }
         }
 
+        /**
+         * Populates the cache unless another thread is already building the same entry, or the search's circuit breaker refuses the
+         * heap the entry takes to build, in which case this returns {@code null} and the caller runs the query uncached for this
+         * leaf, as {@link LRUQueryCache} does whenever population is skipped. An {@link OptionalCachingWeight} decides for itself
+         * which thread populates the cache and what the others do, so it is left to its own gate.
+         */
         @Override
         protected CacheAndCount tryPopulateCache(
             IndexReader.CacheHelper cacheKey,
@@ -471,7 +537,28 @@ public class IndicesQueryCache implements QueryCache, Closeable {
                     }
                 }
             }
-            return super.tryPopulateCache(cacheKey, weight, scorerSupplier, context);
+
+            // Only let one thread build a cache entry for the same query at a time.
+            // The loser does not wait for the winner: a blocked search thread holds a search pool slot, the winner may be
+            // cancelled or fail.
+            final SegmentQueryKey populationKey = new SegmentQueryKey(cacheKey.getKey(), weight.getQuery());
+            if (inFlightPopulations.add(populationKey) == false) {
+                return null;
+            }
+            try {
+                // Account for the cost of the query cache entry in the search circuit breaker. If the breaker trips,
+                // skip the cache and run the query uncached.
+                if (weight instanceof CachePopulationAccountingWeight accounting) {
+                    final long bytes = new QueryCacheEntryCostEstimator(scorerSupplier.cost(), context.reader().maxDoc()).estimate();
+                    if (accounting.chargeCachePopulation(context, bytes) == false) {
+                        logger.trace("skipping population of [{}] bytes for query [{}]: circuit breaker refused", bytes, weight.getQuery());
+                        return null;
+                    }
+                }
+                return super.tryPopulateCache(cacheKey, weight, scorerSupplier, context);
+            } finally {
+                inFlightPopulations.remove(populationKey);
+            }
         }
     }
 
@@ -492,5 +579,33 @@ public class IndicesQueryCache implements QueryCache, Closeable {
          * or {@code null} if another thread is already caching this segment.
          */
         protected abstract Releasable startCaching(LeafReaderContext leaf);
+    }
+
+    /**
+     * A {@link Weight} through which the cache can reserve, on the circuit breaker of the search that is populating it, the heap
+     * that building an entry allocates. Lucene's {@link QueryCache#doCache} carries no request context, so the searcher puts
+     * one of these inside the weight it hands to {@link #doCache}; the cache finds it again as the weight it is asked to
+     * populate from. Populating a dense entry allocates a {@code FixedBitSet} of {@code maxDoc / 8} bytes that is otherwise
+     * invisible to any breaker, and a search holds it for the whole leaf even if the cache evicts it right away.
+     */
+    public abstract static class CachePopulationAccountingWeight extends FilterWeight {
+        protected CachePopulationAccountingWeight(Weight in) {
+            super(in);
+        }
+
+        /**
+         * Reserves {@code bytes} for the cache entry about to be built for {@code leaf}.
+         *
+         * @return {@code true} if the bytes were reserved, {@code false} if the breaker refused them, in which case the cache
+         *         does not build the entry and the leaf runs uncached
+         */
+        public abstract boolean chargeCachePopulation(LeafReaderContext leaf, long bytes);
+
+        /**
+         * The weight this one wraps.
+         */
+        public final Weight wrapped() {
+            return in;
+        }
     }
 }

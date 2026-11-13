@@ -10,16 +10,24 @@
 package org.elasticsearch.columnar.substrate;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.function.IntFunction;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Exercises each {@link ChunkCodec} on its own — one chunk written and read back through a {@link Directory}
@@ -50,6 +58,39 @@ public class ChunkCodecTests extends ESTestCase {
                 final byte[] read = new byte[chunk.length];
                 ChunkCodec.ZSTD.newDecompressor().read(in, stored, read, chunk.length);
                 assertArrayEquals(chunk, read);
+            }
+        }
+    }
+
+    /**
+     * An input that can hand out segment slices but declines a particular range makes the read copy the chunk
+     * into the decompressor's reused scratch buffer. That buffer is sized for the largest chunk seen so far, so
+     * a smaller chunk read after a larger one must only pass its own bytes to the decoder.
+     */
+    public void testScratchReusedAcrossChunksWhenSliceDeclined() throws IOException {
+        try (Directory dir = newDirectory()) {
+            final byte[] large = incompressible(between(20_000, 50_000));
+            final byte[] small = repetitive(between(1_000, 5_000));
+            final int largeStored;
+            final int smallStored;
+            try (IndexOutput out = dir.createOutput("chunk.bin", IOContext.DEFAULT)) {
+                largeStored = ChunkCodec.ZSTD.newCompressor().write(large, large.length, out);
+                smallStored = ChunkCodec.ZSTD.newCompressor().write(small, small.length, out);
+            }
+            assertThat(smallStored, lessThan(largeStored));
+            try (IndexInput in = new DecliningDirectAccessIndexInput("declining", dir.openInput("chunk.bin", IOContext.DEFAULT))) {
+                assertTrue(IndexInputUtils.canUseSegmentSlices(in));
+                final ChunkDecompressor decompressor = ChunkCodec.ZSTD.newDecompressor();
+
+                final byte[] readLarge = new byte[large.length];
+                decompressor.read(in, largeStored, readLarge, large.length);
+                assertArrayEquals(large, readLarge);
+                assertThat(in.getFilePointer(), equalTo((long) largeStored));
+
+                final byte[] readSmall = new byte[small.length];
+                decompressor.read(in, smallStored, readSmall, small.length);
+                assertArrayEquals(small, readSmall);
+                assertThat(in.getFilePointer(), equalTo((long) largeStored + smallStored));
             }
         }
     }
@@ -113,5 +154,48 @@ public class ChunkCodecTests extends ESTestCase {
         final byte[] bytes = new byte[length];
         random().nextBytes(bytes);
         return bytes;
+    }
+
+    /**
+     * Implements {@link DirectAccessInput} but never provides a range, so {@link IndexInputUtils#withSlice} reads
+     * the bytes into the caller's scratch segment. No real input declines every range; a blob-cache input declines
+     * a range that is not cached.
+     */
+    private static class DecliningDirectAccessIndexInput extends FilterIndexInput implements DirectAccessInput {
+
+        DecliningDirectAccessIndexInput(String resourceDescription, IndexInput delegate) {
+            super(resourceDescription, delegate);
+        }
+
+        @Override
+        public boolean withMemorySegmentSlice(
+            long offset,
+            long length,
+            IntFunction<MemorySegment> scratch,
+            CheckedConsumer<MemorySegment, IOException> action
+        ) {
+            return false;
+        }
+
+        @Override
+        public boolean withSliceAddresses(
+            long[] offsets,
+            int length,
+            int count,
+            MemorySegment addressesScratch,
+            CheckedConsumer<MemorySegment, IOException> action
+        ) {
+            return false;
+        }
+
+        @Override
+        public IndexInput clone() {
+            return new DecliningDirectAccessIndexInput("clone(" + toString() + ")", in.clone());
+        }
+
+        @Override
+        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+            return new DecliningDirectAccessIndexInput(sliceDescription, in.slice(sliceDescription, offset, length));
+        }
     }
 }

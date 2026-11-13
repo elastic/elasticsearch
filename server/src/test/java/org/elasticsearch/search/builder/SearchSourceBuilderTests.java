@@ -288,6 +288,20 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, SearchSourceBuilder::new, version);
     }
 
+    public void testParseScriptFieldWithoutScript() throws IOException {
+        for (String scriptField : List.of("{}", "{ \"ignore_failure\": true }")) {
+            String restContent = "{ \"script_fields\": { \"field\": " + scriptField + " } }";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                ParsingException e = expectThrows(
+                    ParsingException.class,
+                    "script field " + scriptField,
+                    () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> false)
+                );
+                assertThat(e.getMessage(), containsString("script"));
+            }
+        }
+    }
+
     public void testParseIncludeExclude() throws IOException {
         {
             String restContent = """

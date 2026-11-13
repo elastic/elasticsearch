@@ -26,6 +26,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -48,6 +49,7 @@ public class RowSourceMalformedValueTests extends MapperServiceTestCase {
             field(b, "double_field", "double");
             field(b, "float_field", "float");
             field(b, "bool_field", "boolean");
+            b.startObject("loc").field("type", "geo_point").endObject();
         }));
     }
 
@@ -89,6 +91,38 @@ public class RowSourceMalformedValueTests extends MapperServiceTestCase {
         // An object as an element of an array, where the mapper is handed the start of the object.
         assertRejected(mapper, "{\"int_field\": [7, {\"x\": 1}]}", "failed to parse field [int_field] of type [integer]");
         assertRejected(mapper, "{\"bool_field\": [true, {\"x\": 1}]}", "failed to parse field [bool_field] of type [boolean]");
+    }
+
+    /**
+     * The array form of a geo_point reads its two coordinates in turn, and does not check what token follows the first. A token that is
+     * not a number must make the document fail, as it does from JSON, not be read as a copy of the first coordinate, which indexed
+     * {@code [1.5, [2.5]]} at (1.5, 1.5).
+     */
+    public void testGeoPointArrayWithoutTwoNumbersIsRejectedAsItIsFromJson() throws IOException {
+        final DocumentMapper mapper = documentMapper();
+        assertIgnored(mapper, "{\"loc\": [1.5, 2.5]}");
+        assertRejectedWithTheSameFirstLine(mapper, "{\"loc\": [1.5, [2.5]]}");
+        assertRejectedWithTheSameFirstLine(mapper, "{\"loc\": [1.5, {\"a\": 1}]}");
+        assertRejectedWithTheSameFirstLine(mapper, "{\"loc\": [1.5, \"x\"]}");
+        assertRejectedWithTheSameFirstLine(mapper, "{\"loc\": [1.5]}");
+    }
+
+    /**
+     * For a mapper that reports what the parser said rather than its own message. The JSON parser's message goes on to quote the source
+     * and where in it the error was, which a row has no text to say, so only the first line, without its position, is compared.
+     */
+    private void assertRejectedWithTheSameFirstLine(DocumentMapper mapper, String json) throws IOException {
+        final Outcome fromJson = parseFromJson(mapper, json);
+        assertThat("from JSON: " + json, fromJson.error(), notNullValue());
+        final Outcome fromRow = parseFromRow(mapper, json);
+        assertThat("the row source of " + json, fromRow.error(), notNullValue());
+        assertThat("the row source of " + json, firstLine(fromRow.error()), equalTo(firstLine(fromJson.error())));
+    }
+
+    private static String firstLine(String message) {
+        final int end = message.indexOf('\n');
+        // Leave out the position, which a row has no text to say.
+        return (end < 0 ? message : message.substring(0, end)).replaceAll("\\[\\d+:\\d+\\] ", "");
     }
 
     private void assertIgnored(DocumentMapper mapper, String json, String... ignoredFields) throws IOException {

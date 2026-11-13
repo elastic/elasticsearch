@@ -11,6 +11,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -22,9 +23,7 @@ public class Queries {
 
     public enum Clause {
         FILTER(BoolQueryBuilder::filter),
-        MUST(BoolQueryBuilder::must),
-        MUST_NOT(BoolQueryBuilder::mustNot),
-        SHOULD(BoolQueryBuilder::should);
+        MUST(BoolQueryBuilder::must);
 
         final Function<BoolQueryBuilder, List<QueryBuilder>> innerQueries;
 
@@ -34,44 +33,16 @@ public class Queries {
     }
 
     /**
-     * Combines the given queries while attempting to NOT create a new bool query and avoid
-     * unnecessary nested queries.
-     * The method tries to detect if the first query is a bool query - if that is the case it will
-     * reuse that for adding the rest of the clauses.
+     * Combines the given queries as clauses of a new bool query, or returns the only one, ignoring nulls and duplicates.
+     * Lucene flattens nested bool queries on the shard when that keeps their meaning.
      */
     public static QueryBuilder combine(Clause clause, List<QueryBuilder> queries) {
-        QueryBuilder firstQuery = null;
-        BoolQueryBuilder bool = null;
-
-        for (QueryBuilder query : queries) {
-            if (query == null) {
-                continue;
-            }
-            if (firstQuery == null) {
-                firstQuery = query;
-                if (firstQuery instanceof BoolQueryBuilder bqb) {
-                    bool = bqb.shallowCopy();
-                }
-            }
-            // at least two entries, start copying
-            else if (query.equals(firstQuery) == false) {
-                // lazy init the root bool
-                if (bool == null) {
-                    bool = combine(clause, boolQuery(), firstQuery);
-                }
-                // keep adding queries to it
-                bool = combine(clause, bool, query);
-            }
+        List<QueryBuilder> distinct = queries.stream().filter(Objects::nonNull).distinct().toList();
+        if (distinct.size() <= 1) {
+            return distinct.isEmpty() ? null : distinct.getFirst();
         }
-
-        return bool == null ? firstQuery : bool;
-    }
-
-    private static BoolQueryBuilder combine(Clause clause, BoolQueryBuilder bool, QueryBuilder query) {
-        var list = clause.innerQueries.apply(bool);
-        if (list.contains(query) == false) {
-            list.add(query);
-        }
+        BoolQueryBuilder bool = boolQuery();
+        clause.innerQueries.apply(bool).addAll(distinct);
         return bool;
     }
 }

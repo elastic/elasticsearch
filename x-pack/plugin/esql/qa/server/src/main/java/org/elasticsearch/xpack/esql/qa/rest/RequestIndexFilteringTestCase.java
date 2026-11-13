@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.requestObjec
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -273,6 +274,35 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
                         .optionalEntry("_meta", Map.of("bucket", Map.of("interval", 3, "unit", "hour")))
                 ),
             allOf(instanceOf(List.class), hasSize(0))
+        );
+    }
+
+    /** A request filter with should clauses still filters when the query pushes its own filter. */
+    public void testDisjunctionFilterWithPushedFilter() throws IOException {
+        assumeTrue(
+            "requires the fix for disjunctions combined with pushed filters",
+            RestEsqlTestCase.hasCapabilities(
+                adminClient(),
+                List.of(EsqlCapabilities.Cap.FIX_DISJUNCTION_COMBINED_WITH_PUSHED_FILTER.capabilityName())
+            )
+        );
+        indexTimestampData(10, "test1", "2024-11-26", "id1");
+
+        RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("bool");
+            {
+                b.startArray("should");
+                b.startObject().startObject("term").field("value", 2).endObject().endObject();
+                b.startObject().startObject("term").field("value", 7).endObject().endObject();
+                b.endArray();
+            }
+            b.endObject();
+        }).query(from("test1") + " | WHERE id1 > 1 | KEEP value | SORT value");
+
+        assertQueryResult(
+            runEsql(builder),
+            matchesList().item(matchesMap().entry("name", "value").entry("type", "long")),
+            equalTo(List.of(List.of(2), List.of(7)))
         );
     }
 

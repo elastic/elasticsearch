@@ -66,6 +66,6 @@ LimitExec[1000[INTEGER],null]
         }
       }
     ],
-    "boost" : 1.0
+    "boost" : 0.0
   }
 }, tags=[null]]]}], query[][x{r}#0, $$count(*)$count{r}#4, $$count(*)$seen{r}#5], limit[], 

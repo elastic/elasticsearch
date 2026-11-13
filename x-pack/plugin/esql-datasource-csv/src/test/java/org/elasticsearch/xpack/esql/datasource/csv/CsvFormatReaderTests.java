@@ -5894,6 +5894,117 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2021-01-01 24:00:00"));
     }
 
+    public void testUtcEpochMillisAgreesWithLocalDateTime() {
+        // The arithmetic replacement for LocalDateTime.of(...).toInstant(UTC): every day of a 400-year Gregorian cycle
+        // plus the edges of the four-digit year range, at a few times of day.
+        for (int year : new int[] { 0, 1, 1600, 1899, 1900, 1969, 1970, 2000, 2024, 2100, 2400, 9999 }) {
+            for (int month = 1; month <= 12; month++) {
+                for (int day = 1; day <= 31; day++) {
+                    long expected;
+                    try {
+                        expected = java.time.LocalDateTime.of(year, month, day, 23, 59, 59)
+                            .toInstant(java.time.ZoneOffset.UTC)
+                            .toEpochMilli() + 999;
+                    } catch (java.time.DateTimeException e) {
+                        expected = CsvFormatReader.FAST_PATH_MISS;
+                    }
+                    assertEquals(
+                        year + "-" + month + "-" + day,
+                        expected,
+                        CsvFormatReader.utcEpochMillis(year, month, day, 23, 59, 59, 999)
+                    );
+                }
+            }
+        }
+        java.time.LocalDate date = java.time.LocalDate.of(1970, 1, 1);
+        for (int i = 0; i < 146097; i += 7) {
+            java.time.LocalDate d = date.plusDays(i);
+            long expected = d.atTime(12, 34, 56).toInstant(java.time.ZoneOffset.UTC).toEpochMilli();
+            assertEquals(
+                d.toString(),
+                expected,
+                CsvFormatReader.utcEpochMillis(d.getYear(), d.getMonthValue(), d.getDayOfMonth(), 12, 34, 56, 0)
+            );
+        }
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.utcEpochMillis(2024, 1, 1, 24, 0, 0, 0));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.utcEpochMillis(2024, 1, 1, 0, 60, 0, 0));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.utcEpochMillis(2024, 1, 1, 0, 0, 60, 0));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.utcEpochMillis(2024, 0, 1, 0, 0, 0, 0));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.utcEpochMillis(2024, 1, 0, 0, 0, 0, 0));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.utcEpochMillis(-1, 1, 1, 0, 0, 0, 0));
+    }
+
+    /** The in-place keyword encoder writes the bytes Lucene's encoder writes, unpaired surrogates included. */
+    public void testUtf16ToUtf8MatchesLucene() {
+        for (int iteration = 0; iteration < 200; iteration++) {
+            StringBuilder text = new StringBuilder();
+            int length = randomIntBetween(0, 40);
+            for (int i = 0; i < length; i++) {
+                switch (randomIntBetween(0, 6)) {
+                    case 0 -> text.append((char) randomIntBetween(0x80, 0x7FF));
+                    case 1 -> text.append((char) randomIntBetween(0x800, 0xD7FF));
+                    case 2 -> text.appendCodePoint(randomIntBetween(0x10000, 0x10FFFF));
+                    case 3 -> text.append((char) randomIntBetween(0xD800, 0xDBFF)); // a high surrogate, maybe unpaired
+                    case 4 -> text.append((char) randomIntBetween(0xDC00, 0xDFFF)); // a low surrogate on its own
+                    default -> text.append((char) randomIntBetween(0x20, 0x7E));
+                }
+            }
+            char[] chars = text.toString().toCharArray();
+            byte[] expected = new byte[org.apache.lucene.util.UnicodeUtil.maxUTF8Length(chars.length)];
+            int expectedLength = org.apache.lucene.util.UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, expected);
+            int offset = randomIntBetween(0, 5);
+            byte[] actual = new byte[offset + expected.length];
+            int actualLength = CsvFormatReader.utf16ToUtf8(chars, 0, chars.length, actual, offset);
+            assertEquals(text.toString(), expectedLength, actualLength);
+            assertArrayEquals(
+                text.toString(),
+                Arrays.copyOf(expected, expectedLength),
+                Arrays.copyOfRange(actual, offset, offset + actualLength)
+            );
+        }
+    }
+
+    public void testFastPathFromCharactersMatchesStringForms() {
+        // The direct-to-block arm reads the template from the record's characters; it must accept exactly the union of
+        // the two String fast paths (T with optional Z, space without) and agree with them on the millisecond.
+        String[] accepted = {
+            "2024-05-12T14:30:45",
+            "2024-05-12T14:30:45Z",
+            "2024-05-12T14:30:45.123",
+            "2024-05-12T14:30:45.123Z",
+            "2024-05-12 14:30:45",
+            "2024-05-12 14:30:45.123",
+            "2020-02-29 00:00:00",
+            "0000-01-01T00:00:00Z",
+            "9999-12-31T23:59:59.999Z" };
+        for (String value : accepted) {
+            long viaString = value.charAt(10) == 'T'
+                ? CsvFormatReader.tryParseIsoUtcDatetimeMillis(value)
+                : CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis(value);
+            assertNotEquals(value, CsvFormatReader.FAST_PATH_MISS, viaString);
+            char[] padded = ("xx" + value + "yy").toCharArray();
+            assertEquals(value, viaString, CsvFormatReader.tryParseFixedDatetimeMillis(padded, 2, value.length()));
+            String iso = value.replace(' ', 'T');
+            assertEquals(value, Instant.parse(iso.endsWith("Z") ? iso : iso + "Z").toEpochMilli(), viaString);
+        }
+        String[] rejected = {
+            "2024-05-12 14:30:45Z",
+            "2024-05-12T14:30:45+01:00",
+            "2024-05-12t14:30:45",
+            "2024-05-12",
+            "2024-05-12T14:30:45.123456",
+            "2021-02-30T10:00:00Z",
+            "2021-01-01T24:00:00Z",
+            "2024-05-12T14:30:45.12Z",
+            "2024-05-12X14:30:45",
+            "1715524245000",
+            "not-a-date" };
+        for (String value : rejected) {
+            char[] chars = value.toCharArray();
+            assertEquals(value, CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseFixedDatetimeMillis(chars, 0, chars.length));
+        }
+    }
+
     public void testFastPathRejectsWrongShape() {
         // T-separated → not the space-separated fast path's job; ISO fast path handles it instead.
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12T14:30:45"));

@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 165748
+summary: Migrate the rename and remove processors to `FieldPath`
+type: enhancement

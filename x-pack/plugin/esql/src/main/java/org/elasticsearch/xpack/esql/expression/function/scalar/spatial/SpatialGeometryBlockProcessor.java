@@ -12,8 +12,10 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateFilter;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.io.ParseException;
@@ -51,8 +53,34 @@ class SpatialGeometryBlockProcessor {
     }
 
     BytesRef processSingleGeometry(Geometry jtsGeometry, double parameter) {
+        return processQuantizedGeometry(quantize(jtsGeometry), parameter);
+    }
+
+    private BytesRef processQuantizedGeometry(Geometry jtsGeometry, double parameter) {
         Geometry result = applyOperation(jtsGeometry, parameter);
         return UNSPECIFIED.jtsGeometryToWkb(result);
+    }
+
+    /**
+     * Creates transformers that apply the operation to geometries reconstructed from shape doc values, for functions that
+     * are fused into loading those doc values. The coordinates are copied straight into JTS, without an intermediate
+     * WKB encoding, and a geometry that cannot be transformed registers a warning and becomes null, as in the evaluators.
+     * Doc-values coordinates are already on the Lucene grid, so they are not quantized again.
+     */
+    BlockLoaderFunctionConfig.GeometryTransformerFactory transformers(double parameter) {
+        return warnings -> {
+            JtsGeometryConverter converter = new JtsGeometryConverter(geometryFactory);
+            return geometry -> {
+                try {
+                    return processQuantizedGeometry(converter.toJts(geometry), parameter);
+                } catch (IllegalArgumentException e) {
+                    if (warnings != null) {
+                        warnings.registerException(IllegalArgumentException.class, e.getMessage());
+                    }
+                    return null;
+                }
+            };
+        };
     }
 
     void processPoints(BytesRefBlock.Builder builder, int p, LongBlock left, double parameter) throws IOException {
@@ -69,10 +97,24 @@ class SpatialGeometryBlockProcessor {
         if (left.isNull(p)) {
             builder.appendNull();
         } else {
-            final Geometry jtsGeometry = asJtsGeometry(left, p);
-            Geometry result = applyOperation(jtsGeometry, parameter);
-            builder.appendBytesRef(UNSPECIFIED.jtsGeometryToWkb(result));
+            builder.appendBytesRef(processSingleGeometry(asJtsGeometry(left, p), parameter));
         }
+    }
+
+    /**
+     * Snap coordinates to the Lucene encoding grid in place, so results match whether the input came from source or
+     * from (already quantized) doc-values. A no-op for {@link SpatialCoordinateTypes#UNSPECIFIED}.
+     */
+    Geometry quantize(Geometry jtsGeometry) {
+        if (spatialCoordinateType != UNSPECIFIED) {
+            jtsGeometry.apply((CoordinateFilter) coord -> {
+                long encoded = spatialCoordinateType.pointAsLong(coord.x, coord.y);
+                coord.x = spatialCoordinateType.decodeX(encoded);
+                coord.y = spatialCoordinateType.decodeY(encoded);
+            });
+            jtsGeometry.geometryChanged();
+        }
+        return jtsGeometry;
     }
 
     @SuppressForbidden(reason = "TODO: port JTS TaggedLineStringSimplifier to iterative form; recursion depth cannot be tracked from here")
@@ -123,7 +165,7 @@ class SpatialGeometryBlockProcessor {
             }
             final Geometry[] geometries = new Geometry[valueCount];
             for (int i = 0; i < valueCount; i++) {
-                geometries[i] = UNSPECIFIED.wkbToJtsGeometry(valueBlock.getBytesRef(firstValueIndex, scratch));
+                geometries[i] = UNSPECIFIED.wkbToJtsGeometry(valueBlock.getBytesRef(firstValueIndex + i, scratch));
             }
             return geometryFactory.createGeometryCollection(geometries);
         } catch (ParseException e) {

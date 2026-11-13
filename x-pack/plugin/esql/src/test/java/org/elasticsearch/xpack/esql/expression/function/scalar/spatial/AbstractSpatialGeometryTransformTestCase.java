@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
+import org.locationtech.jts.geom.CoordinateFilter;
 import org.locationtech.jts.geom.Geometry;
 
 import java.util.ArrayList;
@@ -24,6 +26,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 /**
@@ -95,6 +99,10 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
         );
     }
 
+    /**
+     * The evaluators under test snap input geometries to the Lucene encoding grid of their coordinate type (so results match
+     * doc-values), using separate geo and cartesian evaluators, and expected results are computed the same way.
+     */
     protected static Iterable<Object[]> buildParameters(
         String evaluatorPrefix,
         String paramName,
@@ -153,6 +161,9 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
         double paramMin,
         double paramMax
     ) {
+        boolean geo = DataType.isSpatialGeo(spatialType);
+        SpatialCoordinateTypes coordinateType = geo ? GEO : CARTESIAN;
+        String evaluatorInfix = geo ? "NonFoldableGeoShapeAndFoldable" : "NonFoldableCartesianShapeAndFoldable";
         for (DataType paramType : new DataType[] { DataType.DOUBLE, DataType.FLOAT, DataType.LONG, DataType.INTEGER }) {
             String testName = spatialType.typeName() + " with " + paramName + "[" + paramType.typeName() + "].";
             suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, paramType), () -> {
@@ -163,7 +174,7 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
                     : randomIntBetween((int) paramMin, (int) paramMax);
                 TestCaseSupplier.TypedData paramData = new TestCaseSupplier.TypedData(paramValue, paramType, paramName).forceLiteral();
                 String evaluatorName = evaluatorPrefix
-                    + "NonFoldableGeometryAndFoldable"
+                    + evaluatorInfix
                     + capitalize(paramName)
                     + "Evaluator[geometry=Attribute[channel=0], "
                     + paramName
@@ -171,7 +182,7 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
                     + paramValue
                     + "]";
                 DataType expectedType = expectedTypeFunction.apply(spatialType, paramType);
-                var expectedResult = valueOf(geometry, paramValue, jtsOp);
+                var expectedResult = valueOf(geometry, paramValue, jtsOp, coordinateType);
 
                 return new TestCaseSupplier.TestCase(
                     List.of(geoTypedData, paramData),
@@ -183,12 +194,43 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
         }
     }
 
-    private static BytesRef valueOf(BytesRef wkb, double parameter, BiFunction<Geometry, Double, Geometry> jtsOp) {
+    /**
+     * Constant geometries are folded without snapping to the Lucene grid, as they are never loaded from the index,
+     * so the expected result is recomputed from the original coordinates.
+     */
+    @Override
+    public void testFold() {
+        var data = testCase.getData();
+        if (data.size() == 2 && data.get(0).data() instanceof BytesRef wkb && data.get(1).data() instanceof Number parameter) {
+            testCase = new TestCaseSupplier.TestCase(
+                data,
+                testCase.evaluatorToString().toString(),
+                testCase.expectedType(),
+                Matchers.equalTo(valueOf(wkb, parameter.doubleValue(), jtsOperation(), UNSPECIFIED))
+            );
+        }
+        super.testFold();
+    }
+
+    protected static BytesRef valueOf(
+        BytesRef wkb,
+        double parameter,
+        BiFunction<Geometry, Double, Geometry> jtsOp,
+        SpatialCoordinateTypes coordinateType
+    ) {
         if (wkb == null) {
             return null;
         }
         try {
             Geometry jtsGeometry = UNSPECIFIED.wkbToJtsGeometry(wkb);
+            if (coordinateType != UNSPECIFIED) {
+                jtsGeometry.apply((CoordinateFilter) coord -> {
+                    long encoded = coordinateType.pointAsLong(coord.x, coord.y);
+                    coord.x = coordinateType.decodeX(encoded);
+                    coord.y = coordinateType.decodeY(encoded);
+                });
+                jtsGeometry.geometryChanged();
+            }
             Geometry result = jtsOp.apply(jtsGeometry, parameter);
             return UNSPECIFIED.jtsGeometryToWkb(result);
         } catch (Exception | StackOverflowError e) {

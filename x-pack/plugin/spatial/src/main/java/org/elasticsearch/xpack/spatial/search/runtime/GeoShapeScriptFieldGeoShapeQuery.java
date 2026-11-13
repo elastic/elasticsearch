@@ -67,7 +67,7 @@ public class GeoShapeScriptFieldGeoShapeQuery extends AbstractGeoShapeScriptFiel
     private BytesRef encodeGeometry(Geometry geometry) throws IOException {
         final CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
-        return GeometryDocValueWriter.write(indexer.getIndexableFields(geometry), CoordinateEncoder.GEO, centroidCalculator);
+        return GeometryDocValueWriter.writeLegacy(indexer.getIndexableFields(geometry), CoordinateEncoder.GEO, centroidCalculator);
     }
 
     @Override

@@ -116,6 +116,7 @@ For example:
 ```esql
 FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1)
+| SORT abbrev
 | KEEP location, geohex
 ```
 
@@ -125,12 +126,25 @@ However, the following example will perform much faster:
 ```esql
 FROM airports
 | EVAL geohex = ST_GEOHEX(location, 1)
-| EVAL x = ST_X(location), y = ST_Y(location)
-| KEEP x, y, geohex
+| SORT abbrev
+| KEEP geohex
 ```
 
-This query will perform much faster, since the original field `location` is not retrieved, and the three spatial functions used will all return values aligned with the Lucene index grid.
-Note that if you return both the original `location` and the extracted `x` and `y` you will see very slight differences in the extracted values due to the precision loss.
+This query will perform much faster, since the original field `location` is not retrieved, and `ST_GEOHEX` is computed directly from the doc values.
+The `SORT` matters too: it lets the spatial functions run on the data nodes, where the doc values are read. Without it, they run on the coordinating node and the field is read from the source document.
+
+`ST_X` and `ST_Y` read the field from the source document, unless other spatial functions in the same query read it from doc values. Either way they return values aligned with the Lucene index grid, so if you return both the original `location` and the extracted `x` and `y` you will see very slight differences in the extracted values due to the precision loss.
+
+{applies_to}`stack: ga 9.7` {applies_to}`serverless: ga` Shape fields benefit in the same way. When the original `geo_shape` or `cartesian_shape` field is not returned, spatial functions that run on the data nodes, for example before a `SORT` or `STATS`, read the geometry from [doc values](/reference/elasticsearch/mapping-reference/geo-shape.md#geoshape-doc-values) at index precision instead of from the source document:
+
+```esql
+FROM airport_city_boundaries
+| EVAL simplified = ST_SIMPLIFY(city_boundary, 0.01)
+| SORT abbrev
+| KEEP abbrev, simplified
+```
+
+Functions that transform geometries, such as `ST_SIMPLIFY` and `ST_BUFFER`, round their input to the index grid even when it is read from the source document, so this query returns the same result if you also keep `city_boundary`, only more slowly. Constant geometries written in the query are not rounded. Shapes in indices created before 9.7 are always read from the source document.
 
 #### Partial support in 9.2.0
 

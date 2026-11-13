@@ -23,11 +23,14 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LinearRing;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.geom.impl.CoordinateArraySequence;
+import org.locationtech.jts.io.ByteOrderValues;
 import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKBReader;
+import org.locationtech.jts.io.WKBWriter;
 import org.locationtech.jts.io.WKTReader;
-import org.locationtech.jts.io.WKTWriter;
 
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
@@ -158,6 +161,22 @@ public enum SpatialCoordinateTypes {
         }
     }
 
+    /**
+     * Whether JTS can read this WKB directly: a two-dimensional OGC geometry type. Geometries with Z use the ISO type
+     * codes, and circles and bounding boxes use Elasticsearch-specific types, so those take the slower WKT path.
+     */
+    private static boolean isTwoDimensionalOgcWkb(BytesRef wkb) {
+        if (wkb.length < 5) {
+            return false;
+        }
+        byte[] bytes = wkb.bytes;
+        int b = wkb.offset;
+        int type = bytes[b] == 0
+            ? ((bytes[b + 1] & 0xFF) << 24) | ((bytes[b + 2] & 0xFF) << 16) | ((bytes[b + 3] & 0xFF) << 8) | (bytes[b + 4] & 0xFF)
+            : ((bytes[b + 4] & 0xFF) << 24) | ((bytes[b + 3] & 0xFF) << 16) | ((bytes[b + 2] & 0xFF) << 8) | (bytes[b + 1] & 0xFF);
+        return type >= 1 && type <= 7;
+    }
+
     public String wkbToWkt(BytesRef wkb) {
         return WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length);
     }
@@ -167,6 +186,13 @@ public enum SpatialCoordinateTypes {
     }
 
     public org.locationtech.jts.geom.Geometry wkbToJtsGeometry(BytesRef wkb) throws ParseException, IllegalArgumentException {
+        if (isTwoDimensionalOgcWkb(wkb)) {
+            // Reading the binary directly avoids formatting and re-parsing every coordinate as text
+            byte[] bytes = wkb.offset == 0 && wkb.length == wkb.bytes.length
+                ? wkb.bytes
+                : Arrays.copyOfRange(wkb.bytes, wkb.offset, wkb.offset + wkb.length);
+            return new WKBReader().read(bytes);
+        }
         String wkt = wkbToWkt(wkb);
         if (wkt.startsWith("BBOX")) {
             Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, true, wkb.bytes, wkb.offset, wkb.length);
@@ -192,27 +218,9 @@ public enum SpatialCoordinateTypes {
             // GeometryCollection as the canonical representation of an empty result.
             return wktToWkb("GEOMETRYCOLLECTION EMPTY");
         }
-        WKTWriter writer = new WKTWriter();
-        String wkt = writer.write(jtsGeometry);
-        // JTS writes MULTIPOINT with inner parens per point: MULTIPOINT ((x1 y1), (x2 y2))
-        // The ES WKT parser expects the flat OGC form: MULTIPOINT (x1 y1, x2 y2)
-        if (wkt.startsWith("MULTIPOINT ((")) {
-            wkt = normalizeMultiPointWkt(wkt);
-        }
-        return wktToWkb(wkt);
-    }
-
-    private static String normalizeMultiPointWkt(String jtsMultiPointWkt) {
-        // Convert MULTIPOINT ((x1 y1), (x2 y2), ...) to MULTIPOINT (x1 y1, x2 y2, ...)
-        int start = jtsMultiPointWkt.indexOf("((");
-        int end = jtsMultiPointWkt.lastIndexOf("))");
-        if (start < 0 || end < 0) {
-            return jtsMultiPointWkt;
-        }
-        String inner = jtsMultiPointWkt.substring(start + 1, end + 1);
-        // inner is now: (x1 y1), (x2 y2), ... — strip all inner parentheses
-        String flat = inner.replace("(", "").replace(")", "");
-        return jtsMultiPointWkt.substring(0, start) + "(" + flat + ")";
+        // Writing the binary directly avoids formatting and re-parsing every coordinate as text. Only two dimensions
+        // are written: results of the JTS-based functions never carry Z.
+        return new BytesRef(new WKBWriter(2, ByteOrderValues.LITTLE_ENDIAN).write(jtsGeometry));
     }
 
 }

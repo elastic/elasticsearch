@@ -39,6 +39,8 @@ import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -262,6 +264,29 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         hasDocValues = ((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().hasDocValues();
         assertFalse(hasDocValues);
         assertFalse(((AbstractGeometryFieldMapper<?>) fieldMapper).fieldType().isAggregatable());
+    }
+
+    /**
+     * Indices created before {@link IndexVersions#GEOMETRY_DOC_VALUES_V2} keep writing the legacy doc-values format,
+     * so that their on-disk format matches what the index version declares.
+     */
+    public void testDocValuesFormatFollowsIndexVersion() throws IOException {
+        assertDocValuesFormat(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.GEOMETRY_DOC_VALUES_V2), false);
+        assertDocValuesFormat(IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.GEOMETRY_DOC_VALUES_V2), true);
+    }
+
+    private void assertDocValuesFormat(IndexVersion version, boolean expectV2) throws IOException {
+        DocumentMapper mapper = createDocumentMapper(version, fieldMapping(b -> b.field("type", getFieldName())));
+        ParsedDocument doc = mapper.parse(source(b -> b.field(FIELD_NAME, "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")));
+        List<IndexableField> docValues = doc.rootDoc()
+            .getFields(FIELD_NAME)
+            .stream()
+            .filter(f -> f instanceof BinaryShapeDocValuesField)
+            .toList();
+        assertThat(docValues, hasSize(1));
+        GeometryDocValueReader reader = new GeometryDocValueReader();
+        reader.reset(docValues.getFirst().binaryValue());
+        assertThat("index version " + version, reader.isV2Format(), equalTo(expectV2));
     }
 
     /**

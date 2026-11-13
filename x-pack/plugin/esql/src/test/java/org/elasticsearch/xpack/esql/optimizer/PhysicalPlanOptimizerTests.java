@@ -5466,6 +5466,211 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Test that ST_SIMPLIFY on a geo_shape field uses doc-values when available and the original field is not in the output,
+     * in which case it is fused into loading the doc values. When the field IS in the output, doc-values cannot be used because
+     * the coordinator needs the original precision.
+     */
+    public void testSpatialSimplifyGeoShapeUsesDocValues() {
+        for (boolean keepShape : new boolean[] { false, true }) {
+            String query = """
+                FROM airport_city_boundaries
+                | EVAL simplified = ST_SIMPLIFY(city_boundary, 0.05)
+                | SORT airport
+                """ + (keepShape ? "| KEEP airport, simplified, city_boundary" : "| KEEP airport, simplified");
+            for (boolean withDocValues : new boolean[] { true, false }) {
+                withDocValues &= keepShape == false;
+                var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var testData = withDocValues ? airportsCityBoundaries : airportsCityBoundariesNoShapeDocValues;
+                var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+                var optimized = optimizedPlan(plan, testData.stats);
+                var project = as(optimized, ProjectExec.class);
+                var topNExec = as(project.child(), TopNExec.class);
+                var exchange = as(topNExec.child(), ExchangeExec.class);
+                project = as(exchange.child(), ProjectExec.class);
+                if (keepShape) {
+                    assertThat(Expressions.names(project.projections()), hasItems("airport", "simplified", "city_boundary"));
+                } else {
+                    assertThat(
+                        Expressions.names(project.projections()),
+                        allOf(hasItems("airport", "simplified"), not(hasItems("city_boundary")))
+                    );
+                }
+
+                var topNExecDataNode = as(project.child(), TopNExec.class);
+                var fieldExtract = as(topNExecDataNode.child(), FieldExtractExec.class);
+                assertThat(
+                    Expressions.names(fieldExtract.attributesToExtract()),
+                    allOf(hasItems("airport"), not(hasItems("city_boundary")))
+                );
+                var evalExec = as(fieldExtract.child(), EvalExec.class);
+                var alias = as(evalExec.fields().getLast(), Alias.class);
+                assertThat(alias.name(), equalTo("simplified"));
+                if (withDocValues) {
+                    assertChildIsFusedGeometryTransformExtract(evalExec, BlockLoaderFunctionConfig.Function.ST_SIMPLIFY, GEO_SHAPE, 0.05);
+                    continue;
+                }
+                var stSimplifyFunction = as(alias.child(), StSimplify.class);
+                assertThat(stSimplifyFunction.spatialDocValues(), equalTo(false));
+                var spatialField = as(stSimplifyFunction.spatialField(), FieldAttribute.class);
+                assertThat(spatialField.name(), equalTo("city_boundary"));
+                assertThat(spatialField.dataType(), equalTo(GEO_SHAPE));
+                fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+                assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("city_boundary")));
+                assertChildIsExtractedAs(evalExec, fieldExtractPreference, GEO_SHAPE);
+            }
+        }
+    }
+
+    /**
+     * Test that ST_SIMPLIFY on a cartesian_shape field uses doc-values when available and the original field is not in the output.
+     * The SORT pushes the EVAL down to the data node where the SpatialDocValuesExtraction rule can optimize it.
+     * Note: for Cartesian, the SORT is pushed into EsQueryExec directly (no TopNExec in data node plan).
+     */
+    public void testSpatialSimplifyCartesianShapeUsesDocValues() {
+        for (boolean keepShape : new boolean[] { false, true }) {
+            String query = """
+                FROM cartesian_multipolygons
+                | EVAL simplified = ST_SIMPLIFY(shape, 0.05)
+                | SORT name
+                """ + (keepShape ? "| KEEP name, simplified, shape" : "| KEEP name, simplified");
+            for (boolean withDocValues : new boolean[] { true, false }) {
+                withDocValues &= keepShape == false;
+                var fieldExtractPreference = withDocValues ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
+                var testData = withDocValues ? cartesianMultipolygons : cartesianMultipolygonsNoDocValues;
+                var plan = physicalPlan(query.replace("cartesian_multipolygons", testData.index.name()), testData);
+                var optimized = optimizedPlan(plan, testData.stats);
+                var project = as(optimized, ProjectExec.class);
+                var topNExec = as(project.child(), TopNExec.class);
+                var exchange = as(topNExec.child(), ExchangeExec.class);
+                project = as(exchange.child(), ProjectExec.class);
+                if (keepShape) {
+                    assertThat(Expressions.names(project.projections()), hasItems("name", "simplified", "shape"));
+                } else {
+                    assertThat(Expressions.names(project.projections()), allOf(hasItems("name", "simplified"), not(hasItems("shape"))));
+                }
+
+                // The data node plan has FieldExtractExec → EvalExec → FieldExtractExec → EsQueryExec
+                var fieldExtract = as(project.child(), FieldExtractExec.class);
+                assertThat(Expressions.names(fieldExtract.attributesToExtract()), allOf(hasItems("name"), not(hasItems("shape"))));
+                var evalExec = as(fieldExtract.child(), EvalExec.class);
+                var alias = as(evalExec.fields().getLast(), Alias.class);
+                assertThat(alias.name(), equalTo("simplified"));
+                if (withDocValues) {
+                    assertChildIsFusedGeometryTransformExtract(
+                        evalExec,
+                        BlockLoaderFunctionConfig.Function.ST_SIMPLIFY,
+                        CARTESIAN_SHAPE,
+                        0.05
+                    );
+                    continue;
+                }
+                var stSimplifyFunction = as(alias.child(), StSimplify.class);
+                assertThat(stSimplifyFunction.spatialDocValues(), equalTo(false));
+                var spatialField = as(stSimplifyFunction.spatialField(), FieldAttribute.class);
+                assertThat(spatialField.name(), equalTo("shape"));
+                assertThat(spatialField.dataType(), equalTo(CARTESIAN_SHAPE));
+                fieldExtract = as(evalExec.child(), FieldExtractExec.class);
+                assertThat(Expressions.names(fieldExtract.attributesToExtract()), is(List.of("shape")));
+                assertChildIsExtractedAs(evalExec, fieldExtractPreference, CARTESIAN_SHAPE);
+            }
+        }
+    }
+
+    /**
+     * A geo_shape field marked for doc-values by a scalar function must not switch a spatial aggregation over the same field
+     * to {@code DOC_VALUES}, since the aggregations only read point doc-values (shapes use the bounds extraction instead).
+     */
+    public void testSpatialAggregationOnShapeMarkedForDocValues() {
+        var testData = airportsCityBoundaries;
+        var query = """
+            FROM airport_city_boundaries
+            | STATS extent = ST_EXTENT_AGG(city_boundary), xmax = MAX(ST_XMAX(city_boundary))
+            """;
+        var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+        var optimized = optimizedPlan(plan, testData.stats);
+        List<SpatialAggregateFunction> aggregates = new ArrayList<>();
+        optimized.forEachDown(AggregateExec.class, agg -> agg.forEachExpressionDown(SpatialExtent.class, aggregates::add));
+        assertThat(aggregates, not(empty()));
+        for (SpatialAggregateFunction aggregate : aggregates) {
+            assertThat(aggregate.fieldExtractPreference(), not(equalTo(FieldExtractPreference.DOC_VALUES)));
+        }
+    }
+
+    /**
+     * A geo_shape field loaded from doc-values is still WKB, so functions that also consume it, like ST_INTERSECTS, must keep
+     * their source evaluators, and not be switched to the point doc-values evaluators.
+     */
+    public void testSpatialRelatesOnShapeLoadedFromDocValues() {
+        var testData = airportsCityBoundaries;
+        var query = """
+            FROM airport_city_boundaries
+            | EVAL boundary_length = ST_NPOINTS(city_boundary)
+            | EVAL hit = ST_INTERSECTS(city_boundary, TO_GEOSHAPE("POLYGON((12 55, 13 55, 13 56, 12 56, 12 55))"))
+            | SORT abbrev
+            | KEEP abbrev, boundary_length, hit
+            """;
+        var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+        var optimized = optimizedPlan(plan, testData.stats);
+        Set<String> docValuesFields = new HashSet<>();
+        optimized.forEachDown(FieldExtractExec.class, extract -> docValuesFields.addAll(Expressions.names(extract.docValuesAttributes())));
+        assertThat(docValuesFields, hasItem("city_boundary"));
+        List<SpatialIntersects> intersects = new ArrayList<>();
+        optimized.forEachDown(EvalExec.class, eval -> eval.forEachExpressionDown(SpatialIntersects.class, intersects::add));
+        assertThat(intersects, hasSize(1));
+        assertThat(intersects.getFirst().leftDocValues(), equalTo(false));
+        assertThat(intersects.getFirst().rightDocValues(), equalTo(false));
+    }
+
+    /**
+     * Test that ST_SIMPLIFYPRESERVETOPOLOGY and ST_BUFFER on a geo_shape field are fused into loading its doc values like
+     * ST_SIMPLIFY, and that buffers of the same field with different options are loaded as separate fused fields.
+     */
+    public void testSpatialGeometryTransformsFuseIntoDocValues() {
+        for (var function : List.of(
+            BlockLoaderFunctionConfig.Function.ST_SIMPLIFYPRESERVETOPOLOGY,
+            BlockLoaderFunctionConfig.Function.ST_BUFFER
+        )) {
+            String query = String.format(Locale.ROOT, """
+                FROM airport_city_boundaries
+                | EVAL transformed = %s(city_boundary, 0.05)
+                | SORT airport
+                | KEEP airport, transformed
+                """, function.name());
+            var testData = airportsCityBoundaries;
+            var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+            var optimized = optimizedPlan(plan, testData.stats);
+            var project = as(optimized, ProjectExec.class);
+            var topNExec = as(project.child(), TopNExec.class);
+            var exchange = as(topNExec.child(), ExchangeExec.class);
+            project = as(exchange.child(), ProjectExec.class);
+            var topNExecDataNode = as(project.child(), TopNExec.class);
+            var fieldExtract = as(topNExecDataNode.child(), FieldExtractExec.class);
+            var evalExec = as(fieldExtract.child(), EvalExec.class);
+            assertChildIsFusedGeometryTransformExtract(evalExec, function, GEO_SHAPE, 0.05);
+        }
+
+        String query = """
+            FROM airport_city_boundaries
+            | EVAL round = ST_BUFFER(city_boundary, 0.05), flat = ST_BUFFER(city_boundary, 0.05, {"endcap": "flat"})
+            | SORT airport
+            | KEEP airport, round, flat
+            """;
+        var testData = airportsCityBoundaries;
+        var plan = physicalPlan(query.replace("airport_city_boundaries", testData.index.name()), testData);
+        var optimized = optimizedPlan(plan, testData.stats);
+        List<FieldAttribute> fused = new ArrayList<>();
+        optimized.forEachDown(EvalExec.class, eval -> {
+            for (Alias alias : eval.fields()) {
+                if (alias.child() instanceof FieldAttribute field && field.field() instanceof FunctionEsField) {
+                    fused.add(field);
+                }
+            }
+        });
+        assertThat(fused.size(), equalTo(2));
+        assertThat(fused.get(0).name(), not(equalTo(fused.get(1).name())));
+    }
+
+    /**
      * The combination of spatial grid functions and SORT will lead to doc-values being extracted for points.
      * We test that all nine spatial functions get correctly notified that they will receive doc value points,
      * except the grid function which, with doc-values available, is fused into field loading instead.
@@ -10675,6 +10880,28 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(config.function().name(), equalTo("ST_" + grid.toUpperCase(Locale.ROOT)));
         assertThat(config.precision(), equalTo(precision));
         return fused;
+    }
+
+    /**
+     * Asserts that the last field of the EVAL is a geometry transform such as ST_SIMPLIFY fused into loading the shape doc
+     * values, and that the {@link FieldExtractExec} directly below loads only that fused attribute, without the shape itself.
+     */
+    private static void assertChildIsFusedGeometryTransformExtract(
+        EvalExec evalExec,
+        BlockLoaderFunctionConfig.Function function,
+        DataType shapeType,
+        double parameter
+    ) {
+        var alias = as(evalExec.fields().getLast(), Alias.class);
+        var fused = as(alias.child(), FieldAttribute.class);
+        assertThat(fused.dataType(), equalTo(shapeType));
+        var functionField = as(fused.field(), FunctionEsField.class);
+        var config = as(functionField.functionConfig(), BlockLoaderFunctionConfig.GeometryTransform.class);
+        assertThat(config.function(), equalTo(function));
+        assertThat(config.parameter(), equalTo(parameter));
+        var extract = as(evalExec.child(), FieldExtractExec.class);
+        assertThat(names(extract.attributesToExtract()), is(List.of(fused.name())));
+        assertThat(extract.docValuesAttributes(), is(empty()));
     }
 
     /**

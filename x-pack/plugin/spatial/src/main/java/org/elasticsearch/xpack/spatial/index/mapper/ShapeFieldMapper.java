@@ -29,6 +29,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
@@ -131,6 +133,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 parser,
                 context.isSourceSynthetic(),
                 context.isStrictColumnar(),
+                version,
                 meta.get()
             );
             return new ShapeFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
@@ -157,9 +160,10 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             Orientation orientation,
             Parser<Geometry> parser,
             boolean isSyntheticSource,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
-            this(name, indexed, hasDocValues, orientation, parser, isSyntheticSource, false, meta);
+            this(name, indexed, hasDocValues, orientation, parser, isSyntheticSource, false, indexCreatedVersion, meta);
         }
 
         public ShapeFieldType(
@@ -170,9 +174,10 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             Parser<Geometry> parser,
             boolean isSyntheticSource,
             boolean isColumnar,
+            IndexVersion indexCreatedVersion,
             Map<String, String> meta
         ) {
-            super(name, IndexType.points(indexed, hasDocValues), false, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), false, parser, orientation, indexCreatedVersion, meta);
             this.isSyntheticSource = isSyntheticSource;
             this.isColumnar = isColumnar;
         }
@@ -220,7 +225,30 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         @Override
+        public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
+            // Geometry transforms need doc values that can reconstruct the original geometry
+            return hasDocValues()
+                && config instanceof BlockLoaderFunctionConfig.GeometryTransform
+                && supportsGeometryDocValueReconstruction();
+        }
+
+        @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            BlockLoaderFunctionConfig config = blContext.blockLoaderFunctionConfig();
+            if (config != null) {
+                // supportsBlockLoaderConfig gates which configs are accepted, so anything else here is a programming error
+                if (hasDocValues() == false) {
+                    throw new UnsupportedOperationException("function fusing only supported for doc values");
+                }
+                return switch (config.function()) {
+                    case ST_SIMPLIFY, ST_SIMPLIFYPRESERVETOPOLOGY, ST_BUFFER -> new CartesianGeometryBlockLoader(
+                        name(),
+                        (BlockLoaderFunctionConfig.GeometryTransform) config,
+                        blContext.warnings()
+                    );
+                    default -> throw new UnsupportedOperationException("unknown fusion config [" + config.function() + "]");
+                };
+            }
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
                 return new CartesianBoundsBlockLoader(name());
             }
@@ -234,6 +262,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 // Columnar: read the geometry value (WKB) straight from the field-owned doc value. Multi fields are
                 // excluded: they keep no doc value and load their value from the parent.
                 return new GeometrySourceBlockLoader(GeometrySourceDocValuesField.fieldName(name()));
+            }
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.DOC_VALUES
+                && hasDocValues()
+                && supportsGeometryDocValueReconstruction()) {
+                return new CartesianGeometryBlockLoader(name());
             }
 
             // Multi fields don't have fallback synthetic source.
@@ -280,6 +313,16 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 builder.appendDouble(extent.bottom);
             }
         }
+
+        static class CartesianGeometryBlockLoader extends GeometryBlockLoader {
+            CartesianGeometryBlockLoader(String fieldName) {
+                super(fieldName, CoordinateEncoder.CARTESIAN);
+            }
+
+            CartesianGeometryBlockLoader(String fieldName, BlockLoaderFunctionConfig.GeometryTransform transform, Warnings warnings) {
+                super(fieldName, CoordinateEncoder.CARTESIAN, transform, warnings);
+            }
+        }
     }
 
     private final CartesianShapeIndexer indexer;
@@ -319,7 +362,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             String name = fieldType().name();
             BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
-                docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN);
+                docValuesField = new BinaryShapeDocValuesField(
+                    name,
+                    CoordinateEncoder.CARTESIAN,
+                    fieldType().supportsGeometryDocValueReconstruction()
+                );
                 context.doc().addWithKey(name, docValuesField);
             }
             docValuesField.add(fields, geometry);

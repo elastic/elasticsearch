@@ -372,7 +372,7 @@ public final class LuceneSliceQueue {
             if (ctx.searcher().getIndexReader().maxDoc() == 0) {
                 continue;
             }
-            long startShard = System.nanoTime();
+            long startShard = TaskLoadAttribution.startPart();
             try {
                 for (QueryAndTags queryAndExtra : queryFunction.apply(ctx)) {
                     var scoreMode = scoreModeFunction.apply(ctx);

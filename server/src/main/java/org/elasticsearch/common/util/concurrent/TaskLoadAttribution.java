@@ -23,7 +23,8 @@ import java.util.function.LongSupplier;
  * <p>Each charge also gets the CPU time its thread used in it, from how much the thread's CPU clock moved since its previous
  * read. The read is kept from task to task, since an idle thread does not move its CPU clock. Reading the clock is not free, so
  * a charge shorter than {@link #SHORT_NANOS} counts all its time as CPU time, and the next read takes it back. Where the CPU
- * clock is not known, as outside a pool task, all the time counts as CPU time.</p>
+ * clock is not known, as outside a pool task, all the time counts as CPU time. Code that charges a part of its task elsewhere
+ * starts it with {@link #startPart()}, so the CPU time the task used before the part stays with the task.</p>
  */
 public final class TaskLoadAttribution {
 
@@ -61,6 +62,8 @@ public final class TaskLoadAttribution {
         long cpuReadNanos = UNREAD;
         /** The short charges since that read, which the next read takes back. */
         long cpuChargedSinceRead;
+        /** The CPU time the task used before its parts, which its pool charges with the rest of the task. */
+        long cpuBeforePartsNanos;
         /** The CPU time of the thread, negative when it is not known. */
         LongSupplier cpuClock = TaskLoadAttribution::threadCpuNanos;
 
@@ -68,6 +71,7 @@ public final class TaskLoadAttribution {
             this.running = running;
             target = null;
             chargedNanos = 0;
+            cpuBeforePartsNanos = 0;
         }
     }
 
@@ -84,6 +88,22 @@ public final class TaskLoadAttribution {
                 readCpu(task);
             }
         }
+    }
+
+    /**
+     * Starts a part of the task running on this thread that is then charged with {@link #charge}.
+     *
+     * @return the time, from {@link System#nanoTime()}
+     */
+    public static long startPart() {
+        Task task = task();
+        if (task != null && task.running) {
+            long cpuNanos = cpuSinceRead(task);
+            if (cpuNanos != UNREAD) {
+                task.cpuBeforePartsNanos += Math.max(cpuNanos, 0);
+            }
+        }
+        return System.nanoTime();
     }
 
     /**
@@ -192,11 +212,13 @@ public final class TaskLoadAttribution {
         }
         Target target = task.target;
         long charged = Math.min(task.chargedNanos, nanos);
+        long cpuBeforePartsNanos = task.cpuBeforePartsNanos;
         task.reset(false);
         if (target == null) {
             task.cpuReadNanos = UNREAD;
         } else if (nanos > charged) {
-            target.charge(nanos - charged, cpuOf(task, nanos - charged), finishNanos);
+            long rest = nanos - charged;
+            target.charge(rest, Math.min(cpuBeforePartsNanos + cpuOf(task, rest), rest), finishNanos);
         }
         return target == null ? charged : nanos;
     }
@@ -212,10 +234,19 @@ public final class TaskLoadAttribution {
             task.cpuChargedSinceRead += nanos;
             return nanos;
         }
+        long cpuNanos = cpuSinceRead(task);
+        return cpuNanos == UNREAD ? nanos : Math.clamp(cpuNanos, 0, nanos);
+    }
+
+    /**
+     * Reads the CPU clock and returns how much it moved since the previous read, less the short charges since, or
+     * {@link #UNREAD} if either read is not known.
+     */
+    private static long cpuSinceRead(Task task) {
         long lastRead = task.cpuReadNanos;
         long chargedSinceRead = task.cpuChargedSinceRead;
         readCpu(task);
-        return Math.min(Math.max(task.cpuReadNanos - lastRead - chargedSinceRead, 0), nanos);
+        return lastRead == UNREAD || task.cpuReadNanos == UNREAD ? UNREAD : task.cpuReadNanos - lastRead - chargedSinceRead;
     }
 
     private static void readCpu(Task task) {

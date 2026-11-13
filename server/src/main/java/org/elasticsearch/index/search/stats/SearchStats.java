@@ -99,8 +99,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 suggestTimeInMillis,
                 suggestCurrent,
                 recentSearchLoad,
-                0,
-                0
+                0.0,
+                0.0
             );
         }
 

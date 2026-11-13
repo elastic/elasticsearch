@@ -69,6 +69,26 @@ public class TaskLoadAttributionTests extends ESTestCase {
     }
 
     /**
+     * A part started at the end of the task gets only the CPU time used in it, and the task keeps what it used before.
+     */
+    public void testPartAtTheEndLeavesTheTaskItsCpuTime() {
+        onPoolThread(clocks -> {
+            Charges task = new Charges();
+            Charges part = new Charges();
+            TaskLoadAttribution.taskStarted();
+            TaskLoadAttribution.attribute(task);
+            clocks.cpu += 300;
+            TaskLoadAttribution.startPart();
+            clocks.cpu += 100;
+            TaskLoadAttribution.charge(part, TASK_NANOS, clocks.now);
+            clocks.cpu += 50;
+            TaskLoadAttribution.taskCompleted(3 * TASK_NANOS, clocks.now);
+            assertThat(part, contains(new Charge(TASK_NANOS, 100)));
+            assertThat(task, contains(new Charge(2 * TASK_NANOS, 350)));
+        });
+    }
+
+    /**
      * Time too short to be worth a read is charged as CPU time, and the next read charges only the CPU time it did not cover.
      */
     public void testChargesShortTimeAsCpuTimeWithoutReading() {

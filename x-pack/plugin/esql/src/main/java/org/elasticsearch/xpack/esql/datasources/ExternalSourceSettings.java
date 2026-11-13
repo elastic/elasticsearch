@@ -493,28 +493,15 @@ public final class ExternalSourceSettings {
     }
 
     /**
-     * Default byte budget for text-format schema inference (CSV, TSV, NDJSON). Stops the coordinating-node
-     * sample when this many decoded bytes have been read, even if {@code schema_sample_size} rows remain.
-     * 64 MiB covers a 40,000-row CSV of ~1.6 KiB rows, so typical files keep inferring as they do today,
-     * while a file of wide free-text or base64 cells cannot pull an unbounded prefix onto the coordinator.
+     * Internal decoded-byte cap for text-format schema inference (CSV, TSV, NDJSON). Not a dataset key:
+     * {@code schema_sample_size} is the user control for type quality, and this is the safety rail that
+     * stops a file of wide rows from pulling an unbounded prefix onto the coordinator. Shared across
+     * files the same way the row sample is (see {@code FormatReader#withSchemaSampleShare}), never
+     * below {@code FormatReader#MIN_SHARED_SCHEMA_SAMPLE_BYTES}. 32 MiB matches ClickHouse's
+     * {@code input_format_max_bytes_to_read_for_schema_inference}. A first record wider than the cap
+     * cannot infer; declare a schema.
      */
-    public static final ByteSizeValue DEFAULT_SCHEMA_SAMPLE_BYTES = ByteSizeValue.ofMb(64);
-
-    /**
-     * Parses a dataset's {@code schema_sample_bytes}. Accepts the same byte-size strings as other dataset
-     * size keys ({@code 32mb}, {@code 1048576}). Returns {@code defaultValue} when the dataset does not
-     * set the key. Zero and negative values are refused: a zero budget would infer from an empty prefix.
-     */
-    public static long parseDatasetSchemaSampleBytes(Object value, String key, long defaultValue) {
-        if (value == null) {
-            return defaultValue;
-        }
-        ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), key);
-        if (parsed.getBytes() <= 0) {
-            throw new IllegalArgumentException(key + " must be positive, got: " + parsed);
-        }
-        return parsed.getBytes();
-    }
+    public static final ByteSizeValue DEFAULT_SCHEMA_SAMPLE_BYTES = ByteSizeValue.ofMb(32);
 
     /**
      * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings

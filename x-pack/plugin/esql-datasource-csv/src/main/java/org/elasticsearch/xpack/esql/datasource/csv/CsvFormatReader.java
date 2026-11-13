@@ -178,8 +178,6 @@ import java.util.regex.Pattern;
  *       <td>Multi-value field syntax; see "Bracket multi-value syntax" below for the
  *           {@code brackets} opt-in and the element-splitter rules (always comma, even for TSV).</td></tr>
  *   <tr><td>{@code schema_sample_size}</td><td>40,000</td><td>Number of rows to sample for type inference</td></tr>
- *   <tr><td>{@code schema_sample_bytes}</td><td>64 MB</td><td>Decoded-byte budget for schema inference; sampling
- *       stops at whichever of this and {@code schema_sample_size} trips first</td></tr>
  *   <tr><td>{@code header_row}</td><td>{@code true}</td>
  *       <td>When {@code true} (default), the first non-comment, non-blank record after
  *           {@code skip_rows} names the columns. When {@code false}, no header row is read;
@@ -424,7 +422,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     static final String CONFIG_COLUMN_PREFIX = "column_prefix";
     static final String CONFIG_TRIM_SPACES = "trim_spaces";
     static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
-    static final String CONFIG_SCHEMA_SAMPLE_BYTES = "schema_sample_bytes";
     static final String CONFIG_SKIP_ROWS = "skip_rows";
     static final String CONFIG_SCHEMA_MAX_FIELDS = "schema_max_fields";
     static final String CONFIG_MULTILINE_FIELDS = "multiline_fields";
@@ -486,7 +483,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CONFIG_COLUMN_PREFIX,
         CONFIG_TRIM_SPACES,
         CONFIG_SCHEMA_SAMPLE_SIZE,
-        CONFIG_SCHEMA_SAMPLE_BYTES,
         CONFIG_SKIP_ROWS,
         CONFIG_SCHEMA_MAX_FIELDS,
         CONFIG_MULTILINE_FIELDS
@@ -784,11 +780,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             config.get(CONFIG_SCHEMA_MAX_FIELDS),
             CONFIG_SCHEMA_MAX_FIELDS,
             ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS
-        );
-        ExternalSourceSettings.parseDatasetSchemaSampleBytes(
-            config.get(CONFIG_SCHEMA_SAMPLE_BYTES),
-            CONFIG_SCHEMA_SAMPLE_BYTES,
-            ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes()
         );
     }
 
@@ -1395,8 +1386,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public CsvFormatReader withSchemaSampleShare(int files) {
-        int shared = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
-        if (shared == schemaSampleSize) {
+        int sharedRows = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
+        // The schema-cache key is the effective row count. Divide the byte cap only when that count
+        // actually moves, so two listings that share a key also share the byte budget they inferred under.
+        long sharedBytes = sharedRows == schemaSampleSize
+            ? schemaSampleBytes
+            : FormatReader.sharedSchemaSampleBytes(schemaSampleBytes, files);
+        if (sharedRows == schemaSampleSize && sharedBytes == schemaSampleBytes) {
             return this;
         }
         // canonicalConfig is kept: it is the harvest fingerprint, and the data node reads with the unshared sample.
@@ -1406,8 +1402,38 @@ public class CsvFormatReader implements SegmentableFormatReader {
             format,
             extensions,
             resolvedSchema,
-            shared,
-            schemaSampleBytes,
+            sharedRows,
+            sharedBytes,
+            schemaMaxFields,
+            effectivePolicy,
+            canonicalConfig,
+            readConfig,
+            directBlockEnabled,
+            declaredDateFormats,
+            declaredProvenanceBinding,
+            headerBindingByProvenance,
+            configWarnings,
+            multilineFields
+        );
+    }
+
+    /**
+     * Test wither: pins a decoded-byte sample cap without a dataset key. Production always uses
+     * {@link ExternalSourceSettings#DEFAULT_SCHEMA_SAMPLE_BYTES}, shared via {@link #withSchemaSampleShare}.
+     */
+    public CsvFormatReader withSchemaSampleBytes(long bytes) {
+        Check.clientError(bytes > 0, "schema sample bytes must be positive, got: {}", bytes);
+        if (bytes == schemaSampleBytes) {
+            return this;
+        }
+        return new CsvFormatReader(
+            blockFactory,
+            options,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            bytes,
             schemaMaxFields,
             effectivePolicy,
             canonicalConfig,
@@ -1445,6 +1471,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
+    public long schemaSampleBytes() {
+        return schemaSampleBytes;
+    }
+
+    @Override
     public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return Configured.empty(this);
@@ -1455,11 +1486,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CsvFormatOptions parsed = parsedOptions.options();
         int newSampleSize = parseInt(CONFIG_SCHEMA_SAMPLE_SIZE, config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         Check.clientError(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
-        long newSampleBytes = ExternalSourceSettings.parseDatasetSchemaSampleBytes(
-            config.get(CONFIG_SCHEMA_SAMPLE_BYTES),
-            CONFIG_SCHEMA_SAMPLE_BYTES,
-            schemaSampleBytes
-        );
         int newMaxFields = ExternalSourceSettings.parseDatasetSchemaMaxFields(
             config.get(CONFIG_SCHEMA_MAX_FIELDS),
             CONFIG_SCHEMA_MAX_FIELDS,
@@ -1488,7 +1514,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             result.extensions,
             result.resolvedSchema,
             newSampleSize,
-            newSampleBytes,
+            schemaSampleBytes,
             newMaxFields,
             resolvedPolicy,
             canon,
@@ -2001,8 +2027,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * <p>
      * {@link #rowStartBytes} carries each row's file-relative byte offset when the caller passed
      * a non-null {@code recordReader} to {@link #collectSampleRows}. Planning-time {@code metadata()}
-     * now passes the record reader so the {@code schema_sample_bytes} budget can see decoded bytes
-     * consumed; the offsets it also captures are unused there and discarded with the sample.
+     * now passes the record reader so the decoded-byte sample cap can see bytes consumed; the
+     * offsets it also captures are unused there and discarded with the sample.
      */
     record SchemaSample(List<String[]> rows, long reservedBytes, long[] rowStartBytes, boolean recordCapDropped) {}
 

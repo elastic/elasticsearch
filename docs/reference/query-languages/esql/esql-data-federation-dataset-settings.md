@@ -391,16 +391,6 @@ $$$csv-schema-sample-size$$$
 
     {applies_to}`stack: preview 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
-$$$csv-schema-sample-bytes$$$
-
-`schema_sample_bytes` {applies_to}`stack: preview 9.7+`
-:   The maximum number of decoded bytes sampled to infer the schema.
-
-    - **Default:** 64 MiB (`64mb`)
-    - **Valid values:** A byte size greater than `0`, for example `32mb` or `1048576`
-
-    Sampling stops when this budget or [`schema_sample_size`](#csv-schema-sample-size) is reached, whichever comes first. The bound is per file and is not split across files. If no complete record fits in the budget, the query fails; declare a schema or raise `schema_sample_bytes`.
-
 $$$csv-quote$$$
 
 `quote`
@@ -542,16 +532,6 @@ $$$ndjson-schema-sample-size$$$
     {applies_to}`stack: preview 9.6+` With `union_by_name` or `strict`, the sample is split across the files a query reads. For details, refer to [How the sample is shared across files](esql-data-federation-schema.md#shared-schema-sample).
 
     {applies_to}`stack: preview 9.6+` NDJSON inference skips malformed lines, including lines that repeat a key in the same object, for example `{"a":1,"a":2}`. A malformed line contributes no columns, even for fields it names before parsing fails, and doesn't count toward `schema_sample_size` or `schema_max_fields`. A column that appears only on malformed lines is absent from the schema. When the file is read, those lines are handled according to the dataset's [`error_mode`](#error-mode).
-
-$$$ndjson-schema-sample-bytes$$$
-
-`schema_sample_bytes` {applies_to}`stack: preview 9.7+`
-:   The maximum number of decoded bytes sampled to infer the schema.
-
-    - **Default:** 64 MiB (`64mb`)
-    - **Valid values:** A byte size greater than `0`, for example `32mb` or `1048576`
-
-    Sampling stops when this budget or [`schema_sample_size`](#ndjson-schema-sample-size) is reached, whichever comes first. The bound is per file and is not split across files. If no complete record fits in the budget, the query fails; declare a schema or raise `schema_sample_bytes`.
 
 ### Advanced NDJSON settings
 

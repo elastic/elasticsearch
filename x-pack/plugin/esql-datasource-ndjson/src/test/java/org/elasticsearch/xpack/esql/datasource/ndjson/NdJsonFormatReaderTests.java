@@ -293,31 +293,29 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     public void testSchemaSampleBytesStopsBeforeTypeWideningLine() throws IOException {
         byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
         // {"a":1}\n + {"a":2}\n = 16 bytes. The next line is the widening value.
-        FormatReader cut = new NdJsonFormatReader(null, blockFactory).withConfig(
-            Map.of("schema_sample_size", 10, "schema_sample_bytes", "16b")
-        );
+        FormatReader cut = new NdJsonFormatReader(null, blockFactory).withSchemaSampleBytes(16)
+            .withConfig(Map.of("schema_sample_size", 10));
         assertEquals(DataType.INTEGER, cut.metadata(new BytesObject(bytes)).schema().get(0).dataType());
-        FormatReader full = new NdJsonFormatReader(null, blockFactory).withConfig(
-            Map.of("schema_sample_size", 10, "schema_sample_bytes", bytes.length + "b")
-        );
+        FormatReader full = new NdJsonFormatReader(null, blockFactory).withSchemaSampleBytes(bytes.length)
+            .withConfig(Map.of("schema_sample_size", 10));
         assertEquals(DataType.KEYWORD, full.metadata(new BytesObject(bytes)).schema().get(0).dataType());
     }
 
     /**
-     * A first line wider than {@code schema_sample_bytes} cannot contribute a complete record, so
+     * A first line wider than the decoded-byte sample cap cannot contribute a complete record, so
      * inference refuses rather than inventing a schema from a truncated prefix.
      */
     public void testSchemaSampleBytesRefusesWhenFirstLineExceedsBudget() throws IOException {
         byte[] bytes = ("{\"blob\":\"" + "x".repeat(200) + "\"}\n").getBytes(StandardCharsets.UTF_8);
-        FormatReader reader = new NdJsonFormatReader(null, blockFactory).withConfig(Map.of("schema_sample_bytes", "50b"));
+        FormatReader reader = new NdJsonFormatReader(null, blockFactory).withSchemaSampleBytes(50);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(bytes)));
-        assertThat(e.getMessage(), containsString("schema_sample_bytes"));
+        assertThat(e.getMessage(), containsString("decoded-byte sample limit"));
         assertThat(e.getMessage(), containsString("declare a schema"));
     }
 
     /**
-     * The byte budget is a transfer bound: a file far larger than {@code schema_sample_bytes} must
-     * not be pulled onto the coordinator past that prefix.
+     * The byte budget is a transfer bound: a file far larger than the cap must not be pulled onto
+     * the coordinator past that prefix.
      */
     public void testMetadataStopsAtSchemaSampleBytes() throws IOException {
         StringBuilder ndjson = new StringBuilder();
@@ -327,9 +325,9 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         byte[] bytes = ndjson.toString().getBytes(StandardCharsets.UTF_8);
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
-        new NdJsonFormatReader(null, blockFactory).withConfig(Map.of("schema_sample_bytes", "4kb")).metadata(object);
+        new NdJsonFormatReader(null, blockFactory).withSchemaSampleBytes(4096).metadata(object);
         assertThat(
-            "metadata() must stop at schema_sample_bytes; consumed " + tracking.bytesConsumed.get() + " of " + bytes.length,
+            "metadata() must stop at the decoded-byte cap; consumed " + tracking.bytesConsumed.get() + " of " + bytes.length,
             tracking.bytesConsumed.get(),
             Matchers.lessThan(8_192L)
         );
@@ -651,9 +649,12 @@ public class NdJsonFormatReaderTests extends ESTestCase {
 
         assertEquals(800, configured.schemaSampleSize());
         assertEquals(200, quarterReader.schemaSampleSize());
+        assertEquals(ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes(), configured.schemaSampleBytes());
+        assertEquals(ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes() / 4, quarterReader.schemaSampleBytes());
         assertEquals(800, whole.sampleRows());
         assertEquals(200, quarter.sampleRows());
         assertEquals(FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE, floored.sampleRows());
+        assertEquals(FormatReader.MIN_SHARED_SCHEMA_SAMPLE_BYTES, configured.withSchemaSampleShare(64).schemaSampleBytes());
         Object fingerprint = whole.sourceMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
         assertNotNull(fingerprint);
         assertEquals(fingerprint, quarter.sourceMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY));

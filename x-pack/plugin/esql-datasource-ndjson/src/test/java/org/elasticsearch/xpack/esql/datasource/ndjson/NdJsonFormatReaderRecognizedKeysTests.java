@@ -41,7 +41,6 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
     public void testRecognizedKeysSetIsExpected() {
         Set<String> expected = new TreeSet<>();
         expected.add("schema_sample_size");
-        expected.add("schema_sample_bytes");
         expected.add("segment_size");
         expected.add("datetime_format");
         expected.add("schema_max_fields");
@@ -152,8 +151,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
         // Good values — both must accept without throwing.
         for (Map.Entry<String, Object> good : List.of(
             Map.entry("segment_size", (Object) "2mb"),
-            Map.entry("datetime_format", (Object) "yyyy-MM-dd"),
-            Map.entry("schema_sample_bytes", (Object) "1mb")
+            Map.entry("datetime_format", (Object) "yyyy-MM-dd")
         )) {
             Map<String, Object> config = Map.of(good.getKey(), good.getValue());
             validator.validate(config);
@@ -187,7 +185,6 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
         List<Map.Entry<String, Object>> list = new ArrayList<>();
         list.add(Map.entry("segment_size", (Object) "1kb"));              // below MIN_SEGMENT_SIZE (64kb)
         list.add(Map.entry("datetime_format", (Object) "not-a-format"));  // unrecognized pattern
-        list.add(Map.entry("schema_sample_bytes", (Object) "0"));         // zero byte budget
         return list;
     }
 
@@ -218,7 +215,6 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
     private static Object sampleValueFor(String key) {
         return switch (key) {
             case "schema_sample_size" -> 10;
-            case "schema_sample_bytes" -> "1mb";
             case "segment_size" -> "2mb";
             case "datetime_format" -> "dd/MM/yyyy HH:mm:ss";
             case "schema_max_fields" -> 500;
@@ -278,9 +274,6 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
     private static String differentValueFor(String key) {
         if (NdJsonFormatReader.CONFIG_SCHEMA_SAMPLE_SIZE.equals(key)) {
             return "200";
-        }
-        if (NdJsonFormatReader.CONFIG_SCHEMA_SAMPLE_BYTES.equals(key)) {
-            return "2mb";
         }
         if (NdJsonFormatReader.CONFIG_SEGMENT_SIZE.equals(key)) {
             return "2mb";

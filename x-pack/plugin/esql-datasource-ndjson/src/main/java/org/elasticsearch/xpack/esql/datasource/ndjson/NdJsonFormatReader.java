@@ -98,7 +98,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private static final int SCAN_BUFFER_SIZE = 8 * 1024;
 
     static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
-    static final String CONFIG_SCHEMA_SAMPLE_BYTES = "schema_sample_bytes";
     static final String CONFIG_SEGMENT_SIZE = "segment_size";
     static final String CONFIG_DATETIME_FORMAT = "datetime_format";
     static final String CONFIG_SCHEMA_MAX_FIELDS = "schema_max_fields";
@@ -106,7 +105,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(
         CONFIG_SCHEMA_SAMPLE_SIZE,
-        CONFIG_SCHEMA_SAMPLE_BYTES,
         CONFIG_SEGMENT_SIZE,
         CONFIG_DATETIME_FORMAT,
         CONFIG_SCHEMA_MAX_FIELDS
@@ -258,8 +256,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     @Override
     public NdJsonFormatReader withSchemaSampleShare(int files) {
-        int shared = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
-        if (shared == schemaSampleSize) {
+        int sharedRows = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
+        // The schema-cache key is the effective row count. Divide the byte cap only when that count
+        // actually moves, so two listings that share a key also share the byte budget they inferred under.
+        long sharedBytes = sharedRows == schemaSampleSize
+            ? schemaSampleBytes
+            : FormatReader.sharedSchemaSampleBytes(schemaSampleBytes, files);
+        if (sharedRows == schemaSampleSize && sharedBytes == schemaSampleBytes) {
             return this;
         }
         // canonicalConfig is kept: it is the harvest fingerprint, and the data node reads with the unshared sample.
@@ -267,8 +270,32 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             settings,
             blockFactory,
             resolvedSchema,
-            shared,
-            schemaSampleBytes,
+            sharedRows,
+            sharedBytes,
+            schemaMaxFields,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig
+        );
+    }
+
+    /**
+     * Test wither: pins a decoded-byte sample cap without a dataset key. Production always uses
+     * {@link ExternalSourceSettings#DEFAULT_SCHEMA_SAMPLE_BYTES}, shared via {@link #withSchemaSampleShare}.
+     */
+    public NdJsonFormatReader withSchemaSampleBytes(long bytes) {
+        Check.clientError(bytes > 0, "schema sample bytes must be positive, got: {}", bytes);
+        if (bytes == schemaSampleBytes) {
+            return this;
+        }
+        return new NdJsonFormatReader(
+            settings,
+            blockFactory,
+            resolvedSchema,
+            schemaSampleSize,
+            bytes,
             schemaMaxFields,
             segmentSizeBytes,
             datetimeFormatter,
@@ -281,6 +308,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     @Override
     public int schemaSampleSize() {
         return schemaSampleSize;
+    }
+
+    @Override
+    public long schemaSampleBytes() {
+        return schemaSampleBytes;
     }
 
     @Override
@@ -310,11 +342,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         Check.clientError(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
-        long newSampleBytes = ExternalSourceSettings.parseDatasetSchemaSampleBytes(
-            config.get(CONFIG_SCHEMA_SAMPLE_BYTES),
-            CONFIG_SCHEMA_SAMPLE_BYTES,
-            schemaSampleBytes
-        );
         int newMaxFields = parseSchemaMaxFields(config.get(CONFIG_SCHEMA_MAX_FIELDS), schemaMaxFields);
         long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
         DateFormatter newDatetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), datetimeFormatter);
@@ -332,7 +359,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             resolvedSchema,
             newSampleSize,
-            newSampleBytes,
+            schemaSampleBytes,
             newMaxFields,
             newSegmentSize,
             newDatetimeFormatter,
@@ -542,23 +569,17 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
         parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), null);
         parseSchemaMaxFields(config.get(CONFIG_SCHEMA_MAX_FIELDS), ExternalSourceSettings.DEFAULT_SCHEMA_MAX_FIELDS);
-        ExternalSourceSettings.parseDatasetSchemaSampleBytes(
-            config.get(CONFIG_SCHEMA_SAMPLE_BYTES),
-            CONFIG_SCHEMA_SAMPLE_BYTES,
-            ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes()
-        );
     }
 
     /**
-     * A prefix that hits {@code schema_sample_bytes} without a complete record cannot infer a schema:
-     * the first line is wider than the budget. Declaring the schema, or raising the budget, is the
-     * way out — retrying the same request cannot succeed.
+     * A prefix that hits the decoded-byte sample cap without a complete record cannot infer a schema:
+     * the first line is wider than the budget. Declaring the schema is the way out — retrying the
+     * same request cannot succeed.
      */
     private void refuseEmptySampleAtByteBudget(int sampleRows, long bytesRead) {
         Check.clientError(
             sampleRows > 0 || bytesRead < schemaSampleBytes,
-            "schema inference reached schema_sample_bytes [{}] before reading a complete record; "
-                + "declare a schema or raise schema_sample_bytes",
+            "schema inference reached the decoded-byte sample limit [{}] before reading a complete record; declare a schema",
             ByteSizeValue.ofBytes(schemaSampleBytes)
         );
     }

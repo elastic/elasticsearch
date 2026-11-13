@@ -73,7 +73,6 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
         "column_prefix",
         "trim_spaces",
         "schema_sample_size",
-        "schema_sample_bytes",
         "skip_rows",
         "schema_max_fields",
         "multiline_fields"

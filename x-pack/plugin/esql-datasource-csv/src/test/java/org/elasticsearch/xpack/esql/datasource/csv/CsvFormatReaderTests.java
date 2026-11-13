@@ -3857,16 +3857,6 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Invalid integer value [abc]"));
     }
 
-    public void testWithConfigSchemaSampleBytesZeroIsRejected() {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> reader.withConfig(Map.of("schema_sample_bytes", "0"))
-        );
-        assertThat(e.getMessage(), containsString("schema_sample_bytes must be positive"));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
-    }
-
     /**
      * A byte budget exhausted before a later widening value is sampled infers from the prefix actually
      * read: the column stays INTEGER, matching a row-budget cut at the same boundary.
@@ -3876,17 +3866,15 @@ public class CsvFormatReaderTests extends ESTestCase {
         StorageObject object = createStorageObject(csv);
         // 4 bytes is smaller than header plus two data rows, so sampling stops after the first
         // numeric row (at least one complete record is always kept) and never reaches hello.
-        CsvFormatReader cut = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("schema_sample_size", 10, "schema_sample_bytes", "4b")
-        );
+        CsvFormatReader cut = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaSampleBytes(4)
+            .withConfig(Map.of("schema_sample_size", 10));
         assertEquals(
             "a 4-byte budget must stop after the first numeric row and keep INTEGER",
             DataType.INTEGER,
             cut.schema(object).get(0).dataType()
         );
-        CsvFormatReader full = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("schema_sample_size", 10, "schema_sample_bytes", csv.length() + "b")
-        );
+        CsvFormatReader full = (CsvFormatReader) new CsvFormatReader(blockFactory).withSchemaSampleBytes(csv.length())
+            .withConfig(Map.of("schema_sample_size", 10));
         assertEquals("a budget that covers hello must still widen to KEYWORD", DataType.KEYWORD, full.schema(object).get(0).dataType());
     }
 
@@ -3905,13 +3893,15 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         assertEquals(800, configured.schemaSampleSize());
         assertEquals(200, quarter.schemaSampleSize());
+        assertEquals(ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes(), configured.schemaSampleBytes());
+        assertEquals(ExternalSourceSettings.DEFAULT_SCHEMA_SAMPLE_BYTES.getBytes() / 4, quarter.schemaSampleBytes());
         assertEquals(800, configured.metadata(createStorageObject(csv.toString())).sampleRows());
         assertEquals(200, quarter.metadata(createStorageObject(csv.toString())).sampleRows());
-        assertEquals(
-            FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE,
-            configured.withSchemaSampleShare(64).metadata(createStorageObject(csv.toString())).sampleRows()
-        );
+        CsvFormatReader floored = configured.withSchemaSampleShare(64);
+        assertEquals(FormatReader.MIN_SHARED_SCHEMA_SAMPLE_SIZE, floored.metadata(createStorageObject(csv.toString())).sampleRows());
+        assertEquals(FormatReader.MIN_SHARED_SCHEMA_SAMPLE_BYTES, floored.schemaSampleBytes());
         assertEquals(configured.harvestFingerprintForTests(), quarter.harvestFingerprintForTests());
+        assertEquals(configured.harvestFingerprintForTests(), floored.harvestFingerprintForTests());
     }
 
     /**
@@ -3935,6 +3925,28 @@ public class CsvFormatReaderTests extends ESTestCase {
         List<Attribute> half = configured.withSchemaSampleShare(2).metadata(createStorageObject(csv.toString())).schema();
         assertEquals(2, half.size());
         assertEquals(DataType.INTEGER, half.get(0).dataType());
+    }
+
+    /**
+     * The decoded-byte cap is a transfer bound: a file far larger than a few kilobytes must not be pulled
+     * onto the coordinator past that prefix. CSV stops after complete records, so the BufferedReader may
+     * prefetch about 64 KiB; the rest of the body must still be aborted.
+     */
+    public void testMetadataStopsAtSchemaSampleBytes() throws IOException {
+        StringBuilder csv = new StringBuilder("id,name,value\n");
+        for (int i = 0; i < 50_000; i++) {
+            csv.append(i).append(",n_").append(i).append(',').append(i * 1.5).append('\n');
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
+        new CsvFormatReader(blockFactory).withSchemaSampleBytes(4096).metadata(object);
+        assertThat(
+            "metadata() must stop near the decoded-byte cap; consumed " + tracking.bytesConsumed.get() + " of " + bytes.length,
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan(128_000L)
+        );
+        assertThat(tracking.bytesConsumed.get(), Matchers.lessThan((long) bytes.length / 2));
     }
 
     /** Sharing that would not narrow the sample returns the reader itself, which is how the planner tells it does not apply. */

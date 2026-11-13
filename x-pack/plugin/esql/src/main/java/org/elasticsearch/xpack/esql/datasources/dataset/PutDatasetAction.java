@@ -65,7 +65,6 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         "split_probe_window",
         "max_split_probes",
         "schema_sample_size",
-        "schema_sample_bytes",
         "schema_max_fields",
         "segment_size",
         "mode",

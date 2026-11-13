@@ -684,7 +684,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 new MockLog.SeenEventExpectation(
                     "timeout extended while the relocation source is still healthy",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.INFO,
                     "*cache warming timeout extended by ["
                         + relocationTimeoutSlice.getStringRep()
                         + "] (relocation source not shutting down, no cluster shutdown -> "
@@ -695,7 +695,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 new MockLog.SeenEventExpectation(
                     "timeout extended after the relocation source started shutting down",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.INFO,
                     "*cache warming timeout extended by*-> relocation source shutting down*"
                 )
             );
@@ -811,7 +811,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 new MockLog.UnseenEventExpectation(
                     "timeout never extended",
                     SharedBlobCacheWarmingService.class.getCanonicalName(),
-                    Level.DEBUG,
+                    Level.INFO,
                     "*cache warming timeout extended*"
                 )
             );

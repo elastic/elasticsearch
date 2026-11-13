@@ -1415,6 +1415,14 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
      * A mapping update that omits {@code inference_id} keeps the existing one.
      */
     public void testUpdateWithoutInferenceIdKeepsExistingInferenceId() throws IOException {
+        final CheckedBiFunction<String, String, XContentBuilder, IOException> semanticTextMapping = (fieldName, id) -> mapping(b -> {
+            b.startObject(fieldName).field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+            if (id != null) {
+                b.field(INFERENCE_ID_FIELD, id);
+            }
+            b.endObject();
+        });
+
         for (int randomizedRun = 0; randomizedRun < 3; randomizedRun++) {
             final String fieldName = randomAlphaOfLengthBetween(5, 15);
             final String inferenceId = randomAlphaOfLengthBetween(5, 15);
@@ -1426,27 +1434,18 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
                 givenModelSettings(inferenceId, new MinimalServiceSettings(model));
             }
 
+            final MapperService mapperService = createMapperService(semanticTextMapping.apply(fieldName, inferenceId), useLegacyFormat);
+
             final boolean indexDocument = randomBoolean();
-            final MapperService mapperService;
             if (indexDocument) {
                 if (model == null) {
                     model = TestModel.createRandomInstance();
                 }
-                mapperService = mapperServiceForFieldWithModelSettings(fieldName, inferenceId, new MinimalServiceSettings(model));
-            } else {
-                mapperService = createMapperService(
-                    mapping(
-                        b -> b.startObject(fieldName)
-                            .field("type", SemanticTextFieldMapper.CONTENT_TYPE)
-                            .field(INFERENCE_ID_FIELD, inferenceId)
-                            .endObject()
-                    ),
-                    useLegacyFormat
-                );
+                performDynamicUpdate(mapperService, fieldName, inferenceId, new MinimalServiceSettings(model));
             }
             final SemanticIndexOptions indexOptions = indexDocument ? extractCurrentIndexOptions(mapperService, fieldName) : null;
 
-            merge(mapperService, mapping(b -> b.startObject(fieldName).field("type", SemanticTextFieldMapper.CONTENT_TYPE).endObject()));
+            merge(mapperService, semanticTextMapping.apply(fieldName, null));
 
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
             assertSemanticTextField(mapperService, fieldName, indexDocument, null, indexOptions);
@@ -2094,6 +2093,21 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             MapperService.MergeReason.MAPPING_UPDATE
         );
 
+        performDynamicUpdate(mapperService, fieldName, inferenceId, modelSettings);
+        return mapperService;
+    }
+
+    /**
+     * Performs a dynamic mapping update on an existing semantic_text field by parsing a synthetic
+     * {@link SemanticTextField} document and applying the resulting {@code dynamicMappingsUpdate}.
+     * The mapper service must already have a semantic_text mapping for {@code fieldName}.
+     */
+    private void performDynamicUpdate(
+        MapperService mapperService,
+        String fieldName,
+        String inferenceId,
+        MinimalServiceSettings modelSettings
+    ) throws IOException {
         SemanticTextField semanticTextField = new SemanticTextField(
             useLegacyFormat,
             fieldName,
@@ -2113,7 +2127,6 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         SourceToParse sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
         mapperService.merge("_doc", parsedDocument.dynamicMappingsUpdate(), MapperService.MergeReason.MAPPING_UPDATE);
-        return mapperService;
     }
 
     public void testExistsQuerySparseVector() throws IOException {

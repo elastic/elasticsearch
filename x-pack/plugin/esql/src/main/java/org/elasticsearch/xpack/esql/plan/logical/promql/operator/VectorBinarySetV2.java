@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -23,10 +22,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult.Kind;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -118,11 +117,7 @@ public final class VectorBinarySetV2 {
                 MetadataAttribute.TIMESERIES,
                 ir.labels() != null ? ir.labels() : TranslationContextV2.emptyLabels(source)
             );
-            var match = new Alias(
-                source,
-                OR_MATCH_KEY,
-                new TimeSeriesMetadataFilter(source, labels.toAttribute(), List.of(Literal.keyword(source, LabelMatcher.NAME)), true)
-            );
+            var match = new Alias(source, OR_MATCH_KEY, PromqlLabels.withoutMetricName(labels.toAttribute()));
             LogicalPlan tagged = new Eval(source, branchPlan, List.of(branch, labels, match));
             // Pin layout across the exchange (#158164): Eval name-shadow leaves ghost channels otherwise.
             branchPlans.add(

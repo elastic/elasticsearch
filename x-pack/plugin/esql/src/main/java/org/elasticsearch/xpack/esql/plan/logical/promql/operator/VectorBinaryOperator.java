@@ -77,6 +77,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         return binaryOp;
     }
 
+    /** Whether the result drops the metric name, as Prometheus' arithmetic and {@code bool} comparisons do. */
+    public boolean dropMetricName() {
+        return dropMetricName;
+    }
+
     @Override
     public List<Attribute> output() {
         if (output == null) {

@@ -14,15 +14,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a PromQL function call that performs element-wise transformations on an instant vector.
  * <p>
- * These functions transform each sample in the input instant vector independently, preserving the labels.
- * The result is an instant vector with the same cardinality as the input, containing the transformed values.
- * This corresponds to PromQL syntax:
+ * These functions transform each sample in the input instant vector independently, preserving its labels but
+ * {@code __name__}, which Prometheus drops. The result is an instant vector with the same cardinality as the input,
+ * containing the transformed values. This corresponds to PromQL syntax:
  * <pre>
  * function_name(instant_vector)
  * </pre>
@@ -33,8 +35,6 @@ import java.util.List;
  * ceil(cpu_usage)
  * sqrt(variance)
  * </pre>
- *
- * These functions operate on the value of each time series without changing the set of series or their labels.
  */
 public final class ValueTransformationFunction extends PromqlFunctionCall {
     public ValueTransformationFunction(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
@@ -54,6 +54,11 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
     @Override
     public List<Attribute> output() {
         return child().output();
+    }
+
+    @Override
+    public Set<String> excludedLabels() {
+        return PromqlLabels.excludedWith(child(), List.of(LabelMatcher.NAME));
     }
 
     @Override

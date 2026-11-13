@@ -12,9 +12,15 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -26,6 +32,9 @@ import org.hamcrest.Matcher;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
@@ -69,6 +78,24 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
     /** Plans {@code query} translated over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */
     protected LogicalPlan planPromqlV2(String query, boolean optimize) {
         return planPromql(withPromqlTranslationV2(tsAnalyzer()), query, false, optimize);
+    }
+
+    /**
+     * The labels each view of the source's series in {@code collapse} leaves out, sorted: the typed label container's
+     * {@link TimeSeriesWithout}, or the keyword {@code _timeseries} it is lowered to where a node before 9.7 takes part.
+     */
+    protected static Set<List<String>> sourceViews(TimeSeriesAggregate collapse) {
+        var views = new LinkedHashSet<List<String>>();
+        collapse.forEachExpressionDown(Expression.class, e -> {
+            switch (e) {
+                case TimeSeriesWithout without -> views.add(without.children().stream().map(c -> ((Attribute) c).name()).sorted().toList());
+                case TimeSeriesMetadataAttribute keyword -> views.add(keyword.excludedFields().stream().sorted().toList());
+                case FieldAttribute field when field.name().equals(MetadataAttribute.TIMESERIES) -> views.add(List.of());
+                default -> {
+                }
+            }
+        });
+        return views;
     }
 
     /** {@code analyzer} translating PromQL over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */

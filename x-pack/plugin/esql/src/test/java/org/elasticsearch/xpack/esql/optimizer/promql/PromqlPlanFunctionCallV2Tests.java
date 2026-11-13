@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
-import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -19,9 +18,10 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -39,10 +39,7 @@ public class PromqlPlanFunctionCallV2Tests extends AbstractPromqlPlanOptimizerTe
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(expressions(collapse, Rate.class), hasSize(1));
-        List<ToTimeSeriesMetadata> containers = expressions(collapse, ToTimeSeriesMetadata.class);
-        assertThat(containers, hasSize(1));
-        TimeSeriesWithout source = as(containers.getFirst().field(), TimeSeriesWithout.class);
-        assertThat(source.children(), empty());
+        assertThat(sourceViews(collapse), equalTo(Set.of(List.of())));
         assertThat(names(plan.output()), hasItem("_timeseries"));
     }
 
@@ -51,7 +48,7 @@ public class PromqlPlanFunctionCallV2Tests extends AbstractPromqlPlanOptimizerTe
         LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=5m abs(network.bytes_in)", false);
 
         assertThat(expressions(plan, Abs.class), hasSize(1));
-        assertThat(expressions(plan, ToTimeSeriesMetadata.class), hasSize(1));
+        assertThat(sourceViews(plan.collect(TimeSeriesAggregate.class).getFirst()), equalTo(Set.of(List.of())));
         assertThat(names(plan.output()), hasItem("_timeseries"));
     }
 

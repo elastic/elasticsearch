@@ -37,6 +37,7 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -148,15 +149,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
                     counter.decrementAndGet();
                     ActionListener.respondAndRelease(
                         listener,
-                        SearchResponseUtils.emptyWithTotalHits(
-                            null,
-                            0,
-                            0,
-                            0,
-                            0L,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
-                        )
+                        SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, List.of(), SearchResponse.Clusters.EMPTY)
                     );
                 });
             }

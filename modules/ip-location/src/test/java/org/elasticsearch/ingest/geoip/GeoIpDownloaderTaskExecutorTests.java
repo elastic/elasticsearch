@@ -15,13 +15,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -60,11 +58,7 @@ public class GeoIpDownloaderTaskExecutorTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.state()).thenReturn(createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of())));
-        threadPool = new ThreadPool(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
-            MeterRegistry.NOOP,
-            new DefaultBuiltInExecutorBuilders()
-        );
+        threadPool = new TestThreadPool("test");
         client = new NoOpClient(threadPool, TestProjectResolvers.singleProject(projectId));
 
         GeoIpDownloaderTaskExecutor executor = new GeoIpDownloaderTaskExecutor(client, mock(HttpClient.class), clusterService, threadPool);

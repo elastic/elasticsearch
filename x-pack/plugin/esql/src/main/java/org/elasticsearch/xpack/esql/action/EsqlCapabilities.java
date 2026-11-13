@@ -4726,6 +4726,12 @@ public class EsqlCapabilities {
         FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
 
         /**
+         * TS null filtering follows aliases through null-propagating expressions, such as casts and arithmetic, to the metric
+         * fields they read. Converted or computed metrics receive the same null filtering as mapped metric fields.
+         */
+        TS_NULL_FILTER_THROUGH_EXPRESSIONS,
+
+        /**
          * {@code DEDUP} ignores the synthetic {@code $$<field>$converted_to$<type>} attributes that a conversion pushed into
          * {@code UnionAll} branches leaves in its input. Older nodes rejected such queries when the converted type, e.g.
          * {@code date_range}, cannot be grouped on, even though the column is never part of the output.
@@ -4842,6 +4848,18 @@ public class EsqlCapabilities {
          * for views next to indices, {@code FORK} and subqueries.
          */
         COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
+
+        /**
+         * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
+         * with a filter combined several aggregate functions, such as {@code max(...) - min(...) WHERE ...}.
+         */
+        FIX_TS_FILTER_ON_EXPRESSION_OF_AGGREGATES,
+
+        /**
+         * Fixes a bug in the planner where {@code TS} queries grouping by {@code _tsid}, such as
+         * {@code TS k8s METADATA _tsid | STATS BY _tsid}, failed with an {@link IllegalStateException}.
+         */
+        FIX_TS_STATS_BY_TSID,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

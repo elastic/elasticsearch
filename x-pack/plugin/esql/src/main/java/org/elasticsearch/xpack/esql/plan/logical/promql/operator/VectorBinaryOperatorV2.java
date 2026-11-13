@@ -127,9 +127,9 @@ public final class VectorBinaryOperatorV2 {
 
     /**
      * Whether the operands must translate as independent pipelines before anything is known about their plans - the
-     * properties that pick the translation context rather than describe the result: explicit vector matching and a
-     * source-backed scalar (which broadcasts on {@code step}). Pure scalars may share the other side's frame. Set
-     * operators override for force-fold.
+     * properties that pick the translation context rather than describe the result: explicit vector matching, a
+     * source-backed scalar (which broadcasts on {@code step}), and selectors disagreeing on {@code offset} (one shared
+     * TimeSeriesAggregate carries a single evaluation timestamp). Pure scalars may share the other side's frame.
      */
     private boolean requiresIndependentPipelines() {
         // unless without matching modifiers folds over a shared frame like the other operators
@@ -150,7 +150,7 @@ public final class VectorBinaryOperatorV2 {
                 || isPureScalar(right()) && leftScalar == false;
             return shared == false;
         }
-        return false;
+        return PromqlCommand.collectAllOffsetsForBranch(left()).equals(PromqlCommand.collectAllOffsetsForBranch(right())) == false;
     }
 
     /**

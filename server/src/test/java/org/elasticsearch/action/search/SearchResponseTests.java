@@ -10,6 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -17,7 +18,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -27,12 +33,20 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchHitsTests;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.metrics.HistogramUnionState;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
@@ -47,7 +61,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -59,6 +72,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchResponseTests extends ESTestCase {
 
@@ -92,7 +106,7 @@ public class SearchResponseTests extends ESTestCase {
             1,
             0,
             0,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY,
             null,
             null,
@@ -179,7 +193,7 @@ public class SearchResponseTests extends ESTestCase {
                     successfulShards,
                     skippedShards,
                     tookInMillis,
-                    shardSearchFailures,
+                    List.of(shardSearchFailures),
                     clusters
                 );
             } finally {
@@ -192,7 +206,7 @@ public class SearchResponseTests extends ESTestCase {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                shardSearchFailures,
+                List.of(shardSearchFailures),
                 clusters
             );
         }
@@ -209,7 +223,7 @@ public class SearchResponseTests extends ESTestCase {
         if (randomBoolean()) {
             return randomSimpleClusters();
         } else {
-            return createCCSClusterObject(3, 2, true, 2, 1, 0, 0, new ShardSearchFailure[0]);
+            return createCCSClusterObject(3, 2, true, 2, 1, 0, 0, List.of());
         }
     }
 
@@ -236,7 +250,7 @@ public class SearchResponseTests extends ESTestCase {
         int skippedClusters,
         int partialClusters,
         int failedClusters,
-        ShardSearchFailure[] failures
+        List<ShardSearchFailure> failures
     ) {
         assert successfulClusters + skippedClusters <= totalClusters : "successful + skipped > totalClusters";
         assert totalClusters == remoteClusters || totalClusters - remoteClusters == 1
@@ -265,7 +279,6 @@ public class SearchResponseTests extends ESTestCase {
             int successfulShards;
             int skippedShards;
             int failedShards;
-            List<ShardSearchFailure> failureList = Arrays.asList(failures);
             TimeValue took = new TimeValue(1000L);
             if (successful > 0) {
                 failedShards = 0;
@@ -303,7 +316,7 @@ public class SearchResponseTests extends ESTestCase {
             if (status.equals(SearchResponse.Cluster.Status.SUCCESSFUL)) {
                 finalFailureList = Collections.emptyList();
             } else {
-                finalFailureList = failureList.subList(0, Math.min(failedShards, failureList.size()));
+                finalFailureList = failures.subList(0, Math.min(failedShards, failures.size()));
             }
             clusters.swapCluster(
                 cluster.getClusterAlias(),
@@ -546,16 +559,7 @@ public class SearchResponseTests extends ESTestCase {
                 2,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
-                createCCSClusterObject(
-                    4,
-                    3,
-                    true,
-                    1,
-                    1,
-                    1,
-                    1,
-                    new ShardSearchFailure[] { new ShardSearchFailure(new IllegalStateException("corrupt index")) }
-                )
+                createCCSClusterObject(4, 3, true, 1, 1, 1, 1, List.of(new ShardSearchFailure(new IllegalStateException("corrupt index"))))
             );
             try {
                 String expectedString = XContentHelper.stripWhitespace("""
@@ -677,23 +681,26 @@ public class SearchResponseTests extends ESTestCase {
         }
         // Test that shard failures are de-duplicated in ToXContent when the index name and exception message match
         {
-            ShardSearchFailure[] shardFailures = new ShardSearchFailure[SHARDS_PER_CLUSTER];
+            List<ShardSearchFailure> shardFailures = new ArrayList<>(SHARDS_PER_CLUSTER);
             // This is somewhat unrealistic, since createCCSClusterObject() has all clusters use the same array of shard failures, so the
             // cluster alias in the failures will not match the cluster alias of the cluster the failure appears in. For the purposes of
             // this test, this is acceptable, since we only care about checking that the similar failures are not duplicated
             int finalShardId = SHARDS_PER_CLUSTER - 1;
             for (int i = 0; i < finalShardId; i++) {
-                shardFailures[i] = new ShardSearchFailure(
-                    new IllegalStateException("corrupt index"),
-                    new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), i), "cluster_1")
+                shardFailures.add(
+                    new ShardSearchFailure(
+                        new IllegalStateException("corrupt index"),
+                        new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), i), "cluster_1")
+                    )
                 );
             }
             // Set the final failure to be different to make sure that it is still included
-            shardFailures[finalShardId] = new ShardSearchFailure(
-                new NullPointerException("NPE"),
-                new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), finalShardId), "cluster_1")
+            shardFailures.add(
+                new ShardSearchFailure(
+                    new NullPointerException("NPE"),
+                    new SearchShardTarget("nodeId0", new ShardId("foo", UUID.randomUUID().toString(), finalShardId), "cluster_1")
+                )
             );
-            ;
             SearchResponse response = new SearchResponse(
                 sHits,
                 null,
@@ -872,6 +879,123 @@ public class SearchResponseTests extends ESTestCase {
         sHits.decRef();
     }
 
+    /**
+     * A response read from the bytes of a transport message records the serialized size of its aggregations, the same size counting them
+     * gives, so estimating it doesn't serialize them again. A response read any other way leaves the size unknown.
+     */
+    public void testSerializedAggregationsBytesReadOffTheWire() throws IOException {
+        SearchHits hits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
+        SearchResponse original = new SearchResponse(
+            hits,
+            InternalAggregations.from(List.of(randomAggregation())),
+            null,
+            false,
+            null,
+            null,
+            1,
+            null,
+            1,
+            1,
+            0,
+            0,
+            List.of(),
+            SearchResponse.Clusters.EMPTY,
+            null,
+            null,
+            null
+        );
+        hits.decRef();
+        try {
+            BytesReference bytes;
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                original.writeTo(out);
+                bytes = out.bytes();
+            }
+            assertThat(original.serializedAggregationsBytes(), equalTo(-1L));
+
+            SearchResponse fromMessage = readResponse(ReleasableBytesReference.wrap(bytes).streamInput());
+            try {
+                assertThat(
+                    fromMessage.serializedAggregationsBytes(),
+                    equalTo(DelayableWriteable.getUncompressedSerializedSize(original.getAggregations()))
+                );
+                assertThat(
+                    TransportMultiSearchAction.estimateActualBytes(fromMessage),
+                    equalTo(TransportMultiSearchAction.estimateActualBytes(original))
+                );
+            } finally {
+                fromMessage.decRef();
+            }
+
+            SearchResponse fromOtherStream = readResponse(bytes.streamInput());
+            try {
+                assertThat(fromOtherStream.serializedAggregationsBytes(), equalTo(-1L));
+            } finally {
+                fromOtherStream.decRef();
+            }
+        } finally {
+            original.decRef();
+        }
+    }
+
+    private static InternalAggregation randomAggregation() {
+        return switch (between(0, 2)) {
+            case 0 -> new Max("max", randomDouble(), DocValueFormat.RAW, Map.of());
+            case 1 -> stringTerms();
+            case 2 -> percentiles();
+            default -> throw new AssertionError("unexpected aggregation");
+        };
+    }
+
+    /** Enough values for the digest to keep many centroids, which reading it back can merge. */
+    private static InternalTDigestPercentiles percentiles() {
+        HistogramUnionState state = HistogramUnionState.create(HistogramUnionState.NOOP_BREAKER, randomDoubleBetween(20, 200, true));
+        int values = between(1_000, 10_000);
+        for (int i = 0; i < values; i++) {
+            state.add(randomDouble() * 1000);
+        }
+        return new InternalTDigestPercentiles("percentiles", new double[] { 50, 99 }, state, false, DocValueFormat.RAW, Map.of());
+    }
+
+    /** String keys, which the response's deduplicating reader reads differently from numbers. */
+    private static StringTerms stringTerms() {
+        int count = between(1, 20);
+        List<StringTerms.Bucket> buckets = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            buckets.add(
+                new StringTerms.Bucket(
+                    new BytesRef(randomAlphaOfLength(between(1, 30))),
+                    i,
+                    InternalAggregations.EMPTY,
+                    false,
+                    0,
+                    DocValueFormat.RAW
+                )
+            );
+        }
+        return new StringTerms(
+            "terms",
+            BucketOrder.key(true),
+            BucketOrder.key(true),
+            buckets.size(),
+            1,
+            null,
+            DocValueFormat.RAW,
+            buckets.size(),
+            false,
+            0,
+            buckets,
+            null
+        );
+    }
+
+    private SearchResponse readResponse(StreamInput in) throws IOException {
+        try (StreamInput withRegistry = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry)) {
+            withRegistry.setTransportVersion(TransportVersion.current());
+            return new SearchResponse(withRegistry);
+        }
+    }
+
     public void testSerialization() throws IOException {
         SearchResponse searchResponse = createTestItem(false);
         Suggest suggestForRelease = searchResponse.getSuggest();
@@ -957,15 +1081,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContentEmptyClusters() throws IOException {
-        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(
-            null,
-            1,
-            1,
-            0,
-            1,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse searchResponse = SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 1, List.of(), SearchResponse.Clusters.EMPTY);
         try {
             SearchResponse deserialized = copyWriteable(
                 searchResponse,

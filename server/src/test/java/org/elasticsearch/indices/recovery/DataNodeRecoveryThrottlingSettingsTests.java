@@ -22,11 +22,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
+import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.appliesIncomingHeapBasedLimit;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.effectiveMaxConcurrentRecoveries;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.incomingRecoveryLimits;
@@ -37,6 +37,28 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
+
+    public void testHeapBasedLimitRejectsZero() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.get(
+                Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 0.0).build()
+            )
+        );
+    }
+
+    public void testNonCriticalRecoveriesMaxProportionRejectsZero() {
+        for (final var zeroValue : List.of("0", "0%")) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.get(
+                    Settings.builder()
+                        .put(INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(), zeroValue)
+                        .build()
+                )
+            );
+        }
+    }
 
     public void testEffectiveMaxConcurrentRecoveries() {
         final int maxConcurrent = randomIntBetween(1, 100);
@@ -98,7 +120,7 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
                     incomingRecoveryLimits(
                         INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getDefault(Settings.EMPTY),
                         INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getDefault(Settings.EMPTY),
-                        INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getDefault(Settings.EMPTY),
+                        INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getDefault(Settings.EMPTY),
                         maxHeap,
                         applyHeapBasedLimit
                     ),
@@ -130,7 +152,7 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
         clusterSettings.applySettings(
             Settings.builder()
                 .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 6)
-                .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), "50%")
+                .put(INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(), "50%")
                 .build()
         );
         assertThat(observed, contains(new IncomingRecoveryLimits(4, 4), new IncomingRecoveryLimits(6, 3)));
@@ -154,7 +176,7 @@ public class DataNodeRecoveryThrottlingSettingsTests extends ESTestCase {
         final var throttleSettings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 32)
             .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(), 1.5)
-            .put(INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(), "50%")
+            .put(INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(), "50%")
             .build();
 
         final List<IncomingRecoveryLimits> indexNodeObserved = new ArrayList<>();

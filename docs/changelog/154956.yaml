@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 154871
 pr: 154956
-summary: Reject full-text functions in WHERE clauses that cannot be pushed pas…
+summary: Reject full-text functions in `WHERE` clauses that cannot be pushed to data nodes
 type: bug

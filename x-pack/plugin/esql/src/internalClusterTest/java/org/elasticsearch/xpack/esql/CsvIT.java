@@ -69,7 +69,7 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
-import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import org.elasticsearch.xpack.esql.CsvTestUtils.TestResults;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -166,11 +166,13 @@ public class CsvIT extends ESTestCase {
     private static String currentGroupName = null;
 
     /**
-     * Hook for tests that want to load datasets with a transformed mapping and/or transformed source documents,
-     * and/or to rewrite the csv-spec query before it is sent to the cluster &mdash; for example to exercise
-     * ES|QL behavior with a different field type than the dataset's mapping declares.
+     * Hook for differential tests: variants of the csv-spec corpus that run each query against a transformed setup and compare the
+     * outcome with the original expectations, adjusted where the variant is meant to differ. A variant can load datasets with a
+     * transformed mapping and/or transformed source documents, rewrite the csv-spec query before it is sent to the cluster, and
+     * transform the expected and actual results before they are compared &mdash; for example to exercise ES|QL behavior with a
+     * different field type than the dataset's mapping declares, or with a different {@code unmapped_fields} mode.
      */
-    public interface IndexLoadStrategy {
+    public interface DifferentialTestStrategy {
         /**
          * Returns the mapping JSON to use when creating the index for {@code dataset}.
          * The {@code originalMapping} is the mapping after {@link CsvTestsDataLoader#readMappingFile(CsvTestsDataLoader.TestDataset)}
@@ -195,7 +197,7 @@ public class CsvIT extends ESTestCase {
          * {@code <fileName>.<testName>} pair the test runner uses to identify the case (the
          * same form {@link org.junit.AssumptionViolatedException} log lines surface) so a
          * variant can consult a per-test silencing registry without threading the test
-         * instance into the strategy. The default {@link #IDENTITY_INDEX_LOAD_STRATEGY}
+         * instance into the strategy. The default {@link #IDENTITY_DIFFERENTIAL_TEST_STRATEGY}
          * returns the original query unchanged regardless of {@code testId}.
          * <p>
          * Implementations may throw {@link org.junit.AssumptionViolatedException} (typically via
@@ -211,7 +213,19 @@ public class CsvIT extends ESTestCase {
          * Transforms the expected results loaded from the csv-spec entry before they are compared
          * against the actual query output.
          */
-        ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected);
+        TestResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, TestResults expected);
+
+        /**
+         * Transforms the actual column names, types and values before they are compared against the expected results.
+         */
+        default TestResults transformActualResults(
+            String testId,
+            CsvSpecReader.CsvTestCase testCase,
+            TestResults expected,
+            TestResults actual
+        ) {
+            return actual;
+        }
 
         /**
          * Normalizes a single warning string before warnings are compared. The <em>same</em>
@@ -242,9 +256,15 @@ public class CsvIT extends ESTestCase {
         default boolean ignoreValueOrder() {
             return false;
         }
+
+        /**
+         * Lets a variant turn a failure that is tracked by an issue into a skip by throwing {@link org.junit.AssumptionViolatedException};
+         * otherwise the failure propagates. Receives any throwable of the test body, skips included.
+         */
+        default void onFailure(String testId, CsvSpecReader.CsvTestCase testCase, Throwable failure) {}
     }
 
-    public static final IndexLoadStrategy IDENTITY_INDEX_LOAD_STRATEGY = new IndexLoadStrategy() {
+    public static final DifferentialTestStrategy IDENTITY_DIFFERENTIAL_TEST_STRATEGY = new DifferentialTestStrategy() {
         @Override
         public String transformMapping(CsvTestsDataLoader.TestDataset dataset, String originalMapping) {
             return originalMapping;
@@ -266,7 +286,7 @@ public class CsvIT extends ESTestCase {
         }
 
         @Override
-        public ExpectedResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, ExpectedResults expected) {
+        public TestResults transformExpectedResults(String testId, CsvSpecReader.CsvTestCase testCase, TestResults expected) {
             return expected;
         }
     };
@@ -276,10 +296,10 @@ public class CsvIT extends ESTestCase {
      * Defaults to the identity strategy (no transformation). Subclasses can replace this in their
      * own {@link BeforeClass} method, which by JUnit's contract runs after the parent's {@link #setupCluster()}.
      * <p>
-     * {@link #setupCluster()} resets the field to {@link #IDENTITY_INDEX_LOAD_STRATEGY} on every run so that
+     * {@link #setupCluster()} resets the field to {@link #IDENTITY_DIFFERENTIAL_TEST_STRATEGY} on every run so that
      * a stale subclass strategy from a prior class in the same JVM never leaks into a sibling test class.
      */
-    protected static IndexLoadStrategy indexLoadStrategy = IDENTITY_INDEX_LOAD_STRATEGY;
+    protected static DifferentialTestStrategy differentialTestStrategy = IDENTITY_DIFFERENTIAL_TEST_STRATEGY;
 
     private final String fileName;
     private final String groupName;
@@ -319,7 +339,7 @@ public class CsvIT extends ESTestCase {
 
     @BeforeClass
     public static void setupCluster() throws Exception {
-        indexLoadStrategy = IDENTITY_INDEX_LOAD_STRATEGY;
+        differentialTestStrategy = IDENTITY_DIFFERENTIAL_TEST_STRATEGY;
         long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
         var nodeDirectory = createTempDir();
@@ -403,6 +423,12 @@ public class CsvIT extends ESTestCase {
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
         assumeFalseLogging(
+            "CSV tests cannot handle EQL sources (delegates to _search over real indices; requires QA integration tests)",
+            // Key on the capability, not the query text: a SET-prefixed EQL query (e.g. unmapped-fields tests) does
+            // not start with "EQL", but every EQL-command spec declares this capability.
+            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.EQL_COMMAND.capabilityName())
+        );
+        assumeFalseLogging(
             "CSV tests cannot handle dataset-backed FROM <dataset> sources (requires QA integration tests)",
             testCase.datasetSources.isEmpty() == false
         );
@@ -424,7 +450,10 @@ public class CsvIT extends ESTestCase {
         inference.ensureNoFailures();
         views.ensureNoFailures();
 
-        IndexLoadStrategy.TransformedQuery transformed = indexLoadStrategy.transformQuery(groupName + "." + testName, testCase);
+        DifferentialTestStrategy.TransformedQuery transformed = differentialTestStrategy.transformQuery(
+            groupName + "." + testName,
+            testCase
+        );
         EsqlQueryRequest request = syncEsqlQueryRequest(transformed.query());
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
@@ -445,7 +474,7 @@ public class CsvIT extends ESTestCase {
         // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
         try (var response = listener.actionGet(5, TimeUnit.MINUTES)) {
             assertFalse("response must not be partial: " + response.getExecutionInfo(), response.isPartial());
-            ExpectedResults expected = indexLoadStrategy.transformExpectedResults(
+            TestResults expected = differentialTestStrategy.transformExpectedResults(
                 groupName + "." + testName,
                 testCase,
                 loadCsvSpecValues(testCase.expectedResults)
@@ -459,29 +488,37 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
+            var actualResults = differentialTestStrategy.transformActualResults(
+                groupName + "." + testName,
+                testCase,
+                expected,
+                new TestResults(actual.columnNames(), actual.columnTypes(), actual.values())
+            );
+
             var assertionLogger = logResults() ? logger : null;
-            CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), assertionLogger);
+            CsvAssert.assertMetadata(expected, actualResults.columnNames(), actualResults.columnTypes(), assertionLogger);
             CsvAssert.assertDataWithValueConverter(
                 expected,
-                actual.values(),
+                actualResults.values(),
                 testCase.ignoreOrder,
-                indexLoadStrategy.ignoreValueOrder(),
+                differentialTestStrategy.ignoreValueOrder(),
                 false,
                 assertionLogger
             );
             var warnings = listener.warnings.stream()
                 .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
                 .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
-                .map(indexLoadStrategy::normalizeWarning)
+                .map(differentialTestStrategy::normalizeWarning)
                 .toList();
             // Apply the same normalization to the expected warnings so a variant that rewrites the
             // query can reconcile warnings whose expression text or source position shifted purely
             // as a side effect of the rewrite. For the identity strategy this is a no-op.
-            testCase.adjustExpectedWarnings(indexLoadStrategy::normalizeWarning);
+            testCase.adjustExpectedWarnings(differentialTestStrategy::normalizeWarning);
             testCase.assertWarnings(false).assertWarnings(warnings, null);
             CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
             CsvAssert.assertApproximationApplied(testCase.expectedApproximationApplied, response.approximationApplied());
         } catch (Throwable t) {
+            differentialTestStrategy.onFailure(groupName + "." + testName, testCase, t);
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
         }
@@ -686,8 +723,8 @@ public class CsvIT extends ESTestCase {
             for (String inferenceId : dataset.inferenceEndpoints()) {
                 inference.maybeLoad(inferenceId, INFERENCE_CONFIGS.get(inferenceId));
             }
-            String mapping = indexLoadStrategy.transformMapping(dataset, CsvTestsDataLoader.readMappingFile(dataset));
-            Settings settings = indexLoadStrategy.transformSettings(dataset, dataset.loadSettings());
+            String mapping = differentialTestStrategy.transformMapping(dataset, CsvTestsDataLoader.readMappingFile(dataset));
+            Settings settings = differentialTestStrategy.transformSettings(dataset, dataset.loadSettings());
             if (dataset.dataStream()) {
                 assertAcked(
                     cluster.client()
@@ -720,7 +757,7 @@ public class CsvIT extends ESTestCase {
                 var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
                 for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
-                    String source = indexLoadStrategy.transformDocument(dataset, document.json().toString());
+                    String source = differentialTestStrategy.transformDocument(dataset, document.json().toString());
                     var indexRequestBuilder = cluster.client()
                         .prepareIndex(dataset.indexName())
                         .setId(document.id())
@@ -751,7 +788,7 @@ public class CsvIT extends ESTestCase {
                     );
                 }
             }
-            indexLoadStrategy.afterIndexLoaded(dataset, cluster.client());
+            differentialTestStrategy.afterIndexLoaded(dataset, cluster.client());
         }
     };
 

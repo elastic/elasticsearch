@@ -15,6 +15,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -64,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
@@ -172,6 +175,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -183,6 +187,7 @@ import java.util.stream.Collectors;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
@@ -206,12 +211,14 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.expression.function.vector.Knn.ALLOWED_OPTIONS;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
@@ -237,6 +244,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -1808,11 +1817,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * {@snippet lang="text":
-     * Limit[1000[INTEGER],true]
-     * \_MvExpand[x{r}#4,x{r}#19]
-     *   \_Project[[first_name{f}#9 AS x]]
-     *     \_Limit[1000[INTEGER],false]
-     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * Project[[x{r}#20 AS x#5]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[first_name{f}#10,x{r}#20]
+     *     \_Limit[1000[INTEGER],false,false]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      * }
      */
     public void testCopyDefaultLimitPastMvExpand() {
@@ -1822,11 +1831,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep x
             | mv_expand x
             """);
-
-        var limit = asLimit(plan, 1000, true);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
         var mvExpand = as(limit.child(), MvExpand.class);
-        var keep = as(mvExpand.child(), Project.class);
-        var limitPastMvExpand = asLimit(keep.child(), 1000, false);
+        var limitPastMvExpand = asLimit(mvExpand.child(), 1000, false);
         as(limitPastMvExpand.child(), EsRelation.class);
     }
 
@@ -1859,11 +1867,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * {@snippet lang="text":
-     * Limit[10[INTEGER],true]
-     * \_MvExpand[first_name{f}#7,first_name{r}#17]
-     *   \_Project[[first_name{f}#7, last_name{f}#10]]
-     *     \_Limit[1[INTEGER],false]
-     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * Project[[first_name{r}#18, last_name{f}#11]]
+     * \_Limit[10[INTEGER],true,false]
+     *   \_MvExpand[first_name{f}#8,first_name{r}#18]
+     *     \_Limit[1[INTEGER],false,false]
+     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      * }
      */
     public void testDontPushDownLimitPastMvExpand() {
@@ -1874,11 +1882,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | mv_expand first_name
             | limit 10
             """);
-
-        var limit = asLimit(plan, 10, true);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 10, true);
         var mvExpand = as(limit.child(), MvExpand.class);
-        var project = as(mvExpand.child(), Project.class);
-        var limit2 = asLimit(project.child(), 1, false);
+        var limit2 = asLimit(mvExpand.child(), 1, false);
         as(limit2.child(), EsRelation.class);
     }
 
@@ -2337,16 +2344,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Expected
      *
      * {@snippet lang="text":
-     * Limit[10000[INTEGER],true]
-     * \_MvExpand[c{r}#7,c{r}#16]
-     *   \_Project[[c{r}#7, a{r}#3]]
-     *     \_TopN[[Order[a{r}#3,ASC,FIRST]],7300[INTEGER]]
-     *       \_Limit[7300[INTEGER],true]
-     *         \_MvExpand[b{r}#5,b{r}#15]
-     *           \_Limit[7300[INTEGER],false]
-     *             \_LocalRelation[[a{r}#3, b{r}#5, c{r}#7],[ConstantNullBlock[positions=1],
-     *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
-     *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
+     * Project[[c{r}#17, a{r}#4]]
+     * \_Limit[10000[INTEGER],true,false]
+     *   \_MvExpand[c{r}#8,c{r}#17]
+     *     \_Limit[7300[INTEGER],true,false]
+     *       \_MvExpand[b{r}#6,b{r}#16]
+     *         \_Limit[7300[INTEGER],false,false]
+     *           \_LocalRelation[[a{r}#4, b{r}#6, c{r}#8],Page{blocks=[ConstantNullBlock[positions=1],
+     *             IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
+     *             IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]}]
      * }
      */
     public void testLimitThenSortBeforeMvExpand() {
@@ -2358,12 +2364,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort a NULLS FIRST
             | mv_expand c""");
 
-        var limit10kBefore = asLimit(plan, 10000, true);
+        var project = as(plan, Project.class);
+        var limit10kBefore = asLimit(project.child(), 10000, true);
         var mvExpand = as(limit10kBefore.child(), MvExpand.class);
-        var project = as(mvExpand.child(), Project.class);
         // a=null is a constant sort, so it is dropped and no TopN forms.
-        var limit7300 = asLimit(project.child(), 7300, true);
-        mvExpand = as(limit7300.child(), MvExpand.class);
+        var limit7300Before = asLimit(mvExpand.child(), 7300, true);
+        mvExpand = as(limit7300Before.child(), MvExpand.class);
         var limit = asLimit(mvExpand.child(), 7300, false);
         as(limit.child(), LocalRelation.class);
     }
@@ -3303,6 +3309,32 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
     }
 
+    public void testPropagateEmptyRelationThroughPlanDeeperThanRuleExecutionLimit() {
+        var plan = optimizedPlan(emptyRelationBelowDeepLookupJoinChain());
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    public void testPropagateEmptyRelationThroughPlanDeeperThanRuleExecutionLimitWithUngroupedStats() {
+        var plan = optimizedPlan(emptyRelationBelowDeepLookupJoinChain() + " | STATS c = COUNT(*)");
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+        Page page = local.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(0L, ((LongBlock) page.getBlock(0)).getLong(0));
+    }
+
+    private static String emptyRelationBelowDeepLookupJoinChain() {
+        StringBuilder query = new StringBuilder("FROM test | WHERE false");
+        for (int i = 0; i < 150; i++) {
+            query.append(" | EVAL language_code = languages + ").append(i).append(" | LOOKUP JOIN languages_lookup ON language_code");
+        }
+        return query.toString();
+    }
+
     /**
      * Expected:
      * <pre>{@code
@@ -3383,7 +3415,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * \_LocalRelation[[count{r}#7],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
      * }</pre>
      *
-     * Same final plan as testPropagateEmptyRelationWithUngroupedStats but requires two fixed-point iterations:
+     * Same final plan as testPropagateEmptyRelationWithUngroupedStats but with an intervening Eval:
      * first the Eval over empty LocalRelation is collapsed, then the Aggregate over empty LocalRelation is folded.
      */
     public void testPropagateEmptyRelationWithInterveningEvalAndStats() {
@@ -7992,6 +8024,100 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }
 
+    /**
+     * The inline filter of an expression combining several aggregates is pushed onto each nested aggregate. It must end up on the
+     * per-time-series aggregates only, since the dimensions it references are not available after the first pass.
+     */
+    public void testTranslateWithInlineFilterOnExpressionOfAggregates() {
+        var query = """
+            TS k8s
+            | STATS max(last_over_time(network.bytes_in)) - min(last_over_time(network.bytes_in))
+                WHERE starts_with(cluster, "p") OR cluster IN ("qa", "staging")
+                BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """;
+        var plan = planMetrics(query);
+
+        List<AggregateFunction> secondPassAggs = new ArrayList<>();
+        List<LastOverTime> firstPassAggs = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg instanceof TimeSeriesAggregate tsAgg) {
+                tsAgg.forEachExpression(LastOverTime.class, firstPassAggs::add);
+            } else {
+                agg.forEachExpression(AggregateFunction.class, secondPassAggs::add);
+            }
+        });
+        assertThat(secondPassAggs, hasSize(2));
+        for (AggregateFunction secondPassAgg : secondPassAggs) {
+            assertFalse("second pass aggregate must not keep the filter: " + secondPassAgg, secondPassAgg.hasFilter());
+        }
+        assertThat(firstPassAggs, hasSize(1));
+        assertThat(firstPassAggs.get(0).filter(), instanceOf(Or.class));
+    }
+
+    /**
+     * Grouping by {@code _tsid} matches the per-time-series grouping of the first pass, so the second pass must regroup on the
+     * first-pass {@code _tsid} rather than on a {@code VALUES(_tsid)} that reuses its id.
+     */
+    public void testTranslateStatsByTsidWithAggregate() {
+        var plan = planMetrics("""
+            TS k8s METADATA _tsid
+            | STATS bytes = max(last_over_time(network.bytes_in)) BY _tsid
+            | STATS c = COUNT(*), bytes = max(bytes)
+            """);
+
+        List<TimeSeriesAggregate> firstPass = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregate.class, firstPass::add);
+        assertThat(firstPass, hasSize(1));
+        TimeSeriesAggregate aggsByTsid = firstPass.get(0);
+        assertThat(aggsByTsid.groupings(), hasSize(1));
+        Attribute tsid = as(aggsByTsid.groupings().get(0), MetadataAttribute.class);
+        assertThat(tsid.name(), equalTo(MetadataAttribute.TSID_FIELD));
+        aggsByTsid.forEachExpression(Values.class, values -> fail("first pass must not wrap _tsid in VALUES: " + values));
+
+        List<Aggregate> secondPass = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg instanceof TimeSeriesAggregate == false && agg.groupings().isEmpty() == false) {
+                secondPass.add(agg);
+            }
+        });
+        assertThat(secondPass, hasSize(1));
+        assertThat(secondPass.get(0).groupings(), hasSize(1));
+        assertThat(Expressions.attribute(Alias.unwrap(secondPass.get(0).groupings().get(0))).id(), equalTo(tsid.id()));
+    }
+
+    /**
+     * A {@code STATS} without aggregate functions that groups only by {@code _tsid} already yields one row per time series, so it is
+     * planned as a single regular aggregation over a standard relation, as if the query started with {@code FROM}.
+     */
+    public void testTranslateStatsByTsidWithoutAggregatesUsesSinglePass() {
+        var plan = planMetrics("""
+            TS k8s METADATA _tsid
+            | STATS BY _tsid
+            | STATS c = COUNT(*)
+            """);
+
+        plan.forEachDown(TimeSeriesAggregate.class, agg -> fail("expected no time-series aggregate: " + agg));
+        plan.forEachExpressionDown(Values.class, values -> fail("_tsid must not be wrapped in VALUES: " + values));
+
+        List<Aggregate> groupedAggs = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg.groupings().isEmpty() == false) {
+                groupedAggs.add(agg);
+            }
+        });
+        assertThat(groupedAggs, hasSize(1));
+        Aggregate byTsid = groupedAggs.get(0);
+        assertThat(byTsid.groupings(), hasSize(1));
+        Attribute tsid = as(byTsid.groupings().get(0), MetadataAttribute.class);
+        assertThat(tsid.name(), equalTo(MetadataAttribute.TSID_FIELD));
+
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(1));
+        assertThat(relations.get(0).indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relations.get(0).output(), hasItem(tsid));
+    }
+
     public void testTranslateWithDateTrunc() {
         var query = randomFrom("""
             TS k8s
@@ -9073,14 +9199,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * {@snippet lang="text":
-     * TopN[[Order[emp_no{f}#253,ASC,LAST]],1000[INTEGER],false]
-     * \_MvExpand[languages{f}#256,languages{r}#266]
-     *   \_Project[[language_name{f}#265, foo{r}#235 AS bar#248, languages{f}#256, emp_no{f}#253]]
-     *     \_Join[LEFT,[languages{f}#256],[language_code{f}#264],null]
-     *       |_Eval[[TOSTRING(languages{f}#256) AS foo#235]]
-     *       | \_Filter[emp_no{f}#253 > 1[INTEGER]]
-     *       |   \_EsRelation[test][_meta_field{f}#259, emp_no{f}#253, first_name{f}#25..]
-     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#264, language_name{f}#265]
+     * Project[[language_name{f}#36, foo{r}#6 AS bar#19, languages{r}#37, emp_no{f}#24]]
+     * \_TopN[[Order[emp_no{f}#24,ASC,LAST]],1000[INTEGER],false]
+     *   \_MvExpand[languages{f}#27,languages{r}#37]
+     *     \_Join[LEFT,[languages{f}#27],[language_code{f}#35],null]
+     *       |_Eval[[TOSTRING(languages{f}#27) AS foo#6]]
+     *       | \_Filter[emp_no{f}#24 > 1[INTEGER]]
+     *       |   \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#35, language_name{f}#36]
      * }
      */
     public void testRedundantSortOnMvExpandJoinKeepDropRename() {
@@ -9097,10 +9223,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT emp_no
             """);
 
-        var topN = as(plan, TopN.class);
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
         var mvExpand = as(topN.child(), MvExpand.class);
-        var project = as(mvExpand.child(), Project.class);
-        var join = as(project.child(), Join.class);
+        var join = as(mvExpand.child(), Join.class);
         var eval = as(join.left(), Eval.class);
         var filter = as(eval.child(), Filter.class);
         as(filter.child(), EsRelation.class);
@@ -9743,8 +9869,53 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithStats() {
         assertThat(
             typesError("from types | where knn(dense_vector, [0, 1, 2]) | stats c = count(*)"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
+    }
+
+    /**
+     * A LIMIT after STATS bounds the number of groups, not the number of documents, so it must not be pushed into KNN as k.
+     */
+    public void testKnnWithStatsAndLimitAfterStats() {
+        assertThat(
+            typesError("from types | where knn(dense_vector, [0, 1, 2]) | stats c = count(*) | limit 100"),
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
+        );
+    }
+
+    /**
+     * An explicit {@code k} option satisfies the k requirement even when STATS prevents a LIMIT from being pushed into KNN.
+     */
+    public void testKnnWithKOptionAndStats() {
+        var query = "from types | where knn(dense_vector, [0, 1, 2], {\"k\": 10}) | stats c = count(*)"
+            + (randomBoolean() ? "" : " | limit 100");
+        var optimized = planTypes(query);
+
+        List<Knn> knns = new ArrayList<>();
+        optimized.forEachExpressionDown(Knn.class, knns::add);
+        assertThat(knns, hasSize(1));
+        var knn = knns.get(0);
+        assertThat(knn.implicitK(), nullValue());
+        assertThat(knn.options(), notNullValue());
+        Map<String, Object> optionsMap = new HashMap<>();
+        Options.populateMap((MapExpression) knn.options(), optionsMap, EMPTY, FOURTH, ALLOWED_OPTIONS);
+        assertEquals(10, optionsMap.get(K_FIELD.getPreferredName()));
+    }
+
+    /**
+     * KNN on a runtime (non-indexed) dense_vector is evaluated per row and doesn't use k, so it doesn't need a LIMIT or a k option.
+     */
+    public void testRuntimeKnnWithStats() {
+        // Older versions reject runtime KNN outright, see OptimizerVerificationTests#testKnnRuntimeRejectedOnOlderTransportVersion
+        assumeTrue("requires runtime knn", minimumVersion.supports(Knn.ESQL_KNN_RUNTIME_FIELD));
+        var optimized = planTypes("from types | eval dv = to_dense_vector(float) | where knn(dv, [0, 1, 2]) | stats c = count(*)");
+
+        List<Knn> knns = new ArrayList<>();
+        optimized.forEachExpressionDown(Knn.class, knns::add);
+        assertThat(knns, hasSize(1));
+        var knn = knns.get(0);
+        assertThat(knn.isRuntimeSearch(), is(true));
+        assertThat(knn.implicitK(), nullValue());
     }
 
     public void testKnnWithRerankWithoutLimit() {
@@ -9794,7 +9965,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithLimitBy() {
         assertThat(
             typesError("from types | where knn(dense_vector, [0, 1, 2]) | limit 10 by keyword | limit 5"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
     }
 
@@ -9805,7 +9976,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithTopNBy() {
         assertThat(
             typesError("from types metadata _score | where knn(dense_vector, [0, 1, 2]) | sort _score | limit 10 by keyword | limit 5"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
     }
 
@@ -10688,10 +10859,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * {@snippet lang="text":
      * Project[[id{r}#15, $$languages$converted_to$keyword{f$}#16 AS languages#9]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[id{f}#14,id{r}#15]
-     *     \_Project[[id{f}#14, $$languages$converted_to$keyword{f$}#16]]
-     *       \_Limit[1000[INTEGER],false,false]
-     *         \_EsRelation[union_types_index*][!first_name, id{f}#14, !languages, !last_name, !sal..]
+     *   \_MvExpand[id{f}#12,id{r}#15]
+     *     \_Limit[1000[INTEGER],false,false]
+     *       \_EsRelation[union_types_index*][!first_name, id{f}#12, !languages, !last_name, !sal..]
      * }
      */
     public void testUnionTypesResolvePastProjections() {
@@ -10716,12 +10886,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Limit limit1 = asLimit(topProject.child(), 1000, true);
         MvExpand mvExpand = as(limit1.child(), MvExpand.class);
 
-        Project innerProject = as(mvExpand.child(), Project.class);
-        var innerOutput = innerProject.output();
-        assertThat(innerOutput, hasSize(2));
-        assertThat(Expressions.names(innerOutput), containsInAnyOrder("id", "$$languages$converted_to$keyword"));
-
-        Limit limit2 = asLimit(innerProject.child(), 1000, false);
+        Limit limit2 = asLimit(mvExpand.child(), 1000, false);
         EsRelation relation = as(limit2.child(), EsRelation.class);
         assertEquals("union_types_index*", relation.indexPattern());
 

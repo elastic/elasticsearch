@@ -155,6 +155,14 @@ public class PasswordPekEncryptionTests extends ESTestCase {
             new MockLog.UnseenEventExpectation("no repeated warn", LOGGER, Level.WARN, "*")
         );
 
+        // a reset removes the key, so the same cause for the next key is worth a WARN again
+        enc.onKeyRemoved("k1");
+        MockLog.assertThatLogger(
+            () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: missing"), false),
+            PasswordPekEncryption.class,
+            new MockLog.SeenEventExpectation("warn after reset", LOGGER, Level.WARN, "cannot wrap PEK for disk: missing*")
+        );
+
         MockLog.assertThatLogger(
             () -> enc.onGatewayWrite(new ElasticsearchException("cannot wrap PEK for disk: other"), true),
             PasswordPekEncryption.class,

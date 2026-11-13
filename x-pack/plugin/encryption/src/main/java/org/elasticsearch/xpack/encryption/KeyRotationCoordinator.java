@@ -133,6 +133,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private final List<EncryptedDataHandler<?>> handlers;
     private final ClusterStateListener clusterStateListener = this::onClusterStateChanged;
     private final Supplier<Settings> settingsSupplier;
+    private final ProjectEncryptionKeyMetadata.PekEncryption pekEncryption;
 
     private volatile Scheduler.Cancellable scheduledTask;
     private volatile boolean closed = false;
@@ -194,6 +195,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         this.rotationInterval = ROTATION_INTERVAL_SETTING.get(initialSettings);
         this.checkInterval = CHECK_INTERVAL_SETTING.get(initialSettings);
         this.settingsSupplier = settingsSupplier;
+        this.pekEncryption = pekEncryption;
     }
 
     /**
@@ -240,6 +242,12 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         ClusterState state = event.state();
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
+        }
+        if (event.previousState().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
+            ProjectEncryptionKeyMetadata previous = getCurrentMetadata(event.previousState());
+            if (previous != null && getCurrentMetadata(state) == null) {
+                pekEncryption.onKeyRemoved(previous.getActiveKeyId());
+            }
         }
         if (event.localNodeMaster() == false) {
             return;

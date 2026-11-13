@@ -337,6 +337,35 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         assertEquals("k1", restored.getActiveKeyId());
     }
 
+    /** Any node forgets its copy of a key that a reset removed, but keeps a copy of a newer key it may already have persisted. */
+    public void testResetForgetsGatewayCopyOfRemovedKey() {
+        onNodeThatPersisted(Map.of("k1", entry(0L)), "k1", NO_OP_ENCRYPTION);
+        ClusterState reset = clusterStateWith(null, false);
+        setup(reset, 0L, TimeValue.timeValueDays(30));
+        ProjectEncryptionKeyMetadata.GatewayKeys gatewayKeys = pekEncryption.gatewayKeys();
+
+        ProjectEncryptionKeyMetadata other = new ProjectEncryptionKeyMetadata(
+            Map.of("k0", entry(0L)),
+            "k0",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", reset, clusterStateWith(other, false)));
+        assertEquals(Boolean.TRUE, gatewayKeys.holdsKeys());
+
+        ProjectEncryptionKeyMetadata removed = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(0L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", reset, clusterStateWith(removed, false)));
+        assertNull(gatewayKeys.holdsKeys());
+        assertNull("the reload guard no longer protects the removed key's password", gatewayKeys.passwordId());
+    }
+
     public void testNothingSubmittedOnDegradedStateWithoutOwnCopyOfActiveKey() {
         onNodeThatPersisted(Map.of("k1", entry(0L)), "k1", NO_OP_ENCRYPTION);
         ClusterState state = clusterStateWith(degraded("k2"), TestCustom.encryptedUnder("old-key"), true);

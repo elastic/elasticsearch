@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -78,7 +79,8 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     static final List<HealthIndicatorImpact> MASTER_HAS_NO_KEY_IMPACTS = List.of(
         new HealthIndicatorImpact(
             NAME,
-            "master_has_no_encryption_key",
+            // id released in 9.5; kept so that anything keyed on it keeps matching
+            "encryption_unavailable",
             1,
             "Encrypted secrets cannot be decrypted and new secrets cannot be stored on any node. The cluster state encryption key only"
                 + " survives on the disks of nodes that persisted it, and is lost if all of those nodes are removed from the cluster.",
@@ -108,11 +110,12 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     );
     static final Diagnosis.Definition MASTER_HAS_NO_KEY_DEFINITION = new Diagnosis.Definition(
         NAME,
-        "master_has_no_key",
+        // id released in 9.5; kept so that anything keyed on it keeps matching
+        "decryption_failed",
         "The elected master started without a usable copy of the cluster state encryption key and published cluster state without it.",
         "Configure the encryption password on the elected master and reload secure settings; if it persisted the key with that password,"
             + " it restores the key. Otherwise use voting configuration exclusions to elect a master-eligible node whose"
-            + " cluster_state_encryption health details report key_on_disk: true; it restores the key. Only reset"
+            + " cluster_state_encryption health details report can_read_key_on_disk: true; it restores the key. Only reset"
             + " encryption if no node holds the key: a reset permanently deletes all encrypted data.",
         HELP_URL
     );
@@ -138,6 +141,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
     private final ProjectResolver projectResolver;
     private final ProjectEncryptionKeyService pekService;
     private final Supplier<Boolean> keyInGateway;
+    private final BooleanSupplier canReadGatewayKeys;
     private final EncryptedDataHandlerRegistry handlerRegistry;
 
     ProjectEncryptionKeyHealthIndicatorService(
@@ -145,12 +149,14 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         ProjectResolver projectResolver,
         ProjectEncryptionKeyService pekService,
         Supplier<Boolean> keyInGateway,
+        BooleanSupplier canReadGatewayKeys,
         EncryptedDataHandlerRegistry handlerRegistry
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.pekService = pekService;
         this.keyInGateway = keyInGateway;
+        this.canReadGatewayKeys = canReadGatewayKeys;
         this.handlerRegistry = handlerRegistry;
     }
 
@@ -168,7 +174,7 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
 
         return switch (serviceState) {
             case READY -> {
-                if (pekService.canWrapForDisk() == false || Boolean.FALSE.equals(keyInGateway.get())) {
+                if (pekService.canWrapForDisk() == false || (metadata != null && Boolean.FALSE.equals(keyInGateway.get()))) {
                     yield createIndicator(
                         YELLOW,
                         YELLOW_CANNOT_PERSIST,
@@ -230,6 +236,9 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         Boolean keyOnDisk = keyInGateway.get();
         if (keyOnDisk != null) {
             details.put("key_on_disk", keyOnDisk);
+            if (keyOnDisk) {
+                details.put("can_read_key_on_disk", canReadGatewayKeys.getAsBoolean());
+            }
         }
         if (metadata != null) {
             details.put("metadata_password_id", metadata.getPasswordId());

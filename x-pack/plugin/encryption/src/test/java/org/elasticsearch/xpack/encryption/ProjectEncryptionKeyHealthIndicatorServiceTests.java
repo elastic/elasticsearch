@@ -96,6 +96,7 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
             DefaultProjectResolver.INSTANCE,
             pekService,
             () -> keyInGateway,
+            () -> Boolean.TRUE.equals(keyInGateway),
             new EncryptedDataHandlerRegistry(List.of(HANDLER))
         );
     }
@@ -146,7 +147,12 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
     public void testGreenWhenSettingsConfiguredButMetadataNotYetInstalled() {
         ClusterState state = stateWith(null);
 
-        ProjectEncryptionKeyHealthIndicatorService indicator = indicator(state, mockPekService(EncryptionServiceState.READY, PASSWORD_ID));
+        // a node that persisted no key, for example since a reset, has nothing to persist until the next key is installed
+        ProjectEncryptionKeyHealthIndicatorService indicator = indicator(
+            state,
+            mockPekService(EncryptionServiceState.READY, PASSWORD_ID),
+            randomBoolean() ? null : false
+        );
 
         HealthIndicatorResult result = indicator.calculate(false, 1, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(HealthStatus.GREEN, result.status());
@@ -225,6 +231,7 @@ public class ProjectEncryptionKeyHealthIndicatorServiceTests extends ESTestCase 
         HealthIndicatorResult result = indicator.calculate(true, 1, HealthInfo.EMPTY_HEALTH_INFO);
         assertEquals(expected, result.status());
         assertEquals(keyOnDisk, detailsMap(result).get("key_on_disk"));
+        assertEquals(keyOnDisk ? true : null, detailsMap(result).get("can_read_key_on_disk"));
         assertEquals(ProjectEncryptionKeyHealthIndicatorService.MASTER_HAS_NO_KEY, result.symptom());
         assertEquals(1, result.diagnosisList().size());
         assertEquals(ProjectEncryptionKeyHealthIndicatorService.MASTER_HAS_NO_KEY_DEFINITION, result.diagnosisList().get(0).definition());

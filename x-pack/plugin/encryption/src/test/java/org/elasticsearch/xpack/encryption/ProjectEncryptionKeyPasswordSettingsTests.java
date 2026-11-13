@@ -82,12 +82,10 @@ public class ProjectEncryptionKeyPasswordSettingsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[" + missingSetting + "]"));
     }
 
-    public void testValidateReloadAllowsPasswordIdChange() {
+    /** Rotating while keeping the gateway copy's password, nothing persisted, or a node that could not wrap before. */
+    public void testValidateReloadAllowsChangesThatKeepNeededPasswords() {
         ProjectEncryptionKeyPasswordSettings.validateReload(settings("v1", "v1"), settings("v2", "v1", "v2"), "v1");
         ProjectEncryptionKeyPasswordSettings.validateReload(settings("v2", "v1", "v2"), settings("v2", "v2"), "v2");
-    }
-
-    public void testValidateReloadAllowsNodeWithoutGatewayKeysOrThatCouldNotWrapBefore() {
         ProjectEncryptionKeyPasswordSettings.validateReload(settings("v1", "v1"), Settings.EMPTY, null);
         ProjectEncryptionKeyPasswordSettings.validateReload(settings("v1"), settings("v1", "v1"), "v1");
         ProjectEncryptionKeyPasswordSettings.validateReload(settings("v2", "v2"), settings("v2", "v2"), "v1");

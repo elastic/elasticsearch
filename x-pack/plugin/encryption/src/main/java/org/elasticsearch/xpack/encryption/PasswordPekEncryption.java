@@ -129,7 +129,19 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
      * this node has done neither, such as a node that is not the elected master in serverless.
      */
     @Nullable
-    Boolean isKeyInGateway() {
+    Boolean keyInGateway() {
         return gatewayKeys.holdsKeys();
+    }
+
+    /** Returns whether this node has the password its on-disk copy of the key is wrapped with, so it could restore the key. */
+    boolean canReadGatewayKeys() {
+        String passwordId = gatewayPasswordId();
+        return passwordId != null && ProjectEncryptionKeyPasswordSettings.hasPassword(settingsSupplier.get(), passwordId);
+    }
+
+    @Override
+    public void onKeyRemoved(String activeKeyId) {
+        ProjectEncryptionKeyMetadata.PekEncryption.super.onKeyRemoved(activeKeyId);
+        lastWrapFailure.set(null);
     }
 }

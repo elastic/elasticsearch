@@ -104,6 +104,14 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         default GatewayKeys gatewayKeys() {
             return null;
         }
+
+        /** Called on every node once it applies cluster state from which a reset removed the key with id {@code activeKeyId}. */
+        default void onKeyRemoved(String activeKeyId) {
+            GatewayKeys gatewayKeys = gatewayKeys();
+            if (gatewayKeys != null) {
+                gatewayKeys.clearIfActiveKey(activeKeyId);
+            }
+        }
     }
 
     /** Plaintext AES-256 key bytes and generation timestamp */
@@ -168,19 +176,37 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
      */
     @FixForMultiProject(description = "one copy per node; with multiple projects each project's copy overwrites the others")
     static final class GatewayKeys {
-        private volatile GatewayCopy gatewayCopy;
-        private volatile boolean known;
+        private GatewayCopy gatewayCopy;
+        private boolean known;
+
+        synchronized void set(@Nullable GatewayCopy copy) {
+            gatewayCopy = copy;
+            known = true;
+        }
+
+        /** Forgets this node's copy if it is for {@code activeKeyId}, a key that a reset removed. */
+        synchronized void clearIfActiveKey(String activeKeyId) {
+            if (gatewayCopy == null || gatewayCopy.activeKeyId().equals(activeKeyId)) {
+                gatewayCopy = null;
+                known = false;
+            }
+        }
+
+        @Nullable
+        synchronized GatewayCopy copy() {
+            return gatewayCopy;
+        }
 
         /** Returns the id of the password that wraps this node's gateway keys, or {@code null} if it has none. */
         @Nullable
         String passwordId() {
-            GatewayCopy copy = gatewayCopy;
+            GatewayCopy copy = copy();
             return copy == null ? null : copy.passwordId();
         }
 
-        /** Returns whether this node holds gateway keys, or {@code null} if it has not read or persisted cluster state. */
+        /** Returns whether this node holds gateway keys, or {@code null} if it has not read or persisted them since startup or a reset. */
         @Nullable
-        Boolean holdsKeys() {
+        synchronized Boolean holdsKeys() {
             return known ? gatewayCopy != null : null;
         }
     }
@@ -437,7 +463,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     @Nullable
     private GatewayCopy gatewayCopy() {
         GatewayKeys gatewayKeys = pekEncryption.gatewayKeys();
-        return gatewayKeys == null ? null : gatewayKeys.gatewayCopy;
+        return gatewayKeys == null ? null : gatewayKeys.copy();
     }
 
     @Nullable
@@ -459,8 +485,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     private static void setGatewayCopy(PekEncryption pekEncryption, @Nullable GatewayCopy copy) {
         GatewayKeys gatewayKeys = pekEncryption.gatewayKeys();
         if (gatewayKeys != null) {
-            gatewayKeys.gatewayCopy = copy;
-            gatewayKeys.known = true;
+            gatewayKeys.set(copy);
         }
     }
 
@@ -567,6 +592,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapStrings(), HANDLER_KEY_IDS_FIELD);
     }
 
+    /** Parses this node's on-disk cluster state, and records what it read as this node's {@link GatewayKeys}. */
     static ProjectEncryptionKeyMetadata fromXContent(XContentParser parser, PekEncryption pekEncryption) throws IOException {
         ProjectEncryptionKeyMetadata parsed = PARSER.parse(parser, pekEncryption);
         if (parsed.isUnwrapFailed()) {

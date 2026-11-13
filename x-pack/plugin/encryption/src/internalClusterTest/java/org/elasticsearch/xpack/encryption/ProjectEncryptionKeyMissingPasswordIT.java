@@ -65,25 +65,17 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         return false;
     }
 
-    public void testNodesWithoutPasswordStayInClusterAndRecoverAfterReload() throws Exception {
-        runWithMasterEligibleNodesWithoutPassword(1);
-    }
-
-    /** Before the fix no publication could commit once the key was installed, so the cluster lost its elected master. */
+    /**
+     * Before the fix no publication could commit once the key was installed, so the cluster lost its elected master. A single
+     * master-eligible node without a password is covered by {@code MissingPasswordRolloutIT}.
+     */
     public void testMajorityOfMasterEligibleNodesWithoutPasswordKeepsElectedMaster() throws Exception {
-        runWithMasterEligibleNodesWithoutPassword(2);
-    }
-
-    private void runWithMasterEligibleNodesWithoutPassword(int count) throws Exception {
         List<String> masterNodes = internalCluster().startMasterOnlyNodes(3);
         String dataNodeWithoutPassword = internalCluster().startDataOnlyNode();
         ensureStableCluster(4);
 
         String master = internalCluster().getMasterName();
-        List<String> masterEligibleWithoutPassword = randomSubsetOf(
-            count,
-            masterNodes.stream().filter(n -> n.equals(master) == false).toList()
-        );
+        List<String> masterEligibleWithoutPassword = masterNodes.stream().filter(n -> n.equals(master) == false).toList();
         List<String> nodesWithoutPassword = new ArrayList<>(masterEligibleWithoutPassword);
         nodesWithoutPassword.add(dataNodeWithoutPassword);
 
@@ -180,7 +172,8 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
 
         updateClusterSettings(Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "51mb"));
         assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_CANNOT_PERSIST, health(node).symptom());
-        assertEquals(true, keyOnDisk(node));
+        assertEquals(true, healthDetail(node, "key_on_disk"));
+        assertEquals("the copy is wrapped with the password this node lost", false, healthDetail(node, "can_read_key_on_disk"));
 
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback() {
             @Override
@@ -207,7 +200,7 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
             assertThat(pek.getActiveKeyId(), not(equalTo(oldKeyId)));
         });
         updateClusterSettings(Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "51mb"));
-        assertEquals(false, keyOnDisk(node));
+        assertEquals(false, healthDetail(node, "key_on_disk"));
         assertEquals(ProjectEncryptionKeyHealthIndicatorService.YELLOW_CANNOT_PERSIST, health(node).symptom());
 
         byte[] payload = "after-reset-payload".getBytes(StandardCharsets.UTF_8);
@@ -271,7 +264,8 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "51mb"));
         for (String node : internalCluster().getNodeNames()) {
             boolean holdsKey = node.equals(cluster.masterWithoutKeys()) == false;
-            assertBusy(() -> assertEquals(holdsKey, keyOnDisk(node)));
+            assertBusy(() -> assertEquals(holdsKey, healthDetail(node, "key_on_disk")));
+            assertEquals(holdsKey ? true : null, healthDetail(node, "can_read_key_on_disk"));
         }
 
         // the documented recovery: exclude every other master-eligible node from voting so that the key holder is elected
@@ -398,8 +392,8 @@ public class ProjectEncryptionKeyMissingPasswordIT extends ESIntegTestCase {
         return clusterService.state().metadata().getSingleProjectCustom(ProjectEncryptionKeyMetadata.TYPE);
     }
 
-    private static Object keyOnDisk(String node) {
-        return ((SimpleHealthIndicatorDetails) health(node).details()).details().get("key_on_disk");
+    private static Object healthDetail(String node, String name) {
+        return ((SimpleHealthIndicatorDetails) health(node).details()).details().get(name);
     }
 
     private static HealthIndicatorResult health(String node) {

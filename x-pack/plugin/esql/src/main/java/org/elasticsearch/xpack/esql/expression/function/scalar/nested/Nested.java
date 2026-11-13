@@ -15,19 +15,22 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /** Explicit object-scope syntax. Analysis lowers this marker before evaluation or serialization. */
-public final class Nested extends Function {
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Nested.class).unary(Nested::new).name("nested");
+public final class Nested extends Function implements OptionalArgument {
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Nested.class).unaryVariadic(Nested::new).name("nested");
 
     @FunctionInfo(
         preview = true,
         returnType = { "boolean", "integer", "long", "double", "keyword", "text" },
         briefSummary = "Evaluates an expression in one explicit nested object scope.",
-        description = "Returns one completed Boolean or scalar reduction for each input parent row."
+        description = "Returns one completed Boolean or scalar reduction for each input parent row. "
+            + "With `BY`, returns a keyword holding a JSON object of the aggregate for each group of nested objects."
     )
     public Nested(
         Source source,
@@ -35,18 +38,43 @@ public final class Nested extends Function {
             name = "expression",
             type = { "boolean", "integer", "long", "double", "keyword", "text", "_source" },
             description = "Expression using fields from one nested path."
-        ) Expression child
+        ) Expression child,
+        @Param(
+            name = "keys",
+            type = { "boolean", "integer", "long", "double", "keyword", "text" },
+            optional = true,
+            description = "Child fields after `BY` to group the nested objects by."
+        ) List<Expression> rest
     ) {
-        super(source, List.of(child));
+        super(source, children(child, rest));
+    }
+
+    private static List<Expression> children(Expression child, List<Expression> rest) {
+        List<Expression> children = new ArrayList<>(1 + rest.size());
+        children.add(child);
+        children.addAll(rest);
+        return children;
     }
 
     public Expression field() {
         return children().getFirst();
     }
 
+    /** The {@code BY} keys, or empty when the reduction is not grouped. */
+    public List<Expression> keys() {
+        return children().getLast() instanceof NestedGroupings keys ? keys.children() : List.of();
+    }
+
+    /** Arguments other than the expression and the {@code BY} keys, which NESTED does not accept. */
+    public List<Expression> extraArguments() {
+        List<Expression> children = children();
+        int end = children.getLast() instanceof NestedGroupings ? children.size() - 1 : children.size();
+        return children.subList(Math.min(1, end), end);
+    }
+
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return keys().isEmpty() ? field().dataType() : DataType.KEYWORD;
     }
 
     @Override
@@ -56,12 +84,12 @@ public final class Nested extends Function {
 
     @Override
     protected NodeInfo<Nested> info() {
-        return NodeInfo.create(this, Nested::new, field());
+        return NodeInfo.create(this, Nested::new, field(), children().subList(1, children().size()));
     }
 
     @Override
     public Nested replaceChildren(List<Expression> children) {
-        return new Nested(source(), children.getFirst());
+        return new Nested(source(), children.getFirst(), children.subList(1, children.size()));
     }
 
     @Override

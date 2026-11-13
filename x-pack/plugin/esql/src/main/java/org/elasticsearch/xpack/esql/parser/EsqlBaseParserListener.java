@@ -1373,6 +1373,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#functionGrouping}.
+   * @param ctx the parse tree
+   */
+  void enterFunctionGrouping(EsqlBaseParser.FunctionGroupingContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#functionGrouping}.
+   * @param ctx the parse tree
+   */
+  void exitFunctionGrouping(EsqlBaseParser.FunctionGroupingContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#functionName}.
    * @param ctx the parse tree
    */

@@ -1562,6 +1562,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterFunctionGrouping(EsqlBaseParser.FunctionGroupingContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFunctionGrouping(EsqlBaseParser.FunctionGroupingContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterFunctionName(EsqlBaseParser.FunctionNameContext ctx) { }
   /**
    * {@inheritDoc}

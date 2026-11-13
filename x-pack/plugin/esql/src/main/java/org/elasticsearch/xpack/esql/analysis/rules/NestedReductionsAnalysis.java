@@ -24,7 +24,10 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.Nested;
@@ -49,6 +52,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /** Binds reductions before EVAL's aggregate verification; public outputs contain only completed parent values. */
 public final class NestedReductionsAnalysis {
@@ -251,7 +255,7 @@ public final class NestedReductionsAnalysis {
                             allPaths.add(scope.path());
                         }
                     }));
-                    Expression child = nested.field().transformUp(UnresolvedAttribute.class, attribute -> {
+                    Function<UnresolvedAttribute, Expression> scoped = attribute -> {
                         String name = attribute.name();
                         String rawName = name.startsWith(NestedScopeField.PREFIX) ? name.substring(NestedScopeField.PREFIX.length()) : name;
                         boolean primary = schema.roots().keySet().stream().anyMatch(path -> inPath(rawName, path));
@@ -268,8 +272,12 @@ public final class NestedReductionsAnalysis {
                         return name.equals(attribute.name())
                             ? attribute
                             : new UnresolvedAttribute(attribute.source(), name, attribute.id(), null);
-                    });
-                    return child == nested.field() ? nested : new Nested(nested.source(), child);
+                    };
+                    List<Expression> children = nested.children()
+                        .stream()
+                        .map(c -> c.transformUp(UnresolvedAttribute.class, scoped))
+                        .toList();
+                    return children.equals(nested.children()) ? nested : nested.replaceChildren(children);
                 });
             });
         }
@@ -347,7 +355,26 @@ public final class NestedReductionsAnalysis {
         if (body.anyMatch(e -> e instanceof Nested || e instanceof FullTextFunction)) {
             throw error(nested, "NESTED does not allow inner scopes or full-text functions");
         }
-        if (body instanceof Sum == false && body instanceof Last == false) {
+        List<Expression> keys = nested.keys();
+        if (nested.extraArguments().isEmpty() == false) {
+            throw error(nested, "NESTED takes one expression");
+        }
+        if (keys.isEmpty() == false) {
+            if (body instanceof Count == false
+                && body instanceof Sum == false
+                && body instanceof Min == false
+                && body instanceof Max == false) {
+                throw error(nested, "NESTED BY supports COUNT, SUM, MIN and MAX, not [" + body.sourceText() + "]");
+            }
+            for (Expression key : keys) {
+                if (key instanceof FieldAttribute == false) {
+                    throw error(key, "NESTED BY requires child fields, not [" + key.sourceText() + "]");
+                }
+                if (((FieldAttribute) key).field() instanceof NestedScopeField == false) {
+                    throw error(key, "Field [" + key.sourceText() + "] is outside the nested scope");
+                }
+            }
+        } else if (body instanceof Sum == false && body instanceof Last == false) {
             if (body.anyMatch(AggregateFunction.class::isInstance)) {
                 throw error(nested, "NESTED supports SUM and LAST only, not [" + body.sourceText() + "]");
             }
@@ -370,6 +397,7 @@ public final class NestedReductionsAnalysis {
         }
         Map<NameId, Attribute> fields = new LinkedHashMap<>();
         body.forEachDown(Attribute.class, a -> fields.putIfAbsent(a.id(), a));
+        keys.forEach(key -> fields.putIfAbsent(((Attribute) key).id(), (Attribute) key));
         String path = null;
         Set<String> indices = new HashSet<>();
         Map<String, String> sourceFailures = new HashMap<>();
@@ -418,6 +446,7 @@ public final class NestedReductionsAnalysis {
             mapped.add(((NestedScopeField) ((FieldAttribute) attr).field()).indices());
         }
         Expression bound = body.transformUp(Attribute.class, a -> replacement.get(a.id()));
+        List<Attribute> groupings = keys.stream().map(key -> replacement.get(((Attribute) key).id())).toList();
         if (bound instanceof Sum sum) {
             bound = sum.forTransportVersion(context.minimumVersion());
         }
@@ -433,7 +462,7 @@ public final class NestedReductionsAnalysis {
             }
             metadata.add(found);
         }
-        return new NestedReduction(nested.source(), metadata, path, indices, bound, channels, paths, mapped, sourceFailures);
+        return new NestedReduction(nested.source(), metadata, path, indices, bound, groupings, channels, paths, mapped, sourceFailures);
     }
 
     /**

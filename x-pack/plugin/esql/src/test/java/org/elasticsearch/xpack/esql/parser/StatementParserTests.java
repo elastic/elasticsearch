@@ -3584,7 +3584,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String cmd = command.getKey();
             String error = command.getValue();
             String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
-                ? "mismatched input ',' expecting ')'"
+                ? "mismatched input ',' expecting {'by', ')'}"
                 : "no viable alternative at input 'fn(f1,";
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":1}, {\"option\":2})"),

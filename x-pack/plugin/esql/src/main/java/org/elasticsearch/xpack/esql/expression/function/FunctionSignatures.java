@@ -26,17 +26,52 @@ import java.util.regex.Pattern;
  *     positional reference {@code $N} / {@code $N.noText}. Type groups and {@code |}
  *     unions are not allowed in the return type.
  * </p>
+ * <p>
+ *     A {@link MapParam} position uses {@link #NAMED_PARAMETERS} instead of a data type.
+ * </p>
  */
 public final class FunctionSignatures {
     private static final Pattern RETURN_PARAM_REF = Pattern.compile("\\$(\\d+)(?:\\.(.+))?");
     private static final String NO_TEXT_MODIFIER = "noText";
 
+    /**
+     * Signature token for a {@link MapParam} argument. It is not a {@link DataType}.
+     */
+    public static final String NAMED_PARAMETERS = "named_parameters";
+
     private FunctionSignatures() {}
 
     /**
-     * A fully expanded signature: one concrete type per argument, plus return type.
+     * One argument of an expanded signature. {@link #ofNamedParameters()} stands for
+     * {@link FunctionSignatures#NAMED_PARAMETERS} and has no {@link DataType}.
      */
-    public record ConcreteSignature(List<DataType> argTypes, DataType returnType) {}
+    public record SignatureArg(DataType dataType, boolean namedParameters) {
+        public SignatureArg {
+            if (namedParameters && dataType != null) {
+                throw new IllegalArgumentException(NAMED_PARAMETERS + " has no data type");
+            }
+            if (namedParameters == false && dataType == null) {
+                throw new IllegalArgumentException("signature argument requires a data type");
+            }
+        }
+
+        public static SignatureArg of(DataType dataType) {
+            return new SignatureArg(dataType, false);
+        }
+
+        public static SignatureArg ofNamedParameters() {
+            return new SignatureArg(null, true);
+        }
+
+        public String typeName() {
+            return namedParameters ? NAMED_PARAMETERS : dataType.typeName();
+        }
+    }
+
+    /**
+     * A fully expanded signature: one argument descriptor per position, plus return type.
+     */
+    public record ConcreteSignature(List<SignatureArg> argTypes, DataType returnType) {}
 
     /**
      * Declared signatures for {@code def}, or an empty set when the function has not
@@ -70,7 +105,7 @@ public final class FunctionSignatures {
 
     private static List<ConcreteSignature> expandOne(Signature signature) {
         String returnDecl = signature.returnType().trim();
-        List<List<DataType>> perPosition = new ArrayList<>(signature.params().length);
+        List<List<SignatureArg>> perPosition = new ArrayList<>(signature.params().length);
         for (String param : signature.params()) {
             perPosition.add(resolveParam(param));
         }
@@ -83,10 +118,16 @@ public final class FunctionSignatures {
                     "return type reference [" + returnDecl + "] is out of range for " + signature.params().length + " parameter(s)"
                 );
             }
+            if (perPosition.get(index).stream().anyMatch(SignatureArg::namedParameters)) {
+                throw new IllegalArgumentException("return type [" + returnDecl + "] cannot reference " + NAMED_PARAMETERS);
+            }
             boolean applyNoText = parseReturnRefModifier(returnDecl, ref.group(2));
             return expandWithReturnRef(perPosition, index, applyNoText);
         }
 
+        if (NAMED_PARAMETERS.equalsIgnoreCase(returnDecl)) {
+            throw new IllegalArgumentException("return type cannot be " + NAMED_PARAMETERS);
+        }
         if (returnDecl.contains("|")) {
             throw new IllegalArgumentException(
                 "return type [" + returnDecl + "] must be a concrete type or $N / $N.noText reference, not a union"
@@ -120,20 +161,33 @@ public final class FunctionSignatures {
      * Expand params freely; for each concrete arg list, return type follows
      * {@code args.get(index)}, optionally via {@link DataType#noText()}.
      */
-    private static List<ConcreteSignature> expandWithReturnRef(List<List<DataType>> perPosition, int index, boolean applyNoText) {
+    private static List<ConcreteSignature> expandWithReturnRef(List<List<SignatureArg>> perPosition, int index, boolean applyNoText) {
         List<ConcreteSignature> expanded = new ArrayList<>();
         expandRecursive(perPosition, 0, new ArrayList<>(perPosition.size()), null, index, applyNoText, expanded);
         return expanded;
     }
 
-    private static List<DataType> resolveParam(String param) {
-        List<DataType> types = new ArrayList<>();
+    private static List<SignatureArg> resolveParam(String param) {
+        List<String> parts = new ArrayList<>();
         for (String part : param.split("\\|")) {
             String trimmed = part.trim();
             if (trimmed.isEmpty()) {
                 throw new IllegalArgumentException("empty type in signature param [" + param + "]");
             }
-            types.addAll(resolveToken(trimmed));
+            parts.add(trimmed);
+        }
+        boolean namedParameters = parts.stream().anyMatch(NAMED_PARAMETERS::equalsIgnoreCase);
+        if (namedParameters) {
+            if (parts.size() != 1) {
+                throw new IllegalArgumentException("parameter [" + param + "] mixes " + NAMED_PARAMETERS + " with data types");
+            }
+            return List.of(SignatureArg.ofNamedParameters());
+        }
+        List<SignatureArg> types = new ArrayList<>();
+        for (String part : parts) {
+            for (DataType type : resolveToken(part)) {
+                types.add(SignatureArg.of(type));
+            }
         }
         return types;
     }
@@ -160,9 +214,9 @@ public final class FunctionSignatures {
      * @param applyNoText when using a return ref, apply {@link DataType#noText()} to the referenced type
      */
     private static void expandRecursive(
-        List<List<DataType>> perPosition,
+        List<List<SignatureArg>> perPosition,
         int index,
-        List<DataType> current,
+        List<SignatureArg> current,
         DataType fixedReturn,
         Integer returnRefIndex,
         boolean applyNoText,
@@ -173,7 +227,7 @@ public final class FunctionSignatures {
             if (fixedReturn != null) {
                 returnType = fixedReturn;
             } else {
-                returnType = current.get(returnRefIndex);
+                returnType = current.get(returnRefIndex).dataType();
                 if (applyNoText) {
                     returnType = returnType.noText();
                 }
@@ -181,7 +235,7 @@ public final class FunctionSignatures {
             out.add(new ConcreteSignature(List.copyOf(current), returnType));
             return;
         }
-        for (DataType type : perPosition.get(index)) {
+        for (SignatureArg type : perPosition.get(index)) {
             current.add(type);
             expandRecursive(perPosition, index + 1, current, fixedReturn, returnRefIndex, applyNoText, out);
             current.remove(current.size() - 1);

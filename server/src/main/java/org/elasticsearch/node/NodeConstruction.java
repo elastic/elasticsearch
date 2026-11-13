@@ -1382,7 +1382,6 @@ class NodeConstruction {
             searchModule.getFetchPhase(),
             circuitBreakerService,
             systemIndices.getExecutorSelector(),
-            telemetryProvider.getTracer(),
             onlinePrewarmingService,
             transportService.getTaskManager()
         );

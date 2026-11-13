@@ -21,6 +21,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.search.NonPruningSortField;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -905,9 +906,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
         for (SortMode sortMode : SortMode.values()) {
             SortField sortField = new FieldSortBuilder("custom-integer").sortMode(sortMode).build(context).field();
+            assertThat(sortField, instanceOf(NonPruningSortField.class));
             if (sortMode == SortMode.MIN || sortMode == SortMode.MAX) {
-                assertThat(sortField, instanceOf(SortedNumericSortField.class));
-                SortedNumericSortField numericSortField = (SortedNumericSortField) sortField;
+                SortedNumericSortField numericSortField = (SortedNumericSortField) Lucene.unwrapSortField(sortField);
                 assertThat(numericSortField.getNumericType(), equalTo(SortField.Type.LONG));
                 assertThat(
                     numericSortField.getSelector(),
@@ -926,6 +927,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             MappedFieldType.FielddataOperation.SEARCH
         );
         SortField indexSort = fieldData.indexSort(oldVersion, null, MultiValueMode.MAX, true);
+        assertThat(indexSort, not(instanceOf(NonPruningSortField.class)));
         assertThat(indexSort, instanceOf(SortedNumericSortField.class));
         SortedNumericSortField numericIndexSort = (SortedNumericSortField) indexSort;
         assertThat(numericIndexSort.getNumericType(), equalTo(SortField.Type.LONG));

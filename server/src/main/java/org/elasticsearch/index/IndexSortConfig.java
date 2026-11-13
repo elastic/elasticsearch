@@ -17,6 +17,7 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -528,6 +529,7 @@ public final class IndexSortConfig {
     );
 
     public static SortField.Type getSortFieldType(SortField sortField) {
+        sortField = Lucene.unwrapSortField(sortField);
         if (sortField instanceof SortedSetSortField) {
             return SortField.Type.STRING;
         } else if (sortField instanceof BinarySortField) {

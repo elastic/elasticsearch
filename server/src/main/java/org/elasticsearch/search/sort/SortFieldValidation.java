@@ -17,6 +17,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.util.Collection;
@@ -207,6 +208,7 @@ public final class SortFieldValidation {
     }
 
     public static SortField.Type getType(SortField sortField) {
+        sortField = Lucene.unwrapSortField(sortField);
         if (sortField instanceof SortedNumericSortField sf) {
             return sf.getNumericType();
         } else if (sortField instanceof SortedSetSortField) {

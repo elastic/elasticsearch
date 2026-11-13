@@ -44,6 +44,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.NonPruningSortField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
@@ -643,10 +644,20 @@ public class Lucene {
     }
 
     /**
+     * Returns the underlying {@link SortField} if {@code sortField} is a search-time
+     * {@link NonPruningSortField} wrapper, otherwise {@code sortField} itself.
+     * Index sorts must never be wrapped; search sorts that disable pruning are.
+     */
+    public static SortField unwrapSortField(SortField sortField) {
+        return sortField instanceof NonPruningSortField nonPruning ? nonPruning.getDelegate() : sortField;
+    }
+
+    /**
      * Returns the generic version of the provided {@link SortField} that
      * can be used to merge documents coming from different shards.
      */
     public static SortField rewriteMergeSortField(SortField sortField) {
+        sortField = unwrapSortField(sortField);
         if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
             return new SortField(sortField.getField(), SortField.Type.DOUBLE, false, sortField.getMissingValue());
         } else if (sortField.getClass() == SortedSetSortField.class) {

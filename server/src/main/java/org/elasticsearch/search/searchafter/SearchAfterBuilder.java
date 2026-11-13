@@ -20,6 +20,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
@@ -145,6 +146,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
      * Returns the inner {@link SortField.Type} expected for this sort field.
      */
     static SortField.Type extractSortType(SortField sortField) {
+        sortField = Lucene.unwrapSortField(sortField);
         if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource) {
             return ((IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource()).reducedType();
         } else if (sortField instanceof SortedSetSortField) {

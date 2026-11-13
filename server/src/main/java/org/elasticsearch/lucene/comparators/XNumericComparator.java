@@ -49,10 +49,9 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
     private final int bytesCount; // how many bytes are used to encode this number
 
     protected boolean topValueSet;
-    protected boolean singleSort; // singleSort is true, if sort is based on a single sort field.
     protected boolean hitsThresholdReached;
     protected boolean queueFull;
-    protected Pruning pruning;
+    protected final Pruning pruning;
 
     protected XNumericComparator(String field, T missingValue, boolean reverse, Pruning pruning, int bytesCount) {
         this.field = field;
@@ -66,14 +65,6 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
     @Override
     public void setTopValue(T value) {
         topValueSet = true;
-    }
-
-    public void setSingleSort() {
-        singleSort = true;
-    }
-
-    public void disableSkipping() {
-        pruning = Pruning.NONE;
     }
 
     protected abstract long missingValueAsComparableLong();
@@ -248,22 +239,12 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
             }
         }
 
-        /**
-         * If {@link XNumericComparator#pruning} equals {@link Pruning#GREATER_THAN_OR_EQUAL_TO}, we
-         * could better tune the {@link #minValueAsLong}/{@link #minValueAsLong}. For instance, if the
-         * sort is ascending and top value is 3, we will use a range on [4, MAX_VALUE].
-         */
+        /** Sets the range bound that corresponds to the top value. */
         private void encodeTop() {
             if (reverse == false) {
                 minValueAsLong = leafComparator.topAsComparableLong();
-                if (singleSort && pruning == Pruning.GREATER_THAN_OR_EQUAL_TO && queueFull && minValueAsLong != Long.MAX_VALUE) {
-                    minValueAsLong++;
-                }
             } else {
                 maxValueAsLong = leafComparator.topAsComparableLong();
-                if (singleSort && pruning == Pruning.GREATER_THAN_OR_EQUAL_TO && queueFull && maxValueAsLong != Long.MIN_VALUE) {
-                    maxValueAsLong--;
-                }
             }
         }
 

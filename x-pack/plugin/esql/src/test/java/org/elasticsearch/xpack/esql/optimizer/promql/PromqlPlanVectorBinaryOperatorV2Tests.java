@@ -92,6 +92,18 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
         assertThat(plan.collect(HashJoin.class), empty());
     }
 
+    /**
+     * A filter comparison against a scalar that is not a literal, on either side, filters the series rather than being
+     * rejected.
+     */
+    public void testComparisonWithAComputedScalarFiltersTheSeries() {
+        for (String query : List.of("network.bytes_in > pi() - 1", "pi() - 1 < network.bytes_in")) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1h " + query, false);
+
+            assertThat(query, plan.collect(Filter.class), not(empty()));
+        }
+    }
+
     /** The translated operators plan through the optimizer. */
     public void testOperatorsOptimize() {
         for (String query : List.of(

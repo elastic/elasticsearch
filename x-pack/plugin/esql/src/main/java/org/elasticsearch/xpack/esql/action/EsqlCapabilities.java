@@ -4284,6 +4284,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_CARRIED_FIELD_LABELS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL filter comparisons against a scalar keep the vector's value whichever side the scalar is on, and a scalar
+         * computed from the source, such as {@code scalar(sum(x))}, may be the right-hand side.
+         */
+        FIX_PROMQL_SCALAR_COMPARISON(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),

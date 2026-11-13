@@ -576,7 +576,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                                 fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
                             );
                         }
-                        if (comp.match() == VectorMatch.NONE && comp.right() instanceof LiteralSelector == false) {
+                        // A scalar computed from the source, such as scalar(sum(x)), broadcasts per step on either side.
+                        if (comp.match() == VectorMatch.NONE
+                            && comp.right() instanceof LiteralSelector == false
+                            && PromqlPlan.returnsScalar(comp.right()) == false) {
                             failures.add(
                                 fail(
                                     lp,

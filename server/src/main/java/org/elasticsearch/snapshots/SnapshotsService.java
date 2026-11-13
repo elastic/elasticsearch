@@ -814,8 +814,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     /// from a single repository.
     private void runReadyShardClonesInEntries(List<SnapshotsInProgress.Entry> entries) {
         for (SnapshotsInProgress.Entry entry : entries) {
-            if (entry.isClone() && entry.state() == SnapshotsInProgress.State.STARTED) {
-                // this is a clone, see if new work is ready
+            if (entry.isClone()
+                && (entry.state() == SnapshotsInProgress.State.STARTED || entry.state() == SnapshotsInProgress.State.ABORTED)) {
+                // this is a clone, see if new work is ready; an ABORTED clone may still have ABORTED shards whose clone was running
+                // on a previous master, and nothing else will mark them as FAILED
                 for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> clone : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
                     if (clone.getValue().state() == ShardState.INIT) {
                         runReadyShardClone(
@@ -825,18 +827,21 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             clone.getKey(),
                             repositoriesService.repository(entry.projectId(), entry.repository())
                         );
-                    } else if (clone.getValue().state() == ShardState.ABORTED) {
+                    } else if (clone.getValue().state() == ShardState.ABORTED && runningShardClones.add(clone.getKey())) {
                         createAndSubmitRequestToUpdateSnapshotState(
                             entry.snapshot(),
                             null,
                             clone.getKey(),
                             new ShardSnapshotStatus(
-                                clone.getValue().nodeId(),
+                                clusterService.localNode().getId(),
                                 ShardState.FAILED,
                                 clone.getValue().generation(),
                                 clone.getValue().reason()
                             ),
-                            failedShardCloneUpdateListener(entry.source(), entry.snapshot().getSnapshotId(), clone.getKey())
+                            ActionListener.runBefore(
+                                failedShardCloneUpdateListener(entry.source(), entry.snapshot().getSnapshotId(), clone.getKey()),
+                                () -> runningShardClones.remove(clone.getKey())
+                            )
                         );
                     }
                 }

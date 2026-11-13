@@ -30,19 +30,19 @@ The following table shows where each [supported file format](esql-data-federatio
 | CSV and TSV without a header row | Sampled rows | `col0`, `col1`, and so on, by position. The [`column_prefix`](esql-data-federation-dataset-settings.md#csv-column-prefix) setting controls the prefix. |
 | NDJSON | Sampled rows | JSON keys. Nested objects use dotted names, such as `user.id`. |
 
-Parquet metadata can also contain column statistics and bloom filters that let queries skip irrelevant data. For text formats, use `schema_sample_size` for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-schema-sample-size) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-schema-sample-size) to control how many rows or lines are sampled.
+Parquet metadata can also contain column statistics and bloom filters that let queries skip irrelevant data. For text formats, use `schema_sample_size` for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-schema-sample-size) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-schema-sample-size) to control how many rows or lines are sampled. Sampling also stops after 32 MiB of decoded bytes, so a file of wide rows cannot pull an unbounded prefix onto the coordinating node. If the first record is larger than that cap, the query fails; declare a schema.
 
 ### How the sample is shared across files [shared-schema-sample]
 ```{applies_to}
 stack: preview 9.6+
 ```
 
-With the `union_by_name` and `strict` [strategies](#choose-a-schema-resolution-strategy), every file a query reads is sampled, and the files split `schema_sample_size` between them. Each file gets `schema_sample_size` divided by the number of files, with that number rounded up to a power of two, and never fewer than `100` rows or lines unless `schema_sample_size` is lower.
+With the `union_by_name` and `strict` [strategies](#choose-a-schema-resolution-strategy), every file a query reads is sampled, and the files split `schema_sample_size` between them. Each file gets `schema_sample_size` divided by the number of files, with that number rounded up to a power of two, and never fewer than `100` rows or lines unless `schema_sample_size` is lower. The 32 MiB decoded-byte cap is split the same way, never fewer than 1 MiB per file.
 
 For example, with the default CSV `schema_sample_size` of `40000`:
 
-- A query over 3 files samples `10000` rows from each.
-- A query over 3000 files samples `100` rows from each, `300000` rows in total.
+- A query over 3 files samples `10000` rows from each, up to 8 MiB decoded.
+- A query over 3000 files samples `100` rows from each, `300000` rows in total, up to 1 MiB decoded per file.
 
 A file's share is the rows or lines sampled from it. A column that first appears after those rows isn't part of the inferred schema, and neither is a type change in an existing column. With `strict`, this means a type difference after the sampled rows isn't caught when the query is planned. The value is read as the inferred type instead, and if it can't be converted, [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) decides whether the query fails, the row is skipped, or the value becomes null.
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -490,6 +491,17 @@ public final class ExternalSourceSettings {
             );
         }
     }
+
+    /**
+     * Internal decoded-byte cap for text-format schema inference (CSV, TSV, NDJSON). Not a dataset key:
+     * {@code schema_sample_size} is the user control for type quality, and this is the safety rail that
+     * stops a file of wide rows from pulling an unbounded prefix onto the coordinator. Shared across
+     * files the same way the row sample is (see {@code FormatReader#withSchemaSampleShare}), never
+     * below {@code FormatReader#MIN_SHARED_SCHEMA_SAMPLE_BYTES}. 32 MiB matches ClickHouse's
+     * {@code input_format_max_bytes_to_read_for_schema_inference}. A first record wider than the cap
+     * cannot infer; declare a schema.
+     */
+    public static final ByteSizeValue DEFAULT_SCHEMA_SAMPLE_BYTES = ByteSizeValue.ofMb(32);
 
     /**
      * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings

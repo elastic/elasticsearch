@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -24,8 +27,11 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.StoredResultMetadata;
 import org.elasticsearch.xpack.esql.plugin.TransportReadAsyncResultPagesAction;
 import org.elasticsearch.xpack.esql.plugin.TransportReadAsyncResultPagesAction.StoredPage;
@@ -40,6 +46,7 @@ import java.util.stream.LongStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -71,6 +78,14 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
     }
 
     @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true)
+            .build();
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(ResultsIndexPlugin.class);
@@ -90,6 +105,9 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
 
     private EsqlStreamQueryAction.ResultStream stream(boolean store, StreamQueryTestUtils.CountingStreamSubscriber subscriber) {
         EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest("FROM test | KEEP v | LIMIT 10000");
+        // small pages, so that a result is stored as many pages
+        source.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.PAGE_SIZE.getKey(), between(1, 10)).build()));
+        source.acceptedPragmaRisks(true);
         AtomicReference<EsqlStreamQueryAction.ResultStream> startRef = new AtomicReference<>();
         EsqlStreamQueryRequest request = new EsqlStreamQueryRequest(source, ActionListener.wrap(resultStream -> {
             startRef.set(resultStream);
@@ -114,10 +132,53 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         assertFalse(indexExists(AsyncResultPagesIndex.INDEX));
     }
 
+    public void testStoreRequiresBatchIndexing() {
+        indexDocs();
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false));
+        try {
+            EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest("FROM test | KEEP v");
+            EsqlStreamQueryRequest request = new EsqlStreamQueryRequest(source, ActionListener.noop(), false).store(true);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().execute(EsqlStreamQueryAction.INSTANCE, request).actionGet(TEST_REQUEST_TIMEOUT)
+            );
+            assertThat(e.getMessage(), containsString(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(BatchIndexingEnabled.BATCH_INDEXING.getKey()));
+        }
+    }
+
+    @TestLogging(value = "org.elasticsearch.action.bulk.ShardBatchIndexer:TRACE", reason = "checks that pages take the batch path")
     public void testStored() throws Exception {
         int numDocs = indexDocs();
         var subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
-        var resultStream = stream(true, subscriber);
+        AtomicReference<EsqlStreamQueryAction.ResultStream> streamRef = new AtomicReference<>();
+        MockLog.assertThatLogger(() -> {
+            streamRef.set(stream(true, subscriber));
+            // pages are stored in the background, after the stream completes
+            AsyncExecutionId id = AsyncExecutionId.decode(streamRef.get().id());
+            try {
+                assertBusy(() -> {
+                    try {
+                        assertThat(readPages(id.getDocId(), 0, 1).size(), equalTo(1));
+                    } catch (Exception e) {
+                        // the result is stored in the background and may not be there yet
+                        throw new AssertionError(e);
+                    }
+                });
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        },
+            ShardBatchIndexer.class,
+            new MockLog.SeenEventExpectation(
+                "batch path",
+                ShardBatchIndexer.class.getCanonicalName(),
+                Level.TRACE,
+                "batch indexed [*] operations on primary shard*"
+            )
+        );
+        var resultStream = streamRef.get();
         assertThat(subscriber.rowCount.get(), equalTo(numDocs));
         assertThat(resultStream.id(), notNullValue());
         String docId = AsyncExecutionId.decode(resultStream.id()).getDocId();

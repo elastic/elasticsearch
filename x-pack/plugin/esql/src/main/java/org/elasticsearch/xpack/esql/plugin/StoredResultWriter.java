@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -17,22 +18,27 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.escf.EscfBatchBuilder;
+import org.elasticsearch.escf.EscfRowBuffer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
 
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ASYNC_ID_FIELD;
@@ -44,12 +50,11 @@ import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ROW_COUNT
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.TRANSPORT_VERSION_FIELD;
 
 /**
- * Stores the result of a streaming query while it is streamed. Page {@code 0}, the {@link StoredResultMetadata},
- * is written first; each page of rows is then serialized as it is handed to the client and indexed in the
- * background, one bulk at a time. Only the serialized bytes wait for the bulk to be acknowledged, and producers
- * are held back while too many bytes are waiting. Page {@code 0} is rewritten last, once the query is done, and
- * the index is then refreshed so the whole result is visible. Pages are serialized with the minimum transport version
- * of the cluster so that any node can read them.
+ * Stores the result of a streaming query while it is streamed. Page {@code 0}, the {@link StoredResultMetadata}, is written
+ * first and rewritten once the query is done, and the index is then refreshed so that the whole result is visible. Each page
+ * of rows is serialized straight into a columnar batch as it is handed to the client, at the cluster's minimum transport
+ * version so that any node can read it, and indexed in the background, one bulk at a time. Producers are held back while too
+ * many serialized bytes wait for a bulk to be acknowledged.
  */
 final class StoredResultWriter implements PageStreamPublisher.PageObserver {
 
@@ -58,17 +63,31 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     static final int PAGES_PER_BULK = 16;
     static final long MAX_UNACKED_BYTES = ByteSizeValue.ofMb(4).getBytes();
 
-    private record Pending(IndexRequest request, long bytes) {}
+    /**
+     * The pages of one bulk, serialized into a batch as they arrive.
+     */
+    private final class Chunk implements Releasable {
+        private final EscfBatchBuilder builder = new EscfBatchBuilder(recycler);
+        private final List<IndexRequest> requests = new ArrayList<>(PAGES_PER_BULK);
+        private long bytes;
+
+        @Override
+        public void close() {
+            builder.close();
+        }
+    }
 
     private final Client client;
     private final ClusterService clusterService;
+    private final Recycler<BytesRef> recycler;
     private final String docId;
+    private final byte[] docIdBytes;
     private final StoredResultMetadata running;
     private final long expirationTime;
     private final PageStreamPublisher publisher;
 
     // Guarded by this
-    private final ArrayDeque<Pending> queue = new ArrayDeque<>();
+    private final ArrayDeque<Chunk> chunks = new ArrayDeque<>();
     private long unackedBytes;
     private boolean bulkInFlight;
     private int nextSeq = 1;
@@ -79,6 +98,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     StoredResultWriter(
         Client client,
         ClusterService clusterService,
+        Recycler<BytesRef> recycler,
         String docId,
         StoredResultMetadata running,
         long expirationTime,
@@ -86,7 +106,9 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     ) {
         this.client = new OriginSettingClient(client, ASYNC_SEARCH_ORIGIN);
         this.clusterService = clusterService;
+        this.recycler = recycler;
         this.docId = docId;
+        this.docIdBytes = docId.getBytes(StandardCharsets.UTF_8);
         this.running = running;
         this.expirationTime = expirationTime;
         this.publisher = publisher;
@@ -96,18 +118,19 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
      * Writes page {@code 0} before any page of rows.
      */
     void start() {
-        enqueue(() -> metadataRequest(running));
+        addMetadata(running);
         flush();
     }
 
     @Override
     public void onPage(Page page) {
-        enqueue(() -> {
-            IndexRequest request = pageRequest(nextSeq, nextRow, page);
-            nextSeq++;
-            nextRow += page.getPositionCount();
-            return request;
-        });
+        synchronized (this) {
+            if (failure == null) {
+                add(nextSeq, nextRow, page.getPositionCount(), page, DocWriteRequest.OpType.CREATE, false);
+                nextSeq++;
+                nextRow += page.getPositionCount();
+            }
+        }
         flush();
     }
 
@@ -120,17 +143,17 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
      * Rewrites page {@code 0} with how the query ended, once every page before it is stored.
      */
     void finish(@Nullable PageStreamPublisher.StreamFooter footer, @Nullable Exception error) {
-        enqueue(() -> {
+        StoredResultMetadata.Status status;
+        if (error != null) {
+            status = StoredResultMetadata.Status.FAILED;
+        } else if (footer == null) {
+            status = StoredResultMetadata.Status.CANCELLED;
+        } else {
+            status = StoredResultMetadata.Status.COMPLETED;
+        }
+        synchronized (this) {
             finished = true;
-            StoredResultMetadata.Status status;
-            if (error != null) {
-                status = StoredResultMetadata.Status.FAILED;
-            } else if (footer == null) {
-                status = StoredResultMetadata.Status.CANCELLED;
-            } else {
-                status = StoredResultMetadata.Status.COMPLETED;
-            }
-            return metadataRequest(
+            addMetadata(
                 new StoredResultMetadata(
                     running.headers(),
                     running.columns(),
@@ -144,46 +167,85 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
                     error
                 )
             );
-        });
+        }
         flush();
     }
 
-    private interface RequestSupplier {
-        IndexRequest get() throws IOException;
+    /**
+     * Page {@code 0} is written twice, and a batch cannot hold the same document twice, so it starts a batch of its own.
+     */
+    private synchronized void addMetadata(StoredResultMetadata metadata) {
+        if (failure == null) {
+            add(0, 0, 0, metadata, DocWriteRequest.OpType.INDEX, true);
+        }
     }
 
-    private synchronized void enqueue(RequestSupplier supplier) {
-        if (failure != null) {
+    private void add(int seq, long firstRow, int rowCount, Writeable content, DocWriteRequest.OpType opType, boolean newChunk) {
+        assert Thread.holdsLock(this);
+        Chunk chunk = chunks.peekLast();
+        if (chunk == null || newChunk || chunk.requests.size() >= PAGES_PER_BULK) {
+            chunk = new Chunk();
+            chunks.add(chunk);
+        }
+        TransportVersion version = clusterService.state().getMinTransportVersion();
+        long[] written = new long[1];
+        try {
+            EscfRowBuffer row = chunk.builder.beginRow();
+            row.stringField(ASYNC_ID_FIELD, docIdBytes, 0, docIdBytes.length);
+            row.longField(PAGE_SEQ_FIELD, seq);
+            row.longField(FIRST_ROW_FIELD, firstRow);
+            row.longField(ROW_COUNT_FIELD, rowCount);
+            row.longField(TRANSPORT_VERSION_FIELD, version.id());
+            if (seq == 0) {
+                row.longField(EXPIRATION_TIME_FIELD, expirationTime);
+            }
+            row.binaryField(PAGE_FIELD, out -> {
+                out.setTransportVersion(version);
+                long start = out.position();
+                content.writeTo(out);
+                written[0] = out.position() - start;
+            });
+            row.finishRow();
+            chunk.builder.commit(0);
+        } catch (Exception e) {
+            fail(e);
             return;
         }
-        try {
-            IndexRequest request = supplier.get();
-            long bytes = request.source().length();
-            queue.add(new Pending(request, bytes));
-            unackedBytes += bytes;
-        } catch (IOException e) {
-            fail(e);
-        }
+        String id = seq == 0 ? docId : AsyncResultPagesIndex.pageDocId(docId, seq);
+        chunk.requests.add(new IndexRequest(AsyncResultPagesIndex.INDEX).id(id).opType(opType));
+        chunk.bytes += written[0];
+        unackedBytes += written[0];
     }
 
     private void flush() {
-        BulkRequest bulk;
-        long bytes = 0;
+        Chunk chunk;
         boolean last;
         synchronized (this) {
-            if (bulkInFlight || queue.isEmpty() || failure != null) {
+            if (bulkInFlight || chunks.isEmpty() || failure != null) {
                 return;
             }
-            bulk = new BulkRequest();
-            for (int i = 0; i < PAGES_PER_BULK && queue.isEmpty() == false; i++) {
-                Pending pending = queue.poll();
-                bulk.add(pending.request);
-                bytes += pending.bytes;
-            }
-            last = finished && queue.isEmpty();
+            chunk = chunks.poll();
+            last = finished && chunks.isEmpty();
             bulkInFlight = true;
         }
-        final long sentBytes = bytes;
+        final long sentBytes = chunk.bytes;
+        BulkRequest bulk = new BulkRequest();
+        EscfBatch batch = null;
+        try (chunk) {
+            batch = chunk.builder.buildPartition(0);
+            for (int i = 0; i < chunk.requests.size(); i++) {
+                IndexRequest request = chunk.requests.get(i);
+                request.indexSource().setSourceRow(batch, i, XContentType.JSON);
+                bulk.add(request);
+            }
+            // the bulk owns the batch from here on
+            bulk.setPreBuiltBatches(Map.of(AsyncResultPagesIndex.INDEX, batch));
+            batch = null;
+        } catch (Exception e) {
+            Releasables.close(batch);
+            onBulkDone(sentBytes, last, e);
+            return;
+        }
         client.bulk(
             bulk,
             ActionListener.wrap(response -> onBulkDone(sentBytes, last, firstFailure(response)), e -> onBulkDone(sentBytes, last, e))
@@ -215,7 +277,8 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
             failure = e;
             logger.warn(() -> "failed to store result [" + docId + "]", e);
         }
-        queue.clear();
+        Releasables.close(chunks);
+        chunks.clear();
         unackedBytes = 0;
     }
 
@@ -230,37 +293,5 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
             }
         }
         return null;
-    }
-
-    private IndexRequest metadataRequest(StoredResultMetadata metadata) throws IOException {
-        return request(docId, 0, 0, 0, metadata).opType(DocWriteRequest.OpType.INDEX);
-    }
-
-    private IndexRequest pageRequest(int seq, long firstRow, Page page) throws IOException {
-        return request(AsyncResultPagesIndex.pageDocId(docId, seq), seq, firstRow, page.getPositionCount(), page).opType(
-            DocWriteRequest.OpType.CREATE
-        );
-    }
-
-    private IndexRequest request(String id, int seq, long firstRow, int rowCount, Writeable content) throws IOException {
-        TransportVersion version = clusterService.state().getMinTransportVersion();
-        BytesReference bytes;
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(version);
-            content.writeTo(out);
-            bytes = out.bytes();
-        }
-        XContentBuilder source = XContentFactory.cborBuilder()
-            .startObject()
-            .field(ASYNC_ID_FIELD, docId)
-            .field(PAGE_SEQ_FIELD, seq)
-            .field(FIRST_ROW_FIELD, firstRow)
-            .field(ROW_COUNT_FIELD, rowCount)
-            .field(TRANSPORT_VERSION_FIELD, version.id());
-        if (seq == 0) {
-            source.field(EXPIRATION_TIME_FIELD, expirationTime);
-        }
-        source.field(PAGE_FIELD, BytesReference.toBytes(bytes)).endObject();
-        return new IndexRequest(AsyncResultPagesIndex.INDEX).id(id).source(source);
     }
 }

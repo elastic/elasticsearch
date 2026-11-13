@@ -11,6 +11,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -149,6 +151,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     private final ClusterService clusterService;
     private final Executor requestExecutor;
     private final Client client;
+    private final BatchIndexingEnabled batchIndexingEnabled;
     private final QueryInterceptor<EsqlCaptureContext> queryInterceptor;
     private final TransportEsqlQueryAction transportEsqlQueryAction;
     private volatile boolean defaultAllowPartialResults;
@@ -186,6 +189,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.client = client;
+        this.batchIndexingEnabled = new BatchIndexingEnabled(clusterService.getClusterSettings());
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -213,6 +217,15 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
 
     @Override
     protected void doExecute(Task task, EsqlStreamQueryRequest request, ActionListener<ActionResponse.Empty> listener) {
+        // stored pages are indexed as columnar batches
+        if (request.store() && ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService) == false) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "storing a result requires batch indexing, enable [" + BatchIndexingEnabled.BATCH_INDEXING.getKey() + "]"
+                )
+            );
+            return;
+        }
         requestExecutor.execute(ActionRunnable.wrap(listener, l -> prepareAndExecuteWithLogging(task, request, l)));
     }
 
@@ -479,6 +492,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             StoredResultWriter writer = new StoredResultWriter(
                 client,
                 clusterService,
+                services.blockFactoryProvider().blockFactory().bigArrays().bytesRefRecycler(),
                 resultId.getDocId(),
                 StoredResultMetadata.running(securityHeaders, columns, zoneId),
                 threadPool.absoluteTimeInMillis() + Objects.requireNonNullElse(request.keepAlive(), EsqlQueryRequest.DEFAULT_KEEP_ALIVE)

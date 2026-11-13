@@ -8,6 +8,11 @@ import {
   isYamlSuite,
   splitCandidates,
   testSeconds,
+  versionedExecutions,
+  versionedItemRows,
+  versionedItemSums,
+  versionedTaskRows,
+  versionKey,
   type ItemRow,
   type PlannerConfig,
   type ProjectWork,
@@ -18,18 +23,20 @@ import { executionRows, fetchClient, itemRows, jobItemSums, taskRows, type JobSe
 // planner to turn into an assignment. Needs CI_STATS_URL and CI_STATS_API_KEY (a read-only key for the CI stats
 // cluster's gradle-tasks and gradle-tests indices).
 //
-//   node .buildkite/scripts/ci-parts/export.ts --suite check|bc-upgrade|esql-release [--days 14] [--builds 197107,197162]
+//   node .buildkite/scripts/ci-parts/export.ts --suite check|bc-upgrade|esql-release|bwc [--days 14] [--builds 197107,197162]
 //
 // --builds reads only those pull request builds (within --days), for when main doesn't run the part layout being
 // planned yet, for example from builds of a pull request that changes it.
 //
 // Then regenerate the assignment: ./gradlew generateCiPartAssignment (generateBcUpgradeTestPartAssignment,
-// generateEsqlReleaseTestPartAssignment).
+// generateEsqlReleaseTestPartAssignment, generateBwcTestPartAssignment).
 
 interface Suite {
   dir: string;
   jobName: string;
   projectWork: ProjectWork;
+  /** One assignment for every BWC version: task paths are keyed without their version (see durations.ts). */
+  versioned?: boolean;
 }
 
 const SUITES: Record<string, Suite> = {
@@ -40,6 +47,9 @@ const SUITES: Record<string, Suite> = {
   // the ES|QL release test jobs ("releaseTestCheckEsqlPart1 / release-tests"; job names are stored as lowercase slugs)
   // also run tasks of projects outside the suite, which their parts do not own
   "esql-release": { dir: ".ci/test-parts/esql-release", jobName: "releasetestcheckesql.*_release-tests", projectWork: "withTests" },
+  // v<version>#bwcTestPartN in the bwc-snapshots jobs ("9.1.0 / Part 2 / bwc-snapshots", stored as 9.1.0_part_2_bwc-snapshots),
+  // one job per part and version; their non-test work is the shared build of the BWC distribution
+  bwc: { dir: ".ci/test-parts/bwc", jobName: "[0-9.]+_part_[0-9]+_bwc-snapshots", projectWork: "none", versioned: true },
 };
 
 const PROJECT_ROOT = resolve(import.meta.dirname, "..", "..", "..");
@@ -73,25 +83,36 @@ const builds = values.builds?.split(",").map((b) => b.trim()).filter((b) => b.le
 const jobs: JobSelection = { jobName: suite.jobName, days: Number(values.days), ...(builds ? { builds } : {}) };
 const client = fetchClient(env("CI_STATS_URL"), env("CI_STATS_API_KEY"));
 
-const tasks = await taskRows(client, jobs);
+const rawTasks = await taskRows(client, jobs);
+const tasks = suite.versioned ? versionedTaskRows(rawTasks) : rawTasks;
 const candidates = splitCandidates(testSeconds(tasks), config, currentSplits);
+// the stats hold real task paths; for the BWC suite, a key stands for one path per version
+const keyOf = suite.versioned ? versionKey : (path: string): string => path;
+const pathsOf = (keys: string[]): string[] => {
+  const wanted = new Set(keys);
+  return [...new Set(rawTasks.map((t) => t.path))].filter((path) => wanted.has(keyOf(path)));
+};
+const foldItems = (rows: ItemRow[]): ItemRow[] => (suite.versioned ? versionedItemRows(rows) : rows);
 
 // tasks with several classes split by class; a task with one class is a YAML suite if its tests are YAML tests
-const classRows = await itemRows(client, jobs, candidates, true);
+const classRows = foldItems(await itemRows(client, jobs, pathsOf(candidates), true));
 const classesPerTask = new Map<string, number>();
 for (const row of classRows) {
   classesPerTask.set(row.task, (classesPerTask.get(row.task) ?? 0) + 1);
 }
 const classTasks = candidates.filter((t) => (classesPerTask.get(t) ?? 0) > 1);
 const singleClassTasks = candidates.filter((t) => classesPerTask.get(t) === 1);
-const testRows = await itemRows(client, jobs, singleClassTasks, false);
+const testRows = foldItems(await itemRows(client, jobs, pathsOf(singleClassTasks), false));
 const yamlTasks = singleClassTasks.filter((t) => isYamlSuite(testRows.filter((r) => r.task === t)));
 
-const [executions, classSums, yamlSums] = await Promise.all([
-  executionRows(client, jobs, candidates),
-  jobItemSums(client, jobs, classTasks, true),
-  jobItemSums(client, jobs, yamlTasks, false),
+const [rawExecutions, rawClassSums, rawYamlSums] = await Promise.all([
+  executionRows(client, jobs, pathsOf(candidates)),
+  jobItemSums(client, jobs, pathsOf(classTasks), true),
+  jobItemSums(client, jobs, pathsOf(yamlTasks), false),
 ]);
+const executions = suite.versioned ? versionedExecutions(rawExecutions) : rawExecutions;
+const classSums = suite.versioned ? versionedItemSums(rawClassSums) : rawClassSums;
+const yamlSums = suite.versioned ? versionedItemSums(rawYamlSums) : rawYamlSums;
 const items: ItemRow[] = [
   ...classRows.filter((r) => classTasks.includes(r.task)),
   ...testRows.filter((r) => yamlTasks.includes(r.task)),
@@ -102,8 +123,10 @@ const durations = buildDurations({
   source:
     `median executed duration (s) in elasticsearch-pull-request jobs matching '${suite.jobName}' of PRs against main, ` +
     (builds ? `builds ${builds.join(", ")}` : `${jobs.days} days to ${today}`) +
+    (suite.versioned ? ", the slowest BWC version's" : "") +
     `, retried jobs left out; exported by .buildkite/scripts/ci-parts/export.ts`,
   config,
+  versioned: suite.versioned,
   projectWork: suite.projectWork,
   currentSplits,
   taskRows: tasks,
@@ -116,5 +139,5 @@ writeFileSync(out, formatDurations(durations));
 console.log(
   `Wrote ${out}: ${Object.keys(durations.tests).length} test tasks, ${Object.keys(durations.projects).length} projects, ` +
     `items for ${Object.keys(durations.items).length} tasks, ${Object.keys(durations.overheads).length} measured fixed costs ` +
-    `(from ${tasks.length} task paths, ${executions.length} executions of ${candidates.length} candidate tasks)`
+    `(from ${rawTasks.length} task paths, ${executions.length} executions of ${candidates.length} candidate tasks)`
 );

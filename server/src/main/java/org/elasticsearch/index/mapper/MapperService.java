@@ -315,7 +315,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getNamespaceValidator(),
             projectMetadataSupplier,
             ParseFieldLimits.parseFieldLimits(reason, indexSettings),
-            source -> parseMappings(source, MergeReason.MAPPING_RECOVERY)
+            this::parseStoredMappings,
+            null
         );
         this.documentParser = new DocumentParser(
             parserConfiguration,
@@ -688,7 +689,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Parses a mapping source into a builder under the given reason
      */
     public MappingBuilder parseMappings(CompressedXContent mappingSource, MergeReason reason) {
-        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(mappingSource));
+        return parseMappings(mappingSource, reason, null);
+    }
+
+    /**
+     * Parses a mapping source into a builder under the given reason, only making builders for the fields {@code fieldFilter}
+     * keeps, or for all of them if it is null. Fields that are not kept are skipped before their parameters are parsed, so
+     * limits are not applied to them.
+     */
+    public MappingBuilder parseMappings(CompressedXContent mappingSource, MergeReason reason, @Nullable FieldPathFilter fieldFilter) {
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, MappingParser.convertToMap(mappingSource), fieldFilter);
+    }
+
+    private MappingBuilder parseStoredMappings(Map<String, Object> decodedMappings, @Nullable FieldPathFilter fieldFilter) {
+        return mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, MergeReason.MAPPING_RECOVERY, decodedMappings, fieldFilter);
     }
 
     private DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {

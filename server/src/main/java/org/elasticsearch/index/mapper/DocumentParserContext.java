@@ -901,7 +901,8 @@ public abstract class DocumentParserContext {
             update.accept(pending);
             return pending;
         }
-        Map<String, Mapper.Builder> stored = storedMapping.fieldBuilders(mappingParserContext, mappingLookup);
+        String registeredPath = mappingLookup.isMultiField(fullPath) ? mappingLookup.parentField(fullPath) : fullPath;
+        Map<String, Mapper.Builder> stored = storedMapping.fieldBuilders(mappingParserContext, mappingLookup, registeredPath);
         Mapper.Builder builder = stored.get(fullPath);
         if (builder == null) {
             throw new IllegalArgumentException("cannot update the mapping of [" + fullPath + "], which is not a mapped field");
@@ -909,7 +910,6 @@ public abstract class DocumentParserContext {
         // run the update before registering - updates may throw exceptions on bad data, for
         // example documents with multiple dense_vector fields of different lengths.
         update.accept(builder);
-        String registeredPath = mappingLookup.isMultiField(fullPath) ? mappingLookup.parentField(fullPath) : fullPath;
         addDynamicMapper(stored.get(registeredPath), registeredPath);
         return builder;
     }
@@ -947,23 +947,39 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Lazily computed Builders for the current set of Mappings, used by {@link #updateMapping(String, Consumer)}
+     * Lazily computed Builders for the fields of the current set of Mappings, used by {@link #updateMapping(String, Consumer)}.
+     * The source is decoded once, and only the part of it holding a requested field is parsed each time. The builders are kept
+     * so that later updates of the same field see the same instances.
      */
     private static final class StoredMapping {
-        private Map<String, Mapper.Builder> fieldBuilders;
+        private final Map<String, Mapper.Builder> fieldBuilders = new HashMap<>();
+        // decoded once, as decoding the whole source for each field would be costly when many fields are updated
+        private Map<String, Object> decodedRoot;
 
-        // TODO add a filter so that we don't re-parse the entire Mapping just to update a single field
-        Map<String, Mapper.Builder> fieldBuilders(MappingParserContext parserContext, MappingLookup mappingLookup) {
-            if (fieldBuilders == null) {
-                CompressedXContent source = mappingLookup.mappingSource();
-                if (source == null) {
-                    throw new IllegalStateException("the source of the mapping is not available to update a field of it");
+        Map<String, Mapper.Builder> fieldBuilders(MappingParserContext parserContext, MappingLookup mappingLookup, String fieldPath) {
+            if (fieldBuilders.containsKey(fieldPath) == false) {
+                if (decodedRoot == null) {
+                    CompressedXContent source = mappingLookup.mappingSource();
+                    if (source == null) {
+                        throw new IllegalStateException("the source of the mapping is not available to update a field of it");
+                    }
+                    decodedRoot = unwrapRoot(MappingParser.convertToMap(source));
                 }
-                Map<String, Mapper.Builder> collected = new HashMap<>();
-                parserContext.parseStoredMapping(source).collectFieldBuilders(MergeReason.MAPPING_RECOVERY, collected::put);
-                fieldBuilders = collected;
+                FieldPathFilter fieldFilter = FieldPathFilter.forPatterns(List.of(fieldPath));
+                parserContext.withFieldFilter(fieldFilter)
+                    .parseStoredMapping(decodedRoot)
+                    .collectFieldBuilders(MergeReason.MAPPING_RECOVERY, fieldBuilders::putIfAbsent);
             }
             return fieldBuilders;
+        }
+
+        // a stored mapping is wrapped in its type name, which is not always _doc
+        @SuppressWarnings("unchecked")
+        private static Map<String, Object> unwrapRoot(Map<String, Object> decodedMapping) {
+            if (decodedMapping.size() == 1 && decodedMapping.values().iterator().next() instanceof Map<?, ?> root) {
+                return (Map<String, Object>) root;
+            }
+            throw new IllegalStateException("expected the stored mapping to be wrapped in its type name");
         }
     }
 

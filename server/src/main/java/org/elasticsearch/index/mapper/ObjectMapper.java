@@ -859,6 +859,11 @@ public class ObjectMapper extends Mapper {
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
+                FieldPathFilter fieldFilter = parserContext.fieldPathFilter();
+                if (fieldFilter != null && fieldFilter.enter(fieldName, entry.getValue()) == false) {
+                    iterator.remove();
+                    continue;
+                }
                 validateFieldName(fieldName, parserContext.indexVersionCreated());
                 // Should accept empty arrays, as a work around for when the
                 // user can't provide an empty Map. (PHP for example)
@@ -937,6 +942,9 @@ public class ObjectMapper extends Mapper {
                     throw new MapperParsingException(
                         "Expected map for property [fields] on field [" + fieldName + "] but got a " + fieldName.getClass()
                     );
+                }
+                if (fieldFilter != null) {
+                    fieldFilter.exit();
                 }
             }
 

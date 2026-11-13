@@ -55,9 +55,11 @@ public class RestRequestMetrics implements HttpServerInstrumentation {
         30_000.
     );
 
+    private final ThreadContext threadContext;
     private final Map<RouteKey, DoubleHistogram> measuredRoutes;
 
-    public RestRequestMetrics(MeterRegistry meterRegistry) {
+    public RestRequestMetrics(ThreadContext threadContext, MeterRegistry meterRegistry) {
+        this.threadContext = threadContext;
         var search = meterRegistry.registerDoubleHistogram(
             "es.rest.search.duration",
             "Durations of search requests",
@@ -188,7 +190,7 @@ public class RestRequestMetrics implements HttpServerInstrumentation {
     }
 
     @Override
-    public void start(ThreadContext threadContext, RestRequest request, @Nullable String route) {
+    public void start(RestRequest request, @Nullable String route) {
         if (route == null) {
             return;
         }
@@ -208,7 +210,7 @@ public class RestRequestMetrics implements HttpServerInstrumentation {
     public void recordException(RestRequest request, Throwable t) {}
 
     @Override
-    public Releasable prepareEnd(ThreadContext threadContext, RestRequest request, RestResponse response) {
+    public Releasable prepareEnd(RestRequest request, RestResponse response) {
         State state = threadContext.getTransient(STATE_KEY);
         if (state == null) {
             return () -> {};

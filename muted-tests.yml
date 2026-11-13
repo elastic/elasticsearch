@@ -203,12 +203,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/158881
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/159710
-- class: org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapTests
-  method: testLiveVersionMapMemoryUsed
-  issue: https://github.com/elastic/elasticsearch/issues/159839
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {yaml=search/396_text_doc_values_multiterm_search/*}"
   issue: https://github.com/elastic/elasticsearch/issues/159693
@@ -262,33 +256,14 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162240
 - class: org.elasticsearch.search.heappressure.FuzzyHighlightHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/149983
-- class: org.elasticsearch.search.heappressure.QueryCacheDenseClauseHeapPressureIT
-  issue: https://github.com/elastic/elasticsearch/issues/139398
 - class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
   issue: https://github.com/elastic/elasticsearch/issues/162575
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162319
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162369
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.delta_with_filtering_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162371
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sDeltaIT
-  method: test {csv-spec:prometheus-k8s-delta.eval_on_delta_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/162373
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityTransformIT
   method: testCrossClusterTransform
   issue: https://github.com/elastic/elasticsearch/issues/162405
-- class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
-  method: testShardPrewarming
-  issue: https://github.com/elastic/elasticsearch/issues/162488
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecPrometheusK8sIT
   method: test {csv-spec:prometheus-k8s.derivative_of_gauge_metric_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162491
-- class: org.elasticsearch.search.heappressure.TopHitsLeafCollectorHeapPressureIT
-  issue: https://github.com/elastic/elasticsearch/issues/162932
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichDistinctKeysHeapPressureIT
   issue: https://github.com/elastic/incident-management/issues/2018
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichRepeatedKeyColdHeapPressureIT
@@ -539,6 +514,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/165370
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.1.9#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {STORED}
@@ -568,8 +544,96 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRelocationSourceWaitsForEarlyPrewarmBeforeHandoff
   issue: https://github.com/elastic/elasticsearch/issues/165656
-- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
+- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:transform:yamlRestTest
+  method: test {yaml=multi_cluster/80_transform/Batch transform from local and remote cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/165716
+- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:transform:yamlRestTest
+  method: test {yaml=multi_cluster/80_transform/Batch transform from remote cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/165718
+- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:transform:yamlRestTest
+  method: test {yaml=multi_cluster/80_transform/Batch transform preview from remote cluster}
+  issue: https://github.com/elastic/elasticsearch/issues/165720
+- class: org.elasticsearch.multi_cluster.MultiClusterWithSecurityYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:transform:yamlRestTest
+  method: test {yaml=multi_cluster/80_transform/Batch transform local and remote index sharing the same name}
+  issue: https://github.com/elastic/elasticsearch/issues/165722
+- class: org.elasticsearch.index.mapper.blockloader.FlattenedFieldRootBlockLoaderTests
   tasks:
   - :server:test
-  method: testRequiredMultiFieldIsPresentWhenItsParentIs
-  issue: https://github.com/elastic/elasticsearch/issues/165673
+  issue: https://github.com/elastic/elasticsearch/issues/165732
+- class: org.elasticsearch.xpack.spatial.SpatialDiskUsageIT
+  tasks:
+  - :x-pack:plugin:spatial:internalClusterTest
+  method: testCartesianShape
+  issue: https://github.com/elastic/elasticsearch/issues/165745
+- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/165756
+- class: org.elasticsearch.xpack.logsdb.LogsdbIndexingRollingUpgradeIT
+  tasks:
+  - :x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest
+  method: testIndexingLogsdbColumnar
+  issue: https://github.com/elastic/elasticsearch/issues/165787
+- class: org.elasticsearch.index.codec.postings.ES812PostingsFormatTests
+  tasks:
+  - :server:test
+  method: testDocsOnly
+  issue: https://github.com/elastic/elasticsearch/issues/165819
+- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
+  tasks:
+  - :x-pack:plugin:slm:internalClusterTest
+  method: testSnapshotFailureOnMasterStepDown
+  issue: https://github.com/elastic/elasticsearch/issues/165822
+- class: org.elasticsearch.xpack.vectortile.feature.FeatureFactoryTests
+  tasks:
+  - :x-pack:plugin:vector-tile:test
+  method: testDegeneratedPolygon
+  issue: https://github.com/elastic/elasticsearch/issues/165844
+- class: org.elasticsearch.xpack.downsample.DownsampleResilienceIT
+  tasks:
+  - :x-pack:plugin:downsample:internalClusterTest
+  method: testConcurrentRequestsForDifferentTargets
+  issue: https://github.com/elastic/elasticsearch/issues/165848
+- class: org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testSlowTranslogUploadIsHedged
+  issue: https://github.com/elastic/elasticsearch/issues/165850
+- class: org.elasticsearch.benchmark.index.mapper.batch.ShardIndexingBenchmarkTests
+  tasks:
+  - :benchmarks:test
+  method: testBenchmarkLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/165852
+- class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
+  tasks:
+  - :x-pack:plugin:esql-datasource-parquet:test
+  method: testConcurrentCompressedTwoPhase
+  issue: https://github.com/elastic/elasticsearch/issues/165927
+- class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT
+  tasks:
+  - :server:internalClusterTest
+  method: testSnapshotWithStuckNode
+  issue: https://github.com/elastic/elasticsearch/issues/165929
+- class: org.elasticsearch.xpack.stateless.StatelessAbortRunningMergesOnRelocationIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testOnlyForceMergesAreAllowedDuringRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/165933
+- class: org.elasticsearch.xpack.esql.action.ExternalProvenanceParityIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/165944
+- class: org.elasticsearch.xpack.stateless.recovery.StatelessRecoveryMetricsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRecoveryMetricPublicationOnIndexingShardRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/166001

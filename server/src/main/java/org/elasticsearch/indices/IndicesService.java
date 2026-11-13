@@ -202,6 +202,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -641,20 +642,45 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Charges the time of tasks equally to those of {@code shardIds} still on this node when a task completes.
+     * Charges the time of tasks equally to those of {@code shardIds} on this node.
      */
     public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
-        return (nanos, finishNanos) -> {
-            List<ShardSearchStats> shards = new ArrayList<>(shardIds.size());
-            for (ShardId shardId : shardIds) {
-                IndexService indexService = indexService(shardId.getIndex());
-                IndexShard shard = indexService == null ? null : indexService.getShardOrNull(shardId.id());
-                if (shard != null) {
-                    shards.add(shard.shardSearchStats());
-                }
+        return searchLoad(shardIds, shardId -> 0L);
+    }
+
+    /**
+     * Charges the time of tasks to those of {@code shardIds} on this node by how much their {@code total} grew since the previous
+     * task, the same way as the previous task when none grew, and equally until one grows. With {@code total} counting the results
+     * of each shard so far, a task is charged to the shards whose results it took in.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> total) {
+        List<ShardId> ids = new ArrayList<>(shardIds.size());
+        List<ShardSearchStats> shards = new ArrayList<>(shardIds.size());
+        for (ShardId shardId : shardIds) {
+            IndexService indexService = indexService(shardId.getIndex());
+            IndexShard shard = indexService == null ? null : indexService.getShardOrNull(shardId.id());
+            if (shard != null) {
+                ids.add(shardId);
+                shards.add(shard.shardSearchStats());
             }
-            if (shards.isEmpty() == false) {
-                ShardSearchStats.charge(shards, nanos, finishNanos);
+        }
+        long[] totals = new long[ids.size()];
+        long[] charged = new long[ids.size()];
+        long[] weights = new long[ids.size()];
+        return (nanos, finishNanos) -> {
+            synchronized (charged) {
+                boolean grew = false;
+                for (int i = 0; i < totals.length; i++) {
+                    totals[i] = total.applyAsLong(ids.get(i));
+                    grew |= totals[i] > charged[i];
+                }
+                if (grew) {
+                    for (int i = 0; i < totals.length; i++) {
+                        weights[i] = Math.max(0L, totals[i] - charged[i]);
+                        charged[i] = Math.max(charged[i], totals[i]);
+                    }
+                }
+                ShardSearchStats.charge(shards, weights, nanos, finishNanos);
             }
         };
     }

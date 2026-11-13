@@ -31,8 +31,8 @@ import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.internal.BatchMeteringModel;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Verifies that the columnar batch path meters documents exactly like the sequential path: the batch is charged in one sweep
- * under the provider's {@link BatchMeteringModel}, with the accounting its {@link XContentMeteringParserDecorator} applies to
+ * under the provider's {@link MeteringModel}, with the accounting its {@link XContentMeteringParserDecorator} applies to
  * the tokens of a row-parsed document, and the resulting normalized size travels with the {@link IndexOperationBatch}, so a
  * {@code DocumentSizeReporter} sees the same value whichever path indexed the document.
  */
@@ -103,12 +103,13 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
      * An arbitrary but deterministic accounting: the UTF-8 bytes of strings, 3 per number, 2 per boolean, and nothing below the
      * root fields {@code obj} and {@code metrics}, whichever way a document spells them.
      */
-    private static final BatchMeteringModel TEST_MODEL = new BatchMeteringModel() {
+    private static final MeteringModel TEST_MODEL = new MeteringModel() {
         private final Set<String> excludedRootFields = Set.of("obj", "metrics");
 
         @Override
-        public boolean isExcludedRootField(String rootFieldName) {
-            return excludedRootFields.contains(rootFieldName);
+        public boolean hasExcludedRootField(String fieldName) {
+            final int dot = fieldName.indexOf('.');
+            return excludedRootFields.contains(dot < 0 ? fieldName : fieldName.substring(0, dot));
         }
 
         @Override
@@ -153,10 +154,8 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
                         case END_OBJECT, END_ARRAY -> depth--;
                         case FIELD_NAME -> {
                             if (depth == 1) {
-                                // a dotted root name is only expanded below an enabled root object, so cut it here like the batch path
-                                final String name = currentName();
-                                final int dot = name.indexOf('.');
-                                charged = TEST_MODEL.isExcludedRootField(dot < 0 ? name : name.substring(0, dot)) == false;
+                                // a dotted root name is only expanded below an enabled root object; the model cuts it at the first dot
+                                charged = TEST_MODEL.hasExcludedRootField(currentName()) == false;
                             }
                         }
                         case VALUE_STRING -> {
@@ -195,7 +194,7 @@ public class ShardBatchMapperMeteringTests extends IndexShardTestCase {
         }
 
         @Override
-        public BatchMeteringModel newBatchMeteringModel() {
+        public MeteringModel newMeteringModel() {
             return TEST_MODEL;
         }
     };

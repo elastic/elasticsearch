@@ -28,8 +28,8 @@ import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.plugins.internal.BatchMeteringModel;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
 
@@ -52,8 +52,8 @@ import java.util.function.IntPredicate;
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
  *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution,
- *     Engine.Operation.Origin, Recycler, DocumentParsingProvider)} runs per chunk. It meters every row through the request's
- *     metering decorator, then invokes each mapper once for the whole chunk — attaching one Lucene column per batch-wide value
+ *     Engine.Operation.Origin, Recycler, DocumentParsingProvider)} runs per chunk. It meters the chunk under the provider's
+ *     metering model, then invokes each mapper once for the whole chunk — attaching one Lucene column per batch-wide value
  *     (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles {@link Engine.Index}
  *     operations plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
  *     {@link FieldMapper#mapColumnGroupBatch}.</li>
@@ -610,13 +610,13 @@ public final class ShardBatchMapper {
 
     /**
      * Meters every row of {@code chunkSource} the way {@link DocumentParser} meters a row-parsed document, in one sweep over the
-     * batch's columns under the provider's {@link BatchMeteringModel}. The model charges values only and excludes whole root
+     * batch's columns under the provider's {@link MeteringModel}. The model charges values only and excludes whole root
      * fields. Returns {@code null} when documents are not metered.
      */
     @Nullable
     private static long[] meterRows(DocumentParsingProvider documentParsingProvider, SourceBatch chunkSource) {
         assert chunkSource instanceof EscfBatch : "Only ESCF batches are supported for metering on batch indexing";
-        final BatchMeteringModel model = documentParsingProvider.newBatchMeteringModel();
+        final MeteringModel model = documentParsingProvider.newMeteringModel();
         return model == null ? null : chunkSource.meteredRowSizes(model);
     }
 }

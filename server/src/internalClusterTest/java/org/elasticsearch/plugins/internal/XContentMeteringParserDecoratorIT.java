@@ -246,7 +246,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public BatchMeteringModel newBatchMeteringModel() {
+                public MeteringModel newMeteringModel() {
                     return TEST_MODEL;
                 }
 
@@ -263,9 +263,9 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
     }
 
     // the accounting of TestXContentMeteringParserDecorator per value, for the batch path
-    private static final BatchMeteringModel TEST_MODEL = new BatchMeteringModel() {
+    private static final MeteringModel TEST_MODEL = new MeteringModel() {
         @Override
-        public boolean isExcludedRootField(String rootFieldName) {
+        public boolean hasExcludedRootField(String fieldName) {
             return false;
         }
 

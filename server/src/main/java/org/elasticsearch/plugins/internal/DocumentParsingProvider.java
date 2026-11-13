@@ -47,10 +47,11 @@ public interface DocumentParsingProvider {
     }
 
     /**
-     * @return the metering applied to the documents of a columnar batch; {@code null} when documents are not metered.
+     * @return the metering applied to the values of a document, which the columnar batch path uses in place of
+     * {@link #newMeteringParserDecorator()} since its rows are never parsed; {@code null} when documents are not metered.
      */
     @Nullable
-    default BatchMeteringModel newBatchMeteringModel() {
+    default MeteringModel newMeteringModel() {
         return null;
     }
 }

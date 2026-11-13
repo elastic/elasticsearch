@@ -11,14 +11,17 @@ package org.elasticsearch.plugins.internal;
 
 /**
  * The accounting an {@link XContentMeteringParserDecorator} applies to the value tokens of a document, expressed per value so that
- * a columnar batch is metered in one sweep over its columns instead of one parser walk per row. Only values are charged, never
- * field names, objects or arrays, and a root field is either charged or excluded as a whole, so the amount does not depend on how
- * a document is nested or whether a name is written with dots.
+ * it can be applied without parsing: a columnar batch is metered in one sweep over its columns instead of one parser walk per row.
+ * Only values are charged, never field names, objects or arrays, and a root field is either charged or excluded as a whole, so the
+ * amount does not depend on how a document is nested or whether a name is written with dots.
  */
-public interface BatchMeteringModel {
+public interface MeteringModel {
 
-    /** Whether the values below the root field {@code rootFieldName} are left out; evaluated once per column of a batch. */
-    boolean isExcludedRootField(String rootFieldName);
+    /**
+     * Whether the values of the leaf field {@code fieldName}, given by its full dotted name, are left out because its root field is
+     * excluded; evaluated once per column of a batch.
+     */
+    boolean hasExcludedRootField(String fieldName);
 
     /** The size charged for a string value of {@code utf8Length} bytes. */
     long stringBytes(int utf8Length);

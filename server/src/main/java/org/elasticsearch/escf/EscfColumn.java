@@ -16,7 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.plugins.internal.BatchMeteringModel;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.SliceableColumn;
@@ -193,7 +193,7 @@ public abstract class EscfColumn implements SliceableColumn {
      * Adds the size {@code model} charges for every present document's value to {@code sizes[row]}, in one sweep over this
      * column.
      */
-    public abstract void addMeteredSizes(long[] sizes, BatchMeteringModel model);
+    public abstract void addMeteredSizes(long[] sizes, MeteringModel model);
 
     /** Returns {@code true} if document {@code row} holds an explicit JSON {@code null}. */
     public final boolean isNull(int row) {

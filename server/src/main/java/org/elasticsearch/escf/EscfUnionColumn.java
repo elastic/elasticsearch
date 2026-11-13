@@ -15,7 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.plugins.internal.BatchMeteringModel;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
@@ -150,7 +150,7 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    public void addMeteredSizes(long[] sizes, BatchMeteringModel model) {
+    public void addMeteredSizes(long[] sizes, MeteringModel model) {
         if (validity == null) {
             for (int d = 0; d < docCount; d++) {
                 sizes[d] += meteredSizeOfPresent(d, model);
@@ -167,7 +167,7 @@ final class EscfUnionColumn extends EscfColumn {
      * Settled per cell on its type: a string or binary by its payload length, a scalar by the model's constant, and an inline
      * array or object by walking its values.
      */
-    private long meteredSizeOfPresent(int row, BatchMeteringModel model) {
+    private long meteredSizeOfPresent(int row, MeteringModel model) {
         final byte type = byteAt(typeVec, row);
         return switch (type) {
             case SourceValueType.STRING -> model.stringBytes(payloadLength(row));
@@ -187,7 +187,7 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     /** The size {@code model} charges for the elements {@code array} yields, nested arrays and objects included. */
-    private static long meteredSize(ArrayReader array, BatchMeteringModel model) {
+    private static long meteredSize(ArrayReader array, MeteringModel model) {
         long size = 0;
         while (array.next()) {
             final byte type = array.type();
@@ -205,7 +205,7 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     /** The size {@code model} charges for the values {@code keyValues} yields; keys are never charged. */
-    private static long meteredSize(KeyValueReader keyValues, BatchMeteringModel model) {
+    private static long meteredSize(KeyValueReader keyValues, MeteringModel model) {
         long size = 0;
         while (keyValues.next()) {
             final byte type = keyValues.type();

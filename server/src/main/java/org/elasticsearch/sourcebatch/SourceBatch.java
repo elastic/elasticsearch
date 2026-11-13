@@ -12,7 +12,7 @@ package org.elasticsearch.sourcebatch;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.plugins.internal.BatchMeteringModel;
+import org.elasticsearch.plugins.internal.MeteringModel;
 
 /**
  * An immutable, format-agnostic batch of source documents carrying a shared {@link SourceSchema}.
@@ -64,7 +64,7 @@ public interface SourceBatch extends Releasable, Accountable {
      * leaving out the values below an excluded root field. Only a column-major batch meters its rows, in one
      * sweep over each column; there is no row-by-row form, so the default throws.
      */
-    default long[] meteredRowSizes(BatchMeteringModel model) {
+    default long[] meteredRowSizes(MeteringModel model) {
         throw new UnsupportedOperationException("metering is only supported for columnar batches");
     }
 

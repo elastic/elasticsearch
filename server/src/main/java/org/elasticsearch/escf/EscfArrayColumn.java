@@ -15,7 +15,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
-import org.elasticsearch.plugins.internal.BatchMeteringModel;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
@@ -105,7 +105,7 @@ final class EscfArrayColumn extends EscfColumn {
     }
 
     @Override
-    public void addMeteredSizes(long[] sizes, BatchMeteringModel model) {
+    public void addMeteredSizes(long[] sizes, MeteringModel model) {
         final byte childKind = child.kind();
         final int[] offs = rowOffsets.ints;
         final int base = rowOffsets.offset;
@@ -126,7 +126,7 @@ final class EscfArrayColumn extends EscfColumn {
      * from its offsets, as a model need not be additive over elements, a fixed-64 child from the element count.
      * Any other kind is promoted to {@link EscfColumnKind#UNION} in {@link EscfColumnBuilder#addArray}.
      */
-    private long meteredElements(byte childKind, int elemFrom, int elemTo, BatchMeteringModel model) {
+    private long meteredElements(byte childKind, int elemFrom, int elemTo, MeteringModel model) {
         return switch (childKind) {
             case EscfColumnKind.STRING, EscfColumnKind.BINARY -> {
                 final AbstractVarColumn values = (AbstractVarColumn) child;

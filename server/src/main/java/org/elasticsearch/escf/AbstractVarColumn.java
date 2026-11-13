@@ -19,7 +19,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.plugins.internal.BatchMeteringModel;
+import org.elasticsearch.plugins.internal.MeteringModel;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -119,7 +119,7 @@ abstract class AbstractVarColumn extends EscfColumn {
     }
 
     @Override
-    public final void addMeteredSizes(long[] sizes, BatchMeteringModel model) {
+    public final void addMeteredSizes(long[] sizes, MeteringModel model) {
         // Present documents only.
         // An absent row will be skipped but an empty value with a zero-length payload will be deferred to the model.
         final boolean binary = kind() == EscfColumnKind.BINARY;

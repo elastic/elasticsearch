@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -583,6 +584,19 @@ public final class ThreadContext implements Writeable {
     @SuppressWarnings("unchecked") // (T)object
     public <T> T getTransient(String key) {
         return (T) threadLocal.get().transientHeaders.get(key);
+    }
+
+    /** Removes and returns a transient header object or {@code null} if there is no value for the given key. */
+    @SuppressWarnings("unchecked") // (T)object
+    @Nullable
+    public <T> T removeTransient(String key) {
+        final ThreadContextStruct context = threadLocal.get();
+        final Object value = context.transientHeaders.get(key);
+        if (value == null) {
+            return null;
+        }
+        threadLocal.set(context.removeTransient(key));
+        return (T) value;
     }
 
     public boolean hasTransient(Collection<String> keys) {

@@ -201,7 +201,7 @@ public class APMSpanBuilder implements SpanBuilder {
         setAttributes(otelSpanBuilder);
 
         if (localParentSpan == null) {
-            Instant startTime = threadContext.getTransient(Task.LOCAL_TRACE_START_TIME);
+            Instant startTime = threadContext.removeTransient(Task.LOCAL_TRACE_START_TIME);
             if (startTime != null) {
                 otelSpanBuilder.setStartTimestamp(startTime);
             }

@@ -297,7 +297,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         LeafReader reader = context.reader();
         SortedSetDocValues ssdv = reader.getSortedSetDocValues("host.name");
         if (ssdv != null) {
-            // host.name can only have one value and all documents must have a value
+            // host.name can only have one value and all documents must have a value.
+            // host.name is primary sort, but sort direction is unknown, so check both ends.
             return ssdv.getValueCount() == 1 && firstAndLastDocumentsHaveValue(ssdv, reader.maxDoc());
         }
         if (sortField instanceof MultiValuedBinaryDocValuesSortField binarySortField) {

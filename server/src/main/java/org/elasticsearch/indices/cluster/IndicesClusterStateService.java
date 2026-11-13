@@ -1159,7 +1159,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         failAndRemoveShard(
                             shardRouting,
                             primaryTerm,
-                            FailureStrategy.FAIL_SEND,
+                            true,
                             "failed to create shard",
                             e,
                             state,
@@ -1173,7 +1173,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             failAndRemoveShard(
                 shardRouting,
                 primaryTerm,
-                FailureStrategy.FAIL_SEND,
+                true,
                 "failed to create shard",
                 e,
                 state,
@@ -1391,7 +1391,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             failAndRemoveShard(
                 shardRouting,
                 primaryTerm,
-                FailureStrategy.FAIL_SEND,
+                true,
                 "failed updating shard routing entry",
                 e,
                 clusterState,
@@ -1659,7 +1659,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
-                    finalStrategy,
+                    finalStrategy.notifyMaster(),
                     message,
                     failure,
                     clusterService.state(),
@@ -1667,16 +1667,28 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     l
                 )
             );
+            if (finalStrategy == FailureStrategy.FAIL_SILENT_AND_BLOCK) {
+                // Master isn't being told about this failure now, so it won't necessarily have removed the allocation by the next
+                // cluster state. Swap our InFlight ticket for a FailureReported one so that recreation of this allocation stays
+                // blocked, and so that updatePendingAllocationTracker sends the failure if master hasn't acted on it by then.
+                // Nothing else can have replaced the ticket (we hold the lock and checked it above), so this always succeeds.
+                final boolean blocked = pendingAllocationStates.replace(
+                    key,
+                    inFlightTicket,
+                    new PendingAllocationState.FailureReported(shardRouting, primaryTerm, failureTypeOf(failure))
+                );
+                assert blocked : "ticket for " + key + " was replaced while handling recovery failure";
+            }
         } catch (Exception e) {
             // should not be possible
             final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
             logger.error(wrappedException.getMessage(), e);
             assert false : e;
         } finally {
-            // A no-op if failAndRemoveShard already overwrote this entry with FailureReported (its put always wins), either by
-            // sending the failure or by blocking recreation; otherwise there's no further attempt coming for this ticket, so clear
-            // it here. Unconditional (not just on the try's success path) so an unexpected exception above still releases the
-            // ticket, rather than leaving it owned forever by an attempt that's already done failing.
+            // A no-op if sendFailShard already overwrote this entry with FailureReported (its put always wins), or we swapped it
+            // for one above; otherwise there's no further attempt coming for this ticket, so clear it here. Unconditional (not
+            // just on the try's success path) so an unexpected exception above still releases the ticket, rather
+            // than leaving it owned forever by an attempt that's already done failing.
             final boolean cleared = pendingAllocationStates.remove(key, inFlightTicket);
             logger.debug(
                 "{} recovery failure handled [{}]: {}",
@@ -1690,7 +1702,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void failAndRemoveShard(
         ShardRouting shardRouting,
         long primaryTerm,
-        FailureStrategy failureStrategy,
+        boolean sendShardFailure,
         String message,
         @Nullable Exception failure,
         ClusterState state,
@@ -1719,20 +1731,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 inner
             );
         }
-        if (failureStrategy.notifyMaster()) {
+        if (sendShardFailure) {
             sendFailShard(shardRouting, primaryTerm, message, failure, state);
-        } else if (failureStrategy == FailureStrategy.FAIL_SILENT_AND_BLOCK) {
-            // Master isn't being told about this failure now, so it won't necessarily have removed the allocation by the next
-            // cluster state. Record a FailureReported entry so that recreation of this allocation stays blocked, and so that
-            // updatePendingAllocationTracker sends the failure if master hasn't acted on it by then. Like sendFailShard, this
-            // unconditionally overwrites whatever state preceded it.
-            pendingAllocationStates.put(
-                ShardAllocationKey.fromRouting(shardRouting),
-                new PendingAllocationState.FailureReported(shardRouting, primaryTerm, failureTypeOf(failure))
-            );
-        } else {
-            // We should not have got as far as calling this method for ABORT or RETRY so only FAIL_SILENT is left.
-            assert failureStrategy == FailureStrategy.FAIL_SILENT : "unexpected failure strategy [" + failureStrategy + "]";
         }
     }
 
@@ -1794,7 +1794,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         l -> failAndRemoveShard(
                             shardRouting,
                             primaryTerm,
-                            FailureStrategy.FAIL_SEND,
+                            true,
                             "shard failure, reason [" + shardFailure.reason() + "]",
                             shardFailure.cause(),
                             clusterService.state(),

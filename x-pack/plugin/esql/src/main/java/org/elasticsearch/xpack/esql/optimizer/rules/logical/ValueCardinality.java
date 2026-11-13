@@ -60,27 +60,25 @@ enum ValueCardinality {
     MAYBE_MULTI;
 
     /**
-     * Longest chain of aliases and plan nodes to follow. A longer chain answers {@link #MAYBE_MULTI}, which keeps the recursion
-     * within the stack for queries that spell out thousands of chained aliases.
+     * Longest chain of aliases and plan nodes to follow. A longer chain answers {@link #MAYBE_MULTI}.
      */
     private static final int MAX_DEPTH = ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 
     /**
      * Whether {@code expression} is single-valued as {@code node} reads it.
      * <p>
-     * This is a helper for calling {@link #ofOutput}. Rules should usually prefer it, because it is easier to use. Both methods are
-     * needed because the same column can be single-valued at one point of a pipeline and not at another. For example, consider
-     * {@code k} in the query {@code ... | EVAL k = ? | STATS COUNT(*) BY k}. There are two questions we might ask:
+     * This is a helper for calling {@link #ofOutput}. Rules should usually prefer it. The two methods exist because the same column
+     * can be single-valued at one point of a pipeline and multi-valued at another. For example, consider {@code k} in the query
+     * {@code ... | EVAL k = ? | STATS COUNT(*) BY k}. There are two questions we could ask:
      * <ol>
-     *   <li>Is {@code k}, as the {@code STATS} outputs it, single-valued? Yes, always. A group key holds one value per group, because
-     *       the aggregation unrolls a list into one group per value. {@link #ofOutput} asks this.</li>
      *   <li>Is {@code k}, as the {@code STATS} reads it, single-valued? This depends on what the {@code EVAL} before the
-     *       {@code STATS} does. A rewrite that recomputes values from the key needs this answer. {@code ofReadBy} asks this.</li>
+     *       {@code STATS} outputs. {@code ofReadBy} answers this question.</li>
+     *   <li>Is {@code k}, as the {@code STATS} outputs it, single-valued? Yes, a group key always has one value per group.
+     *       {@link #ofOutput} answers this question.</li>
      * </ol>
-     * A node usually reads the output of its child. {@code EVAL} and {@code ROW} are the exception. A field can read an earlier field
-     * of the same node, as in {@code EVAL a = MV_MAX(x), k = a}, so these nodes also read their own earlier fields. For them
-     * {@code ofReadBy} uses the output of the node itself, so {@code ofReadBy} and {@link #ofOutput} give the same answer. For the
-     * other nodes, use {@code ofOutput} to ask about a column that the node itself outputs, such as a group key of a {@code STATS}.
+     * The input of a node is usually the output of its child; this is not the case for {@code EVAL} and {@code ROW}. In these nodes a
+     * field can read an earlier field of the same node, as in {@code EVAL a = MV_MAX(x), k = a}. For them {@code ofReadBy} uses the
+     * output of the node itself, so {@code ofReadBy} and {@link #ofOutput} give the same answer.
      */
     static ValueCardinality ofReadBy(Expression expression, LogicalPlan node) {
         if (node instanceof Eval || node instanceof Row) {

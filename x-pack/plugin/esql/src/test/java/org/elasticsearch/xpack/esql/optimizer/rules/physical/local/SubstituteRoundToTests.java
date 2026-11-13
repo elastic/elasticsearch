@@ -1388,6 +1388,6 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
         // create a SearchStats with min and max in milliseconds
         Map<String, Object> minValue = Map.of("date", 1697804103360L); // 2023-10-20T12:15:03.360Z
         Map<String, Object> maxValue = Map.of("date", 1698069301543L); // 2023-10-23T13:55:01.543Z
-        return new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue, true, true);
+        return new EsqlTestUtils.TestSearchStatsWithMinMax(minValue, maxValue);
     }
 }

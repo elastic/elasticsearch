@@ -222,11 +222,6 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
 
     // ---- ROUND_TO push tests ----
 
-    /**
-     * ROUND_TO is only pushed into the block loader for fields proven to be single-valued, see {@code RoundTo#tryPushToFieldLoading}.
-     */
-    private static final SearchStats SINGLE_VALUE_STATS = new EsqlTestUtils.TestSearchStats(true, true);
-
     public void testRoundToInEval() {
         assumeTrue("ROUND_TO block loader must be enabled", EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER.isEnabled());
         PhysicalPlan plan = plannerOptimizer.plan("""
@@ -235,7 +230,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | SORT emp_no
             | LIMIT 10
             | KEEP r
-            """, SINGLE_VALUE_STATS);
+            """);
 
         List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
         assertThat(pushed, hasSize(1));
@@ -254,7 +249,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | SORT emp_no
             | LIMIT 10
             | KEEP r
-            """, new EsqlTestUtils.TestSearchStats(true, false));
+            """, new EsqlTestUtils.TestSearchStats(true, true));
 
         assertThat(findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO), hasSize(0));
     }
@@ -264,7 +259,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         PhysicalPlan plan = plannerOptimizer.plan("""
             FROM test
             | WHERE ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime) > "2023-01-01"::datetime
-            """, SINGLE_VALUE_STATS);
+            """);
 
         List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
         assertThat(pushed, hasSize(1));
@@ -283,7 +278,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | SORT integer
             | LIMIT 10
             | KEEP r
-            """, SINGLE_VALUE_STATS);
+            """);
 
         List<FieldAttribute> pushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);
         assertThat(pushed, hasSize(1));
@@ -300,7 +295,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | SORT emp_no
             | LIMIT 10
             | KEEP r
-            """, SINGLE_VALUE_STATS);
+            """);
 
         List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
         assertThat(pushed, hasSize(1));
@@ -312,7 +307,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             FROM test
             | WHERE ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime) > "2023-01-01"::datetime
             | EVAL r = ROUND_TO(hire_date, "2023-01-01"::datetime, "2023-06-01"::datetime, "2024-01-01"::datetime)
-            """, SINGLE_VALUE_STATS);
+            """);
 
         List<FieldAttribute> pushed = findPushedFields(plan, "hire_date", BlockLoaderFunctionConfig.Function.ROUND_TO);
         assertThat("Duplicate ROUND_TO(hire_date, ...) should be deduplicated to one pushed field", pushed, hasSize(1));
@@ -329,7 +324,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | SORT integer
             | LIMIT 10
             | KEEP a1, a2, a3, a4, b1
-            """, SINGLE_VALUE_STATS);
+            """);
 
         List<FieldAttribute> longPushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);
         List<FieldAttribute> datePushed = findPushedFields(plan, "date", BlockLoaderFunctionConfig.Function.ROUND_TO);
@@ -346,7 +341,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | SORT integer
             | LIMIT 10
             | KEEP l1, l2
-            """, SINGLE_VALUE_STATS);
+            """);
 
         List<FieldAttribute> pushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);
         assertThat("Duplicate ROUND_TO(long, ...) should share one pushed field", pushed, hasSize(1));
@@ -361,7 +356,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
             | SORT integer
             | LIMIT 10
             | KEEP d, l
-            """, SINGLE_VALUE_STATS);
+            """);
 
         List<FieldAttribute> datePushed = findPushedFields(plan, "date", BlockLoaderFunctionConfig.Function.ROUND_TO);
         List<FieldAttribute> longPushed = findPushedFields(plan, "long", BlockLoaderFunctionConfig.Function.ROUND_TO);

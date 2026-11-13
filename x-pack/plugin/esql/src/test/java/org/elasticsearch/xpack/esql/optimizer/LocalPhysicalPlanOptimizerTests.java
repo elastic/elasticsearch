@@ -629,8 +629,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      */
     public void testIsNotNull_TextField_Pushdown() {
         String textField = randomFrom("gender", "job");
+        // The fields may be multivalued, so count() cannot be pushed down as a stats query.
         var plan = plannerOptimizer.plan(
-            String.format(Locale.ROOT, "from test | where %s is not null | stats count(%s)", textField, textField)
+            String.format(Locale.ROOT, "from test | where %s is not null | stats count(%s)", textField, textField),
+            new TestSearchStats(true, true)
         );
 
         var limit = as(plan, LimitExec.class);

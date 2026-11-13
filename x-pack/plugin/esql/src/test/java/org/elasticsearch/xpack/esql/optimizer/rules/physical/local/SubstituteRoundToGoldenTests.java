@@ -336,9 +336,7 @@ public class SubstituteRoundToGoldenTests extends GoldenTestCase {
 
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS = new EsqlTestUtils.TestSearchStatsWithMinMax(
         Map.of("date", dateTimeToLong("2023-10-20T12:15:03.360Z")),
-        Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z")),
-        true,
-        true
+        Map.of("date", dateTimeToLong("2023-10-23T13:55:01.543Z"))
     );
 
     private static final EsqlTestUtils.TestSearchStatsWithMinMax STATS_NO_BLOCK_LOADER = new EsqlTestUtils.TestSearchStatsWithMinMax(

@@ -31,6 +31,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -680,7 +681,10 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                 // (fast path) or, if the values are not off-heap, by iterating them (slow path) - without going through a
                 // scorer supplier. Unlike flush(), we don't need to explicitly handle sorting here.
                 assert fieldInfo.getVectorEncoding() == VectorEncoding.FLOAT32 : "GPU writer only supports FLOAT32 indexing";
-                FloatVectorValues floatVectorValues = flatVectorsReader.getFloatVectorValues(fieldInfo.name);
+                // The GPU reads the merged raw vectors front to back, so ask for sequential access: by default the reader opens
+                // them for random access (rescoring), and the random advice turns off readahead on the mapping, so a merged file
+                // no longer in the page cache would be faulted in one page at a time while the GPU waits.
+                FloatVectorValues floatVectorValues = flatVectorsReader.getFloatVectorValues(fieldInfo.name, DataAccessHint.SEQUENTIAL);
                 int numVectors = floatVectorValues.size();
                 if (shouldBuildGraph(numVectors) == false) {
                     writeMetaWithoutGraph(fieldInfo, numVectors);
@@ -850,9 +854,9 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
             fieldInfo.getVectorDimension()
         );
 
-        // bbq_hnsw's on_disk_rescore and on_disk_merge don't rule out the fast path: flatVectorsReader is opened with the
-        // merge context and reads at random, for which the directory never uses direct I/O, so the merged raw vectors are
-        // mmapped. With on_disk_merge they were written with direct I/O, so this read is cold, see the TODO in
+        // bbq_hnsw's on_disk_rescore and on_disk_merge don't rule out the fast path: floatVectorValues reads sequentially,
+        // for which the directory never uses direct I/O outside a merge context, so the merged raw vectors are mmapped.
+        // With on_disk_merge they were written with direct I/O, so this read is cold, see the TODO in
         // ES97GpuHnswBBQVectorsFormat
         IndexInput slice = floatVectorValues instanceof HasIndexSlice hasIndexSlice ? hasIndexSlice.getSlice() : null;
         var input = slice == null ? null : FilterIndexInput.unwrap(slice);

@@ -19,8 +19,8 @@ import org.mockito.Mockito;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -32,18 +32,23 @@ import static org.mockito.Mockito.when;
 public class DeprecationLoggerTests extends ESTestCase {
 
     public void testMultipleSlowLoggersUseSingleLog4jLogger() {
-        org.apache.logging.log4j.core.LoggerContext context = (org.apache.logging.log4j.core.LoggerContext) LogManager.getContext(false);
-
         DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DeprecationLoggerTests.class);
-        int numberOfLoggersBefore = context.getLoggers().size();
+        int numberOfLoggersBefore = numberOfLoggers();
 
         class LoggerTest {}
         DeprecationLogger deprecationLogger2 = DeprecationLogger.getLogger(LoggerTest.class);
 
-        context = (LoggerContext) LogManager.getContext(false);
-        int numberOfLoggersAfter = context.getLoggers().size();
+        int numberOfLoggersAfter = numberOfLoggers();
+        assertThat(
+            numberOfLoggersAfter,
+            // number of loggers here might be smaller: log4j logger registry expunges stale entries on every getLoggers() call
+            lessThanOrEqualTo(numberOfLoggersBefore + 1)
+        );
+    }
 
-        assertThat(numberOfLoggersAfter, equalTo(numberOfLoggersBefore + 1));
+    private static int numberOfLoggers() {
+        var context = (LoggerContext) LogManager.getContext(false);
+        return context.getLoggers().size();
     }
 
     public void testLogPermissions() {

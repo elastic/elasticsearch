@@ -266,10 +266,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
      */
     private void unthrottleRecovery() {
         updateClusterSettings(
-            Settings.builder()
-                // 200mb is an arbitrary number intended to be large enough to avoid more throttling.
-                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb")
-                .put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
+            ensureNoThrottlingOnNodeSettings().put(
+                RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(),
+                RecoverySettings.DEFAULT_CHUNK_SIZE
+            )
         );
     }
 
@@ -723,8 +723,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .getStore()
             .size();
 
-        logger.info("--> starting node B with default settings");
-        final String nodeB = internalCluster().startNode();
+        logger.info("--> starting node B");
+        final String nodeB = internalCluster().startNode(ensureNoThrottlingOnNodeSettings());
 
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
         logger.info(
@@ -2048,5 +2048,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             assertThat(localCheckpointTracker.getPersistedCheckpoint(), is(greaterThanOrEqualTo(commitLocalCheckpoint)));
             return localCheckpointTracker.getPersistedCheckpoint();
         }
+    }
+
+    // Ensure that the node has high enough recovery max-bytes-per-second to avoid any throttling (setting large enough BPS)
+    private static Settings.Builder ensureNoThrottlingOnNodeSettings() {
+        return Settings.builder().put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb");
     }
 }

@@ -112,11 +112,6 @@ tests:
   tasks:
   - :x-pack:plugin:yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/120816
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
-  tasks:
-  - :server:internalClusterTest
-  method: testSourceThrottling
-  issue: https://github.com/elastic/elasticsearch/issues/163292
 - class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
   tasks:
   - :x-pack:plugin:ml:qa:native-multi-node-tests:javaRestTest
@@ -131,11 +126,6 @@ tests:
   - :x-pack:plugin:analytics:test
   method: testFilteredAsSubAgg
   issue: https://github.com/elastic/elasticsearch/issues/164886
-- class: org.elasticsearch.common.logging.DeprecationLoggerTests
-  tasks:
-  - :server:test
-  method: testMultipleSlowLoggersUseSingleLog4jLogger
-  issue: https://github.com/elastic/elasticsearch/issues/165030
 - class: org.elasticsearch.smoketest.MlWithSecurityInsufficientRoleIT
   tasks:
   - :x-pack:plugin:ml:qa:ml-with-security:yamlRestTest
@@ -146,51 +136,55 @@ tests:
   - :x-pack:plugin:sql:qa:mixed-node:v8.17.10#javaRestTest
   method: testNullsOrderWithMissingOrderSupportQueryingOldNode
   issue: https://github.com/elastic/elasticsearch/issues/165074
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  tasks:
-  - :qa:mixed-cluster:v8.17.10#yamlRestTest
-  - :qa:mixed-cluster:v8.18.8#yamlRestTest
-  method: test {yaml=indices.create/21_synthetic_source_stored/index param - field ordering}
-  issue: https://github.com/elastic/elasticsearch/issues/165272
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  tasks:
-  - :qa:mixed-cluster:v8.18.8#yamlRestTest
-  method: test {yaml=update/100_synthetic_source/stored text}
-  issue: https://github.com/elastic/elasticsearch/issues/165274
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  tasks:
-  - :qa:mixed-cluster:v8.18.8#yamlRestTest
-  method: test {yaml=update/100_synthetic_source/keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/165276
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  tasks:
-  - :qa:mixed-cluster:v8.17.10#yamlRestTest
-  method: test {yaml=tsdb/20_mapping/disabled source is not supported}
-  issue: https://github.com/elastic/elasticsearch/issues/165278
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  tasks:
-  - :qa:mixed-cluster:v8.17.10#yamlRestTest
-  method: test {yaml=logsdb/20_source_mapping/disabled _source is not supported}
-  issue: https://github.com/elastic/elasticsearch/issues/165280
 - class: org.elasticsearch.http.netty4.Netty4HttpRequestSizeLimitIT
   tasks:
   - :modules:transport-netty4:pooledInternalClusterTest
   method: testLimitsInFlightRequests
   issue: https://github.com/elastic/elasticsearch/issues/165412
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  tasks:
-  - :qa:mixed-cluster:v8.17.10#yamlRestTest
-  method: test {yaml=indices.create/20_synthetic_source/synthetic_source with copy_to inside nested object}
-  issue: https://github.com/elastic/elasticsearch/issues/165482
-- class: org.elasticsearch.xpack.search.AsyncSearchCleanupScrollIT
-  tasks:
-  - :x-pack:plugin:async-search:internalClusterTest
-  method: testRestartDoesNotDrainWhileCleanupScrollIsOpen
-  issue: https://github.com/elastic/elasticsearch/issues/165484
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.15.5#javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/165675
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test {null.FoldNullArgumentsInManyFunctions ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/165857
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test {null.FoldCastCaseWithoutMatchArgument SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/165859
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test {null.FoldCastCaseWithoutMatchArgument ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/165861
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test {null.FoldNullArgumentsInManyFunctions SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/165863
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-node:javaRestTest
+  method: test {null.FoldCastCaseWithoutMatchArgument SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/165859
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-node:javaRestTest
+  method: test {null.FoldCastCaseWithoutMatchArgument ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/165861
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-node:javaRestTest
+  method: test {null.FoldNullArgumentsInManyFunctions SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/165863
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-node:javaRestTest
+  method: test {null.FoldNullArgumentsInManyFunctions ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/165857
 
 # Examples:
 #

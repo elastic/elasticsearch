@@ -1178,6 +1178,63 @@ PromQL by non-dimension label over without:
   - match: {values.1.2: "dog"}
 
 ---
+PromQL comparison with a scalar keeps the vector value:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2, fix_promql_scalar_comparison]
+      reason: "A filter comparison keeps the vector value, a literal scalar on the left or a computed one on the right"
+  - do:
+      indices.create:
+        index: cmp
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [host]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              mem:
+                type: double
+                time_series_metric: gauge
+  - do:
+      bulk:
+        refresh: true
+        index: cmp
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:10.000Z", "host": "a", "mem": 1.0}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:10.000Z", "host": "b", "mem": 3.0}'
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=cmp step=1m result=(2 < mem) | SORT step | KEEP result | LIMIT 1'
+  - match: {values.0.0: 3.0}
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=cmp step=1m result=(mem > pi() - 1) | SORT step | KEEP result | LIMIT 1'
+  - match: {values.0.0: 3.0}
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=cmp step=1m result=(mem > bool pi() - 1) | SORT step, result | KEEP result | LIMIT 2'
+  - match: {values.0.0: 0.0}
+  - match: {values.1.0: 1.0}
+
+---
 PromQL time range params as range selector duration:
   - requires:
       test_runner_features: [capabilities]

@@ -12,10 +12,17 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
@@ -25,10 +32,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -51,6 +60,7 @@ import org.elasticsearch.test.index.IndexVersionUtils;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
@@ -849,6 +859,106 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             );
             assertThat(e.getMessage(), containsString("field [" + field + "]"));
         }
+    }
+
+    private static final String COLUMNAR_NUMERIC_MAPPING = """
+        {
+            "properties": {
+                "@timestamp": { "type": "date" },
+                "size": { "type": "long" },
+                "requests": { "type": "long", "time_series_metric": "counter" },
+                "sorted": { "type": "long" },
+                "terms": { "type": "long", "index": true, "index_terms": true },
+                "count": { "type": "integer" },
+                "score": { "type": "double" },
+                "category": { "type": "keyword" }
+            }
+        }
+        """;
+
+    /** With the setting on, {@code long} fields go to ColumNAR as numeric columns; the rest stay where they were. */
+    public void testColumnarNumericCodecRoutesLongFields() throws IOException {
+        assumeTrue("behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarNumericFormatSupplier(true);
+        assertThat(supplier.getDocValuesFormatForField("size"), instanceOf(ColumNARDocValuesFormat.class));
+        assertThat(supplier.getDocValuesFormatForField("requests"), instanceOf(ColumNARDocValuesFormat.class));
+        assertThat(supplier.getDocValuesFormatForField("terms"), instanceOf(ColumNARDocValuesFormat.class));
+        assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("size")));
+        assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("terms")));
+        assertEquals(ColumnarFieldType.STRING, supplier.columnarFields().fieldType(fieldInfo("category")));
+        // An index sort field stays SORTED_NUMERIC, which Lucene's index sort reads.
+        for (String field : List.of("sorted", "count", "score")) {
+            assertFalse(field, supplier.getDocValuesFormatForField(field) instanceof ColumNARDocValuesFormat);
+            assertNull(field, supplier.columnarFields().numericTypeOf(field));
+        }
+        expectThrows(IllegalStateException.class, () -> supplier.columnarFields().fieldType(fieldInfo("count")));
+    }
+
+    /** With the setting off, which is the default, no numeric field goes to ColumNAR. */
+    public void testColumnarNumericCodecOffByDefault() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarNumericFormatSupplier(false);
+        for (String field : List.of("size", "requests", "count", "score")) {
+            assertFalse(field, supplier.getDocValuesFormatForField(field) instanceof ColumNARDocValuesFormat);
+            assertNull(field, supplier.columnarFields().numericTypeOf(field));
+        }
+        assertThat(supplier.getDocValuesFormatForField("category"), instanceOf(ColumNARDocValuesFormat.class));
+    }
+
+    /** Counters and {@code @timestamp} mostly rise, so they take split-delta, as ES95 does for them; other longs the baseline. */
+    public void testColumnarNumericPipelines() throws IOException {
+        assumeTrue("behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        final PerFieldFormatSupplier supplier = createColumnarNumericFormatSupplier(true);
+        final int blockSize = ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE;
+        final byte[] monotonic = NumericPipeline.monotonicLongPipeline(blockSize).transformIds();
+        final byte[] baseline = NumericPipeline.defaultPipeline(blockSize).transformIds();
+        assertArrayEquals(
+            monotonic,
+            supplier.columnarFields().numericPipeline("requests", ColumnarFieldType.LONG).build(blockSize).transformIds()
+        );
+        assertArrayEquals(
+            monotonic,
+            supplier.columnarFields().numericPipeline("@timestamp", ColumnarFieldType.LONG).build(blockSize).transformIds()
+        );
+        assertArrayEquals(
+            baseline,
+            supplier.columnarFields().numericPipeline("size", ColumnarFieldType.LONG).build(blockSize).transformIds()
+        );
+    }
+
+    private PerFieldFormatSupplier createColumnarNumericFormatSupplier(boolean numericCodecEnabled) throws IOException {
+        final Settings.Builder settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), randomColumnarMode())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, randomColumnarEligibleIndexVersion())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "sorted");
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled() && (numericCodecEnabled || randomBoolean())) {
+            settings.put(IndexSettings.COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey(), numericCodecEnabled);
+        }
+        final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
+        mapperService.merge("type", new CompressedXContent(COLUMNAR_NUMERIC_MAPPING), MapperService.MergeReason.MAPPING_UPDATE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+    }
+
+    private static FieldInfo fieldInfo(String name) {
+        return new FieldInfo(
+            name,
+            0,
+            false,
+            false,
+            false,
+            IndexOptions.NONE,
+            DocValuesType.BINARY,
+            DocValuesSkipIndexType.NONE,
+            -1,
+            Map.of(),
+            0,
+            0,
+            0,
+            0,
+            VectorEncoding.FLOAT32,
+            VectorSimilarityFunction.EUCLIDEAN,
+            false,
+            false
+        );
     }
 
     private static IndexMode randomColumnarMode() {

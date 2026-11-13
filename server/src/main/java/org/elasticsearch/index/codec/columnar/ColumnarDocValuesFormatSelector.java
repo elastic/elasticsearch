@@ -14,6 +14,7 @@ import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldTypeSelector;
 import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -21,8 +22,14 @@ import org.elasticsearch.index.IndexVersions;
 /**
  * Decides whether an index is eligible for the ColumNAR doc values codec, based on its index mode and index
  * version. The per-field decision of which fields use the codec is made by the caller.
+ *
+ * <p>String fields of an eligible index always use the codec. Numeric fields additionally need the
+ * {@code columnar_numeric_codec} feature flag and {@link IndexSettings#COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING}
+ * while that format is under development.
  */
 public final class ColumnarDocValuesFormatSelector {
+
+    public static final FeatureFlag COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG = new FeatureFlag("columnar_numeric_codec");
 
     private ColumnarDocValuesFormatSelector() {}
 
@@ -60,5 +67,13 @@ public final class ColumnarDocValuesFormatSelector {
     public static boolean useColumnarCodec(final IndexSettings indexSettings) {
         return indexSettings.getMode().isStrictColumnar()
             && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
+    }
+
+    /**
+     * @param indexSettings the index settings to base the decision on
+     * @return {@code true} if the numeric fields of the given index are stored with the ColumNAR codec
+     */
+    public static boolean useColumnarNumericCodec(final IndexSettings indexSettings) {
+        return useColumnarCodec(indexSettings) && indexSettings.isColumnarNumericCodecEnabled();
     }
 }

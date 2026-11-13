@@ -15,8 +15,10 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
+import org.elasticsearch.columnar.numeric.NumericPipelineTemplate;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.common.util.BigArrays;
@@ -133,8 +135,7 @@ public class PerFieldFormatSupplier {
             : ColumnarDocValuesFormatSelector.select(
                 mapperService.getIndexSettings(),
                 columnarFields::fieldType,
-                // Only string columns are routed to the codec so far, so it never asks for a numeric pipeline.
-                (field, type) -> NumericPipeline::defaultPipeline,
+                columnarFields::numericPipeline,
                 columnarFields::stringOptions
             );
         var bloomFilterSettings = mapperService == null ? null : mapperService.getIndexSettings().syntheticIdBloomFilterSettings();
@@ -384,9 +385,9 @@ public class PerFieldFormatSupplier {
             this.mapperService = mapperService;
         }
 
-        /** Whether the ColumNAR codec stores the named field. */
+        /** Whether the ColumNAR codec stores the named field, as a string column or a numeric one. */
         boolean stores(final String field) {
-            return stringOptionsOf(field) != null;
+            return stringOptionsOf(field) != null || numericTypeOf(field) != null;
         }
 
         /**
@@ -411,6 +412,17 @@ public class PerFieldFormatSupplier {
         }
 
         /**
+         * The kind of numeric column the named field is written as, or {@code null} when the ColumNAR codec doesn't
+         * store it as one. Only {@link NumberFieldMapper} fields are stored as numeric columns.
+         */
+        @Nullable
+        ColumnarFieldType numericTypeOf(final String field) {
+            return mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper numberFieldMapper
+                ? numberFieldMapper.columnarNumericType()
+                : null;
+        }
+
+        /**
          * The kind of column a field routed to the ColumNAR codec is written as, asked by the codec at write and merge. A
          * field the codec doesn't store is never asked, and asking about one fails rather than guessing.
          */
@@ -419,7 +431,31 @@ public class PerFieldFormatSupplier {
             if (stringOptionsOf(field) != null) {
                 return ColumnarFieldType.STRING;
             }
-            throw new IllegalStateException("field [" + field + "] is written by the ColumNAR codec but its mapper has no column type");
+            final ColumnarFieldType numericType = numericTypeOf(field);
+            if (numericType == null) {
+                throw new IllegalStateException("field [" + field + "] is written by the ColumNAR codec but its mapper has no column type");
+            }
+            return numericType;
+        }
+
+        /**
+         * The pipeline a numeric column is encoded with, following the rules {@code StaticPipelineConfigResolver} applies
+         * for ES95: {@code @timestamp} and counters, which mostly rise, take the split-delta pipeline, and everything else
+         * the baseline.
+         */
+        NumericPipelineTemplate numericPipeline(final String field, final ColumnarFieldType type) {
+            return switch (type) {
+                case LONG -> {
+                    final boolean counter = mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper numberFieldMapper
+                        && numberFieldMapper.fieldType().getMetricType() == TimeSeriesParams.MetricType.COUNTER;
+                    yield DataStream.TIMESTAMP_FIELD_NAME.equals(field) || counter
+                        ? NumericPipeline::monotonicLongPipeline
+                        : NumericPipeline::defaultPipeline;
+                }
+                // TODO: choose ALP pipelines for double gauges and counters once doubles are stored here.
+                case DOUBLE -> NumericPipeline::defaultPipeline;
+                case STRING -> throw new IllegalStateException("field [" + field + "] is a string column, not a numeric one");
+            };
         }
 
         /**

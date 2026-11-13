@@ -26,6 +26,8 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 @ThreadLeakFilters(filters = { OkHttpThreadsFilter.class })
 public class OtelSdkExportTracerSupplierTests extends ESTestCase {
@@ -99,6 +101,58 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
             supplier.get();
             assertThat(supplier.authHeader, equalTo("Bearer tok"));
         }
+    }
+
+    public void testGetReturnsTheSameInstanceOnceItIsCreated() {
+        try (var supplier = new OtelSdkExportTracerSupplier(exportingSettings(), MeterProvider::noop)) {
+            final OpenTelemetry first = supplier.get();
+
+            assertThat(first, not(is(OpenTelemetry.noop())));
+            assertThat(supplier.get(), sameInstance(first));
+        }
+    }
+
+    public void testGetAfterCloseDoesNotCreateANewSdk() {
+        final var supplier = new OtelSdkExportTracerSupplier(exportingSettings(), MeterProvider::noop);
+        final OpenTelemetry sdk = supplier.get();
+        supplier.close();
+
+        for (int i = 0; i < 3; i++) {
+            final OpenTelemetry afterClose = supplier.get();
+            assertThat(afterClose, is(OpenTelemetry.noop()));
+            assertThat(afterClose, not(sameInstance(sdk)));
+            assertThat(afterClose.getTracer("test").spanBuilder("name").startSpan().isRecording(), is(false));
+        }
+    }
+
+    public void testCloseBeforeTheFirstGetPreventsTheSdkFromBeingCreated() {
+        final var supplier = new OtelSdkExportTracerSupplier(exportingSettings(), MeterProvider::noop);
+
+        supplier.close();
+
+        assertThat(supplier.get(), is(OpenTelemetry.noop()));
+        assertThat(supplier.get().getTracer("test").spanBuilder("name").startSpan().isRecording(), is(false));
+    }
+
+    public void testCloseIsIdempotent() {
+        final var supplier = new OtelSdkExportTracerSupplier(exportingSettings(), MeterProvider::noop);
+        supplier.get();
+
+        supplier.close();
+        supplier.close();
+
+        assertThat(supplier.get(), is(OpenTelemetry.noop()));
+    }
+
+    /** Settings that make the supplier create an SDK on the first call to {@code get()}, and not to export anything anywhere. */
+    private static Settings exportingSettings() {
+        return Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "http://127.0.0.1:9")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "300ms")
+            // every span is recorded, which is how a span of the SDK can be told from one of the no-op
+            .put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0)
+            .build();
     }
 
     public void testSampledRootSpanCarriesLegacyOtTracestate() {

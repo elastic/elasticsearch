@@ -416,7 +416,7 @@ public class APMTracerTests extends ESTestCase {
 
     public void testNoParentOnADisabledTracerDoesNotRecord() {
         final APMTracer tracer = tracer(enabledSettings());
-        tracer.setEnabled(false);
+        settingsUpdater.update(disabledSettings());
 
         assertThat(isRecorded(tracer.spanBuilder("name1").setNoParent().startSpan()), is(false));
     }
@@ -556,6 +556,10 @@ public class APMTracerTests extends ESTestCase {
         final APMTracer tracer = tracer(disabledSettings());
 
         final Span span = tracer.spanBuilder("name1").startSpan();
+
+        settingsUpdater.update(enabledSettings());
+
+        // even though tracing is now enabled, the parent is sampled out, and will not allow to start a new child span
         final Span child = tracer.spanBuilder("child").setParent(span).startSpan();
 
         assertThat(span, instanceOf(APMSpan.class));

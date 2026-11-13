@@ -1,0 +1,6 @@
+area: TSDB
+issues:
+ - 160269
+pr: 165906
+summary: Fix TS STATS over FORK missing `_tsid`
+type: bug

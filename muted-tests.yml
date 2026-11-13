@@ -242,11 +242,6 @@ tests:
   - :server:internalClusterTest
   method: testDynamicUpdates
   issue: https://github.com/elastic/elasticsearch/issues/161200
-- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorTests
-  tasks:
-  - :x-pack:plugin:esql:compute:test
-  method: testTheResultsAreEmittedWhenTheLastSliceEndsAfterTheStatusInterval
-  issue: https://github.com/elastic/elasticsearch/issues/165077
 - class: org.elasticsearch.xpack.transform.integration.TransformIT
   tasks:
   - :x-pack:plugin:transform:qa:multi-node-tests:javaRestTest

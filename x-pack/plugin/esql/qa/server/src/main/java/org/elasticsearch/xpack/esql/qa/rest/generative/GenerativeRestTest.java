@@ -206,7 +206,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "long overflow", // https://github.com/elastic/elasticsearch/issues/99575
         // "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
         // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
-        "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
+        "'field' must not be null in clamp(_min|_max)?\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "Field \\[.*\\] of type \\[.*\\] does not support match.* queries",
 

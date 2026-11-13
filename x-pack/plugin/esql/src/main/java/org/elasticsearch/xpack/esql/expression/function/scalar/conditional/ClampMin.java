@@ -27,7 +27,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
+import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -36,8 +39,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-
 /**
  * Clamps input values to have a lower limit of min.
  */
@@ -45,7 +46,11 @@ public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ClampMin", ClampMin::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ClampMin.class).binary(ClampMin::new).name("clamp_min");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .binaryValueTransformation(PromqlFunctionDefinition.MIN_SCALAR, ClampMin::new)
+        // PromQL values are doubles, and converting the field also lets an unsigned_long field be clamped by a numeric bound
+        .binaryValueTransformation(
+            PromqlFunctionDefinition.MIN_SCALAR,
+            (source, field, min) -> new ClampMin(source, new ToDouble(source, field), min)
+        )
         .description("Clamps the sample values of all elements to have a lower limit of min.")
         .example("clamp_min(http_requests_total, 0)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
@@ -55,7 +60,21 @@ public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
     private DataType resolvedType;
 
     @FunctionInfo(
-        returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+        returnType = { "double", "integer", "long", "unsigned_long", "keyword", "ip", "boolean", "date", "date_nanos", "version" },
+        signatures = {
+            @Signature(params = { "boolean", "boolean" }, returnType = "boolean"),
+            @Signature(params = { "date", "date" }, returnType = "date"),
+            @Signature(params = { "date_nanos", "date_nanos" }, returnType = "date_nanos"),
+            @Signature(params = { "integer", "integer" }, returnType = "integer"),
+            @Signature(params = { "long", "integer|long" }, returnType = "long"),
+            @Signature(params = { "integer", "long" }, returnType = "long"),
+            @Signature(params = { "double", "integer|long|double" }, returnType = "double"),
+            @Signature(params = { "integer|long", "double" }, returnType = "double"),
+            @Signature(params = { "ip", "ip" }, returnType = "ip"),
+            @Signature(params = { "STRING", "STRING" }, returnType = "keyword"),
+            // unsigned_long can't be mixed with other numeric types, like in comparisons
+            @Signature(params = { "unsigned_long", "unsigned_long" }, returnType = "unsigned_long"),
+            @Signature(params = { "version", "version" }, returnType = "version") },
         briefSummary = "Clamps input values to a lower bound, raising any value below min to min.",
         description = "Limits (or clamps) all input sample values to a lower bound of min. Any value below min is set to min.",
         examples = @Example(file = "k8s-timeseries-clamp", tag = "clamp-min"),
@@ -66,12 +85,12 @@ public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
         Source source,
         @Param(
             name = "field",
-            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+            type = { "double", "integer", "long", "unsigned_long", "keyword", "text", "ip", "boolean", "date", "date_nanos", "version" },
             description = "Expression to clamp. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "min",
-            type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+            type = { "double", "integer", "long", "unsigned_long", "keyword", "text", "ip", "boolean", "date", "date_nanos", "version" },
             description = "The min value to clamp data into."
         ) Expression min
     ) {
@@ -111,26 +130,11 @@ public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
         var field = children().get(0);
         var min = children().get(1);
         var fieldDataType = field.dataType().noText();
-        TypeResolution resolution = TypeResolutions.isType(
-            field,
-            t -> t.isNumeric() || t == DataType.BOOLEAN || t.isDate() || DataType.isString(t) || t == DataType.IP || t == DataType.VERSION,
-            sourceText(),
-            TypeResolutions.ParamOrdinal.FIRST,
-            fieldDataType.typeName()
-        );
+        TypeResolution resolution = Clamp.resolveFieldType(field, sourceText(), "clamp_min");
         if (resolution.unresolved()) {
             return resolution;
         }
-        if (fieldDataType == NULL) {
-            return new TypeResolution("'field' must not be null in clamp()");
-        }
-        resolution = TypeResolutions.isType(
-            min,
-            t -> t.isNumeric() ? fieldDataType.isNumeric() : t.noText() == fieldDataType.noText(),
-            sourceText(),
-            TypeResolutions.ParamOrdinal.SECOND,
-            fieldDataType.typeName()
-        );
+        resolution = Clamp.resolveBoundType(field, min, sourceText(), TypeResolutions.ParamOrdinal.SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }

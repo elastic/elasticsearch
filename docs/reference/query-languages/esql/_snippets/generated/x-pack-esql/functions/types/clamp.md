@@ -16,7 +16,6 @@
 | double | long | double | double |
 | double | long | integer | double |
 | double | long | long | double |
-| double | unsigned_long | unsigned_long | double |
 | integer | double | double | double |
 | integer | double | integer | double |
 | integer | double | long | double |
@@ -26,7 +25,6 @@
 | integer | long | double | double |
 | integer | long | integer | long |
 | integer | long | long | long |
-| integer | unsigned_long | unsigned_long | unsigned_long |
 | ip | ip | ip | ip |
 | keyword | keyword | keyword | keyword |
 | keyword | keyword | text | keyword |
@@ -41,14 +39,10 @@
 | long | long | double | double |
 | long | long | integer | long |
 | long | long | long | long |
-| long | unsigned_long | unsigned_long | unsigned_long |
 | text | keyword | keyword | keyword |
 | text | keyword | text | keyword |
 | text | text | keyword | keyword |
 | text | text | text | keyword |
-| unsigned_long | double | double | double |
-| unsigned_long | integer | integer | unsigned_long |
-| unsigned_long | long | long | long |
 | unsigned_long | unsigned_long | unsigned_long | unsigned_long |
 | version | version | version | version |
 

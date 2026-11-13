@@ -293,7 +293,7 @@ public class SampleIterator implements Executable {
         log.trace("Sending payload for [{}] samples", samples.size());
 
         if (samples.isEmpty()) {
-            listener.onResponse(new EmptyPayload(Type.SAMPLE, timeTook(), shardFailures.values().toArray(new ShardSearchFailure[0])));
+            listener.onResponse(new EmptyPayload(Type.SAMPLE, timeTook(), List.copyOf(shardFailures.values())));
             return;
         }
 
@@ -307,7 +307,7 @@ public class SampleIterator implements Executable {
                     listOfHits,
                     false,
                     timeTook(),
-                    shardFailures.values().toArray(new ShardSearchFailure[0])
+                    List.copyOf(shardFailures.values())
                 )
             )
         );

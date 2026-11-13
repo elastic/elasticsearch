@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.core.Nullable;
@@ -44,6 +45,19 @@ public final class FieldValueFetchers {
         String fieldName,
         BinaryDocValuesFormat format
     ) {
+        return fromBinaryDocValues(fieldName, format, false);
+    }
+
+    /**
+     * The same, but with {@code keepBytes} the values are returned as {@link BytesRef}s instead of strings. A caller
+     * that scans the bytes before analyzing them then skips the string conversion for the values it rejects;
+     * {@link TokenStreamMatching#textOf} converts the others.
+     */
+    public static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> fromBinaryDocValues(
+        String fieldName,
+        BinaryDocValuesFormat format,
+        boolean keepBytes
+    ) {
         return context -> new CheckedIntFunction<>() {
             SortableBinaryDocValues binaryDocValues;
 
@@ -57,7 +71,7 @@ public final class FieldValueFetchers {
                         case PLAIN -> MultiValuedSortableBinaryDocValues.fromPlain(context.reader(), fieldName);
                     };
                 }
-                return valuesOf(binaryDocValues, docId);
+                return valuesOf(binaryDocValues, docId, keepBytes);
             }
         };
     }
@@ -159,12 +173,21 @@ public final class FieldValueFetchers {
 
     /** The values {@code docId} holds, or none where it holds none. */
     public static List<Object> valuesOf(SortableBinaryDocValues docValues, int docId) throws IOException {
+        return valuesOf(docValues, docId, false);
+    }
+
+    /**
+     * A document's values, as strings or, with {@code keepBytes}, as {@link BytesRef}s. The column reuses its buffer
+     * between values, so kept bytes are copied.
+     */
+    public static List<Object> valuesOf(SortableBinaryDocValues docValues, int docId, boolean keepBytes) throws IOException {
         if (docValues.advanceExact(docId) == false) {
             return List.of();
         }
         final List<Object> values = new ArrayList<>(docValues.docValueCount());
         for (int i = 0; i < docValues.docValueCount(); i++) {
-            values.add(docValues.nextValue().utf8ToString());
+            final BytesRef value = docValues.nextValue();
+            values.add(keepBytes ? BytesRef.deepCopyOf(value) : value.utf8ToString());
         }
         return values;
     }

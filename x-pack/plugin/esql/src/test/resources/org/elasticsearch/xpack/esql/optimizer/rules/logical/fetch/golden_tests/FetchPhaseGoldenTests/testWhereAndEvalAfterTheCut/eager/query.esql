@@ -1,0 +1,6 @@
+FROM employees
+| SORT hire_date
+| LIMIT 10
+| WHERE salary > 50000
+| EVAL monthly = salary / 12
+| KEEP first_name, monthly

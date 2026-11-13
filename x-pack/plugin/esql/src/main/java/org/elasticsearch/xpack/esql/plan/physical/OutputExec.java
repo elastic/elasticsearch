@@ -28,7 +28,7 @@ public class OutputExec extends UnaryExec {
     }
 
     public OutputExec(Source source, PhysicalPlan child, @Nullable Consumer<Page> pageConsumer) {
-        this(source, child, pageConsumer == null ? null : PageConsumer.Factory.of(pageConsumer));
+        this(source, child, pageConsumer == null ? null : PageConsumer.Factory.from(pageConsumer));
     }
 
     private OutputExec(Source source, PhysicalPlan child, @Nullable PageConsumer.Factory pageConsumerFactory) {

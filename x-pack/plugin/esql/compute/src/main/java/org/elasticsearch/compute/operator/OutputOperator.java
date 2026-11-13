@@ -40,7 +40,7 @@ public class OutputOperator extends SinkOperator {
             SinkOperatorFactory {
 
         public OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer) {
-            this(columns, mapper, PageConsumer.Factory.of(pageConsumer));
+            this(columns, mapper, PageConsumer.Factory.from(pageConsumer));
         }
 
         @Override
@@ -62,7 +62,7 @@ public class OutputOperator extends SinkOperator {
     }
 
     public OutputOperator(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer) {
-        this(columns, mapper, PageConsumer.of(pageConsumer));
+        this(columns, mapper, PageConsumer.from(pageConsumer));
     }
 
     public OutputOperator(List<String> columns, Function<Page, Page> mapper, PageConsumer pageConsumer) {

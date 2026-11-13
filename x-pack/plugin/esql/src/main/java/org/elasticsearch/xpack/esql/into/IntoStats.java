@@ -18,10 +18,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.List;
 
 public record IntoStats(long total, long created) {
-
     public static final List<Attribute> ATTRIBUTES = List.of(
-        new ReferenceAttribute(Source.EMPTY, "total", DataType.LONG),
-        new ReferenceAttribute(Source.EMPTY, "created", DataType.LONG)
+        new ReferenceAttribute(Source.EMPTY, null, "total", DataType.LONG),
+        new ReferenceAttribute(Source.EMPTY, null, "created", DataType.LONG)
     );
 
     public Page toPage(BlockFactory blockFactory) {

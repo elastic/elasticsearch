@@ -56,7 +56,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class IntoPageWriterTests extends ComputeTestCase {
-
     private static final String DESTINATION = "dst";
     private static final ShardId SHARD = new ShardId(DESTINATION, "uuid", 0);
     private static final List<Attribute> COLUMNS = List.of(
@@ -77,7 +76,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client = new CapturingClient(threadPool);
         blockFactory = blockFactory();
         driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
-        sink = new IntoPageWriter.Factory(client, DESTINATION, COLUMNS);
+        sink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS);
         writer = sink.create(driverContext);
     }
 
@@ -112,7 +111,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         }
 
         void answer(Outcome... outcomes) {
-            BulkRequest bulk = bulks.remove(0);
+            BulkRequest bulk = bulks.removeFirst();
             assertThat(bulk.numberOfActions(), equalTo(outcomes.length));
             BulkItemResponse[] items = new BulkItemResponse[outcomes.length];
             for (int i = 0; i < outcomes.length; i++) {
@@ -126,12 +125,12 @@ public class IntoPageWriterTests extends ComputeTestCase {
                     );
                 };
             }
-            listeners.remove(0).onResponse(new BulkResponse(items, 1));
+            listeners.removeFirst().onResponse(new BulkResponse(items, 1));
         }
 
         void fail(Exception e) {
-            bulks.remove(0);
-            listeners.remove(0).onFailure(e);
+            bulks.removeFirst();
+            listeners.removeFirst().onFailure(e);
         }
     }
 
@@ -148,7 +147,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         }
 
         assertThat(client.bulks, hasSize(1));
-        List<DocWriteRequest<?>> requests = client.bulks.get(0).requests();
+        List<DocWriteRequest<?>> requests = client.bulks.getFirst().requests();
         assertThat(requests.stream().map(DocWriteRequest::opType).toList(), everyItem(equalTo(DocWriteRequest.OpType.CREATE)));
         assertThat(requests.stream().map(DocWriteRequest::index).toList(), everyItem(equalTo(DESTINATION)));
         assertThat(

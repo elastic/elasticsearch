@@ -1166,7 +1166,7 @@ public class ComputeService {
             EsqlPlugin.externalBlobStorePool()
         );
         if (physicalPlan instanceof IntoExec into) {
-            IntoPageWriter.Factory sink = new IntoPageWriter.Factory(client, into.destination(), into.child().output());
+            IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(client, into.destination(), into.child().output());
             physicalPlan = OutputExec.withFactory(into.source(), into.child(), sink);
             listener = listener.delegateFailureAndWrap((l, result) -> {
                 Exception failure = sink.failure();

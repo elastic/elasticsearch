@@ -18,7 +18,6 @@ import java.util.Objects;
  * parsing, so it is never analyzed, optimized, or serialized.
  */
 public class Into extends UnaryPlan implements TelemetryAware {
-
     private final String destination;
 
     public Into(Source source, LogicalPlan child, String destination) {

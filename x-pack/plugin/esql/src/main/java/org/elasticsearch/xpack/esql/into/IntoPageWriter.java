@@ -44,13 +44,11 @@ import java.util.function.Supplier;
  * {@link #MAX_CONCURRENT_BULKS} in flight per driver, restoring the caller's {@link ThreadContext} around each request.
  */
 public final class IntoPageWriter implements PageConsumer {
-
     // visible for testing
     static final int MAX_CONCURRENT_BULKS = 3;
 
     /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
     public static final class Factory implements PageConsumer.Factory {
-
         private final Client client;
         private final Supplier<ThreadContext.StoredContext> caller;
         private final String destination;
@@ -60,12 +58,28 @@ public final class IntoPageWriter implements PageConsumer {
         private final AtomicLong created = new AtomicLong();
         private final AtomicReference<Exception> failure = new AtomicReference<>();
 
-        public Factory(Client client, String destination, List<Attribute> output) {
+        public static Factory createFactory(Client client, String destination, List<Attribute> output) {
+            return new Factory(
+                client,
+                client.threadPool().getThreadContext().newRestorableContext(false),
+                destination,
+                Expressions.names(output),
+                output.stream().map(Attribute::dataType).toList()
+            );
+        }
+
+        private Factory(
+            Client client,
+            Supplier<ThreadContext.StoredContext> caller,
+            String destination,
+            List<String> columns,
+            List<DataType> types
+        ) {
             this.client = client;
-            this.caller = client.threadPool().getThreadContext().newRestorableContext(false);
+            this.caller = caller;
             this.destination = destination;
-            this.columns = Expressions.names(output);
-            this.types = output.stream().map(Attribute::dataType).toList();
+            this.columns = columns;
+            this.types = types;
         }
 
         @Override
@@ -89,7 +103,7 @@ public final class IntoPageWriter implements PageConsumer {
 
     private int inFlight;
     private boolean finished;
-    // Null whenever no driver is blocked on this writer; allocated in isBlocked() and cleared in wake().
+    // null whenever no driver is blocked on this writer; allocated in isBlocked() and cleared in wake().
     @Nullable
     private SubscribableListener<Void> waiting;
 

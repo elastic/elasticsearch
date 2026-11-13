@@ -21,7 +21,6 @@ import java.util.Objects;
  * is the {@link IntoStats} schema.
  */
 public class IntoExec extends UnaryExec {
-
     private final String destination;
 
     public IntoExec(Source source, PhysicalPlan child, String destination) {

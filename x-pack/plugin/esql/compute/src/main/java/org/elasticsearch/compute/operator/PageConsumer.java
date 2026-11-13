@@ -16,16 +16,15 @@ import java.util.function.Consumer;
  * is in flight and remain unfinished after the last page until outstanding work completes.
  */
 public interface PageConsumer {
-
     interface Factory {
         PageConsumer create(DriverContext driverContext);
 
-        static Factory of(Consumer<Page> consumer) {
-            return driverContext -> PageConsumer.of(consumer);
+        static Factory from(Consumer<Page> consumer) {
+            return driverContext -> PageConsumer.from(consumer);
         }
     }
 
-    static PageConsumer of(Consumer<Page> consumer) {
+    static PageConsumer from(Consumer<Page> consumer) {
         return new PageConsumer() {
             @Override
             public void consume(Page page) {

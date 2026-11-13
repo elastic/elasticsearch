@@ -3286,7 +3286,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // The file's own ESQL rendering of the leaf primitive (the element type for LIST
                     // columns) — the physical half of a declared-type coercion. When it differs from
                     // the attribute's declared type, the decode paths read at this type and coerce.
-                    convertParquetTypeToEsql(desc.getPrimitiveType())
+                    desc.getMaxRepetitionLevel() > 0
+                        ? listElementTypeToEsql(desc.getPrimitiveType())
+                        : convertParquetTypeToEsql(desc.getPrimitiveType())
                 );
             }
         }
@@ -3803,10 +3805,23 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
             Type elementType = isListElementType(repeatedType, groupType.getName()) ? repeatedType : repeatedType.asGroupType().getType(0);
             if (elementType.isPrimitive()) {
-                return convertParquetTypeToEsql(elementType);
+                return listElementTypeToEsql(elementType.asPrimitiveType());
             }
         }
         return DataType.UNSUPPORTED;
+    }
+
+    /**
+     * The ESQL type of a {@code LIST} column from its element primitive. A list of plain 32-bit floats is the shape
+     * embeddings are stored in, so it is a {@code dense_vector}: the decode then builds the float block the vector
+     * functions read directly, where a {@code double} list costs a widened copy per row. Every other element type
+     * follows the scalar mapping.
+     */
+    static DataType listElementTypeToEsql(PrimitiveType element) {
+        if (element.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT && element.getLogicalTypeAnnotation() == null) {
+            return DataType.DENSE_VECTOR;
+        }
+        return convertParquetTypeToEsql(element);
     }
 
     /**

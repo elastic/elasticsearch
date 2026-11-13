@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MapMatcher;
@@ -72,9 +74,13 @@ public class ComputeSearchContextByShardIdTests extends ESTestCase {
 
     private Runnable newWriter(ConcurrentHashMap<Integer, ComputeSearchContext> expected, CountDownLatch cdl) {
         return () -> {
-            List<SearchContext> newContexts = IntStream.range(0, CHUNK_SIZE)
-                .mapToObj(i -> Mockito.mock(SearchContext.class, Mockito.withSettings().stubOnly()))
-                .toList();
+            List<SearchContext> newContexts = IntStream.range(0, CHUNK_SIZE).mapToObj(i -> {
+                IndexShard indexShard = Mockito.mock(IndexShard.class, Mockito.withSettings().stubOnly());
+                Mockito.when(indexShard.shardId()).thenReturn(new ShardId("idx", "uuid", i));
+                SearchContext searchContext = Mockito.mock(SearchContext.class, Mockito.withSettings().stubOnly());
+                Mockito.when(searchContext.indexShard()).thenReturn(indexShard);
+                return searchContext;
+            }).toList();
             contexts.newSubRangeView(newContexts).iterable().forEach(e -> expected.put(e.index(), e));
             try {
                 Thread.sleep(randomInt(10));

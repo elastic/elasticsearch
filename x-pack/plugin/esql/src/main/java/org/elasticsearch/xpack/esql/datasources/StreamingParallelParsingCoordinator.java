@@ -1154,6 +1154,10 @@ public final class StreamingParallelParsingCoordinator {
                         pooled = takeOrAllocateBuffer();
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
+                        // Same as dispatchChunk's permit wait: interrupt is a failure, not EOF.
+                        // A silent break left producersDoneAndDrained true, so the drain completed
+                        // with a prefix and no error.
+                        recordFirstError(e);
                         break;
                     }
                     if (pooled == null) {

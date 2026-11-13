@@ -534,7 +534,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             return;
         }
 
-        ActionListener<SearchRequest> rewriteListener = originalListener.delegateFailureAndWrap((delegate, rewritten) -> {
+        final boolean isExplain = source != null && source.explain() != null && source.explain();
+        final boolean isProfile = source != null && source.profile();
+        final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
+            ? original.allowPartialSearchResults()
+            : searchService.defaultAllowPartialSearchResults();
+        final QueryRewriteContext rewriteContext = searchService.getRewriteContext(
+            timeProvider::absoluteStartMillis,
+            clusterState.getMinTransportVersion(),
+            original.getLocalClusterAlias(),
+            resolvedIndices,
+            original.pointInTimeBuilder(),
+            shouldMinimizeRoundtrips(original),
+            isExplain,
+            isProfile,
+            allowPartialSearchResults
+        );
+        rewriteContext.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
+
+        // Searches run during the rewrite, such as those of compound retrievers, record their phase failures on the rewrite context.
+        final ActionListener<SearchResponse> listenerWithRewriteFailures = originalListener.delegateFailureAndWrap((l, response) -> {
+            response.addPhaseFailures(rewriteContext.phaseFailures());
+            l.onResponse(response);
+        });
+        ActionListener<SearchRequest> rewriteListener = listenerWithRewriteFailures.delegateFailureAndWrap((delegate, rewritten) -> {
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }
@@ -799,23 +822,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         });
 
-        final boolean isExplain = source != null && source.explain() != null && source.explain();
-        final boolean isProfile = source != null && source.profile();
-        final boolean allowPartialSearchResults = original.allowPartialSearchResults() != null
-            ? original.allowPartialSearchResults()
-            : searchService.defaultAllowPartialSearchResults();
-        final QueryRewriteContext rewriteContext = searchService.getRewriteContext(
-            timeProvider::absoluteStartMillis,
-            clusterState.getMinTransportVersion(),
-            original.getLocalClusterAlias(),
-            resolvedIndices,
-            original.pointInTimeBuilder(),
-            shouldMinimizeRoundtrips(original),
-            isExplain,
-            isProfile,
-            allowPartialSearchResults
-        );
-        rewriteContext.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
         // fail as soon as the search is cancelled, without waiting for the async actions of the rewrite to complete
         final SubscribableListener<SearchRequest> rewriteResult = new SubscribableListener<>();
         task.addListener(() -> rewriteResult.onFailure(new TaskCancelledException(task.getReasonCancelled())));
@@ -1025,6 +1031,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.getSkippedShards(),
                         timeProvider.buildTookInMillis(),
                         searchResponse.shardFailuresList(),
+                        searchResponse.getPhaseFailures(),
                         clusters,
                         searchResponse.pointInTimeId(),
                         null,

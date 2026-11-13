@@ -383,7 +383,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase).run();
 
             // raisePhaseFailure completes the search listener, so the second trip must not raise it again.
-            assertThat(mockSearchPhaseContext.phaseFailures.get(), equalTo(1));
+            assertThat(mockSearchPhaseContext.phaseFailureCount.get(), equalTo(1));
             assertThat(mockSearchPhaseContext.phaseFailure.get(), instanceOf(CircuitBreakingException.class));
             assertThat(breaker.getUsed(), equalTo(0L));
         } finally {
@@ -458,7 +458,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
             getFetchSearchPhase(results, mockSearchPhaseContext, reducedQueryPhase).run();
 
-            assertThat(mockSearchPhaseContext.phaseFailures.get(), equalTo(1));
+            assertThat(mockSearchPhaseContext.phaseFailureCount.get(), equalTo(1));
             // Counting the tripped shard down would finish the phase and merge results the failure already released.
             assertNull(mockSearchPhaseContext.searchResponse.get());
         } finally {

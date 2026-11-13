@@ -232,7 +232,8 @@ public final class SearchResponseMerger implements Releasable {
         int successfulShards = 0;
         // the current reduce phase counts as one
         int numReducePhases = 1;
-        List<ShardSearchFailure> failures = new ArrayList<>();
+        List<ShardSearchFailure> shardFailures = new ArrayList<>();
+        List<SearchPhaseFailure> phaseFailures = new ArrayList<>();
         Map<String, SearchProfileShardResult> shardProfileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
         Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();
@@ -250,7 +251,8 @@ public final class SearchResponseMerger implements Releasable {
             numReducePhases += searchResponse.getNumReducePhases();
             mergedDirectoryMetrics = mergedDirectoryMetrics.merge(searchResponse.getDirectoryMetrics());
 
-            Collections.addAll(failures, searchResponse.getShardFailures());
+            Collections.addAll(shardFailures, searchResponse.getShardFailures());
+            phaseFailures.addAll(searchResponse.getPhaseFailures());
 
             shardProfileResults.putAll(searchResponse.getSearchProfileShardResults());
 
@@ -329,7 +331,7 @@ public final class SearchResponseMerger implements Releasable {
             }
 
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
-            failures.sort(FAILURES_COMPARATOR);
+            shardFailures.sort(FAILURES_COMPARATOR);
             long tookInMillis = searchTimeProvider.buildTookInMillis();
             SearchResponse mergedResponse = new SearchResponse(
                 mergedSearchHits,
@@ -344,7 +346,8 @@ public final class SearchResponseMerger implements Releasable {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                failures,
+                shardFailures,
+                phaseFailures,
                 clusters,
                 null,
                 topHitsToRelease,

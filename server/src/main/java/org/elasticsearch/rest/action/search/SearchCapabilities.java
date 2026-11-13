@@ -89,6 +89,8 @@ public final class SearchCapabilities {
     private static final String COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE = "composite_agg_rejects_non_positive_size";
     /** A numeric value script that returns {@code null} treats that value as missing. */
     private static final String NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING = "numeric_value_script_null_is_missing";
+    /** The response reports failures that are not bound to a shard and did not fail the search in {@code phase_failures}. */
+    private static final String SEARCH_PHASE_FAILURES = "search_phase_failures";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -135,6 +137,7 @@ public final class SearchCapabilities {
         capabilities.add(KNN_REQUIRES_SLICE_SELECTION);
         capabilities.add(COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE);
         capabilities.add(NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING);
+        capabilities.add(SEARCH_PHASE_FAILURES);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

@@ -65,7 +65,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -1577,7 +1576,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new FetchPhase(Collections.emptyList()),
             breakerService,
             EmptySystemIndices.INSTANCE.getExecutorSelector(),
-            Tracer.NOOP,
             OnlinePrewarmingService.NOOP,
             transport.getTaskManager()
         ) {
@@ -1726,7 +1724,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new FetchPhase(Collections.emptyList()),
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
             EmptySystemIndices.INSTANCE.getExecutorSelector(),
-            Tracer.NOOP,
             OnlinePrewarmingService.NOOP,
             transport.getTaskManager()
         ) {

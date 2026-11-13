@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
 
 /**
  * Translates PromQL logical plan into ESQL plan. Runs before {@link TranslateTimeSeriesAggregate} to convert
@@ -40,6 +41,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
     @Override
     protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
+        // the translation it follows emits label containers only with V2
+        if (context.configuration().pragmas().enablePromqlTranslationV2()) {
+            return new TranslationContextV2(cmd, context).translateFinal();
+        }
         return new TranslationContext(cmd, context).translateFinal();
     }
 }

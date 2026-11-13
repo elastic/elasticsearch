@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -65,6 +67,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -352,7 +355,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             // The version the splits were planned under: a worker that has applied a lower version and cannot bind a dataset
             // of the plan is behind rather than missing it, and waits for the state (see DataNodeRequest).
             final long requiredClusterStateVersion = clusterService.state().version();
-            for (ExternalDispatchResolution.ResolvedExternalNode target : resolution.resolved()) {
+            final List<ExternalDispatchResolution.ResolvedExternalNode> workers = resolution.resolved();
+            for (int i = 0; i < workers.size(); i++) {
+                ExternalDispatchResolution.ResolvedExternalNode target = workers.get(i);
+                final int targetIndex = i;
                 DiscoveryNode node = target.node();
                 Transport.Connection connection = target.connection();
                 List<ExternalSplit> nodeSplits = target.splits();
@@ -367,13 +373,19 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 };
                 ActionListener<Void> openExchangeListener = parentComputeListener.acquireAvoid().delegateFailureAndWrap((l, unused) -> {
                     l = ActionListener.runAfter(l, finishNode);
+                    // The node the splits currently run on: the target, or the worker of the latest hop of their walk.
+                    final AtomicReference<DiscoveryNode> currentNode = new AtomicReference<>(node);
                     final Runnable onGroupFailure;
                     final CancellableTask groupTask;
                     if (allowPartial) {
                         try {
                             groupTask = computeService.createGroupTask(
                                 parentTask,
-                                () -> "compute group: external data-node [" + node.getName() + "], splits [" + nodeSplits.size() + "]"
+                                () -> "compute group: external data-node ["
+                                    + currentNode.get().getName()
+                                    + "], splits ["
+                                    + nodeSplits.size()
+                                    + "]"
                             );
                         } catch (TaskCancelledException e) {
                             l.onFailure(e);
@@ -403,36 +415,40 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             outerL.onFailure(e);
                         }
                     }))) {
+                        final ExternalSplitWalk walk = new ExternalSplitWalk(
+                            sessionId,
+                            computeService.queryId(parentTask),
+                            workers,
+                            targetIndex,
+                            configuration,
+                            dataNodePlan,
+                            requiredClusterStateVersion,
+                            groupTask,
+                            exchangeSource,
+                            computeListener,
+                            currentNode
+                        );
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                         var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
-                            externalRequest(
-                                childSessionId,
-                                computeService.queryId(parentTask),
-                                configuration,
-                                dataNodePlan,
-                                nodeSplits,
-                                requiredClusterStateVersion
-                            ),
+                            walk.request(childSessionId),
                             groupTask,
                             computeService.planRequestOptions(),
                             new ActionListenerResponseHandler<>(
-                                ComputeService.finishRemoteSinkIfNotSent(
-                                    remoteSink,
-                                    computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo)
-                                ),
+                                ComputeService.finishRemoteSinkIfNotSent(remoteSink, walk.attemptListener(0)),
                                 in -> new DataNodeComputeResponse(in, threadContext),
                                 searchExecutor
                             )
                         );
+                        // failFast would abort the shared exchange before a hop can attach a replacement sink
                         exchangeSource.addRemoteSink(
                             remoteSink,
-                            allowPartial == false,
-                            () -> {},
+                            false,
+                            walk::pageFetched,
                             queryPragmas.concurrentExchangeClients(),
-                            computeListener.acquireAvoid()
+                            walk.sinkListener(0, computeListener.acquireAvoid())
                         );
                     }
                 });
@@ -608,6 +624,59 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         return summary.toString();
     }
 
+    /**
+     * The worker attempt {@code hop} of a walk runs on: {@code hop} places after the walk's original
+     * target ({@code resolved.get(index)}) in resolved order, wrapping around, so a walk visits every
+     * other worker once. "Next after", not "first other": the distribution strategies offset concurrent
+     * leaves (UNION, FORK) so they do not all start on the first node, and one leaving node must not
+     * undo that by sending every leaf's splits to the same worker. {@code null} once the walk is
+     * exhausted, and for a lone worker, which has nowhere to hand the splits. The strategies keep no
+     * locality or per-node statistics, so any resolved worker can run any split.
+     */
+    @Nullable
+    static ExternalDispatchResolution.ResolvedExternalNode nextWorker(
+        List<ExternalDispatchResolution.ResolvedExternalNode> resolved,
+        int index,
+        int hop
+    ) {
+        if (hop <= 0 || hop >= resolved.size()) {
+            return null;
+        }
+        return resolved.get((index + hop) % resolved.size());
+    }
+
+    /**
+     * A worker failure another resolved worker can take over: the node left or disconnected after
+     * its request was sent. Cancellation and circuit breaks are query-wide and are not retried.
+     */
+    static boolean isRetryableExternalWorkerFailure(Exception failure) {
+        if (ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null) {
+            return false;
+        }
+        if (ExceptionsHelper.unwrap(failure, CircuitBreakingException.class) != null) {
+            return false;
+        }
+        return ExceptionsHelper.unwrap(failure, ConnectTransportException.class) != null
+            || ExceptionsHelper.unwrap(failure, NodeClosedException.class) != null;
+    }
+
+    /**
+     * Whether the walk should send this worker's splits to the next resolved worker. Pages already
+     * fetched from this walk cannot be replayed, so a failure after the first page is terminal.
+     */
+    static boolean shouldRerouteExternalWorker(Exception failure, long pagesFetched, boolean hasNextWorker) {
+        return hasNextWorker && pagesFetched == 0 && isRetryableExternalWorkerFailure(failure);
+    }
+
+    /**
+     * Terminal failure when a worker left or disconnected after dispatch and every other resolved worker
+     * also failed to take those splits. Distinct from {@link #allExternalWorkersFailed}, which is the
+     * pre-send case where no worker could be contacted at all.
+     */
+    static IllegalStateException remainingExternalWorkersFailed(Exception last) {
+        return new IllegalStateException("external worker failed after dispatch and no remaining worker could take its splits", last);
+    }
+
     private static DataNodeRequest externalRequest(
         String sessionId,
         TaskId queryId,
@@ -631,6 +700,390 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             false,
             splits,
             requiredClusterStateVersion
+        );
+    }
+
+    /**
+     * The walk one worker's external splits take across the resolved workers when that worker
+     * leaves or disconnects after its request was sent and before it streamed a page. Attempt 0
+     * is the original target; each worker that fails before streaming hands the splits to the next
+     * in resolved order ({@link #nextWorker}), under the same group task and into the same exchange
+     * source. Pages already fetched from this walk cannot be replayed, so a failure after the first
+     * page is terminal. A hop's exchange is opened with a plain request, not a child of the task, so
+     * a hop that races a cancellation can still open an exchange that is only reaped later, as any
+     * attempt's can.
+     *
+     * <p>Two slots of the inner {@link ComputeListener} are acquired up front, while it is still open:
+     * the response slot, completed by whichever attempt answers last, and the walk ref, a spare slot
+     * held until then. The listener's refs can be acquired after its try block closes as long as one
+     * is outstanding, which is what the walk ref is for: every hop acquires its own sink slot. The two
+     * also hold the {@code ExchangeSourceLinkKeepAlive} ({@code finishNode} runs when the inner
+     * listener completes), so the exchange source stays open across the hops; without that, a failed
+     * worker's empty-finished sink could be the source's last and finish it before the next hop's sink
+     * is added. A disconnected worker fails on both the data-action response and its remote sink; both
+     * channels decide the hop here, before any {@link ComputeListener} slot sees the failure, so the
+     * group-failure hook does not cancel the query the hop saves. An attempt succeeds only when both
+     * channels succeed: a data-action response with pages still unfetched must not end the walk, or a
+     * later disconnect could not hop. A hop is decided only after the sink has drained, so a page still
+     * queued on {@code searchExecutor} cannot be added after the same splits were sent to the next worker.
+     */
+    private final class ExternalSplitWalk {
+        private final String sessionId;
+        private final TaskId queryId;
+        private final List<ExternalDispatchResolution.ResolvedExternalNode> workers;
+        private final int targetIndex;
+        private final Configuration configuration;
+        private final ExchangeSinkExec dataNodePlan;
+        private final long requiredClusterStateVersion;
+        private final CancellableTask groupTask;
+        private final ExchangeSourceHandler exchangeSource;
+        private final ComputeListener computeListener;
+        /** The node the splits currently run on, for the group task's description. */
+        private final AtomicReference<DiscoveryNode> currentNode;
+        private final AtomicLong pagesFetched = new AtomicLong();
+        private final ActionListener<DriverCompletionInfo> response;
+        @Nullable
+        private final ActionListener<Void> walkRef;
+        /** Set once the walk's outcome is decided; a failure that arrives after that must not hop on a closed listener. */
+        private final AtomicBoolean ended = new AtomicBoolean();
+        /**
+         * The attempt currently in flight. Hopping from attempt {@code n} CASes this from {@code n} to {@code n + 1}
+         * so the data-action and sink channels of one attempt hop once.
+         */
+        private final AtomicInteger claimedAttempt = new AtomicInteger(0);
+        /** Guarded by {@code this}: both channels of {@link #claimedAttempt} must succeed before the walk ends. */
+        private DriverCompletionInfo pendingInfo;
+        private boolean dataActionOk;
+        private boolean sinkOk;
+        /**
+         * Retryable data-action failure of the current attempt, or {@code null}. Hop waits for the sink to drain
+         * concurrent fetches; a never-sent request that closed the sink empty must still hop, not succeed empty.
+         */
+        private Exception dataActionFailure;
+
+        ExternalSplitWalk(
+            String sessionId,
+            TaskId queryId,
+            List<ExternalDispatchResolution.ResolvedExternalNode> workers,
+            int targetIndex,
+            Configuration configuration,
+            ExchangeSinkExec dataNodePlan,
+            long requiredClusterStateVersion,
+            CancellableTask groupTask,
+            ExchangeSourceHandler exchangeSource,
+            ComputeListener computeListener,
+            AtomicReference<DiscoveryNode> currentNode
+        ) {
+            this.sessionId = sessionId;
+            this.queryId = queryId;
+            this.workers = workers;
+            this.targetIndex = targetIndex;
+            this.configuration = configuration;
+            this.dataNodePlan = dataNodePlan;
+            this.requiredClusterStateVersion = requiredClusterStateVersion;
+            this.groupTask = groupTask;
+            this.exchangeSource = exchangeSource;
+            this.computeListener = computeListener;
+            this.currentNode = currentNode;
+            // Each completed exactly once, whichever step of whichever attempt ends the walk, and a step that throws after
+            // the attempt's response handler was registered must not complete them a second time.
+            this.response = ActionListener.notifyOnce(computeListener.acquireCompute());
+            this.walkRef = workers.size() < 2 ? null : ActionListener.notifyOnce(computeListener.acquireAvoid());
+        }
+
+        private ExternalDispatchResolution.ResolvedExternalNode worker(int hop) {
+            return workers.get((targetIndex + hop) % workers.size());
+        }
+
+        private List<ExternalSplit> splits() {
+            return worker(0).splits();
+        }
+
+        DataNodeRequest request(String childSessionId) {
+            return externalRequest(childSessionId, queryId, configuration, dataNodePlan, splits(), requiredClusterStateVersion);
+        }
+
+        void pageFetched() {
+            synchronized (this) {
+                pagesFetched.incrementAndGet();
+            }
+        }
+
+        /**
+         * The response listener of attempt {@code attempt}. The hop is not decided here: a data-action disconnect
+         * can race a page already received but still queued on {@code searchExecutor}, so rerouting waits for the
+         * sink to drain concurrent fetches. A failure with pages already fetched cannot be replayed and fails the
+         * query. Success of this channel does not end the walk: both channels of the attempt must succeed. A throw
+         * out of the hop (a listener that cannot be acquired, say) fails the walk rather than escaping the transport
+         * thread with the slots uncompleted, which would hang the query.
+         */
+        ActionListener<DataNodeComputeResponse> attemptListener(int attempt) {
+            return ActionListener.wrap(r -> onDataActionSuccess(attempt, r.completionInfo()), e -> {
+                boolean drain = false;
+                boolean succeedWithPages = false;
+                DriverCompletionInfo info = null;
+                synchronized (this) {
+                    if (ended.get() || claimedAttempt.get() != attempt) {
+                        return;
+                    }
+                    if (isRetryableExternalWorkerFailure(e) == false) {
+                        // fall through to fail
+                    } else if (pagesFetched.get() > 0) {
+                        if (sinkOk) {
+                            ended.set(true);
+                            succeedWithPages = true;
+                            info = pendingInfo != null ? pendingInfo : DriverCompletionInfo.EMPTY;
+                        }
+                    } else {
+                        dataActionFailure = e;
+                        if (sinkOk) {
+                            drain = true;
+                        } else {
+                            return;
+                        }
+                    }
+                }
+                if (succeedWithPages) {
+                    finishSuccess(info);
+                    return;
+                }
+                if (drain) {
+                    rerouteOrFail(attempt, e);
+                    return;
+                }
+                fail(wrapTerminal(attempt, e));
+            });
+        }
+
+        /**
+         * The remote-sink listener of attempt {@code attempt}. Concurrent fetchers have drained by the time this
+         * fires, so a hop here cannot race a queued page. Swallowing a retryable failure (or the twin of one already
+         * hopped) keeps the inner {@link ComputeListener} open for the replacement sink. A terminal failure also ends
+         * the walk: failing only {@code slot} would leave {@code response} and {@code walkRef} outstanding.
+         */
+        ActionListener<Void> sinkListener(int attempt, ActionListener<Void> slot) {
+            return ActionListener.wrap(unused -> {
+                onSinkSuccess(attempt);
+                slot.onResponse(null);
+            }, e -> {
+                if (abandonAttempt(attempt, e)) {
+                    slot.onResponse(null);
+                } else {
+                    try {
+                        fail(wrapTerminal(attempt, e));
+                    } finally {
+                        slot.onFailure(e);
+                    }
+                }
+            });
+        }
+
+        /**
+         * {@code true} when this failure must not complete the walk: we hopped, or the other channel of this attempt
+         * already hopped, so the failure is the twin disconnect.
+         */
+        private boolean abandonAttempt(int attempt, Exception e) {
+            if (tryHop(attempt, e)) {
+                return true;
+            }
+            return ended.get() == false && claimedAttempt.get() > attempt;
+        }
+
+        private boolean tryHop(int attempt, Exception e) {
+            if (claimHop(attempt, e) == false) {
+                return false;
+            }
+            try {
+                hop(attempt + 1, e);
+            } catch (Exception hopFailure) {
+                hopFailure.addSuppressed(e);
+                fail(hopFailure);
+            }
+            return true;
+        }
+
+        private synchronized boolean claimHop(int attempt, Exception e) {
+            if (ended.get()) {
+                return false;
+            }
+            if (shouldRerouteExternalWorker(e, pagesFetched.get(), nextWorker(workers, targetIndex, attempt + 1) != null) == false) {
+                return false;
+            }
+            if (claimedAttempt.get() != attempt) {
+                return false;
+            }
+            claimedAttempt.set(attempt + 1);
+            dataActionOk = false;
+            sinkOk = false;
+            dataActionFailure = null;
+            pendingInfo = null;
+            return true;
+        }
+
+        private void rerouteOrFail(int attempt, Exception e) {
+            if (tryHop(attempt, e)) {
+                return;
+            }
+            fail(wrapTerminal(attempt, e));
+        }
+
+        private Exception wrapTerminal(int attempt, Exception e) {
+            if (isRetryableExternalWorkerFailure(e) && nextWorker(workers, targetIndex, attempt + 1) == null) {
+                return remainingExternalWorkersFailed(e);
+            }
+            return e;
+        }
+
+        private void onDataActionSuccess(int attempt, DriverCompletionInfo info) {
+            boolean complete;
+            synchronized (this) {
+                if (ended.get() || claimedAttempt.get() != attempt) {
+                    return;
+                }
+                pendingInfo = info;
+                dataActionOk = true;
+                complete = sinkOk;
+                if (complete) {
+                    ended.set(true);
+                }
+            }
+            if (complete) {
+                finishSuccess(info);
+            }
+        }
+
+        private void onSinkSuccess(int attempt) {
+            boolean complete = false;
+            boolean drain = false;
+            Exception cause = null;
+            DriverCompletionInfo info = null;
+            synchronized (this) {
+                if (ended.get() || claimedAttempt.get() != attempt) {
+                    return;
+                }
+                sinkOk = true;
+                if (dataActionOk) {
+                    ended.set(true);
+                    complete = true;
+                    info = pendingInfo;
+                } else if (dataActionFailure != null) {
+                    if (pagesFetched.get() > 0) {
+                        ended.set(true);
+                        complete = true;
+                        info = pendingInfo != null ? pendingInfo : DriverCompletionInfo.EMPTY;
+                    } else {
+                        drain = true;
+                        cause = dataActionFailure;
+                    }
+                }
+            }
+            if (complete) {
+                finishSuccess(info);
+            } else if (drain) {
+                rerouteOrFail(attempt, cause);
+            }
+        }
+
+        private void finishSuccess(DriverCompletionInfo info) {
+            try {
+                response.onResponse(info);
+            } finally {
+                endWalk();
+            }
+        }
+
+        private void fail(Exception e) {
+            synchronized (this) {
+                if (ended.compareAndSet(false, true) == false) {
+                    return;
+                }
+            }
+            try {
+                response.onFailure(e);
+            } finally {
+                endWalk();
+            }
+        }
+
+        private void endWalk() {
+            ended.set(true);
+            if (walkRef != null) {
+                walkRef.onResponse(null);
+            }
+        }
+
+        /** Sends the splits the worker of attempt {@code attempt - 1} could not run to the worker of attempt {@code attempt}. */
+        private void hop(int attempt, Exception cause) {
+            final DiscoveryNode previous = worker(attempt - 1).node();
+            final ExternalDispatchResolution.ResolvedExternalNode next = worker(attempt);
+            currentNode.set(next.node());
+            // This hop's sink slot, acquired while the walk ref keeps the inner ComputeListener open, and completed exactly
+            // once: by the remote sink, or here when nothing was sent and no sink was added.
+            final ActionListener<Void> sink = ActionListener.notifyOnce(computeListener.acquireAvoid());
+            final var queryPragmas = configuration.pragmas();
+            final String childSessionId = computeService.newChildSession(sessionId);
+            final ActionListener<Void> opened = ActionListener.wrap(unused -> {
+                ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, next.connection());
+                transportService.sendChildRequest(
+                    next.connection(),
+                    ComputeService.DATA_ACTION_NAME,
+                    request(childSessionId),
+                    groupTask,
+                    computeService.planRequestOptions(),
+                    new ActionListenerResponseHandler<>(
+                        ComputeService.finishRemoteSinkIfNotSent(remoteSink, attemptListener(attempt)),
+                        in -> new DataNodeComputeResponse(in, threadContext),
+                        searchExecutor
+                    )
+                );
+                // failFast would abort the shared exchange before a further hop can attach a replacement sink
+                exchangeSource.addRemoteSink(
+                    remoteSink,
+                    false,
+                    this::pageFetched,
+                    queryPragmas.concurrentExchangeClients(),
+                    sinkListener(attempt, sink)
+                );
+            }, e -> {
+                if (abandonAttempt(attempt, e)) {
+                    sink.onResponse(null);
+                    return;
+                }
+                try {
+                    fail(wrapTerminal(attempt, e));
+                } finally {
+                    sink.onResponse(null);
+                }
+            });
+            try {
+                logReroutedWorker(previous, next.node(), splits().size(), attempt, workers.size() - 1, childSessionId);
+                ExchangeService.openExchange(
+                    transportService,
+                    next.connection(),
+                    childSessionId,
+                    queryPragmas.exchangeBufferSize(),
+                    searchExecutor,
+                    opened
+                );
+            } catch (Exception e) {
+                opened.onFailure(e);
+            }
+        }
+    }
+
+    /**
+     * One DEBUG line per hop. A disconnect hop is the leave-after-dispatch case.
+     */
+    private void logReroutedWorker(DiscoveryNode previous, DiscoveryNode next, int splits, int hop, int hops, String sessionId) {
+        LOGGER.debug(
+            "external worker [{}] failed before streaming; rerouting [{}] splits to [{}] on hop [{}/{}], session [{}]",
+            previous.getName(),
+            splits,
+            next.getName(),
+            hop,
+            hops,
+            sessionId
         );
     }
 

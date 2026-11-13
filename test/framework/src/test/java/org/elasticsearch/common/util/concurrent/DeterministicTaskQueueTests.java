@@ -124,26 +124,43 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     /**
-     * With the lowest priority, task {@code L} waits for the whole chain {@code C1 -> C2 -> ... -> C5}, each link submitting the next.
+     * Task {@code L} must wait while the chain {@code C1 -> C2 -> ... -> Cm} runs, each link submitting the next. With chosen
+     * priorities, {@code L} runs right after the last of the leading links that drew higher than it did, wherever that is.
      */
-    public void testRandomPriorityHoldsLowPriorityTaskUntilChainEnds() {
-        assertThat(runChainWithPriorities(0.1, 0.9, 0.8, 0.7, 0.6, 0.5), contains("C1", "C2", "C3", "C4", "C5", "L"));
+    public void testRandomPriorityRunsTaskAfterChainLinksThatDrewHigher() {
+        final int chainLength = between(1, 20);
+        final int linksBeforeL = between(0, chainLength);
+        final double priorityOfL = randomDoubleBetween(0.2, 0.8, true);
+        final double[] priorities = new double[chainLength + 1];
+        priorities[0] = priorityOfL;
+        for (int link = 1; link <= chainLength; link++) {
+            if (link <= linksBeforeL) {
+                priorities[link] = randomDoubleBetween(priorityOfL + 0.01, 1.0, true);
+            } else if (link == linksBeforeL + 1) {
+                priorities[link] = randomDoubleBetween(0.0, priorityOfL - 0.01, true);
+            } else {
+                priorities[link] = randomDouble();
+            }
+        }
+
+        final List<String> expected = new ArrayList<>();
+        for (int link = 1; link <= chainLength; link++) {
+            if (link == linksBeforeL + 1) {
+                expected.add("L");
+            }
+            expected.add("C" + link);
+        }
+        if (linksBeforeL == chainLength) {
+            expected.add("L");
+        }
+
+        assertThat(runChainWithPriorities(priorities), equalTo(expected));
     }
 
     /**
-     * Task {@code L} runs as soon as a link of the chain draws a lower priority than it did, and the rest of the chain follows.
-     */
-    public void testRandomPriorityRunsTaskWhenChainLinkDrawsLower() {
-        assertThat(runChainWithPriorities(0.3, 0.9, 0.8, 0.2, 0.7, 0.6), contains("C1", "C2", "L", "C3", "C4", "C5"));
-    }
-
-    public void testRandomPriorityRunsHigherPriorityTaskFirst() {
-        assertThat(runChainWithPriorities(0.9, 0.8, 0.7, 0.6, 0.5, 0.4), contains("L", "C1", "C2", "C3", "C4", "C5"));
-    }
-
-    /**
-     * Runs task {@code L} and the chain {@code C1 -> C2 -> ... -> C5} under {@link DeterministicTaskQueue.SelectionPolicy#RANDOM_PRIORITY}.
-     * Priorities are drawn when a task becomes runnable, so they go to {@code L}, {@code C1}, ..., {@code C5} in that order.
+     * Runs task {@code L} and the chain {@code C1 -> C2 -> ... -> Cm} under {@link DeterministicTaskQueue.SelectionPolicy#RANDOM_PRIORITY},
+     * where {@code m} is one less than the number of priorities. Priorities are drawn when a task becomes runnable, so they go to
+     * {@code L}, {@code C1}, ..., {@code Cm} in that order.
      *
      * @return the order in which the tasks ran
      */
@@ -158,7 +175,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
             @Override
             public void run() {
                 order.add("C" + link);
-                if (link++ < 5) {
+                if (link++ < priorities.length - 1) {
                     taskQueue.scheduleNow(this);
                 }
             }

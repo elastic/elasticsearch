@@ -12,13 +12,11 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.util.concurrent.TaskLoadAttribution.SHORT_NANOS;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -138,34 +136,12 @@ public class TaskLoadAttributionTests extends ESTestCase {
     }
 
     /**
-     * Parts charged together share the CPU time the thread used like their time.
-     */
-    public void testSplitsTheCpuTimeOfPartsLikeTheirTime() {
-        onPoolThread(clocks -> {
-            Charges task = new Charges();
-            Charges first = new Charges();
-            Charges second = new Charges();
-            Charges none = new Charges();
-            TaskLoadAttribution.taskStarted();
-            TaskLoadAttribution.attribute(task);
-            clocks.cpu += 2 * TASK_NANOS;
-            TaskLoadAttribution.charge(List.of(first, second, none), new long[] { TASK_NANOS, 3 * TASK_NANOS, 0 }, clocks.now);
-            TaskLoadAttribution.taskCompleted(5 * TASK_NANOS, clocks.now);
-            assertThat(first, contains(new Charge(TASK_NANOS, TASK_NANOS / 2)));
-            assertThat(second, contains(new Charge(3 * TASK_NANOS, 3 * TASK_NANOS / 2)));
-            assertThat(none, empty());
-            assertThat(task, contains(new Charge(TASK_NANOS, 0)));
-        });
-    }
-
-    /**
      * Outside a pool task nothing measures the CPU time, so the time counts as CPU time.
      */
     public void testOutsideAPoolTaskTheTimeCountsAsCpuTime() {
         Charges charges = new Charges();
         TaskLoadAttribution.charge(charges, 100, System.nanoTime());
-        TaskLoadAttribution.charge(List.of(charges), new long[] { 200 }, System.nanoTime());
-        assertThat(charges, contains(new Charge(100, 100), new Charge(200, 200)));
+        assertThat(charges, contains(new Charge(100, 100)));
     }
 
     /**

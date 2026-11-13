@@ -11,15 +11,19 @@ package org.elasticsearch.common.util.concurrent;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
-import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
 /**
  * Charges the execution time of pool tasks to the work they do. Code sets what its task works for, and the pool charges the
- * time it measured when the task completes, with the CPU time of the thread in it. Only pools configured with
- * {@link EsExecutors.TaskTrackingConfig.Builder#attributeTaskLoad} charge.
+ * time it measured when the task completes. Only pools configured with {@link EsExecutors.TaskTrackingConfig.Builder#attributeTaskLoad}
+ * charge.
+ *
+ * <p>Each charge also gets the CPU time its thread used in it, from how much the thread's CPU clock moved since its previous
+ * read. The read is kept from task to task, since an idle thread does not move its CPU clock. Reading the clock is not free, so
+ * a charge shorter than {@link #SHORT_NANOS} counts all its time as CPU time, and the next read takes it back. Where the CPU
+ * clock is not known, as outside a pool task, all the time counts as CPU time.</p>
  */
 public final class TaskLoadAttribution {
 
@@ -41,9 +45,7 @@ public final class TaskLoadAttribution {
     private static final boolean CPU_TIME_SUPPORTED = THREAD_MX.isCurrentThreadCpuTimeSupported();
     /** A CPU time that is not known. */
     private static final long UNREAD = Long.MIN_VALUE;
-    /**
-     * Time shorter than this is charged as CPU time without reading the clock, and the next read corrects it.
-     */
+    /** Charges shorter than this do not read the CPU clock. */
     static final long SHORT_NANOS = TimeUnit.MICROSECONDS.toNanos(20);
 
     /**
@@ -55,12 +57,9 @@ public final class TaskLoadAttribution {
         Target target;
         /** The time charged with {@link #charge}. */
         long chargedNanos;
-        /**
-         * The CPU time of the thread when the clock was last read, or {@link #UNREAD} after the thread used CPU time it did not
-         * charge. It is kept from task to task, since in between the thread only runs its pool's loop or waits for work.
-         */
+        /** The CPU clock at its last read, or {@link #UNREAD} if the thread used CPU time since that was not charged. */
         long cpuReadNanos = UNREAD;
-        /** The CPU time charged since that read without reading the clock. */
+        /** The short charges since that read, which the next read takes back. */
         long cpuChargedSinceRead;
         /** The CPU time of the thread, negative when it is not known. */
         LongSupplier cpuClock = TaskLoadAttribution::threadCpuNanos;
@@ -75,8 +74,7 @@ public final class TaskLoadAttribution {
     private TaskLoadAttribution() {}
 
     /**
-     * Charges the time of the task running on this thread to {@code target}, unless the task has a target already. Only tasks
-     * with a target read the CPU time of their thread.
+     * Charges the time of the task running on this thread to {@code target}, unless the task has a target already.
      */
     public static void attribute(Target target) {
         Task task = task();
@@ -99,38 +97,6 @@ public final class TaskLoadAttribution {
             target.charge(nanos, cpuOf(task, nanos), finishNanos);
         } else {
             target.charge(nanos, nanos, finishNanos);
-        }
-    }
-
-    /**
-     * Like {@link #charge(Target, long, long)} for each of {@code targets} and the {@code nanos} at the same index, splitting the
-     * CPU time between them like the time.
-     */
-    public static void charge(List<Target> targets, long[] nanos, long finishNanos) {
-        assert nanos.length >= targets.size() : nanos.length + " < " + targets.size();
-        long totalNanos = 0;
-        for (int i = 0; i < targets.size(); i++) {
-            assert nanos[i] >= 0 : nanos[i];
-            totalNanos += nanos[i];
-        }
-        Task task = task();
-        long cpuNanos;
-        if (task != null && task.running) {
-            task.chargedNanos += totalNanos;
-            cpuNanos = cpuOf(task, totalNanos);
-        } else {
-            cpuNanos = totalNanos;
-        }
-        // rounds the cumulative share, so the shares add up to cpuNanos, but never more than the time of each
-        long nanosSoFar = 0;
-        long cpuCharged = 0;
-        for (int i = 0; i < targets.size(); i++) {
-            if (nanos[i] > 0) {
-                nanosSoFar += nanos[i];
-                long cpu = Math.min(Math.round((double) cpuNanos * nanosSoFar / totalNanos) - cpuCharged, nanos[i]);
-                cpuCharged += cpu;
-                targets.get(i).charge(nanos[i], cpu, finishNanos);
-            }
         }
     }
 
@@ -235,8 +201,7 @@ public final class TaskLoadAttribution {
     }
 
     /**
-     * The CPU time in {@code nanos} of the task on this thread: all of it when it is short or not known, else what the thread used
-     * since its last read less what was charged since, at most {@code nanos}.
+     * The CPU time in the {@code nanos} just charged on this thread, at most {@code nanos}.
      */
     private static long cpuOf(Task task, long nanos) {
         if (task.cpuReadNanos == UNREAD) {

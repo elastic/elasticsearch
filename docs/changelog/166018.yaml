@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166018
+summary: Refuse unsupported Parquet codec as 400
+type: bug

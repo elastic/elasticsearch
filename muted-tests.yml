@@ -640,3 +640,7 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/165933
+- class: org.elasticsearch.xpack.esql.action.ExternalProvenanceParityIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/165944

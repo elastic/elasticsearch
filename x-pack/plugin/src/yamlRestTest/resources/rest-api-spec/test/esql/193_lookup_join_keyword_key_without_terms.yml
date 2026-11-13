@@ -100,6 +100,10 @@ setup:
           - { "host": "Bravo", "threat_level": "high" }
           - { "index": { } }
           - { "host": "CHARLIE", "threat_level": "medium" }
+  # Dynamic mapping updates are not acknowledged by every node, so wait until all nodes have applied them.
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
 ---
 "runtime keyword key":

@@ -333,7 +333,8 @@ public final class VectorBinaryOperatorV2 {
         Expression binaryExpr = binaryOp().asFunction().create(source(), leftExpr, rightExpr, context.configuration());
         if (filterModeVector) {
             plan = new Filter(source(), plan, binaryExpr);
-            binaryExpr = leftExpr;
+            // A filter keeps the vector's value, wherever the scalar sits, as Prometheus does.
+            binaryExpr = PromqlPlan.returnsScalar(left()) ? rightExpr : leftExpr;
         }
         IntermediateResult vector = PromqlPlan.returnsScalar(left()) ? right : left;
         IntermediateResult result = new IntermediateResult(plan, null, resultLabels(vector.labels(), null), step, filter, kind);
@@ -586,7 +587,9 @@ public final class VectorBinaryOperatorV2 {
         Expression filter = null;
         if (op instanceof VectorBinaryComparison comparison) {
             filter = comparison.filterMode() ? value : null;
-            value = comparison.filterMode() ? lhsExpr : new ToDouble(value.source(), value);
+            // A filter keeps the vector's value, wherever the scalar sits, as Prometheus does.
+            Expression kept = PromqlPlan.returnsScalar(op.left()) ? rhsExpr : lhsExpr;
+            value = comparison.filterMode() ? kept : new ToDouble(value.source(), value);
         }
         // Expose the step under the enclosing frame's step identity so enclosing translations (union branches, parent
         // aggregates) resolve it by id, not just by name.

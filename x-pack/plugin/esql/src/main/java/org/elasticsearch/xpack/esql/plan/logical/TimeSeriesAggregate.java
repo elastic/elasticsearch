@@ -33,10 +33,8 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -216,6 +214,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     }
 
     public void verify(Failures failures) {
+        checkForkBeforeAggregation(child(), failures);
         if (origin != Origin.PROMQL_COMMAND) {
             // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
             groupings().forEach(g -> {
@@ -283,6 +282,30 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                         );
                 }));
             }
+        }
+    }
+
+    /**
+     * Rejects {@code TS metrics | FORK ... | STATS ...}. The aggregation groups by the {@code _tsid} of its source, which a {@code FORK}
+     * does not carry. Unlike {@link #checkCommandsBeforeAggregation}, this runs before the aggregation is translated, because the
+     * translation leaves the {@code FORK} unresolved, and the verifier does not check a plan over unresolved children. Like it, it skips
+     * the right branch of an {@link AbstractSubqueryJoin}, where a {@code FORK} only shapes the independently executed subquery.
+     */
+    private void checkForkBeforeAggregation(LogicalPlan p, Failures failures) {
+        if (p instanceof Fork fork) {
+            failures.add(
+                fail(
+                    fork,
+                    "fork [{}] in the time-series before the first aggregation [{}] is not supported",
+                    fork.sourceText(),
+                    this.sourceText()
+                )
+            );
+            return;
+        }
+        List<LogicalPlan> children = p instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : p.children();
+        for (LogicalPlan child : children) {
+            checkForkBeforeAggregation(child, failures);
         }
     }
 
@@ -405,38 +428,9 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 )
             );
         }
-        // reject `TS metrics | FORK ... | STATS RATE(...)`
-        if (p instanceof MergePlan merge) {
-            checkTimeSeriesSourceFunctionsOverMerge(merge, failures);
-        }
         List<LogicalPlan> children = p instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : p.children();
         for (LogicalPlan child : children) {
             checkCommandsBeforeAggregation(child, failures);
-        }
-    }
-
-    /**
-     * Time-series aggregations such as {@code RATE} read the slice index and the future max timestamp that only the time-series source
-     * operator produces, and they need their input in time-series order. A merge of branches provides neither, so reject them over a
-     * merge instead of failing at runtime. Other time-series aggregations work over a merge.
-     */
-    private void checkTimeSeriesSourceFunctionsOverMerge(MergePlan merge, Failures failures) {
-        String mergeName = merge instanceof Fork ? "FORK" : "subqueries";
-        Set<String> reported = new HashSet<>();
-        for (NamedExpression aggregate : aggregates) {
-            aggregate.forEachDown(TimeSeriesAggregateFunction.class, function -> {
-                if (function.requiredTimeSeriesSource() && reported.add(function.functionName())) {
-                    failures.add(
-                        fail(
-                            function,
-                            "{} over {} is not supported; [{}] needs the time-series source directly",
-                            function.functionName(),
-                            mergeName,
-                            function.sourceText()
-                        )
-                    );
-                }
-            });
         }
     }
 

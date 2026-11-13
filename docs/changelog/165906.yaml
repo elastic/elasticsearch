@@ -2,5 +2,5 @@ area: TSDB
 issues:
  - 160269
 pr: 165906
-summary: Fix TS STATS over FORK missing `_tsid`
+summary: Reject FORK before the first TS STATS instead of failing with missing `_tsid`
 type: bug

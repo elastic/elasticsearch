@@ -41,11 +41,11 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
         return false;
     }
 
-    private static EsRelation addLoweredAttributes(EsRelation relation, Iterable<? extends Attribute> loweredAttributes) {
+    private static EsRelation addLoweredAttributes(EsRelation relation, Iterable<TimeSeriesMetadataAttribute> loweredAttributes) {
         var existingIds = relation.outputSet();
         List<Attribute> attributes = new ArrayList<>(relation.output());
         boolean changed = false;
-        for (Attribute loweredAttribute : loweredAttributes) {
+        for (TimeSeriesMetadataAttribute loweredAttribute : loweredAttributes) {
             if (existingIds.contains(loweredAttribute) == false) {
                 attributes.add(loweredAttribute);
                 changed = true;
@@ -55,20 +55,14 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
     }
 
     /**
-     * Injects the lowered {@code _timeseries} attributes into the time-series source relation(s) feeding this aggregate and carries them
-     * up to the aggregate - see {@link TranslateTimeSeriesUtils#addToTimeSeriesSource}. Each branch of a merge extracts its own copy,
-     * excluding the same dimensions.
+     * Injects the lowered {@code _timeseries} attributes into the time-series source relation(s) feeding this aggregate. Traversal scope
+     * (skipping the right-hand side of a {@code BinaryPlan}) is documented on {@code TranslateTimeSeriesUtils#transformTimeSeriesSource}.
      */
     private static LogicalPlan addLoweredAttributesToTimeSeriesSource(
         LogicalPlan plan,
-        List<TimeSeriesMetadataAttribute> loweredAttributes
+        Iterable<TimeSeriesMetadataAttribute> loweredAttributes
     ) {
-        return TranslateTimeSeriesUtils.addToTimeSeriesSource(
-            plan,
-            loweredAttributes,
-            TranslateTimeSeriesWithout::addLoweredAttributes,
-            (branch, lowered) -> lowered.withId(new NameId())
-        );
+        return TranslateTimeSeriesUtils.transformTimeSeriesSource(plan, relation -> addLoweredAttributes(relation, loweredAttributes));
     }
 
     @Override

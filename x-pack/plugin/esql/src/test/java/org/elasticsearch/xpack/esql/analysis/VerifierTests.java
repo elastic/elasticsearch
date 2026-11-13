@@ -4935,29 +4935,62 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     /**
-     * Time-series aggregations that need the time-series source, such as {@code RATE}, cannot run over a {@code FORK}.
+     * A {@code FORK} between the time-series source and the first aggregation is not supported. It used to fail later in the planner
+     * with "optimized incorrectly due to missing references [_tsid]".
      * See <a href="https://github.com/elastic/elasticsearch/issues/160269">#160269</a>.
      */
-    public void testTimeSeriesSourceAggregationOverForkNotAllowed() {
-        assumeTrue("requires TS STATS over FORK fix", EsqlCapabilities.Cap.FIX_TS_STATS_OVER_FORK.isEnabled());
-        tsdb().addK8s().error("""
-            TS k8s
-            | FORK (WHERE cluster == "prod") (WHERE cluster != "prod")
-            | STATS r = SUM(RATE(network.total_bytes_in)) BY cluster""", equalTo("""
-            3:17: RATE over FORK is not supported; [RATE(network.total_bytes_in)] needs the time-series source directly"""));
+    /**
+     * A {@code FORK} between the time-series source and the first aggregation is not supported. It used to fail later in the planner
+     * with "optimized incorrectly due to missing references [_tsid]".
+     * See <a href="https://github.com/elastic/elasticsearch/issues/160269">#160269</a>.
+     */
+    public void testDebugTmpFork() {
+        for (String q : List.of(
+            "TS k8s | FORK (WHERE cluster == \"prod\") (WHERE cluster != \"prod\") | STATS m = MAX(network.total_bytes_in) BY cluster",
+            "TS k8s | FORK (WHERE cluster == \"prod\") (WHERE cluster != \"prod\") | STATS m = MAX(network.cost) BY cluster"
+        )) {
+            try {
+                var plan = tsdb().addK8s().query(q);
+                for (var ts : plan.collect(org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate.class)) {
+                    var f = new org.elasticsearch.xpack.esql.common.Failures();
+                    ts.postAnalysisVerification(f);
+                    logger.info("TS child {} failures {}", ts.child().getClass(), f);
+                }
+            } catch (Exception e) {
+                logger.info("ERR: {}", e.getMessage());
+            }
+        }
+    }
 
-        tsdb().addK8s().error("""
-            TS k8s
-            | FORK (WHERE cluster == "prod") (WHERE cluster != "prod")
-            | STATS i = MAX(INCREASE(network.total_bytes_in)), r = AVG(RATE(network.total_bytes_in)) BY cluster""", equalTo("""
-            3:17: INCREASE over FORK is not supported; [INCREASE(network.total_bytes_in)] needs the time-series source directly
-            line 3:60: RATE over FORK is not supported; [RATE(network.total_bytes_in)] needs the time-series source directly"""));
+    public void testForkBeforeTSStatsNotAllowed() {
+        assumeTrue("requires FORK before TS STATS check", EsqlCapabilities.Cap.TS_FORK_BEFORE_STATS_NOT_SUPPORTED.isEnabled());
+        tsdb().addK8s()
+            .error(
+                "TS k8s | FORK (WHERE cluster == \"prod\") (WHERE cluster != \"prod\") | STATS m = MAX(network.total_bytes_in) BY cluster",
+                equalTo(
+                    "1:10: fork [FORK (WHERE cluster == \"prod\") (WHERE cluster != \"prod\")] in the time-series before the first "
+                        + "aggregation [STATS m = MAX(network.total_bytes_in) BY cluster] is not supported"
+                )
+            );
 
-        // over-time aggregations that do not need the time-series source work over a FORK
+        for (String stats : List.of(
+            "STATS r = SUM(RATE(network.total_bytes_in)) BY cluster",
+            "STATS m = MAX(network.cost) BY WITHOUT(pod)",
+            "STATS m = MAX(network.cost) BY _tsid"
+        )) {
+            tsdb().addK8s()
+                .error(
+                    "TS k8s METADATA _tsid | FORK (WHERE cluster == \"prod\") (WHERE cluster != \"prod\") | KEEP * | " + stats,
+                    containsString("in the time-series before the first aggregation [" + stats + "] is not supported")
+                );
+        }
+
+        // a FORK after the first aggregation, or with the aggregations inside its branches, is fine
+        tsdb().addK8s().query("TS k8s | STATS m = MAX(network.total_bytes_in) BY cluster | FORK (WHERE m > 0) (WHERE m <= 0)");
         tsdb().addK8s().query("""
             TS k8s
-            | FORK (WHERE cluster == "prod") (WHERE cluster != "prod")
-            | STATS m = MAX(LAST_OVER_TIME(network.total_bytes_in)), b = MAX(TO_LONG(network.bytes_in)) BY cluster""");
+            | FORK (STATS m = MAX(network.total_bytes_in) BY cluster) (STATS m = MIN(network.total_bytes_in) BY cluster)
+            | STATS x = MAX(m) BY cluster""");
     }
 
     public void testMvExpandBeforeTSStatsNotAllowed() {

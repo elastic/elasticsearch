@@ -185,22 +185,3 @@ max_cost:double | _timeseries:keyword
 10.75           | "{""cluster"":""prod""}"
 10.875          | "{""cluster"":""qa""}"
 ;
-
-// Regression test for https://github.com/elastic/elasticsearch/issues/160269: WITHOUT over a FORK
-// must not fail with "optimized incorrectly due to missing references [_timeseries]".
-without_over_fork
-skip_flattened_rewrite: without_unsupported
-required_capability: esql_without_grouping
-required_capability: fork_v9
-required_capability: fix_ts_stats_over_fork
-TS k8s
-| FORK (WHERE cluster == "prod") (WHERE cluster != "prod")
-| STATS total_cost = sum(network.cost) BY WITHOUT(pod)
-| SORT total_cost
-;
-
-total_cost:double | _timeseries:keyword
-15.875            | "{""cluster"":""staging"",""region"":""us""}"
-18.625            | "{""cluster"":""prod"",""region"":[""eu"",""us""]}"
-26.5              | "{""cluster"":""qa""}"
-;

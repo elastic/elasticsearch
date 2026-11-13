@@ -720,13 +720,8 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-<<<<<<< HEAD
               - openjdk25
-            BWC_VERSION: ["8.19.25", "9.4.10", "9.5.7", "9.6.0", "9.7.0"]
-=======
-              - openjdk21
             BWC_VERSION: ["8.19.26", "9.4.10", "9.5.7", "9.6.0", "9.7.0"]
->>>>>>> 11c9a36db53de1de79450d13212a5be3105121a3
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -792,13 +787,8 @@ steps:
         matrix:
           setup:
             ES_RUNTIME_JAVA:
-<<<<<<< HEAD
               - openjdk25
-            BWC_VERSION: ["8.19.25", "9.4.10", "9.5.7", "9.6.0", "9.7.0"]
-=======
-              - openjdk21
             BWC_VERSION: ["8.19.26", "9.4.10", "9.5.7", "9.6.0", "9.7.0"]
->>>>>>> 11c9a36db53de1de79450d13212a5be3105121a3
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

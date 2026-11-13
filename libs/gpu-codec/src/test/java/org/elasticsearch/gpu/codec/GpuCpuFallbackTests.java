@@ -16,7 +16,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.HnswGraphProvider;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -80,9 +79,7 @@ public class GpuCpuFallbackTests extends ESTestCase {
 
     public void testBBQFallback() throws Exception {
         // a graph threshold of 0, so that the small flushed segments get a graph rather than the default bbq threshold skipping it
-        testFallback(
-            new ES97GpuHnswBBQVectorsFormat(AlwaysFailingResourceManager::new, 0, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, false, 0, false)
-        );
+        testFallback(new ES97GpuHnswBBQVectorsFormat(AlwaysFailingResourceManager::new, 0, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, 0));
     }
 
     /**
@@ -161,9 +158,7 @@ public class GpuCpuFallbackTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 LeafReader leaf = getOnlyLeafReader(reader);
                 KnnVectorsReader vectorsReader = ((CodecReader) leaf).getVectorReader();
-                if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
-                    vectorsReader = fieldsReader.getFieldReader(FIELD);
-                }
+                vectorsReader = vectorsReader.unwrapReaderForField(FIELD);
                 HnswGraph graph = ((HnswGraphProvider) vectorsReader).getGraph(FIELD);
                 assertThat(graph, not(nullValue()));
                 assertThat(graph.size(), equalTo(numDocs));

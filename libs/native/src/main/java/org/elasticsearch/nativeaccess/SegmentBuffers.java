@@ -33,6 +33,7 @@ public final class SegmentBuffers {
      * @param length the number of bytes in the buffer
      * @throws IllegalArgumentException if {@code address} is not positive or {@code length} is negative
      */
+    @SuppressWarnings("restricted")
     public static ByteBuffer unscopedByteBuffer(long address, int length) {
         if (address <= 0 || length < 0) {
             throw new IllegalArgumentException("invalid native range [address=" + address + ", length=" + length + "]");

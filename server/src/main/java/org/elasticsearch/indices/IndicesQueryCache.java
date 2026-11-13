@@ -318,15 +318,10 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     @Override
     public void close() {
         assert shardKeyMap.size() == 0 : shardKeyMap.size();
-<<<<<<< HEAD
         // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523): restore after hook migration
         // assert shardStats.isEmpty() : shardStats.keySet();
         // assert stats2.isEmpty() : stats2;
-=======
-        assert shardStats.isEmpty() : shardStats.keySet();
-        assert stats2.isEmpty() : stats2;
         assert cache.inFlightPopulations.isEmpty() : cache.inFlightPopulations;
->>>>>>> 11c9a36db53de1de79450d13212a5be3105121a3
 
         // This cache stores two things: filters, and doc id sets. At this time
         // we only know that there are no more doc id sets, but we still track

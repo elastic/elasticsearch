@@ -357,12 +357,6 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
             "scandinavian_normalization",
             "serbian_normalization",
             "sorani_normalization",
-<<<<<<< HEAD
-            "thai_normalization",
-            "thai_repeat",
-            "trim",
-=======
->>>>>>> 11c9a36db53de1de79450d13212a5be3105121a3
             "uppercase"
         )) {
             filters.put(stateless, alwaysShares());

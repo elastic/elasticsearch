@@ -22,21 +22,15 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
-<<<<<<< HEAD
-import org.apache.lucene.search.FieldStats;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.TermStats;
-=======
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.FieldStats;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TermStatistics;
->>>>>>> 11c9a36db53de1de79450d13212a5be3105121a3
+import org.apache.lucene.search.TermStats;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -244,7 +238,7 @@ public class PhraseWalkEquivalenceTests extends ESTestCase {
         }
 
         @Override
-        public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
+        public SimScorer scorer(float boost, FieldStats collectionStats, TermStats... termStats) {
             return new SimScorer() {
                 @Override
                 public float score(float freq, long norm) {

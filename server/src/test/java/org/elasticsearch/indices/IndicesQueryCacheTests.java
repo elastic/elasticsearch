@@ -169,10 +169,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
     }
 
-<<<<<<< HEAD
-    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523):
-    // shard stats no longer match after the per-(segment, query) hook change.
-=======
     /**
      * Matches every document, like {@link DummyQuery}, but a search asking for its scorer parks until {@code release} opens, after
      * counting down {@code arrived}, so that concurrent searches can be held at that point. The scorer supplier also counts how it was
@@ -323,7 +319,8 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.close(); // asserts nothing is in flight
     }
 
->>>>>>> 11c9a36db53de1de79450d13212a5be3105121a3
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163523):
+    // shard stats no longer match after the per-(segment, query) hook change.
     public void testBasics() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());

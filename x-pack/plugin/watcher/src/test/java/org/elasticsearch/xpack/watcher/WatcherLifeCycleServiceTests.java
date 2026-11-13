@@ -490,7 +490,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         // no more local shards, lets pause execution
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutLocalShards, clusterStateWithLocalShards));
-        verify(watcherService, times(1)).pauseExecution(eq("no local watcher shards found"));
+        verify(watcherService, times(1)).pauseExecution(eq("no local watcher shards found"), any());
         verifyNoMoreInteractions(watcherService);
 
         // no further invocations should happen if the cluster state does not change in regard to local shards
@@ -606,7 +606,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", currentState, previousState));
-        verify(watcherService, times(0)).pauseExecution(any());
+        verify(watcherService, times(0)).pauseExecution(anyString(), any());
         verify(watcherService, times(0)).reload(any(), any(), any());
     }
 
@@ -638,7 +638,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         // now remove watches index, and ensure that pausing is only called once, no matter how often called (i.e. each CS update)
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutWatcherIndex, clusterStateWithWatcherIndex));
-        verify(watcherService, times(1)).pauseExecution(any());
+        verify(watcherService, times(1)).pauseExecution(anyString(), any());
 
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutWatcherIndex, clusterStateWithWatcherIndex));
@@ -666,7 +666,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         DiscoveryNodes nodes = new DiscoveryNodes.Builder().localNodeId("node_1").add(newNode("node_1")).build();
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).build();
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
-        verify(watcherService, times(1)).pauseExecution(eq("no master node"));
+        verify(watcherService, times(1)).pauseExecution(eq("no master node"), any());
     }
 
     public void testWatcherStopsOnClusterLevelBlock() {
@@ -676,7 +676,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ClusterBlocks clusterBlocks = ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build();
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).blocks(clusterBlocks).build();
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
-        verify(watcherService, times(1)).pauseExecution(eq("write level cluster block"));
+        verify(watcherService, times(1)).pauseExecution(eq("write level cluster block"), any());
     }
 
     public void testMasterOnlyNodeCanStart() {

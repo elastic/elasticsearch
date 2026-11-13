@@ -92,12 +92,12 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         }
 
         if (Strings.isNullOrEmpty(event.state().nodes().getMasterNodeId())) {
-            pauseExecution("no master node");
+            pauseExecution("no master node", event.state());
             return;
         }
 
         if (event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
-            pauseExecution("write level cluster block");
+            pauseExecution("write level cluster block", event.state());
             return;
         }
 
@@ -137,13 +137,13 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         DiscoveryNode localNode = event.state().nodes().getLocalNode();
         RoutingNode routingNode = event.state().getRoutingNodes().node(localNode.getId());
         if (routingNode == null) {
-            pauseExecution("routing node in cluster state undefined. network issue?");
+            pauseExecution("routing node in cluster state undefined. network issue?", event.state());
             return;
         }
 
         IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metadata());
         if (watcherIndexMetadata == null) {
-            pauseExecution("no watcher index found");
+            pauseExecution("no watcher index found", event.state());
             return;
         }
 
@@ -151,7 +151,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         List<ShardRouting> localShards = routingNode.shardsWithState(watchIndex, RELOCATING, STARTED).toList();
         // no local shards, empty out watcher and dont waste resources!
         if (localShards.isEmpty()) {
-            pauseExecution("no local watcher shards found");
+            pauseExecution("no local watcher shards found", event.state());
             return;
         }
 
@@ -221,9 +221,9 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         }
     }
 
-    private void pauseExecution(String reason) {
+    private void pauseExecution(String reason, ClusterState state) {
         if (clearAllocationIds()) {
-            watcherService.pauseExecution(reason);
+            watcherService.pauseExecution(reason, state.getVersion());
         }
         pendingReloadState.set(null);
         this.state.set(WatcherState.STARTED);

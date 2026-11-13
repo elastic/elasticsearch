@@ -863,6 +863,35 @@ public class APMTracerTests extends ESTestCase {
         assertThat(finishedSpan("name1").getStartEpochNanos(), equalTo(epochNanos(startTime)));
     }
 
+    public void testTraceStartTimeIsRemovedFromTheThreadContextOnceItIsUsed() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Instant startTime = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
+        threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, startTime);
+
+        final Span first = tracer.spanBuilder("first").startSpan();
+
+        assertThat(threadContext.getTransient(Task.LOCAL_TRACE_START_TIME), nullValue());
+        first.end();
+        // the next one, that does not belong to the same trace, starts when it is started
+        startAndEnd(tracer, "second");
+
+        assertThat(finishedSpan("first").getStartEpochNanos(), equalTo(epochNanos(startTime)));
+        assertThat(finishedSpan("second").getStartEpochNanos(), not(equalTo(epochNanos(startTime))));
+    }
+
+    public void testTraceStartTimeIsKeptWhenTheSpanDoesNotUseIt() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+        final Instant startTime = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
+        threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, startTime);
+
+        // a child span starts when it is started, so the start time is not for it
+        tracer.spanBuilder("child").setParent(root).startSpan().end();
+
+        assertThat(threadContext.getTransient(Task.LOCAL_TRACE_START_TIME), equalTo(startTime));
+        root.end();
+    }
+
     public void testTraceStartTimeIsIgnoredForChildSpans() {
         final APMTracer tracer = tracer(enabledSettings(), 1);
         final Instant startTime = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));

@@ -15,13 +15,13 @@ import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 /** Represents a span, a single unit of work, a part of a trace. */
 public interface Span {
 
-    /** Returns a span builder implementation that does nothing. */
+    /** Returns a span implementation that does nothing. */
     static Span noop() {
         return NoopSpan.INSTANCE;
     }
 
     /**
-     * Sets an attribute on this span that will be started. Setting a key that is already set replaces its value.
+     * Sets an attribute on this span. Setting a key that is already set replaces its value.
      *
      * @param key   the attribute key: a stable, low-cardinality identifier
      * @param value the attribute value
@@ -30,7 +30,7 @@ public interface Span {
     Span setAttribute(String key, boolean value);
 
     /**
-     * Sets an attribute on this span that will be started. Setting a key that is already set replaces its value.
+     * Sets an attribute on this span. Setting a key that is already set replaces its value.
      *
      * @param key   the attribute key: a stable, low-cardinality identifier
      * @param value the attribute value
@@ -39,7 +39,7 @@ public interface Span {
     Span setAttribute(String key, double value);
 
     /**
-     * Sets an attribute on this span that will be started. Setting a key that is already set replaces its value.
+     * Sets an attribute on this span. Setting a key that is already set replaces its value.
      *
      * @param key   the attribute key: a stable, low-cardinality identifier
      * @param value the attribute value
@@ -48,7 +48,7 @@ public interface Span {
     Span setAttribute(String key, long value);
 
     /**
-     * Sets an attribute on this span that will be started. Setting a key that is already set replaces its value.
+     * Sets an attribute on this span. Setting a key that is already set replaces its value. Null {@code value} is not supported.
      *
      * @param key   the attribute key: a stable, low-cardinality identifier
      * @param value the attribute value

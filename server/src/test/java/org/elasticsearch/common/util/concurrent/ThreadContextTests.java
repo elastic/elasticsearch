@@ -1325,6 +1325,41 @@ public class ThreadContextTests extends ESTestCase {
         assertThat(threadContext.getHeader(otherKey), equalTo("other"));
     }
 
+    public void testRemoveTransientReturnsAndRemovesTheValue() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var value = new Object();
+        final var otherValue = new Object();
+        threadContext.putTransient("key", value);
+        threadContext.putTransient("other", otherValue);
+
+        assertThat(threadContext.removeTransient("key"), sameInstance(value));
+
+        assertThat(threadContext.getTransient("key"), nullValue());
+        assertThat(threadContext.getTransientHeaders(), equalTo(Map.of("other", otherValue)));
+
+        // there is nothing left to remove
+        assertThat(threadContext.removeTransient("key"), nullValue());
+        assertThat(threadContext.getTransient("key"), nullValue());
+        assertThat(threadContext.getTransientHeaders(), equalTo(Map.of("other", otherValue)));
+
+        // and the key can be put again, which is not allowed while it is there
+        threadContext.putTransient("key", value);
+        assertThat(threadContext.getTransient("key"), sameInstance(value));
+    }
+
+    public void testRemoveTransientIsUndoneByRestoringTheContext() {
+        final var threadContext = new ThreadContext(Settings.EMPTY);
+        final var value = new Object();
+        threadContext.putTransient("key", value);
+
+        try (var ignored = threadContext.newStoredContext()) {
+            assertThat(threadContext.removeTransient("key"), sameInstance(value));
+            assertThat(threadContext.getTransient("key"), nullValue());
+        }
+
+        assertThat(threadContext.getTransient("key"), sameInstance(value));
+    }
+
     public void testStashContextPreservesTraceContext() {
         final var threadContext = new ThreadContext(Settings.EMPTY);
 

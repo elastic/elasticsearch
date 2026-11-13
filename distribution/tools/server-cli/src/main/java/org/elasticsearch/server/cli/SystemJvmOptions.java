@@ -56,6 +56,7 @@ final class SystemJvmOptions {
                  * debugging.
                  */
                 "-XX:-OmitStackTraceInFastThrow",
+                "-XX:-LoopUnswitching",
                 // flags to configure Netty
                 "-Dio.netty.noUnsafe=true",
                 "-Dio.netty.noKeySetOptimization=true",

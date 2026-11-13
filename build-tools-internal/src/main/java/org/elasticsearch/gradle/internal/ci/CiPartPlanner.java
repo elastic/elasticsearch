@@ -290,7 +290,8 @@ public final class CiPartPlanner {
      * How every split test task is split: the pinned ones as configured, and each other task with item durations into
      * the fewest shards whose longest one, fixed cost included, fits {@link Config#shardTargetSeconds()}. When no count
      * up to {@link Config#maxShards()} fits (one item alone is too long), the count with the shortest longest shard wins,
-     * the fewest shards on a tie. A task that fits as a whole is not split.
+     * the fewest shards on a tie. A task that fits as a whole is not split, and a count that leaves a shard without items
+     * is never chosen: that shard would pay the fixed cost (start its clusters) to run nothing.
      */
     static Map<String, CiPartAssignment.Split> splits(Config config, Durations durations) {
         Map<String, CiPartAssignment.Split> splits = new TreeMap<>(config.pinnedSplits());
@@ -318,6 +319,9 @@ public final class CiPartPlanner {
         int best = 1;
         long bestLongest = Long.MAX_VALUE;
         for (int count = 1; count <= config.maxShards(); count++) {
+            if (count > 1 && hasEmptyShard(items, count)) {
+                continue;
+            }
             double longest = overhead + Arrays.stream(shardWork(items, work, count)).max().orElse(0);
             if (longest <= config.shardTargetSeconds()) {
                 return count;
@@ -328,6 +332,20 @@ public final class CiPartPlanner {
             }
         }
         return best;
+    }
+
+    /** Whether splitting {@code items} into {@code count} shards, by the buckets the build uses, leaves a shard without any. */
+    static boolean hasEmptyShard(Items items, int count) {
+        boolean[] used = new boolean[count];
+        for (String item : items.seconds().keySet()) {
+            used[CiShards.bucket(item, count)] = true;
+        }
+        for (boolean shardUsed : used) {
+            if (shardUsed == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The fixed cost of one execution of a test task: measured if there is a measurement, else the configured default. */

@@ -32,7 +32,7 @@ public class PromqlPlanAcrossSeriesReductionV2Tests extends AbstractPromqlPlanOp
 
     /** {@code topk} ranks the series of each step and keeps their labels. */
     public void testTopkRanksEachStepAndKeepsTheLabels() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h topk(3, network.bytes_in)", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h topk(3, network.bytes_in)", false);
 
         TopNBy topN = plan.collect(TopNBy.class).getFirst();
         assertThat(topN.groupings(), hasSize(1));
@@ -42,7 +42,7 @@ public class PromqlPlanAcrossSeriesReductionV2Tests extends AbstractPromqlPlanOp
 
     /** {@code topk by (...)} partitions each step by the listed labels of each series. */
     public void testTopkByPartitionsByTheListedLabels() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h topk by (cluster) (3, network.bytes_in)", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h topk by (cluster) (3, network.bytes_in)", false);
 
         TopNBy topN = plan.collect(TopNBy.class).getFirst();
         assertThat(topN.groupings(), hasSize(2));
@@ -53,7 +53,7 @@ public class PromqlPlanAcrossSeriesReductionV2Tests extends AbstractPromqlPlanOp
 
     /** {@code limit_ratio} samples each series by a hash of its labels. */
     public void testLimitRatioSamplesByTheLabels() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h limit_ratio(0.5, network.bytes_in)", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h limit_ratio(0.5, network.bytes_in)", false);
         assertThat(expressions(plan, HashOffset.class), hasSize(1));
     }
 
@@ -65,7 +65,7 @@ public class PromqlPlanAcrossSeriesReductionV2Tests extends AbstractPromqlPlanOp
             "topk(1, sum by (cluster) (network.bytes_in))",
             "limit_ratio(0.5, network.bytes_in)"
         )) {
-            LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h " + query, true);
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1h " + query, true);
             assertThat(query, plan.collect(TimeSeriesAggregate.class), hasSize(1));
         }
     }

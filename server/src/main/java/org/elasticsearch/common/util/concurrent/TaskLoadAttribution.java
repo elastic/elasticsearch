@@ -42,8 +42,7 @@ public final class TaskLoadAttribution {
     /** A CPU time that is not known. */
     private static final long UNREAD = Long.MIN_VALUE;
     /**
-     * Time shorter than this is charged as CPU time without reading the clock, and the next read corrects it. A task that starts
-     * this long after the previous one finished reads the clock again, so the CPU time used in between is not charged.
+     * Time shorter than this is charged as CPU time without reading the clock, and the next read corrects it.
      */
     static final long SHORT_NANOS = TimeUnit.MICROSECONDS.toNanos(20);
 
@@ -57,18 +56,14 @@ public final class TaskLoadAttribution {
         /** The time charged with {@link #charge}. */
         long chargedNanos;
         /**
-         * The CPU time of the thread when the clock was last read, kept from task to task, or {@link #UNREAD} after the thread
-         * used CPU time it did not charge.
+         * The CPU time of the thread when the clock was last read, or {@link #UNREAD} after the thread used CPU time it did not
+         * charge. It is kept from task to task, since in between the thread only runs its pool's loop or waits for work.
          */
         long cpuReadNanos = UNREAD;
         /** The CPU time charged since that read without reading the clock. */
         long cpuChargedSinceRead;
-        /** When the previous task on this thread finished, from {@link System#nanoTime()}. */
-        long lastFinishNanos;
         /** The CPU time of the thread, negative when it is not known. */
         LongSupplier cpuClock = TaskLoadAttribution::threadCpuNanos;
-        /** The time, like {@link System#nanoTime()}. */
-        LongSupplier clock = System::nanoTime;
 
         void reset(boolean running) {
             this.running = running;
@@ -87,7 +82,7 @@ public final class TaskLoadAttribution {
         Task task = task();
         if (task != null && task.running && task.target == null) {
             task.target = target;
-            if (task.cpuReadNanos == UNREAD || task.clock.getAsLong() - task.lastFinishNanos >= SHORT_NANOS) {
+            if (task.cpuReadNanos == UNREAD) {
                 readCpu(task);
             }
         }
@@ -235,7 +230,6 @@ public final class TaskLoadAttribution {
         } else if (nanos > charged) {
             target.charge(nanos - charged, cpuOf(task, nanos - charged), finishNanos);
         }
-        task.lastFinishNanos = finishNanos;
         task.reset(false);
         return target == null ? charged : nanos;
     }

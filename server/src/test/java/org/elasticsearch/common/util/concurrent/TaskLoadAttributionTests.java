@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.util.concurrent.TaskLoadAttribution.SHORT_NANOS;
@@ -91,24 +92,18 @@ public class TaskLoadAttributionTests extends ESTestCase {
     }
 
     /**
-     * A task that starts right after the previous one finished reuses its read. One that starts later reads again, so the CPU
-     * time used in between is not charged.
+     * A task reuses the read of the previous task, however long the thread waited in between.
      */
-    public void testReusesTheReadOfTheTaskJustBefore() {
+    public void testReusesTheReadOfThePreviousTask() {
         onPoolThread(clocks -> {
             Charges charges = new Charges();
             runTask(clocks, charges, 300);
             assertThat(clocks.reads, equalTo(2));
 
-            clocks.now += SHORT_NANOS - 1;
+            clocks.now += TimeUnit.MINUTES.toNanos(1);
             runTask(clocks, charges, 300);
             assertThat(clocks.reads, equalTo(3));
-
-            clocks.now += SHORT_NANOS;
-            clocks.cpu += 5000;
-            runTask(clocks, charges, 300);
-            assertThat(clocks.reads, equalTo(5));
-            assertThat(charges, contains(new Charge(TASK_NANOS, 300), new Charge(TASK_NANOS, 300), new Charge(TASK_NANOS, 300)));
+            assertThat(charges, contains(new Charge(TASK_NANOS, 300), new Charge(TASK_NANOS, 300)));
         });
     }
 
@@ -199,7 +194,6 @@ public class TaskLoadAttributionTests extends ESTestCase {
                     clocks.reads++;
                     return clocks.cpu;
                 };
-                task.clock = () -> clocks.now;
                 test.accept(clocks);
             } catch (Throwable t) {
                 failure.set(t);

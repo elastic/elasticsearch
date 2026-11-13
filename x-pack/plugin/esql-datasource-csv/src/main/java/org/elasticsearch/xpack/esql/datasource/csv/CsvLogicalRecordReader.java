@@ -79,6 +79,7 @@ final class CsvLogicalRecordReader {
      */
     private static final int INPUT_BUFFER_SIZE = 8192;
     private static final int NO_PENDING = Integer.MIN_VALUE;
+    private static final int NO_BRACKETS = -1;
     private boolean bulkBuffered;
     private char[] inBuf;
     private int inPos;
@@ -223,7 +224,7 @@ final class CsvLogicalRecordReader {
     String readRecord(boolean bracketAware) throws IOException {
         StringBuilder sb = new StringBuilder(256);
         boolean inQuotes = false;
-        int bracketDepth = 0;
+        int bracketDepth = bracketAware ? 0 : NO_BRACKETS;
         boolean fieldHasNonWhitespace = false;
         int recordBytes = 0;
 
@@ -242,7 +243,7 @@ final class CsvLogicalRecordReader {
                 this.lastRecordTerminated = false;
                 return sb.toString();
             }
-            recordBytes = addBytes(recordBytes, ch, inQuotes);
+            recordBytes = addBytes(recordBytes, ch, inQuotes, bracketDepth, fieldHasNonWhitespace, false);
 
             if (inQuotes) {
                 if (escapeAware && ch == escapeChar) {
@@ -252,7 +253,7 @@ final class CsvLogicalRecordReader {
                     int next = readChar();
                     if (next != -1) {
                         failIfLineBreak(next);
-                        recordBytes = addBytes(recordBytes, next, true);
+                        recordBytes = addBytes(recordBytes, next, true, bracketDepth, fieldHasNonWhitespace, true);
                         sb.append((char) next);
                     }
                     continue;
@@ -260,7 +261,7 @@ final class CsvLogicalRecordReader {
                 if (ch == quoteChar) {
                     int next = readChar();
                     if (next == quoteChar) {
-                        recordBytes = addBytes(recordBytes, next, true);
+                        recordBytes = addBytes(recordBytes, next, true, bracketDepth, fieldHasNonWhitespace, true);
                         sb.append((char) ch);
                         sb.append((char) next);
                         continue;
@@ -299,7 +300,7 @@ final class CsvLogicalRecordReader {
                 int next = readChar();
                 if (next != -1) {
                     failIfLineBreak(next);
-                    recordBytes = addBytes(recordBytes, next);
+                    recordBytes = addBytes(recordBytes, next, false, bracketDepth, true, true);
                     sb.append((char) next);
                 }
                 fieldHasNonWhitespace = true;
@@ -397,7 +398,7 @@ final class CsvLogicalRecordReader {
                 }
                 return recLen != 0;
             }
-            recordBytes = addBytes(recordBytes, ch, inQuotes);
+            recordBytes = addBytes(recordBytes, ch, inQuotes, NO_BRACKETS, fieldHasNonWhitespace, false);
 
             if (inQuotes) {
                 if (escapeAware && ch == escapeChar) {
@@ -405,7 +406,7 @@ final class CsvLogicalRecordReader {
                     int next = nextBulkChar();
                     if (next != -1) {
                         failIfLineBreak(next);
-                        recordBytes = addBytes(recordBytes, next, true);
+                        recordBytes = addBytes(recordBytes, next, true, NO_BRACKETS, fieldHasNonWhitespace, true);
                         appendRecord((char) next);
                     }
                     continue;
@@ -413,7 +414,7 @@ final class CsvLogicalRecordReader {
                 if (ch == quoteChar) {
                     int next = nextBulkChar();
                     if (next == quoteChar) {
-                        recordBytes = addBytes(recordBytes, next, true);
+                        recordBytes = addBytes(recordBytes, next, true, NO_BRACKETS, fieldHasNonWhitespace, true);
                         appendRecord((char) ch);
                         appendRecord((char) next);
                         continue;
@@ -435,7 +436,7 @@ final class CsvLogicalRecordReader {
                 int next = nextBulkChar();
                 if (next != -1) {
                     failIfLineBreak(next);
-                    recordBytes = addBytes(recordBytes, next);
+                    recordBytes = addBytes(recordBytes, next, false, NO_BRACKETS, true, true);
                     appendRecord((char) next);
                 }
                 fieldHasNonWhitespace = true;
@@ -603,17 +604,21 @@ final class CsvLogicalRecordReader {
     }
 
     private int addBytes(int recordBytes, int ch) throws CsvRecordTooLargeException, IOException {
-        return addBytes(recordBytes, ch, false);
+        return addBytes(recordBytes, ch, false, NO_BRACKETS, false, false);
     }
 
     /**
      * Counts {@code ch} toward the record cap. {@code inQuotes} is the quote state before {@code ch} is applied.
      * A newline inside a quoted field, while the line-span guard is armed, fails that contract before the cap is
      * considered, and a cap tripped inside the field still fails it when the newline comes before the quote closes.
-     * Otherwise an oversized record is drained to the next physical line and reported as too large, so a lenient
-     * {@code error_mode} can resume at the next record.
+     * Otherwise an oversized record is drained to the end of the record, as the walkers would have found it, and reported
+     * as too large, so a lenient {@code error_mode} can resume at the next record. The remaining arguments are the
+     * walker state before {@code ch}: bracket depth ({@link #NO_BRACKETS} when brackets are not recognised), whether the
+     * current field has seen a non-whitespace character, and whether {@code ch} is the character an escape or a doubled
+     * quote consumed, which is content whatever it is.
      */
-    private int addBytes(int recordBytes, int ch, boolean inQuotes) throws CsvRecordTooLargeException, IOException {
+    private int addBytes(int recordBytes, int ch, boolean inQuotes, int bracketDepth, boolean fieldHasNonWhitespace, boolean consumed)
+        throws CsvRecordTooLargeException, IOException {
         if (inQuotes) {
             failIfLineBreak(ch);
         }
@@ -632,7 +637,7 @@ final class CsvLogicalRecordReader {
             // desyncing the stream (which would leave the next nextRecord() resuming mid-line).
             // While the line-span guard is armed, a newline that is still inside the quoted field (or a
             // backslash-escaped newline) fails the contract instead, so the tail is not read as further rows.
-            next = drainOverCap(next, ch, inQuotes);
+            next = drainOverCap(next, ch, inQuotes, bracketDepth, fieldHasNonWhitespace, consumed);
             this.bytesRead += next;
             throw new CsvRecordTooLargeException(maxRecordBytes);
         }
@@ -647,9 +652,10 @@ final class CsvLogicalRecordReader {
      * Finishes an over-cap record whose tipping character {@code ch} is already included in {@code counted}.
      * Returns the total bytes consumed through the record's terminator.
      */
-    private int drainOverCap(int counted, int ch, boolean inQuotes) throws IOException {
+    private int drainOverCap(int counted, int ch, boolean inQuotes, int bracketDepth, boolean fieldHasNonWhitespace, boolean consumed)
+        throws IOException {
         if (failOnLineSpan == false) {
-            return drainPhysicalLine(counted, ch);
+            return drainRecord(counted, ch, inQuotes, bracketDepth, fieldHasNonWhitespace, consumed);
         }
         if (inQuotes) {
             return drainOpenQuote(counted, ch);
@@ -658,6 +664,67 @@ final class CsvLogicalRecordReader {
             return drainPhysicalLineAware(counted, ch);
         }
         return drainPhysicalLine(counted, ch);
+    }
+
+    /**
+     * Drains to the end of the record the walkers would have read when the line-span guard is off, so a terminator inside a
+     * quote, a bracket or after an escape is content, and a quote or bracket opening after the tipping character is
+     * honoured. The state arguments are the walkers' state before {@code ch}, which is already included in {@code counted}.
+     */
+    private int drainRecord(int counted, int ch, boolean inQuotes, int bracketDepth, boolean fieldHasNonWhitespace, boolean consumed)
+        throws IOException {
+        int current = ch;
+        boolean escaped = consumed;
+        while (true) {
+            if (escaped) {
+                escaped = false;
+            } else if (inQuotes) {
+                if (escapeAware && current == escapeChar) {
+                    escaped = true;
+                } else if (current == quoteChar) {
+                    int next = readChar();
+                    if (next == -1) {
+                        return counted;
+                    }
+                    counted += encodedWidth(next);
+                    if (next != quoteChar) {
+                        inQuotes = false;
+                        current = next;
+                        continue;
+                    }
+                }
+            } else if (bracketDepth > 0) {
+                if (current == '[') {
+                    bracketDepth++;
+                } else if (current == ']') {
+                    bracketDepth--;
+                    if (bracketDepth == 0) {
+                        fieldHasNonWhitespace = true;
+                    }
+                }
+            } else if (escapeAware && current == escapeChar) {
+                escaped = true;
+                fieldHasNonWhitespace = true;
+            } else if (current == '\n') {
+                return counted;
+            } else if (current == '\r') {
+                return drainCarriageReturn(counted);
+            } else if (current == delimiter) {
+                fieldHasNonWhitespace = false;
+            } else if (quoteAware && current == quoteChar && fieldHasNonWhitespace == false) {
+                inQuotes = true;
+            } else if (bracketDepth == 0 && current == '[' && fieldHasNonWhitespace == false) {
+                bracketDepth = 1;
+            } else if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(current) == false) {
+                fieldHasNonWhitespace = true;
+            }
+            int next = readChar();
+            if (next == -1) {
+                return counted;
+            }
+            current = next;
+            counted += encodedWidth(next);
+        }
     }
 
     /** Quote-blind drain used when the line-span guard is off. {@code ch} is already included in {@code counted}. */

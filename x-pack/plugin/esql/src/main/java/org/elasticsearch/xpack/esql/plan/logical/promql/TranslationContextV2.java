@@ -115,6 +115,7 @@ public record TranslationContextV2(
             case ScalarConversionFunction function -> PromqlFunctionCallV2.translate(function, this);
             case AcrossSeriesAggregate aggregate -> AcrossSeriesAggregateV2.translate(aggregate, this);
             case AcrossSeriesReduction reduction -> AcrossSeriesReductionV2.translate(reduction, this);
+            case HistogramFunctionCall histogram -> HistogramFunctionCallV2.translate(histogram, this);
             default -> throw new QlIllegalArgumentException("PromQL plan node [{}] does not translate in V2 yet", node.nodeName());
         };
     }

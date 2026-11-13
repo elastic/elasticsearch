@@ -108,6 +108,11 @@ public record TranslationContextV2(
             case InstantSelector selector -> SelectorV2.translate(selector, this);
             case RangeSelector selector -> SelectorV2.translate(selector, this);
             case LiteralSelector selector -> SelectorV2.translate(selector, this);
+            case ValueTransformationFunction function -> PromqlFunctionCallV2.translate(function, this);
+            case VectorConversionFunction function -> PromqlFunctionCallV2.translate(function, this);
+            case WithinSeriesAggregate function -> PromqlFunctionCallV2.translate(function, this);
+            case ScalarFunction function -> PromqlFunctionCallV2.translate(function, this);
+            case ScalarConversionFunction function -> PromqlFunctionCallV2.translate(function, this);
             default -> throw new QlIllegalArgumentException("PromQL plan node [{}] does not translate in V2 yet", node.nodeName());
         };
     }

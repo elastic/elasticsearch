@@ -2688,10 +2688,12 @@ public class NumberFieldMapper extends FieldMapper {
         private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths, IndexSettings indexSettings) {
             return new SourceValueFetcher(sourcePaths, nullValue, indexSettings.getIgnoredSourceFormat()) {
                 @Override
+                protected boolean isNullEquivalent(Object value) {
+                    return coerce && "".equals(value);
+                }
+
+                @Override
                 protected Object parseSourceValue(Object value) {
-                    if (value.equals("")) {
-                        return nullValue;
-                    }
                     return type.parse(value, coerce);
                 }
             };

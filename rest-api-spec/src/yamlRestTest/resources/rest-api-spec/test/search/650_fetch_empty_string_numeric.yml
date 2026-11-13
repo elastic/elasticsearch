@@ -1,0 +1,44 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.numeric.fetch_empty_string_as_null" ]
+      reason: the fields API returns the null_value or nothing for an empty string that a numeric field coerces to null
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              int:
+                type: integer
+              int_nv:
+                type: integer
+                null_value: 5
+              int_strict:
+                type: integer
+                coerce: false
+                ignore_malformed: true
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body: { "int": "", "int_nv": "", "int_strict": "" }
+
+---
+"Coerced empty string is fetched as null":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "int", "int_nv", "int_strict" ]
+
+  - match: { hits.total.value: 1 }
+  - is_false: hits.hits.0.fields.int
+  - match: { hits.hits.0.fields.int_nv: [ 5 ] }
+  - is_false: hits.hits.0.fields.int_strict
+  - is_false: hits.hits.0.ignored_field_values.int
+  - is_false: hits.hits.0.ignored_field_values.int_nv
+  - match: { hits.hits.0.ignored_field_values.int_strict: [ "" ] }
+  - match: { hits.hits.0._ignored: [ "int_strict" ] }

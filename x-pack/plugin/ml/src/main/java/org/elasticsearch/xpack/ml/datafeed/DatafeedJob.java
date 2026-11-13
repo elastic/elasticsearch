@@ -174,8 +174,8 @@ class DatafeedJob {
     }
 
     /**
-     * One-shot resume point at start: the checkpoint, lowered to the first unprocessed time after {@code latest_record_time}
-     * when a model snapshot revert left the checkpoint ahead of the reverted data counts.
+     * Start-of-run resume point: the persisted checkpoint, or the first unprocessed time after the job's
+     * {@code latest_record_time} if that is earlier (a snapshot revert can leave the checkpoint ahead of the job's data).
      */
     @Nullable
     static Long esqlResumePointMs(

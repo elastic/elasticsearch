@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -63,7 +62,10 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private static ElasticsearchCluster buildCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> builder = ElasticsearchCluster.local()
-            .distribution(DistributionType.DEFAULT)
+            .module("x-pack-eql")
+            .module("x-pack-esql")
+            .module("x-pack-ilm")
+            .module("repository-gcs")
             .setting("xpack.license.self_generated.type", "basic")
             .setting("xpack.security.enabled", "true")
             .jvmArg("-Xmx4g")

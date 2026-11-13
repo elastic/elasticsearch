@@ -198,6 +198,7 @@ public final class IndexModule {
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final IndexingMemoryLimits indexingMemoryLimits;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     /**
@@ -224,6 +225,7 @@ public final class IndexModule {
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
         final MergeMetrics mergeMetrics,
+        final IndexingMemoryLimits indexingMemoryLimits,
         final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         this.indexSettings = indexSettings;
@@ -241,6 +243,7 @@ public final class IndexModule {
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
+        this.indexingMemoryLimits = indexingMemoryLimits;
         this.metricHolder = metricHolder;
     }
 
@@ -587,6 +590,7 @@ public final class IndexModule {
                 indexingStatsSettings,
                 searchStatsSettings,
                 mergeMetrics,
+                indexingMemoryLimits,
                 metricHolder
             );
             success = true;

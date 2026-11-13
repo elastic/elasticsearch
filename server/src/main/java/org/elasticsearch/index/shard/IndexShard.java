@@ -84,6 +84,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.IndexingMemoryLimits;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -312,6 +313,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
     private final MergeMetrics mergeMetrics;
+    private final IndexingMemoryLimits indexingMemoryLimits;
 
     private final ShardEventListener shardEventListener = new ShardEventListener();
 
@@ -393,7 +395,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
-        final MergeMetrics mergeMetrics
+        final MergeMetrics mergeMetrics,
+        final IndexingMemoryLimits indexingMemoryLimits
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -502,6 +505,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
         this.mergeMetrics = mergeMetrics;
+        this.indexingMemoryLimits = indexingMemoryLimits;
     }
 
     public ThreadPool getThreadPool() {
@@ -4274,6 +4278,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .mapperService(mapperService())
             .engineResetLock(engineResetLock)
             .mergeMetrics(mergeMetrics)
+            .indexingMemoryLimits(indexingMemoryLimits)
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
     }

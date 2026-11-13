@@ -198,7 +198,6 @@ class NodeServiceProvider {
         FetchPhase fetchPhase,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer,
         OnlinePrewarmingService onlinePrewarmingService,
         TaskManager taskManager
     ) {
@@ -211,7 +210,6 @@ class NodeServiceProvider {
             fetchPhase,
             circuitBreakerService,
             executorSelector,
-            tracer,
             onlinePrewarmingService,
             taskManager
         );

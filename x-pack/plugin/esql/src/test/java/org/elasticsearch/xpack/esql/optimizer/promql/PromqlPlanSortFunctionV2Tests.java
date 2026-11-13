@@ -33,7 +33,7 @@ public class PromqlPlanSortFunctionV2Tests extends AbstractPromqlPlanOptimizerTe
 
     /** An instant {@code sort} orders the series, which keep their labels. */
     public void testInstantSortOrdersTheSeries() {
-        LogicalPlan plan = planPromqlV2(INSTANT + "sort(network.bytes_in)", false);
+        LogicalPlan plan = planPromql(INSTANT + "sort(network.bytes_in)", false);
 
         assertThat(plan.collect(OrderBy.class), hasSize(1));
         assertThat(names(plan.output()), hasItem("_timeseries"));
@@ -41,7 +41,7 @@ public class PromqlPlanSortFunctionV2Tests extends AbstractPromqlPlanOptimizerTe
 
     /** A range {@code sort} has no order, like Prometheus. */
     public void testRangeSortHasNoOrder() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h sort(network.bytes_in)", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h sort(network.bytes_in)", false);
 
         assertThat(plan.collect(OrderBy.class), empty());
         assertWarnings("sort: ordering is discarded for range queries");
@@ -53,7 +53,7 @@ public class PromqlPlanSortFunctionV2Tests extends AbstractPromqlPlanOptimizerTe
      */
     public void testSortByLabelReadsTheLabel() {
         assumeTrue("Requires PROMQL_SORT_BY_LABEL capability", EsqlCapabilities.Cap.PROMQL_SORT_BY_LABEL.isEnabled());
-        LogicalPlan plan = planPromqlV2(INSTANT + "sort_by_label(network.bytes_in, \"pod\")", false);
+        LogicalPlan plan = planPromql(INSTANT + "sort_by_label(network.bytes_in, \"pod\")", false);
 
         assertThat(plan.collect(OrderBy.class), hasSize(1));
         var keys = new ArrayList<NaturalSortKey>();
@@ -71,7 +71,7 @@ public class PromqlPlanSortFunctionV2Tests extends AbstractPromqlPlanOptimizerTe
             queries.add("sort_by_label(network.bytes_in, \"pod\")");
         }
         for (String query : queries) {
-            LogicalPlan plan = planPromqlV2(INSTANT + query, true);
+            LogicalPlan plan = planPromql(INSTANT + query, true);
             assertThat(query, plan.collect(TimeSeriesAggregate.class), hasSize(1));
         }
     }

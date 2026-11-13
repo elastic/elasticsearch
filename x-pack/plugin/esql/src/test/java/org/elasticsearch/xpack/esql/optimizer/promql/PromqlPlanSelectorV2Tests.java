@@ -35,7 +35,7 @@ public class PromqlPlanSelectorV2Tests extends AbstractPromqlPlanOptimizerTests 
 
     /** An instant selector starts each series from the source's whole label container; its matchers filter the source. */
     public void testInstantSelectorReadsTheSourceLabelContainer() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h network.bytes_in{cluster=\"prod\"}", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h network.bytes_in{cluster=\"prod\"}", false);
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(sourceViews(collapse), equalTo(Set.of(List.of())));
@@ -48,13 +48,13 @@ public class PromqlPlanSelectorV2Tests extends AbstractPromqlPlanOptimizerTests 
 
     /** The translated selector plans through the optimizer. */
     public void testInstantSelectorOptimizes() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h network.bytes_in{cluster=\"prod\"}", true);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h network.bytes_in{cluster=\"prod\"}", true);
         assertThat(plan.collect(TimeSeriesAggregate.class), hasSize(1));
     }
 
     /** A literal is a vector without labels. */
     public void testLiteralSelectorHasNoLabels() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h 1", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h 1", false);
         assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
     }
 

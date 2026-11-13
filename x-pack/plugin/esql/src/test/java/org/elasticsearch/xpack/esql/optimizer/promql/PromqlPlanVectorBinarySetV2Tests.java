@@ -29,7 +29,7 @@ public class PromqlPlanVectorBinarySetV2Tests extends AbstractPromqlPlanOptimize
 
     /** {@code or} unions its branches and keeps, per step, the first branch's series for each label set. */
     public void testOrUnionsTheBranches() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h network.bytes_in or network.cost", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h network.bytes_in or network.cost", false);
 
         UnionAll union = plan.collect(UnionAll.class).getFirst();
         assertThat(union.children(), hasSize(2));
@@ -41,7 +41,7 @@ public class PromqlPlanVectorBinarySetV2Tests extends AbstractPromqlPlanOptimize
 
     /** A chain of {@code or} unions all its branches at once. */
     public void testOrChainUnionsEveryBranch() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h network.bytes_in or network.cost or network.total_bytes_in", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h network.bytes_in or network.cost or network.total_bytes_in", false);
         assertThat(plan.collect(UnionAll.class).getFirst().children(), hasSize(3));
     }
 
@@ -52,7 +52,7 @@ public class PromqlPlanVectorBinarySetV2Tests extends AbstractPromqlPlanOptimize
             "network.bytes_in or network.cost or network.total_bytes_in",
             "sum by (cluster) (network.bytes_in) or sum by (cluster) (network.cost)"
         )) {
-            LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h " + query, true);
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1h " + query, true);
             assertTrue(query, plan.resolved());
         }
     }

@@ -33,7 +33,7 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
 
     /** Operands over the same series share a frame and fold into one plan without a join. */
     public void testOperandsOverTheSameSeriesFold() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h network.bytes_in + network.cost", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h network.bytes_in + network.cost", false);
 
         assertThat(plan.collect(HashJoin.class), empty());
         assertThat(plan.collect(TimeSeriesAggregate.class), hasSize(1));
@@ -42,7 +42,7 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
 
     /** Aggregates grouped the same way share a frame too. */
     public void testAggregatesOfTheSameGrainFold() {
-        LogicalPlan plan = planPromqlV2(
+        LogicalPlan plan = planPromql(
             "PROMQL index=k8s step=1h sum by (cluster) (network.bytes_in) / sum by (cluster) (network.cost)",
             false
         );
@@ -53,7 +53,7 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
 
     /** {@code on(...)} joins the operands on the step and the listed labels of each series. */
     public void testOnJoinsByTheListedLabels() {
-        LogicalPlan plan = planPromqlV2(
+        LogicalPlan plan = planPromql(
             "PROMQL index=k8s step=1h sum by (pod) (network.bytes_in) / on (pod) sum by (pod) (network.cost)",
             false
         );
@@ -65,7 +65,7 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
 
     /** {@code group_left(...)} writes the included labels of the one side into the many side's labels. */
     public void testGroupLeftWritesTheIncludedLabels() {
-        LogicalPlan plan = planPromqlV2(
+        LogicalPlan plan = planPromql(
             "PROMQL index=k8s step=1h sum by (pod, cluster) (network.bytes_in)"
                 + " * on (pod) group_left (region) sum by (pod, region) (network.cost)",
             false
@@ -79,7 +79,7 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
 
     /** A source-backed scalar broadcasts over the other operand by joining on the step alone. */
     public void testScalarBroadcastsOnTheStep() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h scalar(sum(network.bytes_in)) * time()", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h scalar(sum(network.bytes_in)) * time()", false);
 
         HashJoin join = plan.collect(HashJoin.class).getFirst();
         assertThat(join.leftFields(), hasSize(1));
@@ -87,7 +87,7 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
 
     /** A comparison against a literal filters the series. */
     public void testComparisonFiltersTheSeries() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h network.bytes_in > 10", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h network.bytes_in > 10", false);
         assertThat(plan.collect(Filter.class), not(empty()));
         assertThat(plan.collect(HashJoin.class), empty());
     }
@@ -102,7 +102,7 @@ public class PromqlPlanVectorBinaryOperatorV2Tests extends AbstractPromqlPlanOpt
             "scalar(sum(network.bytes_in)) * time()",
             "network.bytes_in > 10"
         )) {
-            LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h " + query, true);
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1h " + query, true);
             assertTrue(query, plan.resolved());
         }
     }

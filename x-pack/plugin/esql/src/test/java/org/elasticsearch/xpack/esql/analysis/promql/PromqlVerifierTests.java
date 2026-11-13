@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.ScalarizeTimeSeriesMetadataPaths;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlAstTests;
@@ -1156,7 +1156,7 @@ public class PromqlVerifierTests extends ESTestCase {
 
     /**
      * An {@link Analyzer} that runs only the first analyzer batch, with the PromQL→ESQL {@link TranslatePromqlToEsqlPlan}
-     * translation rule removed. The result keeps the PromQL plan resolved and verified but un-lowered.
+     * translation and its {@link ScalarizeTimeSeriesMetadataPaths} removed. The result keeps the PromQL plan resolved and verified but un-lowered.
      */
     private static final class ResolveOnlyAnalyzer extends Analyzer {
         ResolveOnlyAnalyzer(AnalyzerContext context) {
@@ -1172,7 +1172,7 @@ public class PromqlVerifierTests extends ESTestCase {
             Batch<LogicalPlan> first = super.batches().iterator().next();
             @SuppressWarnings({ "rawtypes", "unchecked" })
             Rule<?, LogicalPlan>[] withoutTranslation = Arrays.stream(first.rules())
-                .filter(rule -> rule instanceof TranslatePromqlToEsqlPlan == false)
+                .filter(rule -> rule instanceof TranslatePromqlToEsqlPlan == false && rule instanceof ScalarizeTimeSeriesMetadataPaths == false)
                 .toArray(Rule[]::new);
             return List.of(first.with(withoutTranslation));
         }

@@ -155,6 +155,11 @@ tests:
   - :x-pack:plugin:esql:test
   method: test {null.FoldCastCaseWithoutMatchArgument}
   issue: https://github.com/elastic/elasticsearch/issues/165680
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test {null.FoldNullArgumentsInManyFunctions ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/165857
 
 # Examples:
 #

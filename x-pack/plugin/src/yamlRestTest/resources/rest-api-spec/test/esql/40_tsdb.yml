@@ -1156,6 +1156,28 @@ PromQL increase on counter field:
   - match: {values.3.1: "2021-04-28T18:52:00.000Z"}
 
 ---
+PromQL by non-dimension label over without:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2, fix_promql_carried_field_labels]
+      reason: "A without() carries a non-dimension label to the by() above it"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx=(sum by (k8s.pod.name) (sum without (k8s.pod.uid) (k8s.pod.network.tx))) | SORT step, k8s.pod.name | LIMIT 2'
+
+  - match: {columns.2.name: "k8s.pod.name"}
+  - length: {values: 2}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.0.2: "cat"}
+  - match: {values.1.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.1.2: "dog"}
+
+---
 PromQL time range params as range selector duration:
   - requires:
       test_runner_features: [capabilities]

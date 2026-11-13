@@ -4284,6 +4284,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_DROP_STORED_METRIC_NAME(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL groups by a non-dimension label under {@code by(...)} also when an inner {@code without(...)} carries it, as it
+         * does directly over the source.
+         */
+        FIX_PROMQL_CARRIED_FIELD_LABELS(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),

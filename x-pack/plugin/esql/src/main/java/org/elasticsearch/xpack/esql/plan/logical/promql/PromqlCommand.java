@@ -576,18 +576,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                                 fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
                             );
                         }
-                        // A scalar computed from the source, such as scalar(sum(x)), broadcasts per step on either side.
-                        if (comp.match() == VectorMatch.NONE
-                            && comp.right() instanceof LiteralSelector == false
-                            && PromqlPlan.returnsScalar(comp.right()) == false) {
-                            failures.add(
-                                fail(
-                                    lp,
-                                    "comparison operators with non-literal right-hand side are not supported at this time [{}]",
-                                    lp.sourceText()
-                                )
-                            );
-                        }
+                        // Filter-mode comparisons finish over the shared frame (literal operand), as a step broadcast (a scalar
+                        // computed from the source, on either side), or as a join (two vectors), like arithmetic.
                         if (comp.boolMode() == false && PromqlPlan.returnsScalar(comp.left()) && PromqlPlan.returnsScalar(comp.right())) {
                             failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
                         }

@@ -469,11 +469,9 @@ public class PromqlVerifierTests extends ESTestCase {
         tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
     }
 
-    public void testNonScalarComparison() {
-        tsdb.error(
-            "PROMQL index=test step=5m foo > bar",
-            containsString("comparison operators with non-literal right-hand side are not supported at this time")
-        );
+    /** Two instant vectors compare like arithmetic: the operands are independent pipelines joined on their series. */
+    public void testVectorComparisonJoinsOperands() {
+        assertTrue(tsdb.query("PROMQL index=test step=5m network.bytes_in > network.connections").resolved());
     }
 
     /**

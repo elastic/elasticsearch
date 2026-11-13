@@ -323,6 +323,32 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
         assertSame(missing, ex.getCause());
     }
 
+    public void testCodedNoSuchKey404IsObjectNotFound() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception missing = s3Error(404, "NoSuchKey");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(missing);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        ExternalClientException ex = expectThrows(ExternalClientException.class, obj::newStream);
+        assertEquals(Condition.OBJECT_NOT_FOUND, ex.condition());
+        assertSame(missing, ex.getCause());
+    }
+
+    /**
+     * A missing bucket is a 404 with a different error code. Treating it as a gone object would drop
+     * listings and retry, which cannot find a bucket that is not there.
+     */
+    public void testNoSuchBucket404IsNotObjectNotFound() {
+        S3Client mockS3 = mock(S3Client.class);
+        S3Exception missingBucket = s3Error(404, "NoSuchBucket");
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenThrow(missingBucket);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        IOException thrown = expectThrows(IOException.class, obj::newStream);
+        assertNull(ExceptionsHelper.unwrap(thrown, ExternalClientException.class));
+        assertSame(missingBucket, thrown.getCause());
+    }
+
     /**
      * An SSE-KMS object read by a principal denied {@code kms:Decrypt} on its key: S3 answers 403 {@code AccessDenied} and
      * names the refused action in its message. The remedy is that permission, not new credentials or anonymous access,

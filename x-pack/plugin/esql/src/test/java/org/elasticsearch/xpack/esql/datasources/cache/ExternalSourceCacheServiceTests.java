@@ -127,7 +127,8 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
 
     /**
      * Split discovery does not always record the listing key resolution used, so a missing-object retry addresses the
-     * dataset by its location. Every hint variant of that prefix is dropped; another dataset and another store stay.
+     * dataset by its location and storage identity. Every hint variant of that store is dropped; another dataset and
+     * another endpoint stay.
      */
     public void testInvalidateListingsAtDropsEveryHintVariantOfThatLocation() throws Exception {
         Settings settings = Settings.builder().put("esql.external.cache.listing.ttl", "1h").build();
@@ -145,7 +146,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             }
             assertEquals(4, loads.get());
 
-            service.invalidateListingsAt(StoragePath.of("s3://bucket/data/*.parquet"));
+            service.invalidateListingsAt(StoragePath.of("s3://bucket/data/*.parquet"), "");
 
             for (ListingCacheKey key : List.of(recorded, hinted, other, otherStore)) {
                 service.getOrComputeListing(key, k -> {
@@ -153,11 +154,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
                     return testCompactFileList();
                 });
             }
-            assertEquals(
-                "every listing of that prefix is read again, including another storage identity; the other dataset is not",
-                7,
-                loads.get()
-            );
+            assertEquals("hint variants of that store are read again; another dataset and another endpoint are not", 6, loads.get());
         }
     }
 

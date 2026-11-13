@@ -951,15 +951,16 @@ public class FileSplitProvider implements SplitProvider {
     /**
      * One discovery, optionally forcing a live listing even when the handed schema listing looked complete. The
      * complete-listing short-circuit is what a stale cached file set rides on, so a retry after a missing or rewritten
-     * object has to skip it.
+     * object has to skip it. Extents stay the query's demand: a LIMIT that a bound can answer must not jump to an
+     * unbounded walk that can trip {@code max_discovered_files}.
      */
     private SplitDiscoveryResult discoverSplitsOnce(SplitDiscoveryContext handedContext, boolean forceRelist) {
-        ListingExtents extents = forceRelist ? ListingExtents.UNBOUNDED : listingExtentsForTheDemand(handedContext);
+        ListingExtents extents = listingExtentsForTheDemand(handedContext);
         Attempt attempt = discoverSplitsOver(handedContext, extents, forceRelist);
         // Only a listing that actually stopped short can have missed rows. Asking for a bound and getting the whole
         // dataset back - a dataset smaller than the bound - leaves nothing to list again, and retrying there would
-        // plan every file a second time for no reason. A forced re-list is already unbounded.
-        if (forceRelist || attempt.listingStoppedShort() == false || attempt.coveredTheDemand()) {
+        // plan every file a second time for no reason.
+        if (attempt.listingStoppedShort() == false || attempt.coveredTheDemand()) {
             return attempt.result();
         }
         // The prefix held fewer rows than the query asked for, so it is not this query's file set after all: reading it
@@ -977,7 +978,7 @@ public class FileSplitProvider implements SplitProvider {
                 handedContext.rowLimit()
             )
         );
-        return discoverSplitsOver(handedContext, ListingExtents.UNBOUNDED, false).result();
+        return discoverSplitsOver(handedContext, ListingExtents.UNBOUNDED, forceRelist).result();
     }
 
     /**
@@ -1167,9 +1168,9 @@ public class FileSplitProvider implements SplitProvider {
         // Otherwise the file set is a walk of the object store, and this method's contract is that the calling thread
         // waits for no such thing. The same bounded first attempt and the same retry as discoverSplits: this is the
         // path production takes, so a rule that only the sync path applied would be a rule production never runs.
-        ListingExtents extents = forceRelist ? ListingExtents.UNBOUNDED : listingExtentsForTheDemand(handedContext);
+        ListingExtents extents = listingExtentsForTheDemand(handedContext);
         attemptAsync(handedContext, extents, forceRelist, requestedExecutor, listener.delegateFailureAndWrap((l, attempt) -> {
-            if (forceRelist || attempt.listingStoppedShort() == false || attempt.coveredTheDemand()) {
+            if (attempt.listingStoppedShort() == false || attempt.coveredTheDemand()) {
                 l.onResponse(attempt.result());
                 return;
             }
@@ -1182,7 +1183,7 @@ public class FileSplitProvider implements SplitProvider {
                     handedContext.rowLimit()
                 )
             );
-            attemptAsync(handedContext, ListingExtents.UNBOUNDED, false, requestedExecutor, l.map(Attempt::result));
+            attemptAsync(handedContext, ListingExtents.UNBOUNDED, forceRelist, requestedExecutor, l.map(Attempt::result));
         }));
     }
 
@@ -1204,7 +1205,9 @@ public class FileSplitProvider implements SplitProvider {
 
     /**
      * Drops every cached listing of the dataset this discovery is reading, so a retry lists the store rather than
-     * the stale set. No-op when this provider has no cache, which is what unit tests that list live want.
+     * the stale set. No-op when this provider has no cache, which is what unit tests that list live want. Identity
+     * is the same one {@link #listForQuery} cached under, so another endpoint that shares the bucket name keeps
+     * its listings.
      */
     private void invalidateListingsFor(SplitDiscoveryContext context) {
         ExternalSourceCacheService cache = listingService.cacheService();
@@ -1215,7 +1218,21 @@ public class FileSplitProvider implements SplitProvider {
         if (pattern == null || pattern.isEmpty()) {
             return;
         }
-        cache.invalidateListingsAt(StoragePath.of(pattern));
+        StoragePath location = StoragePath.of(pattern);
+        String storageIdentity = "";
+        if (storageRegistry != null) {
+            Configured<StorageProvider> resolved = storageRegistry.createProviderTrackingConsumedKeys(
+                location.scheme(),
+                settings,
+                context.config()
+            );
+            try {
+                storageIdentity = resolved.identity();
+            } finally {
+                StorageProviderCache.closeLease(resolved.value());
+            }
+        }
+        cache.invalidateListingsAt(location, storageIdentity);
     }
 
     private static boolean shouldRelistStaleObject(SplitDiscoveryContext context, Exception e) {

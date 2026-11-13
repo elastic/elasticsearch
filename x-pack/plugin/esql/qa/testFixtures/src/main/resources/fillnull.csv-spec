@@ -1547,3 +1547,59 @@ emp_no:integer | gender:keyword | _fork:keyword | c:long
 10010          | null           | fork2         | 2
 10011          | null           | fork2         | 2
 ;
+
+fillNullAllColumnsLeavesMetadataIndexAloneAfterUnionOfSubqueries
+required_capability: fillnull
+required_capability: fillnull_all_columns_skips_metadata_after_union
+required_capability: subquery_in_from_command
+
+// The outer METADATA _index is null in every row of a union of subqueries. A * fills the other columns, not the metadata one.
+FROM (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, first_name),
+     (FROM employees | WHERE emp_no == 10002 | KEEP emp_no, last_name)
+     METADATA _index
+| FILLNULL "unknown" ON *
+| SORT emp_no
+;
+warning:Line 4:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
+
+emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
+10001          | Georgi             | unknown           | null
+10002          | unknown            | Simmel            | null
+;
+
+fillNullDefaultOnAllColumnsLeavesMetadataIndexAloneAfterUnionOfSubqueries
+required_capability: fillnull
+required_capability: fillnull_all_columns_skips_metadata_after_union
+required_capability: subquery_in_from_command
+
+FROM (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, first_name),
+     (FROM employees | WHERE emp_no == 10002 | KEEP emp_no, last_name)
+     METADATA _index
+| FILLNULL DEFAULT ON *
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
+10001          | Georgi             |                   | null
+10002          |                    | Simmel            | null
+;
+
+fillNullNamedMetadataIndexIsFilledAfterUnionOfSubqueries
+required_capability: fillnull
+required_capability: fillnull_all_columns_skips_metadata_after_union
+required_capability: subquery_in_from_command
+
+// Naming the column puts it in scope, with or without a * next to it.
+FROM (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, first_name),
+     (FROM employees | WHERE emp_no == 10002 | KEEP emp_no, last_name)
+     METADATA _index
+| FILLNULL "unknown" ON _index
+| FILLNULL "n/a" ON *, _index
+| SORT emp_no
+;
+warning:Line 5:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
+
+emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
+10001          | Georgi             | n/a               | unknown
+10002          | n/a                | Simmel            | unknown
+;

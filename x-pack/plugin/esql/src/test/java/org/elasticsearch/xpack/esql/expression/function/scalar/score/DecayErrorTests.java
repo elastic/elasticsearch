@@ -129,7 +129,7 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             return DataType.isGeoPoint(valueDataType) ? DataType.isString(scaleDataType) : scaleDataType.isNumeric();
         }
         if (DataType.isMillisOrNanos(valueDataType)) {
-            return DataType.isTimeDuration(scaleDataType);
+            return DataType.isTemporalAmount(scaleDataType);
         }
         return scaleDataType.isNumeric();
     }
@@ -149,7 +149,7 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             return DataType.isGeoPoint(valueDataType) ? "keyword or text" : "numeric";
         }
         if (DataType.isMillisOrNanos(valueDataType)) {
-            return "time_duration";
+            return "time_duration or date_period";
         }
         return "numeric";
     }

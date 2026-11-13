@@ -1,0 +1,134 @@
+# Child fields of any type a block loader reads, such as date and ip, work in the nested functions and in NESTED_EXPAND: each
+# parent's child documents are read with the same block loaders as top-level fields.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nt_logins
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            logins:
+              type: nested
+              properties:
+                at:
+                  type: date
+                ip:
+                  type: ip
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nt_logins
+          _id: a
+      - id: a
+        logins:
+        - { at: "2026-01-10T00:00:00Z", ip: "10.0.0.1" }
+        - { at: "2026-03-01T00:00:00Z", ip: "192.168.0.1" }
+      - index:
+          _index: nt_logins
+          _id: b
+      - id: b
+        logins:
+        - { at: "2026-01-05T00:00:00Z", ip: "192.168.1.1" }
+      - index:
+          _index: nt_logins
+          _id: c
+      - id: c
+
+---
+date predicate:
+- do:
+    esql.query:
+      body:
+        query: FROM nt_logins | EVAL recent = NESTED_ANY(logins.at >= "2026-02-01") | KEEP id, recent | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, true]
+    - [b, false]
+    - [c, false]
+
+---
+date predicate in WHERE:
+- do:
+    esql.query:
+      body:
+        query: FROM nt_logins | WHERE NESTED_ANY(logins.at >= "2026-02-01") | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+
+---
+ip predicate:
+- do:
+    esql.query:
+      body:
+        query: FROM nt_logins | EVAL internal = NESTED_ALL(CIDR_MATCH(logins.ip, "10.0.0.0/8")) | KEEP id, internal | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, false]
+    - [b, false]
+    - [c, true]
+
+---
+latest ip and login count:
+- do:
+    esql.query:
+      body:
+        query: >-
+          FROM nt_logins
+          | EVAL last_ip = NESTED(LAST(logins.ip, logins.at)), logins = NESTED(COUNT(logins.ip))
+          | KEEP id, last_ip, logins | SORT id | LIMIT 10
+- match:
+    columns:
+    - name: id
+      type: keyword
+    - name: last_ip
+      type: ip
+    - name: logins
+      type: long
+- match:
+    values:
+    - [a, "192.168.0.1", 2]
+    - [b, "192.168.1.1", 1]
+    - [c, null, 0]
+
+---
+expand date and ip:
+- do:
+    esql.query:
+      body:
+        query: FROM nt_logins | NESTED_EXPAND logins | KEEP id, logins.at, logins.ip | SORT id, logins.at | LIMIT 10
+- match:
+    columns:
+    - name: id
+      type: keyword
+    - name: logins.at
+      type: date
+    - name: logins.ip
+      type: ip
+- match:
+    values:
+    - [a, "2026-01-10T00:00:00.000Z", "10.0.0.1"]
+    - [a, "2026-03-01T00:00:00.000Z", "192.168.0.1"]
+    - [b, "2026-01-05T00:00:00.000Z", "192.168.1.1"]
+    - [c, null, null]

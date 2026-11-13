@@ -60,14 +60,25 @@ import java.util.function.Function;
 /** Binds reductions before EVAL's aggregate verification; public outputs contain only completed parent values. */
 public final class NestedReductionsAnalysis {
     private static final List<String> METADATA = List.of("_source", "_index");
-    /** Types the source loader can convert. */
-    private static final Set<DataType> SUPPORTED_CHILD_TYPES = Set.of(
+    /** Types NESTED_JSON can write and the source loader can convert. */
+    private static final Set<DataType> JSON_CHILD_TYPES = Set.of(
         DataType.BOOLEAN,
         DataType.INTEGER,
         DataType.LONG,
         DataType.DOUBLE,
         DataType.KEYWORD,
         DataType.TEXT
+    );
+    /** Types the reductions and NESTED_EXPAND read; the source loader converts only {@link #JSON_CHILD_TYPES}. */
+    private static final Set<DataType> SUPPORTED_CHILD_TYPES = Set.of(
+        DataType.BOOLEAN,
+        DataType.INTEGER,
+        DataType.LONG,
+        DataType.DOUBLE,
+        DataType.KEYWORD,
+        DataType.TEXT,
+        DataType.DATETIME,
+        DataType.IP
     );
 
     private NestedReductionsAnalysis() {}
@@ -553,7 +564,7 @@ public final class NestedReductionsAnalysis {
         for (FieldAttribute field : schema.fields().values()) {
             NestedScopeField child = (NestedScopeField) field.field();
             if (child.collection() == false && child.path().equals(path) && child.getDataType() != DataType.OBJECT) {
-                if (SUPPORTED_CHILD_TYPES.contains(child.getDataType()) == false) {
+                if (JSON_CHILD_TYPES.contains(child.getDataType()) == false) {
                     throw error(
                         json,
                         "NESTED_JSON does not support child type [" + child.getDataType() + "] for [" + publicName(field) + "]"

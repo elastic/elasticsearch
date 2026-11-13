@@ -12,16 +12,22 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -56,7 +62,9 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -281,12 +289,12 @@ public final class NestedReduction extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        var reader = NestedChildren.factory(toEvaluator.shardContexts(), path, paths, inputs.stream().map(Attribute::dataType).toList());
         if (json) {
-            var shards = NestedIndexObjects.shards(toEvaluator.shardContexts(), path, paths);
-            if (shards == null) {
+            if (reader == null) {
                 throw sourceRead();
             }
-            return operatorFactory(children().stream().map(toEvaluator::apply).toList(), List.of(), shards, null);
+            return operatorFactory(children().stream().map(toEvaluator::apply).toList(), List.of(), reader, null, null);
         }
         Expression value = prepareScalar(
             groupings.isEmpty() == false || body instanceof Sum || body instanceof Count ? ((UnaryAggregateFunction) body).field()
@@ -312,25 +320,29 @@ public final class NestedReduction extends EsqlScalarFunction {
         }
         var scalars = scalarBodies.stream().map(e -> EvalMapper.toEvaluator(toEvaluator.foldCtx(), e, layout.build())).toList();
         var metadata = children().stream().map(toEvaluator::apply).toList();
-        var shards = NestedIndexObjects.shards(toEvaluator.shardContexts(), path, paths);
-        if (shards == null) {
+        if (reader == null) {
             if (groupings.isEmpty() == false) {
                 throw sourceRead();
             }
             NestedSource.checkSources(sourceFailures);
         }
-        return operatorFactory(metadata, scalars, shards, groupings.isEmpty() ? null : groupingFactory());
+        GroupingAggregator.Factory aggregate = groupings.isEmpty() && body instanceof ToAggregator aggregator
+            ? aggregator.supplier().groupingAggregatorFactory(AggregatorMode.SINGLE, IntStream.range(0, scalars.size()).boxed().toList())
+            : null;
+        return operatorFactory(metadata, scalars, reader, groupings.isEmpty() ? null : groupingFactory(), aggregate);
     }
 
     private ExpressionEvaluator.Factory operatorFactory(
         List<ExpressionEvaluator.Factory> metadata,
         List<ExpressionEvaluator.Factory> scalars,
-        @Nullable IndexedByShardId<NestedIndexObjects.Shard> shards,
-        @Nullable HashAggregationOperator.Factory grouping
+        @Nullable NestedChildren.Factory reader,
+        @Nullable HashAggregationOperator.Factory grouping,
+        @Nullable GroupingAggregator.Factory aggregate
     ) {
         return context -> {
             List<ExpressionEvaluator> args = new ArrayList<>();
             List<ExpressionEvaluator> functions = new ArrayList<>();
+            NestedChildren children = null;
             try {
                 for (var factory : metadata) {
                     args.add(factory.get(context));
@@ -338,16 +350,12 @@ public final class NestedReduction extends EsqlScalarFunction {
                 for (var factory : scalars) {
                     functions.add(factory.get(context));
                 }
-                return new NestedReductionOperator(
-                    context,
-                    args,
-                    functions,
-                    shards == null ? null : new NestedIndexObjects(shards, paths),
-                    grouping
-                );
+                children = reader == null ? null : reader.get(context);
+                return new NestedReductionOperator(context, args, functions, children, grouping, aggregate);
             } catch (RuntimeException | Error e) {
                 Releasables.closeWhileHandlingException(args.toArray(ExpressionEvaluator[]::new));
                 Releasables.closeWhileHandlingException(functions.toArray(ExpressionEvaluator[]::new));
+                Releasables.closeWhileHandlingException(children);
                 throw e;
             }
         };
@@ -359,13 +367,17 @@ public final class NestedReduction extends EsqlScalarFunction {
         );
     }
 
-    /** The STATS ... BY operator over one parent's children: the keys come first in each page, the aggregate input last. */
+    /**
+     * The STATS ... BY operator over the children of a page of parents: each page holds the parent position, then the
+     * keys, then the aggregate input. Grouping on the parent position too keeps each parent's groups apart.
+     */
     private HashAggregationOperator.Factory groupingFactory() {
-        List<BlockHash.GroupSpec> specs = new ArrayList<>(groupings.size());
+        List<BlockHash.GroupSpec> specs = new ArrayList<>(1 + groupings.size());
+        specs.add(new BlockHash.GroupSpec(0, ElementType.INT));
         for (int i = 0; i < groupings.size(); i++) {
-            specs.add(new BlockHash.GroupSpec(i, PlannerUtils.toElementType(groupings.get(i).dataType())));
+            specs.add(new BlockHash.GroupSpec(i + 1, PlannerUtils.toElementType(groupings.get(i).dataType())));
         }
-        var aggregator = ((ToAggregator) body).supplier().groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(groupings.size()));
+        var aggregator = ((ToAggregator) body).supplier().groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(groupings.size() + 1));
         return new HashAggregationOperator.Builder().groups(specs).mode(AggregatorMode.SINGLE).aggregators(List.of(aggregator)).build();
     }
 
@@ -393,26 +405,34 @@ public final class NestedReduction extends EsqlScalarFunction {
         private final DriverContext context;
         private final List<ExpressionEvaluator> metadata;
         private final List<ExpressionEvaluator> scalars;
-        /** Reads child objects from the index when pages carry {@code _doc}; {@code null} reads {@code _source}. */
+        /** Reads the children from the index when pages carry {@code _doc}; {@code null} reads {@code _source}. */
         @Nullable
-        private final NestedIndexObjects indexed;
-        /** Groups each parent's children for {@code BY}; {@code null} when the reduction is not grouped. */
+        private final NestedChildren children;
+        /** Groups the children by parent and key for {@code BY}; {@code null} when the reduction is not grouped. */
         @Nullable
         private final HashAggregationOperator.Factory grouping;
+        /** Aggregates the children read from the index by parent; {@code null} for predicates, {@code BY} and JSON. */
+        @Nullable
+        private final GroupingAggregator.Factory aggregate;
+        /** The child fields of each page {@link #children} gives, after its parent positions. */
+        private final int[] fieldChannels;
         private long nextInputRowToken;
 
         NestedReductionOperator(
             DriverContext context,
             List<ExpressionEvaluator> metadata,
             List<ExpressionEvaluator> scalars,
-            @Nullable NestedIndexObjects indexed,
-            @Nullable HashAggregationOperator.Factory grouping
+            @Nullable NestedChildren children,
+            @Nullable HashAggregationOperator.Factory grouping,
+            @Nullable GroupingAggregator.Factory aggregate
         ) {
             this.context = context;
             this.metadata = metadata;
             this.scalars = scalars;
-            this.indexed = indexed;
+            this.children = children;
             this.grouping = grouping;
+            this.aggregate = aggregate;
+            this.fieldChannels = IntStream.range(1, 1 + inputs.size()).toArray();
         }
 
         @Override
@@ -428,27 +448,19 @@ public final class NestedReduction extends EsqlScalarFunction {
                 for (int i = 0; i < args.length; i++) {
                     args[i] = metadata.get(i).eval(parents);
                 }
-                DocVector docs = indexed == null ? null : NestedIndexObjects.docs(parents);
+                DocVector docs = children == null ? null : NestedChildren.docs(parents);
+                if (docs != null) {
+                    for (Object value : fromIndex(docs, args[1])) {
+                        result.accept(value);
+                    }
+                    return result.builder().build();
+                }
                 for (int row = 0; row < parents.getPositionCount(); row++) {
                     context.checkForEarlyTermination();
                     long token = nextInputRowToken++;
-                    String index = NestedSource.singleMetadata(args[1], row, "_index").utf8ToString();
-                    if (index.isEmpty()) {
-                        throw new IllegalArgumentException("NESTED requires non-empty _index metadata");
-                    }
+                    String index = indexName(args[1], row);
                     if (indices.contains(index) == false) {
                         result.accept(emptyResult());
-                        continue;
-                    }
-                    if (docs != null) {
-                        List<Map<?, ?>> objects = indexed.objects(docs, row, context);
-                        long estimate = 64L * objects.size() * (1 + paths.size());
-                        context.breaker().addEstimateBytesAndMaybeBreak(estimate, "nested_reduction_frame");
-                        try {
-                            result.accept(reduce(objects, index, token));
-                        } finally {
-                            context.breaker().addWithoutBreaking(-estimate);
-                        }
                         continue;
                     }
                     if (grouping != null || json) {
@@ -481,26 +493,252 @@ public final class NestedReduction extends EsqlScalarFunction {
             return json || body instanceof ToAggregator ? null : all;
         }
 
+        /** Reduces the children of a page of parents read from the index, one value per parent. */
+        private Object[] fromIndex(DocVector docs, Block indexNames) {
+            int positions = docs.getPositionCount();
+            boolean[] included = new boolean[positions];
+            for (int row = 0; row < positions; row++) {
+                included[row] = indices.contains(indexName(indexNames, row));
+            }
+            Object[] values = new Object[positions];
+            boolean[] reduced = new boolean[positions];
+            if (json) {
+                jsonFromIndex(docs, included, values, reduced);
+            } else if (grouping != null) {
+                groupsFromIndex(docs, included, values, reduced);
+            } else if (aggregate != null) {
+                aggregateFromIndex(docs, included, values, reduced);
+            } else {
+                matchFromIndex(docs, included, values, reduced);
+            }
+            for (int row = 0; row < positions; row++) {
+                if (reduced[row] == false) {
+                    values[row] = emptyResult();
+                }
+            }
+            return values;
+        }
+
+        /** The scalar bodies over the child fields of a page {@link #children} gives. */
+        private Block[] evaluate(Page loaded) {
+            Page fields = loaded.projectBlocks(fieldChannels);
+            Block[] evaluated = new Block[scalars.size()];
+            try {
+                for (int i = 0; i < evaluated.length; i++) {
+                    evaluated[i] = scalars.get(i).eval(fields);
+                }
+                return evaluated;
+            } catch (RuntimeException | Error e) {
+                Releasables.closeExpectNoException(evaluated);
+                throw e;
+            } finally {
+                fields.releaseBlocks();
+            }
+        }
+
+        private void matchFromIndex(DocVector docs, boolean[] included, Object[] values, boolean[] reduced) {
+            children.read(docs, p -> included[p], loaded -> {
+                IntVector parents = loaded.<IntBlock>getBlock(0).asVector();
+                Block[] evaluated = evaluate(loaded);
+                try {
+                    Block matches = evaluated[0];
+                    for (int c = 0; c < matches.getPositionCount(); c++) {
+                        if ((c & 1023) == 0) {
+                            context.checkForEarlyTermination();
+                        }
+                        if (matches.getValueCount(c) > 1) {
+                            throw new IllegalArgumentException(
+                                (all ? "NESTED_ALL" : "NESTED_ANY") + " requires a scalar predicate result per child"
+                            );
+                        }
+                        // Every child is evaluated even once the answer is known, so later invalid predicates cannot be hidden.
+                        boolean childMatched = Boolean.TRUE.equals(BlockUtils.toJavaObject(matches, c));
+                        int parent = parents.getInt(c);
+                        boolean matched = reduced[parent] ? (Boolean) values[parent] : all;
+                        values[parent] = all ? matched & childMatched : matched | childMatched;
+                        reduced[parent] = true;
+                    }
+                } finally {
+                    Releasables.closeExpectNoException(evaluated);
+                }
+            });
+        }
+
+        /** One aggregator for the page, grouped by parent position. */
+        private void aggregateFromIndex(DocVector docs, boolean[] included, Object[] values, boolean[] reduced) {
+            // The parents whose children earlier pages added, which the aggregator takes as having values when a null makes
+            // it start tracking which do.
+            SeenGroupIds earlier = bigArrays -> {
+                BitArray seen = new BitArray(reduced.length, bigArrays);
+                for (int p = 0; p < reduced.length; p++) {
+                    if (reduced[p]) {
+                        seen.set(p);
+                    }
+                }
+                return seen;
+            };
+            try (GroupingAggregator aggregator = aggregate.apply(context)) {
+                children.read(docs, p -> included[p], loaded -> {
+                    IntVector parents = loaded.<IntBlock>getBlock(0).asVector();
+                    Page input = new Page(loaded.getPositionCount(), evaluate(loaded));
+                    try {
+                        if (body instanceof Last) {
+                            requireScalars(input);
+                        }
+                        var add = aggregator.prepareProcessPage(earlier, input);
+                        if (add != null) {
+                            try (add) {
+                                add.add(0, parents);
+                            }
+                        }
+                    } finally {
+                        input.releaseBlocks();
+                    }
+                    for (int c = 0; c < parents.getPositionCount(); c++) {
+                        reduced[parents.getInt(c)] = true;
+                    }
+                });
+                int[] selected = IntStream.range(0, reduced.length).filter(p -> reduced[p]).toArray();
+                if (selected.length == 0) {
+                    return;
+                }
+                aggregator.aggregatorFunction().selectedMayContainUnseenGroups(earlier);
+                Block[] results = new Block[1];
+                try (
+                    IntVector groups = context.blockFactory().newIntArrayVector(selected, selected.length);
+                    var prepared = aggregator.prepareForEvaluate(groups, new GroupingAggregatorEvaluationContext(context))
+                ) {
+                    prepared.evaluate(results, 0, groups);
+                    for (int i = 0; i < selected.length; i++) {
+                        Object value = BlockUtils.toJavaObject(results[0], i);
+                        // The wrapper's scalar contract permits any candidate tied at the maximum key.
+                        values[selected[i]] = body instanceof Last && value instanceof List<?> ties
+                            ? (ties.isEmpty() ? null : ties.getFirst())
+                            : value;
+                    }
+                } finally {
+                    Releasables.closeExpectNoException(results);
+                }
+            }
+        }
+
+        /** Runs the children through STATS ... BY parent, keys and nests each parent's groups, one JSON level per key. */
+        private void groupsFromIndex(DocVector docs, boolean[] included, Object[] values, boolean[] reduced) {
+            List<Map<String, Object>> groups = new ArrayList<>(Collections.nCopies(included.length, null));
+            try (Operator stats = grouping.get(context)) {
+                children.read(docs, p -> included[p], loaded -> {
+                    while (stats.needsInput() == false) {
+                        collectGroups(stats.getOutput(), groups);
+                    }
+                    Block[] evaluated = evaluate(loaded);
+                    Block[] input = new Block[1 + evaluated.length];
+                    input[0] = loaded.getBlock(0);
+                    input[0].incRef();
+                    System.arraycopy(evaluated, 0, input, 1, evaluated.length);
+                    stats.addInput(new Page(loaded.getPositionCount(), input));
+                });
+                stats.finish();
+                while (stats.isFinished() == false) {
+                    collectGroups(stats.getOutput(), groups);
+                }
+            }
+            for (int p = 0; p < included.length; p++) {
+                Map<String, Object> parentGroups = groups.get(p);
+                if (parentGroups != null) {
+                    values[p] = toJson(builder -> builder.map(parentGroups));
+                    reduced[p] = true;
+                }
+            }
+        }
+
+        /** Children with a null key are left out of the object. */
+        @SuppressWarnings("unchecked")
+        private void collectGroups(@Nullable Page page, List<Map<String, Object>> groups) {
+            if (page == null) {
+                return;
+            }
+            try {
+                IntBlock parents = page.getBlock(0);
+                int keys = groupings.size();
+                rows: for (int position = 0; position < page.getPositionCount(); position++) {
+                    for (int k = 0; k < keys; k++) {
+                        if (page.getBlock(k + 1).isNull(position)) {
+                            continue rows;
+                        }
+                    }
+                    int parent = parents.getInt(parents.getFirstValueIndex(position));
+                    Map<String, Object> level = groups.get(parent);
+                    if (level == null) {
+                        level = new TreeMap<>();
+                        groups.set(parent, level);
+                    }
+                    for (int k = 0; k < keys; k++) {
+                        Block key = page.getBlock(k + 1);
+                        Object value = BlockUtils.toJavaObject(key, position);
+                        String name = value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
+                        if (k == keys - 1) {
+                            level.put(name, BlockUtils.toJavaObject(page.getBlock(keys + 1), position));
+                        } else {
+                            level = (Map<String, Object>) level.computeIfAbsent(name, n -> new TreeMap<String, Object>());
+                        }
+                    }
+                }
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+
+        /** Each parent's children as a JSON array of objects, a field missing where the child has no value for it. */
+        private void jsonFromIndex(DocVector docs, boolean[] included, Object[] values, boolean[] reduced) {
+            List<List<Map<String, Object>>> objects = new ArrayList<>(Collections.nCopies(included.length, null));
+            long[] estimate = new long[1];
+            try {
+                children.read(docs, p -> included[p], loaded -> {
+                    long bytes = 64L * loaded.getPositionCount() * (1 + paths.size());
+                    context.breaker().addEstimateBytesAndMaybeBreak(bytes, "nested_reduction_frame");
+                    estimate[0] += bytes;
+                    IntVector parents = loaded.<IntBlock>getBlock(0).asVector();
+                    for (int c = 0; c < loaded.getPositionCount(); c++) {
+                        Map<String, Object> object = new LinkedHashMap<>();
+                        for (int f = 0; f < paths.size(); f++) {
+                            Block field = loaded.getBlock(f + 1);
+                            if (field.isNull(c) == false) {
+                                put(object, paths.get(f), jsonValue(BlockUtils.toJavaObject(field, c)));
+                            }
+                        }
+                        int parent = parents.getInt(c);
+                        if (objects.get(parent) == null) {
+                            objects.set(parent, new ArrayList<>());
+                        }
+                        objects.get(parent).add(object);
+                    }
+                });
+                for (int p = 0; p < included.length; p++) {
+                    List<Map<String, Object>> parentObjects = objects.get(p);
+                    if (parentObjects != null) {
+                        values[p] = toJson(builder -> {
+                            builder.startArray();
+                            for (Map<String, Object> object : parentObjects) {
+                                builder.map(object);
+                            }
+                            builder.endArray();
+                        });
+                        reduced[p] = true;
+                    }
+                }
+            } finally {
+                context.breaker().addWithoutBreaking(-estimate[0]);
+            }
+        }
+
         private Object reduce(List<Map<?, ?>> objects, String index, long token) {
             if (objects.isEmpty()) {
                 return emptyResult();
             }
-            if (json) {
-                return toJson(builder -> {
-                    builder.startArray();
-                    for (Map<?, ?> object : objects) {
-                        builder.value(object);
-                    }
-                    builder.endArray();
-                });
-            }
-            if (grouping != null) {
-                return reduceGroups(objects, index, token);
-            }
             // One aggregate per incoming parent, retained until all its child pages have contributed.
             try (
-                Aggregator aggregator = body instanceof ToAggregator aggregate
-                    ? aggregate.supplier()
+                Aggregator aggregator = body instanceof ToAggregator toAggregator
+                    ? toAggregator.supplier()
                         .aggregatorFactory(AggregatorMode.SINGLE, IntStream.range(0, scalars.size()).boxed().toList())
                         .apply(context)
                     : null
@@ -530,37 +768,6 @@ public final class NestedReduction extends EsqlScalarFunction {
             }
         }
 
-        /** Runs one parent's children through STATS ... BY and nests the groups, one JSON level per key. */
-        private BytesRef reduceGroups(List<Map<?, ?>> objects, String index, long token) {
-            Map<String, Object> groups = new TreeMap<>();
-            try (Operator stats = grouping.get(context)) {
-                for (int offset = 0; offset < objects.size();) {
-                    int count = Math.min(CHILD_PAGE_SIZE, objects.size() - offset);
-                    try (var frame = loadFrame(objects, index, token, offset, count)) {
-                        Block[] evaluated = new Block[scalars.size()];
-                        try {
-                            for (int i = 0; i < evaluated.length; i++) {
-                                evaluated[i] = scalars.get(i).eval(frame.objects());
-                            }
-                        } catch (RuntimeException | Error e) {
-                            Releasables.closeExpectNoException(evaluated);
-                            throw e;
-                        }
-                        while (stats.needsInput() == false) {
-                            collectGroups(stats.getOutput(), groups);
-                        }
-                        stats.addInput(new Page(count, evaluated));
-                    }
-                    offset += count;
-                }
-                stats.finish();
-                while (stats.isFinished() == false) {
-                    collectGroups(stats.getOutput(), groups);
-                }
-            }
-            return groups.isEmpty() ? null : toJson(builder -> builder.map(groups));
-        }
-
         private static BytesRef toJson(CheckedConsumer<XContentBuilder, IOException> content) {
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 content.accept(builder);
@@ -570,32 +777,44 @@ public final class NestedReduction extends EsqlScalarFunction {
             }
         }
 
-        /** Children with a null key are left out of the object. */
-        @SuppressWarnings("unchecked")
-        private void collectGroups(@Nullable Page page, Map<String, Object> groups) {
-            if (page == null) {
-                return;
+        /** A child value as JSON writes it: keywords as strings. */
+        private static Object jsonValue(Object value) {
+            if (value instanceof BytesRef bytes) {
+                return bytes.utf8ToString();
             }
-            try {
-                int keys = groupings.size();
-                rows: for (int position = 0; position < page.getPositionCount(); position++) {
-                    Map<String, Object> level = groups;
-                    for (int k = 0; k < keys; k++) {
-                        Block key = page.getBlock(k);
-                        if (key.isNull(position)) {
-                            continue rows;
-                        }
-                        Object value = BlockUtils.toJavaObject(key, position);
-                        String name = value instanceof BytesRef bytes ? bytes.utf8ToString() : value.toString();
-                        if (k == keys - 1) {
-                            level.put(name, BlockUtils.toJavaObject(page.getBlock(keys), position));
-                        } else {
-                            level = (Map<String, Object>) level.computeIfAbsent(name, n -> new TreeMap<String, Object>());
-                        }
+            if (value instanceof List<?> list) {
+                return list.stream().map(NestedReductionOperator::jsonValue).toList();
+            }
+            return value;
+        }
+
+        /** Puts {@code value} at the dotted {@code path}, creating the objects above it. */
+        @SuppressWarnings("unchecked")
+        private static void put(Map<String, Object> object, String path, Object value) {
+            int dot;
+            while ((dot = path.indexOf('.')) >= 0) {
+                object = (Map<String, Object>) object.computeIfAbsent(path.substring(0, dot), k -> new LinkedHashMap<String, Object>());
+                path = path.substring(dot + 1);
+            }
+            object.put(path, value);
+        }
+
+        private String indexName(Block indexNames, int row) {
+            String index = NestedSource.singleMetadata(indexNames, row, "_index").utf8ToString();
+            if (index.isEmpty()) {
+                throw new IllegalArgumentException("NESTED requires non-empty _index metadata");
+            }
+            return index;
+        }
+
+        private static void requireScalars(Page page) {
+            for (int b = 0; b < page.getBlockCount(); b++) {
+                Block block = page.getBlock(b);
+                for (int i = 0; i < block.getPositionCount(); i++) {
+                    if (block.getValueCount(i) > 1) {
+                        throw new IllegalArgumentException("NESTED selection requires scalar child values and ordering keys");
                     }
                 }
-            } finally {
-                page.releaseBlocks();
             }
         }
 
@@ -688,7 +907,7 @@ public final class NestedReduction extends EsqlScalarFunction {
 
         @Override
         public void close() {
-            Releasables.close(Releasables.wrap(metadata), Releasables.wrap(scalars));
+            Releasables.close(Releasables.wrap(metadata), Releasables.wrap(scalars), children);
         }
     }
 

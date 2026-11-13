@@ -13,8 +13,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -32,15 +33,14 @@ import java.util.Set;
  * field is appended. A parent without objects keeps one row with null child values. Each input page becomes one output
  * page, so its size grows with the number of objects.
  * <p>
- * The objects are read from the index when {@code shards} is set, and from each parent's stored source otherwise.
- * Both give the same maps, so everything after that does not depend on where they came from.
+ * The objects are read from the index when {@code children} is set, and from each parent's stored source otherwise.
  */
 public final class NestedExpandOperator extends AbstractPageMappingOperator {
     public record Factory(
         int sourceChannel,
         int indexChannel,
         int docChannel,
-        @Nullable IndexedByShardId<NestedIndexObjects.Shard> shards,
+        @Nullable NestedChildren.Factory children,
         String path,
         Set<String> indices,
         List<DataType> types,
@@ -55,26 +55,114 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "NestedExpandOperator[path=" + path + ", loader=" + (shards == null ? "source" : "index") + "]";
+            return "NestedExpandOperator[path=" + path + ", loader=" + (children == null ? "source" : "index") + "]";
         }
     }
 
     private final DriverContext context;
     private final Factory factory;
     @Nullable
-    private final NestedIndexObjects indexed;
+    private final NestedChildren children;
 
     private NestedExpandOperator(DriverContext context, Factory factory) {
         this.context = context;
         this.factory = factory;
-        this.indexed = factory.shards() == null ? null : new NestedIndexObjects(factory.shards(), factory.paths());
-        if (indexed == null) {
+        this.children = factory.children() == null ? null : factory.children().get(context);
+        if (children == null) {
             NestedSource.checkSources(factory.sourceFailures());
         }
     }
 
     @Override
     protected Page process(Page page) {
+        try {
+            return children == null ? fromSource(page) : fromIndex(page);
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    /** Copies each parent's child rows from the pages the index gives, with one null row for a parent without children. */
+    private Page fromIndex(Page page) {
+        int columns = factory.types().size();
+        Block.Builder[] built = new Block.Builder[columns];
+        Block[] blocks = new Block[columns];
+        Page parents = null;
+        try {
+            for (int c = 0; c < columns; c++) {
+                built[c] = PlannerUtils.toElementType(factory.types().get(c))
+                    .newBlockBuilder(page.getPositionCount(), context.blockFactory());
+            }
+            Block index = page.getBlock(factory.indexChannel());
+            boolean[] included = new boolean[page.getPositionCount()];
+            for (int row = 0; row < included.length; row++) {
+                included[row] = factory.indices().contains(indexName(index, row));
+            }
+            var rows = new Object() {
+                int[] positions = new int[page.getPositionCount()];
+                int count;
+                int next;
+
+                void add(int position) {
+                    positions = ArrayUtil.grow(positions, count + 1);
+                    positions[count++] = position;
+                }
+
+                /** One null row for each parent before {@code parent}, which have no children. */
+                void fillTo(int parent) {
+                    for (; next < parent; next++) {
+                        add(next);
+                        for (Block.Builder builder : built) {
+                            builder.appendNull();
+                        }
+                    }
+                }
+            };
+            DocVector docs = ((DocBlock) page.getBlock(factory.docChannel())).asVector();
+            children.read(docs, p -> included[p], loaded -> {
+                IntVector parentPositions = loaded.<IntBlock>getBlock(0).asVector();
+                int start = 0;
+                for (int c = 0; c < loaded.getPositionCount(); c++) {
+                    int parent = parentPositions.getInt(c);
+                    if (parent >= rows.next) {
+                        copy(loaded, built, start, c);
+                        start = c;
+                        rows.fillTo(parent);
+                        rows.next = parent + 1;
+                    }
+                    rows.add(parent);
+                }
+                copy(loaded, built, start, loaded.getPositionCount());
+            });
+            rows.fillTo(page.getPositionCount());
+            for (int c = 0; c < columns; c++) {
+                blocks[c] = built[c].build();
+            }
+            parents = page.filter(true, rows.positions, 0, rows.count);
+            Page expanded = parents.appendBlocks(blocks);
+            parents = null;
+            blocks = null;
+            return expanded;
+        } finally {
+            Releasables.closeExpectNoException(built);
+            if (blocks != null) {
+                Releasables.closeExpectNoException(blocks);
+            }
+            if (parents != null) {
+                parents.releaseBlocks();
+            }
+        }
+    }
+
+    private static void copy(Page loaded, Block.Builder[] built, int from, int to) {
+        if (from < to) {
+            for (int c = 0; c < built.length; c++) {
+                built[c].copyFrom(loaded.getBlock(c + 1), from, to);
+            }
+        }
+    }
+
+    private Page fromSource(Page page) {
         int columns = factory.types().size();
         BlockUtils.BuilderWrapper[] children = new BlockUtils.BuilderWrapper[columns];
         Block[] built = new Block[columns];
@@ -89,25 +177,16 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
             }
             Block source = factory.sourceChannel() < 0 ? null : page.getBlock(factory.sourceChannel());
             Block index = page.getBlock(factory.indexChannel());
-            DocVector docs = indexed == null ? null : ((DocBlock) page.getBlock(factory.docChannel())).asVector();
             int[] positions = new int[page.getPositionCount()];
             int rows = 0;
             for (int row = 0; row < page.getPositionCount(); row++) {
                 context.checkForEarlyTermination();
-                String indexName = NestedSource.singleMetadata(index, row, "_index").utf8ToString();
-                if (indexName.isEmpty()) {
-                    throw new IllegalArgumentException("NESTED_EXPAND requires non-empty _index metadata");
-                }
+                String indexName = indexName(index, row);
                 List<Map<?, ?>> objects = List.of();
                 long estimate = 0;
                 ParsedContentReservation parsedSource = null;
                 try {
-                    if (factory.indices().contains(indexName) && indexed != null) {
-                        objects = indexed.objects(docs, row, context);
-                        long bytes = 64L * objects.size() * (1 + columns);
-                        context.breaker().addEstimateBytesAndMaybeBreak(bytes, "nested_expand_frame");
-                        estimate = bytes;
-                    } else if (factory.indices().contains(indexName)) {
+                    if (factory.indices().contains(indexName)) {
                         NestedSource.checkSource(factory.sourceFailures(), indexName);
                         if (source == null || source.isNull(row)) {
                             throw new IllegalArgumentException("NESTED_EXPAND source-backed PoC requires stored, unfiltered _source");
@@ -157,12 +236,24 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
             if (parents != null) {
                 parents.releaseBlocks();
             }
-            page.releaseBlocks();
         }
+    }
+
+    private static String indexName(Block index, int row) {
+        String name = NestedSource.singleMetadata(index, row, "_index").utf8ToString();
+        if (name.isEmpty()) {
+            throw new IllegalArgumentException("NESTED_EXPAND requires non-empty _index metadata");
+        }
+        return name;
     }
 
     @Override
     public String toString() {
         return factory.describe();
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(children, super::close);
     }
 }

@@ -1037,6 +1037,33 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return loader;
         }
 
+        /**
+         * Loads a child field of a nested field from its hidden child documents. {@link #blockLoader} loads nulls for such a
+         * field, as field caps hides it from ordinary columns.
+         */
+        public BlockLoader nestedChildBlockLoader(
+            String name,
+            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
+            ByteSizeValue blockLoaderSizeOrdinals,
+            ByteSizeValue blockLoaderSizeScript
+        ) {
+            MappedFieldType fieldType = fieldType(name);
+            if (fieldType == null) {
+                return ConstantNull.INSTANCE;
+            }
+            BlockLoader loader = fieldType.blockLoader(
+                new EsqlBlockLoaderContext(
+                    ctx,
+                    MappedFieldType.FieldExtractPreference.NONE,
+                    null,
+                    warnings,
+                    blockLoaderSizeOrdinals,
+                    blockLoaderSizeScript
+                )
+            );
+            return loader == null ? ConstantNull.INSTANCE : loader;
+        }
+
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
             return ctx.getFieldType(name);

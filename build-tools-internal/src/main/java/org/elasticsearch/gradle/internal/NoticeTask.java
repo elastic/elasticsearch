@@ -29,8 +29,11 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.initialization.layout.BuildLayout;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -145,28 +148,51 @@ public abstract class NoticeTask extends DefaultTask {
             boolean isPackageInfo = sourceFile.getName().equals("package-info.java");
             boolean foundNotice = false;
             boolean inNotice = false;
+            boolean inBlockComment = false;
             StringBuilder header = new StringBuilder();
             String packageDeclaration = null;
 
-            for (String line : FileUtils.readLines(sourceFile, "UTF-8")) {
-                if (isPackageInfo && packageDeclaration == null && line.startsWith("package")) {
-                    packageDeclaration = line;
-                }
+            try (BufferedReader reader = Files.newBufferedReader(sourceFile.toPath(), StandardCharsets.UTF_8)) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    final String trimmed = line.trim();
+                    final boolean isCode = inBlockComment == false
+                        && trimmed.isEmpty() == false
+                        && trimmed.startsWith("/*") == false
+                        && trimmed.startsWith("//") == false;
 
-                if (foundNotice == false) {
-                    foundNotice = line.contains("@notice");
-                    inNotice = true;
-                } else {
-                    if (line.contains("*/")) {
-                        inNotice = false;
+                    if (isPackageInfo && packageDeclaration == null && line.startsWith("package")) {
+                        packageDeclaration = line;
+                    }
 
-                        if (isPackageInfo == false) {
-                            break;
+                    // A notice lives in the comments leading the file, so nothing after the first line of code (which is
+                    // the package declaration for package-info.java) is relevant. Stop there rather than reading the whole file.
+                    if (isCode) {
+                        break;
+                    }
+
+                    if (trimmed.startsWith("/*")) {
+                        inBlockComment = true;
+                    }
+                    if (inBlockComment && trimmed.contains("*/")) {
+                        inBlockComment = false;
+                    }
+
+                    if (foundNotice == false) {
+                        foundNotice = line.contains("@notice");
+                        inNotice = true;
+                    } else {
+                        if (line.contains("*/")) {
+                            inNotice = false;
+
+                            if (isPackageInfo == false) {
+                                break;
+                            }
+
+                        } else if (inNotice) {
+                            header.append(StringGroovyMethods.stripMargin(line, "*"));
+                            header.append("\n");
                         }
-
-                    } else if (inNotice) {
-                        header.append(StringGroovyMethods.stripMargin(line, "*"));
-                        header.append("\n");
                     }
                 }
             }

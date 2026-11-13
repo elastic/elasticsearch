@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -115,7 +116,13 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         stopJob(parentTaskClient, request, stopListener);
     }
 
-    private static void stopJob(
+    /**
+     * Stops the job ahead of a force delete, trying a normal stop before falling back to a force stop.
+     * A {@link ResourceNotFoundException} means the analytics does not exist: that is a client error the
+     * caller already receives, so it is not logged as an error on the server.
+     */
+    // package-private for testing
+    static void stopJob(
         ParentTaskAssigningClient parentTaskClient,
         DeleteDataFrameAnalyticsAction.Request request,
         ActionListener<StopDataFrameAnalyticsAction.Response> listener
@@ -138,8 +145,13 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
                     StopDataFrameAnalyticsAction.INSTANCE,
                     stopRequest,
                     ActionListener.wrap(listener::onResponse, forceStopFailure -> {
-                        logger.error(() -> "[" + request.getId() + "] Failed to stop normally", normalStopFailure);
-                        logger.error(() -> "[" + request.getId() + "] Failed to stop forcefully", forceStopFailure);
+                        if (ExceptionsHelper.unwrapCause(forceStopFailure) instanceof ResourceNotFoundException) {
+                            logger.debug(() -> "[" + request.getId() + "] Failed to stop normally", normalStopFailure);
+                            logger.debug(() -> "[" + request.getId() + "] Failed to stop forcefully", forceStopFailure);
+                        } else {
+                            logger.error(() -> "[" + request.getId() + "] Failed to stop normally", normalStopFailure);
+                            logger.error(() -> "[" + request.getId() + "] Failed to stop forcefully", forceStopFailure);
+                        }
                         listener.onFailure(forceStopFailure);
                     })
                 );

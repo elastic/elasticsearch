@@ -398,6 +398,39 @@ public class PlainCompressionCodecFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("expected " + (original.length + 1)));
     }
 
+    public void testLz4UnframedTinyPayloads() throws IOException {
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+        for (int size = 0; size <= 8; size++) {
+            byte[] original = randomByteArrayOfLength(size);
+            byte[] raw = LegacyLz4HadoopFramedCodecFactory.unframed()
+                .getCompressor(CompressionCodecName.LZ4)
+                .compress(BytesInput.from(original))
+                .toByteArray();
+
+            assertArrayEquals(original, decompressor.decompress(BytesInput.from(raw), size).toByteArray());
+
+            ByteBuffer output = ByteBuffer.allocate(size);
+            decompressor.decompress(ByteBuffer.wrap(raw), raw.length, output, size);
+            assertEquals(size, output.position());
+            assertArrayEquals(original, output.array());
+        }
+    }
+
+    public void testLz4DoubleFailureLeavesInputAtPayloadEnd() {
+        byte[] garbage = new byte[64];
+        Arrays.fill(garbage, (byte) 0xFF);
+        int pad = between(0, 8);
+        ByteBuffer input = ByteBuffer.allocate(pad + garbage.length);
+        input.position(pad).put(garbage).position(pad);
+        ByteBuffer output = ByteBuffer.allocate(1000);
+        BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4);
+
+        expectThrows(IOException.class, () -> decompressor.decompress(input, garbage.length, output, 1000));
+
+        assertEquals(pad + garbage.length, input.position());
+        assertEquals(0, output.position());
+    }
+
     private static byte[] randomPayload() {
         int len = between(100, 4096);
         if (randomBoolean()) {

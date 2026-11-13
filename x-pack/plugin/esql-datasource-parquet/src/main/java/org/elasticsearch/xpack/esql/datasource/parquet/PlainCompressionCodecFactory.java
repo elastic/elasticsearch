@@ -525,6 +525,7 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
                 try {
                     decodeRawLz4(lz4, input, compressedSize, output, decompressedSize, "LZ4");
                 } catch (IOException raw) {
+                    input.position(origPos + compressedSize);
                     framed.addSuppressed(raw);
                     throw framed;
                 }

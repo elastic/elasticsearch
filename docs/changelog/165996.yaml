@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 165996
+summary: Hold parsed request charge until reindex and by-query tasks end
+type: enhancement

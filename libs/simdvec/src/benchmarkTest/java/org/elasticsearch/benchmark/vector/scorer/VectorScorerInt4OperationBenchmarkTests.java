@@ -36,6 +36,7 @@ public class VectorScorerInt4OperationBenchmarkTests extends BenchmarkTest {
         int expected = bench.scalar();
         assertEquals(expected, bench.lucene());
         assertEquals(expected, bench.nativeWithNativeSeg());
+        assertEquals(expected, bench.nativeWithHeapQuery());
     }
 
     @ParametersFactory

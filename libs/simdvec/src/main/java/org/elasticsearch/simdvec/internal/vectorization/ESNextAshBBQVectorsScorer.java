@@ -9,11 +9,10 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.elasticsearch.simdvec.AshScorer;
-import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 
-public final class ESNextAshBBQVectorsScorer implements AshScorer<ScoringQuery> {
+public final class ESNextAshBBQVectorsScorer implements AshScorer<byte[]> {
 
     private final BBQDotProduct dotProduct;
 
@@ -22,17 +21,17 @@ public final class ESNextAshBBQVectorsScorer implements AshScorer<ScoringQuery> 
     }
 
     @Override
-    public float score(ScoringQuery query) throws IOException {
+    public float score(byte[] query) throws IOException {
         return dotProduct.dotProduct(query);
     }
 
     @Override
-    public void scoreBulk(ScoringQuery query, int blockSize, float[] scores) throws IOException {
+    public void scoreBulk(byte[] query, int blockSize, float[] scores) throws IOException {
         dotProduct.dotProductBulk(query, blockSize, scores);
     }
 
     @Override
-    public void scoreBulkMasked(ScoringQuery query, int mask, float[] scores, int blockSize) throws IOException {
+    public void scoreBulkMasked(byte[] query, int mask, float[] scores, int blockSize) throws IOException {
         dotProduct.dotProductBulkMasked(query, mask, scores, blockSize);
     }
 }

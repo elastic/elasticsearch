@@ -13,7 +13,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.SegmentBufferScratch;
-import org.elasticsearch.simdvec.ScoringQuery;
 import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.internal.AddressesScratch;
 import org.elasticsearch.simdvec.internal.OffsetsScratch;
@@ -29,14 +28,13 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
     private final SegmentBufferScratch bufferScratch = new SegmentBufferScratch();
     private final AddressesScratch addrsScratch = new AddressesScratch();
     private final OffsetsScratch offsetsScratch = new OffsetsScratch();
-    private final ScoringQuery.OffHeapCopy queryCopy = new ScoringQuery.OffHeapCopy();
 
     public NativeBinaryQuantizedVectorScorer(IndexInput in, int dimensions, int vectorLengthInBytes) {
         super(in, dimensions, vectorLengthInBytes);
     }
 
     public float score(
-        ScoringQuery q,
+        byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryQuantizedComponentSum,
@@ -54,7 +52,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
             var indexAdditionalCorrection = segment.get(ValueLayout.JAVA_FLOAT_UNALIGNED, numBytes + 2 * Float.BYTES);
             var indexQuantizedComponentSum = Short.toUnsignedInt(segment.get(ValueLayout.JAVA_SHORT_UNALIGNED, numBytes + 3 * Float.BYTES));
 
-            long qcDist = DISTANCE_FUNCS.dotProductD1Q4(segment, queryCopy.segmentFor(q), numBytes);
+            long qcDist = DISTANCE_FUNCS.dotProductD1Q4(segment, MemorySegment.ofArray(q), numBytes);
             return applyCorrections(
                 dimensions,
                 similarityFunction,
@@ -74,7 +72,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
 
     @Override
     public float scoreBulk(
-        ScoringQuery q,
+        byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryQuantizedComponentSum,
@@ -96,7 +94,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
         boolean resolved = IndexInputUtils.withSliceAddresses(slice, vectorOffsets, byteSize, bulkSize, addrsScratch, addrs -> {
             var scoresSegment = MemorySegment.ofArray(scores);
-            DISTANCE_FUNCS.dotProductD1Q4BulkSparse(addrs, queryCopy.segmentFor(q), numBytes, bulkSize, scoresSegment);
+            DISTANCE_FUNCS.dotProductD1Q4BulkSparse(addrs, MemorySegment.ofArray(q), numBytes, bulkSize, scoresSegment);
             maxScore[0] = ScoreCorrections.nativeBbqApplyCorrectionsBulk(
                 similarityFunction,
                 addrs,

@@ -23,7 +23,6 @@ import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.simdvec.BBQEncoding;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
-import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -120,7 +119,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
     }
 
     @Override
-    public long quantizeScore(ScoringQuery q) throws IOException {
+    public long quantizeScore(byte[] q) throws IOException {
         long score = scorer.quantizeScore(q);
         if (score != Long.MIN_VALUE) {
             return score;
@@ -129,7 +128,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
     }
 
     @Override
-    public void quantizeScoreBulk(ScoringQuery q, int count, float[] scores) throws IOException {
+    public void quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
         boolean scored = scorer.quantizeScoreBulk(q, count, scores);
         if (scored == false) {
             super.quantizeScoreBulk(q, count, scores);
@@ -137,7 +136,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
     }
 
     @Override
-    public void quantizeScoreBulkMasked(ScoringQuery q, int mask, float[] scores, int count) throws IOException {
+    public void quantizeScoreBulkMasked(byte[] q, int mask, float[] scores, int count) throws IOException {
         boolean scored = scorer.quantizeScoreBulkMasked(q, mask, scores, count);
         if (scored == false) {
             super.quantizeScoreBulkMasked(q, mask, scores, count);
@@ -146,7 +145,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     @Override
     public float scoreBulk(
-        ScoringQuery q,
+        byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -182,7 +181,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     @Override
     public float scoreBulk(
-        ScoringQuery q,
+        byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -221,7 +220,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     @Override
     public float scoreBulkMasked(
-        ScoringQuery q,
+        byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
         int queryComponentSum,
@@ -313,7 +312,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
          * Quantized scoring operation. Returns {@link Long#MIN_VALUE}
          * if this scorer does not implement this scoring.
          */
-        long quantizeScore(ScoringQuery q) throws IOException {
+        long quantizeScore(byte[] q) throws IOException {
             return Long.MIN_VALUE;
         }
 
@@ -321,7 +320,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
          * Quantized scoring bulk operation. Returns {@code false}
          * if this scorer does not implement this scoring.
          */
-        boolean quantizeScoreBulk(ScoringQuery q, int count, float[] scores) throws IOException {
+        boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
             return false;
         }
 
@@ -329,12 +328,12 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
          * Quantized scoring masked bulk operation. Returns {@code false}
          * if this scorer does not implement this scoring.
          */
-        boolean quantizeScoreBulkMasked(ScoringQuery q, int mask, float[] scores, int count) throws IOException {
+        boolean quantizeScoreBulkMasked(byte[] q, int mask, float[] scores, int count) throws IOException {
             return false;
         }
 
         final float scoreBulk(
-            ScoringQuery q,
+            byte[] q,
             float queryLowerInterval,
             float queryUpperInterval,
             int queryComponentSum,
@@ -361,7 +360,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
          * if this scorer does not implement this scoring.
          */
         float scoreBulk(
-            ScoringQuery q,
+            byte[] q,
             float queryLowerInterval,
             float queryUpperInterval,
             int queryComponentSum,
@@ -379,7 +378,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
          * if this scorer does not implement this scoring.
          */
         float scoreBulkMasked(
-            ScoringQuery q,
+            byte[] q,
             float queryLowerInterval,
             float queryUpperInterval,
             int queryComponentSum,

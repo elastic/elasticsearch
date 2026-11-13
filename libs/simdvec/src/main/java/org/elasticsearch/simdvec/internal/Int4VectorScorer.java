@@ -121,7 +121,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             upperInterval,
             additionalCorrection,
             quantizedComponentSum,
-            MemorySegmentUtils.nativeCopyOf(unpackedQuery)
+            MemorySegment.ofArray(unpackedQuery)
         );
     }
 

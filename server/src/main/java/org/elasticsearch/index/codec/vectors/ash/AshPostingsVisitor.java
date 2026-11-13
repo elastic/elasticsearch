@@ -25,7 +25,6 @@ import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.simdvec.AshScorer;
 import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 
@@ -74,7 +73,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
      * @param qOffset the query minimum value (used as offset in correction)
      * @param constantCorrection precomputed centering correction term
      */
-    private record QuantizedQuery(ScoringQuery queryQuantized, float invQScale, float qOffset, float constantCorrection) {}
+    private record QuantizedQuery(byte[] queryQuantized, float invQScale, float qOffset, float constantCorrection) {}
 
     /**
      * Quantizes a projected query vector for the integer scoring path.
@@ -127,7 +126,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
 
         float centerOffset = ((1 << bitsPerDim) - 1) / 2.0f;
         float constantCorrection = centerOffset * (unsignedSum * invQScale + qMin * nDims);
-        return new QuantizedQuery(new ScoringQuery(queryQuantized), invQScale, qMin, constantCorrection);
+        return new QuantizedQuery(queryQuantized, invQScale, qMin, constantCorrection);
     }
 
     /**
@@ -217,12 +216,7 @@ public class AshPostingsVisitor<T> implements IVFVectorsReader.PostingVisitor {
 
         if (queryBitsPerDim > 0) {
             QuantizedQuery qq = quantizeQuery(queryTransformed, matrix.nDims(), queryBitsPerDim, bitsPerDim);
-            AshScorer<ScoringQuery> scorer = ESVectorUtil.getAshIntegerVectorsScorer(
-                indexInput,
-                matrix.nDims(),
-                bitsPerDim,
-                queryBitsPerDim
-            );
+            AshScorer<byte[]> scorer = ESVectorUtil.getAshIntegerVectorsScorer(indexInput, matrix.nDims(), bitsPerDim, queryBitsPerDim);
             return new AshPostingsVisitor<>(
                 matrix.nDims(),
                 query,

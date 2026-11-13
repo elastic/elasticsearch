@@ -64,7 +64,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
         assert queryVector.length == values.dimension();
         this.dimensions = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
-        this.query = MemorySegmentUtils.nativeCopyOf(queryVector);
+        this.query = MemorySegment.ofArray(queryVector);
         this.scratch = new FixedSizeSegmentScratch(vectorByteSize);
     }
 

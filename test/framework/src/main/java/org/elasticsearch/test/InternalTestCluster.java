@@ -2212,18 +2212,10 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Blocks until {@code vacatingNode} holds no shards of {@code index} (the node has been vacated for that index).
+     * Blocks until {@code vacatingNode} has applied a cluster state in which no shard of {@code index} is assigned to it, and additionally
+     * has finished closing the shards. This method observes the cluster state applied by the vacating node itself.
      */
     public void awaitNodeVacated(String index, String vacatingNode) {
-        awaitNodesInclude(index, nodes -> nodes.contains(vacatingNode) == false);
-    }
-
-    /**
-     * Blocks until {@code vacatingNode} has applied a cluster state in which no shard of {@code index} is assigned to it, and additionally
-     * has finished closing the shards.
-     * Unlike {@link #awaitNodeVacated(String, String)}, this method observes the cluster state applied by the vacating node itself.
-     */
-    public void awaitNodeVacatedAndShardsClosed(String index, String vacatingNode) {
         safeAwait(
             ClusterServiceUtils.addTemporaryStateListener(
                 clusterService(vacatingNode),

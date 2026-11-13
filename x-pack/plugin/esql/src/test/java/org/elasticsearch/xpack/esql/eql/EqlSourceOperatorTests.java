@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -355,6 +356,74 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
+    /**
+     * The response callback runs on the EQL response thread while the driver run loop may still own the driver's
+     * {@link LocalCircuitBreaker}. Building the page must not touch that breaker, or the single-thread assertion fails
+     * and kills the node.
+     */
+    public void testResponseOnOtherThreadDoesNotTouchLocalBreaker() throws Exception {
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContextWithLocalBreaker();
+        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a"), fieldEvent("b")));
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequest(1000),
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD)),
+            false
+        );
+        Page page = null;
+        try {
+            assertBlocked(operator);
+            pinLocalBreakerToAnotherThread(driverContext);
+            client.capturedListener.onResponse(response);
+            unpinLocalBreaker(driverContext);
+
+            page = operator.getOutput();
+            assertThat(page.getPositionCount(), equalTo(2));
+            assertBytesRefColumn(page, 0, "a", "b");
+        } finally {
+            if (page != null) {
+                page.releaseBlocks();
+            }
+            operator.close();
+            response.decRef();
+            unpinLocalBreaker(driverContext);
+            closeLocalBreaker(driverContext);
+        }
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** Same as above, but the operator is closed first, so the response thread releases the page it just built. */
+    public void testResponseAfterCloseOnOtherThreadDoesNotTouchLocalBreaker() throws Exception {
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContextWithLocalBreaker();
+        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a"), fieldEvent("b")));
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequest(1000),
+            EqlRelation.Mode.EVENT,
+            List.of(fieldAttribute("process.name", KEYWORD)),
+            false
+        );
+        try {
+            assertBlocked(operator);
+            operator.close();
+            pinLocalBreakerToAnotherThread(driverContext);
+            client.capturedListener.onResponse(response);
+            unpinLocalBreaker(driverContext);
+            assertThat(operator.getOutput(), equalTo(null));
+        } finally {
+            operator.close();
+            response.decRef();
+            unpinLocalBreaker(driverContext);
+            closeLocalBreaker(driverContext);
+        }
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
     /** Error path: the EQL search fails; {@code getOutput()} surfaces the failure as a runtime exception, holding nothing. */
     public void testErrorFromClientSurfacesAsRuntimeException() {
         CapturingEqlClient client = new CapturingEqlClient(threadPool);
@@ -622,6 +691,29 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     // ---- helpers ----
+
+    /** A driver context whose block factory charges a {@link LocalCircuitBreaker}, as the real {@code Driver} sets up. */
+    private DriverContext driverContextWithLocalBreaker() {
+        DriverContext root = driverContext();
+        LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(root.breaker(), 0, 0);
+        return new DriverContext(root.bigArrays(), root.blockFactory().newChildFactory(localBreaker), null);
+    }
+
+    /** Releases the run-loop pin. Idempotent, so {@code finally} can call it even if the body already did. */
+    private static void unpinLocalBreaker(DriverContext driverContext) {
+        assertTrue(driverContext.assertEndRunLoop());
+    }
+
+    private static void closeLocalBreaker(DriverContext driverContext) {
+        ((LocalCircuitBreaker) driverContext.blockFactory().breaker()).close();
+    }
+
+    /** Marks another thread as the driver run-loop owner of the local breaker, like a driver that is still running. */
+    private static void pinLocalBreakerToAnotherThread(DriverContext driverContext) throws InterruptedException {
+        Thread driverThread = new Thread(() -> assertTrue(driverContext.assertBeginRunLoop()), "pin-driver-breaker");
+        driverThread.start();
+        driverThread.join();
+    }
 
     private SourceOperator operator(
         CapturingEqlClient client,

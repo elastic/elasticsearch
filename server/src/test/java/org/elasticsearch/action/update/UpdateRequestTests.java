@@ -669,6 +669,39 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
     }
 
+    public void testUpdateScriptWithSourceFieldsNamedLikeMetadata() throws Exception {
+        IndexShard indexShard = createMockIndexShard(new ShardId("test", "", 0));
+        GetResult getResult = new GetResult(
+            "test",
+            "1",
+            0,
+            1,
+            0,
+            true,
+            new BytesArray("{\"_type\": \"event\", \"op\": \"x\", \"_now\": 1, \"body\": \"bar\"}"),
+            null,
+            null
+        );
+
+        UpdateRequest request = new UpdateRequest("test", "1").script(mockInlineScript("ctx._source.body = \"foo\""));
+
+        UpdateHelper.Result result = updateHelper.prepareUpdateScriptRequest(
+            indexShard,
+            request,
+            getResult,
+            ESTestCase::randomNonNegativeLong,
+            false
+        );
+
+        assertThat(result.action(), instanceOf(IndexRequest.class));
+        assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
+        Map<String, Object> updatedSource = result.updatedSourceAsMap();
+        assertThat(updatedSource.get("body"), equalTo("foo"));
+        assertThat(updatedSource.get("_type"), equalTo("event"));
+        assertThat(updatedSource.get("op"), equalTo("x"));
+        assertThat(updatedSource.get("_now"), equalTo(1));
+    }
+
     public void testRoutingFromSlicePropagatesToGeneratedWriteRequests() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         IndexShard indexShard = createMockIndexShard(new ShardId("test", "", 0));

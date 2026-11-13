@@ -1882,4 +1882,50 @@ public final class EscfColumnBuilder implements Releasable {
     private static byte[] ensureByteCapacity(byte[] array, int minSize) {
         return array.length >= minSize ? array : Arrays.copyOf(array, Math.max(minSize, array.length * 2));
     }
+
+    /** Constructs a {@code LONG} column directly from pre-built parts. */
+    public static EscfColumnData buildLongColumn(int docCount, @Nullable FixedBitSet validity, BytesReference data) {
+        return EscfColumnData.ofFixed64(EscfColumnKind.LONG, docCount, validity, data);
+    }
+
+    /** Constructs a {@code DOUBLE} column directly from pre-built parts. */
+    public static EscfColumnData buildDoubleColumn(int docCount, @Nullable FixedBitSet validity, BytesReference data) {
+        return EscfColumnData.ofFixed64(EscfColumnKind.DOUBLE, docCount, validity, data);
+    }
+
+    /** Constructs a {@code BOOL} column directly from pre-built parts. */
+    public static EscfColumnData buildBoolColumn(int docCount, @Nullable FixedBitSet validity, @Nullable FixedBitSet values) {
+        return EscfColumnData.ofBool(docCount, validity, values);
+    }
+
+    /** Constructs a {@code STRING} column directly from pre-built parts. */
+    public static EscfColumnData buildStringColumn(int docCount, @Nullable FixedBitSet validity, int[] offsets, BytesReference data) {
+        return EscfColumnData.ofVarWidth(EscfColumnKind.STRING, docCount, validity, offsets, data);
+    }
+
+    /**
+     * Constructs an {@code ARRAY} column directly from pre-built parts.
+     * The child must be of kind LONG, DOUBLE, or STRING and must have no validity bitset.
+     */
+    public static EscfColumnData buildArrayColumn(int docCount, @Nullable FixedBitSet validity, int[] rowOffsets, EscfColumnData child) {
+        byte childKind = child.kind();
+        if (childKind != EscfColumnKind.LONG && childKind != EscfColumnKind.DOUBLE && childKind != EscfColumnKind.STRING) {
+            throw new IllegalArgumentException("array child kind must be LONG, DOUBLE, or STRING; got " + EscfColumnKind.name(childKind));
+        }
+        if (child.validity() != null) {
+            throw new IllegalStateException("array child column must have no validity bitset");
+        }
+        return EscfColumnData.ofArray(docCount, validity, rowOffsets, child);
+    }
+
+    /** Constructs a {@code UNION} column directly from pre-built parts. */
+    public static EscfColumnData buildUnionColumn(
+        int docCount,
+        @Nullable FixedBitSet validity,
+        BytesRef typeVector,
+        int[] offsets,
+        BytesReference data
+    ) {
+        return EscfColumnData.ofUnion(docCount, validity, typeVector, offsets, data);
+    }
 }

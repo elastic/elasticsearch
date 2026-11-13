@@ -292,6 +292,71 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertThat(sink.stats(), equalTo(new IntoStats(0, 0)));
     }
 
+    // --- ESCF pre-built batch tests ---
+
+    public void testEscfPreBuiltBatchProperties() {
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
+        IntoPageWriter escfWriter = escfSink.create(driverContext);
+
+        try (
+            BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(2);
+            LongBlock.Builder ts = blockFactory.newLongBlockBuilder(2)
+        ) {
+            host.beginPositionEntry().appendBytesRef(new BytesRef("h1")).appendBytesRef(new BytesRef("h2")).endPositionEntry();
+            ts.appendLong(1_750_000_000_000L);
+            host.appendNull();
+            ts.appendLong(0L);
+            escfWriter.consume(new Page(host.build(), ts.build()));
+        }
+
+        assertThat(client.bulks, hasSize(1));
+        BulkRequest bulk = client.bulks.getFirst();
+        assertThat(bulk.hasPreBuiltBatches(), equalTo(true));
+        assertThat(bulk.numberOfActions(), equalTo(2));
+
+        List<DocWriteRequest<?>> requests = bulk.requests();
+        assertThat(requests.stream().map(DocWriteRequest::opType).toList(), everyItem(equalTo(DocWriteRequest.OpType.CREATE)));
+        assertThat(requests.stream().map(DocWriteRequest::index).toList(), everyItem(equalTo(DESTINATION)));
+        // With a pre-built batch, the inline source bytes are empty; row data lives in the batch.
+        requests.forEach(r -> assertThat(((IndexRequest) r).indexSource().byteLength(), equalTo(0)));
+
+        // Breaker is charged until the bulk settles.
+        assertThat(driverContext.breaker().getUsed(), greaterThan(0L));
+        client.answer(Outcome.CREATED, Outcome.CREATED);
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testEscfBytesChargedUntilBulkSettles() {
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
+        IntoPageWriter escfWriter = escfSink.create(driverContext);
+
+        escfWriter.consume(page("h1", "h2"));
+        assertThat(driverContext.breaker().getUsed(), greaterThan(0L));
+
+        client.answer(Outcome.CREATED, Outcome.CREATED);
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testEscfCircuitBreakerTripReleasesReservedBatch() {
+        IntoPageWriter.Factory escfSink = IntoPageWriter.Factory.createFactory(client, DESTINATION, COLUMNS, true);
+
+        // Measure how many bytes the ESCF path charges for a single-row page.
+        IntoPageWriter escfWriter = escfSink.create(driverContext);
+        escfWriter.consume(page("h1"));
+        long oneRowBatchBytes = driverContext.breaker().getUsed();
+        client.answer(Outcome.CREATED);
+        assertThat(oneRowBatchBytes, greaterThan(0L));
+
+        // A breaker limited to one row's batch bytes trips when processing two rows (larger batch).
+        BlockFactory limited = blockFactory(ByteSizeValue.ofBytes(oneRowBatchBytes));
+        IntoPageWriter limitedWriter = escfSink.create(new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, limited, null));
+        expectThrows(CircuitBreakingException.class, () -> limitedWriter.consume(page("h1", "h2")));
+        assertThat(client.bulks, empty());
+        assertThat(limited.breaker().getUsed(), equalTo(0L));
+    }
+
+    // --- helpers ---
+
     private Page page(String... hosts) {
         try (BytesRefBlock.Builder host = blockFactory.newBytesRefBlockBuilder(hosts.length)) {
             for (String value : hosts) {

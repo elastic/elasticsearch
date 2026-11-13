@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +29,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class IntoIT extends AbstractEsqlIntegTestCase {
 
     private static final String DESTINATION = "dest-into";
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), IngestCommonPlugin.class);
+    }
 
     @Before
     public void createDestination() {
@@ -90,8 +99,50 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), containsString("unmapped_col"));
     }
 
+    /**
+     * When the destination index has an ingest pipeline, {@code INTO} must fall back to the inline XContent
+     * path so the pipeline runs. The test verifies that no "bulk with pre-built source batches cannot run
+     * ingest pipelines" error is thrown and that the pipeline-added field appears in the indexed document.
+     */
+    public void testIngestPipelineFallback() {
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        String pipeline = "into-add-field-pipeline";
+        String pipelineDest = "dest-into-with-pipeline";
+
+        // Create a simple ingest pipeline that adds a field.
+        org.elasticsearch.ingest.IngestPipelineTestUtils.putJsonPipeline(client(), pipeline, """
+            {"processors": [{"set": {"field": "pipeline_ran", "value": true}}]}""");
+
+        // Create the destination with the pipeline as default_pipeline.
+        assertAcked(indicesAdmin().prepareCreate(pipelineDest).setSettings(Map.of("index.default_pipeline", pipeline)).setMapping("""
+            {
+              "dynamic": "strict",
+              "properties": {
+                "k":            { "type": "keyword" },
+                "pipeline_ran": { "type": "boolean" }
+              }
+            }"""));
+
+        // INTO must succeed without throwing "pre-built source batches cannot run ingest pipelines".
+        assertIntoTarget("ROW k = \"pipelined\"", pipelineDest, 1);
+
+        // The pipeline_ran field must be present in the indexed source.
+        refresh(pipelineDest);
+        assertResponse(
+            prepareSearch(pipelineDest),
+            response -> assertThat(
+                Arrays.stream(response.getHits().getHits()).map(SearchHit::getSourceAsMap).toList(),
+                equalTo(List.of(Map.of("k", "pipelined", "pipeline_ran", true)))
+            )
+        );
+    }
+
     private void assertInto(String producer, long rows) {
-        try (EsqlQueryResponse response = run(producer + " | INTO " + DESTINATION)) {
+        assertIntoTarget(producer, DESTINATION, rows);
+    }
+
+    private void assertIntoTarget(String producer, String target, long rows) {
+        try (EsqlQueryResponse response = run(producer + " | INTO " + target)) {
             assertColumnNames(response.columns(), List.of("total", "created"));
             assertColumnTypes(response.columns(), List.of("long", "long"));
             assertThat(getValuesList(response), equalTo(List.of(List.of(rows, rows))));

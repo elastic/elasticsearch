@@ -26,6 +26,8 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -43,9 +45,9 @@ import java.util.function.Supplier;
 
 /**
  * Streams an {@code INTO} query's pages to its destination as bulk {@code create} requests. At most
- * {@link #MAX_IN_FLIGHT_BYTES} of source bytes wait for an acknowledgement per driver, and each row's source is
- * reserved on the request circuit breaker until that bulk settles. The caller's {@link ThreadContext} is restored
- * around each request.
+ * {@link #MAX_IN_FLIGHT_BYTES} of source bytes wait for an acknowledgement across all drivers sharing the
+ * same {@link Factory}, and each row's source is reserved on the request circuit breaker until that bulk
+ * settles. The caller's {@link ThreadContext} is restored around each request.
  */
 public final class IntoPageWriter implements PageConsumer {
     // visible for testing
@@ -60,32 +62,43 @@ public final class IntoPageWriter implements PageConsumer {
         private final String destination;
         private final List<String> columns;
         private final List<DataType> types;
+        private final boolean usePreBuiltBatch;
         private final AtomicLong total = new AtomicLong();
         private final AtomicLong created = new AtomicLong();
         private final AtomicReference<Exception> failure = new AtomicReference<>();
+        // Tracks bytes in flight across all drivers sharing this factory.
+        final AtomicLong factoryInFlightBytes = new AtomicLong();
 
         public static Factory createFactory(Client client, String destination, List<Attribute> output) {
+            return createFactory(client, destination, output, false);
+        }
+
+        public static Factory createFactory(Client client, String destination, List<Attribute> output, boolean usePreBuiltBatch) {
             return new Factory(
                 client,
                 client.threadPool().getThreadContext().newRestorableContext(false),
                 destination,
                 Expressions.names(output),
-                output.stream().map(Attribute::dataType).toList()
+                output.stream().map(Attribute::dataType).toList(),
+                usePreBuiltBatch
             );
         }
 
-        private Factory(
+        // visible for testing
+        Factory(
             Client client,
             Supplier<ThreadContext.StoredContext> caller,
             String destination,
             List<String> columns,
-            List<DataType> types
+            List<DataType> types,
+            boolean usePreBuiltBatch
         ) {
             this.client = client;
             this.caller = caller;
             this.destination = destination;
             this.columns = columns;
             this.types = types;
+            this.usePreBuiltBatch = usePreBuiltBatch;
         }
 
         @Override
@@ -108,7 +121,7 @@ public final class IntoPageWriter implements PageConsumer {
     private final DriverContext driverContext;
     private final CircuitBreaker breaker;
 
-    private long inFlightBytes;
+    private long driverInFlightBytes;
     private boolean finished;
     // null whenever no driver is blocked on this writer; allocated in isBlocked() and cleared in wake().
     @Nullable
@@ -132,6 +145,42 @@ public final class IntoPageWriter implements PageConsumer {
     }
 
     private ReservedBulk bulkFor(Page page) {
+        if (sink.usePreBuiltBatch) {
+            return bulkForEscf(page);
+        } else {
+            return bulkForJson(page);
+        }
+    }
+
+    private ReservedBulk bulkForEscf(Page page) {
+        EscfBatch batch = PageToEscfBatch.convert(page, sink.columns, sink.types);
+        long reserved = 0;
+        try {
+            long batchBytes = batch.ramBytesUsed();
+            breaker.addEstimateBytesAndMaybeBreak(batchBytes, BREAKER_LABEL);
+            reserved = batchBytes;
+
+            BulkRequest bulk = new BulkRequest();
+            int docCount = page.getPositionCount();
+            for (int row = 0; row < docCount; row++) {
+                IndexRequest request = new IndexRequest(sink.destination).opType(DocWriteRequest.OpType.CREATE);
+                request.indexSource().setSourceRow(batch, row, XContentType.JSON);
+                bulk.add(request);
+            }
+            if (bulk.numberOfActions() > 0) {
+                bulk.setPreBuiltBatches(Map.of(sink.destination, batch));
+            } else {
+                batch.close();
+            }
+            return new ReservedBulk(bulk, reserved);
+        } catch (Exception e) {
+            release(reserved);
+            batch.close();
+            throw e;
+        }
+    }
+
+    private ReservedBulk bulkForJson(Page page) {
         BulkRequest bulk = new BulkRequest();
         long reserved = 0;
         try {
@@ -165,16 +214,21 @@ public final class IntoPageWriter implements PageConsumer {
         int actions = bulk.numberOfActions();
         if (actions == 0) {
             release(bytes);
+            bulk.releasePreBuiltBatches();
             return;
         }
         synchronized (this) {
-            inFlightBytes += bytes;
+            driverInFlightBytes += bytes;
         }
+        sink.factoryInFlightBytes.addAndGet(bytes);
         sink.total.addAndGet(actions);
         driverContext.addAsyncAction();
         ActionListener<BulkResponse> listener = ActionListener.runAfter(
             ActionListener.wrap(this::onBulkResponse, this::recordFailure),
-            () -> settle(bytes)
+            () -> {
+                bulk.releasePreBuiltBatches();
+                settle(bytes);
+            }
         );
         try (ThreadContext.StoredContext ignored = sink.caller.get()) {
             sink.client.execute(TransportBulkAction.TYPE, bulk, listener);
@@ -212,7 +266,9 @@ public final class IntoPageWriter implements PageConsumer {
     private void settle(long bytes) {
         release(bytes);
         driverContext.removeAsyncAction();
-        wake(() -> inFlightBytes -= bytes);
+        // Decrement the factory-level counter before the per-driver wake so mayContinue() sees the new value.
+        sink.factoryInFlightBytes.addAndGet(-bytes);
+        wake(() -> driverInFlightBytes -= bytes);
     }
 
     private void release(long bytes) {
@@ -249,17 +305,17 @@ public final class IntoPageWriter implements PageConsumer {
         return new IsBlockedResult(waiting, "INTO " + sink.destination);
     }
 
-    // Blocking until inFlightBytes == 0 once finished to prevent a parked driver from spinning while bulks settle.
+    // Blocking until driverInFlightBytes == 0 once finished to prevent a parked driver from spinning while bulks settle.
     private boolean mayContinue() {
         if (Thread.holdsLock(this) == false) {
             throw new IllegalStateException("mayContinue() must be called while holding this monitor");
         }
-        return finished ? inFlightBytes == 0 : inFlightBytes < MAX_IN_FLIGHT_BYTES;
+        return finished ? driverInFlightBytes == 0 : sink.factoryInFlightBytes.get() < MAX_IN_FLIGHT_BYTES;
     }
 
     @Override
     public synchronized boolean isFinished() {
-        return finished && inFlightBytes == 0;
+        return finished && driverInFlightBytes == 0;
     }
 
     private record ReservedBulk(BulkRequest bulk, long bytes) {}

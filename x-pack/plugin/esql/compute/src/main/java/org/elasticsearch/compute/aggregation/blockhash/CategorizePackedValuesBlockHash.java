@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -23,6 +22,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.BreakingBytesStreamOutput;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -41,6 +41,7 @@ import java.util.List;
  * other groupings (which are not {@code Categorize}s).
  */
 public class CategorizePackedValuesBlockHash extends BlockHash {
+    private static final String CIRCUIT_BREAKER_LABEL = "CategorizePackedValuesBlockHash";
 
     private final List<GroupSpec> specs;
     private final AggregatorMode aggregatorMode;
@@ -117,28 +118,40 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
     @Override
     public Block[] getKeys(IntVector selected) {
         Block[] keys = packedValuesBlockHash.getKeys(selected);
-        if (aggregatorMode.isOutputPartial() == false) {
-            IntVector idsVector = (IntVector) keys[0].asVector();
-            Block regexes = categorizeBlockHash.getKeys(idsVector)[0];
+        boolean success = false;
+        try {
+            Block categoryKeys = aggregatorMode.isOutputPartial()
+                ? buildIntermediateCategoryKeys((IntVector) keys[0].asVector())
+                : categorizeBlockHash.getKeys((IntVector) keys[0].asVector())[0];
             keys[0].close();
-            keys[0] = regexes;
-        } else {
-            // For intermediate output, the keys are the delegate PackedValuesBlockHash's
-            // keys, with the category IDs replaced by the categorizer's internal state
-            // together with the list of category IDs.
-            BytesRef state;
-            // TODO: This BytesStreamOutput is not accounted for by the circuit breaker. Fix that!
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.writeBytesRef(categorizeBlockHash.serializeCategorizer());
-                ((IntVector) keys[0].asVector()).writeTo(out);
-                state = out.bytes().toBytesRef();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            keys[0] = categoryKeys;
+            success = true;
+            return keys;
+        } finally {
+            if (success == false) {
+                Releasables.close(keys);
             }
-            keys[0].close();
-            keys[0] = blockFactory.newConstantBytesRefBlockWith(state, keys[0].getPositionCount());
         }
-        return keys;
+    }
+
+    /**
+     * For intermediate output, the keys are the delegate PackedValuesBlockHash's
+     * keys, with the category IDs replaced by the categorizer's internal state
+     * together with the list of category IDs.
+     */
+    private Block buildIntermediateCategoryKeys(IntVector ids) {
+        try (BreakingBytesStreamOutput out = new BreakingBytesStreamOutput(blockFactory.breaker(), CIRCUIT_BREAKER_LABEL)) {
+            try (
+                BreakingBytesStreamOutput categorizerState = new BreakingBytesStreamOutput(blockFactory.breaker(), CIRCUIT_BREAKER_LABEL)
+            ) {
+                categorizeBlockHash.serializeCategorizer(categorizerState);
+                out.writeBytesRef(categorizerState.bytesRefView());
+            }
+            ids.writeTo(out);
+            return blockFactory.newConstantBytesRefBlockWith(out.bytesRefView(), ids.getPositionCount());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -27,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.SortedMap;
@@ -436,6 +438,14 @@ public class TokenListCategorizer implements Accountable {
 
     public List<SerializableTokenListCategory> toCategoriesById() {
         return categoriesById.stream().map(category -> new SerializableTokenListCategory(category, bytesRefHash)).toList();
+    }
+
+    /**
+     * Like {@link #toCategoriesById()}, but builds each category on demand, so only one is held at a time.
+     * Useful to serialize all the categories without materializing a copy of all of them first.
+     */
+    public Iterator<SerializableTokenListCategory> categoriesByIdIterator() {
+        return Iterators.map(categoriesById.iterator(), category -> new SerializableTokenListCategory(category, bytesRefHash));
     }
 
     public InternalCategorizationAggregation.Bucket[] toOrderedBuckets(int size) {

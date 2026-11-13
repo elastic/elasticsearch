@@ -10,18 +10,27 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.UInt1Vector;
+import org.apache.arrow.vector.UInt4Vector;
+import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -92,6 +101,36 @@ public class ArrowFormatIT extends ESRestTestCase {
             {"value": 3, "ip": "2001:db8::1:0:0:1"}
             {"index": {"_id": "4"}}
             {"value": 4, "ip": "::afff:4567:890a", "v": "1.0.4", "description": "number four"}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+    }
+
+    @Before
+    public void initGeoIndex() throws IOException {
+        Request request = new Request("PUT", "/arrow-geo-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value": { "type": "integer" },
+                  "location": { "type": "geo_point" }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-geo-test&refresh=true");
+        // Document 3 has no location, so that all geo grid columns contain a null
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "location": {"lon": 4.9, "lat": 52.37}}
+            {"index": {"_id": "2"}}
+            {"value": 2, "location": {"lon": -122.42, "lat": 37.77}}
+            {"index": {"_id": "3"}}
+            {"value": 3}
+            {"index": {"_id": "4"}}
+            {"value": 4, "location": {"lon": 151.21, "lat": -33.87}}
             """);
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
@@ -183,6 +222,89 @@ public class ArrowFormatIT extends ESRestTestCase {
             assertDescription(root);
             assertValues(root);
         }
+    }
+
+    /**
+     * Geohash is an unsigned 64-bit long (60 bits of hash and 4 bits of level). The expected value is
+     * computed from the string representation of the JSON output.
+     */
+    public void testGeohash() throws Exception {
+        var expected = geoGridStrings("ST_GEOHASH(location, 5)");
+        try (VectorSchemaRoot root = esql(geoGridQuery("ST_GEOHASH(location, 5)"))) {
+            assertEquals(1, root.getSchema().getFields().size());
+
+            var vector = (UInt8Vector) root.getVector("cell");
+            assertEquals(4, vector.getValueCount());
+            for (int i = 0; i < expected.size(); i++) {
+                if (expected.get(i) == null) {
+                    assertTrue("row " + i, vector.isNull(i));
+                } else {
+                    assertEquals("row " + i, Geohash.longEncode(expected.get(i)), vector.get(i));
+                }
+            }
+        }
+    }
+
+    /**
+     * Geotile is a struct of non-nullable zoom:uint8, x:uint32 and y:uint32 fields. Only the struct itself can be null.
+     */
+    public void testGeotile() throws Exception {
+        var expected = geoGridStrings("ST_GEOTILE(location, 6)");
+        try (VectorSchemaRoot root = esql(geoGridQuery("ST_GEOTILE(location, 6)"))) {
+            assertEquals(1, root.getSchema().getFields().size());
+
+            var vector = (StructVector) root.getVector("cell");
+            assertEquals(List.of("zoom", "x", "y"), vector.getField().getChildren().stream().map(Field::getName).toList());
+            for (Field child : vector.getField().getChildren()) {
+                assertFalse("field [" + child.getName() + "] must not be nullable", child.isNullable());
+            }
+
+            var zoom = (UInt1Vector) vector.getChild("zoom");
+            var x = (UInt4Vector) vector.getChild("x");
+            var y = (UInt4Vector) vector.getChild("y");
+
+            assertEquals(4, vector.getValueCount());
+            for (int i = 0; i < expected.size(); i++) {
+                if (expected.get(i) == null) {
+                    assertTrue("row " + i, vector.isNull(i));
+                } else {
+                    int[] zxy = GeoTileUtils.parseHash(expected.get(i));
+                    assertFalse("row " + i, vector.isNull(i));
+                    assertEquals("row " + i, zxy[0], Byte.toUnsignedInt(zoom.get(i)));
+                    assertEquals("row " + i, zxy[1], x.get(i));
+                    assertEquals("row " + i, zxy[2], y.get(i));
+                }
+            }
+        }
+    }
+
+    public void testGeohex() throws Exception {
+        var expected = geoGridStrings("ST_GEOHEX(location, 3)");
+        try (VectorSchemaRoot root = esql(geoGridQuery("ST_GEOHEX(location, 3)"))) {
+            assertEquals(1, root.getSchema().getFields().size());
+
+            var vector = (BigIntVector) root.getVector("cell");
+            assertEquals(4, vector.getValueCount());
+            for (int i = 0; i < expected.size(); i++) {
+                if (expected.get(i) == null) {
+                    assertTrue("row " + i, vector.isNull(i));
+                } else {
+                    assertEquals("row " + i, H3.stringToH3(expected.get(i)), vector.get(i));
+                }
+            }
+        }
+    }
+
+    private static String geoGridQuery(String gridExpression) {
+        return "{\"query\": \"FROM arrow-geo-test | SORT value | LIMIT 100 | EVAL cell = " + gridExpression + " | KEEP cell\"}";
+    }
+
+    /** The string representation of grid cells, as output by the JSON format, with a null for missing values. */
+    private List<String> geoGridStrings(String gridExpression) throws IOException {
+        Request request = new Request("POST", "/_query");
+        request.setJsonEntity(geoGridQuery(gridExpression));
+        List<List<String>> rows = ObjectPath.createFromResponse(client().performRequest(request)).evaluate("values");
+        return rows.stream().map(row -> row.get(0)).toList();
     }
 
     private VectorSchemaRoot readArrow(InputStream input) throws IOException {

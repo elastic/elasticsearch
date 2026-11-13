@@ -17,6 +17,8 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.TimeStampMilliVector;
 import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.arrow.vector.TimeStampVector;
+import org.apache.arrow.vector.UInt1Vector;
+import org.apache.arrow.vector.UInt4Vector;
 import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarBinaryVector;
@@ -59,6 +61,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
@@ -127,12 +130,26 @@ public class ArrowResponseTests extends ESTestCase {
         BigIntVector::get
     );
 
-    static final ValueType ULONG_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, UInt8Vector>(
-        "ulong",
+    /**
+     * Unsigned long blocks with the sign bit flipped, used for {@link DataType#UNSIGNED_LONG}.
+     */
+    static final ValueType ULONG_FLIPPED_SIGN_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, UInt8Vector>(
+        "ulong_flipped_sign",
         factory -> factory.newLongBlockBuilder(0),
         block -> block.appendLong(randomLong()),
         // Blocks store unsigned longs with the sign bit flipped
         (block, i, scratch) -> block.getLong(i) ^ NumericUtils.TWOS_COMPLEMENT_BITMASK,
+        UInt8Vector::get
+    );
+
+    /**
+     * Long blocks holding raw unsigned 64-bit values, with no sign bit flipping, as done for {@link DataType#GEOHASH} cell ids.
+     */
+    static final ValueType ULONG_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, UInt8Vector>(
+        "ulong",
+        factory -> factory.newLongBlockBuilder(0),
+        block -> block.appendLong(randomLong()),
+        (block, i, scratch) -> block.getLong(i),
         UInt8Vector::get
     );
 
@@ -256,12 +273,32 @@ public class ArrowResponseTests extends ESTestCase {
         )
     );
 
+    // GEOTILE: struct with non-nullable "zoom" uint8, "x" and "y" uint32 children. Values are [zoom, x, y] as longs.
+    static final ValueType GEOTILE_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, StructVector>(
+        "geotile",
+        factory -> factory.newLongBlockBuilder(0),
+        block -> {
+            int zoom = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
+            int tiles = 1 << zoom;
+            block.appendLong(GeoTileUtils.longEncodeTiles(zoom, randomIntBetween(0, tiles - 1), randomIntBetween(0, tiles - 1)));
+        },
+        (block, i, scratch) -> {
+            int[] zxy = GeoTileUtils.parseHash(block.getLong(i));
+            return List.of((long) zxy[0], (long) zxy[1], (long) zxy[2]);
+        },
+        (vec, position) -> List.of(
+            (long) ((UInt1Vector) vec.getChild("zoom")).get(position) & 0xFFL,
+            ((UInt4Vector) vec.getChild("x")).get(position) & 0xFFFFFFFFL,
+            ((UInt4Vector) vec.getChild("y")).get(position) & 0xFFFFFFFFL
+        )
+    );
+
     static final Map<DataType, ValueType> VALUE_TYPES = Map.ofEntries(
         Map.entry(DataType.INTEGER, INTEGER_VALUES),
         Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
         Map.entry(DataType.LONG, LONG_VALUES),
         Map.entry(DataType.COUNTER_LONG, LONG_VALUES),
-        Map.entry(DataType.UNSIGNED_LONG, ULONG_VALUES),
+        Map.entry(DataType.UNSIGNED_LONG, ULONG_FLIPPED_SIGN_VALUES),
         Map.entry(DataType.DOUBLE, DOUBLE_VALUES),
         Map.entry(DataType.COUNTER_DOUBLE, DOUBLE_VALUES),
 
@@ -285,6 +322,11 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.GEO_SHAPE, BINARY_VALUES),
         Map.entry(DataType.CARTESIAN_POINT, BINARY_VALUES),
         Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES),
+
+        // Geo grid cell ids are longs. Geohash uses all 64 bits so it is unsigned. random longs also exercise bit 63.
+        Map.entry(DataType.GEOHASH, ULONG_VALUES),
+        Map.entry(DataType.GEOTILE, GEOTILE_VALUES),
+        Map.entry(DataType.GEOHEX, LONG_VALUES),
 
         Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
         Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES)

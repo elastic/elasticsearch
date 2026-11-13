@@ -23,10 +23,12 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
@@ -247,8 +249,8 @@ public abstract class BlockArrowFormatter {
      * Conversion of {@code unsigned_long} blocks, which store values with the sign bit flipped so that they sort as signed
      * longs. Arrow's {@code UInt64} expects the plain unsigned bits.
      */
-    public static class AsUnsignedLong extends AsInt64 {
-        public AsUnsignedLong(DataType esqlType) {
+    public static class AsFlippedSignInt64 extends AsInt64 {
+        public AsFlippedSignInt64(DataType esqlType) {
             super(esqlType, Types.MinorType.UINT8);
         }
 
@@ -693,6 +695,111 @@ public abstract class BlockArrowFormatter {
                 for (int valueIndex = start; valueIndex < end; valueIndex++) {
                     out.writeDoubleLE(block.getDouble(valueIndex));
                 }
+            }
+        }
+    }
+
+    /**
+     * Conversion of {@code geotile} blocks to an Arrow struct with {@code zoom:uint8}, {@code x:uint32} and {@code y:uint32} fields.
+     * <p>
+     * A geotile can be null but its fields never are, so the children are declared non-nullable and have no validity buffer.
+     * Null geotiles have their fields set to zero.
+     * </p>
+     */
+    public static class AsGeoTile extends BlockArrowFormatter {
+
+        private enum Component {
+            ZOOM("zoom", Types.MinorType.UINT1, Byte.BYTES),
+            X("x", Types.MinorType.UINT4, Integer.BYTES),
+            Y("y", Types.MinorType.UINT4, Integer.BYTES);
+
+            private final String fieldName;
+            private final Types.MinorType minorType;
+            private final int width;
+
+            Component(String fieldName, Types.MinorType minorType, int width) {
+                this.fieldName = fieldName;
+                this.minorType = minorType;
+                this.width = width;
+            }
+        }
+
+        public AsGeoTile(DataType esqlType) {
+            super(esqlType, Types.MinorType.STRUCT);
+        }
+
+        @Override
+        public Field arrowField(String name) {
+            Field superField = super.arrowField(name);
+            var children = new ArrayList<Field>();
+            for (Component component : Component.values()) {
+                children.add(new Field(component.fieldName, new FieldType(false, component.minorType.getType(), null), null));
+            }
+            return new Field(name, superField.getFieldType(), children);
+        }
+
+        @Override
+        public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
+            int count = block.getPositionCount();
+            if (multivalued) {
+                int valueCount = block.getTotalValueCount();
+                nodes.add(new ArrowFieldNode(count, nullValuesCount(block))); // list
+                nodes.add(new ArrowFieldNode(valueCount, 0)); // struct (items have no independent nulls)
+                for (int i = 0; i < Component.values().length; i++) {
+                    nodes.add(new ArrowFieldNode(valueCount, 0));
+                }
+            } else {
+                nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));
+                for (int i = 0; i < Component.values().length; i++) {
+                    nodes.add(new ArrowFieldNode(count, 0));
+                }
+            }
+        }
+
+        @Override
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+            if (multivalued) {
+                addListOffsets(bufs, bufWriters, b);
+            }
+            // Struct validity. Empty if in a list, as the list carries the nulls.
+            accumulateVectorValidity(bufs, bufWriters, b, multivalued);
+
+            for (Component component : Component.values()) {
+                // Non-nullable child: empty validity buffer
+                bufs.add(dummyArrowBuf(0));
+                bufWriters.add(out -> 0);
+
+                int byteCount = arrowValueCount(b, multivalued) * component.width;
+                bufs.add(dummyArrowBuf(byteCount));
+                bufWriters.add(out -> {
+                    if (b.areAllValuesNull()) {
+                        // ConstantNullBlock is not a LongBlock
+                        return writeZeroes(out, byteCount);
+                    }
+                    LongBlock block = (LongBlock) b;
+                    for (int position = 0; position < block.getPositionCount(); position++) {
+                        if (block.isNull(position)) {
+                            if (multivalued == false) {
+                                writeComponent(out, component, 0L);
+                            }
+                            continue;
+                        }
+                        int start = block.getFirstValueIndex(position);
+                        int end = start + block.getValueCount(position);
+                        for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                            writeComponent(out, component, block.getLong(valueIndex));
+                        }
+                    }
+                    return byteCount;
+                });
+            }
+        }
+
+        private static void writeComponent(RecyclerBytesStreamOutput out, Component component, long geotile) throws IOException {
+            switch (component) {
+                case ZOOM -> out.writeByte((byte) GeoTileUtils.getZoom(geotile));
+                case X -> out.writeIntLE(GeoTileUtils.getXTile(geotile));
+                case Y -> out.writeIntLE(GeoTileUtils.getYTile(geotile));
             }
         }
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.expression.unit.Unit;
 import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,10 +43,15 @@ public final class ColumnUnits {
                 units.put(id, Unit.parse(field.unit()));
             }
         });
-        plan.forEachExpressionUp(Alias.class, alias -> {
-            Unit unit = unitOf(alias.child(), units);
-            if (unit != null) {
-                units.put(alias.id(), unit);
+        plan.forEachUp(node -> {
+            node.forEachExpression(Alias.class, alias -> {
+                Unit unit = unitOf(alias.child(), units);
+                if (unit != null) {
+                    units.put(alias.id(), unit);
+                }
+            });
+            if (node instanceof MergePlan merge) {
+                ColumnSemantics.mergeBranches(merge, units);
             }
         });
         Map<NameId, String> formatted = new HashMap<>();

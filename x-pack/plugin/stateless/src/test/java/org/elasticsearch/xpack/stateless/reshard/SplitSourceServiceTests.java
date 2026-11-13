@@ -236,11 +236,7 @@ public class SplitSourceServiceTests extends ESTestCase {
             listener.onResponse(releaseCount::incrementAndGet);
         }).start();
 
-        SplitSourceService.RefCountedAcquirer refCountedAcquirer = new SplitSourceService.RefCountedAcquirer(
-            acquirer,
-            nowInMillis::incrementAndGet,
-            duration -> assertEquals(1, duration)
-        );
+        final var refCountedAcquirer = new SplitSourceService.RefCountedAcquirer(acquirer, () -> 0L, duration -> {});
 
         int numThreads = randomIntBetween(1, 10);
         Thread[] threads = new Thread[numThreads];

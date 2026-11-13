@@ -15,8 +15,10 @@ import org.elasticsearch.columnar.numeric.MultiLevelSkipIndexCodec;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.NavigableSet;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -301,6 +303,191 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
         }
     }
 
+    private static NavigableSet<BytesRef> someOf(List<BytesRef> candidates, int count, boolean reversed) {
+        final NavigableSet<BytesRef> terms = new TreeSet<>(reversed ? Collections.reverseOrder() : null);
+        for (int i = 0; i < count; i++) {
+            terms.add(randomFrom(candidates));
+        }
+        return terms;
+    }
+
+    public void testAnyOfTermsAtTheEdgesOfChunksAreExact() throws IOException {
+        for (int round = 0; round < 10; round++) {
+            final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(40, 400));
+            final BytesRef[][] docSlots = ordered(pool, between(1, 4), false);
+            final StringColumnOptions.Sizes sizes = smallChunks();
+            final List<BytesRef> candidates = boundsAround(docSlots, entryStarts(docSlots, sizes));
+            withColumn(docSlots, PlainStringColumnSkipperTests.plain(true, sizes), (metadata, reader) -> {
+                assertNotNull(((StringColumnMetadata.Plain) metadata).skipper());
+                for (int query = 0; query < 40; query++) {
+                    final NavigableSet<BytesRef> terms = someOf(candidates, between(1, 12), false);
+                    StringMatchOracle.assertMatches(docSlots, terms::contains, () -> reader.matchAnyOf(terms, terms));
+                }
+            });
+        }
+    }
+
+    public void testAnyOfIsTheUnionOfItsTermsWhateverTheOrderOfTheSet() throws IOException {
+        for (int round = 0; round < 10; round++) {
+            final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(20, 300));
+            final BytesRef[][] docSlots = ordered(pool, between(1, 4), false);
+            final StringColumnOptions.Sizes sizes = smallChunks();
+            final List<BytesRef> candidates = boundsAround(docSlots, entryStarts(docSlots, sizes));
+            candidates.addAll(Arrays.asList(pool));
+            withColumn(docSlots, PlainStringColumnSkipperTests.plain(true, sizes), (metadata, reader) -> {
+                for (int query = 0; query < 20; query++) {
+                    final int count = between(1, 12);
+                    final NavigableSet<BytesRef> ascending = someOf(candidates, count, false);
+                    final NavigableSet<BytesRef> descending = new TreeSet<>(Collections.reverseOrder());
+                    descending.addAll(ascending);
+                    final List<Integer> union = new ArrayList<>();
+                    for (BytesRef term : ascending) {
+                        union.addAll(StringMatchOracle.matched(reader.matchTerm(term)));
+                    }
+                    Collections.sort(union);
+                    assertEquals(union, StringMatchOracle.matched(reader.matchAnyOf(ascending, ascending)));
+                    assertEquals(union, StringMatchOracle.matched(reader.matchAnyOf(descending, descending)));
+                }
+            });
+        }
+    }
+
+    public void testAnyOfMatchesTheSameDocumentsWithAndWithoutTheRegion() throws IOException {
+        for (int round = 0; round < 10; round++) {
+            final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(1, 400));
+            final BytesRef[][] docSlots = ordered(pool, between(1, 6), false);
+            final StringColumnOptions.Sizes sizes = smallChunks();
+            final List<BytesRef> candidates = boundsAround(docSlots, entryStarts(docSlots, sizes));
+            candidates.addAll(Arrays.asList(pool));
+            final List<NavigableSet<BytesRef>> sets = new ArrayList<>();
+            for (int query = 0; query < 20; query++) {
+                sets.add(someOf(candidates, between(1, 16), false));
+            }
+            final List<List<Integer>> answers = new ArrayList<>();
+            for (boolean region : new boolean[] { true, false }) {
+                withColumn(docSlots, PlainStringColumnSkipperTests.plain(region, sizes), (metadata, reader) -> {
+                    for (NavigableSet<BytesRef> terms : sets) {
+                        answers.add(StringMatchOracle.matched(reader.matchAnyOf(terms, terms)));
+                    }
+                });
+            }
+            assertEquals(answers.subList(0, sets.size()), answers.subList(sets.size(), answers.size()));
+        }
+    }
+
+    public void testAnyOfTermsTheColumnDoesNotHoldMatchNothingAndDoNotHideTheOthers() throws IOException {
+        for (int round = 0; round < 10; round++) {
+            final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(10, 200));
+            final BytesRef[][] docSlots = ordered(pool, between(1, 3), false);
+            final StringColumnOptions.Sizes sizes = smallChunks();
+            final BytesRef below = new BytesRef();
+            final BytesRef above = new BytesRef(new byte[] { (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff });
+            withColumn(docSlots, PlainStringColumnSkipperTests.plain(true, sizes), (metadata, reader) -> {
+                final NavigableSet<BytesRef> absent = new TreeSet<>(List.of(below, above));
+                StringMatchOracle.assertMatches(docSlots, absent::contains, () -> reader.matchAnyOf(absent, absent));
+                if (Arrays.asList(pool).contains(below) == false && Arrays.asList(pool).contains(above) == false) {
+                    assertEquals(List.of(), StringMatchOracle.matched(reader.matchAnyOf(absent, absent)));
+                }
+                for (int query = 0; query < 30; query++) {
+                    final NavigableSet<BytesRef> terms = new TreeSet<>(List.of(below, above));
+                    for (int t = between(1, 8); t > 0; t--) {
+                        final BytesRef present = randomFrom(pool);
+                        terms.add(present);
+                        terms.add(
+                            new BytesRef(
+                                Arrays.copyOf(present.bytes, present.offset + present.length + 1),
+                                present.offset,
+                                present.length + 1
+                            )
+                        );
+                    }
+                    StringMatchOracle.assertMatches(docSlots, terms::contains, () -> reader.matchAnyOf(terms, terms));
+                }
+            });
+        }
+    }
+
+    public void testAnyOfTermsOfRunsSpanningManyChunksAreExact() throws IOException {
+        for (int round = 0; round < 5; round++) {
+            final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(1, 6));
+            final BytesRef[][] docSlots = ordered(pool, between(300, 1500), false);
+            final StringColumnOptions.Sizes sizes = smallChunks();
+            withColumn(docSlots, PlainStringColumnSkipperTests.plain(true, sizes), (metadata, reader) -> {
+                for (int query = 0; query < 20; query++) {
+                    final NavigableSet<BytesRef> terms = someOf(Arrays.asList(pool), between(1, pool.length), randomBoolean());
+                    StringMatchOracle.assertMatches(docSlots, terms::contains, () -> reader.matchAnyOf(terms, terms));
+                }
+            });
+        }
+    }
+
+    public void testAnyOfEveryValueOfTheColumnIsEveryDocument() throws IOException {
+        final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(50, 400));
+        final BytesRef[][] docSlots = ordered(pool, between(1, 3), false);
+        withColumn(docSlots, PlainStringColumnSkipperTests.plain(true, smallChunks()), (metadata, reader) -> {
+            final NavigableSet<BytesRef> terms = new TreeSet<>(Arrays.asList(pool));
+            StringMatchOracle.assertMatches(docSlots, terms::contains, () -> reader.matchAnyOf(terms, terms));
+            assertEquals(docSlots.length, StringMatchOracle.matched(reader.matchAnyOf(terms, terms)).size());
+        });
+    }
+
+    public void testAnyOfOnOneChunkAndOneValueIsExact() throws IOException {
+        final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(1, 3));
+        final BytesRef[][] docSlots = ordered(pool, 1, false);
+        withColumn(docSlots, PlainStringColumnSkipperTests.plain(true, smallChunks()), (metadata, reader) -> {
+            for (BytesRef term : pool) {
+                final NavigableSet<BytesRef> terms = new TreeSet<>(List.of(term));
+                StringMatchOracle.assertMatches(docSlots, terms::contains, () -> reader.matchAnyOf(terms, terms));
+            }
+            final NavigableSet<BytesRef> all = new TreeSet<>(Arrays.asList(pool));
+            StringMatchOracle.assertMatches(docSlots, all::contains, () -> reader.matchAnyOf(all, all));
+        });
+    }
+
+    public void testAnyOfOnDescendingColumnsIsExact() throws IOException {
+        for (int round = 0; round < 10; round++) {
+            final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(20, 400));
+            final BytesRef[][] docSlots = ordered(pool, between(1, 4), true);
+            final StringColumnOptions.Sizes sizes = smallChunks();
+            final List<BytesRef> candidates = boundsAround(docSlots, entryStarts(docSlots, sizes));
+            candidates.addAll(Arrays.asList(pool));
+            withColumn(docSlots, PlainStringColumnSkipperTests.plain(true, sizes), (metadata, reader) -> {
+                for (int query = 0; query < 30; query++) {
+                    final NavigableSet<BytesRef> terms = someOf(candidates, between(1, 12), randomBoolean());
+                    StringMatchOracle.assertMatches(docSlots, terms::contains, () -> reader.matchAnyOf(terms, terms));
+                }
+            });
+        }
+    }
+
+    public void testAnyOfReadsFewerBlocksThanWithoutTheRegion() throws IOException {
+        final int docs = 200_000;
+        final BytesRef[][] docSlots = new BytesRef[docs][];
+        for (int doc = 0; doc < docs; doc++) {
+            docSlots[doc] = new BytesRef[] { new BytesRef(String.format(Locale.ROOT, "value-%08d", doc)) };
+        }
+        final NavigableSet<BytesRef> terms = new TreeSet<>();
+        for (int doc : new int[] { 17, docs / 3, docs / 2 + 5, docs - 3 }) {
+            terms.add(docSlots[doc][0]);
+        }
+        final long[] seeks = new long[2];
+        for (int arm = 0; arm < 2; arm++) {
+            final Counter counter = new Counter();
+            final int index = arm;
+            withColumnAndSkipIndex(
+                docSlots,
+                PlainStringColumnSkipperTests.plain(arm == 0, PlainStringColumnSkipperTests.sizes(128, 1024)),
+                directory -> new SeekCountingDirectory(directory, counter),
+                (metadata, reader, skip) -> {
+                    final long before = counter.get();
+                    StringMatchOracle.assertMatches(docSlots, terms::contains, () -> reader.matchAnyOf(terms, terms));
+                    seeks[index] = counter.get() - before;
+                }
+            );
+        }
+        assertThat("seeks with the region " + seeks[0] + ", without " + seeks[1], seeks[0], lessThan(seeks[1]));
+    }
+
     public void testNullsAndSeveralValuesNeverAcceptWhatTheValuesDoNotMatch() throws IOException {
         for (int round = 0; round < 10; round++) {
             final BytesRef[] pool = PlainSkipTestValues.sortedPool(between(2, 60));
@@ -453,6 +640,8 @@ public class PlainSortedChunkSearchTests extends ColumnarStringTestCase {
                     StringMatchOracle.assertRange(reader, docSlots, null, true, probe, false);
                 }
                 StringMatchOracle.assertRange(reader, docSlots, null, true, null, true);
+                final NavigableSet<BytesRef> terms = new TreeSet<>(probes);
+                StringMatchOracle.assertMatches(docSlots, terms::contains, () -> reader.matchAnyOf(terms, terms));
             }
         );
     }

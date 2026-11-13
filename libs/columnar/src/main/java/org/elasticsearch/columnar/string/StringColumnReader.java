@@ -429,7 +429,8 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * Documents holding a value that is a member of {@code terms}.
      *
      * <p>On a column whose values arrive in term order each term is one run of ranks, found by bisection, and
-     * the answer is those runs; no value outside the bisections is read.
+     * the answer is those runs; no value outside the bisections is read. Where the column keeps separators, each
+     * bisection is confined to the chunks its term can fall in, as for {@link #matchTerm}.
      *
      * <p>On a {@code DICTIONARY} column the terms are resolved to ordinals, either by bisecting the dictionary
      * once per term or by reading every term once, and the ordinals then drive the bulk ordinal path. Where
@@ -676,7 +677,6 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     private List<RankRange> sortedRangesOfTerms(NavigableSet<BytesRef> terms) throws IOException {
         final List<RankRange> ranges = new ArrayList<>();
-        final SortedWindows whole = SortedWindows.whole(meta.numDocsWithField());
         BytesRef previous = null;
         int from = 0;
         for (BytesRef term : terms) {
@@ -684,7 +684,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
                 from = 0;
             }
             previous = term;
-            final RankRange range = sortedRange(term, term, from, whole);
+            final RankRange range = sortedRange(term, term, from, sortedWindows(PlainSkipQuery.range(term, true, term, true)));
             from = range.to();
             if (range.isEmpty() == false) {
                 ranges.add(range);

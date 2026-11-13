@@ -15,7 +15,7 @@ class org.elasticsearch.script.IngestConditionalScript {
 
 class org.elasticsearch.script.field.SourceMapField {
     boolean exists()
-    Iterator iterator()
+    Iterator iterator() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="iteratorBytes"]
     def get(def)
     def get(int, def)
     boolean hasValue(Predicate)

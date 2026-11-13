@@ -12,6 +12,7 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.BytesTermAttributeImpl;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttributeImpl;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
@@ -118,6 +119,9 @@ public final class QueryTokenCacheAccountingFilter extends TokenFilter {
                 if (impl instanceof CharTermAttributeImpl) {
                     // The clone's new BytesRefBuilder and the BytesRef it holds.
                     bytes += BUILDER_BYTES + BYTES_REF_BYTES;
+                } else if (impl instanceof BytesTermAttributeImpl) {
+                    // The clone's deep copy of the term's BytesRef.
+                    bytes += BYTES_REF_BYTES;
                 }
             }
             fixedBytesPerToken = bytes;

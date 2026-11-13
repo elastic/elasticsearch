@@ -45,15 +45,6 @@ public abstract class IntervalBuilder {
     @Nullable
     private final CircuitBreaker breaker;
 
-    public IntervalBuilder(String field, Analyzer analyzer) {
-        this(field, analyzer, null);
-    }
-
-    /**
-     * Like {@link #IntervalBuilder(String, Analyzer)}, but charges {@code breaker} for the analyzed text while it is buffered.
-     *
-     * @param breaker the breaker to charge, or {@code null} for none
-     */
     public IntervalBuilder(String field, Analyzer analyzer, @Nullable CircuitBreaker breaker) {
         this.field = field;
         this.analyzer = analyzer;

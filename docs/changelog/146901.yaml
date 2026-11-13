@@ -1,0 +1,6 @@
+area: "ES|QL"
+issues:
+  - 145995
+pr: 146901
+summary: "ESQL: Suggest common numeric casts for mixed numeric field types"
+type: bug

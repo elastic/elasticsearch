@@ -448,7 +448,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         final String parent = "toggle_parent";
         final String dataset = "toggle_child";
         putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
-        putDataset(dataset, parent, "s3://x/", Map.of());
+        putDataset(dataset, parent, "s3://x/*.parquet", Map.of());
 
         Map<String, Object> got = getDataSource(parent);
         @SuppressWarnings("unchecked")
@@ -466,7 +466,7 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
 
         ResponseException createEx = expectThrows(
             ResponseException.class,
-            () -> putDataset("new_against_disabled", parent, "s3://y/", Map.of())
+            () -> putDataset("new_against_disabled", parent, "s3://y/*.parquet", Map.of())
         );
         assertThat(createEx.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(EntityUtils.toString(createEx.getResponse().getEntity()), containsString("disabled data source"));

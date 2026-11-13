@@ -94,21 +94,21 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(-1L, stats.columnValueCount("does_not_exist"));
     }
 
-    public void testMergedMinMaxTreatNaNAsUnmergeable() {
-        // A NaN MERGED with a real value is unmergeable -> null (poison) -> the column safe-misses and a
-        // full scan returns the correct NaN. Comparable.compareTo would otherwise order NaN as the largest
-        // double and silently drop it from a MIN.
-        assertNull(SplitStats.mergedMin(Double.NaN, 5.0));
-        assertNull(SplitStats.mergedMin(5.0, Double.NaN));
-        assertNull(SplitStats.mergedMax(Double.NaN, 5.0));
-        assertNull(SplitStats.mergedMax(5.0, Double.NaN));
-        // Non-NaN doubles still merge normally.
+    public void testMergedMinMaxSkipNaN() {
+        assertEquals(5.0, SplitStats.mergedMin(Double.NaN, 5.0));
+        assertEquals(5.0, SplitStats.mergedMin(5.0, Double.NaN));
+        assertEquals(5.0, SplitStats.mergedMax(Double.NaN, 5.0));
+        assertEquals(5.0, SplitStats.mergedMax(5.0, Double.NaN));
+        assertEquals(5.0f, SplitStats.mergedMin(Float.NaN, 5.0f));
+        // NaN is the answer only when every contribution is NaN.
+        assertEquals(Double.NaN, SplitStats.mergedMin(Double.NaN, Double.NaN));
+        assertEquals(Double.NaN, SplitStats.mergedMax(Double.NaN, Double.NaN));
         assertEquals(1.0, SplitStats.mergedMin(1.0, 2.0));
         assertEquals(2.0, SplitStats.mergedMax(1.0, 2.0));
-        // A lone NaN contribution (other side null) is the column's value and is served as NaN — the poison
-        // only fires when NaN actually meets another value in a fold.
         assertEquals(Double.NaN, SplitStats.mergedMin(Double.NaN, null));
         assertEquals(Double.NaN, SplitStats.mergedMax(null, Double.NaN));
+        assertEquals(-0.0, SplitStats.mergedMin(0.0, -0.0));
+        assertEquals(0.0, SplitStats.mergedMax(-0.0, 0.0));
     }
 
     public void testValueCountWireGatedByTransportVersion() throws IOException {

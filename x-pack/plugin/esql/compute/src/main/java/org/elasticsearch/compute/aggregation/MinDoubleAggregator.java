@@ -16,14 +16,17 @@ import org.elasticsearch.compute.ann.IntermediateState;
 class MinDoubleAggregator {
 
     public static double init() {
-        return Double.POSITIVE_INFINITY;
+        return Double.NaN;
     }
 
     public static double combine(double current, double v) {
-        return Math.min(current, v);
+        if (Double.isNaN(v)) {
+            return current;
+        }
+        return Double.isNaN(current) ? v : Math.min(current, v);
     }
 
     public static void combine(DoubleArrayState state, int groupId, double v) {
-        state.min(groupId, v);
+        state.set(groupId, combine(state.getOrDefault(groupId), v));
     }
 }

@@ -33,6 +33,7 @@ import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.ColumnOrder;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
@@ -11979,4 +11980,67 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testFileStatisticsForDoubleColumnsFollowSkipNaNRule() throws Exception {
+        PrimitiveType.PrimitiveTypeName dbl = PrimitiveType.PrimitiveTypeName.DOUBLE;
+        MessageType schema = Types.buildMessage()
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.typeDefined()).named("zeros"))
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.ieee754TotalOrder()).named("zeros_total_order"))
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.typeDefined()).named("mixed"))
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.typeDefined()).named("only_nan"))
+            .named("test");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            double[] zeros = { 0.0, 0.0 };
+            double[] mixed = { 1.0, Double.NaN, 2.0 };
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                if (r < zeros.length) {
+                    g.add("zeros", zeros[r]);
+                    g.add("zeros_total_order", zeros[r]);
+                }
+                g.add("mixed", mixed[r]);
+                g.add("only_nan", Double.NaN);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+
+        assertEquals(Optional.empty(), cols.get("zeros").minValue());
+        assertEquals(Optional.empty(), cols.get("zeros").maxValue());
+        assertEquals(Optional.of(0.0), cols.get("zeros_total_order").maxValue());
+        assertEquals(Optional.of(1.0), cols.get("mixed").minValue());
+        assertEquals(Optional.of(2.0), cols.get("mixed").maxValue());
+        assertEquals(Optional.empty(), cols.get("only_nan").minValue());
+        assertEquals(Optional.empty(), cols.get("only_nan").maxValue());
+    }
+
+    public void testFloatingBoundsThatCannotMatchAScanAreUnservable() {
+        for (PrimitiveType.PrimitiveTypeName name : new PrimitiveType.PrimitiveTypeName[] {
+            PrimitiveType.PrimitiveTypeName.DOUBLE,
+            PrimitiveType.PrimitiveTypeName.FLOAT }) {
+            boolean isFloat = name == PrimitiveType.PrimitiveTypeName.FLOAT;
+            Object nan = isFloat ? (Object) Float.NaN : (Object) Double.NaN;
+            Object zero = isFloat ? (Object) 0.0f : (Object) 0.0d;
+            Object negZero = isFloat ? (Object) (-0.0f) : (Object) (-0.0d);
+            Object finite = isFloat ? (Object) 1.5f : (Object) 1.5d;
+
+            PrimitiveType typeDefined = Types.optional(name).columnOrder(ColumnOrder.typeDefined()).named("x");
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(nan, typeDefined));
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(zero, typeDefined));
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(negZero, typeDefined));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(finite, typeDefined));
+
+            PrimitiveType totalOrder = Types.optional(name).columnOrder(ColumnOrder.ieee754TotalOrder()).named("x");
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(nan, totalOrder));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(zero, totalOrder));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(negZero, totalOrder));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(finite, totalOrder));
+        }
+        PrimitiveType longType = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("x");
+        assertFalse(ParquetFormatReader.isUnservableFloatingBound(0L, longType));
+    }
 }

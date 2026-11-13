@@ -632,3 +632,8 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/165944
+- class: org.elasticsearch.xpack.stateless.recovery.StatelessRecoveryMetricsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRecoveryMetricPublicationOnIndexingShardRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/166001

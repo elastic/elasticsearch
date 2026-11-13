@@ -1547,3 +1547,498 @@ emp_no:integer | gender:keyword | _fork:keyword | c:long
 10010          | null           | fork2         | 2
 10011          | null           | fork2         | 2
 ;
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// FILLNULL next to other commands. The filled column keeps its type, only null values change and the warnings are the command's own.
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+fillNullLookupJoinColumnOfRowsWithoutMatch
+required_capability: fillnull
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = languages + 2
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+| FILLNULL "unknown" ON language_name
+;
+
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 4                     | German
+10002          | 7                     | unknown
+10003          | 6                     | unknown
+10004          | 7                     | unknown
+10005          | 3                     | Spanish
+;
+
+fillNullAllColumnsAfterLookupJoin
+required_capability: fillnull
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE emp_no >= 10009 AND emp_no <= 10012
+| EVAL language_code = languages + 2
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, gender, language_code, language_name
+| FILLNULL DEFAULT ON *
+;
+
+
+emp_no:integer | gender:keyword | language_code:integer | language_name:keyword
+10009          | F              | 3                     | Spanish
+10010          |                | 6                     |
+10011          |                | 7                     |
+10012          |                | 7                     |
+;
+
+fillNullBeforeLookupJoinOnExpression
+required_capability: fillnull
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM employees
+| WHERE emp_no <= 10006
+| EVAL lc = CASE(emp_no % 2 == 0, null, languages)
+| FILLNULL 2 ON lc
+| LOOKUP JOIN languages_lookup ON lc == language_code
+| SORT emp_no
+| KEEP emp_no, languages, lc, language_code, language_name
+;
+
+
+emp_no:integer | languages:integer | lc:integer | language_code:integer | language_name:keyword
+10001          | 2                 | 2          | 2                     | French
+10002          | 5                 | 2          | 2                     | French
+10003          | 4                 | 4          | 4                     | German
+10004          | 5                 | 2          | 2                     | French
+10005          | 1                 | 1          | 1                     | English
+10006          | 3                 | 2          | 2                     | French
+;
+
+fillNullColumnShadowedByLookupJoin
+required_capability: fillnull
+required_capability: join_lookup_v12
+
+// The lookup column of the same name replaces the filled one.
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = languages, language_name = TO_STRING(null)
+| FILLNULL "filled" ON language_name
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10002          | 5                     | null
+10003          | 4                     | German
+10004          | 5                     | null
+10005          | 1                     | English
+;
+
+fillNullAggregateOfInlineStatsNullForSomeGroups
+required_capability: fillnull
+required_capability: inline_stats
+
+FROM employees
+| WHERE emp_no <= 10010
+| KEEP emp_no, gender, salary
+| INLINE STATS m = MAX(salary) WHERE salary > 70000 BY gender
+| FILLNULL 0 ON m
+| SORT emp_no
+;
+
+
+emp_no:integer | salary:integer | m:integer | gender:keyword
+10001          | 57305          | 0         | M
+10002          | 56371          | 74572     | F
+10003          | 61805          | 0         | M
+10004          | 36174          | 0         | M
+10005          | 63528          | 0         | M
+10006          | 60335          | 74572     | F
+10007          | 74572          | 74572     | F
+10008          | 43906          | 0         | M
+10009          | 66174          | 74572     | F
+10010          | 45797          | 0         | null
+;
+
+fillNullBetweenTwoInlineStats
+required_capability: fillnull
+required_capability: inline_stats
+
+FROM employees
+| WHERE emp_no <= 10010
+| KEEP emp_no, gender, salary
+| INLINE STATS m = MAX(salary) WHERE salary > 70000 BY gender
+| FILLNULL 0 ON m
+| INLINE STATS total = SUM(m) BY gender
+| INLINE STATS c = COUNT(*) BY m
+| SORT emp_no
+;
+
+
+emp_no:integer | salary:integer | total:long | gender:keyword | c:long | m:integer
+10001          | 57305          | 0          | M              | 6      | 0
+10002          | 56371          | 298288     | F              | 4      | 74572
+10003          | 61805          | 0          | M              | 6      | 0
+10004          | 36174          | 0          | M              | 6      | 0
+10005          | 63528          | 0          | M              | 6      | 0
+10006          | 60335          | 298288     | F              | 4      | 74572
+10007          | 74572          | 298288     | F              | 4      | 74572
+10008          | 43906          | 0          | M              | 6      | 0
+10009          | 66174          | 298288     | F              | 4      | 74572
+10010          | 45797          | 0          | null           | 6      | 0
+;
+
+fillNullEnrichMatchFieldBeforeEnrich
+required_capability: fillnull
+required_capability: enrich_load
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL language_code = CASE(languages == 5, null, TO_STRING(languages))
+| FILLNULL "1" ON language_code
+| ENRICH languages_policy ON language_code
+| SORT emp_no
+| KEEP emp_no, languages, language_code, language_name
+;
+
+
+emp_no:integer | languages:integer | language_code:keyword | language_name:keyword
+10001          | 2                 | 2                     | French
+10002          | 5                 | 1                     | English
+10003          | 4                 | 4                     | German
+10004          | 5                 | 1                     | English
+10005          | 1                 | 1                     | English
+;
+
+fillNullEnrichFieldsOfRowsWithoutMatch
+required_capability: fillnull
+required_capability: enrich_load
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL y = TO_STRING(languages)
+| ENRICH languages_policy ON y
+| SORT emp_no
+| KEEP emp_no, y, language_name
+| FILLNULL "unknown" ON language_name
+;
+
+
+emp_no:integer | y:keyword | language_name:keyword
+10001          | 2         | French
+10002          | 5         | unknown
+10003          | 4         | German
+10004          | 5         | unknown
+10005          | 1         | English
+;
+
+fillNullAllColumnsAfterEnrich
+required_capability: fillnull
+required_capability: enrich_load
+
+FROM employees
+| WHERE emp_no >= 10009 AND emp_no <= 10012
+| EVAL y = TO_STRING(languages)
+| ENRICH languages_policy ON y
+| SORT emp_no
+| KEEP emp_no, gender, y, language_name
+| FILLNULL DEFAULT ON *
+;
+
+
+emp_no:integer | gender:keyword | y:keyword | language_name:keyword
+10009          | F              | 1         | English
+10010          |                | 4         | German
+10011          |                | 5         |
+10012          |                | 5         |
+;
+
+fillNullMultiValuedColumnThenMvExpand
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no <= 10010
+| KEEP emp_no, job_positions
+| FILLNULL "none" ON job_positions
+| MV_EXPAND job_positions
+| SORT emp_no, job_positions
+;
+
+
+emp_no:integer | job_positions:keyword
+10001          | Accountant
+10001          | Senior Python Developer
+10002          | Senior Team Lead
+10003          | none
+10004          | Head Human Resources
+10004          | Reporting Analyst
+10004          | Support Engineer
+10004          | Tech Lead
+10005          | none
+10006          | Principal Support Engineer
+10006          | Senior Team Lead
+10006          | Tech Lead
+10007          | none
+10008          | Internship
+10008          | Junior Developer
+10008          | Purchase Manager
+10008          | Senior Python Developer
+10009          | Internship
+10009          | Senior Python Developer
+10010          | Architect
+10010          | Purchase Manager
+10010          | Reporting Analyst
+10010          | Tech Lead
+;
+
+fillNullAfterMvExpand
+required_capability: fillnull
+
+FROM employees
+| WHERE emp_no <= 10010
+| KEEP emp_no, job_positions
+| MV_EXPAND job_positions
+| FILLNULL "none" ON job_positions
+| SORT emp_no, job_positions
+;
+
+
+emp_no:integer | job_positions:keyword
+10001          | Accountant
+10001          | Senior Python Developer
+10002          | Senior Team Lead
+10003          | none
+10004          | Head Human Resources
+10004          | Reporting Analyst
+10004          | Support Engineer
+10004          | Tech Lead
+10005          | none
+10006          | Principal Support Engineer
+10006          | Senior Team Lead
+10006          | Tech Lead
+10007          | none
+10008          | Internship
+10008          | Junior Developer
+10008          | Purchase Manager
+10008          | Senior Python Developer
+10009          | Internship
+10009          | Senior Python Developer
+10010          | Architect
+10010          | Purchase Manager
+10010          | Reporting Analyst
+10010          | Tech Lead
+;
+
+fillNullInputOfChangePoint
+required_capability: fillnull
+required_capability: change_point
+
+FROM k8s
+| STATS m = MAX(network.cost) BY @timestamp = BUCKET(@timestamp, 1 MINUTE)
+| EVAL m = CASE(@timestamp < "2024-05-10T00:02:00Z", null, m)
+| FILLNULL 0 ON m
+| CHANGE_POINT m ON @timestamp
+| SORT @timestamp
+| LIMIT 4
+;
+
+@timestamp:datetime      | m:double | type:keyword | pvalue:double
+2024-05-10T00:00:00.000Z | 0.0      | null         | null
+2024-05-10T00:01:00.000Z | 0.0      | dip          | 0.0
+2024-05-10T00:02:00.000Z | 11.25    | null         | null
+2024-05-10T00:03:00.000Z | 12.125   | null         | null
+;
+
+fillNullOutputColumnsOfChangePoint
+required_capability: fillnull
+required_capability: change_point
+
+FROM k8s
+| STATS count = COUNT() BY @timestamp = BUCKET(@timestamp, 1 MINUTE)
+| CHANGE_POINT count ON @timestamp AS type, pvalue
+| FILLNULL "none" ON type
+| FILLNULL 1.0 ON pvalue
+| SORT @timestamp
+| LIMIT 3
+;
+
+
+count:long | @timestamp:datetime      | type:keyword | pvalue:double
+4          | 2024-05-10T00:00:00.000Z | none         | 1.0
+4          | 2024-05-10T00:01:00.000Z | none         | 1.0
+8          | 2024-05-10T00:02:00.000Z | none         | 1.0
+;
+
+fillNullInsideOneSubqueryBranchOnly
+required_capability: fillnull
+required_capability: subquery_in_from_command
+
+FROM (FROM employees | WHERE emp_no >= 10009 AND emp_no <= 10011 | KEEP emp_no, gender | FILLNULL "none" ON gender),
+     (FROM employees | WHERE emp_no >= 10009 AND emp_no <= 10011 | KEEP emp_no, gender)
+| SORT emp_no, gender
+;
+
+
+emp_no:integer | gender:keyword
+10009          | F
+10009          | F
+10010          | none
+10010          | null
+10011          | none
+10011          | null
+;
+
+fillNullAfterUnionOfSubqueriesWithDifferentColumns
+required_capability: fillnull
+required_capability: subquery_in_from_command
+
+FROM (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, first_name),
+     (FROM employees | WHERE emp_no == 10002 | KEEP emp_no, last_name)
+| FILLNULL "unknown" ON first_name, last_name
+| SORT emp_no
+;
+
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10001          | Georgi             | unknown
+10002          | unknown            | Simmel
+;
+
+fillNullAfterSubqueryEndingWithStats
+required_capability: fillnull
+required_capability: subquery_in_from_command
+
+FROM (FROM employees | WHERE emp_no <= 10012 | STATS c = COUNT(*) BY gender | FILLNULL "none" ON gender),
+     (FROM employees | WHERE emp_no == 10001 | KEEP emp_no)
+| SORT gender, emp_no
+;
+
+
+c:long | gender:keyword | emp_no:integer
+4      | F              | null
+5      | M              | null
+3      | none           | null
+null   | null           | 10001
+;
+
+fillNullAfterView
+required_capability: fillnull
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM employees_all
+| WHERE emp_no >= 10009 AND emp_no <= 10011
+| KEEP emp_no, gender
+| FILLNULL "none" ON gender
+| SORT emp_no
+;
+
+
+emp_no:integer | gender:keyword
+10009          | F
+10010          | none
+10011          | none
+;
+
+fillNullAllColumnsAfterUnionOfViewsWithDifferentColumns
+required_capability: fillnull
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM employees_all, view_languages
+| WHERE emp_no == 10001 OR language_code == 1
+| KEEP emp_no, first_name, language_code, language_name
+| FILLNULL DEFAULT ON *
+| SORT emp_no, language_code
+;
+
+
+emp_no:integer | first_name:keyword | language_code:integer | language_name:keyword
+0              |                    | 1                     | English
+10001          | Georgi             | 0                     |
+;
+
+fillNullInViewDefinitionQueriedDirectly
+required_capability: fillnull
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM fillnull_employees
+| WHERE emp_no >= 10009 AND emp_no <= 10011
+| SORT emp_no
+;
+
+
+emp_no:integer | gender:keyword
+10009          | F
+10010          | none
+10011          | none
+;
+
+fillNullInViewDefinitionQueriedNextToAnIndex
+required_capability: fillnull
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM fillnull_employees, employees
+| WHERE emp_no == 10010
+| KEEP emp_no, gender
+| SORT gender
+;
+
+
+emp_no:integer | gender:keyword
+10010          | none
+10010          | null
+;
+
+fillNullRateOfBucketsWithoutSamplesAfterTs
+required_capability: fillnull
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+
+TS k8s
+| STATS r = SUM(RATE(network.total_bytes_in)) WHERE pod == "three" BY cluster, time_bucket = TBUCKET(1 minute)
+| FILLNULL 0 ON r
+| EVAL r = ROUND(r, 6)
+| WHERE cluster == "prod"
+| SORT time_bucket
+| LIMIT 6
+| KEEP r, cluster, time_bucket
+;
+
+
+r:double  | cluster:keyword | time_bucket:datetime
+15.515104 | prod            | 2024-05-10T00:00:00.000Z
+18.934896 | prod            | 2024-05-10T00:01:00.000Z
+1.640674  | prod            | 2024-05-10T00:02:00.000Z
+0.0       | prod            | 2024-05-10T00:03:00.000Z
+0.0       | prod            | 2024-05-10T00:04:00.000Z
+2.914743  | prod            | 2024-05-10T00:05:00.000Z
+;
+
+fillNullDimensionBetweenTsAndStats
+required_capability: fillnull
+required_capability: ts_command_v0
+
+TS k8s
+| EVAL region = CASE(cluster == "prod", null, cluster)
+| FILLNULL "filled" ON region
+| STATS m = MAX(network.bytes_in) BY region
+| SORT region
+;
+
+
+m:long | region:keyword
+931    | filled
+972    | qa
+238    | staging
+;

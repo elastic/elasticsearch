@@ -143,7 +143,7 @@ public class ZstdCompressionMode extends CompressionMode {
                     return IndexInputUtils.withSlice(
                         indexIn,
                         compressedLength,
-                        len -> Arena.ofAuto().allocate(len, ValueLayout.JAVA_LONG.byteAlignment()),
+                        len -> MemorySegment.ofArray(new byte[len]),
                         src -> ZSTD.decompress(dst, src)
                     );
                 } catch (@SuppressWarnings("unused") AlreadyClosedException e) {

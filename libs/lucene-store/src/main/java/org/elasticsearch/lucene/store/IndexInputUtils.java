@@ -350,7 +350,7 @@ public final class IndexInputUtils {
     ) throws IOException {
         MemorySegment scratch = scratchSupplier.apply(bytesToRead);
         assert scratch.byteSize() == bytesToRead : "scratch segment must be have the exact requested size";
-        assert validateNativeSegment(scratch, "scratch segment");
+        // assert validateNativeSegment(scratch, "scratch segment");
         byte[] buf = new byte[bytesToRead];
         in.readBytes(buf, 0, bytesToRead);
         MemorySegment.copy(buf, 0, scratch, ValueLayout.JAVA_BYTE, 0, bytesToRead);

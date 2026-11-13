@@ -34,7 +34,7 @@ public class APMTracer implements Tracer {
 
     private final ThreadContext threadContext;
     private final Supplier<OpenTelemetry> openTelemetry;
-    private final AtomicBoolean enabled;
+    private final AtomicBoolean enabled; // instance shared with sampler
     private final AtomicBoolean recordExceptionStacks;
 
     private volatile CharacterRunAutomaton labelFilterAutomaton = PatternAutomata.compile(List.of(), List.of());

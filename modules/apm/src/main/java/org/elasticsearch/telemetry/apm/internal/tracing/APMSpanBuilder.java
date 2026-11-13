@@ -130,30 +130,18 @@ public class APMSpanBuilder implements SpanBuilder {
     }
 
     private Context startSpanContext() {
-        if (tracer.isEnabled() == false) {
-            // invalid span will break the propagation chain, which is what we want in this case
-            return emptyContext().with(io.opentelemetry.api.trace.Span.getInvalid());
-        }
-
         final var threadContext = tracer.threadContext();
         final Context localParentContext = parentContext != null
             ? parentContext
             : requireNonNullElseGet(threadContext.getTransient(Task.APM_TRACE_CONTEXT), APMSpanBuilder::emptyContext);
-        var localParentSpan = io.opentelemetry.api.trace.Span.fromContextOrNull(localParentContext);
+        boolean hasLocalParentSpan = io.opentelemetry.api.trace.Span.fromContextOrNull(localParentContext) != null;
 
         final io.opentelemetry.api.trace.SpanBuilder otelSpanBuilder = tracer.otelTracer().spanBuilder(name).setSpanKind(spanKind);
 
-        // A span can have a parent span, which is important for seeing a complete trace in the APM UI.
         // Try to use the local parent first, otherwise look for a remote parent in the request headers; otherwise use emptyContext().
         // A span that was explicitly started without a parent is the root of a new trace: nothing is inherited, not even a remote parent.
-        final Context newSpanParent;
-        if (noParent) {
-            newSpanParent = emptyContext();
-            otelSpanBuilder.setNoParent();
-        } else {
-            newSpanParent = localParentSpan != null ? localParentContext : getRemoteParentContext();
-            otelSpanBuilder.setParent(newSpanParent);
-        }
+        final Context newSpanParent = hasLocalParentSpan || noParent ? localParentContext : getRemoteParentContext();
+        otelSpanBuilder.setParent(newSpanParent);
 
         if (attributesBuilder != null) {
             otelSpanBuilder.setAllAttributes(attributesBuilder.build());
@@ -161,7 +149,7 @@ public class APMSpanBuilder implements SpanBuilder {
 
         setCommonAttributes(otelSpanBuilder);
 
-        if (localParentSpan == null) {
+        if (hasLocalParentSpan == false) {
             Instant startTime = threadContext.removeTransient(Task.LOCAL_TRACE_START_TIME);
             if (startTime != null) {
                 otelSpanBuilder.setStartTimestamp(startTime);

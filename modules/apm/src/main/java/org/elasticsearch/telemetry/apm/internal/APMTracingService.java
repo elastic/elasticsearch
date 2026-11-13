@@ -37,11 +37,10 @@ public class APMTracingService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(APMTracingService.class);
 
+    private final AtomicBoolean enabled = new AtomicBoolean(); // instance shared with sampler and tracer
+    private final AtomicBoolean recordExceptionStacks = new AtomicBoolean();
     private final ElasticTracestateSampler sampler;
     private final TraceSupplier traceSupplier;
-
-    private final AtomicBoolean enabled = new AtomicBoolean();
-    private final AtomicBoolean recordExceptionStacks = new AtomicBoolean();
     private final APMTracer tracer;
 
     public APMTracingService(ThreadContext threadContext, Settings settings, Supplier<MeterProvider> meterProvider) {
@@ -50,10 +49,10 @@ public class APMTracingService extends AbstractLifecycleComponent {
 
     // visible for testing: a trace supplier that does not take part in the redaction of the exported spans
     public APMTracingService(ThreadContext threadContext, Settings settings, TraceSupplier.Factory traceSupplierFactory) {
-        this.sampler = new ElasticTracestateSampler(settings);
-        this.traceSupplier = traceSupplierFactory.create(sampler);
         this.enabled.set(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings));
         this.recordExceptionStacks.set(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.get(settings));
+        this.sampler = new ElasticTracestateSampler(enabled, settings);
+        this.traceSupplier = traceSupplierFactory.create(sampler);
         this.tracer = new APMTracer(threadContext, traceSupplier, enabled, recordExceptionStacks);
         this.tracer.setLabelFilters(APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings));
     }

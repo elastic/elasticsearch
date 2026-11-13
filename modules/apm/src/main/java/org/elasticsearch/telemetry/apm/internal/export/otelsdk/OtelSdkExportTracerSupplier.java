@@ -49,11 +49,6 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     @Nullable
     private volatile OpenTelemetry openTelemetry;
 
-    // visible for tests
-    public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider) {
-        this(settings, meterProvider, new ElasticTracestateSampler(settings));
-    }
-
     public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider, Sampler sampler) {
         this.settings = settings;
         this.meterProvider = meterProvider;

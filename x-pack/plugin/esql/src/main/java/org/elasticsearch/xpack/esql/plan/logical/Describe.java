@@ -53,9 +53,7 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         new Column("origin", DataType.KEYWORD),
         new Column("metric_type", DataType.KEYWORD),
         new Column("unit", DataType.KEYWORD),
-        new Column("description", DataType.KEYWORD),
-        new Column("searchable", DataType.BOOLEAN),
-        new Column("aggregatable", DataType.BOOLEAN)
+        new Column("description", DataType.KEYWORD)
     );
 
     private record Column(String name, DataType type) {}
@@ -101,8 +99,9 @@ public class Describe extends UnaryPlan implements TelemetryAware {
      *
      * @param semantics      the semantics of the mapped fields the child's columns read, keyed by attribute id
      * @param datasetColumns the dataset columns the child's columns read, keyed by attribute id
+     * @param units          the unit of every column whose unit is known, keyed by attribute id
      */
-    public LocalRelation describe(Map<NameId, FieldSemantics> semantics, Map<NameId, Attribute> datasetColumns) {
+    public LocalRelation describe(Map<NameId, FieldSemantics> semantics, Map<NameId, Attribute> datasetColumns, Map<NameId, String> units) {
         List<Attribute> columns = child().output().stream().filter(a -> a.synthetic() == false).toList();
         ElementType[] elementTypes = new ElementType[COLUMNS.size()];
         Block.Builder[] builders = new Block.Builder[COLUMNS.size()];
@@ -123,10 +122,8 @@ public class Describe extends UnaryPlan implements TelemetryAware {
                     field != null ? field.field() : datasetColumn != null ? datasetColumn.name() : null,
                     origin(column, field, datasetColumn),
                     metricType,
-                    field == null ? null : field.unit(),
-                    field == null ? null : field.description(),
-                    field == null ? null : field.searchable(),
-                    field == null ? null : field.aggregatable() };
+                    units.get(column.id()),
+                    field == null ? null : field.description() };
                 for (int i = 0; i < row.length; i++) {
                     Object value = row[i] instanceof String s ? new BytesRef(s) : row[i];
                     BlockUtils.appendValue(builders[i], value, elementTypes[i]);
@@ -152,10 +149,14 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         if (column instanceof FieldAttribute) {
             return field == null ? "unmapped" : "mapped";
         }
+        // A column of a merge of branches is not the field itself, but keeps its name unless it was renamed.
         if (datasetColumn != null) {
-            return datasetColumn.id().equals(column.id()) ? "dataset" : "renamed";
+            return datasetColumn.name().equals(column.name()) ? "dataset" : "renamed";
         }
-        return field == null ? "computed" : "renamed";
+        if (field == null) {
+            return "computed";
+        }
+        return field.field().equals(column.name()) ? "mapped" : "renamed";
     }
 
     private static boolean isMetadata(Attribute column) {

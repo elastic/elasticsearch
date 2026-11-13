@@ -598,7 +598,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
 
     /**
      * Sets the reservation that this request's parsers charge, see {@link #trackContentParser}. It is released when the response is sent,
-     * not when the parsers close.
+     * or when the work that keeps the parsed request ends if that is later, not when the parsers close.
      */
     void setParsedContentReservation(ParsedContentReservation parsedContentReservation) {
         this.parsedContentReservation = parsedContentReservation;

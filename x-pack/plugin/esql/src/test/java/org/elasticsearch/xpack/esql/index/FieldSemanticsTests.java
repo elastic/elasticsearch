@@ -58,6 +58,7 @@ public class FieldSemanticsTests extends ESTestCase {
             meta,
             null,
             0,
+            false,
             false
         );
     }
@@ -130,13 +131,6 @@ public class FieldSemanticsTests extends ESTestCase {
             caps("value", "long", false, TimeSeriesParams.MetricType.GAUGE, Map.of())
         );
         assertThat(types.metricType(), equalTo("mixed"));
-
-        FieldSemantics capabilities = of(
-            caps("value", "keyword", false, true, true, false, false, null, Map.of()),
-            caps("value", "keyword", false, true, false, false, false, null, Map.of())
-        );
-        assertThat("aggregatable only when every index is", capabilities.aggregatable(), equalTo(false));
-        assertThat(capabilities.searchable(), equalTo(true));
     }
 
     public void testOnlyBuiltWhenNeeded() {
@@ -160,7 +154,8 @@ public class FieldSemanticsTests extends ESTestCase {
             false,
             false,
             needsFieldSemantics,
-            false
+            false,
+            null
         );
         return IndexResolver.mergedMappings("idx", false, info, false, IndexResolver.DO_NOT_GROUP).get().fieldSemantics();
     }

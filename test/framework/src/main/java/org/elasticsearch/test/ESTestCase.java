@@ -213,6 +213,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
@@ -228,6 +229,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -1861,23 +1863,24 @@ public abstract class ESTestCase extends LuceneTestCase {
     // After 1s, we stop growing the sleep interval exponentially and just sleep 1s until maxWaitTime
     private static final long AWAIT_BUSY_THRESHOLD = 1000L;
 
-    /**
-     * Periodically execute the supplied function until it returns true, or until the
-     * specified maximum wait time has elapsed. If at all possible, use
-     * {@link ESTestCase#assertBusy(CheckedRunnable)} instead.
-     *
-     * @param breakSupplier determines whether to return immediately or continue waiting.
-     * @param maxWaitTime the maximum amount of time to wait
-     * @param unit the unit of tie for <code>maxWaitTime</code>
-     * @return the last value returned by <code>breakSupplier</code>
-     */
+    /// Executes provided supplier until it returns `true` or provided maximum wait time elapses.
+    /// Up to 1 second of sleep is applied between executions of the supplier.
     public static boolean waitUntil(BooleanSupplier breakSupplier, long maxWaitTime, TimeUnit unit) {
-        long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
+        return waitUntil(() -> Optional.of(breakSupplier.getAsBoolean()).filter(Boolean::booleanValue), new TimeValue(maxWaitTime, unit))
+            .isPresent();
+    }
+
+    /// Executes provided supplier until it returns a non-empty [Optional] or provided maximum wait time elapses.
+    /// Returns an empty optional if timed out.
+    /// Up to 1 second of sleep is applied between executions of the supplier.
+    public static <T> Optional<T> waitUntil(Supplier<Optional<T>> evaluation, TimeValue maxWaitTime) {
+        long maxTimeInMillis = maxWaitTime.millis();
         long timeInMillis = 1;
         long sum = 0;
         while (sum + timeInMillis < maxTimeInMillis) {
-            if (breakSupplier.getAsBoolean()) {
-                return true;
+            Optional<T> iterationResult = evaluation.get();
+            if (iterationResult.isPresent()) {
+                return iterationResult;
             }
             safeSleep(timeInMillis);
             sum += timeInMillis;
@@ -1885,7 +1888,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         timeInMillis = maxTimeInMillis - sum;
         safeSleep(Math.max(timeInMillis, 0));
-        return breakSupplier.getAsBoolean();
+        return evaluation.get();
     }
 
     protected TestThreadPool createThreadPool(ExecutorBuilder<?>... executorBuilders) {
@@ -3318,11 +3321,37 @@ public abstract class ESTestCase extends LuceneTestCase {
         runInParallel(tasks.length, i -> tasks[i].run());
     }
 
+    /**
+     * Runs {@code task} to completion on a new thread other than the calling one, which waits for it. Any failure of the task, including
+     * a failed assertion, is rethrown on the calling thread as an {@link AssertionError}.
+     */
+    public static void onOtherThread(CheckedRunnable<Exception> task) {
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final Thread thread = new Thread(() -> {
+            try {
+                task.run();
+            } catch (Throwable t) {
+                failure.set(t);
+            }
+        }, "TEST-onOtherThread");
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted while waiting for the task on the other thread", e);
+        }
+        if (failure.get() != null) {
+            throw new AssertionError(failure.get());
+        }
+    }
+
     public static void ensureAllContextsReleased(SearchService searchService) {
         try {
             assertBusy(() -> {
                 assertThat(searchService.getActiveContexts(), equalTo(0));
                 assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+                assertThat(searchService.queryScheduler().queries(), equalTo(0));
             });
         } catch (Exception e) {
             throw new AssertionError("Failed to verify search contexts", e);

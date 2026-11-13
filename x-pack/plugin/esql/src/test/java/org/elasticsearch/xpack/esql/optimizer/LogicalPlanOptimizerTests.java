@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
@@ -173,6 +175,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -184,6 +187,7 @@ import java.util.stream.Collectors;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
@@ -207,12 +211,14 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.expression.function.vector.Knn.ALLOWED_OPTIONS;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
@@ -238,6 +244,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -8016,6 +8024,100 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(lastOverTime.filter(), instanceOf(Equals.class));
     }
 
+    /**
+     * The inline filter of an expression combining several aggregates is pushed onto each nested aggregate. It must end up on the
+     * per-time-series aggregates only, since the dimensions it references are not available after the first pass.
+     */
+    public void testTranslateWithInlineFilterOnExpressionOfAggregates() {
+        var query = """
+            TS k8s
+            | STATS max(last_over_time(network.bytes_in)) - min(last_over_time(network.bytes_in))
+                WHERE starts_with(cluster, "p") OR cluster IN ("qa", "staging")
+                BY bucket(@timestamp, 1 minute)
+            | LIMIT 10
+            """;
+        var plan = planMetrics(query);
+
+        List<AggregateFunction> secondPassAggs = new ArrayList<>();
+        List<LastOverTime> firstPassAggs = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg instanceof TimeSeriesAggregate tsAgg) {
+                tsAgg.forEachExpression(LastOverTime.class, firstPassAggs::add);
+            } else {
+                agg.forEachExpression(AggregateFunction.class, secondPassAggs::add);
+            }
+        });
+        assertThat(secondPassAggs, hasSize(2));
+        for (AggregateFunction secondPassAgg : secondPassAggs) {
+            assertFalse("second pass aggregate must not keep the filter: " + secondPassAgg, secondPassAgg.hasFilter());
+        }
+        assertThat(firstPassAggs, hasSize(1));
+        assertThat(firstPassAggs.get(0).filter(), instanceOf(Or.class));
+    }
+
+    /**
+     * Grouping by {@code _tsid} matches the per-time-series grouping of the first pass, so the second pass must regroup on the
+     * first-pass {@code _tsid} rather than on a {@code VALUES(_tsid)} that reuses its id.
+     */
+    public void testTranslateStatsByTsidWithAggregate() {
+        var plan = planMetrics("""
+            TS k8s METADATA _tsid
+            | STATS bytes = max(last_over_time(network.bytes_in)) BY _tsid
+            | STATS c = COUNT(*), bytes = max(bytes)
+            """);
+
+        List<TimeSeriesAggregate> firstPass = new ArrayList<>();
+        plan.forEachDown(TimeSeriesAggregate.class, firstPass::add);
+        assertThat(firstPass, hasSize(1));
+        TimeSeriesAggregate aggsByTsid = firstPass.get(0);
+        assertThat(aggsByTsid.groupings(), hasSize(1));
+        Attribute tsid = as(aggsByTsid.groupings().get(0), MetadataAttribute.class);
+        assertThat(tsid.name(), equalTo(MetadataAttribute.TSID_FIELD));
+        aggsByTsid.forEachExpression(Values.class, values -> fail("first pass must not wrap _tsid in VALUES: " + values));
+
+        List<Aggregate> secondPass = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg instanceof TimeSeriesAggregate == false && agg.groupings().isEmpty() == false) {
+                secondPass.add(agg);
+            }
+        });
+        assertThat(secondPass, hasSize(1));
+        assertThat(secondPass.get(0).groupings(), hasSize(1));
+        assertThat(Expressions.attribute(Alias.unwrap(secondPass.get(0).groupings().get(0))).id(), equalTo(tsid.id()));
+    }
+
+    /**
+     * A {@code STATS} without aggregate functions that groups only by {@code _tsid} already yields one row per time series, so it is
+     * planned as a single regular aggregation over a standard relation, as if the query started with {@code FROM}.
+     */
+    public void testTranslateStatsByTsidWithoutAggregatesUsesSinglePass() {
+        var plan = planMetrics("""
+            TS k8s METADATA _tsid
+            | STATS BY _tsid
+            | STATS c = COUNT(*)
+            """);
+
+        plan.forEachDown(TimeSeriesAggregate.class, agg -> fail("expected no time-series aggregate: " + agg));
+        plan.forEachExpressionDown(Values.class, values -> fail("_tsid must not be wrapped in VALUES: " + values));
+
+        List<Aggregate> groupedAggs = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg.groupings().isEmpty() == false) {
+                groupedAggs.add(agg);
+            }
+        });
+        assertThat(groupedAggs, hasSize(1));
+        Aggregate byTsid = groupedAggs.get(0);
+        assertThat(byTsid.groupings(), hasSize(1));
+        Attribute tsid = as(byTsid.groupings().get(0), MetadataAttribute.class);
+        assertThat(tsid.name(), equalTo(MetadataAttribute.TSID_FIELD));
+
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(1));
+        assertThat(relations.get(0).indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relations.get(0).output(), hasItem(tsid));
+    }
+
     public void testTranslateWithDateTrunc() {
         var query = randomFrom("""
             TS k8s
@@ -9767,8 +9869,53 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithStats() {
         assertThat(
             typesError("from types | where knn(dense_vector, [0, 1, 2]) | stats c = count(*)"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
+    }
+
+    /**
+     * A LIMIT after STATS bounds the number of groups, not the number of documents, so it must not be pushed into KNN as k.
+     */
+    public void testKnnWithStatsAndLimitAfterStats() {
+        assertThat(
+            typesError("from types | where knn(dense_vector, [0, 1, 2]) | stats c = count(*) | limit 100"),
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
+        );
+    }
+
+    /**
+     * An explicit {@code k} option satisfies the k requirement even when STATS prevents a LIMIT from being pushed into KNN.
+     */
+    public void testKnnWithKOptionAndStats() {
+        var query = "from types | where knn(dense_vector, [0, 1, 2], {\"k\": 10}) | stats c = count(*)"
+            + (randomBoolean() ? "" : " | limit 100");
+        var optimized = planTypes(query);
+
+        List<Knn> knns = new ArrayList<>();
+        optimized.forEachExpressionDown(Knn.class, knns::add);
+        assertThat(knns, hasSize(1));
+        var knn = knns.get(0);
+        assertThat(knn.implicitK(), nullValue());
+        assertThat(knn.options(), notNullValue());
+        Map<String, Object> optionsMap = new HashMap<>();
+        Options.populateMap((MapExpression) knn.options(), optionsMap, EMPTY, FOURTH, ALLOWED_OPTIONS);
+        assertEquals(10, optionsMap.get(K_FIELD.getPreferredName()));
+    }
+
+    /**
+     * KNN on a runtime (non-indexed) dense_vector is evaluated per row and doesn't use k, so it doesn't need a LIMIT or a k option.
+     */
+    public void testRuntimeKnnWithStats() {
+        // Older versions reject runtime KNN outright, see OptimizerVerificationTests#testKnnRuntimeRejectedOnOlderTransportVersion
+        assumeTrue("requires runtime knn", minimumVersion.supports(Knn.ESQL_KNN_RUNTIME_FIELD));
+        var optimized = planTypes("from types | eval dv = to_dense_vector(float) | where knn(dv, [0, 1, 2]) | stats c = count(*)");
+
+        List<Knn> knns = new ArrayList<>();
+        optimized.forEachExpressionDown(Knn.class, knns::add);
+        assertThat(knns, hasSize(1));
+        var knn = knns.get(0);
+        assertThat(knn.isRuntimeSearch(), is(true));
+        assertThat(knn.implicitK(), nullValue());
     }
 
     public void testKnnWithRerankWithoutLimit() {
@@ -9818,7 +9965,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithLimitBy() {
         assertThat(
             typesError("from types | where knn(dense_vector, [0, 1, 2]) | limit 10 by keyword | limit 5"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
     }
 
@@ -9829,7 +9976,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testKnnWithTopNBy() {
         assertThat(
             typesError("from types metadata _score | where knn(dense_vector, [0, 1, 2]) | sort _score | limit 10 by keyword | limit 5"),
-            containsString("Knn function must be used with a LIMIT clause")
+            containsString("[KNN] function must specify a k option or be used with a LIMIT clause")
         );
     }
 

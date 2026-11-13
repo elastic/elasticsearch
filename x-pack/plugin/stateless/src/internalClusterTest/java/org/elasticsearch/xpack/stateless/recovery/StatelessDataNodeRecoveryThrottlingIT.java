@@ -151,15 +151,15 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
     public void testIndexNodeQueuesIncomingRecoveriesPastConcurrencyLimit() {
         startMasterOnlyNode();
         final int maxConcurrentRecoveries = between(1, 5);
-        final int relocationPercent = between(1, 100);
+        final int nonCriticalPercent = between(1, 100);
         final boolean heapBasedLimit = randomBoolean();
         final int expectedMaxConcurrentRecoveries = heapBasedLimit ? 1 : maxConcurrentRecoveries;
-        final int expectedRelocationLimit = expectedDataNodeRelocationLimit(expectedMaxConcurrentRecoveries, relocationPercent);
-        final int totalShards = expectedRelocationLimit + between(1, 3);
+        final int expectedNonCriticalLimit = expectedDataNodeNonCriticalLimit(expectedMaxConcurrentRecoveries, nonCriticalPercent);
+        final int totalShards = expectedNonCriticalLimit + between(1, 3);
 
         final var sourceNode = startIndexNode();
         final var targetNode = startIndexNode(
-            incomingDataNodeThrottlingSettings(maxConcurrentRecoveries, relocationPercent, heapBasedLimit)
+            incomingDataNodeThrottlingSettings(maxConcurrentRecoveries, nonCriticalPercent, heapBasedLimit)
         );
 
         final var indexName = randomIndexName();
@@ -183,13 +183,13 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         awaitRecoveryCountStats(
             Map.of(
                 targetNode,
-                stats -> stats.currentAsTarget() == expectedRelocationLimit
-                    && stats.currentAsTargetQueued() == totalShards - expectedRelocationLimit
+                stats -> stats.currentAsTarget() == expectedNonCriticalLimit
+                    && stats.currentAsTargetQueued() == totalShards - expectedNonCriticalLimit
             )
         );
 
-        // New primaries are not relocations, so they can use the slots that the relocations leave free.
-        final int freeSlots = expectedMaxConcurrentRecoveries - expectedRelocationLimit;
+        // New primaries are critical recoveries, so they can use the slots that the non-critical limit leaves free.
+        final int freeSlots = expectedMaxConcurrentRecoveries - expectedNonCriticalLimit;
         final int newShards = freeSlots + between(1, 2);
         final var newIndexName = randomIndexName();
 
@@ -211,8 +211,8 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         awaitRecoveryCountStats(
             Map.of(
                 targetNode,
-                stats -> stats.currentAsTarget() == expectedRelocationLimit
-                    && stats.currentAsTargetQueued() == totalShards - expectedRelocationLimit
+                stats -> stats.currentAsTarget() == expectedNonCriticalLimit
+                    && stats.currentAsTargetQueued() == totalShards - expectedNonCriticalLimit
                     && stats.currentFromStore() == freeSlots
                     && stats.currentFromStoreQueued() == newShards - freeSlots
             )
@@ -276,15 +276,15 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
     public void testSearchNodeQueuesIncomingRecoveriesPastConcurrencyLimit() {
         startMasterOnlyNode();
         final int maxConcurrentRecoveries = between(2, 6);
-        // Expected relocation limit is at least 2 (so we can ensure the heap-based limit, which is 1, does not apply)
-        final int relocationPercent = between(100 / maxConcurrentRecoveries + 1, 100);
-        final int expectedRelocationLimit = expectedDataNodeRelocationLimit(maxConcurrentRecoveries, relocationPercent);
-        assertThat(expectedRelocationLimit, greaterThan(1));
-        final int totalShards = expectedRelocationLimit + between(1, 3);
+        // Expected non-critical limit is at least 2 (so we can ensure the heap-based limit, which is 1, does not apply)
+        final int nonCriticalPercent = between(100 / maxConcurrentRecoveries + 1, 100);
+        final int expectedNonCriticalLimit = expectedDataNodeNonCriticalLimit(maxConcurrentRecoveries, nonCriticalPercent);
+        assertThat(expectedNonCriticalLimit, greaterThan(1));
+        final int totalShards = expectedNonCriticalLimit + between(1, 3);
 
         final var indexNode = startIndexNode();
         final var sourceNode = startSearchNode();
-        final var targetNode = startSearchNode(incomingDataNodeThrottlingSettings(maxConcurrentRecoveries, relocationPercent, true));
+        final var targetNode = startSearchNode(incomingDataNodeThrottlingSettings(maxConcurrentRecoveries, nonCriticalPercent, true));
 
         final var indexName = randomIndexName();
         createIndex(
@@ -308,13 +308,13 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         awaitRecoveryCountStats(
             Map.of(
                 targetNode,
-                stats -> stats.currentAsTarget() == expectedRelocationLimit
-                    && stats.currentAsTargetQueued() == totalShards - expectedRelocationLimit
+                stats -> stats.currentAsTarget() == expectedNonCriticalLimit
+                    && stats.currentAsTargetQueued() == totalShards - expectedNonCriticalLimit
             )
         );
 
-        // New search shards are unassigned recoveries, not relocations, so they can use the slots that the relocations leave free.
-        final int freeSlots = maxConcurrentRecoveries - expectedRelocationLimit;
+        // New search shards are critical recoveries, so they can use the slots that the non-critical limit leaves free.
+        final int freeSlots = maxConcurrentRecoveries - expectedNonCriticalLimit;
         final int newShards = freeSlots + between(1, 2);
         final var newIndexName = randomIndexName();
         prepareCreate(newIndexName).setSettings(
@@ -324,7 +324,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             Map.of(
                 targetNode,
                 stats -> stats.currentAsTarget() == maxConcurrentRecoveries
-                    && stats.currentAsTargetQueued() == (totalShards - expectedRelocationLimit) + (newShards - freeSlots)
+                    && stats.currentAsTargetQueued() == (totalShards - expectedNonCriticalLimit) + (newShards - freeSlots)
             )
         );
 
@@ -922,19 +922,23 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             .collect(Collectors.toMap(RecoveryState::getShardId, RecoveryState::getRecoveryPriority));
     }
 
-    private static int expectedDataNodeRelocationLimit(int maxConcurrentRecoveries, int relocationPercent) {
-        return (int) Math.ceil(maxConcurrentRecoveries * RatioValue.ofPercent(relocationPercent).getAsRatio());
+    private static int expectedDataNodeNonCriticalLimit(int maxConcurrentRecoveries, int nonCriticalPercent) {
+        return (int) Math.ceil(maxConcurrentRecoveries * RatioValue.ofPercent(nonCriticalPercent).getAsRatio());
     }
 
-    private static Settings incomingDataNodeThrottlingSettings(int maxConcurrentRecoveries, int relocationPercent, boolean heapBasedLimit) {
+    private static Settings incomingDataNodeThrottlingSettings(
+        int maxConcurrentRecoveries,
+        int nonCriticalPercent,
+        boolean heapBasedLimit
+    ) {
         final var settings = Settings.builder()
             .put(
                 DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
                 maxConcurrentRecoveries
             )
             .put(
-                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING.getKey(),
-                relocationPercent + "%"
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                nonCriticalPercent + "%"
             );
         if (heapBasedLimit) {
             settings.put(

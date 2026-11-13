@@ -12,6 +12,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -21,6 +23,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -121,6 +124,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.useragent.api.UserAgentParser;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -162,6 +166,8 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
+import org.elasticsearch.xpack.esql.eql.EqlRequests;
+import org.elasticsearch.xpack.esql.eql.EqlSourceOperator;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
@@ -180,6 +186,7 @@ import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.HighlightOptions;
@@ -192,6 +199,7 @@ import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EqlSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -304,6 +312,7 @@ public class LocalExecutionPlanner {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ProjectResolver projectResolver;
@@ -346,7 +355,8 @@ public class LocalExecutionPlanner {
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
-        TransportVersion minTransportVersion
+        TransportVersion minTransportVersion,
+        Client client
     ) {
 
         this.sessionId = sessionId;
@@ -375,6 +385,7 @@ public class LocalExecutionPlanner {
         // wrapper around a single timeout value.
         this.grokMatcherWatchdog = grokMatcherWatchdog;
         this.minTransportVersion = minTransportVersion;
+        this.client = client;
     }
 
     /**
@@ -529,6 +540,8 @@ public class LocalExecutionPlanner {
             return planLocal(localSource, context);
         } else if (node instanceof ShowExec show) {
             return planShow(show);
+        } else if (node instanceof EqlSourceExec eqlSource) {
+            return planEqlSource(eqlSource);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
         } else if (node instanceof ExternalSourceExec externalSource) {
@@ -1715,7 +1728,8 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(join.left(), context);
         int positionsChannel = source.layout.numberOfChannels();
         LocalSourceExec localSourceExec = (LocalSourceExec) join.joinData();
-        Page localData = localSourceExec.supplier().get();
+        // The lookup operators copy the blocks they keep into each driver's breaker-tracked block factory
+        Page localData = localSourceExec.supplier().peek();
 
         // see {@link Mapper#JOIN_MARKER_PREFIX}
         Attribute marker = null;
@@ -2193,7 +2207,8 @@ public class LocalExecutionPlanner {
                 createDataStreamLookup(context.shardContexts),
                 metadataSourceChannel,
                 indexChannel,
-                context.plannerSettings().tsInfoPartialEmitThreshold()
+                context.plannerSettings().tsInfoPartialEmitThreshold(),
+                ByteSizeValue.ofBytes(Operator.TARGET_PAGE_SIZE)
             ),
             layoutBuilder.build()
         );
@@ -2228,7 +2243,10 @@ public class LocalExecutionPlanner {
             case INTERMEDIATE -> tsInfoSampleRows(tsInfoExec.limit(), context.plannerSettings());
             case INITIAL -> throw new IllegalStateException("unexpected mode [" + tsInfoExec.mode() + "]");
         };
-        return source.with(new TsInfoOperator.FinalFactory(channels, limit), layoutBuilder.build());
+        return source.with(
+            new TsInfoOperator.FinalFactory(channels, limit, ByteSizeValue.ofBytes(Operator.TARGET_PAGE_SIZE)),
+            layoutBuilder.build()
+        );
     }
 
     /**
@@ -2470,6 +2488,45 @@ public class LocalExecutionPlanner {
         Layout.Builder layout = new Layout.Builder();
         layout.append(showExec.output());
         return PhysicalOperation.fromSource(new ShowOperator.ShowOperatorFactory(showExec.values()), layout.build());
+    }
+
+    private PhysicalOperation planEqlSource(EqlSourceExec eqlSource) {
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(eqlSource.output());
+        // No pushed LIMIT and no WITH {"size"} → fall back to the ES|QL result-truncation cap, and warn at runtime
+        // if the response fills it (results may be incomplete).
+        int truncationCap = configuration.resultTruncationMaxSize(false);
+        boolean warnOnTruncation = EqlRequests.usesTruncationCapSize(eqlSource.options(), eqlSource.pushedLimit());
+        EqlSearchRequest request = EqlRequests.build(
+            eqlSource.query(),
+            eqlSource.indices(),
+            eqlSource.output(),
+            eqlSource.options(),
+            eqlSource.pushedLimit(),
+            new EqlRequests.EnclosingQuery(
+                truncationCap,
+                // Bridge the enclosing ES|QL query's own contracts so an EQL source honors them like FROM does.
+                configuration.allowPartialResults(),
+                QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
+                // The out-of-band request filter is not yet bridged to the EQL delegate. A query that combines an EQL
+                // source with a request filter is rejected in EsqlSession, so the filter is never silently ignored;
+                // EnclosingQuery.filter stays null here until the coordinator-local execution context is built.
+                null
+            )
+        );
+        // Reuse the coordinator's already-fetched field-caps so the EQL engine skips its own resolution; a null carrier
+        // (none retained) falls back to the EQL engine resolving field-caps itself. The EQL engine self-defends against
+        // runtime mappings (which would change the mapping it sees) by ignoring the reuse in that case, so the planner
+        // just hands over what it has. This is a read, not a consume, so every branch of a FORK that re-runs this source
+        // reuses the same resolution.
+        FieldCapabilitiesResponse preResolved = eqlSource.preResolvedFieldCaps();
+        if (preResolved != null) {
+            request.preResolvedFieldCaps(preResolved);
+        }
+        return PhysicalOperation.fromSource(
+            new EqlSourceOperator.Factory(client, request, eqlSource.mode(), eqlSource.output(), eqlSource.source(), warnOnTruncation),
+            layout.build()
+        );
     }
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {

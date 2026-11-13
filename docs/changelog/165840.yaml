@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 165840
+summary: Fix hang on truncated compressed input
+type: bug

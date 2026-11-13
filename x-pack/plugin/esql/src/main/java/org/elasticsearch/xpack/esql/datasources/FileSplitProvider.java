@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.AbstractStri
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalPlanningIo;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
@@ -580,16 +582,18 @@ public class FileSplitProvider implements SplitProvider {
      * than listing again is the obvious refinement and is not done yet: the page the schema read is listed twice,
      * one request against the full listing's many.
      */
-    private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed, ListingExtents extents) throws Exception {
-        DatasetDiscovery discovery = DatasetDiscovery.shared(handed.fileList());
-        if (handed.fileList().isInferenceAnchor()) {
-            // The leftover file is a schema stash. A re-list with the same hints is another anchor (cache hit);
-            // skip it and scan nothing. Certified skip of that one file would also yield zero rows.
-            return handed.withScanFileSet(FileList.EMPTY);
-        }
-        if (discovery.schemaListingIsComplete()) {
-            // The listing is the query's file set, so there is nothing to swap and nothing derived from it to move.
-            return handed;
+    private SplitDiscoveryContext overTheQuerysFileSet(SplitDiscoveryContext handed, ListingExtents extents, boolean forceRelist)
+        throws Exception {
+        if (forceRelist == false) {
+            if (handed.fileList().isInferenceAnchor()) {
+                // The leftover file is a schema stash. A re-list with the same hints is another anchor (cache hit);
+                // skip it and scan nothing. Certified skip of that one file would also yield zero rows.
+                return handed.withScanFileSet(FileList.EMPTY);
+            }
+            if (DatasetDiscovery.shared(handed.fileList()).schemaListingIsComplete()) {
+                // The listing is the query's file set, so there is nothing to swap and nothing derived from it to move.
+                return handed;
+            }
         }
         FileList listed = listForQuery(handed, extents);
         rejectConflictingFormatsPastTheSchemasListing(handed, listed);
@@ -604,7 +608,7 @@ public class FileSplitProvider implements SplitProvider {
         LOGGER.debug(
             () -> Strings.format(
                 "the schema's listing held %d files of [%s]; discovered %d for the query",
-                discovery.schemaListing().fileCount(),
+                handed.fileList().fileCount(),
                 handed.metadata() == null ? "?" : handed.metadata().location(),
                 listed.fileCount()
             )
@@ -940,8 +944,32 @@ public class FileSplitProvider implements SplitProvider {
         if (handedContext.fileList() == null || handedContext.fileList().isResolved() == false) {
             return SplitDiscoveryResult.EMPTY;
         }
+        try {
+            return discoverSplitsOnce(handedContext, false);
+        } catch (RuntimeException e) {
+            if (shouldRelistStaleObject(handedContext, e) == false) {
+                throw e;
+            }
+            LOGGER.debug(
+                () -> Strings.format(
+                    "an external object was missing or rewritten during split discovery of [%s]; listing again",
+                    handedContext.metadata() == null ? "?" : handedContext.metadata().location()
+                )
+            );
+            invalidateListingsFor(handedContext);
+            return discoverSplitsOnce(handedContext, true);
+        }
+    }
+
+    /**
+     * One discovery, optionally forcing a live listing even when the handed schema listing looked complete. The
+     * complete-listing short-circuit is what a stale cached file set rides on, so a retry after a missing or rewritten
+     * object has to skip it. Extents stay the query's demand: a LIMIT that a bound can answer must not jump to an
+     * unbounded walk that can trip {@code max_discovered_files}.
+     */
+    private SplitDiscoveryResult discoverSplitsOnce(SplitDiscoveryContext handedContext, boolean forceRelist) {
         ListingExtents extents = listingExtentsForTheDemand(handedContext);
-        Attempt attempt = discoverSplitsOver(handedContext, extents);
+        Attempt attempt = discoverSplitsOver(handedContext, extents, forceRelist);
         // Only a listing that actually stopped short can have missed rows. Asking for a bound and getting the whole
         // dataset back - a dataset smaller than the bound - leaves nothing to list again, and retrying there would
         // plan every file a second time for no reason.
@@ -963,7 +991,7 @@ public class FileSplitProvider implements SplitProvider {
                 handedContext.rowLimit()
             )
         );
-        return discoverSplitsOver(handedContext, ListingExtents.UNBOUNDED).result();
+        return discoverSplitsOver(handedContext, ListingExtents.UNBOUNDED, forceRelist).result();
     }
 
     /**
@@ -973,10 +1001,10 @@ public class FileSplitProvider implements SplitProvider {
      */
     private record Attempt(SplitDiscoveryResult result, boolean listingStoppedShort, boolean coveredTheDemand) {}
 
-    private Attempt discoverSplitsOver(SplitDiscoveryContext handedContext, ListingExtents extents) {
+    private Attempt discoverSplitsOver(SplitDiscoveryContext handedContext, ListingExtents extents, boolean forceRelist) {
         final SplitDiscoveryContext context;
         try {
-            context = overTheQuerysFileSet(handedContext, extents);
+            context = overTheQuerysFileSet(handedContext, extents, forceRelist);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } catch (Exception e) {
@@ -1128,7 +1156,29 @@ public class FileSplitProvider implements SplitProvider {
             listener.onResponse(SplitDiscoveryResult.EMPTY);
             return;
         }
-        if (DatasetDiscovery.shared(handedContext.fileList()).schemaListingIsComplete()) {
+        discoverSplitsAsyncOnce(handedContext, requestedExecutor, false, ActionListener.wrap(listener::onResponse, e -> {
+            if (shouldRelistStaleObject(handedContext, e) == false) {
+                listener.onFailure(e);
+                return;
+            }
+            LOGGER.debug(
+                () -> Strings.format(
+                    "an external object was missing or rewritten during split discovery of [%s]; listing again",
+                    handedContext.metadata() == null ? "?" : handedContext.metadata().location()
+                )
+            );
+            invalidateListingsFor(handedContext);
+            discoverSplitsAsyncOnce(handedContext, requestedExecutor, true, listener);
+        }));
+    }
+
+    private void discoverSplitsAsyncOnce(
+        SplitDiscoveryContext handedContext,
+        Executor requestedExecutor,
+        boolean forceRelist,
+        ActionListener<SplitDiscoveryResult> listener
+    ) {
+        if (forceRelist == false && DatasetDiscovery.shared(handedContext.fileList()).schemaListingIsComplete()) {
             // The listing is the query's file set already: nothing to discover, so nothing leaves this thread that
             // did not leave it before. Taking the same decision as the sync path through the same helper below is
             // what keeps the two entry points on one rule; this branch only decides which thread asks.
@@ -1139,7 +1189,7 @@ public class FileSplitProvider implements SplitProvider {
         // waits for no such thing. The same bounded first attempt and the same retry as discoverSplits: this is the
         // path production takes, so a rule that only the sync path applied would be a rule production never runs.
         ListingExtents extents = listingExtentsForTheDemand(handedContext);
-        attemptAsync(handedContext, extents, requestedExecutor, listener.delegateFailureAndWrap((l, attempt) -> {
+        attemptAsync(handedContext, extents, forceRelist, requestedExecutor, listener.delegateFailureAndWrap((l, attempt) -> {
             if (attempt.listingStoppedShort() == false || attempt.coveredTheDemand()) {
                 l.onResponse(attempt.result());
                 return;
@@ -1153,7 +1203,7 @@ public class FileSplitProvider implements SplitProvider {
                     handedContext.rowLimit()
                 )
             );
-            attemptAsync(handedContext, ListingExtents.UNBOUNDED, requestedExecutor, l.map(Attempt::result));
+            attemptAsync(handedContext, ListingExtents.UNBOUNDED, forceRelist, requestedExecutor, l.map(Attempt::result));
         }));
     }
 
@@ -1161,15 +1211,58 @@ public class FileSplitProvider implements SplitProvider {
     private void attemptAsync(
         SplitDiscoveryContext handedContext,
         ListingExtents extents,
+        boolean forceRelist,
         Executor requestedExecutor,
         ActionListener<Attempt> listener
     ) {
         discoveryFanOutExecutor(requestedExecutor).execute(
             ActionRunnable.wrap(
                 listener,
-                attempted -> planSplitsAsync(overTheQuerysFileSet(handedContext, extents), requestedExecutor, attempted)
+                attempted -> planSplitsAsync(overTheQuerysFileSet(handedContext, extents, forceRelist), requestedExecutor, attempted)
             )
         );
+    }
+
+    /**
+     * Drops every cached listing of the dataset this discovery is reading, so a retry lists the store rather than
+     * the stale set. No-op when this provider has no cache, which is what unit tests that list live want. Identity
+     * is the same one {@link #listForQuery} cached under, so another endpoint that shares the bucket name keeps
+     * its listings.
+     */
+    private void invalidateListingsFor(SplitDiscoveryContext context) {
+        ExternalSourceCacheService cache = listingService.cacheService();
+        if (cache == null || cache.isEnabled() == false) {
+            return;
+        }
+        String pattern = context.metadata() == null ? null : context.metadata().location();
+        if (pattern == null || pattern.isEmpty()) {
+            return;
+        }
+        StoragePath location = StoragePath.of(pattern);
+        String storageIdentity = "";
+        if (storageRegistry != null) {
+            Configured<StorageProvider> resolved = storageRegistry.createProviderTrackingConsumedKeys(
+                location.scheme(),
+                settings,
+                context.config()
+            );
+            try {
+                storageIdentity = resolved.identity();
+            } finally {
+                StorageProviderCache.closeLease(resolved.value());
+            }
+        }
+        cache.invalidateListingsAt(location, storageIdentity);
+    }
+
+    private static boolean shouldRelistStaleObject(SplitDiscoveryContext context, Exception e) {
+        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
+            return false;
+        }
+        if (context.isCancelled().getAsBoolean()) {
+            return false;
+        }
+        return ExternalException.isStaleCachedObject(e);
     }
 
     /**

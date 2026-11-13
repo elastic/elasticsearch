@@ -142,6 +142,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -6866,12 +6867,32 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private record ChangedDuringResolution(ExternalSourceResolution resolution, Exception failure, int listings) {}
 
     /**
+     * Resolves the two-file union-by-name glob through a reader that finds the object gone since its listing was cached
+     * for as long as {@code missingWhileListings} holds for the number of listings so far.
+     */
+    private ChangedDuringResolution resolveWithMissingReads(IntPredicate missingWhileListings) throws Exception {
+        return resolveWithStaleReads(
+            missingWhileListings,
+            null,
+            object -> new ExternalClientException(ExternalException.Condition.OBJECT_NOT_FOUND, object.path(), "", "")
+        );
+    }
+
+    /**
      * Resolves the two-file union-by-name glob through a reader that finds the object rewritten since its listing was cached
      * for as long as {@code changedWhileListings} holds for the number of listings so far. Returns the outcome and how many
      * times the store was listed.
      */
     private ChangedDuringResolution resolveWithChangedReads(IntPredicate changedWhileListings, RuntimeException otherFailure)
         throws Exception {
+        return resolveWithStaleReads(changedWhileListings, otherFailure, object -> new ExternalObjectChangedException(object.path()));
+    }
+
+    private ChangedDuringResolution resolveWithStaleReads(
+        IntPredicate staleWhileListings,
+        RuntimeException otherFailure,
+        Function<StorageObject, RuntimeException> stale
+    ) throws Exception {
         List<Attribute> schema = List.of(attr("id", DataType.INTEGER), attr("name", DataType.KEYWORD));
         Map<String, List<Attribute>> schemasByPath = new HashMap<>();
         schemasByPath.put("s3://bucket/data/a.parquet", schema);
@@ -6884,8 +6905,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 if (otherFailure != null) {
                     throw otherFailure;
                 }
-                if (changedWhileListings.test(provider.listCallCount.get())) {
-                    throw new ExternalObjectChangedException(object.path());
+                if (staleWhileListings.test(provider.listCallCount.get())) {
+                    throw stale.apply(object);
                 }
                 return super.metadata(object);
             }
@@ -6923,12 +6944,31 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals("two passes, no third", 2, outcome.listings());
     }
 
-    /** Only the object-changed condition is retried: any other failure during resolution is returned after one pass. */
+    /** Only a stale cached object is retried: any other failure during resolution is returned after one pass. */
     public void testOtherFailureDuringResolutionIsNotRetried() throws Exception {
         ChangedDuringResolution outcome = resolveWithChangedReads(listings -> false, new IllegalStateException("not an object change"));
         assertNotNull(outcome.failure());
         assertFalse(ExternalException.hasCondition(outcome.failure(), ExternalException.Condition.OBJECT_CHANGED));
         assertEquals(1, outcome.listings());
+    }
+
+    /**
+     * A read during resolution finds the object gone since its listing was cached. Nothing has run yet, so resolution
+     * drops the cached listing and resolves once more: it lists the store again and succeeds.
+     */
+    public void testObjectNotFoundDuringResolutionListsAgainAndSucceeds() throws Exception {
+        ChangedDuringResolution outcome = resolveWithMissingReads(listings -> listings < 2);
+        assertNull(outcome.failure());
+        assertEquals(2, outcome.resolution().resolvedSource("s3://bucket/data/*.parquet").fileList().fileCount());
+        assertEquals("the failure dropped the cached listing, so the second pass listed again", 2, outcome.listings());
+    }
+
+    /** The retry runs once: an object that is still missing on the second pass fails the resolution with the condition. */
+    public void testObjectNotFoundTwiceDuringResolutionIsReturned() throws Exception {
+        ChangedDuringResolution outcome = resolveWithMissingReads(listings -> true);
+        assertNotNull(outcome.failure());
+        assertTrue(ExternalException.hasCondition(outcome.failure(), ExternalException.Condition.OBJECT_NOT_FOUND));
+        assertEquals("two passes, no third", 2, outcome.listings());
     }
 
     /**

@@ -624,8 +624,21 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                         rightLabels.add(attribute(get(rightShape, right.source(), name), name, rightEvals));
                     }
                     if (leftShape.hasRest() || rightShape.hasRest()) {
-                        leftFields.add(attribute(restKey(left.source(), leftShape), REST_KEY, leftEvals));
-                        rightFields.add(attribute(restKey(right.source(), rightShape), REST_KEY, rightEvals));
+                        // A label that one side holds in its residual container too and the other in its column alone
+                        // compares packed only: that side's residual container leaves it out.
+                        var leftOut = new TreeSet<String>();
+                        var rightOut = new TreeSet<String>();
+                        for (String name : typed ? names : Set.<String>of()) {
+                            if (inRest(leftShape, name) && inRest(rightShape, name) == false) {
+                                leftOut.add(name);
+                            } else if (inRest(rightShape, name) && inRest(leftShape, name) == false) {
+                                rightOut.add(name);
+                            }
+                        }
+                        Shape leftRest = without(leftShape, left.source(), leftOut);
+                        Shape rightRest = without(rightShape, right.source(), rightOut);
+                        leftFields.add(attribute(restKey(left.source(), leftRest), REST_KEY, leftEvals));
+                        rightFields.add(attribute(restKey(right.source(), rightRest), REST_KEY, rightEvals));
                     }
                 } else {
                     leftFields.add(left);
@@ -677,6 +690,11 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
             Attribute packed = new ReferenceAttribute(child.source(), null, PackDims.PACKED_FIELD_NAME, DataType.KEYWORD);
             keys.add(packed);
             return new PackDims(child.source(), child, labels, packed);
+        }
+
+        /** Whether the residual container of {@code shape} holds {@code label}, whether or not a column holds it as well. */
+        private static boolean inRest(Shape shape, String label) {
+            return shape.hasRest() && shape.excluded().contains(label) == false;
         }
 
         private Expression restKey(Source source, Shape shape) {

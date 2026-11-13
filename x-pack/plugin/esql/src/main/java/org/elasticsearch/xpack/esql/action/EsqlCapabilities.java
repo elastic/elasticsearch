@@ -4299,6 +4299,14 @@ public class EsqlCapabilities {
         PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL vector matching no longer needs both operands to name their labels: {@code on(...)} and {@code ignoring(...)}
+         * read the listed labels out of an opaque operand's label container, and default matching keys an opaque side by its
+         * label container without {@code __name__} and a side without one by the empty signature, as Prometheus signatures do.
+         * Gates csv-spec coverage of those shapes.
+         */
+        PROMQL_BINARY_OPAQUE_SIGNATURE_MATCH(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),

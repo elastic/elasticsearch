@@ -65,7 +65,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -96,9 +95,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.ToLongFunction;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1322,7 +1323,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
             numShards,
             false,
-            (nanos, finishNanos) -> {},
+            (shardIds, weight) -> (nanos, finishNanos) -> {},
             new SearchSourceBuilder().size(1).sort(SortBuilders.fieldSort("timestamp")),
             result -> {
                 openedContexts.add(result.getContextId());
@@ -1434,20 +1435,29 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     /**
-     * Without enough results to fork a merge, the node merges them when it builds its response, which is work for all its shards.
+     * Without enough results to fork a merge, the node merges them when it builds its response, and charges it to its shards
+     * by the docs each matched, here its shard number.
      */
     public void testBatchedNodeResponseChargesMergeToShards() throws Exception {
+        int shards = between(2, 5);
         AtomicLong merged = new AtomicLong();
+        Map<ShardId, Long> weights = new ConcurrentHashMap<>();
         RecordingChannel channel = runBatchedNodeQuery(
             TransportVersion.current(),
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
-            between(2, 5),
+            shards,
             false,
-            (nanos, finishNanos) -> merged.addAndGet(nanos)
+            (shardIds, weight) -> (nanos, finishNanos) -> {
+                merged.addAndGet(nanos);
+                shardIds.forEach(shardId -> weights.put(shardId, weight.applyAsLong(shardId)));
+            }
         );
         assertNull(channel.failure);
         assertTrue(channel.response.decRef());
         assertThat(merged.get(), greaterThan(0L));
+        for (int i = 0; i < shards; i++) {
+            assertThat(weights.get(new ShardId("idx", "uuid", i)), equalTo((long) i));
+        }
     }
 
     private RecordingChannel runBatchedNodeQuery(
@@ -1456,15 +1466,22 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         int shards,
         boolean failWrites
     ) throws Exception {
-        return runBatchedNodeQuery(channelVersion, breakerService, shards, failWrites, (nanos, finishNanos) -> {});
+        return runBatchedNodeQuery(channelVersion, breakerService, shards, failWrites, (shardIds, weight) -> (nanos, finishNanos) -> {});
     }
 
+    /**
+     * Runs a request for {@code shards} shards through the batched query handler of a node whose shards return no hits, each
+     * matching as many docs as its shard number, and returns the channel once the handler has responded on it.
+     *
+     * @param failWrites whether the response stream throws on its first write
+     * @param searchLoad builds the target the node charges merging the results of its shards to, from the shards and their weights
+     */
     private RecordingChannel runBatchedNodeQuery(
         TransportVersion channelVersion,
         CircuitBreakerService breakerService,
         int shards,
         boolean failWrites,
-        TaskLoadAttribution.Target searchLoad
+        BiFunction<List<ShardId>, ToLongFunction<ShardId>, TaskLoadAttribution.Target> searchLoad
     ) throws Exception {
         return runBatchedNodeQuery(
             channelVersion,
@@ -1475,7 +1492,13 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new SearchSourceBuilder().size(0),
             result -> {
                 result.topDocs(
-                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                    new TopDocsAndMaxScore(
+                        new TopDocs(
+                            new TotalHits(result.getSearchShardTarget().getShardId().id(), TotalHits.Relation.EQUAL_TO),
+                            new ScoreDoc[0]
+                        ),
+                        Float.NaN
+                    ),
                     new DocValueFormat[0]
                 );
                 result.from(0);
@@ -1490,7 +1513,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
      * handler has responded on it. The caller must release the response.
      *
      * @param failWrites whether the response stream throws on its first write
-     * @param searchLoad where the node charges merging the results of its shards
+     * @param searchLoad builds the target the node charges merging the results of its shards to, from the shards and their weights
      * @param source the search source of the request
      * @param shardResult fills in the query result each shard returns
      * @param onFreeContext called with the id of each reader context the node asks to free
@@ -1500,7 +1523,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         CircuitBreakerService breakerService,
         int shards,
         boolean failWrites,
-        TaskLoadAttribution.Target searchLoad,
+        BiFunction<List<ShardId>, ToLongFunction<ShardId>, TaskLoadAttribution.Target> searchLoad,
         SearchSourceBuilder source,
         Consumer<QuerySearchResult> shardResult,
         Consumer<ShardSearchContextId> onFreeContext
@@ -1553,13 +1576,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new FetchPhase(Collections.emptyList()),
             breakerService,
             EmptySystemIndices.INSTANCE.getExecutorSelector(),
-            Tracer.NOOP,
             OnlinePrewarmingService.NOOP,
             transport.getTaskManager()
         ) {
             @Override
-            public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
-                return searchLoad;
+            public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> weight) {
+                return searchLoad.apply(shardIds, weight);
             }
 
             @Override
@@ -1702,12 +1724,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new FetchPhase(Collections.emptyList()),
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
             EmptySystemIndices.INSTANCE.getExecutorSelector(),
-            Tracer.NOOP,
             OnlinePrewarmingService.NOOP,
             transport.getTaskManager()
         ) {
             @Override
-            public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
+            public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> weight) {
                 return (nanos, finishNanos) -> {};
             }
 

@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -123,6 +124,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
@@ -136,11 +138,13 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
@@ -1245,7 +1249,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3)),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1253,7 +1257,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(indexMetadata.getIndex().getName(), indexMetadata.getIndexUUID()), 0),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1261,7 +1265,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     testHarness.shardId,
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1709,7 +1713,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             safeAwait(waitForUploadLatch);
 
             final var measurements = meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.stateless.bcc_multipart_upload.part_start.latency.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_MULTIPART_UPLOAD_PART_START_LATENCY_HISTOGRAM);
             // time since the start of the upload is 10, 10 + 20 (=30), and 10 + 20 + 30 (=60) milliseconds
             assertThat(
                 measurements.stream().map(Measurement::getLong).toList(),
@@ -1719,6 +1723,22 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 measurements.stream().map(m -> m.attributes().get("multipart")).toList(),
                 equalTo(isMultipart ? List.of(true, true, true) : List.of(false))
             );
+
+            final var partDurations = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_UPLOAD_PART_DURATION_HISTOGRAM);
+            assertThat(partDurations.size(), equalTo((isMultipart ? 3 : 1) * (1 + retriesPerPart)));
+            assertTrue(partDurations.stream().allMatch(m -> m.getLong() >= 0L));
+            assertThat(
+                partDurations.stream().map(m -> m.attributes().get("multipart")).distinct().toList(),
+                equalTo(isMultipart ? List.of(true) : List.of(false))
+            );
+
+            final var objectStoreUploads = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BccUploadMetrics.BCC_OBJECT_STORE_UPLOAD_DURATION_HISTOGRAM_METRIC);
+            assertThat(objectStoreUploads.size(), equalTo(1));
+            assertThat(objectStoreUploads.getFirst().getLong(), greaterThanOrEqualTo(0L));
+            assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY), equalTo(true));
+            assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY), notNullValue());
         }
     }
 

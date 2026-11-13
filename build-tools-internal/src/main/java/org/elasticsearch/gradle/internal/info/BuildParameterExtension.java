@@ -54,8 +54,11 @@ public interface BuildParameterExtension {
 
     ZonedDateTime getBuildDate();
 
-    String getTestSeed();
-
+    /**
+     * The random seed for this build's tests. There is deliberately no eager {@code String} getter: the seed is new on
+     * every build, so reading it while configuring (for example {@code buildParams.testSeed} in a build script) would make
+     * the configuration cache discard its entry on every run. Map the provider instead and resolve it at execution time.
+     */
     Provider<String> getTestSeedProvider();
 
     Boolean getCi();

@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 
 /**
  * Translates the PromQL functions over a label container: a function over each series changes its value and keeps its
- * labels; a function returning a scalar drops them.
+ * labels, but for the metric name most of them drop; a function returning a scalar drops them.
  */
 final class PromqlFunctionCallV2 {
 
@@ -29,7 +29,10 @@ final class PromqlFunctionCallV2 {
      * Shared by the function families that need no special lowering.
      */
     static IntermediateResult translate(PromqlFunctionCall function, TranslationContextV2 context) {
-        return apply(function, context, context.translate(function.child()));
+        IntermediateResult result = apply(function, context, context.translate(function.child()));
+        boolean dropsMetricName = function instanceof ValueTransformationFunction
+            || function instanceof WithinSeriesAggregate within && within.keepsMetricName() == false;
+        return dropsMetricName ? result.withLabels(PromqlLabels.withoutMetricName(result.labels())) : result;
     }
 
     /** Applies {@code function} to the value of its already translated child. */

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult.Kind;
@@ -121,7 +122,7 @@ public final class VectorBinarySetV2 {
             var match = new Alias(
                 source,
                 OR_MATCH_KEY,
-                new TimeSeriesMetadataFilter(source, labels.toAttribute(), List.of(Literal.keyword(source, LabelMatcher.NAME)), true)
+                PromqlLabels.withoutMetricName(labels.toAttribute())
             );
             LogicalPlan tagged = new Eval(source, branchPlan, List.of(branch, labels, match));
             // Pin layout across the exchange (#158164): Eval name-shadow leaves ghost channels otherwise.

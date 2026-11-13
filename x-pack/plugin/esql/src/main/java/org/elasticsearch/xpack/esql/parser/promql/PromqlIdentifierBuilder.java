@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
+import org.elasticsearch.core.Nullable;
+
 import static org.elasticsearch.xpack.esql.parser.PromqlBaseParser.IdentifierContext;
 
 abstract class PromqlIdentifierBuilder extends AbstractPromqlBuilder {
 
-    PromqlIdentifierBuilder(int startLine, int startColumn) {
-        super(startLine, startColumn);
+    PromqlIdentifierBuilder(int startLine, int startColumn, @Nullable String viewName) {
+        super(startLine, startColumn, viewName);
     }
 
     @Override

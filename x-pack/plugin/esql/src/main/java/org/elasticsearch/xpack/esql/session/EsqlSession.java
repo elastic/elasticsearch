@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.anonymizer.PlanAnonymizer;
 import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
@@ -1919,6 +1920,20 @@ public class EsqlSession {
         return new PreAnalysisResult(fieldNames, result.wildcardJoinIndices());
     }
 
+    /**
+     * Whether the caller's own query contains {@code PROMQL}, outside every view body. A view with {@code PROMQL} in its body
+     * resolves with {@code NULLIFY} in its own settings, which keeps its body a view branch, so it is skipped here.
+     */
+    private static boolean callerScopeHasPromql(LogicalPlan plan) {
+        Holder<Boolean> found = new Holder<>(false);
+        ViewUtils.forEachOutsideViews(plan, p -> {
+            if (p instanceof PromqlCommand) {
+                found.set(true);
+            }
+        });
+        return found.get();
+    }
+
     private void resolveIndicesAndAnalyze(
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
@@ -1939,8 +1954,11 @@ public class EsqlSession {
         // solution would be to just not track the unmapped indices at all, but that requires a more structural change.
         boolean trackedUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
         boolean exemplars = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings()).enabled();
-        // Exemplar columns missing from the exemplar data streams' mappings are nullified rather than failing the query
-        boolean nullify = exemplars || parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
+        // Exemplar columns missing from the exemplar data streams' mappings are nullified rather than failing the query.
+        // PROMQL treats a missing label or metric as absent, so the caller's own PROMQL nullifies too. A PROMQL inside a
+        // view does not count here: the view's own settings nullify its body (ViewQuerySettings#from), and must not
+        // change how the caller's query resolves.
+        boolean nullify = exemplars || callerScopeHasPromql(parsed);
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(
                 preAnalysis,

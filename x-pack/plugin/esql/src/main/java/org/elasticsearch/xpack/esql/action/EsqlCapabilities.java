@@ -4183,6 +4183,14 @@ public class EsqlCapabilities {
         FIX_PROMQL_EMPTY_RANGE_IS_NO_ELEMENT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * A view whose body is {@code PROMQL} nullifies missing labels and metrics in its own scope, whatever the caller
+         * {@code SET}s, as the same {@code PROMQL} does directly, rather than failing with "Unknown column" under a caller
+         * {@code SET unmapped_fields}. A {@code PROMQL} inside a view no longer makes the caller's query nullify, and the
+         * sources of a view's {@code PROMQL} are read back against the view's query on data nodes.
+         */
+        FIX_PROMQL_VIEW_WITH_CALLER_UNMAPPED_FIELDS,
+
+        /**
          * Fix mixing of millisecond roundings with nanosecond timestamps in time-series aggregations over
          * {@code date_nanos} indices. This covers window bucket expansion, the window merge in the final
          * aggregation, the window row filter for windows smaller than the time bucket, and the neighbor-bucket
@@ -4663,13 +4671,6 @@ public class EsqlCapabilities {
          * rather than every key of the object.
          */
         METRICS_INFO_FIELD_PRESENCE,
-
-        /**
-         * A view whose body is {@code PROMQL} nullifies missing labels and metrics in its own scope when the caller
-         * {@code SET unmapped_fields}, as the same {@code PROMQL} does directly, rather than failing with "Unknown column".
-         * See esql-planning#2509.
-         */
-        FIX_PROMQL_VIEW_WITH_CALLER_UNMAPPED_FIELDS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

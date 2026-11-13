@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -81,6 +82,11 @@ public record ViewQuerySettings(
      * Resolves the view-scoped settings of a parsed view definition with the same fold as a query's settings, minus the
      * request body, which belongs to the caller: the cluster defaults in {@code clusterState} and {@code nodeSettings},
      * then the definition's {@code SET}. Call {@link #validate} first; this assumes the statement carries only allowed settings.
+     * <p>
+     * A {@code PROMQL} body whose {@code unmapped_fields} resolves to {@code DEFAULT} gets {@code NULLIFY}, as a query
+     * containing {@code PROMQL} does in {@code EsqlSession}: PromQL treats a missing label or metric as absent. The view's own
+     * scope is where that belongs, so the view behaves the same whatever its caller {@code SET}s, and its {@code PROMQL}
+     * does not change how the caller's query resolves.
      */
     public static ViewQuerySettings from(EsqlStatement statement, Settings clusterState, Settings nodeSettings) {
         Set<String> supplied = statement.settings() == null
@@ -95,8 +101,12 @@ public record ViewQuerySettings(
             statement,
             new SettingsValidationContext(false, true)
         );
+        UnmappedResolution unmappedFields = QuerySettings.UNMAPPED_FIELDS.get(resolved);
+        if (unmappedFields == UnmappedResolution.DEFAULT && statement.plan().anyMatch(PromqlCommand.class::isInstance)) {
+            unmappedFields = UnmappedResolution.NULLIFY;
+        }
         return new ViewQuerySettings(
-            QuerySettings.UNMAPPED_FIELDS.get(resolved),
+            unmappedFields,
             QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
             supplied

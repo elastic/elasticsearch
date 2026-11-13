@@ -2301,7 +2301,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     /**
      * PROMQL nullifies a missing label or metric, so the session analyzes any query containing PROMQL with NULLIFY. A caller
      * SET keeps view boundaries, and the PROMQL body of a view without its own SET must still be nullified in its own scope
-     * rather than fail with "Unknown column". See esql-planning#2509.
+     * rather than fail with "Unknown column".
      */
     public void testCallerSetUnmappedNullifiesMissingLabelsInPromQlView() {
         assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());

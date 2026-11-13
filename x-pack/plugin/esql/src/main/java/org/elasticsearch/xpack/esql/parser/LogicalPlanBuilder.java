@@ -2020,7 +2020,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 params.endLiteral(),
                 promqlStartLine,
                 promqlStartColumn,
-                context.params()
+                context.params(),
+                context.viewName()
             );
         } catch (ParsingException pe) {
             throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);

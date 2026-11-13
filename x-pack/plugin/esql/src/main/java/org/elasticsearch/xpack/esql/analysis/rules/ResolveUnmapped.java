@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
@@ -122,7 +120,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         AnalyzerContext context
     ) {
         LogicalPlan withInnerScopes = transformViewBranches(plan, (viewName, branch) -> {
-            UnmappedResolution viewResolution = viewResolution(viewName, branch, context);
+            UnmappedResolution viewResolution = ViewQuerySettings.forView(viewName, context.viewSettings()).unmappedFields();
             return applyScoped(branch, viewResolution, viewName, context);
         });
         BiConsumer<BranchIdentity, String> onViewNullFill = (identity, fieldName) -> {
@@ -138,30 +136,6 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             case UnmappedResolution.NULLIFY -> resolveOutsideViews(withInnerScopes, false, onViewNullFill);
             case UnmappedResolution.LOAD, UnmappedResolution.LOAD_ALL -> resolveOutsideViews(withInnerScopes, true, onViewNullFill);
         };
-    }
-
-    /**
-     * The resolution a view body is analyzed with: its own definition's {@code SET unmapped_fields}, except that a PROMQL
-     * body with no such {@code SET} resolves under NULLIFY. PROMQL treats a missing label or metric as an empty series,
-     * so {@code EsqlSession} always analyzes a query containing PROMQL with NULLIFY. Without a caller {@code SET}, a view's
-     * body is analyzed in the caller's scope and gets that NULLIFY too. A caller {@code SET} keeps the view boundary, so
-     * the view's own scope needs the same rule or the PROMQL body fails with "Unknown column".
-     */
-    private static UnmappedResolution viewResolution(String viewName, LogicalPlan branch, AnalyzerContext context) {
-        UnmappedResolution defined = ViewQuerySettings.forView(viewName, context.viewSettings()).unmappedFields();
-        if (defined != UnmappedResolution.DEFAULT) {
-            return defined;
-        }
-        // Only this view's own scope counts: a nested view kept as a branch of its own gets its own resolution.
-        // By now the PROMQL command is usually translated, leaving the TimeSeriesAggregate it produced.
-        Holder<Boolean> hasPromql = new Holder<>(false);
-        ViewUtils.forEachOutsideViews(branch, p -> {
-            if (p instanceof PromqlCommand
-                || (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND)) {
-                hasPromql.set(true);
-            }
-        });
-        return hasPromql.get() ? UnmappedResolution.NULLIFY : defined;
     }
 
     /**

@@ -56,7 +56,7 @@ public class RecoveryPriorityTests extends ESTestCase {
                     LegacyRecoveryPriority copyPriority = in.readEnum(LegacyRecoveryPriority.class);
                     LegacyRecoveryPriority expectedPriority = switch (originalPriority) {
                         case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED -> LegacyRecoveryPriority.UNASSIGNED_EXISTING;
-                        case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING ->
+                        case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING, UNASSIGNED_RESHARD_SPLIT_TARGET ->
                             LegacyRecoveryPriority.UNASSIGNED_NEW;
                         case RELOCATION_CAN_REMAIN_NO -> LegacyRecoveryPriority.RELOCATION_CAN_REMAIN_NO;
                         case RELOCATION_CAN_REMAIN_NOT_PREFERRED -> LegacyRecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED;
@@ -119,7 +119,7 @@ public class RecoveryPriorityTests extends ESTestCase {
                     final var expectedPriority = switch (originalPriority) {
                         case UNASSIGNED_NEW_PRIMARY -> RecoveryPriorityBeforeNonCriticalUnassigned.UNASSIGNED_NEW_PRIMARY;
                         case UNASSIGNED_UNEXPECTED -> RecoveryPriorityBeforeNonCriticalUnassigned.UNASSIGNED_UNEXPECTED;
-                        case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING ->
+                        case UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING, UNASSIGNED_RESHARD_SPLIT_TARGET ->
                             RecoveryPriorityBeforeNonCriticalUnassigned.UNASSIGNED_EXPECTED;
                         case RELOCATION_CAN_REMAIN_NO -> RecoveryPriorityBeforeNonCriticalUnassigned.RELOCATION_CAN_REMAIN_NO;
                         case RELOCATION_CAN_REMAIN_NOT_PREFERRED ->
@@ -181,6 +181,66 @@ public class RecoveryPriorityTests extends ESTestCase {
                 assertTrue(max == first || max == second);
                 // The highest priority comes first in the enum
                 assertTrue(max.compareTo(first) <= 0 && max.compareTo(second) <= 0);
+            }
+        }
+    }
+
+    /// A copy of the [RecoveryPriority] enum before the introduction of [RecoveryPriority#UNASSIGNED_RESHARD_SPLIT_TARGET].
+    private enum RecoveryPriorityBeforeReshardSplitTarget {
+        UNASSIGNED_NEW_PRIMARY,
+        UNASSIGNED_UNEXPECTED,
+        UNASSIGNED_EXPECTED,
+        RELOCATION_CAN_REMAIN_NO,
+        UNASSIGNED_RESTORING,
+        UNASSIGNED_PERFORMANCE_SCALING,
+        RELOCATION_CAN_REMAIN_NOT_PREFERRED,
+        RELOCATE_REBALANCING,
+        UNKNOWN
+    }
+
+    /// Serializes a [RecoveryPriority] using a [TransportVersion] from before the introduction of
+    /// [RecoveryPriority#UNASSIGNED_RESHARD_SPLIT_TARGET], deserializes them the way that we used to before that change to
+    /// get a [RecoveryPriorityBeforeReshardSplitTarget], and assert that it is the equivalent or closest value.
+    public void testSerialization_beforeReshardSplitTargetReader() throws IOException {
+        for (final var originalPriority : RecoveryPriority.values()) {
+            final var version = RecoveryPriority.RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION;
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.setTransportVersion(version);
+                originalPriority.writeTo(output);
+                try (StreamInput in = output.bytes().streamInput()) {
+                    final var copyPriority = in.readEnum(RecoveryPriorityBeforeReshardSplitTarget.class);
+                    final var expectedPriority = switch (originalPriority) {
+                        case UNASSIGNED_NEW_PRIMARY -> RecoveryPriorityBeforeReshardSplitTarget.UNASSIGNED_NEW_PRIMARY;
+                        case UNASSIGNED_UNEXPECTED -> RecoveryPriorityBeforeReshardSplitTarget.UNASSIGNED_UNEXPECTED;
+                        case UNASSIGNED_EXPECTED -> RecoveryPriorityBeforeReshardSplitTarget.UNASSIGNED_EXPECTED;
+                        case RELOCATION_CAN_REMAIN_NO -> RecoveryPriorityBeforeReshardSplitTarget.RELOCATION_CAN_REMAIN_NO;
+                        case UNASSIGNED_RESTORING -> RecoveryPriorityBeforeReshardSplitTarget.UNASSIGNED_RESTORING;
+                        case UNASSIGNED_PERFORMANCE_SCALING, UNASSIGNED_RESHARD_SPLIT_TARGET ->
+                            RecoveryPriorityBeforeReshardSplitTarget.UNASSIGNED_PERFORMANCE_SCALING;
+                        case RELOCATION_CAN_REMAIN_NOT_PREFERRED ->
+                            RecoveryPriorityBeforeReshardSplitTarget.RELOCATION_CAN_REMAIN_NOT_PREFERRED;
+                        case RELOCATE_REBALANCING -> RecoveryPriorityBeforeReshardSplitTarget.RELOCATE_REBALANCING;
+                        case UNKNOWN -> RecoveryPriorityBeforeReshardSplitTarget.UNKNOWN;
+                    };
+                    assertEquals(expectedPriority, copyPriority);
+                }
+            }
+        }
+    }
+
+    /// Serializes a [RecoveryPriorityBeforeReshardSplitTarget] the way we used to before the introduction of
+    /// [RecoveryPriority#UNASSIGNED_RESHARD_SPLIT_TARGET], deserializes them to get a [RecoveryPriority] using a
+    /// [TransportVersion] from before that change, and assert that it is an equivalent value.
+    public void testSerialization_beforeReshardSplitTargetWriter() throws IOException {
+        for (final var originalPriority : RecoveryPriorityBeforeReshardSplitTarget.values()) {
+            final var version = RecoveryPriority.RECOVERY_PRIORITY_UNASSIGNED_NON_CRITICAL_TRANSPORT_VERSION;
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.writeEnum(originalPriority);
+                try (StreamInput in = output.bytes().streamInput()) {
+                    in.setTransportVersion(version);
+                    final var copyPriority = RecoveryPriority.readFrom(in);
+                    assertEquals(RecoveryPriority.valueOf(originalPriority.name()), copyPriority);
+                }
             }
         }
     }

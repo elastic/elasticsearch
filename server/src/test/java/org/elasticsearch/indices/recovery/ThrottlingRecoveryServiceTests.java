@@ -86,10 +86,12 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -2474,7 +2476,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     }
 
     /// A relocation started by the balancer before its source node was marked for removal is queued behind a lower
-    /// priority recovery (a reshard split target). Once the shutdown is registered, the relocation must go first.
+    /// priority recovery (a replica added for performance scaling). Once the shutdown is registered, the relocation must go first.
     /// Another relocation from the same source node, which already holds the only recovery slot, is left alone and keeps
     /// the priority the master assigned to it.
     public void testQueuedRelocationIsReprioritizedWhenSourceNodeIsMarkedForRemoval() {
@@ -2500,17 +2502,17 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertNotNull("running relocation should have been dispatched", blockedRecoveryListener.get());
 
         final var completionOrder = new CopyOnWriteArrayList<String>();
-        final var splitTargetShard = mockIndexShard(
+        final var scalingReplicaShard = mockIndexShard(
             newRecoveryState(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING),
             UUIDs.randomBase64UUID(),
             stats
         );
         service.enqueue(
             ProjectId.DEFAULT,
-            onRecoveryDoneListener(() -> completionOrder.add("split-target")),
-            splitTargetShard,
+            onRecoveryDoneListener(() -> completionOrder.add("scaling-replica")),
+            scalingReplicaShard,
             newIndexMetadata(),
-            l -> l.onRecoveryDone(splitTargetShard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            l -> l.onRecoveryDone(scalingReplicaShard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
         );
         final var relocationTargetShard = mockRelocationTargetIndexShard(clusterService, "relocation-source", assignedPriority);
         service.enqueue(
@@ -2540,7 +2542,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 clusterService,
                 unrelatedShutdowns,
                 runningRelocationShard,
-                splitTargetShard,
+                scalingReplicaShard,
                 relocationTargetShard
             )
         );
@@ -2558,19 +2560,19 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     )
                 ),
                 runningRelocationShard,
-                splitTargetShard,
+                scalingReplicaShard,
                 relocationTargetShard
             )
         );
         assertThat(service.currentQueueSize(), equalTo(2));
         assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO));
-        assertThat(splitTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
+        assertThat(scalingReplicaShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
         // The running relocation is not reprioritized
         assertThat(runningRelocationShard.recoveryState().getRecoveryPriority(), equalTo(assignedPriority));
 
         blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
-        assertThat(completionOrder, equalTo(List.of("relocation", "split-target")));
+        assertThat(completionOrder, equalTo(List.of("relocation", "scaling-replica")));
         assertThat(service.currentQueueSize(), equalTo(0));
         assertThat(runningRelocationShard.recoveryState().getRecoveryPriority(), equalTo(assignedPriority));
     }
@@ -2596,17 +2598,17 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
 
         final var completionOrder = new CopyOnWriteArrayList<String>();
-        final var splitTargetShard = mockIndexShard(
+        final var scalingReplicaShard = mockIndexShard(
             newRecoveryState(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING),
             UUIDs.randomBase64UUID(),
             stats
         );
         service.enqueue(
             ProjectId.DEFAULT,
-            onRecoveryDoneListener(() -> completionOrder.add("split-target")),
-            splitTargetShard,
+            onRecoveryDoneListener(() -> completionOrder.add("scaling-replica")),
+            scalingReplicaShard,
             newIndexMetadata(),
-            l -> l.onRecoveryDone(splitTargetShard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            l -> l.onRecoveryDone(scalingReplicaShard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
         );
         final var relocationTargetShard = mockRelocationTargetIndexShard(
             clusterService,
@@ -2624,7 +2626,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
-        assertThat(completionOrder, equalTo(List.of("relocation", "split-target")));
+        assertThat(completionOrder, equalTo(List.of("relocation", "scaling-replica")));
     }
 
     /// A raised priority is never lowered again, even if the shutdown of the source node that caused it is removed
@@ -2644,17 +2646,17 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertNotNull("blocker should have been dispatched", blockedRecoveryListener.get());
 
         final var completionOrder = new CopyOnWriteArrayList<String>();
-        final var splitTargetShard = mockIndexShard(
+        final var scalingReplicaShard = mockIndexShard(
             newRecoveryState(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING),
             UUIDs.randomBase64UUID(),
             stats
         );
         service.enqueue(
             ProjectId.DEFAULT,
-            onRecoveryDoneListener(() -> completionOrder.add("split-target")),
-            splitTargetShard,
+            onRecoveryDoneListener(() -> completionOrder.add("scaling-replica")),
+            scalingReplicaShard,
             newIndexMetadata(),
-            l -> l.onRecoveryDone(splitTargetShard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            l -> l.onRecoveryDone(scalingReplicaShard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
         );
         final var relocationTargetShard = mockRelocationTargetIndexShard(
             clusterService,
@@ -2682,7 +2684,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                         SingleNodeShutdownMetadata.Type.SIGTERM
                     )
                 ),
-                splitTargetShard,
+                scalingReplicaShard,
                 relocationTargetShard
             )
         );
@@ -2693,7 +2695,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             clusterChangedEventWithShutdowns(
                 clusterService,
                 randomBoolean() ? NodesShutdownMetadata.EMPTY : nodeShutdowns("relocation-source", SingleNodeShutdownMetadata.Type.RESTART),
-                splitTargetShard,
+                scalingReplicaShard,
                 relocationTargetShard
             )
         );
@@ -2702,7 +2704,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
-        assertThat(completionOrder, equalTo(List.of("relocation", "split-target")));
+        assertThat(completionOrder, equalTo(List.of("relocation", "scaling-replica")));
         assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO));
     }
 
@@ -2758,6 +2760,68 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
+    public void testSplitTargetRecoversAfterRelocations() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(1);
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+
+        // The blocker holds the only recovery slot until its listener is completed, so that the other recoveries all queue
+        final var blockedRecoveryListener = new AtomicReference<RecoveryListener>();
+        service.enqueue(
+            ProjectId.DEFAULT,
+            noopRecoveryListener(),
+            mockIndexShard(newCriticalRecoveryState(), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            blockedRecoveryListener::set
+        );
+        taskQueue.runAllRunnableTasks();
+        assertNotNull("blocker should have been dispatched", blockedRecoveryListener.get());
+
+        final var splitTargetShardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 1);
+        final var splitTargetRouting = TestShardRouting.shardRoutingBuilder(
+            splitTargetShardId,
+            clusterService.localNode().getId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        )
+            .withRecoverySource(new RecoverySource.ReshardSplitRecoverySource(new ShardId(splitTargetShardId.getIndex(), 0)))
+            .withRecoveryPriority(RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET)
+            .build();
+        final var splitTargetShard = mockIndexShard(
+            new RecoveryState(splitTargetRouting, targetNode, sourceNode),
+            UUIDs.randomBase64UUID(),
+            stats
+        );
+        final var relocationTargetShards = Stream.of(
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO,
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED,
+            RecoveryPriority.RELOCATE_REBALANCING
+        ).map(priority -> mockRelocationTargetIndexShard(clusterService, "relocation-source", priority)).toList();
+
+        final List<IndexShard> shuffledShards = new ArrayList<>(relocationTargetShards);
+        shuffledShards.add(splitTargetShard);
+        Collections.shuffle(shuffledShards, random());
+        final var completionOrder = new CopyOnWriteArrayList<IndexShard>();
+        for (final var shard : shuffledShards) {
+            service.enqueue(
+                ProjectId.DEFAULT,
+                onRecoveryDoneListener(() -> completionOrder.add(shard)),
+                shard,
+                newIndexMetadata(),
+                l -> l.onRecoveryDone(shard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+            );
+        }
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(shuffledShards.size()));
+
+        blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(0));
+        assertThat(completionOrder.size(), equalTo(shuffledShards.size()));
+        assertThat(completionOrder.getLast(), sameInstance(splitTargetShard));
+        assertThat(completionOrder.subList(0, relocationTargetShards.size()), containsInAnyOrder(relocationTargetShards.toArray()));
     }
 
     private static ClusterChangedEvent clusterChangedEventWithShutdowns(
@@ -2877,8 +2941,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     private static RecoveryState newRecoveryState(ShardId shardId, RecoveryPriority recoveryPriority) {
         String relocatingNodeId = switch (recoveryPriority) {
-            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING ->
-                null;
+            case UNASSIGNED_NEW_PRIMARY, UNASSIGNED_UNEXPECTED, UNASSIGNED_EXPECTED, UNASSIGNED_RESTORING, UNASSIGNED_PERFORMANCE_SCALING,
+                UNASSIGNED_RESHARD_SPLIT_TARGET -> null;
             case RELOCATION_CAN_REMAIN_NO, RELOCATION_CAN_REMAIN_NOT_PREFERRED, RELOCATE_REBALANCING -> "other-node";
             case UNKNOWN -> throw new IllegalArgumentException("cannot create recovery state with unknown recovery priority");
         };

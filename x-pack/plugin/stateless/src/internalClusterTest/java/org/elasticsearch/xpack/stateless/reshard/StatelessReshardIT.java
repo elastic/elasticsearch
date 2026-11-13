@@ -2775,7 +2775,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         awaitClusterState(state -> getTargetPrimary(state, index).unassigned());
         final var unassignedTargetPrimary = getTargetPrimary(index);
         // The target failed before HANDOFF, so the source still serves its documents and its recovery stays deferrable
-        assertThat(unassignedTargetPrimary.recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
+        assertThat(unassignedTargetPrimary.recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET));
 
         MockLog.awaitLogger(
             proceedAfterShardFailure::countDown,

@@ -144,7 +144,7 @@ public class ReshardUpdateNumberOfShardsTests extends ESAllocationTestCase {
         for (int shardId = shards; shardId < indexRoutingTable.size(); shardId++) {
             final var shardRoutingTable = indexRoutingTable.shard(shardId);
             assertThat(shardRoutingTable.size(), equalTo(replicas + 1));
-            assertThat(shardRoutingTable.primaryShard().recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
+            assertThat(shardRoutingTable.primaryShard().recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_RESHARD_SPLIT_TARGET));
             for (final var replica : shardRoutingTable.replicaShards()) {
                 assertThat(replica.recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_EXPECTED));
             }

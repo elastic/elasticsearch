@@ -77,6 +77,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.AsciiStandardAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
@@ -103,6 +104,15 @@ public class Lucene {
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
+    /**
+     * Same tokens as {@link #STANDARD_ANALYZER}, but faster for ASCII text, see {@link AsciiStandardAnalyzer}. Use this for the
+     * standard analyzer of text fields.
+     */
+    public static final NamedAnalyzer ASCII_STANDARD_ANALYZER = new NamedAnalyzer(
+        "_standard",
+        AnalyzerScope.GLOBAL,
+        new AsciiStandardAnalyzer()
+    );
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
     public static final NamedAnalyzer WHITESPACE_ANALYZER = new NamedAnalyzer(
         "_whitespace",

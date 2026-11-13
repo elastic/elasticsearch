@@ -948,7 +948,7 @@ public final class TextFieldMapper extends FieldMapper {
                 name,
                 IndexType.terms(indexed, false),
                 stored,
-                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.ASCII_STANDARD_ANALYZER, Lucene.ASCII_STANDARD_ANALYZER),
                 meta,
                 false,
                 false
@@ -971,7 +971,7 @@ public final class TextFieldMapper extends FieldMapper {
                 name,
                 true,
                 false,
-                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.ASCII_STANDARD_ANALYZER, Lucene.ASCII_STANDARD_ANALYZER),
                 isSyntheticSource,
                 isWithinMultiField,
                 null,
@@ -991,7 +991,7 @@ public final class TextFieldMapper extends FieldMapper {
                 name,
                 true,
                 false,
-                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.ASCII_STANDARD_ANALYZER, Lucene.ASCII_STANDARD_ANALYZER),
                 isSyntheticSource,
                 isWithinMultiField,
                 syntheticSourceDelegate,
@@ -1886,7 +1886,7 @@ public final class TextFieldMapper extends FieldMapper {
                 name,
                 true,
                 false,
-                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.ASCII_STANDARD_ANALYZER, Lucene.ASCII_STANDARD_ANALYZER),
                 Collections.emptyMap()
             );
         }
@@ -1896,7 +1896,7 @@ public final class TextFieldMapper extends FieldMapper {
                 name,
                 indexed,
                 stored,
-                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.ASCII_STANDARD_ANALYZER, Lucene.ASCII_STANDARD_ANALYZER),
                 meta
             );
         }

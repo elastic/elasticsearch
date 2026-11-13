@@ -30,6 +30,9 @@ public class Clusters {
     private static final String ENCRYPTION_PASSWORD_ID = "test";
     private static final String ENCRYPTION_PASSWORD = "esql-test-encryption-password";
 
+    public static final String SECURITY_USER = "esql-parquet-security-user";
+    public static final String SECURITY_PASSWORD = "esql-parquet-security-password";
+
     /**
      * Installs the project-encryption-key (PEK) secure settings so data-source secrets can be encrypted
      * when a data source is registered via {@code PUT /_query/data_source}. Mirrors the single-node esql
@@ -80,6 +83,14 @@ public class Clusters {
         Supplier<String> s3EndpointSupplier,
         LocalClusterConfigProvider configProvider
     ) {
+        return clusterBuilder(s3EndpointSupplier, configProvider, false);
+    }
+
+    private static LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder(
+        Supplier<String> s3EndpointSupplier,
+        LocalClusterConfigProvider configProvider,
+        boolean securityEnabled
+    ) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .plugin("inference-service-test")
@@ -88,7 +99,7 @@ public class Clusters {
             // Enable GCS repository module for GCS access
             .module("repository-gcs")
             // Basic cluster settings
-            .setting("xpack.security.enabled", "false")
+            .setting("xpack.security.enabled", Boolean.toString(securityEnabled))
             .setting("xpack.license.self_generated.type", "trial")
             .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
             // Disable ML to avoid native code loading issues in some environments
@@ -172,6 +183,18 @@ public class Clusters {
      */
     public static ElasticsearchCluster reservationParentBreakerTestClusterWithEncryption(Supplier<String> s3EndpointSupplier) {
         return clusterBuilder(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG).setting("indices.breaker.total.use_real_memory", "false")
+            .build();
+    }
+
+    /**
+     * A non-shared, security-enabled variant of {@link #testClusterWithEncryption(Supplier)} with a single {@code superuser}.
+     * The subject of the suites using it is security-context propagation across the external read path, not authorization,
+     * hence the superuser. {@code esql.external.max_concurrent_requests} is {@code 1} so the {@code esql_external_io} pool has
+     * one thread and every read after the first is submitted by a thread released by the previous read's completion.
+     */
+    public static ElasticsearchCluster securityEnabledTestCluster(Supplier<String> s3EndpointSupplier) {
+        return clusterBuilder(s3EndpointSupplier, DATASET_ENCRYPTION_CONFIG, true).setting("esql.external.max_concurrent_requests", "1")
+            .user(SECURITY_USER, SECURITY_PASSWORD, "superuser", true)
             .build();
     }
 }

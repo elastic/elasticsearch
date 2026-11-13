@@ -239,7 +239,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertTrue(tripped);
         assertThat(client.bulks, empty());
         assertThat(crankyFactory.breaker().getUsed(), equalTo(0L));
-        assertThat(sink.stats(), equalTo(new IntoStats(written, written)));
+        assertThat(crankyWriter.stats(), equalTo(new IntoStats(written, written)));
     }
 
     public void testFinishWaitsForOutstandingBulks() {
@@ -258,7 +258,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertTrue(blocked.listener().isDone());
         assertFalse(driverContext.hasPendingAsyncActions());
         assertThat(sink.failure(), nullValue());
-        assertThat(sink.stats(), equalTo(new IntoStats(2, 2)));
+        assertThat(writer.stats(), equalTo(new IntoStats(2, 2)));
     }
 
     public void testRefusedRowFailsAndLaterPagesAreDropped() {
@@ -289,7 +289,7 @@ public class IntoPageWriterTests extends ComputeTestCase {
 
         assertThat(client.bulks, empty());
         assertTrue(writer.isFinished());
-        assertThat(sink.stats(), equalTo(new IntoStats(0, 0)));
+        assertThat(writer.stats(), equalTo(new IntoStats(0, 0)));
     }
 
     private Page page(String... hosts) {

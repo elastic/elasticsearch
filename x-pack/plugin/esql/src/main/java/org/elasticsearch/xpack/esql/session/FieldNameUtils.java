@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -616,6 +617,7 @@ public class FieldNameUtils {
             || p instanceof Project
             || p instanceof RegexExtract
             || p instanceof CompoundOutputEval<?>
+            || p instanceof Into
             || p instanceof UnresolvedIpLocation
             || p instanceof Rename
             || p instanceof Row

@@ -185,6 +185,9 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.into.IntoOperator;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
+import org.elasticsearch.xpack.esql.into.IntoStatsSumOperator;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -216,6 +219,7 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -558,7 +562,9 @@ public class LocalExecutionPlanner {
             return planLookupJoin(join, context);
         }
         // output
-        else if (node instanceof StreamingOutputExec streamingOutput) {
+        else if (node instanceof IntoExec into) {
+            return planInto(into, context);
+        } else if (node instanceof StreamingOutputExec streamingOutput) {
             return planStreamingOutput(streamingOutput, context);
         } else if (node instanceof OutputExec outputExec) {
             return planOutput(outputExec, context);
@@ -974,6 +980,20 @@ public class LocalExecutionPlanner {
         } : Function.identity();
 
         return transformer;
+    }
+
+    private PhysicalOperation planInto(IntoExec into, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(into.child(), context);
+        if (into.mode() == IntoExec.Mode.SUM) {
+            return source.with(new IntoStatsSumOperator.Factory(context.blockFactory()), source.layout);
+        }
+        Layout outputLayout = new Layout.Builder().append(into.output()).build();
+        if (configuration.explainOnly()) {
+            return source.with(IntoOperator.Factory.forExplain(context.blockFactory()), outputLayout);
+        }
+        IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(client, into.destination(), into.sourceAttributes());
+        Function<Page, Page> alignment = alignPageToAttributes(into.sourceAttributes(), source.layout);
+        return source.with(IntoOperator.Factory.forWrite(sink, alignment, context.blockFactory()), outputLayout);
     }
 
     private PhysicalOperation planStreamingOutput(StreamingOutputExec exec, LocalExecutionPlannerContext context) {

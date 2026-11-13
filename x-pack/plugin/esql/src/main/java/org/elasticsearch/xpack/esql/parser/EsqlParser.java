@@ -220,9 +220,8 @@ public class EsqlParser {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
-        if (parsed.plan() instanceof Into into) {
-            throw new ParsingException(into.source(), "INTO is not allowed in a view definition");
-        }
+        parsed.plan()
+            .forEachDown(Into.class, into -> { throw new ParsingException(into.source(), "INTO is not allowed in a view definition"); });
         ViewQuerySettings.validate(parsed.settings(), parsed);
         return parsed;
     }

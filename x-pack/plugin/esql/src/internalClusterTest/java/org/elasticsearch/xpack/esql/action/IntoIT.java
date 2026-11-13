@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -79,6 +80,29 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     public void testZeroRows() {
         assertInto("ROW k = \"x\" | WHERE k == \"y\"", 0);
+    }
+
+    public void testFromIntoIsRejected() {
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("FROM " + DESTINATION + " | INTO " + DESTINATION + "-copy").close()
+        );
+        assertThat(e.getMessage(), containsString("INTO currently only supports ROW as a source, without FORK"));
+    }
+
+    public void testExplainIntoDoesNotIndex() {
+        long before = indexCount();
+        try (EsqlQueryResponse response = run("EXPLAIN (ROW k = \"explained\" | INTO " + DESTINATION + ")")) {
+            assertThat(response.columns().stream().map(c -> c.name()).toList(), org.hamcrest.Matchers.hasItem("type"));
+        }
+        refresh(DESTINATION);
+        assertThat(indexCount(), equalTo(before));
+    }
+
+    private long indexCount() {
+        try (EsqlQueryResponse response = run("FROM " + DESTINATION + " | STATS count = COUNT(*)")) {
+            return (long) getValuesList(response).get(0).get(0);
+        }
     }
 
     public void testRefusedRowFailsTheQuery() {

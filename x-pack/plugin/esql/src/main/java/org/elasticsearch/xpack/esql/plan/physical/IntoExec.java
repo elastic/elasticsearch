@@ -7,63 +7,141 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.into.IntoStats;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Coordinator-only root placed on top of the final physical plan for an {@code INTO} query, whose {@link #output()}
- * is the {@link IntoStats} schema.
+ * Physical plan node for the {@code INTO} command.
+ *
+ * <p>Operates in two modes:
+ * <ul>
+ *   <li>{@link Mode#WRITE} — runs per driver (data node or coordinator). Reads all source columns,
+ *       bulk-indexes them into the destination index, and emits one row {@code [total, created]}.</li>
+ *   <li>{@link Mode#SUM} — runs on the coordinator. Receives one {@code [total, created]} row per
+ *       upstream driver and sums them into a single final row.</li>
+ * </ul>
  */
 public class IntoExec extends UnaryExec {
-    private final String destination;
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "IntoExec",
+        IntoExec::new
+    );
 
-    public IntoExec(Source source, PhysicalPlan child, String destination) {
+    public enum Mode {
+        WRITE,
+        SUM
+    }
+
+    private final String destination;
+    private final List<Attribute> sourceAttributes;
+    private final List<Attribute> outputAttributes;
+    private final Mode mode;
+
+    public IntoExec(
+        Source source,
+        PhysicalPlan child,
+        String destination,
+        List<Attribute> sourceAttributes,
+        List<Attribute> outputAttributes,
+        Mode mode
+    ) {
         super(source, child);
         this.destination = Objects.requireNonNull(destination);
+        this.sourceAttributes = sourceAttributes;
+        this.outputAttributes = outputAttributes;
+        this.mode = mode;
+    }
+
+    private IntoExec(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(PhysicalPlan.class),
+            in.readString(),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readEnum(Mode.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Source.EMPTY.writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeString(destination);
+        out.writeNamedWriteableCollection(sourceAttributes);
+        out.writeNamedWriteableCollection(outputAttributes);
+        out.writeEnum(mode);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     public String destination() {
         return destination;
     }
 
+    public List<Attribute> sourceAttributes() {
+        return sourceAttributes;
+    }
+
+    public Mode mode() {
+        return mode;
+    }
+
     @Override
     public List<Attribute> output() {
-        return IntoStats.ATTRIBUTES;
+        return outputAttributes;
     }
 
     @Override
-    public void writeTo(StreamOutput out) {
-        throw new UnsupportedOperationException("not serialized");
-    }
-
-    @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException("not serialized");
+    protected AttributeSet computeReferences() {
+        if (mode == Mode.WRITE) {
+            return AttributeSet.of(sourceAttributes);
+        }
+        return child().outputSet();
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new IntoExec(source(), newChild, destination);
+        return new IntoExec(source(), newChild, destination, sourceAttributes, outputAttributes, mode);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, IntoExec::new, child(), destination);
+        return NodeInfo.create(this, IntoExec::new, child(), destination, sourceAttributes, outputAttributes, mode);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), destination);
+        return Objects.hash(super.hashCode(), destination, sourceAttributes, outputAttributes, mode);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return super.equals(obj) && destination.equals(((IntoExec) obj).destination);
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        IntoExec other = (IntoExec) obj;
+        return super.equals(obj)
+            && destination.equals(other.destination)
+            && sourceAttributes.equals(other.sourceAttributes)
+            && outputAttributes.equals(other.outputAttributes)
+            && mode == other.mode;
     }
 }

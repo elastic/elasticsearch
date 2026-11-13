@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -316,6 +317,7 @@ public class PlannerUtils {
             case TimeSeriesAggregateExec ignored -> SimplePlanReduction.NO_REDUCTION;
             case MetricsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
             case TsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
+            case IntoExec ignored -> SimplePlanReduction.NO_REDUCTION;
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };

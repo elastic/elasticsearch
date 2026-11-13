@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
@@ -49,6 +50,10 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
     protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext ctx) {
         if (plan instanceof InsertEmptyBuckets) {
             // InsertEmptyBuckets creates the missing histogram buckets and therefore emits rows even when its input is empty.
+            return plan;
+        }
+        if (plan instanceof Into) {
+            // Into must always run to emit [0, 0] stats even when its input is empty.
             return plan;
         }
         if (plan instanceof UnaryPlan unary && unary.child() instanceof LocalRelation local && local.hasEmptySupplier()) {

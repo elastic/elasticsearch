@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -231,6 +233,24 @@ public class Mapper {
         if (unary instanceof TsInfo tsInfo) {
             mappedChild = addExchangeForFragment(tsInfo, mappedChild);
             return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL, tsInfo.limit());
+        }
+
+        // Into: two-phase WRITE (data nodes or coordinator) then SUM (coordinator).
+        if (unary instanceof Into into) {
+            if (mappedChild instanceof FragmentExec) {
+                mappedChild = addExchangeForFragment(into, mappedChild);
+                return new IntoExec(into.source(), mappedChild, into.destination(), List.of(), into.output(), IntoExec.Mode.SUM);
+            } else {
+                PhysicalPlan writeExec = new IntoExec(
+                    into.source(),
+                    mappedChild,
+                    into.destination(),
+                    into.child().output(),
+                    into.output(),
+                    IntoExec.Mode.WRITE
+                );
+                return new IntoExec(into.source(), writeExec, into.destination(), List.of(), into.output(), IntoExec.Mode.SUM);
+            }
         }
 
         //

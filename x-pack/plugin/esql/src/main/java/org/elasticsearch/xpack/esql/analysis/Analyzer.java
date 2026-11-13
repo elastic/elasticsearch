@@ -185,6 +185,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -458,6 +459,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         protected LogicalPlan rule(Describe describe, AnalyzerContext context) {
             if (describe.child().resolved() == false) {
+                return describe;
+            }
+            if (describe.child().anyMatch(Into.class::isInstance)) {
                 return describe;
             }
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
@@ -3812,6 +3816,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
+            if (logicalPlan instanceof Into) {
+                return logicalPlan;
+            }
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
             // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
             // the default limit for TS queries or for non-TS queries.
@@ -3848,6 +3855,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitTimestampSort extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
+            if (plan instanceof Into) {
+                return plan;
+            }
             if (plan instanceof Limit limit) {
                 return injectTimestampSort(limit);
             }
@@ -4821,6 +4831,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
+            if (plan instanceof Into into) {
+                LogicalPlan newChild = planWithoutSyntheticAttributes(into.child());
+                return newChild == into.child() ? into : into.replaceChild(newChild);
+            }
             // Virtual columns on the EXTERNAL command path stay out of default output unless a Keep
             // projection lists them. A DROP also resolves to a Project that carries surviving virtual
             // columns forward via childOutput, but that is not the user keeping them, so we scan only

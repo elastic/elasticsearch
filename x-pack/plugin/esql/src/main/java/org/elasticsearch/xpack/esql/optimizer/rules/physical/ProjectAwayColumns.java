@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -89,12 +90,13 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                 if (child instanceof FragmentExec fragmentExec) {
                     var logicalFragment = fragmentExec.fragment();
 
-                    // No need for projection when dealing with aggs, MetricsInfo, or TsInfo.
+                    // No need for projection when dealing with aggs, MetricsInfo, TsInfo, or Into.
                     // The only exception is when we are dealing with a merge branch, because we might be dealing with a combination
                     // of branches where some branches have no aggregation, and some branches have. In that case, we need to project.
                     if ((logicalFragment instanceof Aggregate == false
                         && logicalFragment instanceof MetricsInfo == false
-                        && logicalFragment instanceof TsInfo == false)) {
+                        && logicalFragment instanceof TsInfo == false
+                        && logicalFragment instanceof Into == false)) {
                         // we should respect the order of the attributes
                         List<Attribute> output = new ArrayList<>();
                         for (Attribute attribute : logicalFragment.output()) {

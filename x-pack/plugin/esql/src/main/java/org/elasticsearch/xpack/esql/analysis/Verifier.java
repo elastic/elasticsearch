@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -183,6 +184,7 @@ public class Verifier {
         checkHighlightAnalyzersAgree(plan, failures, context.minimumVersion());
         checkDenseVectorSupported(plan, failures, context.minimumVersion());
         checkFillNullFieldCount(plan, failures, context.flags().maxFillNullFields());
+        checkIntoPosition(plan, failures);
 
         // collect plan checkers
         QueryPragmas pragmas = context.configuration() == null ? QueryPragmas.EMPTY : context.configuration().pragmas();
@@ -229,6 +231,15 @@ public class Verifier {
      * Rejects a query whose {@code FILLNULL} commands fill more columns than {@link EsqlFlags#ESQL_MAX_FILLNULL_FIELDS} allows. It must run
      * before optimization rewrites each FILLNULL into a Project over an Eval. Columns a command cannot fill do not count.
      */
+    private static void checkIntoPosition(LogicalPlan plan, Failures failures) {
+        // If the root is Into, only its child must not contain a nested Into.
+        // If the root is not Into, any Into anywhere in the plan is misplaced.
+        (plan instanceof Into into ? into.child() : plan).forEachDown(
+            Into.class,
+            i -> failures.add(fail(i, "INTO must be the last command of the query"))
+        );
+    }
+
     private static void checkFillNullFieldCount(LogicalPlan plan, Failures failures, int maxFields) {
         Holder<Long> total = new Holder<>(0L);
         Holder<FillNull> overflowing = new Holder<>();

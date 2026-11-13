@@ -37,7 +37,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -53,15 +52,13 @@ public final class IntoPageWriter implements PageConsumer {
 
     private static final String BREAKER_LABEL = "into";
 
-    /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
+    /** Holds the query-scoped configuration and failure state across drivers for one {@code INTO} run. */
     public static final class Factory implements PageConsumer.Factory {
         private final Client client;
         private final Supplier<ThreadContext.StoredContext> caller;
         private final String destination;
         private final List<String> columns;
         private final List<DataType> types;
-        private final AtomicLong total = new AtomicLong();
-        private final AtomicLong created = new AtomicLong();
         private final AtomicReference<Exception> failure = new AtomicReference<>();
 
         public static Factory createFactory(Client client, String destination, List<Attribute> output) {
@@ -88,13 +85,13 @@ public final class IntoPageWriter implements PageConsumer {
             this.types = types;
         }
 
+        public String destination() {
+            return destination;
+        }
+
         @Override
         public IntoPageWriter create(DriverContext driverContext) {
             return new IntoPageWriter(this, Objects.requireNonNull(driverContext), LocalCircuitBreaker.forAsyncIo(driverContext.breaker()));
-        }
-
-        public IntoStats stats() {
-            return new IntoStats(total.get(), created.get());
         }
 
         /** Returns the first bulk or item failure recorded by this run, or {@code null} if every write succeeded. */
@@ -108,6 +105,8 @@ public final class IntoPageWriter implements PageConsumer {
     private final DriverContext driverContext;
     private final CircuitBreaker breaker;
 
+    private long total;
+    private long created;
     private long inFlightBytes;
     private boolean finished;
     // null whenever no driver is blocked on this writer; allocated in isBlocked() and cleared in wake().
@@ -169,8 +168,8 @@ public final class IntoPageWriter implements PageConsumer {
         }
         synchronized (this) {
             inFlightBytes += bytes;
+            total += actions;
         }
-        sink.total.addAndGet(actions);
         driverContext.addAsyncAction();
         ActionListener<BulkResponse> listener = ActionListener.runAfter(
             ActionListener.wrap(this::onBulkResponse, this::recordFailure),
@@ -199,7 +198,9 @@ public final class IntoPageWriter implements PageConsumer {
                 return;
             }
         }
-        sink.created.addAndGet(response.getItems().length);
+        synchronized (this) {
+            created += response.getItems().length;
+        }
     }
 
     private void recordFailure(Exception e) {
@@ -260,6 +261,15 @@ public final class IntoPageWriter implements PageConsumer {
     @Override
     public synchronized boolean isFinished() {
         return finished && inFlightBytes == 0;
+    }
+
+    public synchronized IntoStats stats() {
+        return new IntoStats(total, created);
+    }
+
+    @Nullable
+    public Exception failure() {
+        return sink.failure();
     }
 
     private record ReservedBulk(BulkRequest bulk, long bytes) {}

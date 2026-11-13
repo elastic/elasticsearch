@@ -592,9 +592,6 @@ public final class ThreadContext implements Writeable {
     public <T> T removeTransient(String key) {
         final ThreadContextStruct context = threadLocal.get();
         final Object value = context.transientHeaders.get(key);
-        if (value == null) {
-            return null;
-        }
         threadLocal.set(context.removeTransient(key));
         return (T) value;
     }

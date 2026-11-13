@@ -8059,11 +8059,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Grouping by {@code _tsid} matches the per-time-series grouping of the first pass, so the second pass must regroup on the
      * first-pass {@code _tsid} rather than on a {@code VALUES(_tsid)} that reuses its id.
      */
-    public void testTranslateStatsByTsid() {
+    public void testTranslateStatsByTsidWithAggregate() {
         var plan = planMetrics("""
             TS k8s METADATA _tsid
-            | STATS BY _tsid
-            | STATS c = COUNT(*)
+            | STATS bytes = max(last_over_time(network.bytes_in)) BY _tsid
+            | STATS c = COUNT(*), bytes = max(bytes)
             """);
 
         List<TimeSeriesAggregate> firstPass = new ArrayList<>();
@@ -8084,6 +8084,38 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(secondPass, hasSize(1));
         assertThat(secondPass.get(0).groupings(), hasSize(1));
         assertThat(Expressions.attribute(Alias.unwrap(secondPass.get(0).groupings().get(0))).id(), equalTo(tsid.id()));
+    }
+
+    /**
+     * A {@code STATS} without aggregate functions that groups only by {@code _tsid} already yields one row per time series, so it is
+     * planned as a single regular aggregation over a standard relation, as if the query started with {@code FROM}.
+     */
+    public void testTranslateStatsByTsidWithoutAggregatesUsesSinglePass() {
+        var plan = planMetrics("""
+            TS k8s METADATA _tsid
+            | STATS BY _tsid
+            | STATS c = COUNT(*)
+            """);
+
+        plan.forEachDown(TimeSeriesAggregate.class, agg -> fail("expected no time-series aggregate: " + agg));
+        plan.forEachExpressionDown(Values.class, values -> fail("_tsid must not be wrapped in VALUES: " + values));
+
+        List<Aggregate> groupedAggs = new ArrayList<>();
+        plan.forEachDown(Aggregate.class, agg -> {
+            if (agg.groupings().isEmpty() == false) {
+                groupedAggs.add(agg);
+            }
+        });
+        assertThat(groupedAggs, hasSize(1));
+        Aggregate byTsid = groupedAggs.get(0);
+        assertThat(byTsid.groupings(), hasSize(1));
+        Attribute tsid = as(byTsid.groupings().get(0), MetadataAttribute.class);
+        assertThat(tsid.name(), equalTo(MetadataAttribute.TSID_FIELD));
+
+        List<EsRelation> relations = plan.collect(EsRelation.class);
+        assertThat(relations, hasSize(1));
+        assertThat(relations.get(0).indexMode(), equalTo(IndexMode.STANDARD));
+        assertThat(relations.get(0).output(), hasItem(tsid));
     }
 
     public void testTranslateWithDateTrunc() {

@@ -163,6 +163,16 @@ import java.util.stream.Collectors;
  * | STATS rate_$1=rate(post_requests), rate_$2=rate(post_requests) BY _tsid, time_bucket=bucket(@timestamp, 1minute)
  * | STATS max(rate_$1 + rate_$2) BY host_values, time_bucket
  * </pre>
+ *
+ * A {@code STATS} without aggregate functions that groups only by {@code _tsid} needs no per-time-series pass:
+ *
+ * <pre>
+ * TS k8s METADATA _tsid | STATS BY _tsid
+ *
+ * becomes
+ *
+ * FROM k8s METADATA _tsid | STATS BY _tsid
+ * </pre>
  */
 public final class TranslateTimeSeriesAggregate extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
 
@@ -192,6 +202,13 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         findTimeSeriesSourceTsid(aggregate, tsid);
         if (tsid.get() == null) {
             tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
+        } else if (onlyGroupsByTsid(aggregate, tsid.get())) {
+            return new Aggregate(
+                aggregate.source(),
+                TranslateTimeSeriesUtils.transformTimeSeriesSource(aggregate.child(), r -> r.withIndexMode(IndexMode.STANDARD)),
+                aggregate.groupings(),
+                aggregate.aggregates()
+            );
         }
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
@@ -390,6 +407,29 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             }
             return new Project(newChild.source(), unpackDims, projects);
         }
+    }
+
+    /**
+     * A {@code STATS} without aggregate functions that groups only by the source's {@code _tsid} already yields one row per time series.
+     * Splitting it into a per-time-series pass and a regrouping pass adds nothing, so it runs as a single regular aggregation, as if the
+     * query started with {@code FROM}. Any other grouping key keeps the two passes: for example, a non-dimension field that is null on
+     * some documents of a series is wrapped in {@code VALUES} in the first pass, which drops those nulls.
+     */
+    private static boolean onlyGroupsByTsid(TimeSeriesAggregate aggregate, Attribute tsid) {
+        if (aggregate.groupings().isEmpty()) {
+            return false;
+        }
+        for (Expression grouping : aggregate.groupings()) {
+            if (Alias.unwrap(grouping).semanticEquals(tsid) == false) {
+                return false;
+            }
+        }
+        for (NamedExpression agg : aggregate.aggregates()) {
+            if (agg.anyMatch(AggregateFunction.class::isInstance)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

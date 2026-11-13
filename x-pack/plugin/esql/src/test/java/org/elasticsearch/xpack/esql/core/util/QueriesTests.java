@@ -72,4 +72,15 @@ public class QueriesTests extends ESTestCase {
         assertThat(clause.innerQueries.apply(bool), equalTo(queries));
         assertThat(bool.should(), empty());
     }
+
+    /** Combining a combination with queries it already holds changes nothing, as a rule pushing the same filters again needs. */
+    public void testCombineAgainChangesNothing() {
+        var clause = randomFrom(Queries.Clause.values());
+        var queries = List.of(randomQuery(), QueryBuilders.existsQuery("a"), QueryBuilders.existsQuery("b"));
+        var combination = Queries.combine(clause, queries);
+        var nested = Queries.combine(clause, List.of(combination, QueryBuilders.existsQuery("c")));
+
+        assertThat(Queries.combine(clause, List.of(combination, randomFrom(queries))), sameInstance(combination));
+        assertThat(Queries.combine(clause, List.of(nested, randomFrom(queries))), sameInstance(nested));
+    }
 }

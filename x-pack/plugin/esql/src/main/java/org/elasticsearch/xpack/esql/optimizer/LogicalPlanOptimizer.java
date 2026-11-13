@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggreg
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantSortClauses;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantTopN;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneUnusedIndexMode;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushAggregateThroughUnionAll;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimitBy;
@@ -202,7 +201,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // Needs to occur before ReplaceAggregateAggExpressionWithEval, which will update the functions, losing the filter.
             new SubstituteFilteredExpression(),
             new RemoveStatsOverride(),
-            new PruneUnusedIndexMode(),
             // Must run before ReplaceAggregateNestedExpressionWithEval, which extracts
             // SUM(field + c) into a pre-agg EVAL and hides the pattern from this rule.
             new RewriteSumOfExpressionPlusConstant(),

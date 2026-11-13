@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165689
+summary: Reuse scorers between time-series slices
+type: enhancement

@@ -125,7 +125,7 @@ public class Driver implements Releasable, Describable {
      */
     private long finishNanos;
 
-    /** Where the time of this driver that its source operator does not attribute to shards is charged, or {@code null}. */
+    /** Set with {@link #loadTarget(TaskLoadAttribution.Target)}, or {@code null}. */
     private TaskLoadAttribution.Target loadTarget;
     /** The time since the last status update already reported by a source operator when it closed. */
     private long reportedByClosedSource;
@@ -205,8 +205,10 @@ public class Driver implements Releasable, Describable {
      * time accumulated since the last status update is not included in the reported totals.
      */
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier currentTimeNanosSupplier) {
-        // the driver charges its time itself, to the shards its source reads or to its load target
-        TaskLoadAttribution.attribute(TaskLoadAttribution.CHARGED_BY_TASK);
+        // the driver charges its own time, and its pool the rest of the task to the load target
+        if (loadTarget != null) {
+            TaskLoadAttribution.attribute(loadTarget);
+        }
         return driverContext.meteredCpu(() -> runLoop(maxTime, maxIterations, currentTimeNanosSupplier));
     }
 
@@ -719,8 +721,8 @@ public class Driver implements Releasable, Describable {
     }
 
     /**
-     * Charges the time of this driver that its source operator does not attribute to shards to {@code loadTarget}. Must be set
-     * before the driver starts.
+     * Charges the time of this driver that its source operator does not attribute to shards, and the rest of the pool tasks it
+     * runs in, to {@code loadTarget}. Must be set before the driver starts.
      */
     public void loadTarget(TaskLoadAttribution.Target loadTarget) {
         assert started.get() == false : "driver already started";

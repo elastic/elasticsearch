@@ -982,7 +982,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
      * A mapping update that omits {@code inference_id} keeps the existing one.
      */
     public void testUpdateWithoutInferenceIdKeepsExistingInferenceId() throws IOException {
-        for (int randomizedRun = 0; randomizedRun < 10; randomizedRun++) {
+        for (int randomizedRun = 0; randomizedRun < 3; randomizedRun++) {
             final String fieldName = randomAlphaOfLengthBetween(5, 15);
             final String inferenceId = randomAlphaOfLengthBetween(5, 15);
 

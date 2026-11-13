@@ -19,6 +19,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
 import org.elasticsearch.xpack.esql.EsqlStreamTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
@@ -323,6 +324,31 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         Map<String, Object> syncRoot = ((List<Map<String, Object>>) syncBody.get("root_cause")).get(0);
         assertThat("streaming root_cause type must match sync", streamRoot.get("type"), equalTo(syncRoot.get("type")));
         assertThat("streaming root_cause reason must match sync", streamRoot.get("reason"), equalTo(syncRoot.get("reason")));
+    }
+
+    public void testStore() throws IOException {
+        assumeTrue("stored results are behind a feature flag", AsyncResultPagesIndex.FEATURE_FLAG.isEnabled());
+        Request enable = new Request("PUT", "/_cluster/settings");
+        enable.setJsonEntity("{\"persistent\": {\"indices.batch_indexing\": true}}");
+        assertOK(client().performRequest(enable));
+        try {
+            List<Map<String, Object>> lines = stream("{\"query\": \"FROM stream-test | KEEP value\"}", "store=true");
+            assertThat(lines.get(0), hasKey("id"));
+        } finally {
+            Request reset = new Request("PUT", "/_cluster/settings");
+            reset.setJsonEntity("{\"persistent\": {\"indices.batch_indexing\": null}}");
+            assertOK(client().performRequest(reset));
+        }
+    }
+
+    public void testStoreRequiresStreaming() {
+        assumeTrue("stored results are behind a feature flag", AsyncResultPagesIndex.FEATURE_FLAG.isEnabled());
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "store=true")
+        );
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(re.getMessage(), containsString("[store] requires [streaming=true]"));
     }
 
     public void testBatchSizeRejected() {

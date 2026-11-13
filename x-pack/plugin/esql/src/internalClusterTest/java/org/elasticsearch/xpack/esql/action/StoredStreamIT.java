@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.StoredResultMetadata;
 import org.elasticsearch.xpack.esql.plugin.TransportReadAsyncResultPagesAction;
 import org.elasticsearch.xpack.esql.plugin.TransportReadAsyncResultPagesAction.StoredPage;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,6 +77,11 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         public String getFeatureDescription() {
             return "Stored ES|QL results";
         }
+    }
+
+    @Before
+    public void requireStoredResults() {
+        assumeTrue("stored results are behind a feature flag", AsyncResultPagesIndex.FEATURE_FLAG.isEnabled());
     }
 
     @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.async;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -26,18 +27,18 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 /**
- * System index that holds the pages of async query results, one document per page. The response
- * itself, without its pages, stays in the async results index so that ownership, keep-alive and
- * deletion work as for any other async result.
- * <p>
- * Each document holds a single serialized page in a binary doc-values column so that a result can
- * be read back page by page instead of decoding one large blob. Page {@code 0} of a result holds its
- * metadata. Every document of a result is routed by the result's id. Fields are single-valued and only
- * stored in doc values, so a bulk of pages can be indexed as one columnar batch. The index is sorted by
- * result and page so that the pages of a result are contiguous and in order. The index is never
- * refreshed on a schedule: writers refresh it once the pages they wrote must become visible.
+ * System index holding stored ES|QL results, one document per page with the serialized page in binary doc values. Page
+ * {@code 0} of a result holds its metadata. The documents of a result are routed by its id and the index is sorted by result
+ * and page, so a result sits on one shard, in order. Fields are single-valued doc values only, so that a bulk of pages is
+ * indexed as one columnar batch. The index is never refreshed on a schedule: writers refresh it once their pages must be
+ * visible.
  */
 public final class AsyncResultPagesIndex {
+
+    /**
+     * The index is only registered, and results only stored, when this is enabled.
+     */
+    public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("esql_stored_results");
 
     public static final String INDEX = ".async-result-pages";
 
@@ -52,8 +53,7 @@ public final class AsyncResultPagesIndex {
     private static final int MAPPINGS_VERSION = 0;
 
     /**
-     * Shards spread the writes of concurrent results over nodes. The pages of one result are routed by its id, so they
-     * stay on one shard, contiguous and in order.
+     * Spreads the writes of concurrent results over nodes.
      */
     static final int NUMBER_OF_SHARDS = 6;
 

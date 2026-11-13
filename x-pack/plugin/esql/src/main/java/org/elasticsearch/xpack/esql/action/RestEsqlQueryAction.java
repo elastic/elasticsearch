@@ -18,6 +18,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
 
 import java.io.IOException;
 import java.util.List;
@@ -76,7 +77,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             boolean streaming = request.paramAsBoolean(STREAMING_OPTION, false);
             String format = request.param(URL_PARAM_FORMAT);
 
-            if (request.hasParam(STORE_OPTION) && streaming == false) {
+            if (AsyncResultPagesIndex.FEATURE_FLAG.isEnabled() && request.hasParam(STORE_OPTION) && streaming == false) {
                 throw new IllegalArgumentException("[" + STORE_OPTION + "] requires [" + STREAMING_OPTION + "=true]");
             }
             if (NDJSON_FORMAT_VALUE.equals(format) && streaming == false) {
@@ -102,6 +103,8 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         }
         request.param(URL_PARAM_HEADER);
 
+        // unknown, and so rejected, while stored results are not available
+        final boolean store = AsyncResultPagesIndex.FEATURE_FLAG.isEnabled() && request.paramAsBoolean(STORE_OPTION, false);
         final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
@@ -115,7 +118,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
                 restListener.resultStreamListener(),
                 request.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false),
                 restListener::setPreHeaderFailureFooter
-            ).store(request.paramAsBoolean(STORE_OPTION, false));
+            ).store(store);
             new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
                 EsqlStreamQueryAction.INSTANCE,
                 streamRequest,

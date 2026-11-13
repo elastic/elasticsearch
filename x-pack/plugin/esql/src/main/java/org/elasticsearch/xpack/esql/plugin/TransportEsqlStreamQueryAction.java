@@ -44,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncResultPagesIndex;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -217,14 +218,18 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
 
     @Override
     protected void doExecute(Task task, EsqlStreamQueryRequest request, ActionListener<ActionResponse.Empty> listener) {
-        // stored pages are indexed as columnar batches
-        if (request.store() && ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService) == false) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "storing a result requires batch indexing, enable [" + BatchIndexingEnabled.BATCH_INDEXING.getKey() + "]"
-                )
-            );
-            return;
+        if (request.store()) {
+            String unavailable = null;
+            if (AsyncResultPagesIndex.FEATURE_FLAG.isEnabled() == false) {
+                unavailable = "storing a result is not available";
+            } else if (ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService) == false) {
+                // stored pages are indexed as columnar batches
+                unavailable = "storing a result requires batch indexing, enable [" + BatchIndexingEnabled.BATCH_INDEXING.getKey() + "]";
+            }
+            if (unavailable != null) {
+                listener.onFailure(new IllegalArgumentException(unavailable));
+                return;
+            }
         }
         requestExecutor.execute(ActionRunnable.wrap(listener, l -> prepareAndExecuteWithLogging(task, request, l)));
     }

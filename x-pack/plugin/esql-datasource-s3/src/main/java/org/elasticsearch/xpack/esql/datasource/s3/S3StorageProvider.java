@@ -16,6 +16,7 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.defaultsmode.DefaultsMode;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
@@ -535,8 +536,15 @@ public class S3StorageProvider implements StorageProvider {
             builder.region(Region.of(region));
         } else if (hasEndpoint == false) {
             // Standard S3: seed with us-east-1 and let the SDK's cross-region decorator redirect.
+            // STANDARD defaults mode pins the us-east-1 *regional* endpoint (s3.us-east-1.amazonaws.com)
+            // instead of the legacy global one (s3.amazonaws.com). The decorator's HeadBucket fallback
+            // only reads x-amz-bucket-region from error responses; the global endpoint returns 200 for
+            // a publicly readable foreign-region bucket, so a concurrent first-read race can cache a
+            // null region and leak a 301. The regional endpoint returns 301 with that header, so the
+            // same race recovers. Retry strategy is already pinned above; STANDARD does not change it.
             builder.region(Region.US_EAST_1);
             builder.crossRegionAccessEnabled(true);
+            builder.defaultsMode(DefaultsMode.STANDARD);
         } else {
             // Custom endpoint (MinIO, Scaleway, …): cross-region flag is a no-op for non-AWS stores.
             // Seed with us-east-1; if the store validates the signing region it will respond with

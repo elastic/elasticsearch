@@ -192,7 +192,7 @@ public class AutodetectResultProcessor {
                 // that it would have been better to close jobs before shutting down,
                 // but we now fully expect jobs to move between nodes without doing
                 // all their graceful close activities.
-                logger.warn("[{}] some results not processed due to the process being killed", jobId);
+                logger.info("[{}] some results not processed due to the process being killed", jobId);
             } else if (process.isProcessAliveAfterWaiting() == false) {
                 // Don't log the stack trace to not shadow the root cause.
                 logger.warn("[{}] some results not processed due to the termination of autodetect", jobId);

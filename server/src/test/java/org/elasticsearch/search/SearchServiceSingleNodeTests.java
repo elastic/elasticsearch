@@ -144,6 +144,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -1659,6 +1660,55 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             // the search context should inherit the query timeout
             assertThat(context.timeout(), equalTo(TimeValue.timeValueSeconds(seconds)));
         }
+    }
+
+    /**
+     * The fetch phase returns the same hits with {@link SearchService#FETCH_PHASE_PREFETCH_ENABLED} on and off, over a shard with several
+     * segments and with a prefetch window smaller than the number of hits, and both settings can be updated dynamically.
+     */
+    public void testFetchPhasePrefetchDoesNotChangeHits() {
+        createIndex("index", Settings.EMPTY, "n", "type=long");
+        int numDocs = 0;
+        for (int segment = 0; segment < 5; segment++) {
+            for (int i = 0; i < 10; i++) {
+                prepareIndex("index").setId("id-" + numDocs).setSource("n", numDocs, "text", "value " + numDocs).get();
+                numDocs++;
+            }
+            indicesAdmin().prepareRefresh("index").get();
+        }
+        boolean fetchSource = randomBoolean();
+        List<String> hitsWithoutPrefetch = fetchPhasePrefetchTestHits(fetchSource);
+        updateClusterSettings(
+            Settings.builder()
+                .put(SearchService.FETCH_PHASE_PREFETCH_ENABLED.getKey(), true)
+                .put(SearchService.FETCH_PHASE_PREFETCH_MAX_DOCS.getKey(), randomIntBetween(1, numDocs))
+                .build()
+        );
+        try {
+            List<String> hitsWithPrefetch = fetchPhasePrefetchTestHits(fetchSource);
+            assertThat(hitsWithPrefetch.size(), equalTo(numDocs));
+            assertThat(hitsWithPrefetch, equalTo(hitsWithoutPrefetch));
+        } finally {
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(SearchService.FETCH_PHASE_PREFETCH_ENABLED.getKey())
+                    .putNull(SearchService.FETCH_PHASE_PREFETCH_MAX_DOCS.getKey())
+                    .build()
+            );
+        }
+    }
+
+    private List<String> fetchPhasePrefetchTestHits(boolean fetchSource) {
+        List<String> hits = new ArrayList<>();
+        assertNoFailuresAndResponse(
+            client().prepareSearch("index").setSize(1000).addSort("n", SortOrder.ASC).setFetchSource(fetchSource),
+            response -> {
+                for (SearchHit hit : response.getHits().getHits()) {
+                    hits.add(hit.getId() + ":" + (fetchSource ? hit.getSourceAsString() : null));
+                }
+            }
+        );
+        return hits;
     }
 
     /**

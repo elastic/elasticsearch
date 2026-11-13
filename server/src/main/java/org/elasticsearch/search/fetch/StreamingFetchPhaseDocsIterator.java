@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
@@ -121,9 +122,11 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         final AtomicReference<Throwable> producerError = new AtomicReference<>();
 
         DocIdToIndex[] docs = sortDocsByDocId(docIds);
+        HitsPrefetcher prefetcher = prefetch() ? measure(() -> startPrefetching(indexReader, docs)) : null;
         Iterator<PendingChunk> chunkIterator = new ChunkProducingIterator(
             docs,
             indexReader,
+            prefetcher,
             chunkWriter,
             targetChunkBytes,
             isCancelled,
@@ -278,6 +281,8 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
     private class ChunkProducingIterator implements Iterator<PendingChunk> {
         private final DocIdToIndex[] docs;
         private final IndexReader indexReader;
+        @Nullable
+        private final HitsPrefetcher prefetcher;
         private final FetchPhaseResponseChunk.Writer chunkWriter;
         private final int targetChunkBytes;
         private final Supplier<Boolean> isCancelled;
@@ -295,6 +300,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         ChunkProducingIterator(
             DocIdToIndex[] docs,
             IndexReader indexReader,
+            @Nullable HitsPrefetcher prefetcher,
             FetchPhaseResponseChunk.Writer chunkWriter,
             int targetChunkBytes,
             Supplier<Boolean> isCancelled,
@@ -303,6 +309,7 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         ) {
             this.docs = docs;
             this.indexReader = indexReader;
+            this.prefetcher = prefetcher;
             this.chunkWriter = chunkWriter;
             this.targetChunkBytes = targetChunkBytes;
             this.isCancelled = isCancelled;
@@ -359,6 +366,9 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
                         leafSetupThread = Thread.currentThread();
                     }
 
+                    if (prefetcher != null) {
+                        prefetcher.beforeHit(currentIdx);
+                    }
                     SearchHit hit = nextDoc(docs[currentIdx].docId);
                     try {
                         chunkBuffer.writeVInt(docs[currentIdx].index);

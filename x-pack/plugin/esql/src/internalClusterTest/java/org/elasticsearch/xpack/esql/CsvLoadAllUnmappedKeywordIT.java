@@ -35,7 +35,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
@@ -73,41 +72,12 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         "(?i)\\bSET\\s+unmapped_fields\\s*=\\s*\"?([\\w]+)\"?",
         Pattern.MULTILINE
     );
-    private static final Set<String> LOAD_ALL_SUPPORTED_PIPE_COMMANDS = Set.of(
-        "KEEP",
-        "DROP",
-        "RENAME",
-        "EVAL",
-        "WHERE",
-        "SORT",
-        "LIMIT",
-        "STATS",
-        "INLINE",
-        "GROK",
-        "DISSECT",
-        "MV_EXPAND",
-        "FORK",
-        "CHANGE_POINT",
-        "IP_LOCATION",
-        "REGISTERED_DOMAIN",
-        "URI_PARTS",
-        "USER_AGENT",
-        "FILLNULL",
-        "SAMPLE",
-        "DEDUP",
-        "LOOKUP",
-        "ENRICH",
-        "COMPLETION",
-        "DENSE_VECTOR",
-        "RERANK",
-        "FUSE",
-        "HIGHLIGHT",
-        "MMR"
+    private static final Pattern BRANCH_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*FROM\\s+([\\w.*-]+)");
+    private static final Pattern PROJECTING_COMMAND_PATTERN = Pattern.compile("(?i)[|(]\\s*(?:KEEP\\b(?!\\s*\\*\\s*(?:[|)]|$))|STATS\\b)");
+    private static final Pattern UNSUPPORTED_COMMAND_PROBLEM_PATTERN = Pattern.compile(
+        "line \\d+:\\d+(?: \\(in view \\[[^\\]]*]\\))?: unmapped_fields=\"LOAD_ALL\" only supports the FROM, .* and subquery commands; "
+            + "\\[([^\\]]+)] is not supported yet"
     );
-    private static final Pattern PIPE_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*(\\w+)");
-    private static final Pattern BRANCH_COMMAND_PATTERN = Pattern.compile("(?i)\\(\\s*(\\w+)\\s+([\\w.*-]+)");
-    private static final Pattern PROJECTING_COMMAND_PATTERN = Pattern.compile("(?i)[|(]\\s*(?:KEEP|STATS|INLINE)\\b");
-    private static final Set<String> UNSUPPORTED_BRANCH_COMMANDS = Set.of("ROW", "TS", "SHOW", "PROMQL");
     private static final Pattern FULL_TEXT_FUNCTION_PATTERN = Pattern.compile(
         "(?i)\\b(KQL|QSTR|MATCH_PHRASE|MATCH)\\s*\\(|\\bMATCH\\b|\\w+\\s*:\\s*\""
     );
@@ -153,7 +123,7 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
     }
 
     private static final List<KnownError> KNOWN_ERRORS = List.of(
-        // STATS ... BY an alias named like the unmapped field it reads fails with "Unknown column"
+        // Remove when fixed: STATS ... BY an alias named like the unmapped field it reads fails with "Unknown column"
         new KnownError(
             "https://github.com/elastic/elasticsearch/issues/165752",
             "employees",
@@ -162,7 +132,7 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
             VerificationException.class,
             Pattern.compile("Found 1 problem\\nline \\d+:\\d+: Unknown column \\[job_positions]")
         ),
-        // STATS grouping twice by the same name, one of them an unmapped field, fails with "optimized incorrectly"
+        // Remove when fixed: STATS grouping twice by the same name, one of them an unmapped field, fails with "optimized incorrectly"
         new KnownError(
             "https://github.com/elastic/elasticsearch/issues/165753",
             "employees",
@@ -174,7 +144,7 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
                     + "PT0S\\[TIME_DURATION]\\) AS y#\\d+, x\\{r}#\\d+]]] optimized incorrectly due to missing references \\[x\\{r}#\\d+]"
             )
         ),
-        // LOOKUP JOIN whose left join key is unmapped fails with "ambiguous reference"
+        // Remove when fixed: LOOKUP JOIN whose left join key is unmapped fails with "ambiguous reference"
         new KnownError(
             "https://github.com/elastic/elasticsearch/issues/165755",
             "multi_column_joinable",
@@ -192,25 +162,14 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
     );
 
     private static final List<KnownWrongResult> KNOWN_WRONG_RESULTS = List.of(
-        // WHERE (f IS NOT NULL OR ...) AND f IS NULL over an unmapped field returns every row whose field is null
+        // Remove when fixed: WHERE (f IS NOT NULL OR ...) AND f IS NULL over an unmapped field returns every row whose field is null
         new KnownWrongResult(
             "https://github.com/elastic/elasticsearch/issues/165754",
             "employees",
             "gender",
             "null.isNullWithOrThreeBranches",
             List.of("emp_no", "gender", "salary"),
-            List.of(
-                row(10010, null, 45797),
-                row(10011, null, 31120),
-                row(10012, null, 48942),
-                row(10013, null, 48735),
-                row(10014, null, 37137),
-                row(10015, null, 25324),
-                row(10016, null, 61358),
-                row(10017, null, 58715),
-                row(10018, null, 56760),
-                row(10019, null, 73717)
-            )
+            employeesWithNullGender()
         )
     );
 
@@ -232,27 +191,26 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         );
         Map<String, Set<String>> removableFieldsByIndex = new HashMap<>();
         Map<String, List<Object[]>> specsByIndex = new TreeMap<>();
+        Map<String, Integer> excluded = new TreeMap<>();
+        int read = 0;
 
         for (Object[] spec : CsvIT.readScriptSpec()) {
+            read++;
             CsvSpecReader.CsvTestCase testCase = (CsvSpecReader.CsvTestCase) spec[4];
-            if (testCase.datasetSources.isEmpty() == false
-                || testCase.requiredCapabilities.stream().anyMatch(c -> c.startsWith("optional_fields_load_all"))
-                || hasNonDefaultUnmappedFields(testCase)
-                || usesUnsupportedCommand(testCase.query)
-                || FULL_TEXT_FUNCTION_PATTERN.matcher(testCase.query).find()
-                || SOURCE_OR_UNMAPPED_COLUMN_PATTERN.matcher(testCase.query).find()
-                || testCase.expectedResults == null
-                || testCase.expectedResults.isBlank()) {
+            String exclusion = exclusionReason(testCase);
+            String indexName = exclusion == null ? extractSingleFromIndex(testCase.query) : null;
+            if (exclusion == null && indexName == null) {
+                exclusion = "not a single FROM of a csv dataset";
+            }
+            if (exclusion == null
+                && removableFieldsByIndex.computeIfAbsent(indexName, CsvLoadAllUnmappedKeywordIT::removableKeywordFields).isEmpty()) {
+                exclusion = "index without a removable keyword field";
+            }
+            if (exclusion != null) {
+                excluded.merge(exclusion, 1, Integer::sum);
                 continue;
             }
-            String indexName = extractSingleFromIndex(testCase.query);
-            if (indexName == null) {
-                continue;
-            }
-            Set<String> removable = removableFieldsByIndex.computeIfAbsent(indexName, CsvLoadAllUnmappedKeywordIT::removableKeywordFields);
-            if (removable.isEmpty() == false) {
-                specsByIndex.computeIfAbsent(indexName, k -> new ArrayList<>()).add(spec);
-            }
+            specsByIndex.computeIfAbsent(indexName, k -> new ArrayList<>()).add(spec);
         }
 
         Map<String, String> removedFields = new HashMap<>();
@@ -264,7 +222,9 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
             pool.addAll(entry.getValue());
         }
         if (pool.isEmpty()) {
-            throw new IllegalStateException("No eligible tests found for load_all unmapped keyword testing");
+            throw new IllegalStateException(
+                "No eligible tests found for load_all unmapped keyword testing, excluded by reason " + excluded
+            );
         }
 
         pool.sort(Comparator.comparing(spec -> spec[1] + "." + spec[2]));
@@ -277,6 +237,13 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
             used.put(indexName, removedFields.get(indexName));
         }
         removedFieldsByIndex = Collections.unmodifiableMap(used);
+        logger.info(
+            "csv-spec tests read [{}], pool [{}], selected [{}]; excluded by reason {}",
+            read,
+            pool.size(),
+            selected.size(),
+            excluded
+        );
         return List.copyOf(selected);
     }
 
@@ -286,24 +253,58 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         differentialTestStrategy = new LoadAllKeywordFieldStrategy();
     }
 
-    private static boolean usesUnsupportedCommand(String query) {
-        Matcher branch = BRANCH_COMMAND_PATTERN.matcher(query);
-        while (branch.find()) {
-            String command = branch.group(1).toUpperCase(Locale.ROOT);
-            if (command.equals("FROM") && CsvTestsDataLoader.CSV_DATASET.containsKey(branch.group(2)) == false) {
-                return true;
-            }
-            if (UNSUPPORTED_BRANCH_COMMANDS.contains(command)) {
-                return true;
-            }
+    private static String exclusionReason(CsvSpecReader.CsvTestCase testCase) {
+        if (testCase.datasetSources.isEmpty() == false) {
+            return "dataset sources";
         }
-        Matcher m = PIPE_COMMAND_PATTERN.matcher(query);
-        while (m.find()) {
-            if (LOAD_ALL_SUPPORTED_PIPE_COMMANDS.contains(m.group(1).toUpperCase(Locale.ROOT)) == false) {
+        if (testCase.requiredCapabilities.stream().anyMatch(c -> c.startsWith("optional_fields_load_all"))) {
+            return "optional_fields_load_all capability";
+        }
+        if (hasNonDefaultUnmappedFields(testCase)) {
+            return "non-default unmapped_fields";
+        }
+        if (readsNonDatasetInBranch(testCase.query)) {
+            return "branch FROM that is not a csv dataset";
+        }
+        if (FULL_TEXT_FUNCTION_PATTERN.matcher(testCase.query).find()) {
+            return "full-text function";
+        }
+        if (SOURCE_OR_UNMAPPED_COLUMN_PATTERN.matcher(testCase.query).find()) {
+            return "_source or _unmapped_fields in the query";
+        }
+        if (testCase.expectedResults == null || testCase.expectedResults.isBlank()) {
+            return "no expected results";
+        }
+        return null;
+    }
+
+    private static boolean readsNonDatasetInBranch(String query) {
+        Matcher branch = BRANCH_FROM_PATTERN.matcher(query);
+        while (branch.find()) {
+            if (CsvTestsDataLoader.CSV_DATASET.containsKey(branch.group(1)) == false) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static String unsupportedCommand(Throwable failure) {
+        if (failure.getClass() != VerificationException.class || failure.getMessage() == null) {
+            return null;
+        }
+        List<String> lines = failure.getMessage().lines().toList();
+        if (lines.size() < 2 || lines.getFirst().matches("Found \\d+ problems?") == false) {
+            return null;
+        }
+        String command = null;
+        for (String problem : lines.subList(1, lines.size())) {
+            Matcher unsupported = UNSUPPORTED_COMMAND_PROBLEM_PATTERN.matcher(problem);
+            if (unsupported.matches() == false) {
+                return null;
+            }
+            command = command == null ? unsupported.group(1) : command;
+        }
+        return command;
     }
 
     private static boolean projectsColumns(String query) {
@@ -494,6 +495,12 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
 
         @Override
         public void onFailure(String testId, CsvSpecReader.CsvTestCase testCase, Throwable failure) {
+            String unsupported = unsupportedCommand(failure);
+            if (unsupported != null) {
+                throw new StacklessAssumptionViolatedException(
+                    "skipping: unmapped_fields=\"LOAD_ALL\" does not support [" + unsupported + "] yet"
+                );
+            }
             String index = extractSingleFromIndex(testCase.query);
             String removedField = removedFieldsByIndex.get(index);
             for (KnownError known : KNOWN_ERRORS) {
@@ -505,7 +512,8 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
 
         private TestResults rewriteActualResults(CsvSpecReader.CsvTestCase testCase, TestResults expected, TestResults actual) {
             String removedField = removedFieldsByIndex.get(extractSingleFromIndex(testCase.query));
-            boolean namedInQuery = Pattern.compile("\\b" + Pattern.quote(removedField) + "\\b").matcher(testCase.query).find();
+            Pattern named = Pattern.compile("(?<![\\w*])" + Pattern.quote(removedField) + "(?![\\w*])");
+            boolean namedInQuery = named.matcher(testCase.query).find();
             boolean rebuilt = false;
             List<String> names = new ArrayList<>(actual.columnNames());
             List<CsvTestUtils.Type> types = new ArrayList<>(actual.columnTypes());
@@ -564,6 +572,24 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
 
     private static List<Object> row(Object... cells) {
         return Arrays.asList(cells);
+    }
+
+    private static List<List<Object>> employeesWithNullGender() {
+        CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET.get("employees");
+        List<List<Object>> rows = new ArrayList<>();
+        try {
+            var documents = CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields());
+            for (CsvTestsDataLoader.Document document : documents) {
+                JsonNode source = MAPPER.readTree(document.json().toString());
+                if (source.has("gender") == false) {
+                    rows.add(row(source.get("emp_no").intValue(), null, source.get("salary").intValue()));
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        rows.sort(Comparator.comparing((List<Object> r) -> (Integer) r.get(0)));
+        return rows;
     }
 
     private static StacklessAssumptionViolatedException knownIssue(

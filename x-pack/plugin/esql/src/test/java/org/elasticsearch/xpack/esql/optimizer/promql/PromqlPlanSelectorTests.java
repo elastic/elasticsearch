@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -181,6 +182,16 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
         var rLike = as(not.field(), RLike.class);
         assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
         assertThat(rLike.pattern().pattern(), equalTo("f.o"));
+    }
+
+    /** The RLIKE fallback parses without Lucene's own operators, which are literals in PromQL (RE2). */
+    public void testLabelSelectorRegexLuceneOnlyOperatorsAreLiterals() {
+        var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"(a<1-3>|~b&c)\"})");
+        var not = collectInnermostSelectorFilter(plan, Not.class);
+        var rLike = as(not.field(), RLike.class);
+        assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
+        assertThat(rLike.pattern().pattern(), equalTo("(a<1-3>|~b&c)"));
+        assertThat(rLike.pattern().syntaxFlags(), equalTo(RegExp.NONE));
     }
 
     public void testLabelSelectors() {

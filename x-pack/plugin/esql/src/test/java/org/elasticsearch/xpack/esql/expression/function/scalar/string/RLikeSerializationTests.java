@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -20,8 +21,7 @@ public class RLikeSerializationTests extends AbstractExpressionSerializationTest
     protected RLike createTestInstance() {
         Source source = randomSource();
         Expression child = randomChild();
-        RLikePattern pattern = new RLikePattern(randomAlphaOfLength(4));
-        return new RLike(source, child, pattern);
+        return new RLike(source, child, randomPattern());
     }
 
     @Override
@@ -32,8 +32,12 @@ public class RLikeSerializationTests extends AbstractExpressionSerializationTest
         if (randomBoolean()) {
             child = randomValueOtherThan(child, AbstractExpressionSerializationTests::randomChild);
         } else {
-            pattern = randomValueOtherThan(pattern, () -> new RLikePattern(randomAlphaOfLength(4)));
+            pattern = randomValueOtherThan(pattern, RLikeSerializationTests::randomPattern);
         }
         return new RLike(source, child, pattern);
+    }
+
+    private static RLikePattern randomPattern() {
+        return new RLikePattern(randomAlphaOfLength(4), randomFrom(RLikePattern.DEFAULT_SYNTAX_FLAGS, RegExp.NONE));
     }
 }

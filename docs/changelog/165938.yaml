@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165938
+summary: Read each row's own dimensions in vector similarity functions
+type: bug

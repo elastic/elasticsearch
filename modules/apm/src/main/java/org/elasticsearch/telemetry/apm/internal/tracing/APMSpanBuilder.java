@@ -181,7 +181,7 @@ public class APMSpanBuilder implements SpanBuilder {
         // A span that was explicitly started without a parent is the root of a new trace: nothing is inherited, not even a remote parent.
         final Context newSpanParent;
         if (noParent) {
-            newSpanParent = Context.root();
+            newSpanParent = emptyContext();
             otelSpanBuilder.setNoParent();
         } else {
             newSpanParent = localParentSpan != null ? localParentContext : getRemoteParentContext();

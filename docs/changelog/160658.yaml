@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160658
+summary: Only share TopN collector managers for `_score` sorts
+type: enhancement

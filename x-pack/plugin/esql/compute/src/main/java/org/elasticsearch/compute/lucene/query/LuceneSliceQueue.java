@@ -352,6 +352,14 @@ public final class LuceneSliceQueue {
         );
     }
 
+    /**
+     * Whether {@link #create} makes no slices for the shard because it has no documents. Nothing that slices would use,
+     * such as the shard's query, {@link ScoreMode} or sort, is resolved for such a shard.
+     */
+    static boolean isEmpty(ShardContext ctx) {
+        return ctx.searcher().getIndexReader().maxDoc() == 0;
+    }
+
     public static LuceneSliceQueue create(
         IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<QueryAndTags>> queryFunction,
@@ -369,7 +377,7 @@ public final class LuceneSliceQueue {
 
         int nextSliceId = 0;
         for (ShardContext ctx : contexts.iterable()) {
-            if (ctx.searcher().getIndexReader().maxDoc() == 0) {
+            if (isEmpty(ctx)) {
                 continue;
             }
             long startShard = System.nanoTime();

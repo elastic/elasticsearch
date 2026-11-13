@@ -212,7 +212,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
             return;
         }
         String id = seq == 0 ? docId : AsyncResultPagesIndex.pageDocId(docId, seq);
-        chunk.requests.add(new IndexRequest(AsyncResultPagesIndex.INDEX).id(id).opType(opType));
+        chunk.requests.add(new IndexRequest(AsyncResultPagesIndex.INDEX).id(id).routing(docId).opType(opType));
         chunk.bytes += written[0];
         unackedBytes += written[0];
     }

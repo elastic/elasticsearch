@@ -30,10 +30,10 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
  * <p>
  * Each document holds a single serialized page in a binary doc-values column so that a result can
  * be read back page by page instead of decoding one large blob. Page {@code 0} of a result holds its
- * metadata. Fields are single-valued and only stored in doc values, so a bulk of pages can be indexed as one
- * columnar batch. The index is sorted by result and page so that the
- * pages of a result are contiguous and in order. The index is never refreshed on a schedule: writers
- * refresh it once the pages they wrote must become visible.
+ * metadata. Every document of a result is routed by the result's id. Fields are single-valued and only
+ * stored in doc values, so a bulk of pages can be indexed as one columnar batch. The index is sorted by
+ * result and page so that the pages of a result are contiguous and in order. The index is never
+ * refreshed on a schedule: writers refresh it once the pages they wrote must become visible.
  */
 public final class AsyncResultPagesIndex {
 
@@ -49,6 +49,12 @@ public final class AsyncResultPagesIndex {
 
     private static final int MAPPINGS_VERSION = 0;
 
+    /**
+     * Shards spread the writes of concurrent results over nodes. The pages of one result are routed by its id, so they
+     * stay on one shard, contiguous and in order.
+     */
+    static final int NUMBER_OF_SHARDS = 6;
+
     private AsyncResultPagesIndex() {}
 
     /**
@@ -61,7 +67,7 @@ public final class AsyncResultPagesIndex {
     static Settings settings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, NUMBER_OF_SHARDS)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
             .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), ASYNC_ID_FIELD, PAGE_SEQ_FIELD)

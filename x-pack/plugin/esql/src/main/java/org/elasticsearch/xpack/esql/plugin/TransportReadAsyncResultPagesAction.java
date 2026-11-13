@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -116,12 +117,16 @@ public class TransportReadAsyncResultPagesAction extends TransportSingleShardAct
 
     @Override
     protected ShardIterator shards(ProjectState project, InternalRequest request) {
+        String asyncDocId = request.request().asyncDocId;
+        // the pages of a result are routed by its id
+        int shard = OperationRouting.shardId(project.metadata(), request.concreteIndex(), asyncDocId, asyncDocId).id();
         if (stateless) {
             // the indexing shard: search shards only see pages once they are uploaded
-            return project.routingTable().shardRoutingTable(request.concreteIndex(), 0).primaryShardIt();
+            return project.routingTable().shardRoutingTable(request.concreteIndex(), shard).primaryShardIt();
         }
-        // any copy holds the acknowledged pages; stick to one copy per result
-        return clusterService.operationRouting().getShards(project, request.concreteIndex(), 0, request.request().asyncDocId);
+        // any copy holds the acknowledged pages; stick to one copy per result. The prefix keeps an id starting with '_' from
+        // being read as a named preference.
+        return clusterService.operationRouting().getShards(project, request.concreteIndex(), shard, "result:" + asyncDocId);
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -227,6 +228,53 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         }
         Collections.sort(values);
         assertThat(values, equalTo(LongStream.range(0, numDocs).boxed().toList()));
+    }
+
+    /**
+     * Concurrent results spread over the shards of the pages index, and its shards over the nodes, while all the documents
+     * of one result stay on the shard its id routes to.
+     */
+    public void testResultsSpreadOverShards() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        int numDocs = indexDocs();
+        int results = between(8, 12);
+        NamedWriteableRegistry registry = internalCluster().getInstance(NamedWriteableRegistry.class);
+        for (int r = 0; r < results; r++) {
+            var subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
+            String docId = AsyncExecutionId.decode(stream(true, subscriber).id()).getDocId();
+            assertBusy(() -> {
+                List<StoredPage> first;
+                try {
+                    first = readPages(docId, 0, 1);
+                } catch (Exception e) {
+                    // the result is stored in the background and may not be there yet
+                    throw new AssertionError(e);
+                }
+                assertThat(first.size(), equalTo(1));
+                StoredResultMetadata metadata = new StoredResultMetadata(input(first.get(0), registry));
+                assertThat(metadata.status(), equalTo(StoredResultMetadata.Status.COMPLETED));
+                List<StoredPage> pages = readPages(docId, 1, metadata.pageCount());
+                assertThat(pages.size(), equalTo(metadata.pageCount()));
+                assertThat(pages.stream().mapToLong(StoredPage::rowCount).sum(), equalTo((long) numDocs));
+            });
+        }
+
+        int shardsWithPages = 0;
+        for (var shard : client().admin().indices().prepareStats(AsyncResultPagesIndex.INDEX).setDocs(true).get().getShards()) {
+            if (shard.getShardRouting().primary() && shard.getStats().getDocs().getCount() > 0) {
+                shardsWithPages++;
+            }
+        }
+        assertThat(shardsWithPages, greaterThan(1));
+
+        var routingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().routingTable();
+        long nodes = routingTable.allShards(AsyncResultPagesIndex.INDEX)
+            .stream()
+            .filter(ShardRouting::primary)
+            .map(ShardRouting::currentNodeId)
+            .distinct()
+            .count();
+        assertThat(nodes, greaterThan(1L));
     }
 
     private List<StoredPage> readPages(String docId, int fromSeq, int maxPages) {

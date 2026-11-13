@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165942
+summary: Convert CSV fields straight into blocks
+type: enhancement

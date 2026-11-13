@@ -75,6 +75,8 @@ public final class CompressedXContent implements Writeable {
             do {
                 if (inflater.inflate(buffer) > 0) {
                     messageDigest.update(buffer.flip());
+                } else if (inflater.finished() == false && inflater.needsInput()) {
+                    throw new DataFormatException("Unexpected end of ZLIB input stream");
                 }
                 buffer.clear();
             } while (inflater.finished() == false);

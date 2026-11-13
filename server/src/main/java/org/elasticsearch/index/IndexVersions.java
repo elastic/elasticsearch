@@ -335,6 +335,8 @@ public class IndexVersions {
      *
      * If a patch version is created, it should be placed sorted among the other existing constants.
      *
+     * On a release branch, add a patch id on main first and backport it. Never renumber main's ids. See docs/internal/Versioning.md
+     *
      * REVERTING AN INDEX VERSION
      *
      * If you revert a commit with an index version change, you MUST ensure there is a NEW index version representing the reverted

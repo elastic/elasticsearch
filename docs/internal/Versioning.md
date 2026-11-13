@@ -219,6 +219,8 @@ When generating locally, there is nothing to detect it from, so ask for it:
 Validation enforces this, so a pull request against `patch/serverless-fix` fails
 if its new transport version is not a patch id.
 
+Index versions are the exception: add the patch id on `main` first and then backport that exact line to `patch/serverless-fix`, as for any release branch (see [Backporting an index version](#backporting-an-index-version)).
+
 ### Reverting changes
 
 Transport versions cannot be removed, they can only be added. If the logic
@@ -284,6 +286,16 @@ so we don’t have a large list of index versions that need managing.
 
 Similar to transport version, index version has a `toReleaseVersion` to map
 onto release versions, in appropriate situations.
+
+### Backporting an index version
+
+Code checks index versions with comparisons such as `onOrAfter(X)`, which assume that an index with a higher id has every change gated at or below that id.
+A release branch can only add a base id (`PP` is `00`) that main already has, only while it also has every lower base id from main, and only while its highest id is not a patch id. Once the branch's `x.y.0` is released, it cannot add base ids at all.
+In every other case, add a patch id on main first, using the next `PP` that main has not used for the release branch's highest base id (for example `9_107_0_01` after `9_107_0_00`), and then backport that exact line.
+Backport patch ids in order: a release branch cannot have `9_107_0_02` without `9_107_0_01`, since a `between(9_107_0_01, ...)` check would assume its change is present.
+New indices are created with the branch's highest id, so a change that adds index versions to a release branch must raise it: backporting only another branch's patch id line is not enough, also add this branch's own patch id.
+Never renumber an index version to match main: a copied id claims every change main gated below it, including changes the release branch does not have.
+The `validateIndexVersions` precommit task enforces this. It compares with main only in PR builds whose target branch, read from `BUILDKITE_PULL_REQUEST_BASE_BRANCH`, is a release branch or the serverless patch branch; other builds, including local runs and builds after merge, only check that a released branch adds no id above its frozen base id's patch ids, and that 9.5 defines no id between `9_107_0_00` and `9_111_0_00`.
 
 ## Cluster Features
 

@@ -4533,9 +4533,9 @@ public class EsqlCapabilities {
         EXTERNAL_PARQUET_LIKE_MISSING_COLUMN_REJECTS_ROWS,
 
         /**
-         * Streaming execution on {@code POST /_query}: the {@code streaming} and
-         * {@code batch_size} URL parameters are accepted, and with {@code format=ndjson} the
-         * response streams header / pages / footer as NDJSON as rows are produced.
+         * Streaming execution on {@code POST /_query}: the {@code streaming} URL parameter is
+         * accepted, and with {@code format=ndjson} the response streams header / pages / footer
+         * as NDJSON as rows are produced.
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING(Build.current().isSnapshot()),
@@ -4819,6 +4819,17 @@ public class EsqlCapabilities {
          * {@code column_metadata} reports the field a column reads as {@code _meta.field} and its unit as {@code _meta.unit}.
          */
         COLUMN_METADATA_FIELD_SEMANTICS(Build.current().isSnapshot()),
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which
+         * a sibling branch has, with one type in every branch that has it, reads that column from its own {@code _source}, cast to
+         * that type, instead of null-filling it. It makes no difference how the sibling got the column: a mapping, an {@code EVAL}, a
+         * {@code RENAME} or a union or {@code FORK} nested in it. A branch that drops the column still null-fills it. Only meaningful
+         * when {@link #OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES} and {@link #OPTIONAL_FIELDS_LOAD_ALL_FORK} are available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/162512">#162512</a> and
+         * <a href="https://github.com/elastic/elasticsearch/issues/164545">#164545</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SIBLING_COLUMN_FROM_SOURCE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

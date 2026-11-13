@@ -625,3 +625,13 @@ tests:
   - :benchmarks:test
   method: testBenchmarkLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/165852
+- class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
+  tasks:
+  - :x-pack:plugin:esql-datasource-parquet:test
+  method: testConcurrentCompressedTwoPhase
+  issue: https://github.com/elastic/elasticsearch/issues/165927
+- class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT
+  tasks:
+  - :server:internalClusterTest
+  method: testSnapshotWithStuckNode
+  issue: https://github.com/elastic/elasticsearch/issues/165929

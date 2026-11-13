@@ -692,6 +692,10 @@ steps:
               - checkPart4
               - checkPart5
               - checkPart6
+              - checkPart7
+              - checkPart8
+              - checkPart9
+              - checkPart10
               - checkRestCompat
         agents:
           provider: gcp
@@ -759,6 +763,10 @@ steps:
               - checkPart4
               - checkPart5
               - checkPart6
+              - checkPart7
+              - checkPart8
+              - checkPart9
+              - checkPart10
               - checkRestCompat
         agents:
           provider: gcp
@@ -828,6 +836,10 @@ steps:
               - checkPart4
               - checkPart5
               - checkPart6
+              - checkPart7
+              - checkPart8
+              - checkPart9
+              - checkPart10
               - checkRestCompat
         agents:
           provider: gcp
@@ -871,6 +883,10 @@ steps:
               - checkPart4
               - checkPart5
               - checkPart6
+              - checkPart7
+              - checkPart8
+              - checkPart9
+              - checkPart10
         retry:
           automatic:
             - exit_status: "-1"

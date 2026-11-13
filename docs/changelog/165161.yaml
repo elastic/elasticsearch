@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 165129
+pr: 165161
+summary: Reject script_fields entries that omit script
+type: bug

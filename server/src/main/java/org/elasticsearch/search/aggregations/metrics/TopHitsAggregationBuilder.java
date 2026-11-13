@@ -704,6 +704,12 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                     );
                                 }
                             }
+                            if (script == null) {
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "script_fields [" + scriptFieldName + "] requires a [script]"
+                                );
+                            }
                             scriptFields.add(new ScriptField(scriptFieldName, script, ignoreFailure));
                         } else {
                             throw new ParsingException(

@@ -1,0 +1,38 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          foo: bar
+
+---
+"script_fields without script is rejected":
+  - do:
+      catch: /script_fields \[foo\] requires a \[script\]/
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            foo:
+              ignore_failure: true
+
+---
+"top_hits script_fields without script is rejected":
+  - do:
+      catch: /script_fields \[foo\] requires a \[script\]/
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            top:
+              top_hits:
+                script_fields:
+                  foo: {}

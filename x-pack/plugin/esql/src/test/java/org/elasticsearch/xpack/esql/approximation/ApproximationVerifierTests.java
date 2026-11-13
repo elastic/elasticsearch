@@ -43,12 +43,10 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     }
 
     public void testVerify_inlineStats() {
-        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
         verify("FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10");
     }
 
     public void testVerify_lookupJoin() {
-        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
         verify(
             "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
             TransportVersionUtils.randomVersionSupporting(TransportVersion.fromName("esql_approximation_lookup_join"))
@@ -56,7 +54,6 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     }
 
     public void testVerify_lookupJoin_oldDataNodes() {
-        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
         assertError(
             "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
             TransportVersionUtils.randomVersionNotSupporting(TransportVersion.fromName("esql_approximation_lookup_join")),
@@ -67,7 +64,6 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     }
 
     public void testVerify_fork() {
-        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
         verify("FROM test | FORK (EVAL x=1 | STATS c = COUNT()) (EVAL y=1 | STATS c = COUNT())");
         verify("FROM test | FORK (EVAL x=1) (EVAL y=1) | STATS c = COUNT()");
         verify("FROM test | FORK (WHERE true) (STATS c = COUNT())");
@@ -75,7 +71,6 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     }
 
     public void testVerify_nestedSubqueries() {
-        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
         // We need the plan before optimization here, because otherwise the verification exception
         // "Nested subqueries are not supported" is thrown at the end of logical optimization.
         // The inner LIMIT keeps the nesting in place: the analyzer's compaction flattens unconstrained
@@ -100,66 +95,62 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     public void testVerify_validQuery_queryProperties() {
         assertThat(
             verify("FROM test | SORT last_name | RENAME gender AS whatever | EVAL blah=1 | STATS COUNT() BY emp_no"),
-            equalTo(new ApproximationVerifier.QueryProperties(true, true, null))
+            equalTo(new ApproximationVerifier.QueryProperties(true, true, false, null))
         );
         assertThat(
             verify("FROM test | STATS COUNT() BY emp_no | WHERE emp_no > 10 | LIMIT 3 | MV_EXPAND emp_no"),
-            equalTo(new ApproximationVerifier.QueryProperties(true, true, null))
-        );
-        assertThat(
-            verify("FROM test | STATS COUNT() BY emp_no | WHERE emp_no > 10 | LIMIT 3 | MV_EXPAND emp_no"),
-            equalTo(new ApproximationVerifier.QueryProperties(true, true, null))
+            equalTo(new ApproximationVerifier.QueryProperties(true, true, false, null))
         );
         assertThat(
             verify("FROM test | WHERE emp_no > 10 | STATS SUM(emp_no)"),
-            equalTo(new ApproximationVerifier.QueryProperties(false, false, null))
+            equalTo(new ApproximationVerifier.QueryProperties(false, false, false, null))
         );
         assertThat(
             verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"),
-            equalTo(new ApproximationVerifier.QueryProperties(true, false, null))
+            equalTo(new ApproximationVerifier.QueryProperties(true, false, false, null))
         );
         assertThat(
             verify("FROM test | WHERE emp_no > 10 | STATS SUM(emp_no)"),
-            equalTo(new ApproximationVerifier.QueryProperties(false, false, null))
-        );
-        assertThat(
-            verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"),
-            equalTo(new ApproximationVerifier.QueryProperties(true, false, null))
+            equalTo(new ApproximationVerifier.QueryProperties(false, false, false, null))
         );
         assertThat(
             verify("FROM test | MV_EXPAND gender | STATS COUNT() BY emp_no"),
-            equalTo(new ApproximationVerifier.QueryProperties(true, true, null))
+            equalTo(new ApproximationVerifier.QueryProperties(true, true, false, null))
         );
         assertThat(
             verify("FROM test | MV_EXPAND gender | WHERE emp_no < 3 | STATS COUNT()"),
-            equalTo(new ApproximationVerifier.QueryProperties(false, false, null))
-        );
-        assertThat(
-            verify("FROM test | MV_EXPAND gender | WHERE emp_no < 3 | STATS COUNT()"),
-            equalTo(new ApproximationVerifier.QueryProperties(false, false, null))
+            equalTo(new ApproximationVerifier.QueryProperties(false, false, false, null))
         );
     }
 
     public void testVerify_validQuery_queryProperties_inlineStats() {
-        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
         assertThat(
             verify("FROM test | WHERE emp_no < 3 | INLINE STATS COUNT()"),
-            equalTo(new ApproximationVerifier.QueryProperties(false, false, null))
+            equalTo(new ApproximationVerifier.QueryProperties(false, false, false, null))
         );
     }
 
     public void testVerify_validForkQuery_queryProperties() {
-        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
         assertThat(
             verify("FROM test | FORK (STATS COUNT()) | EVAL x=1"),
             equalTo(
-                new ApproximationVerifier.QueryProperties(null, null, List.of(new ApproximationVerifier.QueryProperties(false, true, null)))
+                new ApproximationVerifier.QueryProperties(
+                    null,
+                    null,
+                    null,
+                    List.of(new ApproximationVerifier.QueryProperties(false, true, false, null))
+                )
             )
         );
         assertThat(
             verify("FROM test | FORK (STATS COUNT() BY emp_no) | EVAL x=1"),
             equalTo(
-                new ApproximationVerifier.QueryProperties(null, null, List.of(new ApproximationVerifier.QueryProperties(true, true, null)))
+                new ApproximationVerifier.QueryProperties(
+                    null,
+                    null,
+                    null,
+                    List.of(new ApproximationVerifier.QueryProperties(true, true, false, null))
+                )
             )
         );
         assertThat(
@@ -168,14 +159,20 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
                 new ApproximationVerifier.QueryProperties(
                     null,
                     null,
-                    List.of(new ApproximationVerifier.QueryProperties(false, false, null))
+                    null,
+                    List.of(new ApproximationVerifier.QueryProperties(false, false, false, null))
                 )
             )
         );
         assertThat(
             verify("FROM test | FORK (MV_EXPAND emp_no | STATS COUNT()) | EVAL x=1"),
             equalTo(
-                new ApproximationVerifier.QueryProperties(null, null, List.of(new ApproximationVerifier.QueryProperties(false, true, null)))
+                new ApproximationVerifier.QueryProperties(
+                    null,
+                    null,
+                    null,
+                    List.of(new ApproximationVerifier.QueryProperties(false, true, false, null))
+                )
             )
         );
         assertThat(
@@ -184,11 +181,12 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
                 new ApproximationVerifier.QueryProperties(
                     null,
                     null,
+                    null,
                     Arrays.asList(
-                        new ApproximationVerifier.QueryProperties(false, false, null),
+                        new ApproximationVerifier.QueryProperties(false, false, false, null),
                         null,
-                        new ApproximationVerifier.QueryProperties(true, true, null),
-                        new ApproximationVerifier.QueryProperties(false, true, null)
+                        new ApproximationVerifier.QueryProperties(true, true, false, null),
+                        new ApproximationVerifier.QueryProperties(false, true, false, null)
                     )
                 )
             )
@@ -199,37 +197,129 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
                 new ApproximationVerifier.QueryProperties(
                     null,
                     null,
+                    null,
                     Arrays.asList(
-                        new ApproximationVerifier.QueryProperties(true, true, null),
-                        new ApproximationVerifier.QueryProperties(true, true, null)
+                        new ApproximationVerifier.QueryProperties(true, true, false, null),
+                        new ApproximationVerifier.QueryProperties(true, true, false, null)
                     )
                 )
             )
         );
         assertThat(
             verify("FROM test | FORK (EVAL x=1) (WHERE true) | STATS COUNT() BY emp_no"),
-            equalTo(new ApproximationVerifier.QueryProperties(true, false, null))
+            equalTo(new ApproximationVerifier.QueryProperties(true, false, false, null))
         );
         assertThat(
             verify("FROM test | FORK (EVAL x=1) (WHERE true) | STATS SUM(emp_no)"),
-            equalTo(new ApproximationVerifier.QueryProperties(false, false, null))
+            equalTo(new ApproximationVerifier.QueryProperties(false, false, false, null))
         );
     }
 
-    public void testVerify_exactlyOneStats() {
+    public void testVerify_atLeastOneStats() {
         assertError(
             "FROM test | EVAL x = 1 | SORT emp_no | LIMIT 100 | MV_EXPAND x",
             equalTo("line 1:1: approximation not supported: query must have [STATS] with aggregation function(s) that can be approximated")
         );
+    }
+
+    public void testVerify_chainedStats_notSupported() {
+        assumeFalse("only without approximation chained stats", EsqlCapabilities.Cap.APPROXIMATION_CHAINED_STATS.isEnabled());
         assertError(
             "FROM test | STATS COUNT() BY emp_no | STATS COUNT()",
             equalTo("line 1:39: approximation not supported: query with chained [STATS] cannot be approximated")
         );
+        assertError(
+            "FROM test | WHERE emp_no > 10 | STATS c = COUNT() BY emp_no | EVAL d = 2 * c | KEEP d | STATS SUM(d)",
+            equalTo("line 1:89: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test | FORK (EVAL x=1) (WHERE true) | STATS c = COUNT() BY emp_no | STATS SUM(c)",
+            equalTo("line 1:74: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test | FORK (EVAL x=1) (WHERE true) | STATS c = COUNT() | EVAL d = 2 * c | STATS COUNT() BY d",
+            equalTo("line 1:81: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
     }
 
-    public void testVerify_exactlyOneStats_inlineStats() {
-        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
+    public void testVerify_chainedStats_supported() {
+        assumeTrue("needs approximation chained stats", EsqlCapabilities.Cap.APPROXIMATION_CHAINED_STATS.isEnabled());
+        assertThat(
+            verify("FROM test | STATS COUNT() BY emp_no | STATS COUNT()"),
+            equalTo(new ApproximationVerifier.QueryProperties(true, true, true, null))
+        );
+        assertThat(
+            verify("FROM test | WHERE emp_no > 10 | STATS c = COUNT() BY emp_no | EVAL d = 2 * c | KEEP d | STATS SUM(d)"),
+            equalTo(new ApproximationVerifier.QueryProperties(true, false, true, null))
+        );
+        assertThat(
+            verify("FROM test | FORK (EVAL x=1) (WHERE true) | STATS c = COUNT() BY emp_no | STATS SUM(c)"),
+            equalTo(new ApproximationVerifier.QueryProperties(true, false, true, null))
+        );
+        assertThat(
+            verify("FROM test | FORK (EVAL x=1) (WHERE true) | STATS c = COUNT() | EVAL d = 2 * c | STATS SUM(d)"),
+            equalTo(new ApproximationVerifier.QueryProperties(false, false, true, null))
+        );
+        assertThat(
+            verify("FROM test | STATS c = COUNT() BY emp_no, gender | STATS SUM(c) BY gender"),
+            equalTo(new ApproximationVerifier.QueryProperties(true, true, true, null))
+        );
+        assertThat(
+            verify("FROM test | STATS c = COUNT() BY emp_no | EVAL d = emp_no % 10 | STATS SUM(c) BY d"),
+            equalTo(new ApproximationVerifier.QueryProperties(true, true, true, null))
+        );
+    }
 
+    public void testVerify_chainedStats_groupedByApproximatedValue() {
+        assumeTrue("needs approximation chained stats", EsqlCapabilities.Cap.APPROXIMATION_CHAINED_STATS.isEnabled());
+        assertError(
+            "FROM test | STATS c = COUNT() BY emp_no | STATS COUNT() BY c",
+            equalTo("line 1:60: approximation not supported: [STATS] grouped by approximated value [c] cannot be approximated")
+        );
+        assertError(
+            "FROM test | STATS c = COUNT() | EVAL d = 2 * c | STATS COUNT() BY d",
+            equalTo("line 1:67: approximation not supported: [STATS] grouped by approximated value [d] cannot be approximated")
+        );
+        assertError(
+            "FROM test | STATS c = COUNT() BY emp_no | RENAME c AS d | STATS COUNT() BY d",
+            equalTo("line 1:76: approximation not supported: [STATS] grouped by approximated value [d] cannot be approximated")
+        );
+        assertError(
+            "FROM test | STATS c = COUNT() BY emp_no | MV_EXPAND c | STATS COUNT() BY c",
+            equalTo("line 1:74: approximation not supported: [STATS] grouped by approximated value [c] cannot be approximated")
+        );
+        assertError(
+            "FROM test | STATS c = COUNT() BY emp_no | STATS COUNT() BY d = c + 1",
+            equalTo("line 1:60: approximation not supported: [STATS] grouped by approximated value [d = c + 1] cannot be approximated")
+        );
+        assertError(
+            "FROM test | FORK (EVAL x=1) (WHERE true) | STATS c = COUNT() | EVAL d = 2 * c | STATS COUNT() BY d",
+            equalTo("line 1:98: approximation not supported: [STATS] grouped by approximated value [d] cannot be approximated")
+        );
+    }
+
+    public void testVerify_chainedStats_incompatibleAggregation() {
+        assumeTrue("needs approximation chained stats", EsqlCapabilities.Cap.APPROXIMATION_CHAINED_STATS.isEnabled());
+        assertError(
+            "FROM test | STATS c = COUNT() BY emp_no | STATS SUM(c), MAX(c)",
+            equalTo("line 1:57: approximation not supported: aggregation function [MAX(c)] cannot be approximated")
+        );
+        assertError(
+            "FROM test | STATS c = COUNT() BY emp_no | STATS SUM(c) BY c | STATS TOP(c, 2, \"desc\")",
+            equalTo("line 1:69: approximation not supported: aggregation function [TOP(c, 2, \"desc\")] cannot be approximated")
+        );
+        assertError(
+            "FROM test | FORK (EVAL x=1) (WHERE true) | STATS c = COUNT() BY emp_no | STATS VALUES(c)",
+            equalTo("line 1:80: approximation not supported: aggregation function [VALUES(c)] cannot be approximated")
+        );
+        // The first STATS is reported first.
+        assertError(
+            "FROM test | FORK (EVAL x=1) (WHERE true) | STATS c = MAX(emp_no) BY gender | STATS VALUES(c)",
+            equalTo("line 1:54: approximation not supported: aggregation function [MAX(emp_no)] cannot be approximated")
+        );
+    }
+
+    public void testVerify_chainedStats_noInlineStats() {
         assertError(
             "FROM test | INLINE STATS count=COUNT() BY emp_no | STATS AVG(count)",
             equalTo("line 1:52: approximation not supported: query with chained [STATS] cannot be approximated")
@@ -244,24 +334,7 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         );
     }
 
-    public void testVerify_noChainedStats_inlineStats() {
-        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
-        assertError(
-            "FROM test | INLINE STATS count=COUNT() BY emp_no | STATS AVG(count)",
-            equalTo("line 1:52: approximation not supported: query with chained [STATS] cannot be approximated")
-        );
-        assertError(
-            "FROM test | STATS COUNT() BY emp_no | INLINE STATS COUNT()",
-            equalTo("line 1:39: approximation not supported: query with chained [STATS] cannot be approximated")
-        );
-        assertError(
-            "FROM test | INLINE STATS count=COUNT() | INLINE STATS SUM(count)",
-            equalTo("line 1:42: approximation not supported: query with chained [STATS] cannot be approximated")
-        );
-    }
-
-    public void testVerify_noChainedStats_fork() {
-        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+    public void testVerify_chainedStats_notInsideForkBranches() {
         assertError(
             "FROM test | STATS COUNT() BY emp_no | FORK (EVAL x=1) (STATS COUNT())",
             equalTo("line 1:56: approximation not supported: query with chained [STATS] cannot be approximated")
@@ -279,13 +352,12 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
             equalTo("line 1:72: approximation not supported: query with chained [STATS] cannot be approximated")
         );
         assertError(
-            "FROM test | FORK (EVAL x=1) (WHERE true) | STATS COUNT() BY emp_no | STATS COUNT()",
-            equalTo("line 1:70: approximation not supported: query with chained [STATS] cannot be approximated")
+            "FROM test | STATS SUM(emp_no) BY emp_no | STATS COUNT() | FORK (WHERE true) (WHERE true)",
+            equalTo("line 1:43: approximation not supported: query with chained [STATS] cannot be approximated")
         );
     }
 
-    public void testVerify_noChainedStats_subquery() {
-        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+    public void testVerify_chainedStats_notInsideSubquery() {
         assertError(
             "FROM test, (FROM test | STATS x = MAX(emp_no) BY gender) | STATS c = COUNT(*)",
             equalTo("line 1:60: approximation not supported: query with chained [STATS] cannot be approximated")
@@ -308,10 +380,10 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     }
 
     public void testVerify_incompatibleProcessingCommand() {
-        String expectedMessage = EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled()
-            ? "line 1:87: approximation not supported: query with [FUSE] cannot be approximated"
-            : "line 1:42: approximation not supported: query with [FORK (WHERE true) (WHERE true)] cannot be approximated";
-        assertError("FROM test METADATA _id, _index, _score | FORK (WHERE true) (WHERE true) | LIMIT 100 | FUSE", equalTo(expectedMessage));
+        assertError(
+            "FROM test METADATA _id, _index, _score | FORK (WHERE true) (WHERE true) | LIMIT 100 | FUSE",
+            equalTo("line 1:87: approximation not supported: query with [FUSE] cannot be approximated")
+        );
     }
 
     public void testVerify_incompatibleProcessingCommandBeforeStats() {
@@ -344,10 +416,13 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
             "ROW x=[1,2]::DENSE_VECTOR | STATS SUM(x)",
             equalTo("line 1:35: approximation not supported: aggregation function [SUM(x)] must return a numeric value; got [DENSE_VECTOR]")
         );
+        assertError(
+            "FROM test | FORK (EVAL x=1) (WHERE true) | STATS MAX(emp_no)",
+            equalTo("line 1:50: approximation not supported: aggregation function [MAX(emp_no)] cannot be approximated")
+        );
     }
 
     public void testVerify_forkInvalidBranches() {
-        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
         // One branch is approximable, so the query is fine.
         verify("FROM test | FORK (STATS MAX(emp_no)) (WHERE true) (STATS COUNT(emp_no))");
         // No branch is approximable, so throw an error.

@@ -14,6 +14,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.LeafExpression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteApproximationPlan;
@@ -63,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -98,6 +101,12 @@ public class ApproximationPlan {
      * to assign each sampled row to a bucket, to compute confidence intervals.
      */
     public static final String BUCKET_ID_COLUMN_NAME = Attribute.rawTemporaryName("approximation", "bucket_id");
+
+    /**
+     * The column name for the number of sampled rows per group of a grouped STATS.
+     * This is used to filter out groups with too few sampled rows.
+     */
+    private static final String SAMPLE_SIZE_COLUMN_NAME = Attribute.rawTemporaryName("approximation", "sample_size");
 
     /**
      * Part of the temporary column names for the bucket columns.
@@ -252,6 +261,15 @@ public class ApproximationPlan {
         }
     }
 
+    /**
+     * Identifies a STATS command without its child, which may have been transformed.
+     */
+    private record StatsKey(Source source, List<Expression> groupings, List<? extends NamedExpression> aggregates) {
+        StatsKey(Aggregate aggregate) {
+            this(aggregate.source(), aggregate.groupings(), aggregate.aggregates());
+        }
+    }
+
     private static final Logger logger = LogManager.getLogger(ApproximationPlan.class);
 
     /**
@@ -271,14 +289,16 @@ public class ApproximationPlan {
      *     <li> {@code EVAL} adding a new column with random bucket IDs for each trial
      *     <li> {@code STATS} command with:
      *          <ul>
-     *              <li> {@code COUNT} to track the sample size
      *              <li> Each aggregate function replaced by a sample-corrected version (if needed)
      *              <li> {@link ApproximationPlan#TRIAL_COUNT} * {@link ApproximationPlan#BUCKET_COUNT} additional columns
      *                   with a sampled values for each aggregate function, sample-corrected (if needed)
+     *              <li> For grouped {@code STATS}, a {@code COUNT} to track the sample size per group
      *          </ul>
-     *     <li> {@code FILTER} to remove all rows with a too small sample size
      *     <li> All commands after the {@code STATS} command, modified to also process
-     *          the additional bucket columns where possible
+     *          the additional bucket columns where possible. This includes chained
+     *          {@code STATS} commands, which aggregate the buckets too.
+     *     <li> {@code FILTER} directly after the last {@code STATS} command, to remove
+     *          all groups with a too small sample size
      *     <li> {@code EVAL} to compute confidence intervals for all fields with buckets
      *     <li> {@code PROJECT} to drop all non-output columns
      * </ul>
@@ -299,13 +319,14 @@ public class ApproximationPlan {
      *             | EVAL x = 2*x
      *             | EVAL bucketId = MV_APPEND(RANDOM(B), ... , RANDOM(B))  // T times
      *             | SAMPLED_STATS[SampleProbabilityPlaceHolder]
-     *                     sampleSize = COUNT(*),
      *                     s = SUM(x),
      *                     `s$0` = SUM(x) WHERE MV_SLICE(bucketId, 0, 0) == 0
      *                     ...,
      *                     `s$T*B-1` = SUM(x) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1
+     *                     sampleSize = COUNT(*)
      *               BY group
-     *             | WHERE sampleSize >= MIN_ROW_COUNT_FOR_RESULT_INCLUSION / prob
+     *             | WHERE prob == 1.0 OR sampleSize >= MIN_ROW_COUNT_FOR_RESULT_INCLUSION
+     *             | DROP sampleSize
      *             | EVAL t = s*s, `t$0` = `s$0`*`s$0`, ..., `t$T*B-1` = `s$T*B-1`*`s$T*B-1`
      *             | EVAL `CONFIDENCE_INTERVAL(s)` = CONFIDENCE_INTERVAL(s, MV_APPEND(`s$0`, ... `s$T*B-1`), T, B, 0.90),
      *                    `CONFIDENCE_INTERVAL(t)` = CONFIDENCE_INTERVAL(t, MV_APPEND(`t$0`, ... `t$T*B-1`), T, B, 0.90)
@@ -324,6 +345,12 @@ public class ApproximationPlan {
         logger.debug("generating approximation plan");
 
         Double confidenceLevel = settings.confidenceLevel();
+
+        // Whether there's a STATS after another STATS (in any branch).
+        // This determines whether sample sizes per bucket are needed.
+        boolean hasChainedStats = queryProperties.forkBranchProperties() == null
+            ? queryProperties.hasChainedStats()
+            : queryProperties.forkBranchProperties().stream().anyMatch(branch -> branch != null && branch.hasChainedStats());
 
         // Collect all plans inside merge branches that cannot be approximated
         // (as indicated by: queryProperties.forkBranchProperties[i] == null).
@@ -344,6 +371,13 @@ public class ApproximationPlan {
         // Logical plans that have STATS somewhere in their children.
         Set<LogicalPlan> plansThatEncounteredStats = new HashSet<>();
 
+        // The last STATS on each path gets a filter that removes groups with too few sampled rows,
+        // after which the sample size columns are dropped.
+        Set<StatsKey> lastStats = logicalPlan.collectFirstChildren(plan -> plan instanceof Aggregate)
+            .stream()
+            .map(plan -> new StatsKey((Aggregate) plan))
+            .collect(Collectors.toSet());
+
         // The keys are the IDs of the fields that have buckets. Confidence intervals are computed
         // for these fields at the end of the computation. They map to the list of buckets for
         // that field.
@@ -359,12 +393,14 @@ public class ApproximationPlan {
 
         Holder<Integer> sampleProbabilityId = new Holder<>(0);
 
+        // Add sampling and the buckets to the plan used for confidence interval computation.
         LogicalPlan approximationPlan = logicalPlan.transformUp(plan -> {
             boolean inNonApproximableForkBranch = plansInNonApproximableForkBranch.contains(plan);
             if (inNonApproximableForkBranch) {
                 return plan;
             }
             boolean encounteredStats = plan.children().stream().anyMatch(plansThatEncounteredStats::contains);
+            boolean isLastStatsPlan = plan instanceof Aggregate aggregate && lastStats.contains(new StatsKey(aggregate));
             if (encounteredStats == false) {
                 if (plan instanceof Aggregate == false) {
                     // Commands before the first STATS function should be left unchanged.
@@ -374,15 +410,27 @@ public class ApproximationPlan {
                     // (for computing confidence intervals).
                     Expression sampleProbability = new SampleProbabilityPlaceHolder(Source.EMPTY, sampleProbabilityId.get());
                     sampleProbabilityId.set(sampleProbabilityId.get() + 1);
-                    plan = sampleCorrectedAggregateAndBuckets((Aggregate) plan, sampleProbability, fieldBuckets, notRoundedExpressions);
+                    plan = sampleCorrectedAggregateAndBuckets(
+                        (Aggregate) plan,
+                        sampleProbability,
+                        fieldBuckets,
+                        notRoundedExpressions,
+                        hasChainedStats
+                    );
+                    if (isLastStatsPlan) {
+                        plan = filterBySampleSize(plan);
+                    }
                     plansThatEncounteredStats.add(plan);
                     return plan;
                 }
             } else {
-                // After the STATS command, any processing of fields that have buckets, should
+                // After the first STATS command, any processing of fields that have buckets, should
                 // also process the buckets, so that confidence intervals for the dependent fields
                 // can be computed.
                 plan = planIncludingBuckets(plan, fieldBuckets, notRoundedExpressions);
+                if (isLastStatsPlan) {
+                    plan = filterBySampleSize(plan);
+                }
                 plansThatEncounteredStats.add(plan);
                 return plan;
             }
@@ -399,17 +447,14 @@ public class ApproximationPlan {
         if (fieldBuckets != null) {
             dropAttributes.addAll(fieldBuckets.values().stream().flatMap(List::stream).toList());
         }
+        approximationPlan = dropColumns(approximationPlan, dropAttributes);
 
-        List<Attribute> keepAttributes = new ArrayList<>(approximationPlan.output());
-        keepAttributes.removeAll(dropAttributes);
-        approximationPlan = new Project(Source.EMPTY, approximationPlan, keepAttributes);
         logger.debug("approximation plan:\n{}", approximationPlan);
         return approximationPlan;
     }
 
     /**
-     * Replaces the aggregate by an aggregate with buckets (for confidence intervals),
-     * and filters out groups with a too small sample size.
+     * Replaces the aggregate by an aggregate with buckets (for confidence intervals).
      * <p>
      * This means that:
      * <pre>
@@ -420,14 +465,15 @@ public class ApproximationPlan {
      * is replaced by:
      * <pre>
      *     {@code
-     *          STATS sampleSize = COUNT(*),
-     *                s = SUM(x),
+     *          STATS s = SUM(x),
      *                `s$0` = SUM(x) WHERE MV_SLICE(bucketId, 0, 0) == 0
      *                ...,
-     *                `s$T*B-1` = SUM(x) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1
+     *                `s$T*B-1` = SUM(x) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1,
+     *                sampleSize = COUNT(*) * prob,
+     *                `sampleSize$0` = COUNT(*) WHERE MV_SLICE(bucketId, 0, 0) == 0  // only for chained STATS
+     *                ...
+     *                `sampleSize$T*B-1` = COUNT(*) WHERE MV_SLICE(bucketId, T-1, T-1) == B-1  // only for chained STATS
      *          BY group
-     *          | WHERE sampleSize >= MIN_ROW_COUNT_FOR_RESULT_INCLUSION / prob
-     *          | DROP sampleSize
      *      }
      * </pre>
      */
@@ -435,7 +481,8 @@ public class ApproximationPlan {
         Aggregate aggregate,
         Expression sampleProbability,
         Map<NameId, List<Attribute>> fieldBuckets,
-        Map<NameId, Attribute> notRoundedExpressions
+        Map<NameId, Attribute> notRoundedExpressions,
+        boolean hasChainedStats
     ) {
         Expression randomBucketId = new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT));
         Expression bucketIds = randomBucketId;
@@ -517,16 +564,7 @@ public class ApproximationPlan {
                 List<Attribute> buckets = new ArrayList<>();
                 for (int trialId = 0; trialId < TRIAL_COUNT; trialId++) {
                     for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
-                        Expression bucketIdFilter = new Equals(
-                            Source.EMPTY,
-                            new MvSlice(
-                                Source.EMPTY,
-                                bucketIdField.toAttribute(),
-                                Literal.integer(Source.EMPTY, trialId),
-                                Literal.integer(Source.EMPTY, trialId)
-                            ),
-                            Literal.integer(Source.EMPTY, bucketId)
-                        );
+                        Expression bucketIdFilter = bucketIdFilter(bucketIdField, trialId, bucketId);
                         Alias bucket = new Alias(
                             Source.EMPTY,
                             Attribute.rawTemporaryName(agg.name(), BUCKET_NAME_PART, Integer.toString(trialId * BUCKET_COUNT + bucketId)),
@@ -580,22 +618,59 @@ public class ApproximationPlan {
             }
         }
 
-        List<NamedExpression> aggregates = new ArrayList<>(originalAggregates);
-        aggregates.addAll(bucketAggregates);
-
-        Alias sampleSize = null;
         if (aggregate.groupings().isEmpty() == false) {
-            // Add the sample size per grouping to filter out groups with too few sampled rows.
-            sampleSize = new Alias(
+            // Add the number of sampled rows per group, to filter out groups with too few
+            // sampled rows (see filterBySampleSize). All aggregates are
+            // sample-corrected on the data nodes (divided by the sample probability), so
+            // the count has to be multiplied by the sample probability again to get the
+            // actual number of sampled rows.
+            CountApproximate countAll = new CountApproximate(Source.EMPTY, Literal.keyword(Source.EMPTY, StringUtils.WILDCARD));
+            Alias correctedSampleSize = new Alias(
                 Source.EMPTY,
-                Attribute.rawTemporaryName("approximation", "sample_size"),
-                new CountApproximate(Source.EMPTY, Literal.keyword(Source.EMPTY, StringUtils.WILDCARD)),
+                Attribute.rawTemporaryName(SAMPLE_SIZE_COLUMN_NAME, "corrected"),
+                countAll,
                 null,
                 true
             );
-            aggregates.add(sampleSize);
-            originalAggregates.add(sampleSize);
+            originalAggregates.add(correctedSampleSize);
+            Alias sampleSize = new Alias(
+                Source.EMPTY,
+                SAMPLE_SIZE_COLUMN_NAME,
+                new Mul(Source.EMPTY, correctedSampleSize.toAttribute(), sampleProbability),
+                null,
+                true
+            );
+            postEvals.add(sampleSize);
+            projections.add(sampleSize.toAttribute());
+
+            if (fieldBuckets != null && hasChainedStats) {
+                // The sample size per bucket is only used by chained STATS to aggregate
+                // the groups that have sampled rows in that bucket.
+                List<Attribute> buckets = new ArrayList<>();
+                for (int trialId = 0; trialId < TRIAL_COUNT; trialId++) {
+                    for (int bucketId = 0; bucketId < BUCKET_COUNT; bucketId++) {
+                        Alias bucket = new Alias(
+                            Source.EMPTY,
+                            Attribute.rawTemporaryName(
+                                SAMPLE_SIZE_COLUMN_NAME,
+                                BUCKET_NAME_PART,
+                                Integer.toString(trialId * BUCKET_COUNT + bucketId)
+                            ),
+                            countAll.withFilter(bucketIdFilter(bucketIdField, trialId, bucketId)),
+                            null,
+                            true
+                        );
+                        bucketAggregates.add(bucket);
+                        buckets.add(bucket.toAttribute());
+                        projections.add(bucket.toAttribute());
+                    }
+                }
+                fieldBuckets.put(sampleSize.id(), buckets);
+            }
         }
+
+        List<NamedExpression> aggregates = new ArrayList<>(originalAggregates);
+        aggregates.addAll(bucketAggregates);
 
         // Add the bucket ID, do the aggregations (including the buckets),
         // and filter out rows with too few sampled values.
@@ -605,25 +680,6 @@ public class ApproximationPlan {
         }
 
         plan = new SampledAggregate(aggregate.source(), plan, aggregate.groupings(), aggregates, originalAggregates, sampleProbability);
-
-        if (sampleSize != null) {
-            // The sampleSize is sampled-corrected, so we have to multiply by the sample
-            // probability to get the actual number of sampled rows.
-            plan = new Filter(
-                Source.EMPTY,
-                plan,
-                new Or(
-                    Source.EMPTY,
-                    new Equals(Source.EMPTY, sampleProbability, Literal.fromDouble(Source.EMPTY, 1.0)),
-                    new GreaterThanOrEqual(
-                        Source.EMPTY,
-                        new Mul(Source.EMPTY, sampleSize.toAttribute(), sampleProbability),
-                        Literal.fromDouble(Source.EMPTY, MIN_ROW_COUNT_FOR_RESULT_INCLUSION - 0.5)
-                    )
-                )
-            );
-        }
-
         plan = new Eval(Source.EMPTY, plan, postEvals);
         return new Project(Source.EMPTY, plan, projections);
     }
@@ -631,7 +687,7 @@ public class ApproximationPlan {
     /**
      * Returns a plan that also processes the buckets for fields that have them.
      * Luckily, there's only a limited set of commands that have to do something
-     * with the buckets: EVAL, PROJECT and MV_EXPAND.
+     * with the buckets: EVAL, STATS, PROJECT, MV_EXPAND and merge plans (such as FORK).
      */
     private static LogicalPlan planIncludingBuckets(
         LogicalPlan plan,
@@ -640,6 +696,7 @@ public class ApproximationPlan {
     ) {
         return switch (plan) {
             case Eval eval -> evalIncludingBuckets(eval, fieldBuckets, notRoundedExpressions);
+            case Aggregate aggregate -> aggregateIncludingBuckets(aggregate, fieldBuckets);
             case Project project -> projectIncludingBuckets(project, fieldBuckets, notRoundedExpressions);
             case MvExpand mvExpand -> mvExpandIncludingBuckets(mvExpand, fieldBuckets);
             case MergePlan mergePlan -> mergePlanIncludingBuckets(mergePlan, fieldBuckets);
@@ -651,7 +708,7 @@ public class ApproximationPlan {
      * For EVAL, if any of the evaluated expressions depends on a field with buckets,
      * create corresponding expressions for the buckets as well. If the results are
      * non-numeric or multivalued, though, confidence intervals don't apply anymore,
-     * and the buckets not computed.
+     * and the buckets are not computed.
      */
     private static LogicalPlan evalIncludingBuckets(
         Eval eval,
@@ -718,6 +775,78 @@ public class ApproximationPlan {
     }
 
     /**
+     * For a chained STATS, i.e. a STATS after the first one, add buckets for its aggregate functions,
+     * so that confidence intervals can be computed for them.
+     * <p>
+     * For a grouped STATS, also sum the sample size of the input groups, so that groups with too
+     * few sampled rows can be filtered out in the end.
+     */
+    private static LogicalPlan aggregateIncludingBuckets(Aggregate aggregate, Map<NameId, List<Attribute>> fieldBuckets) {
+        List<NamedExpression> aggregateAggregates = new ArrayList<>(aggregate.aggregates());
+        Attribute sampleSize = getSampleSize(aggregate.child(), null);
+        if (sampleSize != null && aggregate.groupings().isEmpty() == false) {
+            // When the new STATS is grouped, add a SUM of the sample size per group,
+            // so that groups with too few sampled rows can be filtered out.
+            // The loop below adds buckets for this SUM too, like for any other aggregate.
+            aggregateAggregates.add(new Alias(Source.EMPTY, SAMPLE_SIZE_COLUMN_NAME, new Sum(Source.EMPTY, sampleSize), null, true));
+        }
+
+        List<NamedExpression> aggregates = new ArrayList<>(aggregateAggregates);
+
+        if (fieldBuckets != null) {
+            for (NamedExpression aggOrKey : aggregateAggregates) {
+                if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
+                    // This is a grouping key, not an aggregate function.
+                    assert fieldBuckets.containsKey(aggOrKey.id()) == false : "grouping key with buckets: " + aggOrKey;
+                    continue;
+                }
+                Alias agg = (Alias) aggOrKey;
+                AggregateFunction aggFn = (AggregateFunction) agg.child();
+                // Only create buckets for the same single-valued aggregations as for the first STATS,
+                // and for the data types that confidence intervals can be computed for.
+                if (ApproximationVerifier.SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false
+                    || aggFn.anyMatch(expr -> MULTIVALUED_OUTPUT_FUNCTIONS.contains(expr.getClass()))) {
+                    continue;
+                }
+
+                List<Attribute> buckets = new ArrayList<>();
+                for (int bucketId = 0; bucketId < TRIAL_COUNT * BUCKET_COUNT; bucketId++) {
+                    Attribute bucketSampleSize = getSampleSize(aggregate.child(), bucketId);
+                    AggregateFunction bucketAggFn = aggFn;
+                    if (bucketSampleSize != null) {
+                        Expression bucketFilter = new And(
+                            Source.EMPTY,
+                            new IsNotNull(Source.EMPTY, bucketSampleSize),
+                            new GreaterThan(Source.EMPTY, bucketSampleSize, Literal.fromDouble(Source.EMPTY, 0.0))
+                        );
+                        bucketAggFn = aggFn.withFilter(
+                            aggFn.hasFilter() == false ? bucketFilter : new And(Source.EMPTY, aggFn.filter(), bucketFilter)
+                        );
+                    }
+
+                    final int finalBucketId = bucketId;
+                    Alias bucket = new Alias(
+                        Source.EMPTY,
+                        Attribute.rawTemporaryName(agg.name(), BUCKET_NAME_PART, Integer.toString(bucketId)),
+                        bucketAggFn.transformDown(
+                            e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())
+                                ? fieldBuckets.get(ne.id()).get(finalBucketId)
+                                : e
+                        ),
+                        null,
+                        true
+                    );
+                    aggregates.add(bucket);
+                    buckets.add(bucket.toAttribute());
+                }
+                fieldBuckets.put(agg.id(), buckets);
+            }
+        }
+
+        return aggregate.with(aggregate.groupings(), aggregates);
+    }
+
+    /**
      * For PROJECT, if it renames a field with buckets, add the renamed field
      * to the map of fields with buckets.
      */
@@ -726,6 +855,13 @@ public class ApproximationPlan {
         Map<NameId, List<Attribute>> fieldBuckets,
         Map<NameId, Attribute> notRoundedExpressions
     ) {
+        Attribute sampleSize = getSampleSize(project.child(), null);
+        if (sampleSize != null) {
+            List<NamedExpression> projections = new ArrayList<>(project.projections());
+            projections.add(sampleSize);
+            project = project.withProjections(projections);
+        }
+
         if (fieldBuckets == null) {
             return project;
         }
@@ -860,6 +996,85 @@ public class ApproximationPlan {
         }
 
         return mergePlan.replaceSubPlansAndOutput(children, output);
+    }
+
+    /**
+     * Returns a filter that selects the rows that are assigned to the given bucket in the given trial.
+     */
+    private static Expression bucketIdFilter(Alias bucketIdField, int trialId, int bucketId) {
+        return new Equals(
+            Source.EMPTY,
+            new MvSlice(
+                Source.EMPTY,
+                bucketIdField.toAttribute(),
+                Literal.integer(Source.EMPTY, trialId),
+                Literal.integer(Source.EMPTY, trialId)
+            ),
+            Literal.integer(Source.EMPTY, bucketId)
+        );
+    }
+
+    /**
+     * Adds a filter that removes groups with too few sampled rows, and then
+     * drops the sample size column. It should be applied directly after the
+     * last STATS command on each path of the plan.
+     */
+    private static LogicalPlan filterBySampleSize(LogicalPlan plan) {
+        Attribute sampleSize = getSampleSize(plan, null);
+        if (sampleSize == null) {
+            return plan;
+        }
+
+        Set<Expression> sampleProbabilities = new HashSet<>();
+        plan.forEachExpressionDown(SampleProbabilityPlaceHolder.class, sampleProbabilities::add);
+        // FORK with chained STATS is not supported, so there should be only one SampleProbabilityPlaceHolder.
+        assert sampleProbabilities.size() == 1 : "expected one sample probability, got " + sampleProbabilities;
+        Expression sampleProbability = sampleProbabilities.iterator().next();
+
+        // Groups are only filtered out when the results are approximated (i.e. sampleProbability < 1.0)
+        // and the sample size is too small for meaningful results.
+        LogicalPlan filtered = new Filter(
+            Source.EMPTY,
+            plan,
+            new Or(
+                Source.EMPTY,
+                new Equals(Source.EMPTY, sampleProbability, Literal.fromDouble(Source.EMPTY, 1.0)),
+                new GreaterThan(
+                    Source.EMPTY,
+                    sampleSize.toAttribute(),
+                    Literal.fromDouble(Source.EMPTY, MIN_ROW_COUNT_FOR_RESULT_INCLUSION - 0.5)
+                )
+            )
+        );
+        return dropColumns(filtered, List.of(sampleSize));
+    }
+
+    /**
+     * Returns the sample size column if it exists in the plan.
+     */
+    private static Attribute getSampleSize(LogicalPlan plan, Integer bucketId) {
+        String name = SAMPLE_SIZE_COLUMN_NAME;
+        if (bucketId != null) {
+            name = Attribute.rawTemporaryName(name, BUCKET_NAME_PART, Integer.toString(bucketId));
+        }
+        for (Attribute attribute : plan.output()) {
+            if (attribute.name().equals(name)) {
+                return attribute;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Drops the given columns from the output of the plan.
+     */
+    private static LogicalPlan dropColumns(LogicalPlan plan, Collection<Attribute> columns) {
+        if (columns.isEmpty()) {
+            return plan;
+        }
+        List<Attribute> keepAttributes = new ArrayList<>(plan.output());
+        keepAttributes.removeAll(columns);
+        return new Project(Source.EMPTY, plan, keepAttributes);
     }
 
     /**
@@ -1048,9 +1263,15 @@ public class ApproximationPlan {
             }
         }
 
+        List<? extends NamedExpression> aggregates = sampledAggregate.originalAggregates();
+        if (aggregates.isEmpty()) {
+            // All original aggregates may have been pruned, while some buckets are still used (e.g. the
+            // sample size buckets by a chained STATS). The aggregate must still output one row per group.
+            aggregates = sampledAggregate.groupings().stream().map(Expressions::attribute).toList();
+        }
         LogicalPlan result = sampledAggregate.child();
-        if (sampledAggregate.originalAggregates().isEmpty() == false) {
-            result = new Aggregate(sampledAggregate.source(), result, sampledAggregate.groupings(), sampledAggregate.originalAggregates());
+        if (aggregates.isEmpty() == false) {
+            result = new Aggregate(sampledAggregate.source(), result, sampledAggregate.groupings(), aggregates);
         }
         if (fields.isEmpty() == false) {
             result = new Eval(Source.EMPTY, result, fields);

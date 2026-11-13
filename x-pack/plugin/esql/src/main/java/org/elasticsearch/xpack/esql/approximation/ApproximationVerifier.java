@@ -12,6 +12,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -70,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -81,21 +87,46 @@ import java.util.Set;
  * <p>
  * A query is currently suitable for approximation if:
  * <ul>
- *   <li> it has a supported {@code STATS} layout: without {@code FORK}, exactly one
- *        {@code STATS}; with {@code FORK}, either {@code FROM | FORK (...) | STATS}
- *        (one {@code STATS} after the fork, none inside branches) or
- *        {@code FROM | STATS | FORK (...)} (exactly one {@code STATS} per branch)
+ *   <li> it has a supported {@code STATS} layout ({@code INLINE STATS} counts as {@code STATS}):
+ *        <ul>
+ *          <li> one {@code STATS}, possibly before or after a {@code FORK}, like {@code FROM | STATS},
+ *               {@code FROM | STATS | FORK (...)} or {@code FROM | FORK (...) | STATS}
+ *          <li> at most one {@code STATS} in each branch of a {@code FORK}, and none before or after it,
+ *               like {@code FROM | FORK (STATS ...) (STATS ...) (...)}; at least one branch must be
+ *               approximable, and the other branches are computed exactly
+ *          <li> in snapshot builds only: chained {@code STATS} (a {@code STATS} after another
+ *               {@code STATS}), without {@code INLINE STATS} or {@code FORK}, and no grouping by
+ *               approximated values, like {@code FROM | STATS | STATS}
+ *          <li> in snapshot builds only: chained {@code STATS} like before, but with a {@code FORK}
+ *               before all {@code STATS}, like {@code FROM | FORK (...) | STATS | STATS}
+ *        </ul>
+ *   <li> no limiting command (such as {@code LIMIT}) comes before the first {@code STATS}
  *   <li> the other processing commands are from the supported set
  *        ({@link ApproximationVerifier#SUPPORTED_COMMANDS})
  *   <li> the aggregate functions are from the supported set
  *        ({@link ApproximationVerifier#SUPPORTED_SINGLE_VALUED_AGGS} and
- *         {@link ApproximationVerifier#SUPPORTED_MULTIVALUED_AGGS})
+ *         {@link ApproximationVerifier#SUPPORTED_MULTIVALUED_AGGS}) and return a number
  * </ul>
  * Some of these restrictions may be lifted in the future.
  */
 public class ApproximationVerifier {
 
-    public record QueryProperties(Boolean hasGrouping, Boolean preservesRows, List<QueryProperties> forkBranchProperties) {}
+    /**
+     * Properties of a query that determine how it is approximated.
+     * When the {@code STATS} is inside a merge branch, the properties are per branch
+     * (in {@code forkBranchProperties}), and the other properties are null.
+     * @param hasGrouping whether the first {@code STATS} has a {@code BY} clause
+     * @param preservesRows whether the commands before the first {@code STATS} preserve the number of rows
+     * @param hasChainedStats whether there's a {@code STATS} after another {@code STATS}
+     * @param forkBranchProperties the properties per branch when the {@code STATS} is inside a merge branch
+     *                             (null entries for branches that cannot be approximated), or null otherwise
+     */
+    public record QueryProperties(
+        Boolean hasGrouping,
+        Boolean preservesRows,
+        Boolean hasChainedStats,
+        List<QueryProperties> forkBranchProperties
+    ) {}
 
     private static final TransportVersion TV_LOOKUP_JOIN = TransportVersion.fromName("esql_approximation_lookup_join");
 
@@ -148,6 +179,8 @@ public class ApproximationVerifier {
         new SimpleImmutableEntry<>(UserAgent.class, SupportedVersion.SUPPORTED_ON_ALL_NODES),
         new SimpleImmutableEntry<>(BranchPlan.class, SupportedVersion.SUPPORTED_ON_ALL_NODES)
     );
+
+    private static final SupportedVersion SUPPORT_CHAINED_STATS = SupportedVersion.underConstruction(TransportVersion.zero());
 
     /**
      * These LIMIT-like processing commands are only supported after the STATS.
@@ -291,8 +324,11 @@ public class ApproximationVerifier {
         // Check whether there's a MergePlan (FORK, UnionAll, BranchPlan).
         List<MergePlan> mergePlans = logicalPlan.collect(MergePlan.class);
         if (mergePlans.isEmpty()) {
+            // When there's no merge, chained STATS are supported if there's no INLINE STATS.
+            boolean allowChainedStats = SUPPORT_CHAINED_STATS.supportedOn(minimumVersion, Build.current().isSnapshot())
+                && logicalPlan.anyMatch(plan -> plan instanceof InlineJoin) == false;
             // When there's no merge, verify this logical plan.
-            return verifyBranchOrThrow(logicalPlan);
+            return verifyBranchOrThrow(logicalPlan, allowChainedStats);
         } else {
             // When there's a merge, find the structure.
             if (mergePlans.size() > 1) {
@@ -313,12 +349,23 @@ public class ApproximationVerifier {
             if (statsInBranches == false) {
                 // When the merge is after the STATS, like
                 // - FROM index | FORK (...) (...) | STATS ...
-                // verify there's just one STATS, and verify as if there were no merge.
+                // verify as if there were no merge.
+                boolean allowChainedStats = SUPPORT_CHAINED_STATS.supportedOn(minimumVersion, Build.current().isSnapshot())
+                    && logicalPlan.anyMatch(plan -> plan instanceof InlineJoin) == false;
                 List<Aggregate> aggregates = logicalPlan.collect(Aggregate.class);
-                if (aggregates.size() > 1) {
-                    throw new ChainedStatsVerificationException(logicalPlan);
+                boolean hasChainedStats = aggregates.size() >= 2;
+                if (allowChainedStats == false && hasChainedStats) {
+                    throw new ChainedStatsVerificationException(aggregates.get(aggregates.size() - 2 /* index of 2nd STATS */));
                 }
-                return new QueryProperties(aggregates.getFirst().groupings().isEmpty() == false, false, null);
+                Holder<VerificationException> verificationException = new Holder<>();
+                for (Aggregate aggregate : aggregates.reversed()) {
+                    verifyAggregateFunctions(aggregate, verificationException);
+                }
+                verifyNoGroupingByApproximatedValue(logicalPlan, verificationException);
+                if (verificationException.get() != null) {
+                    throw verificationException.get();
+                }
+                return new QueryProperties(aggregates.getLast().groupings().isEmpty() == false, false, hasChainedStats, null);
             } else {
                 // When the STATS is in a branch, like
                 // - FROM index | STATS ... | FORK (...) (...)
@@ -331,7 +378,8 @@ public class ApproximationVerifier {
                     int branchIndexFinal = branchIndex;
                     LogicalPlan branch = logicalPlan.transformDown(MergePlan.class, f -> f.children().get(branchIndexFinal));
                     try {
-                        branchProperties.add(verifyBranchOrThrow(branch));
+                        // When there's STATS inside the FORK branches, chained STATS are not supported yet.
+                        branchProperties.add(verifyBranchOrThrow(branch, false));
                     } catch (VerificationException e) {
                         // Chained STATS result in a non-approximable query.
                         if (e instanceof ChainedStatsVerificationException) {
@@ -350,16 +398,17 @@ public class ApproximationVerifier {
                     assert firstVerificationException != null;
                     throw firstVerificationException;
                 } else {
-                    return new QueryProperties(null, null, branchProperties);
+                    return new QueryProperties(null, null, null, branchProperties);
                 }
             }
         }
     }
 
-    private static QueryProperties verifyBranchOrThrow(LogicalPlan logicalPlan) {
+    private static QueryProperties verifyBranchOrThrow(LogicalPlan logicalPlan, boolean allowChainedStats) {
         Holder<Boolean> encounteredStats = new Holder<>(false);
         Holder<Boolean> hasGrouping = new Holder<>();
         Holder<Boolean> preservesRows = new Holder<>(true);
+        Holder<Boolean> hasChainedStats = new Holder<>(false);
 
         // Holds the first encountered exception. If a `ChainedStatsVerificationException` is
         // encountered, that is thrown immediately, because it leads to a non-approximable query
@@ -384,53 +433,109 @@ public class ApproximationVerifier {
                     );
                 }
                 if (plan instanceof Aggregate aggregate) {
-                    // Verify that the aggregate functions are supported.
                     encounteredStats.set(true);
                     hasGrouping.set(aggregate.groupings().isEmpty() == false);
-                    plan.forEachExpression(AggregateFunction.class, aggFn -> {
-                        if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false
-                            && SUPPORTED_MULTIVALUED_AGGS.contains(aggFn.getClass()) == false) {
-                            // TODO: ideally just return aggregate function from the source
-                            verificationException.setIfAbsent(
-                                new VerificationException(
-                                    "line {}:{}: approximation not supported: aggregation function [{}] cannot be approximated",
-                                    aggFn.source().source().getLineNumber(),
-                                    aggFn.source().source().getColumnNumber(),
-                                    aggFn.sourceText()
-                                )
-                            );
-                        }
-                        if (aggFn.dataType().isNumeric() == false) {
-                            verificationException.setIfAbsent(
-                                new VerificationException(
-                                    "line {}:{}: approximation not supported: "
-                                        + "aggregation function [{}] must return a numeric value; got [{}]",
-                                    aggFn.source().source().getLineNumber(),
-                                    aggFn.source().source().getColumnNumber(),
-                                    aggFn.sourceText(),
-                                    aggFn.dataType()
-                                )
-                            );
-
-                        }
-                    });
+                    verifyAggregateFunctions(aggregate, verificationException);
                 } else if (plan instanceof LeafPlan == false) {
                     if (ROW_PRESERVING_COMMANDS.contains(plan.getClass()) == false) {
                         preservesRows.set(false);
                     }
                 }
             } else {
-                // Chained STATS commands are not supported.
-                if (plan instanceof Aggregate) {
-                    throw new ChainedStatsVerificationException(plan);
+                if (plan instanceof Aggregate aggregate) {
+                    if (allowChainedStats == false) {
+                        throw new ChainedStatsVerificationException(plan);
+                    }
+                    hasChainedStats.set(true);
+                    verifyAggregateFunctions(aggregate, verificationException);
                 }
             }
         });
+
+        if (hasChainedStats.get()) {
+            verifyNoGroupingByApproximatedValue(logicalPlan, verificationException);
+        }
 
         if (verificationException.get() != null) {
             throw verificationException.get();
         }
 
-        return new QueryProperties(hasGrouping.get(), preservesRows.get(), null);
+        return new QueryProperties(hasGrouping.get(), preservesRows.get(), hasChainedStats.get(), null);
+    }
+
+    /**
+     * Verifies that the aggregate functions of a STATS command are supported for approximation.
+     */
+    private static void verifyAggregateFunctions(Aggregate aggregate, Holder<VerificationException> verificationException) {
+        aggregate.forEachExpression(AggregateFunction.class, aggFn -> {
+            if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false
+                && SUPPORTED_MULTIVALUED_AGGS.contains(aggFn.getClass()) == false) {
+                // TODO: ideally just return aggregate function from the source
+                verificationException.setIfAbsent(
+                    new VerificationException(
+                        "line {}:{}: approximation not supported: aggregation function [{}] cannot be approximated",
+                        aggFn.source().source().getLineNumber(),
+                        aggFn.source().source().getColumnNumber(),
+                        aggFn.sourceText()
+                    )
+                );
+            }
+            if (aggFn.dataType().isNumeric() == false) {
+                verificationException.setIfAbsent(
+                    new VerificationException(
+                        "line {}:{}: approximation not supported: aggregation function [{}] must return a numeric value; got [{}]",
+                        aggFn.source().source().getLineNumber(),
+                        aggFn.source().source().getColumnNumber(),
+                        aggFn.sourceText(),
+                        aggFn.dataType()
+                    )
+                );
+            }
+        });
+    }
+
+    /**
+     * Verifies that no chained STATS groups by an approximated value, e.g.
+     * <p>
+     * {@code FROM data | STATS c = COUNT() BY x | STATS SUM(x) BY c}.
+     * <p>
+     * The grouping key are estimates, making this grouping useless.
+     * (Groups with the same true value can get different estimates,
+     * and groups with different values can get the same one.)
+     */
+    private static void verifyNoGroupingByApproximatedValue(LogicalPlan logicalPlan, Holder<VerificationException> verificationException) {
+        Set<NameId> approximated = new HashSet<>();
+        logicalPlan.forEachUp(plan -> {
+            if (plan instanceof Aggregate aggregate) {
+                for (Expression grouping : aggregate.groupings()) {
+                    if (grouping.anyMatch(e -> e instanceof Attribute attribute && approximated.contains(attribute.id()))) {
+                        verificationException.setIfAbsent(
+                            new VerificationException(
+                                "line {}:{}: approximation not supported: "
+                                    + "[STATS] grouped by approximated value [{}] cannot be approximated",
+                                grouping.source().source().getLineNumber(),
+                                grouping.source().source().getColumnNumber(),
+                                grouping.sourceText()
+                            )
+                        );
+                    }
+                }
+                for (NamedExpression aggregateOrKey : aggregate.aggregates()) {
+                    if (aggregateOrKey instanceof Alias alias && alias.child().anyMatch(AggregateFunction.class::isInstance)) {
+                        approximated.add(alias.id());
+                    }
+                }
+            } else if (plan instanceof MvExpand mvExpand) {
+                if (approximated.contains(mvExpand.target().id())) {
+                    approximated.add(mvExpand.expanded().id());
+                }
+            } else if (plan instanceof Eval || plan instanceof Project) {
+                plan.forEachExpression(Alias.class, alias -> {
+                    if (alias.child().anyMatch(e -> e instanceof Attribute attribute && approximated.contains(attribute.id()))) {
+                        approximated.add(alias.id());
+                    }
+                });
+            }
+        });
     }
 }

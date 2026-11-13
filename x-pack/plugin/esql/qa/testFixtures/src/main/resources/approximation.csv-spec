@@ -676,6 +676,29 @@ count:long | key:integer | _approximation_confidence_interval(count):long | _app
 ;
 
 
+Sort and limit after groups with few sampled rows are filtered
+required_capability: approximation_v7
+request_stored: skip
+
+SET approximation={"rows":20000}\;
+FROM many_numbers | STATS sum = SUM(sv) BY sv | SORT sv | LIMIT 5
+;
+
+// Value sv=k occurs k times, and the sample probability is about 0.08.
+// Groups with less than 10 sampled rows (roughly sv < 120) must be removed
+// before SORT | LIMIT, so that the 5 smallest remaining groups are returned.
+documents_found: 16000..24000
+approximation_applied: true
+
+sum:long   | sv:integer | _approximation_confidence_interval(sum):long   | _approximation_certified(sum):boolean
+{any}      | 25..250    | {any}                                          | {any}
+{any}      | 25..250    | {any}                                          | {any}
+{any}      | 25..250    | {any}                                          | {any}
+{any}      | 25..250    | {any}                                          | {any}
+{any}      | 25..250    | {any}                                          | {any}
+;
+
+
 Filter all rows
 required_capability: approximation_v7
 request_stored: skip
@@ -1534,6 +1557,30 @@ value:double           | sv:integer | _approximation_confidence_interval(value):
 ;
 
 
+Subqueries with stats without confidence intervals
+required_capability: approximation_v7
+required_capability: approximation_fork
+required_capability: subquery_in_from_command
+request_stored: skip
+
+SET approximation={"rows":20000}\;
+FROM (FROM many_numbers | STATS BY sv),
+     (FROM many_numbers | STATS count = COUNT() BY sv | KEEP sv)
+| SORT sv DESC
+| LIMIT 4
+;
+
+documents_found: 32000..48000
+approximation_applied: true
+
+sv:integer
+700
+700
+699
+699
+;
+
+
 Subqueries with non-approximable stats
 required_capability: approximation_v7
 required_capability: approximation_fork
@@ -1663,6 +1710,193 @@ count:long     | bucket:double | _approximation_confidence_interval(count):long 
 ;
 
 
+Chained exact stats
+required_capability: approximation_v7
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers | STATS c=COUNT() | STATS one=COUNT(), count=SUM(c)
+;
+
+documents_found: 1..10
+approximation_applied: false
+
+one:long | count:long | _approximation_confidence_interval(one):long |  _approximation_certified(one):boolean | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+1        | 245350     | [1,1]                                        | true                                   | [245350,245350]                                | true
+;
+
+
+Chained approximate stats
+required_capability: approximation_v7
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers | STATS s=SUM(sv) | STATS one=COUNT(), sum=SUM(s)
+;
+
+documents_found: 8000..12000
+approximation_applied: true
+
+one:long | sum:long            | _approximation_confidence_interval(one):long |  _approximation_certified(one):boolean | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
+1        | 90000000..140000000 | [1,1]                                        | true                                   | [90000000..140000000,90000000..140000000]    | {any}
+;
+
+
+Chained approximate stats by
+required_capability: approximation_v7
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers | STATS c=COUNT() BY sv | STATS key_count=COUNT(), row_count=SUM(c)
+;
+
+documents_found: 8000..12000
+approximation_applied: true
+
+// key_count is effectively a distinct count of sv. This is poorly approximable, therefore the
+// confidence interval becomes null. The row_count is effectively the total row count of the index.
+// This is well approximable leading to a well-tuned confidence interval.
+key_count:long | row_count:long | _approximation_confidence_interval(key_count):long |  _approximation_certified(key_count):boolean | _approximation_confidence_interval(row_count):long | _approximation_certified(row_count):boolean
+600..700       | 200000..300000 | null                                               | null                                         | [200000..300000,200000..300000]                    | {any}
+;
+
+
+Three chained approximate stats by with sum
+required_capability: approximation_v7
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| STATS c = COUNT() BY sv
+| EVAL hundreds = sv / 100
+| STATS c = SUM(c) BY hundreds
+| EVAL half = CASE(hundreds < 3, "low", "high")
+| STATS total = SUM(c) BY half
+| SORT half
+;
+
+documents_found: 8000..12000
+approximation_applied: true
+
+total:long     | half:keyword | _approximation_confidence_interval(total):long | _approximation_certified(total):boolean
+170000..230000 | high         | [170000..230000,170000..230000]                | {any}
+30000..60000   | low          | [30000..60000,30000..60000]                    | {any}
+;
+
+
+Three chained approximate stats by with count
+required_capability: approximation_v7
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| STATS c = COUNT() BY sv
+| STATS c2 = SUM(c) BY sv
+| STATS key_count = COUNT()
+;
+
+documents_found: 8000..12000
+approximation_applied: true
+
+// key_count is effectively a distinct count of sv. This is poorly approximable, therefore the
+// confidence interval becomes null.
+key_count:long | _approximation_confidence_interval(key_count):long | _approximation_certified(key_count):boolean
+600..700       | null                                               | null
+;
+
+
+Chained grouped stats filter groups with few sampled rows
+required_capability: approximation_v7
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| STATS c = COUNT() BY sv
+| RENAME c AS cnt
+| EVAL size = CASE(sv <= 5, "tiny", "rest")
+| KEEP cnt, size
+| STATS total = SUM(cnt) BY size
+;
+
+documents_found: 8000..12000
+approximation_applied: true
+
+total:long     | size:keyword | _approximation_confidence_interval(total):long | _approximation_certified(total):boolean
+200000..300000 | rest         | [200000..300000,200000..300000]                | {any}
+;
+
+
+Chained ungrouped stats after few sampled groups
+required_capability: approximation_v7
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| STATS c = COUNT() BY sv
+| WHERE sv == -1
+| STATS total = SUM(c)
+;
+
+// The group with sv == -1 has no sampled rows, because it doesn't exist.
+// However, the non-grouped stats should always output a row.
+documents_found: 8000..12000
+approximation_applied: true
+
+total:long | _approximation_confidence_interval(total):long | _approximation_certified(total):boolean
+null       | null                                           | null
+;
+
+
+Chained stats with filtered aggregation
+required_capability: approximation_v7
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| STATS c = COUNT() BY sv
+| STATS big = SUM(c) WHERE sv > 350, all = SUM(c)
+;
+
+documents_found: 8000..12000
+approximation_applied: true
+
+big:long       | all:long       | _approximation_confidence_interval(big):long | _approximation_certified(big):boolean | _approximation_confidence_interval(all):long | _approximation_certified(all):boolean
+150000..220000 | 200000..300000 | [150000..220000,150000..220000]              | {any}                                 | [200000..300000,200000..300000]              | {any}
+;
+
+
+Chained stats after fork
+required_capability: approximation_v7
+required_capability: approximation_fork
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| FORK (EVAL x=1) (EVAL y=1)
+| STATS c = COUNT(*) BY _fork, sv
+| STATS total = SUM(c) BY _fork
+| SORT _fork
+;
+
+// 8000..12000 per branch for row count, and 8000..12000 per branch for aggregation
+documents_found: 35000..45000
+approximation_applied: true
+
+total:long     | _fork:keyword | _approximation_confidence_interval(total):long | _approximation_certified(total):boolean
+200000..300000 | fork1         | [200000..300000,200000..300000]                | {any}
+200000..300000 | fork2         | [200000..300000,200000..300000]                | {any}
+;
+
+
 Warn on no stats
 required_capability: approximation_v7
 request_stored: skip
@@ -1701,6 +1935,49 @@ max:integer | sv:integer
 1           | 1
 2           | 2
 3           | 3
+;
+
+
+Warn on unsupported aggregations in chained stats
+required_capability: approximation_v7
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| STATS c = COUNT() BY sv
+| STATS max_count = MAX(c), top_counts = TOP(c, 2, "desc")
+;
+
+warning:line 4:21: approximation not supported: aggregation function [MAX(c)] cannot be approximated
+documents_found: 245350
+approximation_applied: false
+
+max_count:long | top_counts:long
+700            | [700, 699]
+;
+
+
+Warn on chained stats grouped by approximated value
+required_capability: approximation_v7
+required_capability: approximation_chained_stats
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| STATS c = COUNT() BY sv
+| STATS n = COUNT() BY c
+| SORT c DESC
+| LIMIT 2
+;
+
+warning:line 4:24: approximation not supported: [STATS] grouped by approximated value [c] cannot be approximated
+documents_found: 245350
+approximation_applied: false
+
+n:long | c:long
+1      | 700
+1      | 699
 ;
 
 

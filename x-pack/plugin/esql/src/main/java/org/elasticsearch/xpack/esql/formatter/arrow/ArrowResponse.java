@@ -465,9 +465,9 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // version: convert to string
             case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);
 
-            // _source: json
+            // _source: json, tagged with the arrow.json extension type
             // TODO: support also CBOR and SMILE with an additional formatting parameter
-            case SOURCE -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
+            case SOURCE -> new BlockArrowFormatter.AsJson(type);
 
             case DATE_RANGE -> new BlockArrowFormatter.AsDateRange(type);
             case DOUBLE_RANGE -> new BlockArrowFormatter.AsDoubleRange(type);
@@ -477,7 +477,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
             case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
-            case FLATTENED -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
+            case FLATTENED -> new BlockArrowFormatter.AsJson(type);
             case GEOHASH -> TO_BE_IMPLEMENTED_MARKER;
             case GEOHEX -> TO_BE_IMPLEMENTED_MARKER;
             case GEOTILE -> TO_BE_IMPLEMENTED_MARKER;

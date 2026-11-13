@@ -431,6 +431,16 @@ public abstract class BlockArrowFormatter {
             this.valueConverter = valueConverter;
         }
 
+        protected TransformedBytesRef(
+            DataType esqlType,
+            Types.MinorType minorType,
+            Map<String, String> extraMetadata,
+            BiFunction<BytesRef, BytesRef, BytesRef> valueConverter
+        ) {
+            super(esqlType, minorType, extraMetadata);
+            this.valueConverter = valueConverter;
+        }
+
         @Override
         public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
             BytesRefBlock transformed = transformValues((BytesRefBlock) b);
@@ -480,6 +490,24 @@ public abstract class BlockArrowFormatter {
     public static class AsVarBinary extends BytesReFormatter {
         public AsVarBinary(DataType esqlType) {
             super(esqlType, Types.MinorType.VARBINARY);
+        }
+    }
+
+    /**
+     * Values stored as xcontent in a {@code BytesRefBlock}, converted to JSON text and exposed as a variable-size string vector
+     * tagged with the <a href="https://arrow.apache.org/docs/format/CanonicalExtensions.html#json">{@code arrow.json}</a>
+     * Arrow extension type.
+     */
+    public static class AsJson extends TransformedBytesRef {
+        public static final String ARROW_JSON = "arrow.json";
+
+        public AsJson(DataType esqlType) {
+            super(
+                esqlType,
+                Types.MinorType.VARCHAR,
+                Map.of(ExtensionType.EXTENSION_METADATA_KEY_NAME, ARROW_JSON, ExtensionType.EXTENSION_METADATA_KEY_METADATA, ""),
+                ValueConversions::sourceToJson
+            );
         }
     }
 

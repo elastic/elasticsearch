@@ -186,7 +186,11 @@ public class ArrowResponseTests extends ESTestCase {
         factory -> factory.newBytesRefBlockBuilder(0),
         block -> block.appendBytesRef(new BytesRef("{\"foo\": " + randomIntBetween(-42, 42) + "}")),
         (b, i, s) -> b.getBytesRef(i, s).utf8ToString(),
-        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8)
+        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8),
+        metadata -> {
+            assertEquals("arrow.json", metadata.get("ARROW:extension:name"));
+            assertEquals("", metadata.get("ARROW:extension:metadata"));
+        }
     );
 
     static final ValueType FLATTENED_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarCharVector>(
@@ -194,7 +198,11 @@ public class ArrowResponseTests extends ESTestCase {
         factory -> factory.newBytesRefBlockBuilder(0),
         block -> block.appendBytesRef(new BytesRef("{\"foo\": " + randomIntBetween(-42, 42) + "}")),
         (b, i, s) -> b.getBytesRef(i, s).utf8ToString(),
-        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8)
+        (v, i) -> new String(v.get(i), StandardCharsets.UTF_8),
+        metadata -> {
+            assertEquals("arrow.json", metadata.get("ARROW:extension:name"));
+            assertEquals("", metadata.get("ARROW:extension:metadata"));
+        }
     );
 
     static final ValueType IP_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarBinaryVector>(

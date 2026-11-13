@@ -627,11 +627,6 @@ tests:
   - :server:internalClusterTest
   method: testSnapshotWithStuckNode
   issue: https://github.com/elastic/elasticsearch/issues/165929
-- class: org.elasticsearch.xpack.stateless.StatelessAbortRunningMergesOnRelocationIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testOnlyForceMergesAreAllowedDuringRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/165933
 - class: org.elasticsearch.xpack.esql.action.ExternalProvenanceParityIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

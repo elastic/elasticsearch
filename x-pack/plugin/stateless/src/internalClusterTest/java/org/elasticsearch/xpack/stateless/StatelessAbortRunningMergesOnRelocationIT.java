@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.MergeEventListener;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -37,6 +39,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
@@ -51,6 +54,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStatelessPluginIntegTestCase {
@@ -183,11 +187,20 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
             // Keep the refreshes below from triggering uploads
             nodeSettings().put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 30)
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                .put(IndexEngine.MERGE_FORCE_REFRESH_SIZE.getKey(), ByteSizeValue.ofBytes(Long.MAX_VALUE))
                 .build()
         );
 
         final var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).build());
+        // Disable background flushes
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING.getKey(), TimeValue.timeValueHours(1))
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(Long.MAX_VALUE))
+                .put(IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(Long.MAX_VALUE))
+                .build()
+        );
         ensureGreen(indexName);
 
         indexDocs(indexName, 1_000);
@@ -204,7 +217,9 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
 
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
         uploadGate.awaitBlocked();
-        assertTrue(findIndexShard(resolveIndex(indexName), 0, sourceNode).isActivelyRelocatingPrimary());
+        final var sourceShard = findIndexShard(resolveIndex(indexName), 0, sourceNode);
+        assertTrue(sourceShard.isActivelyRelocatingPrimary());
+        assertThat(sourceShard.getActiveOperationsCount(), not(equalTo(IndexShard.OPERATIONS_BLOCKED)));
 
         try {
             final var startingMerges = getPrimaryMergeTotal(indexName);
@@ -213,13 +228,13 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
             final var iterations = randomIntBetween(8, 12);
             for (int i = 0; i < iterations; i++) {
                 indexDocs(indexName, randomIntBetween(10, 20));
-                indicesAdmin().prepareRefresh(indexName).get();
+                safeGet(indicesAdmin().prepareRefresh(indexName).execute());
             }
             logger.info("--> indexing complete [{} iterations], starting merge", iterations);
             assertThat(getPrimaryMergeTotal(indexName), equalTo(startingMerges));
 
             // Don't flush, the force-merge flush would wait on the (blocked) relocation pre-flush.
-            client(sourceNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(false).get();
+            safeGet(client(sourceNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(false).execute());
             // The merge stats are updated after Lucene marks the merge as finished, so the force merge can return before they are.
             assertBusy(() -> assertThat(getPrimaryMergeTotal(indexName), equalTo(startingMerges + 1)));
         } finally {

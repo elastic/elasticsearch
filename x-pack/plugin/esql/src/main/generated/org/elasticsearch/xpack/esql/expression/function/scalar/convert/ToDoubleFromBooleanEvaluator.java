@@ -11,6 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -26,10 +28,13 @@ public final class ToDoubleFromBooleanEvaluator extends AbstractConvertFunction.
 
   private final ExpressionEvaluator bool;
 
+  private final DoubleSingleArrayPool pool;
+
   public ToDoubleFromBooleanEvaluator(Source source, ExpressionEvaluator bool,
       DriverContext driverContext) {
     super(driverContext, source);
     this.bool = bool;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -44,12 +49,14 @@ public final class ToDoubleFromBooleanEvaluator extends AbstractConvertFunction.
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
     }
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      for (int p = 0; p < positionCount; p++) {
-        builder.appendDouble(evalValue(vector, p));
-      }
-      return builder.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] values = pool.getOrAllocate(positionCount);
+    for (int p = 0; p < positionCount; p++) {
+      values[p] = evalValue(vector, p);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(values, positionCount);
+    result.attachReleasable(() -> pool.put(values));
+    return result.asBlock();
   }
 
   private double evalValue(BooleanVector container, int index) {
@@ -100,6 +107,7 @@ public final class ToDoubleFromBooleanEvaluator extends AbstractConvertFunction.
   @Override
   public void close() {
     Releasables.closeExpectNoException(bool);
+    Releasables.closeExpectNoException(pool);
   }
 
   @Override

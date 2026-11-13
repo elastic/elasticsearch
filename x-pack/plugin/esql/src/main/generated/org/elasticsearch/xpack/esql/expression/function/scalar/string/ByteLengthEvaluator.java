@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -36,10 +37,13 @@ public final class ByteLengthEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public ByteLengthEvaluator(Source source, ExpressionEvaluator val, DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -84,14 +88,16 @@ public final class ByteLengthEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, BytesRefVector valVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      BytesRef valScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef val = valVector.getBytesRef(p, valScratch);
-        result.appendInt(p, ByteLength.process(val));
-      }
-      return result.build();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    BytesRef valScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      BytesRef val = valVector.getBytesRef(p, valScratch);
+      results[p] = ByteLength.process(val);
     }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -102,6 +108,7 @@ public final class ByteLengthEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

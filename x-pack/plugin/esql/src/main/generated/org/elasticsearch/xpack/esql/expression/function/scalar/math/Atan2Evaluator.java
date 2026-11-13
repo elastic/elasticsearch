@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -35,12 +36,15 @@ public final class Atan2Evaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public Atan2Evaluator(Source source, ExpressionEvaluator y, ExpressionEvaluator x,
       DriverContext driverContext) {
     this.source = source;
     this.y = y;
     this.x = x;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -104,14 +108,16 @@ public final class Atan2Evaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector yVector, DoubleVector xVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        double y = yVector.getDouble(p);
-        double x = xVector.getDouble(p);
-        result.appendDouble(p, Atan2.process(y, x));
-      }
-      return result.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      double y = yVector.getDouble(p);
+      double x = xVector.getDouble(p);
+      results[p] = Atan2.process(y, x);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -122,6 +128,7 @@ public final class Atan2Evaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(y, x);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

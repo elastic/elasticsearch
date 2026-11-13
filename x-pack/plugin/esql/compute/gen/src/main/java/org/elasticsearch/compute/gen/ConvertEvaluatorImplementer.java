@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.gen;
 
+import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
@@ -53,6 +54,7 @@ public class ConvertEvaluatorImplementer {
     private final ClassName implementation;
     private final StandardArgument argument;
     private final List<TypeMirror> warnExceptions;
+    private final String pooledElement;
 
     public ConvertEvaluatorImplementer(
         Elements elements,
@@ -80,6 +82,18 @@ public class ConvertEvaluatorImplementer {
         }
 
         this.warnExceptions = warnExceptions;
+        TypeName returnType = this.processFunction.returnType();
+        if (warnExceptions.isEmpty() == false || argument.supportsVectorReadAccess() == false) {
+            this.pooledElement = null;
+        } else if (returnType.equals(TypeName.DOUBLE)) {
+            this.pooledElement = "Double";
+        } else if (returnType.equals(TypeName.LONG)) {
+            this.pooledElement = "Long";
+        } else if (returnType.equals(TypeName.INT)) {
+            this.pooledElement = "Int";
+        } else {
+            this.pooledElement = null;
+        }
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -108,6 +122,9 @@ public class ConvertEvaluatorImplementer {
         for (Argument a : processFunction.args) {
             a.declareField(builder);
         }
+        if (pooledElement != null) {
+            builder.addField(poolType(), "pool", Modifier.PRIVATE, Modifier.FINAL);
+        }
         builder.addMethod(ctor());
         builder.addMethod(next());
         builder.addMethod(evalVector());
@@ -120,7 +137,11 @@ public class ConvertEvaluatorImplementer {
             builder.addMethod(evalOrdinals());
         }
         builder.addMethod(processFunction.toStringMethod(implementation));
-        builder.addMethod(processFunction.close());
+        MethodSpec.Builder close = processFunction.close().toBuilder();
+        if (pooledElement != null) {
+            close.addStatement("$T.closeExpectNoException(pool)", Types.RELEASABLES);
+        }
+        builder.addMethod(close.build());
         builder.addMethod(processFunction.baseRamBytesUsed());
         builder.addType(factory());
         return builder.build();
@@ -134,7 +155,14 @@ public class ConvertEvaluatorImplementer {
             a.implementCtor(builder);
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        if (pooledElement != null) {
+            builder.addStatement("this.pool = new $T(driverContext.breaker())", poolType());
+        }
         return builder.build();
+    }
+
+    private ClassName poolType() {
+        return ClassName.get("org.elasticsearch.compute.data", pooledElement + "SingleArrayPool");
     }
 
     private MethodSpec next() {
@@ -183,6 +211,22 @@ public class ConvertEvaluatorImplementer {
             }, () -> builder.addStatement("return driverContext.blockFactory().newConstantNullBlock(positionCount)"));
         }
         builder.endControlFlow();
+
+        if (pooledElement != null) {
+            builder.addStatement("final $T pool = this.pool", poolType());
+            builder.addStatement("final $T values = pool.getOrAllocate(positionCount)", ArrayTypeName.of(processFunction.returnType()));
+            builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
+            builder.addStatement("values[p] = $N", evalValueCall("vector", "p", scratchPadName));
+            builder.endControlFlow();
+            builder.addStatement(
+                "$T result = driverContext.blockFactory().new$LArrayVector(values, positionCount)",
+                vectorType(processFunction.returnType()),
+                pooledElement
+            );
+            builder.addStatement("result.attachReleasable(() -> pool.put(values))");
+            builder.addStatement("return result.asBlock()");
+            return builder.build();
+        }
 
         ClassName resultBuilderType = builderType(processFunction.resultDataType(true));
         builder.beginControlFlow(

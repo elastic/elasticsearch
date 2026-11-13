@@ -8,12 +8,15 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.time.ZoneId;
+import java.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -45,6 +48,8 @@ public final class DateDiffNanosMillisEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public DateDiffNanosMillisEvaluator(Source source, ExpressionEvaluator unit,
       ExpressionEvaluator startTimestampNanos, ExpressionEvaluator endTimestampMillis,
       ZoneId zoneId, DriverContext driverContext) {
@@ -54,6 +59,7 @@ public final class DateDiffNanosMillisEvaluator implements ExpressionEvaluator {
     this.endTimestampMillis = endTimestampMillis;
     this.zoneId = zoneId;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -145,21 +151,32 @@ public final class DateDiffNanosMillisEvaluator implements ExpressionEvaluator {
 
   public IntBlock eval(int positionCount, BytesRefVector unitVector,
       LongVector startTimestampNanosVector, LongVector endTimestampMillisVector) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      BytesRef unitScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef unit = unitVector.getBytesRef(p, unitScratch);
-        long startTimestampNanos = startTimestampNanosVector.getLong(p);
-        long endTimestampMillis = endTimestampMillisVector.getLong(p);
-        try {
-          result.appendInt(DateDiff.processNanosMillis(unit, startTimestampNanos, endTimestampMillis, this.zoneId));
-        } catch (IllegalArgumentException | InvalidArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    BytesRef unitScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      BytesRef unit = unitVector.getBytesRef(p, unitScratch);
+      long startTimestampNanos = startTimestampNanosVector.getLong(p);
+      long endTimestampMillis = endTimestampMillisVector.getLong(p);
+      try {
+        results[p] = DateDiff.processNanosMillis(unit, startTimestampNanos, endTimestampMillis, this.zoneId);
+      } catch (IllegalArgumentException | InvalidArgumentException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      IntBlock block = driverContext.blockFactory().newIntArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -170,6 +187,7 @@ public final class DateDiffNanosMillisEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(unit, startTimestampNanos, endTimestampMillis);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

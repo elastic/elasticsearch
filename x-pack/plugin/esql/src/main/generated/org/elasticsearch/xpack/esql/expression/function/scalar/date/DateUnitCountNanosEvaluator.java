@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -43,6 +44,8 @@ public final class DateUnitCountNanosEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public DateUnitCountNanosEvaluator(Source source, ExpressionEvaluator toUnit,
       ExpressionEvaluator fromUnit, ExpressionEvaluator date, ZoneId zoneId,
       DriverContext driverContext) {
@@ -52,6 +55,7 @@ public final class DateUnitCountNanosEvaluator implements ExpressionEvaluator {
     this.date = date;
     this.zoneId = zoneId;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -139,17 +143,19 @@ public final class DateUnitCountNanosEvaluator implements ExpressionEvaluator {
 
   public LongVector eval(int positionCount, BytesRefVector toUnitVector,
       BytesRefVector fromUnitVector, LongVector dateVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      BytesRef toUnitScratch = new BytesRef();
-      BytesRef fromUnitScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef toUnit = toUnitVector.getBytesRef(p, toUnitScratch);
-        BytesRef fromUnit = fromUnitVector.getBytesRef(p, fromUnitScratch);
-        long date = dateVector.getLong(p);
-        result.appendLong(p, DateUnitCount.processNanos(toUnit, fromUnit, date, this.zoneId));
-      }
-      return result.build();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    BytesRef toUnitScratch = new BytesRef();
+    BytesRef fromUnitScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      BytesRef toUnit = toUnitVector.getBytesRef(p, toUnitScratch);
+      BytesRef fromUnit = fromUnitVector.getBytesRef(p, fromUnitScratch);
+      long date = dateVector.getLong(p);
+      results[p] = DateUnitCount.processNanos(toUnit, fromUnit, date, this.zoneId);
     }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -160,6 +166,7 @@ public final class DateUnitCountNanosEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(toUnit, fromUnit, date);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

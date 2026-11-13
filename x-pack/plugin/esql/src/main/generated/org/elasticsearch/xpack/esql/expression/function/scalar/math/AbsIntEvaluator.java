@@ -8,9 +8,11 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.BitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -34,10 +36,13 @@ public final class AbsIntEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public AbsIntEvaluator(Source source, ExpressionEvaluator fieldVal, DriverContext driverContext) {
     this.source = source;
     this.fieldVal = fieldVal;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -86,18 +91,29 @@ public final class AbsIntEvaluator implements ExpressionEvaluator {
   }
 
   public IntBlock eval(int positionCount, IntVector fieldValVector) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        int fieldVal = fieldValVector.getInt(p);
-        try {
-          result.appendInt(Abs.process(fieldVal));
-        } catch (ArithmeticException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    position: for (int p = 0; p < positionCount; p++) {
+      int fieldVal = fieldValVector.getInt(p);
+      try {
+        results[p] = Abs.process(fieldVal);
+      } catch (ArithmeticException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      IntBlock block = driverContext.blockFactory().newIntArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -108,6 +124,7 @@ public final class AbsIntEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

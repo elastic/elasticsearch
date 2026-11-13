@@ -11,6 +11,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -36,12 +37,15 @@ public final class DateTruncDateNanosEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public DateTruncDateNanosEvaluator(Source source, ExpressionEvaluator fieldVal,
       Rounding.Prepared rounding, DriverContext driverContext) {
     this.source = source;
     this.fieldVal = fieldVal;
     this.rounding = rounding;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -85,13 +89,15 @@ public final class DateTruncDateNanosEvaluator implements ExpressionEvaluator {
   }
 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long fieldVal = fieldValVector.getLong(p);
-        result.appendLong(p, DateTrunc.processDateNanos(fieldVal, this.rounding));
-      }
-      return result.build();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      long fieldVal = fieldValVector.getLong(p);
+      results[p] = DateTrunc.processDateNanos(fieldVal, this.rounding);
     }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -102,6 +108,7 @@ public final class DateTruncDateNanosEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

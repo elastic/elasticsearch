@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -35,12 +36,15 @@ public final class HypotEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public HypotEvaluator(Source source, ExpressionEvaluator n1, ExpressionEvaluator n2,
       DriverContext driverContext) {
     this.source = source;
     this.n1 = n1;
     this.n2 = n2;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -104,14 +108,16 @@ public final class HypotEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector n1Vector, DoubleVector n2Vector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        double n1 = n1Vector.getDouble(p);
-        double n2 = n2Vector.getDouble(p);
-        result.appendDouble(p, Hypot.process(n1, n2));
-      }
-      return result.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      double n1 = n1Vector.getDouble(p);
+      double n2 = n2Vector.getDouble(p);
+      results[p] = Hypot.process(n1, n2);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -122,6 +128,7 @@ public final class HypotEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(n1, n2);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

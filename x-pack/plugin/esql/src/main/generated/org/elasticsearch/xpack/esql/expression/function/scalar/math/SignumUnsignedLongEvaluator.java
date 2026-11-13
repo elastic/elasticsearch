@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -35,11 +36,14 @@ public final class SignumUnsignedLongEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public SignumUnsignedLongEvaluator(Source source, ExpressionEvaluator val,
       DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -83,13 +87,15 @@ public final class SignumUnsignedLongEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, LongVector valVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long val = valVector.getLong(p);
-        result.appendDouble(p, Signum.processUnsignedLong(val));
-      }
-      return result.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      long val = valVector.getLong(p);
+      results[p] = Signum.processUnsignedLong(val);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -100,6 +106,7 @@ public final class SignumUnsignedLongEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

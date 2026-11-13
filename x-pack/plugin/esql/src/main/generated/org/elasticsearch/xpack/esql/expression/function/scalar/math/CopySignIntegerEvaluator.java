@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -37,12 +38,15 @@ public final class CopySignIntegerEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public CopySignIntegerEvaluator(Source source, ExpressionEvaluator magnitude,
       ExpressionEvaluator sign, DriverContext driverContext) {
     this.source = source;
     this.magnitude = magnitude;
     this.sign = sign;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -106,14 +110,16 @@ public final class CopySignIntegerEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector magnitudeVector, DoubleVector signVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        int magnitude = magnitudeVector.getInt(p);
-        double sign = signVector.getDouble(p);
-        result.appendInt(p, CopySign.processInteger(magnitude, sign));
-      }
-      return result.build();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      int magnitude = magnitudeVector.getInt(p);
+      double sign = signVector.getDouble(p);
+      results[p] = CopySign.processInteger(magnitude, sign);
     }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -124,6 +130,7 @@ public final class CopySignIntegerEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(magnitude, sign);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

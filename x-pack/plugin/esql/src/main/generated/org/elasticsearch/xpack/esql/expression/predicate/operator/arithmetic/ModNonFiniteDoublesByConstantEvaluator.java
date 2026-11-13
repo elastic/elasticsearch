@@ -16,6 +16,7 @@ import java.util.Optional;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -40,11 +41,14 @@ public abstract class ModNonFiniteDoublesByConstantEvaluator implements Expressi
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public ModNonFiniteDoublesByConstantEvaluator(Source source, ExpressionEvaluator lhs,
       DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   protected abstract double rhs();
@@ -94,13 +98,15 @@ public abstract class ModNonFiniteDoublesByConstantEvaluator implements Expressi
   }
 
   public DoubleVector eval(int positionCount, DoubleVector lhsVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        double lhs = lhsVector.getDouble(p);
-        result.appendDouble(p, Mod.processNonFiniteDoublesByConstant(lhs, rhs()));
-      }
-      return result.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      double lhs = lhsVector.getDouble(p);
+      results[p] = Mod.processNonFiniteDoublesByConstant(lhs, rhs());
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -111,6 +117,7 @@ public abstract class ModNonFiniteDoublesByConstantEvaluator implements Expressi
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

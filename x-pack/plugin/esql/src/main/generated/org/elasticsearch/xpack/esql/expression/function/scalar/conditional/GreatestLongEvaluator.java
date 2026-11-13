@@ -11,6 +11,7 @@ import java.util.Arrays;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -35,11 +36,14 @@ public final class GreatestLongEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public GreatestLongEvaluator(Source source, ExpressionEvaluator[] values,
       DriverContext driverContext) {
     this.source = source;
     this.values = values;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -99,17 +103,19 @@ public final class GreatestLongEvaluator implements ExpressionEvaluator {
   }
 
   public LongVector eval(int positionCount, LongVector[] valuesVectors) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      long[] valuesValues = new long[values.length];
-      position: for (int p = 0; p < positionCount; p++) {
-        // unpack valuesVectors into valuesValues
-        for (int i = 0; i < valuesVectors.length; i++) {
-          valuesValues[i] = valuesVectors[i].getLong(p);
-        }
-        result.appendLong(p, Greatest.process(valuesValues));
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    long[] valuesValues = new long[values.length];
+    position: for (int p = 0; p < positionCount; p++) {
+      // unpack valuesVectors into valuesValues
+      for (int i = 0; i < valuesVectors.length; i++) {
+        valuesValues[i] = valuesVectors[i].getLong(p);
       }
-      return result.build();
+      results[p] = Greatest.process(valuesValues);
     }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -120,6 +126,7 @@ public final class GreatestLongEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

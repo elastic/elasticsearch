@@ -13,10 +13,12 @@ import java.lang.InstantiationException;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.reflect.InvocationTargetException;
+import java.util.BitSet;
 import java.util.Optional;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -41,11 +43,14 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public ModDoublesByConstantEvaluator(Source source, ExpressionEvaluator lhs,
       DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   protected abstract double rhs();
@@ -100,18 +105,29 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector lhsVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        double lhs = lhsVector.getDouble(p);
-        try {
-          result.appendDouble(Mod.processDoublesByConstant(lhs, rhs()));
-        } catch (ArithmeticException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    position: for (int p = 0; p < positionCount; p++) {
+      double lhs = lhsVector.getDouble(p);
+      try {
+        results[p] = Mod.processDoublesByConstant(lhs, rhs());
+      } catch (ArithmeticException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      DoubleBlock block = driverContext.blockFactory().newDoubleArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -122,6 +138,7 @@ public abstract class ModDoublesByConstantEvaluator implements ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

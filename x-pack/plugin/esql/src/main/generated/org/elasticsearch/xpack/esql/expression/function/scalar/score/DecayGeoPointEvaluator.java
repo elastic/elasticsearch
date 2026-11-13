@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -46,6 +47,8 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public DecayGeoPointEvaluator(Source source, ExpressionEvaluator value, BytesRef origin,
       BytesRef scale, BytesRef offset, double decay, Decay.DecayFunction decayFunction,
       DriverContext driverContext) {
@@ -57,6 +60,7 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
     this.decay = decay;
     this.decayFunction = decayFunction;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -101,14 +105,16 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, BytesRefVector valueVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      BytesRef valueScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef value = valueVector.getBytesRef(p, valueScratch);
-        result.appendDouble(p, Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
-      }
-      return result.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    BytesRef valueScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      BytesRef value = valueVector.getBytesRef(p, valueScratch);
+      results[p] = Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -119,6 +125,7 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(value);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

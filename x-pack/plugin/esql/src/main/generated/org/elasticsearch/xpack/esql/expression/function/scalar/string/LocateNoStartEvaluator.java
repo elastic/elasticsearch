@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -38,12 +39,15 @@ public final class LocateNoStartEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public LocateNoStartEvaluator(Source source, ExpressionEvaluator str, ExpressionEvaluator substr,
       DriverContext driverContext) {
     this.source = source;
     this.str = str;
     this.substr = substr;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -109,16 +113,18 @@ public final class LocateNoStartEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, BytesRefVector strVector, BytesRefVector substrVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      BytesRef strScratch = new BytesRef();
-      BytesRef substrScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef str = strVector.getBytesRef(p, strScratch);
-        BytesRef substr = substrVector.getBytesRef(p, substrScratch);
-        result.appendInt(p, Locate.process(str, substr));
-      }
-      return result.build();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    BytesRef strScratch = new BytesRef();
+    BytesRef substrScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      BytesRef str = strVector.getBytesRef(p, strScratch);
+      BytesRef substr = substrVector.getBytesRef(p, substrScratch);
+      results[p] = Locate.process(str, substr);
     }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -129,6 +135,7 @@ public final class LocateNoStartEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, substr);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

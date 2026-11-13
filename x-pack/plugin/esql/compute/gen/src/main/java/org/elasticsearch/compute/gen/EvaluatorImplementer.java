@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.gen;
 
+import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
@@ -22,6 +23,7 @@ import org.elasticsearch.compute.gen.argument.ConstantSpecializedFixedArgument;
 import org.elasticsearch.compute.gen.argument.FixedArgument;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -56,6 +58,7 @@ public class EvaluatorImplementer {
     private final boolean processOutputsMultivalued;
     private final boolean vectorsUnsupported;
     private final boolean allNullsIsNull;
+    private final String pooledElement;
 
     public EvaluatorImplementer(
         Elements elements,
@@ -77,6 +80,22 @@ public class EvaluatorImplementer {
         boolean returnTypeWithoutVectorSupport = vectorType(elementType(this.processFunction.resultDataType(true))) == null;
         vectorsUnsupported = processOutputsMultivalued || anyParameterNotSupportingVectors || returnTypeWithoutVectorSupport;
         this.allNullsIsNull = allNullsIsNull;
+        TypeName returnType = this.processFunction.returnType();
+        if (vectorsUnsupported || this.processFunction.builderArg != null) {
+            this.pooledElement = null;
+        } else if (returnType.equals(TypeName.DOUBLE)) {
+            this.pooledElement = "Double";
+        } else if (returnType.equals(TypeName.LONG)) {
+            this.pooledElement = "Long";
+        } else if (returnType.equals(TypeName.INT)) {
+            this.pooledElement = "Int";
+        } else {
+            this.pooledElement = null;
+        }
+    }
+
+    private ClassName poolType() {
+        return ClassName.get("org.elasticsearch.compute.data", pooledElement + "SingleArrayPool");
     }
 
     public JavaFile sourceFile() {
@@ -111,6 +130,9 @@ public class EvaluatorImplementer {
         processFunction.args.forEach(a -> a.declareAbstractAccessor(builder));
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
+        if (pooledElement != null) {
+            builder.addField(poolType(), "pool", Modifier.PRIVATE, Modifier.FINAL);
+        }
 
         MethodSpec parentCtor = ctor();
 
@@ -143,7 +165,11 @@ public class EvaluatorImplementer {
             builder.addMethod(realEval(false));
         }
         builder.addMethod(processFunction.toStringMethod(implementation));
-        builder.addMethod(processFunction.close());
+        MethodSpec.Builder close = processFunction.close().toBuilder();
+        if (pooledElement != null) {
+            close.addStatement("$T.closeExpectNoException(pool)", Types.RELEASABLES);
+        }
+        builder.addMethod(close.build());
         builder.addMethod(warnings());
         return builder.build();
     }
@@ -168,6 +194,9 @@ public class EvaluatorImplementer {
         processFunction.args.forEach(a -> a.implementCtor(builder));
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addStatement("this.driverContext = driverContext");
+        if (pooledElement != null) {
+            builder.addStatement("this.pool = new $T(driverContext.breaker())", poolType());
+        }
         return builder.build();
     }
 
@@ -217,12 +246,22 @@ public class EvaluatorImplementer {
             vectorize = type.simpleName().startsWith("BytesRef") == false;
         }
 
-        TypeName builderType = vectorize ? vectorFixedBuilderType(elementType(resultDataType)) : builderType(resultDataType);
-        builder.beginControlFlow(
-            "try($T result = driverContext.blockFactory().$L(positionCount))",
-            builderType,
-            buildFromFactory(builderType)
-        );
+        boolean pooled = blockStyle == false && pooledElement != null;
+        boolean warn = processFunction.warnExceptions.isEmpty() == false;
+        if (pooled) {
+            builder.addStatement("final $T pool = this.pool", poolType());
+            builder.addStatement("final $T results = pool.getOrAllocate(positionCount)", ArrayTypeName.of(processFunction.returnType()));
+            if (warn) {
+                builder.addStatement("$T nulls = null", BitSet.class);
+            }
+        } else {
+            TypeName builderType = vectorize ? vectorFixedBuilderType(elementType(resultDataType)) : builderType(resultDataType);
+            builder.beginControlFlow(
+                "try($T result = driverContext.blockFactory().$L(positionCount))",
+                builderType,
+                buildFromFactory(builderType)
+            );
+        }
         {
             processFunction.args.forEach(a -> {
                 if (a.paramName(blockStyle) != null) {
@@ -266,7 +305,9 @@ public class EvaluatorImplementer {
                 }).collect(Collectors.joining(", ")));
                 pattern.append(")");
                 String builtPattern;
-                if (processFunction.builderArg == null) {
+                if (pooled) {
+                    builtPattern = "results[p] = " + pattern;
+                } else if (processFunction.builderArg == null) {
                     if (vectorize) {
                         builtPattern = "result.$L(p, " + pattern + ")";
                     } else {
@@ -288,14 +329,43 @@ public class EvaluatorImplementer {
                         + " e)";
                     builder.nextControlFlow(catchPattern, processFunction.warnExceptions.stream().map(TypeName::get).toArray());
                     builder.addStatement("warnings().registerException(e)");
-                    builder.addStatement("result.appendNull()");
+                    if (pooled) {
+                        builder.beginControlFlow("if (nulls == null)");
+                        builder.addStatement("nulls = new $T(positionCount)", BitSet.class);
+                        builder.endControlFlow();
+                        builder.addStatement("nulls.set(p)");
+                    } else {
+                        builder.addStatement("result.appendNull()");
+                    }
                     builder.endControlFlow();
                 }
             }
             builder.endControlFlow();
-            builder.addStatement("return result.build()");
         }
-        builder.endControlFlow();
+        if (pooled == false) {
+            builder.addStatement("return result.build()");
+            builder.endControlFlow();
+            return builder.build();
+        }
+        if (warn) {
+            builder.beginControlFlow("if (nulls != null)");
+            builder.addStatement(
+                "$T block = driverContext.blockFactory().new$LArrayBlock(results, positionCount, null, nulls, $T.MvOrdering.UNORDERED)",
+                resultDataType,
+                pooledElement,
+                BLOCK
+            );
+            builder.addStatement("block.attachReleasable(() -> pool.put(results))");
+            builder.addStatement("return block");
+            builder.endControlFlow();
+        }
+        builder.addStatement(
+            "$T result = driverContext.blockFactory().new$LArrayVector(results, positionCount)",
+            vectorType(processFunction.returnType()),
+            pooledElement
+        );
+        builder.addStatement("result.attachReleasable(() -> pool.put(results))");
+        builder.addStatement(warn ? "return result.asBlock()" : "return result");
 
         return builder.build();
     }

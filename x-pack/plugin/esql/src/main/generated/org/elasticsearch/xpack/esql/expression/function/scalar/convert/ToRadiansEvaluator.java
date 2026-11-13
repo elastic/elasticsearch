@@ -9,6 +9,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -25,9 +26,12 @@ public final class ToRadiansEvaluator extends AbstractConvertFunction.AbstractEv
 
   private final ExpressionEvaluator deg;
 
+  private final DoubleSingleArrayPool pool;
+
   public ToRadiansEvaluator(Source source, ExpressionEvaluator deg, DriverContext driverContext) {
     super(driverContext, source);
     this.deg = deg;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -42,12 +46,14 @@ public final class ToRadiansEvaluator extends AbstractConvertFunction.AbstractEv
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
     }
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      for (int p = 0; p < positionCount; p++) {
-        builder.appendDouble(evalValue(vector, p));
-      }
-      return builder.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] values = pool.getOrAllocate(positionCount);
+    for (int p = 0; p < positionCount; p++) {
+      values[p] = evalValue(vector, p);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(values, positionCount);
+    result.attachReleasable(() -> pool.put(values));
+    return result.asBlock();
   }
 
   private double evalValue(DoubleVector container, int index) {
@@ -98,6 +104,7 @@ public final class ToRadiansEvaluator extends AbstractConvertFunction.AbstractEv
   @Override
   public void close() {
     Releasables.closeExpectNoException(deg);
+    Releasables.closeExpectNoException(pool);
   }
 
   @Override

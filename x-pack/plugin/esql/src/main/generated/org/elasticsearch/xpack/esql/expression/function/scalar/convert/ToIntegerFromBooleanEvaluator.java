@@ -11,6 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -26,10 +28,13 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
 
   private final ExpressionEvaluator bool;
 
+  private final IntSingleArrayPool pool;
+
   public ToIntegerFromBooleanEvaluator(Source source, ExpressionEvaluator bool,
       DriverContext driverContext) {
     super(driverContext, source);
     this.bool = bool;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -44,12 +49,14 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
     if (vector.isConstant()) {
       return driverContext.blockFactory().newConstantIntBlockWith(evalValue(vector, 0), positionCount);
     }
-    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      for (int p = 0; p < positionCount; p++) {
-        builder.appendInt(evalValue(vector, p));
-      }
-      return builder.build();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] values = pool.getOrAllocate(positionCount);
+    for (int p = 0; p < positionCount; p++) {
+      values[p] = evalValue(vector, p);
     }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(values, positionCount);
+    result.attachReleasable(() -> pool.put(values));
+    return result.asBlock();
   }
 
   private int evalValue(BooleanVector container, int index) {
@@ -100,6 +107,7 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
   @Override
   public void close() {
     Releasables.closeExpectNoException(bool);
+    Releasables.closeExpectNoException(pool);
   }
 
   @Override

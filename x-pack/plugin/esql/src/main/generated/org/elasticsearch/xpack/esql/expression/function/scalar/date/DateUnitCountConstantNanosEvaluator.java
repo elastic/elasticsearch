@@ -11,6 +11,7 @@ import java.time.ZoneId;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -40,6 +41,8 @@ public final class DateUnitCountConstantNanosEvaluator implements ExpressionEval
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public DateUnitCountConstantNanosEvaluator(Source source, DateDiff.Part toUnit,
       DateDiff.Part fromUnit, ExpressionEvaluator date, ZoneId zoneId,
       DriverContext driverContext) {
@@ -49,6 +52,7 @@ public final class DateUnitCountConstantNanosEvaluator implements ExpressionEval
     this.date = date;
     this.zoneId = zoneId;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -92,13 +96,15 @@ public final class DateUnitCountConstantNanosEvaluator implements ExpressionEval
   }
 
   public LongVector eval(int positionCount, LongVector dateVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long date = dateVector.getLong(p);
-        result.appendLong(p, DateUnitCount.processNanos(this.toUnit, this.fromUnit, date, this.zoneId));
-      }
-      return result.build();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      long date = dateVector.getLong(p);
+      results[p] = DateUnitCount.processNanos(this.toUnit, this.fromUnit, date, this.zoneId);
     }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -109,6 +115,7 @@ public final class DateUnitCountConstantNanosEvaluator implements ExpressionEval
   @Override
   public void close() {
     Releasables.closeExpectNoException(date);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

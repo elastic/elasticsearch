@@ -16,6 +16,7 @@ import java.util.Optional;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -40,11 +41,14 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public DivIntsByConstantEvaluator(Source source, ExpressionEvaluator lhs,
       DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   protected abstract int rhs();
@@ -94,13 +98,15 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
   }
 
   public IntVector eval(int positionCount, IntVector lhsVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        int lhs = lhsVector.getInt(p);
-        result.appendInt(p, Div.processIntsByConstant(lhs, rhs()));
-      }
-      return result.build();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      int lhs = lhsVector.getInt(p);
+      results[p] = Div.processIntsByConstant(lhs, rhs());
     }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -111,6 +117,7 @@ public abstract class DivIntsByConstantEvaluator implements ExpressionEvaluator 
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

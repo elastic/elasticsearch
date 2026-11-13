@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -35,12 +36,15 @@ public final class RoundToLongBinarySearchUpEvaluator implements ExpressionEvalu
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public RoundToLongBinarySearchUpEvaluator(Source source, ExpressionEvaluator field, long[] points,
       DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.points = points;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -84,13 +88,15 @@ public final class RoundToLongBinarySearchUpEvaluator implements ExpressionEvalu
   }
 
   public LongVector eval(int positionCount, LongVector fieldVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long field = fieldVector.getLong(p);
-        result.appendLong(p, RoundToLong.processUp(field, this.points));
-      }
-      return result.build();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      long field = fieldVector.getLong(p);
+      results[p] = RoundToLong.processUp(field, this.points);
     }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -101,6 +107,7 @@ public final class RoundToLongBinarySearchUpEvaluator implements ExpressionEvalu
   @Override
   public void close() {
     Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

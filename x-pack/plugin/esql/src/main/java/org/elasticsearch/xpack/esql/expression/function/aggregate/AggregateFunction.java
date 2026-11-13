@@ -13,10 +13,13 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -215,7 +218,48 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
                 p.expressions().forEach(x -> x.forEachDown(AggregateFunction.class, af -> {
                     failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                 }));
+                return;
             }
+            // Windows are declared as time_duration but were never type-checked, so invalid args
+            // (nested aggs, integers, date_period, …) escaped analysis and later blew up on fold/cast (#159176).
+            p.forEachExpression(AggregateFunction.class, af -> {
+                Expression window = af.window();
+                if (window.resolved() == false || NO_WINDOW.equals(window)) {
+                    return;
+                }
+                if (window.foldable() == false) {
+                    failures.add(
+                        fail(
+                            window,
+                            "window of [{}] must be a constant [time_duration], found [{}]",
+                            af.sourceText(),
+                            Expressions.name(window)
+                        )
+                    );
+                } else if (DataType.isTimeDuration(window.dataType()) == false) {
+                    if (window.dataType() == DataType.DATE_PERIOD) {
+                        failures.add(
+                            fail(
+                                window,
+                                "window of [{}] must be [time_duration], found value [{}] type [date_period]; "
+                                    + "use a fixed duration such as [24 hours]",
+                                af.sourceText(),
+                                Expressions.name(window)
+                            )
+                        );
+                    } else {
+                        failures.add(
+                            fail(
+                                window,
+                                "window of [{}] must be [time_duration], found value [{}] type [{}]",
+                                af.sourceText(),
+                                Expressions.name(window),
+                                window.dataType().typeName()
+                            )
+                        );
+                    }
+                }
+            });
         };
     }
 
@@ -238,5 +282,12 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
             return this;
         }
         return (AggregateFunction) replaceChildren(buildChildren(fields, filter, newWindow, parameters));
+    }
+
+    /**
+     * The per-row input whose unit a unit-preserving aggregation keeps, see {@link UnitAware.PreservesUnit}.
+     */
+    public Expression unitSource() {
+        return fields.isEmpty() ? null : fields.get(0);
     }
 }

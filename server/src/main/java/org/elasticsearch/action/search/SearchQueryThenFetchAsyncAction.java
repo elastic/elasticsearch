@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
@@ -214,17 +215,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
             }
-            try {
-                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
-            } catch (Exception e) {
-                // In case the collecting fails, e.g. because of a formatting error, we log the error and continue
-                logger.debug(
-                    "failed to consume top docs for shard [{}] with sort fields [{}]: {}",
-                    result.getShardIndex(),
-                    Arrays.toString(topDocs.fields),
-                    e
-                );
-            }
+            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
         }
         super.onShardResult(result);
     }
@@ -535,7 +526,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             super.doRun(shardIndexMap);
             return;
         }
-        AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts);
+        AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts, clusterState);
         final Map<CanMatchPreFilterSearchPhase.SendingTarget, NodeQueryRequest> perNodeQueries = new HashMap<>();
         final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
         final int numberOfShardsTotal = shardsIts.size();
@@ -780,6 +771,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     dependencies,
                     namedWriteableRegistry
                 );
+                // merging the results of the shards of the request is work for them, by the docs each matched
+                List<ShardId> shardIds = request.shards.stream().map(ShardToQuery::shardId).toList();
+                var consumer = state.queryPhaseResultConsumer;
+                consumer.mergeLoad(searchService.searchLoad(shardIds, consumer::docsMatched));
                 // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
                     executeShardTasks(state);
@@ -984,6 +979,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             }
             ChannelActionListener<BytesTransportResponse> channelListener = new ChannelActionListener<>(channel);
             final BytesTransportResponse response;
+            long startNanos = System.nanoTime();
             try {
                 response = buildResponse();
             } catch (Exception e) {
@@ -994,8 +990,22 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
                 channelListener.onFailure(e);
                 return;
+            } finally {
+                chargeMerge(startNanos);
             }
             ActionListener.respondAndRelease(channelListener, response);
+        }
+
+        /**
+         * Charges building the response to the shards of the request, as it merges their results in the task of the shard that
+         * completed last.
+         */
+        private void chargeMerge(long startNanos) {
+            TaskLoadAttribution.Target mergeLoad = queryPhaseResultConsumer.mergeLoad();
+            if (mergeLoad != null) {
+                long finishNanos = System.nanoTime();
+                TaskLoadAttribution.charge(mergeLoad, finishNanos - startNanos, finishNanos);
+            }
         }
 
         private BytesTransportResponse buildResponse() throws Exception {

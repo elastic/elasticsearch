@@ -27,7 +27,7 @@ public class TruncateTokenFilterTests extends ESTestCase {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
                 Tokenizer t = new MockTokenizer(MockTokenizer.WHITESPACE, false);
-                return new TokenStreamComponents(t, new TruncateTokenFilter(t, 3));
+                return new TokenStreamComponents(t, TruncateTokenFilter.truncateAfterChars(t, 3));
             }
         };
 

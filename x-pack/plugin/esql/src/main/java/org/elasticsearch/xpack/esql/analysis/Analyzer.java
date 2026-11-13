@@ -164,9 +164,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateE
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.AddPromqlResultOrder;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.PushDownPromqlLabels;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.ScalarizeTimeSeriesMetadataPaths;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlanV2;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -342,13 +341,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new TranslateTimeSeriesCollapse(),
                 // Instant result-ordering functions wrap collapse (or a bare command) with OrderBy before translation.
                 new AddPromqlResultOrder(),
-                // translate PromQL plan to ESQL. It should run before TranslateTimeSeriesAggregate and implicit casting
-                context().configuration().pragmas().enablePromqlTranslationV2()
-                    ? new TranslatePromqlToEsqlPlanV2()
-                    : new TranslatePromqlToEsqlPlan(),
-                // Reads the labels the V2 translation names from their fields and splits its label containers into columns; off
-                // without V2.
-                new PushDownPromqlLabels()
+                // Translate PromQL plan to ESQL.
+                // It should run before TranslateTimeSeriesAggregate and implicit casting
+                new TranslatePromqlToEsqlPlan(),
+                // Replaces arbitrary path access on {@link DataType#TIME_SERIES_METADATA_DATA_TYPE} to column access.
+                new ScalarizeTimeSeriesMetadataPaths()
             ),
             new Batch<>(
                 "Resolution",

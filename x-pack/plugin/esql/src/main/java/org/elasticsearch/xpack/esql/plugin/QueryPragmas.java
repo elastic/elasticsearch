@@ -83,7 +83,7 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
     /**
-     * Whether PromQL translates with {@code TranslatePromqlToEsqlPlanV2}, over one label container rather than over label
+     * Whether PromQL translates with {@code TranslationContextV2}, over one label container rather than over label
      * columns. A testing lever while the PromQL nodes move to V2 one by one: a node that has not moved yet fails the translation.
      */
     public static final Setting<Boolean> ENABLE_PROMQL_TRANSLATION_V2 = Setting.boolSetting("enable_promql_translation_v2", false);

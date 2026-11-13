@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.sameInstance;
  * Splitting the label container of a translated PromQL plan, on plans built the way translation builds them: a collapse keyed by the
  * source's labels, and operations over its container above it.
  */
-public class PushDownPromqlLabelsTests extends ESTestCase {
+public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
 
     private static final Source SOURCE = Source.EMPTY;
 
@@ -60,7 +60,7 @@ public class PushDownPromqlLabelsTests extends ESTestCase {
         Alias labels = sourceLabels();
         TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Alias read = new Alias(SOURCE, "pod", new TimeSeriesMetadataPath(SOURCE, labels.toAttribute(), Literal.keyword(SOURCE, "pod")));
-        LogicalPlan plan = PushDownPromqlLabels.pushDown(new Eval(SOURCE, collapse, List.of(read)), EsqlTestUtils.TEST_CFG);
+        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(new Eval(SOURCE, collapse, List.of(read)), EsqlTestUtils.TEST_CFG);
 
         TimeSeriesAggregate pushed = plan.collect(TimeSeriesAggregate.class).getFirst();
         // the keyword view of every label keys the collapse
@@ -79,7 +79,7 @@ public class PushDownPromqlLabelsTests extends ESTestCase {
         TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Expression without = new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "pod")), true);
         Alias rendered = new Alias(SOURCE, MetadataAttribute.TIMESERIES, new ToString(SOURCE, without, EsqlTestUtils.TEST_CFG));
-        LogicalPlan plan = PushDownPromqlLabels.pushDown(new Eval(SOURCE, collapse, List.of(rendered)), EsqlTestUtils.TEST_CFG);
+        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(new Eval(SOURCE, collapse, List.of(rendered)), EsqlTestUtils.TEST_CFG);
 
         List<Expression> views = expressions(plan, TimeSeriesWithout.class);
         assertThat(views, hasSize(1));
@@ -93,7 +93,7 @@ public class PushDownPromqlLabelsTests extends ESTestCase {
         TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Expression without = new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "__name__")), true);
         Alias rendered = new Alias(SOURCE, MetadataAttribute.TIMESERIES, new ToString(SOURCE, without, EsqlTestUtils.TEST_CFG));
-        LogicalPlan plan = PushDownPromqlLabels.pushDown(new Eval(SOURCE, collapse, List.of(rendered)), EsqlTestUtils.TEST_CFG);
+        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(new Eval(SOURCE, collapse, List.of(rendered)), EsqlTestUtils.TEST_CFG);
 
         List<Expression> views = expressions(plan, TimeSeriesWithout.class);
         assertThat(views, hasSize(1));
@@ -111,7 +111,7 @@ public class PushDownPromqlLabelsTests extends ESTestCase {
         );
         Alias sum = new Alias(SOURCE, "value", new Values(SOURCE, collapse.aggregates().getFirst().toAttribute()));
         Aggregate aggregate = new Aggregate(SOURCE, collapse, List.of(key), List.of(sum, key.toAttribute()));
-        LogicalPlan plan = PushDownPromqlLabels.pushDown(aggregate, EsqlTestUtils.TEST_CFG);
+        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(aggregate, EsqlTestUtils.TEST_CFG);
 
         Aggregate pushed = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).findFirst().get();
         assertThat(pushed.child(), instanceOf(PackDims.class));
@@ -126,7 +126,7 @@ public class PushDownPromqlLabelsTests extends ESTestCase {
         Alias read = new Alias(SOURCE, "pod", new TimeSeriesMetadataPath(SOURCE, labels.toAttribute(), Literal.keyword(SOURCE, "pod")));
         LogicalPlan plan = new Eval(SOURCE, collapse, List.of(read));
 
-        assertThat(PushDownPromqlLabels.pushDown(plan, EsqlTestUtils.TEST_CFG), sameInstance(plan));
+        assertThat(ScalarizeTimeSeriesMetadataPaths.pushDown(plan, EsqlTestUtils.TEST_CFG), sameInstance(plan));
     }
 
     private static Alias sourceLabels() {

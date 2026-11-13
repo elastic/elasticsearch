@@ -3278,7 +3278,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * 256 KiB, then records single-file telemetry. Closing while the object is still tracked is
      * what makes {@code bytes_read} exact for stream formats.
      */
-    private void closeAndRecordSingleFileTelemetry(
+    private static void closeAndRecordSingleFileTelemetry(
         AsyncExternalSourceBuffer buffer,
         @Nullable FormatReadCounters formatCounters,
         CloseableIterator<Page> pages
@@ -3298,7 +3298,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * Callers must close the iterator first so the stream remainder is published,
      * then invoke this while {@code metrics()} is still valid.
      */
-    private void recordSingleFileTelemetry(AsyncExternalSourceBuffer buffer, @Nullable FormatReadCounters formatCounters) {
+    private static void recordSingleFileTelemetry(AsyncExternalSourceBuffer buffer, @Nullable FormatReadCounters formatCounters) {
         buffer.incSplitsProcessed();
         buffer.finishInFlightBytes();
         if (formatCounters == null) {

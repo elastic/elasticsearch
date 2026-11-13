@@ -16,6 +16,8 @@ import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Pins the per-record byte accounting that {@link CsvLogicalRecordReader} exposes via
@@ -243,5 +245,87 @@ public class CsvLogicalRecordReaderTests extends ESTestCase {
         assertEquals("fin", reader.readRecord(false));
         assertEquals(5, reader.lastRecordBytes()); // "fin\r\n"
         assertEquals("next record start offset", 14L, reader.bytesRead() - reader.lastRecordBytes());
+    }
+
+    /**
+     * The bulk {@code nextRecord()} path serves most records as a window on its input buffer and copies only a
+     * record that a refill interrupts. Both must equal what {@code readRecord} returns, record for record, with the
+     * same byte accounting, whatever falls on the 8K buffer boundary: a plain field, a quoted field with an escaped
+     * quote, a lone CR whose LF check reads into the next fill, a record longer than the buffer, or a pending
+     * lookahead at the start of a record.
+     */
+    public void testBulkRecordsMatchStringRecordsAcrossBufferBoundaries() throws IOException {
+        StringBuilder input = new StringBuilder();
+        java.util.Random random = new java.util.Random(randomLong());
+        int records = 0;
+        while (input.length() < 40 * 8192) {
+            int shape = random.nextInt(8);
+            switch (shape) {
+                case 0 -> input.append("id").append(records).append(",\"quoted \"\"q\"\" value\",tail");
+                case 1 -> input.append("a,b,").append("x".repeat(random.nextInt(60)));
+                case 2 -> input.append("\"multi\nline\r\nfield\",").append(records);
+                case 3 -> input.append("y".repeat(8192 + random.nextInt(3000)));
+                case 4 -> input.append("é,ü,").append(records);
+                default -> input.append(records).append(",").append(random.nextInt(1000)).append(",plain");
+            }
+            input.append(switch (random.nextInt(3)) {
+                case 0 -> "\n";
+                case 1 -> "\r\n";
+                default -> "\r";
+            });
+            records++;
+        }
+        String text = input.toString();
+        CsvLogicalRecordReader expected = newReader(text, StandardCharsets.UTF_8);
+        CsvLogicalRecordReader bulk = newReader(text, StandardCharsets.UTF_8).enableBulkBuffering();
+        int seen = 0;
+        String record;
+        while ((record = expected.readRecord(false)) != null) {
+            assertTrue("record " + seen, bulk.nextRecord());
+            String actual = new String(bulk.recordBuffer(), bulk.recordOffset(), bulk.recordLength());
+            assertEquals("record " + seen, record, actual);
+            assertEquals("record " + seen + " bytes", expected.lastRecordBytes(), bulk.lastRecordBytes());
+            assertEquals("record " + seen + " offset", expected.bytesRead(), bulk.bytesRead());
+            assertPlainFieldEnds(record, bulk);
+            seen++;
+        }
+        assertFalse(bulk.nextRecord());
+        assertEquals(records, seen);
+    }
+
+    /**
+     * A record without a quote or escape character reports every delimiter as a field end; one with either reports
+     * none, leaving the split to the caller.
+     */
+    private static void assertPlainFieldEnds(String record, CsvLogicalRecordReader bulk) {
+        int[] ends = bulk.plainFieldEnds();
+        if (record.indexOf('"') >= 0) {
+            assertNull(record, ends);
+            return;
+        }
+        assertNotNull(record, ends);
+        List<Integer> expectedEnds = new ArrayList<>();
+        for (int i = 0; i < record.length(); i++) {
+            if (record.charAt(i) == ',') {
+                expectedEnds.add(i);
+            }
+        }
+        List<Integer> actualEnds = new ArrayList<>();
+        for (int i = 0; i < bulk.plainFieldEndCount(); i++) {
+            actualEnds.add(ends[i]);
+        }
+        assertEquals(record, expectedEnds, actualEnds);
+    }
+
+    public void testPlainFieldEndsWithoutBulkFastPath() throws IOException {
+        // A non-UTF-8 charset has no bulk scan, so the per-character branches record the field ends.
+        CsvLogicalRecordReader reader = newReader("a,b,,d\n\"q\",x\ne,f\n", StandardCharsets.ISO_8859_1).enableBulkBuffering();
+        assertTrue(reader.nextRecord());
+        assertPlainFieldEnds("a,b,,d", reader);
+        assertTrue(reader.nextRecord());
+        assertNull(reader.plainFieldEnds());
+        assertTrue(reader.nextRecord());
+        assertPlainFieldEnds("e,f", reader);
+        assertFalse(reader.nextRecord());
     }
 }

@@ -477,7 +477,8 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 // label declared in ON cannot appear in grouping
                 if (modifierCtx.ON() != null) {
                     List<String> repeatedLabels = new ArrayList<>(groupingList);
-                    if (filterList.isEmpty() == false && repeatedLabels.retainAll(filterList) && repeatedLabels.isEmpty() == false) {
+                    repeatedLabels.retainAll(filterList);
+                    if (repeatedLabels.isEmpty() == false) {
                         throw new ParsingException(
                             source(modifierCtx.ON()),
                             "Label{} {} must not occur in ON and GROUP clause at once",

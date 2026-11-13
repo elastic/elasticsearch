@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -20,15 +21,23 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class ClampTests extends AbstractScalarFunctionTestCase {
+    private static final List<DataType> STRING_TYPES = List.of(DataType.KEYWORD, DataType.TEXT);
+    private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE);
+
     public ClampTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -40,38 +49,150 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = new java.util.ArrayList<>();
-        for (DataType stringType : DataType.stringTypes()) {
-            if (stringType == DataType.TEXT || stringType == DataType.BYTE) {
-                continue;
-            }
-            suppliers.add(
-                new TestCaseSupplier(
-                    "(a, b, c)",
-                    List.of(stringType, stringType, stringType),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("a"), stringType, "a"),
-                            new TestCaseSupplier.TypedData(new BytesRef("b"), stringType, "b"),
-                            new TestCaseSupplier.TypedData(new BytesRef("b"), stringType, "c")
-                        ),
-                        "ClampMaxBytesRefEvaluator[field=ClampMinBytesRefEvaluator[field=Attribute[channel=0], "
-                            + "min=Attribute[channel=1]], max=Attribute[channel=2]]",
-                        stringType,
-                        Matchers.allOf(
-                            Matchers.notNullValue(),
-                            Matchers.not(Matchers.notANumber()),
-                            Matchers.not(Matchers.in(List.of(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)))
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (DataType fieldType : STRING_TYPES) {
+            for (DataType minType : STRING_TYPES) {
+                for (DataType maxType : STRING_TYPES) {
+                    suppliers.add(
+                        comparableCase(
+                            fieldType,
+                            minType,
+                            maxType,
+                            DataType.KEYWORD,
+                            () -> new BytesRef(randomAlphaOfLength(3)),
+                            BytesRef::compareTo
                         )
-                    )
-                )
-            );
+                    );
+                }
+            }
         }
+        for (DataType fieldType : NUMERIC_TYPES) {
+            for (DataType minType : NUMERIC_TYPES) {
+                for (DataType maxType : NUMERIC_TYPES) {
+                    suppliers.add(numericCase(fieldType, minType, maxType));
+                }
+            }
+        }
+        addUnsignedLongCases(suppliers);
+        suppliers.add(sameTypeCase(DataType.BOOLEAN, () -> randomBoolean(), Boolean::compare));
+        suppliers.add(
+            sameTypeCase(
+                DataType.VERSION,
+                () -> new Version(randomIntBetween(0, 20) + "." + randomIntBetween(0, 20) + "." + randomIntBetween(0, 20)).toBytesRef(),
+                BytesRef::compareTo
+            )
+        );
+        suppliers.add(
+            sameTypeCase(DataType.IP, () -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean()))), BytesRef::compareTo)
+        );
+        suppliers.add(sameTypeCase(DataType.DATETIME, () -> randomMillisUpToYear9999(), Long::compare));
+        suppliers.add(sameTypeCase(DataType.DATE_NANOS, () -> randomLongBetween(0, Long.MAX_VALUE), Long::compare));
+        // A null-typed field is rejected, see https://github.com/elastic/elasticsearch/issues/142537
+        List<TestCaseSupplier> withNulls = anyNullIsNull(true, suppliers).stream()
+            .filter(s -> s.types().getFirst() != DataType.NULL)
+            .toList();
+        return parameterSuppliersFromTypedData(withNulls);
+    }
+
+    private static <T> TestCaseSupplier sameTypeCase(DataType type, Supplier<T> randomValue, Comparator<T> comparator) {
+        return comparableCase(type, type, type, type, randomValue, comparator);
+    }
+
+    /**
+     * A case whose arguments share an evaluator type, so the expected value is computed with {@code comparator}.
+     */
+    private static <T> TestCaseSupplier comparableCase(
+        DataType fieldType,
+        DataType minType,
+        DataType maxType,
+        DataType resultType,
+        Supplier<T> randomValue,
+        Comparator<T> comparator
+    ) {
+        String evaluatorType = PlannerUtils.toElementType(resultType).pascalCaseName();
+        return new TestCaseSupplier(List.of(fieldType, minType, maxType), () -> {
+            T field = randomValue.get();
+            T min = randomValue.get();
+            T max = randomValue.get();
+            T clampedToMin = comparator.compare(field, min) < 0 ? min : field;
+            T expected = comparator.compare(clampedToMin, max) > 0 ? max : clampedToMin;
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, fieldType, "field"),
+                    new TestCaseSupplier.TypedData(min, minType, "min"),
+                    new TestCaseSupplier.TypedData(max, maxType, "max")
+                ),
+                "ClampMax"
+                    + evaluatorType
+                    + "Evaluator[field=ClampMin"
+                    + evaluatorType
+                    + "Evaluator[field=Attribute[channel=0], min=Attribute[channel=1]], max=Attribute[channel=2]]",
+                resultType,
+                equalTo(expected)
+            );
+        });
+    }
+
+    private static TestCaseSupplier numericCase(DataType fieldType, DataType minType, DataType maxType) {
+        DataType clampedToMinType = widerNumericType(fieldType, minType);
+        DataType resultType = widerNumericType(clampedToMinType, maxType);
+        return new TestCaseSupplier(List.of(fieldType, minType, maxType), () -> {
+            Number field = randomNumber(fieldType);
+            Number min = randomNumber(minType);
+            Number max = randomNumber(maxType);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, fieldType, "field"),
+                    new TestCaseSupplier.TypedData(min, minType, "min"),
+                    new TestCaseSupplier.TypedData(max, maxType, "max")
+                ),
+                Matchers.stringContainsInOrder(
+                    "ClampMax",
+                    PlannerUtils.toElementType(resultType).pascalCaseName(),
+                    "Evaluator[field=",
+                    "ClampMin",
+                    PlannerUtils.toElementType(clampedToMinType).pascalCaseName(),
+                    "Evaluator[field="
+                ),
+                resultType,
+                equalTo(expectedNumber(resultType, field, min, max))
+            );
+        });
+    }
+
+    private static DataType widerNumericType(DataType a, DataType b) {
+        if (a == DataType.DOUBLE || b == DataType.DOUBLE) {
+            return DataType.DOUBLE;
+        }
+        if (a == DataType.LONG || b == DataType.LONG) {
+            return DataType.LONG;
+        }
+        return DataType.INTEGER;
+    }
+
+    private static Number randomNumber(DataType type) {
+        return switch (type) {
+            case INTEGER -> randomIntBetween(-1000, 1000);
+            case LONG -> randomBoolean() ? randomLongBetween(-1000, 1000) : randomLong();
+            case DOUBLE -> randomDoubleBetween(-1000, 1000, true);
+            default -> throw new IllegalArgumentException("unsupported type [" + type + "]");
+        };
+    }
+
+    private static Number expectedNumber(DataType resultType, Number field, Number min, Number max) {
+        return switch (resultType) {
+            case INTEGER -> Math.min(Math.max(field.intValue(), min.intValue()), max.intValue());
+            case LONG -> Math.min(Math.max(field.longValue(), min.longValue()), max.longValue());
+            case DOUBLE -> Math.min(Math.max(field.doubleValue(), min.doubleValue()), max.doubleValue());
+            default -> throw new IllegalArgumentException("unsupported result type [" + resultType + "]");
+        };
+    }
+
+    private static void addUnsignedLongCases(List<TestCaseSupplier> suppliers) {
         // function to return the correct type of number (int, long, float, double) based on the DataType
         Function<Tuple<DataType, Integer>, Object> numberValue = dt -> {
             if (dt.v1() == DataType.INTEGER) return dt.v2();
-            if (dt.v1() == DataType.LONG || dt.v1() == DataType.DATETIME) return dt.v2().longValue();
-            if (dt.v1() == DataType.FLOAT) return dt.v2().floatValue();
+            if (dt.v1() == DataType.LONG) return dt.v2().longValue();
             if (dt.v1() == DataType.DOUBLE) return dt.v2().doubleValue();
             if (dt.v1() == DataType.UNSIGNED_LONG) return dt.v2().longValue(); // we will use long to represent unsigned long
             throw new IllegalArgumentException("Unsupported data type: " + dt);
@@ -90,6 +211,9 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
             var nt1 = numericTypes.v1();
             var nt2 = numericTypes.v2();
             if (disallowedTypes.contains(nt1) || disallowedTypes.contains(nt2)) {
+                continue;
+            }
+            if (nt1 != DataType.UNSIGNED_LONG && nt2 != DataType.UNSIGNED_LONG) {
                 continue;
             }
             var tmpLargerDt = nt1.estimatedSize() > nt2.estimatedSize() ? nt1 : nt2;
@@ -125,93 +249,6 @@ public class ClampTests extends AbstractScalarFunctionTestCase {
                 )
             );
         }
-        // boolean type
-        suppliers.add(
-            new TestCaseSupplier(
-                "(a, b, c)",
-                List.of(DataType.BOOLEAN, DataType.BOOLEAN, DataType.BOOLEAN),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(true, DataType.BOOLEAN, "a"),
-                        new TestCaseSupplier.TypedData(false, DataType.BOOLEAN, "b"),
-                        new TestCaseSupplier.TypedData(true, DataType.BOOLEAN, "c")
-                    ),
-                    "ClampMaxBooleanEvaluator[field=ClampMinBooleanEvaluator[field=Attribute[channel=0], "
-                        + "min=Attribute[channel=1]], max=Attribute[channel=2]]",
-                    DataType.BOOLEAN,
-                    Matchers.allOf(
-                        Matchers.notNullValue(),
-                        Matchers.not(Matchers.notANumber()),
-                        Matchers.not(Matchers.in(List.of(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)))
-                    )
-                )
-            )
-        );
-        suppliers.add(
-            new TestCaseSupplier(
-                "(a, b, c)",
-                List.of(DataType.VERSION, DataType.VERSION, DataType.VERSION),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("1"), DataType.VERSION, "a"),
-                        new TestCaseSupplier.TypedData(new BytesRef("2"), DataType.VERSION, "b"),
-                        new TestCaseSupplier.TypedData(new BytesRef("3"), DataType.VERSION, "c")
-                    ),
-                    "ClampMaxBytesRefEvaluator[field=ClampMinBytesRefEvaluator[field=Attribute[channel=0], "
-                        + "min=Attribute[channel=1]], max=Attribute[channel=2]]",
-                    DataType.VERSION,
-                    Matchers.allOf(
-                        Matchers.notNullValue(),
-                        Matchers.not(Matchers.notANumber()),
-                        Matchers.not(Matchers.in(List.of(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)))
-                    )
-                )
-            )
-        );
-        suppliers.add(
-            new TestCaseSupplier(
-                "(a, b, c)",
-                List.of(DataType.IP, DataType.IP, DataType.IP),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.1"), DataType.IP, "a"),
-                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.2"), DataType.IP, "b"),
-                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.3"), DataType.IP, "c")
-                    ),
-                    "ClampMaxBytesRefEvaluator[field=ClampMinBytesRefEvaluator[field=Attribute[channel=0], "
-                        + "min=Attribute[channel=1]], max=Attribute[channel=2]]",
-                    DataType.IP,
-                    Matchers.allOf(
-                        Matchers.notNullValue(),
-                        Matchers.not(Matchers.notANumber()),
-                        Matchers.not(Matchers.in(List.of(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)))
-                    )
-                )
-            )
-        );
-        suppliers.add(
-            new TestCaseSupplier(
-                "(a, b, c)",
-                List.of(DataType.DATETIME, DataType.DATETIME, DataType.DATETIME),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(1727877348000L, DataType.DATETIME, "a"),
-                        new TestCaseSupplier.TypedData(1727790948000L, DataType.DATETIME, "b"),
-                        new TestCaseSupplier.TypedData(1727963748000L, DataType.DATETIME, "c")
-                    ),
-                    "ClampMaxLongEvaluator[field=ClampMinLongEvaluator[field=Attribute[channel=0], "
-                        + "min=Attribute[channel=1]], max=Attribute[channel=2]]",
-                    DataType.DATETIME,
-                    Matchers.allOf(
-                        Matchers.notNullValue(),
-                        Matchers.not(Matchers.notANumber()),
-                        Matchers.not(Matchers.in(List.of(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)))
-                    )
-                )
-            )
-        );
-        // TODO make sure that we handle nulls properly
-        return parameterSuppliersFromTypedData(suppliers);
     }
 
     @Override

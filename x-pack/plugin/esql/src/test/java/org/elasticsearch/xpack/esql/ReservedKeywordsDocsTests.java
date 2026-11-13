@@ -142,7 +142,7 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         Vocabulary vocabulary = EsqlBaseLexer.VOCABULARY;
         for (int tokenType = 0; tokenType <= vocabulary.getMaxTokenType(); tokenType++) {
             String symbolic = vocabulary.getSymbolicName(tokenType);
-            if (symbolic == null || DEV_TOKEN.matcher(symbolic).matches() == false) {
+            if (symbolic == null || DEV_TOKEN.matcher(symbolic).find() == false) {
                 continue;
             }
             String literal = vocabulary.getLiteralName(tokenType);
@@ -215,7 +215,7 @@ public class ReservedKeywordsDocsTests extends ESTestCase {
         Set<String> keywords = new TreeSet<>();
         for (int tokenType = 0; tokenType <= vocabulary.getMaxTokenType(); tokenType++) {
             String symbolic = vocabulary.getSymbolicName(tokenType);
-            if (symbolic != null && DEV_TOKEN.matcher(symbolic).matches()) {
+            if (symbolic != null && DEV_TOKEN.matcher(symbolic).find()) {
                 continue;
             }
             String word = keywordText(vocabulary, tokenType, symbolic);

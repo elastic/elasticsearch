@@ -160,10 +160,9 @@ class RelocationSourceShutdownTimeouts {
         final String targetNodeId,
         final int shardsOnSource
     ) {
-        final var relocationsToTarget = SearchRelocationsToTarget.count(state, targetNodeId);
         // The current shard is itself one such relocation, floor at 1 in case it is not yet visible on the target's RoutingNode.
-        final int relocationsFromSourceToTarget = Math.max(1, relocationsToTarget.fromShuttingDownNodes().getOrDefault(sourceNodeId, 0));
-        final int allRelocationsToTarget = Math.max(1, relocationsToTarget.allFromShuttingDownNodes());
+        final int relocationsFromSourceToTarget = Math.max(1, SearchShardRelocationCounts.from(state, sourceNodeId, targetNodeId));
+        final int allRelocationsToTarget = Math.max(1, SearchShardRelocationCounts.fromShuttingDownNodes(state, targetNodeId));
         return Math.min(
             shardsOnSource,
             (double) nonCriticalRecoverySlots.effectiveSlots(allRelocationsToTarget) * relocationsFromSourceToTarget

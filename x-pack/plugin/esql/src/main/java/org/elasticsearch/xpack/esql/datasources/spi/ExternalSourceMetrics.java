@@ -352,7 +352,7 @@ public final class ExternalSourceMetrics {
     );
 
     private static Map<String, Map<String, Object>> unsuccessfulCpuAttributes(String outcome) {
-        Map<String, Map<String, Object>> byComponent = new java.util.HashMap<>();
+        Map<String, Map<String, Object>> byComponent = new HashMap<>();
         for (String component : List.of(
             CPU_COMPONENT_EXECUTION,
             CPU_COMPONENT_READ,

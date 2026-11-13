@@ -231,6 +231,11 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
+        public int getVectorCount(FieldInfo fieldInfo) throws IOException {
+            return reader.getVectorCount(fieldInfo);
+        }
+
+        @Override
         public long ramBytesUsed() {
             return reader.ramBytesUsed();
         }

@@ -104,6 +104,11 @@ public class ES813FlatVectorFormat extends KnnVectorsFormat {
         }
 
         @Override
+        public int getVectorCount(FieldInfo fieldInfo) throws IOException {
+            return reader.getVectorCount(fieldInfo);
+        }
+
+        @Override
         public KnnVectorsReader getMergeInstance() throws IOException {
             return new ES813FlatVectorReader(reader.getMergeInstance());
         }

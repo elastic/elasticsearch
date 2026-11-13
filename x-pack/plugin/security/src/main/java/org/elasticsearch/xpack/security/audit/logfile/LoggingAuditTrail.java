@@ -374,7 +374,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
         EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME,
         EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
-        EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME
+        EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME,
+        EsqlDatasetActionNames.ESQL_ENABLE_DATASET_ACTION_NAME,
+        EsqlDatasetActionNames.ESQL_DISABLE_DATASET_ACTION_NAME,
+        EsqlDataSourceActionNames.ESQL_ENABLE_DATA_SOURCE_ACTION_NAME,
+        EsqlDataSourceActionNames.ESQL_DISABLE_DATA_SOURCE_ACTION_NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -926,6 +930,28 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                             authentication,
                             ctx
                         ).withSecurityConfigChange("delete_dataset", DELETE_CONFIG_FIELD_NAME, "dataset", change.auditFields()).build();
+                        case EsqlDataSourceActionNames.ESQL_ENABLE_DATA_SOURCE_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("enable_data_source", CHANGE_CONFIG_FIELD_NAME, "data_source", change.auditFields())
+                            .build();
+                        case EsqlDataSourceActionNames.ESQL_DISABLE_DATA_SOURCE_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("disable_data_source", CHANGE_CONFIG_FIELD_NAME, "data_source", change.auditFields())
+                            .build();
+                        case EsqlDatasetActionNames.ESQL_ENABLE_DATASET_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("enable_dataset", CHANGE_CONFIG_FIELD_NAME, "dataset", change.auditFields()).build();
+                        case EsqlDatasetActionNames.ESQL_DISABLE_DATASET_ACTION_NAME -> securityChangeLogEntryBuilder(
+                            requestId,
+                            authentication,
+                            ctx
+                        ).withSecurityConfigChange("disable_dataset", CHANGE_CONFIG_FIELD_NAME, "dataset", change.auditFields()).build();
                         default -> throw new IllegalStateException(
                             "Unknown action type ["
                                 + msg.getClass().getSimpleName()

@@ -41,7 +41,7 @@ Dataset operations are authorized by the standard {{es}} [index privileges](../.
 | Query a dataset | `read` |
 | Create, read, or delete a dataset | `manage` or `all` |
 | Dataset administration granted on its own | `create_dataset`, `read_dataset_metadata`, `delete_dataset`, `manage_dataset` |
-| Enable or disable a dataset | `manage_dataset`, `manage`, or `all` |
+| Enable or disable a dataset {applies_to}`stack: preview 9.7+` | `manage_dataset`, `manage`, or `all` |
 
 The `read` privilege granted on a dataset name must not carry document-level or field-level security. `FROM <dataset>` is rejected if it does. The same restriction applies to [{{esql}} views](esql-views.md#esql-views-privileges).
 
@@ -58,7 +58,7 @@ Each `global.data_source` privilege allows one operation, and `manage` allows al
 | Create or replace a data source | `create` |
 | Read a data source definition | `read_metadata` |
 | Delete a data source | `delete` |
-| Enable or disable a data source | `manage` |
+| Enable or disable a data source {applies_to}`stack: preview 9.7+` | `manage` |
 | Reference a data source from a dataset | `read` |
 | All of the above | `manage` |
 | Test a data source connection | None. Requires the cluster `manage` privilege. |

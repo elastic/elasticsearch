@@ -230,6 +230,11 @@ public class AuditIT extends ESRestTestCase {
             start
         );
 
+        assertToggleAudited("disable", "dataset", "/_query/dataset/" + datasetName, datasetName);
+        assertToggleAudited("enable", "dataset", "/_query/dataset/" + datasetName, datasetName);
+        assertToggleAudited("disable", "data_source", "/_query/data_source/" + dataSourceName, dataSourceName);
+        assertToggleAudited("enable", "data_source", "/_query/data_source/" + dataSourceName, dataSourceName);
+
         var deleteStart = Instant.now();
         var deleteDatasetRequest = new Request("DELETE", "/_query/dataset/" + datasetName);
         var deleteDatasetResponse = executeAndVerifyAudit(deleteDatasetRequest, AuditLevel.AUTHENTICATION_SUCCESS, event -> {});
@@ -270,6 +275,33 @@ public class AuditIT extends ESRestTestCase {
                     asMap(event.get(LoggingAuditTrail.DELETE_CONFIG_FIELD_NAME)).get("data_source")
                 );
                 assertThat(dataSource, equalTo(Map.of("names", List.of(dataSourceName))));
+            }
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Enabling or disabling a data source or dataset is a configuration change like put and delete, so it must show up as a
+     * {@code security_config_change} event naming what was toggled. {@code objectType} is {@code dataset} or {@code data_source}.
+     */
+    private void assertToggleAudited(String op, String objectType, String path, String name) throws Exception {
+        final String action = op + "_" + objectType;
+        final var start = Instant.now();
+        final Response response = executeAndVerifyAudit(new Request("POST", path + "/_" + op), AuditLevel.AUTHENTICATION_SUCCESS, e -> {});
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertBusy(() -> {
+            try (var auditLog = cluster.getNodeLog(0, LogType.AUDIT)) {
+                final List<Map<String, Object>> events = findSecurityConfigChangeEvents(Streams.readAllLines(auditLog), action, start)
+                    .stream()
+                    .filter(e -> e.get(LoggingAuditTrail.CHANGE_CONFIG_FIELD_NAME) != null)
+                    .toList();
+                if (events.isEmpty()) {
+                    fail("Could not find a [" + action + "] security_config_change event for [" + name + "]");
+                }
+                assertThat(events, hasSize(1));
+                final Map<String, Object> changed = asMap(
+                    asMap(events.get(0).get(LoggingAuditTrail.CHANGE_CONFIG_FIELD_NAME)).get(objectType)
+                );
+                assertThat(changed, equalTo(Map.of("names", List.of(name))));
             }
         }, 5, TimeUnit.SECONDS);
     }

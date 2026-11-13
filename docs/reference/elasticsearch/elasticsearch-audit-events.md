@@ -709,6 +709,74 @@ $$$event-delete-dataset$$$
 
     ::::
 
+$$$event-enable-data-source$$$
+`enable_data_source` {applies_to}`stack: preview 9.7+`
+:   Logged when the [enable data source API](../query-languages/esql/esql-data-federation-manage-data-sources.md#enable-or-disable-a-data-source) is invoked to enable a data source at `/_query/data_source/{name}/_enable`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"enable_data_source", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "change":{"data_source":{"names":["my_data_source"]}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
+$$$event-disable-data-source$$$
+`disable_data_source` {applies_to}`stack: preview 9.7+`
+:   Logged when the [disable data source API](../query-languages/esql/esql-data-federation-manage-data-sources.md#enable-or-disable-a-data-source) is invoked to disable a data source at `/_query/data_source/{name}/_disable`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"disable_data_source", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "change":{"data_source":{"names":["my_data_source"]}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
+$$$event-enable-dataset$$$
+`enable_dataset` {applies_to}`stack: preview 9.7+`
+:   Logged when the [enable dataset API](../query-languages/esql/esql-data-federation-manage-datasets-api.md#enable-or-disable-a-dataset) is invoked to enable a dataset at `/_query/dataset/{name}/_enable`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"enable_dataset", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "change":{"dataset":{"names":["my_dataset"]}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
+$$$event-disable-dataset$$$
+`disable_dataset` {applies_to}`stack: preview 9.7+`
+:   Logged when the [disable dataset API](../query-languages/esql/esql-data-federation-manage-datasets-api.md#enable-or-disable-a-dataset) is invoked to disable a dataset at `/_query/dataset/{name}/_disable`.
+
+    You must include the `security_config_change` event type to audit the related event action.
+
+    ::::{dropdown} Example
+    ```js
+    {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+    "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+    action":"disable_dataset", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+    "change":{"dataset":{"names":["my_dataset"]}}}
+    ```
+    % NOTCONSOLE
+
+    ::::
+
 ## Audit event attributes [audit-event-attributes]
 
 The audit events are formatted as JSON documents, and each event is printed on a separate line in the audit log. The entries themselves do not contain an end-of-line delimiter. For more details, see [Log entry format](docs-content://deploy-manage/security/logging-configuration/logfile-audit-output.md#audit-log-entry-format).
@@ -743,6 +811,7 @@ The following list shows attributes that are common to all audit event types:
     * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
     * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
     * {applies_to}`stack: preview 9.6+` `put_data_source`, `delete_data_source`, `put_dataset`, `delete_dataset`
+    * {applies_to}`stack: preview 9.7+` `enable_data_source`, `disable_data_source`, `enable_dataset`, `disable_dataset`
 
 `request.id`
 :   A synthetic identifier that can be used to correlate the events associated with a particular REST request.
@@ -831,6 +900,7 @@ The events with the `event.type` attribute equal to `security_config_change` hav
    * {applies_to}`stack: ga 9.0+` `put_user`, `change_password`, `put_role`, `put_role_mapping`, `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `create_service_token`, `delete_user`, `delete_role`, `delete_role_mapping`, `delete_service_token`, `invalidate_apikeys`, `delete_privileges`, `change_apikey`, `change_apikeys`
    * {applies_to}`stack: ga 9.6+` `put_user_managed_service_account`, `delete_user_managed_service_account`
    * {applies_to}`stack: preview 9.6+` `put_dataset`, `delete_dataset`, `put_data_source`, `delete_data_source`
+   * {applies_to}`stack: preview 9.7+` `enable_dataset`, `disable_dataset`, `enable_data_source`, `disable_data_source`
 
 These events also have **one** of the following extra attributes (in addition to the common ones), which is specific to the `event.type` attribute. The attribute’s value is a nested JSON object:
 
@@ -847,7 +917,7 @@ These events also have **one** of the following extra attributes (in addition to
     * {applies_to}`stack: preview 9.6+` `data_source` or `dataset`
 
 `change`
-:   The object representation of the security config that is being changed. It can be the `password`, `enable` or `disable`, config object for native or built-in users. If an API key is updated, the config object will be an `apikey`.
+:   The object representation of the security config that is being changed. It can be the `password`, `enable` or `disable`, config object for native or built-in users. If an API key is updated, the config object will be an `apikey`. {applies_to}`stack: preview 9.7+` If a data source or dataset is enabled or disabled, the config object will be a `data_source` or `dataset` that lists the `names` that were changed.
 
 `create`
 :   The object representation of the new security config that is being created. This is used for API keys and service account token auditing. If the API key is created using the [create API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-api-key) it only contains an `apikey` config object. If the API key is created using the [grant API key API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-grant-api-key) it also contains a `grant` config object.

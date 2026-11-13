@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DatasetRewriterTests extends ESTestCase {
@@ -326,8 +327,58 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs"), project));
-        assertThat(ex.getMessage(), containsString("data source [s3_parent]"));
-        assertThat(ex.getMessage(), containsString("is disabled"));
+        assertThat(ex.getMessage(), containsString("dataset [logs] is disabled because its data source is disabled"));
+        assertThat("the data source is not named", ex.getMessage(), not(containsString("s3_parent")));
+    }
+
+    public void testWildcardSkipsDisabledDatasetWithWarning() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset enabled = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset disabled = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of(), null, false);
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", enabled, "logs_b", disabled));
+
+        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        assertThat(tablePathString((UnresolvedExternalRelation) rewritten), equalTo("s3://a/"));
+        assertWarnings("a wildcard in FROM skipped the disabled datasets [logs_b]");
+    }
+
+    public void testWildcardSkipsDatasetOfDisabledDataSourceWithWarning() {
+        DataSource disabledParent = new DataSource("off_parent", "test", null, Map.of(), false);
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset enabled = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset underDisabled = new Dataset("logs_b", new DataSourceReference("off_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(
+            Map.of("s3_parent", parent, "off_parent", disabledParent),
+            Map.of("logs_a", enabled, "logs_b", underDisabled)
+        );
+
+        LogicalPlan rewritten = rewrite(relationOf("logs_*"), project);
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        assertThat(tablePathString((UnresolvedExternalRelation) rewritten), equalTo("s3://a/"));
+        assertWarnings("a wildcard in FROM skipped the disabled datasets [logs_b]");
+    }
+
+    public void testWildcardMatchingOnlyDisabledDatasetsLeavesPlanUnchanged() {
+        // Nothing readable under the wildcard: the relation flows through untouched, so it fails the way a pattern that
+        // matches nothing does, instead of failing with a disabled-dataset error the query never named.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset disabled = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of(), null, false);
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", disabled));
+
+        UnresolvedRelation relation = relationOf("logs_*");
+        assertSame(relation, rewrite(relation, project));
+        assertWarnings("a wildcard in FROM skipped the disabled datasets [logs_a]");
+    }
+
+    public void testNamingADisabledDatasetFailsEvenAlongsideAWildcardThatMatchesIt() {
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset enabled = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset disabled = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of(), null, false);
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", enabled, "logs_b", disabled));
+
+        VerificationException ex = expectThrows(VerificationException.class, () -> rewrite(relationOf("logs_*,logs_b"), project));
+        assertThat(ex.getMessage(), containsString("dataset [logs_b] is disabled"));
     }
 
     public void testNonSecretSettingsArriveAsTheirOriginalValue() {

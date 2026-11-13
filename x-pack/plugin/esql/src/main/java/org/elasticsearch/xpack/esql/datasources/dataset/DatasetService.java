@@ -100,17 +100,20 @@ public class DatasetService {
         if (parent == null) {
             throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
         }
-        final Dataset existingDatasetForParentCheck = getMetadata(projectMetadata).get(request.name());
-        if (parent.enabled() == false && existingDatasetForParentCheck == null) {
-            throw new IllegalArgumentException("cannot create dataset against disabled data source [" + request.dataSource() + "]");
-        }
-        final IndexAbstraction existing = projectMetadata.getIndicesLookup().get(request.name());
-        if (existing != null && existing.getType() != IndexAbstraction.Type.DATASET) {
+        final IndexAbstraction conflicting = projectMetadata.getIndicesLookup().get(request.name());
+        if (conflicting != null && conflicting.getType() != IndexAbstraction.Type.DATASET) {
             throw new ResourceAlreadyExistsException(
                 "dataset [{}] cannot be created, an existing {} with that name is present",
                 request.name(),
-                existing.getType().getDisplayName()
+                conflicting.getType().getDisplayName()
             );
+        }
+        final Dataset existing = getMetadata(projectMetadata).get(request.name());
+        // A disabled data source accepts no new dataset, and no existing one moving onto it; replacing a dataset that is
+        // already on it, without changing its data source, stays allowed.
+        final boolean joinsParent = existing == null || existing.dataSource().getName().equals(request.dataSource()) == false;
+        if (parent.enabled() == false && joinsParent) {
+            throw new IllegalArgumentException("cannot create dataset against disabled data source [" + request.dataSource() + "]");
         }
         final DataSourceValidator validator = validatorsByType.get(parent.type());
         if (validator == null) {
@@ -145,7 +148,7 @@ public class DatasetService {
         DeclaredSchemaValidator.validate(request.mapping());
         Map<String, Object> settings = PartitionSpec.alignWithMapping(validatedSettings, request.mapping());
         // PUT create defaults to enabled; PUT replace preserves the existing flag (dedicated enable/disable APIs flip it).
-        final boolean enabled = existingDatasetForParentCheck == null || existingDatasetForParentCheck.enabled();
+        final boolean enabled = existing == null || existing.enabled();
         return new Dataset(
             request.name(),
             new DataSourceReference(request.dataSource()),
@@ -323,6 +326,16 @@ public class DatasetService {
         boolean enabled,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        // A node that predates the enabled flag reads every resource as enabled, so a query it coordinates would ignore the
+        // disable while this call reported success. Refuse until every node knows the flag.
+        if (clusterService.state().getMinTransportVersion().supports(DataSource.ESQL_DATASOURCE_DATASET_ENABLED) == false) {
+            IllegalArgumentException e = new IllegalArgumentException(
+                "cannot enable or disable datasets until all nodes in the cluster are upgraded to a version that supports it"
+            );
+            recordRejected(null, e);
+            listener.onFailure(e);
+            return;
+        }
         final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
         final DatasetMetadata metadata = getMetadata(projectMetadata);
         final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();

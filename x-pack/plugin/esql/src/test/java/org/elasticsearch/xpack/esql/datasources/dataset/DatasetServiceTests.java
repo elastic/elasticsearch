@@ -7,14 +7,22 @@
 
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataSourceReference;
 import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
@@ -25,9 +33,13 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -137,6 +149,98 @@ public class DatasetServiceTests extends ESTestCase {
             () -> service.validatePutDataset(project(), request(Map.of("secret_key", "override")))
         );
         assertThat(e.getMessage(), containsString(SHADOW_MESSAGE));
+    }
+
+    /** A disabled data source takes no new dataset, and no existing one moving onto it. */
+    public void testRepointingAnExistingDatasetToADisabledDataSourceIsRejected() {
+        DatasetService service = new DatasetService(clusterService, Map.of("strict", new AcceptAllValidator()));
+        ProjectMetadata project = projectWithDisabledParent(existingDataset("ds1", "parent"), null);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> service.validatePutDataset(project, requestOn("off", "ds1"))
+        );
+        assertThat(e.getMessage(), containsString("disabled data source [off]"));
+    }
+
+    /** Replacing a dataset that already sits on a now-disabled data source, without moving it, stays allowed. */
+    public void testReplacingADatasetOnItsOwnDisabledDataSourceIsAllowedAndKeepsItsFlag() {
+        DatasetService service = new DatasetService(clusterService, Map.of("strict", new AcceptAllValidator()));
+        ProjectMetadata project = projectWithDisabledParent(existingDataset("ds1", "off").withEnabled(false), null);
+
+        Dataset replaced = service.validatePutDataset(project, requestOn("off", "ds1"));
+        assertThat(replaced.dataSource().getName(), equalTo("off"));
+        assertThat(replaced.enabled(), is(false));
+    }
+
+    /** A name taken by an index is a conflict whatever the data source's state, so it is reported as one. */
+    public void testNameConflictWithAnIndexIsReportedBeforeADisabledDataSource() {
+        DatasetService service = new DatasetService(clusterService, Map.of("strict", new AcceptAllValidator()));
+        IndexMetadata.Builder index = IndexMetadata.builder("ds1").settings(indexSettings(IndexVersion.current(), 1, 0));
+        ProjectMetadata project = projectWithDisabledParent(null, index);
+
+        expectThrows(ResourceAlreadyExistsException.class, () -> service.validatePutDataset(project, requestOn("off", "ds1")));
+    }
+
+    /**
+     * A node that predates the flag reads every dataset as enabled, so while one is in the cluster the toggle is refused:
+     * the call must not report success for a disable that part of the cluster would ignore.
+     */
+    public void testToggleIsRefusedUntilAllNodesSupportTheFlag() {
+        DatasetService service = new DatasetService(clusterService, Map.of("strict", new AcceptAllValidator()));
+        ClusterServiceUtils.setState(
+            clusterService,
+            ClusterState.builder(clusterService.state())
+                .putCompatibilityVersions(
+                    "old-node",
+                    TransportVersionUtils.randomVersionNotSupporting(DataSource.ESQL_DATASOURCE_DATASET_ENABLED),
+                    Map.of()
+                )
+        );
+
+        var future = new PlainActionFuture<AcknowledgedResponse>();
+        service.setDatasetsEnabled(
+            ProjectId.DEFAULT,
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30),
+            List.of("ds1"),
+            false,
+            future
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(e.getMessage(), containsString("until all nodes in the cluster are upgraded"));
+    }
+
+    private static Dataset existingDataset(String name, String dataSource) {
+        return new Dataset(name, new DataSourceReference(dataSource), "s3://bucket/old/*.csv", null, Map.of());
+    }
+
+    /** {@link #project()}'s data sources plus a disabled one named {@code off}, with an optional dataset and index. */
+    private static ProjectMetadata projectWithDisabledParent(Dataset dataset, IndexMetadata.Builder index) {
+        ProjectMetadata base = project();
+        DataSource off = new DataSource("off", "strict", null, Map.of(), false);
+        Map<String, DataSource> sources = new HashMap<>(DataSourceMetadata.get(base).dataSources());
+        sources.put("off", off);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(base).putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(sources));
+        if (dataset != null) {
+            builder.datasets(Map.of(dataset.name(), dataset));
+        }
+        if (index != null) {
+            builder.put(index);
+        }
+        return builder.build();
+    }
+
+    private static PutDatasetAction.Request requestOn(String dataSource, String name) {
+        return new PutDatasetAction.Request(
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30),
+            name,
+            dataSource,
+            "s3://bucket/*.csv",
+            null,
+            Map.of()
+        );
     }
 
     /**

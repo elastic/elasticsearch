@@ -128,6 +128,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-testclusters'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalTestClustersPlugin'
     }
+    internalRun {
+      id = 'elasticsearch.internal-run'
+      implementationClass = 'org.elasticsearch.gradle.internal.run.InternalRunPlugin'
+    }
     internalTestRerun {
       id = 'elasticsearch.internal-test-rerun'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin'

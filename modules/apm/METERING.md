@@ -126,7 +126,7 @@ edit your `~/.gradle/init.d/apm.gradle` and replace the secret_token and the end
 rootProject {
     if (project.name == 'elasticsearch' && Boolean.getBoolean('metrics.enabled')) {
         afterEvaluate {
-            testClusters.matching { it.name == "runTask" }.configureEach {
+            tasks.named("run").configure {
                 setting 'xpack.security.audit.enabled', 'true'
                 keystore 'telemetry.secret_token', 'TODO-REPLACE'
                 setting 'telemetry.metrics.enabled', 'true'

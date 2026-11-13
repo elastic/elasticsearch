@@ -266,6 +266,10 @@ exists hits, size 0 total and count agree on a match_only_text field after a del
 
 ---
 exists hits, size 0 total and count agree on a match_only_text field after a merge:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the exists total takes the term count when the merge removes the deletion, so agreement depends on the merge keeping it"
+
   - do:
       delete:
         index: test

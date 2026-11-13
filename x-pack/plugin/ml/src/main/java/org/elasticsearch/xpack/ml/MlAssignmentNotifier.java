@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -18,19 +19,26 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskState;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.utils.MlInvariantLogger;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -41,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class MlAssignmentNotifier implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAssignmentNotifier.class);
@@ -53,16 +62,21 @@ public class MlAssignmentNotifier implements ClusterStateListener {
     private final DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor;
     private final ThreadPool threadPool;
     private final Clock clock;
+    private final IndexNameExpressionResolver resolver;
+    private final ClusterService clusterService;
+    private final MlInvariantLogger invariantLogger = new MlInvariantLogger();
     private Map<TaskNameAndId, UnassignedTimeAndReportTime> unassignedInfoByTask = Map.of();
+    private volatile Map<String, UnassignedTimeAndReportTime> datafeedWithoutTaskInfoById = Map.of();
     private volatile Instant lastLogCheck;
 
     MlAssignmentNotifier(
         AnomalyDetectionAuditor anomalyDetectionAuditor,
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor,
         ThreadPool threadPool,
-        ClusterService clusterService
+        ClusterService clusterService,
+        IndexNameExpressionResolver resolver
     ) {
-        this(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool, clusterService, Clock.systemUTC());
+        this(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool, clusterService, resolver, Clock.systemUTC());
     }
 
     MlAssignmentNotifier(
@@ -70,11 +84,14 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor,
         ThreadPool threadPool,
         ClusterService clusterService,
+        IndexNameExpressionResolver resolver,
         Clock clock
     ) {
         this.anomalyDetectionAuditor = anomalyDetectionAuditor;
         this.dataFrameAnalyticsAuditor = dataFrameAnalyticsAuditor;
         this.threadPool = threadPool;
+        this.resolver = resolver;
+        this.clusterService = clusterService;
         this.clock = clock;
         this.lastLogCheck = clock.instant();
         clusterService.addListener(this);
@@ -89,6 +106,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
 
         if (event.localNodeMaster() == false) {
             unassignedInfoByTask = Map.of();
+            datafeedWithoutTaskInfoById = Map.of();
             return;
         }
 
@@ -281,6 +299,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
     }
 
     private void logLongTimeUnassigned(Instant now, ClusterState state) {
+        logStartedDatafeedsWithoutTask(now, state);
         state.forEachProject(project -> {
             PersistentTasksCustomMetadata tasks = project.metadata().custom(PersistentTasksCustomMetadata.TYPE);
             if (tasks == null) {
@@ -296,6 +315,28 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                 );
             }
         });
+    }
+
+    private void logStartedDatafeedsWithoutTask(Instant now, ClusterState state) {
+        try {
+            for (StuckDatafeed stuck : findStartedDatafeedsWithoutTask(now, state)) {
+                invariantLogger.violated(
+                    logger,
+                    MlInvariantLogger.Kind.STARTED_DATAFEED_WITHOUT_TASK,
+                    stuck.datafeedId(),
+                    "Datafeed ["
+                        + stuck.datafeedId()
+                        + "] has been started without a running task for ["
+                        + stuck.minutesWithoutTask()
+                        + "] minutes although job ["
+                        + stuck.jobId()
+                        + "] is open"
+                );
+            }
+        } catch (RuntimeException e) {
+            // The watchdog must never keep the unassigned job and analytics reporting that follows from running.
+            logger.debug("Failed to check for started datafeeds without a task", e);
+        }
     }
 
     /**
@@ -361,6 +402,107 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         unassignedInfoByTask = newUnassignedInfoByTask;
 
         return itemsToReport;
+    }
+
+    record StuckDatafeed(String datafeedId, String jobId, long minutesWithoutTask) {}
+
+    /**
+     * Returns the started datafeeds that have had no live task for over {@link #LONG_TIME_UNASSIGNED_INTERVAL} and have not been
+     * reported within {@link #MIN_REPORT_INTERVAL}, although their job is open on a live node and the node selector would place them.
+     */
+    synchronized List<StuckDatafeed> findStartedDatafeedsWithoutTask(Instant now, ClusterState state) {
+        // DatafeedNodeSelector reads the single project of the cluster state, so multi-project states are not checked.
+        if (state.metadata().projects().size() != 1
+            || state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+            || persistentTaskAssignmentEnabled(state) == false) {
+            datafeedWithoutTaskInfoById = Map.of();
+            return List.of();
+        }
+        final PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
+        if (tasks == null) {
+            datafeedWithoutTaskInfoById = Map.of();
+            return List.of();
+        }
+
+        final Set<String> shuttingDownNodes = state.metadata().nodeShutdowns().getAllNodeIds();
+        final List<StuckDatafeed> stuckDatafeeds = new ArrayList<>();
+        final Map<String, UnassignedTimeAndReportTime> oldInfoById = datafeedWithoutTaskInfoById;
+        final Map<String, UnassignedTimeAndReportTime> newInfoById = new HashMap<>();
+
+        for (PersistentTask<?> task : tasks.tasks()) {
+            if (MlTasks.DATAFEED_TASK_NAME.equals(task.getTaskName()) == false) {
+                continue;
+            }
+            final StartDatafeedAction.DatafeedParams params = (StartDatafeedAction.DatafeedParams) task.getParams();
+            if (isStartedWithoutLiveTask(task, state.nodes()) == false) {
+                continue;
+            }
+            final DiscoveryNode jobNode = openJobNode(params.getJobId(), tasks, state.nodes(), shuttingDownNodes);
+            if (jobNode == null || nodeSelectorWouldPlaceDatafeed(params, jobNode, state) == false) {
+                continue;
+            }
+
+            final String datafeedId = params.getDatafeedId();
+            final UnassignedTimeAndReportTime previousInfo = oldInfoById.get(datafeedId);
+            final Instant firstSeenTime = previousInfo != null ? previousInfo.unassignedTime() : now;
+            Instant lastReportedTime = previousInfo != null ? previousInfo.reportTime() : null;
+            if (firstSeenTime.plus(LONG_TIME_UNASSIGNED_INTERVAL).isBefore(now)
+                && (lastReportedTime == null || lastReportedTime.plus(MIN_REPORT_INTERVAL).isBefore(now))) {
+                lastReportedTime = now;
+                stuckDatafeeds.add(new StuckDatafeed(datafeedId, params.getJobId(), ChronoUnit.MINUTES.between(firstSeenTime, now)));
+            }
+            newInfoById.put(datafeedId, new UnassignedTimeAndReportTime(firstSeenTime, lastReportedTime));
+        }
+
+        datafeedWithoutTaskInfoById = newInfoById;
+        return stuckDatafeeds;
+    }
+
+    /** Returns the live, non-shutting-down node on which the job is opened, or null if the job is not opened on one. */
+    private static DiscoveryNode openJobNode(
+        String jobId,
+        PersistentTasksCustomMetadata tasks,
+        DiscoveryNodes nodes,
+        Set<String> shuttingDownNodes
+    ) {
+        if (jobId == null) {
+            return null;
+        }
+        final PersistentTask<?> jobTask = MlTasks.getJobTask(jobId, tasks);
+        if (jobTask == null || MlTasks.getJobStateModifiedForReassignments(jobTask) != JobState.OPENED) {
+            return null;
+        }
+        final String jobNodeId = jobTask.getExecutorNode();
+        if (jobNodeId == null || shuttingDownNodes.contains(jobNodeId)) {
+            return null;
+        }
+        return nodes.get(jobNodeId);
+    }
+
+    private static boolean isStartedWithoutLiveTask(PersistentTask<?> datafeedTask, DiscoveryNodes nodes) {
+        final DatafeedState datafeedState = MlTasks.getDatafeedState(datafeedTask);
+        if (datafeedState != DatafeedState.STARTED && datafeedState != DatafeedState.STARTING) {
+            return false;
+        }
+        return datafeedTask.getExecutorNode() == null || nodes.nodeExists(datafeedTask.getExecutorNode()) == false;
+    }
+
+    /** Mirrors {@code EnableAssignmentDecider}: cluster settings in the state override node settings. */
+    private boolean persistentTaskAssignmentEnabled(ClusterState state) {
+        final Settings effective = Settings.builder().put(clusterService.getSettings()).put(state.metadata().settings()).build();
+        return EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING.get(effective) != EnableAssignmentDecider.Allocation.NONE;
+    }
+
+    /** Index availability, upgrade and reset mode legitimately keep a datafeed unassigned; only an assignable datafeed is suspect. */
+    private boolean nodeSelectorWouldPlaceDatafeed(StartDatafeedAction.DatafeedParams params, DiscoveryNode jobNode, ClusterState state) {
+        return new DatafeedNodeSelector(
+            state,
+            resolver,
+            params.getDatafeedId(),
+            params.getJobId(),
+            params.getDatafeedIndices(),
+            params.getIndicesOptions()
+        ).selectNode(List.of(jobNode)).getExecutorNode() != null;
     }
 
     private record TaskNameAndId(String taskName, String mlId) {};

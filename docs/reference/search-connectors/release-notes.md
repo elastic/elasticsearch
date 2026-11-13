@@ -13,6 +13,28 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.6.0 [connectors-9.6.0-release-notes]
+
+### Fixes [connectors-9.6.0-fixes]
+* Fix the Zoom connector keying recording documents by meeting ID instead of meeting instance UUID. [#4883](https://github.com/elastic/connectors/pull/4883)
+* Fix the OneDrive connector stopping pagination when Microsoft Graph returned an empty page before the last page. [#4881](https://github.com/elastic/connectors/pull/4881)
+* Fix Salesforce advanced sync rules treating any query containing the word "fields" as a `FIELDS()` query, which truncated paging on large objects. [#4869](https://github.com/elastic/connectors/pull/4869)
+* Fix Slack pagination cursors not being URL-encoded, which could request the wrong page. [#4855](https://github.com/elastic/connectors/pull/4855)
+* Fix Oracle tables configured with a lowercase or mixed-case name being skipped as having no primary key. [#4845](https://github.com/elastic/connectors/pull/4845)
+* Fix MySQL advanced sync rule queries whose only `ORDER BY` is in a subquery, window function, string literal or comment, so syncs no longer skip or repeat rows between pages. [#4831](https://github.com/elastic/connectors/pull/4831)
+* Fix the GraphQL connector configuration check rejecting queries that use inline fragments, named fragments or field aliases. [#4727](https://github.com/elastic/connectors/pull/4727)
+
+## 9.5.7 [connectors-9.5.7-release-notes]
+
+### Fixes [connectors-9.5.7-fixes]
+* Fix the Zoom connector keying recording documents by meeting ID instead of meeting instance UUID. [#4883](https://github.com/elastic/connectors/pull/4883)
+* Fix the OneDrive connector stopping pagination when Microsoft Graph returned an empty page before the last page. [#4881](https://github.com/elastic/connectors/pull/4881)
+* Fix Salesforce advanced sync rules treating any query containing the word "fields" as a `FIELDS()` query, which truncated paging on large objects. [#4869](https://github.com/elastic/connectors/pull/4869)
+* Fix Slack pagination cursors not being URL-encoded, which could request the wrong page. [#4855](https://github.com/elastic/connectors/pull/4855)
+* Fix Oracle tables configured with a lowercase or mixed-case name being skipped as having no primary key. [#4845](https://github.com/elastic/connectors/pull/4845)
+* Fix MySQL advanced sync rule queries whose only `ORDER BY` is in a subquery, window function, string literal or comment, so syncs no longer skip or repeat rows between pages. [#4831](https://github.com/elastic/connectors/pull/4831)
+* Fix the GraphQL connector configuration check rejecting queries that use inline fragments, named fragments or field aliases. [#4727](https://github.com/elastic/connectors/pull/4727)
+
 ## 9.5.6 [connectors-9.5.6-release-notes]
 
 ### Fixes [connectors-9.5.6-fixes]

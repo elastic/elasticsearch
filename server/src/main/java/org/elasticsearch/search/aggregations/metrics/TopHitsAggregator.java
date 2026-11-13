@@ -279,17 +279,7 @@ class TopHitsAggregator extends MetricsAggregator {
      * closes it once the hits are registered with the search.
      */
     private SubSearchContext newFetchContext() {
-        return new SubSearchContext(subSearchContext, false) {
-            @Override
-            public SearchExecutionContext getSearchExecutionContext() {
-                return forkedSearchExecutionContext;
-            }
-
-            @Override
-            public InnerHitsContext innerHits() {
-                return forkedInnerHitsContext;
-            }
-        };
+        return SubSearchContext.copyClosedByCaller(subSearchContext, forkedSearchExecutionContext, forkedInnerHitsContext);
     }
 
     /**

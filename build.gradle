@@ -17,6 +17,7 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.internal.checks.ValidateBuildGradleScriptsTask
+import org.elasticsearch.gradle.internal.test.MergeMutedTestsTask
 import org.elasticsearch.gradle.util.GradleUtils
 
 import groovy.xml.XmlParser;
@@ -574,6 +575,8 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
     ],
   ])
 }
+
+tasks.register("mergeMuted", MergeMutedTestsTask)
 
 tasks.register("checkBuildLogic").configure {
   dependsOn gradle.includedBuild('build-tools').task(':check')

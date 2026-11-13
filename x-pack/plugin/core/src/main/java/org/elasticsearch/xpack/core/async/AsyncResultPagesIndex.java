@@ -13,11 +13,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Locale;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -70,6 +72,12 @@ public final class AsyncResultPagesIndex {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, NUMBER_OF_SHARDS)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
+            // only adjacent segments are merged, so a segment holds results written about the same time and is dropped
+            // without a merge once they all expire
+            .put(
+                MergePolicyConfig.INDEX_MERGE_POLICY_TYPE_SETTING.getKey(),
+                MergePolicyConfig.Type.TIME_BASED.name().toLowerCase(Locale.ROOT)
+            )
             .putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), ASYNC_ID_FIELD, PAGE_SEQ_FIELD)
             .build();
     }

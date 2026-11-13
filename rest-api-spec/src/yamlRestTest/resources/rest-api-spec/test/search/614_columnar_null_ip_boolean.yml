@@ -146,3 +146,17 @@ synthetic source keeps every null slot of a boolean field:
   - match: { hits.hits.7._source.flag: [ null, true ] }
   - match: { hits.hits.8._source.flag: [ true, null ] }
   - match: { hits.hits.9._source.flag: [ null, true, null ] }
+
+---
+value_count counts only the values of an ip field and a boolean field:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            ip: { value_count: { field: addr } }
+            boolean: { value_count: { field: flag } }
+
+  - match: { aggregations.ip.value: 6 }
+  - match: { aggregations.boolean.value: 6 }

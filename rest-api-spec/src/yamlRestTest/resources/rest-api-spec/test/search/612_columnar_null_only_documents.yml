@@ -897,6 +897,20 @@ value_count and missing aggregations treat documents with only nulls as having n
   - match: { aggregations.without.doc_count: 5 }
 
 ---
+value_count counts only the values of an indexed keyword field and a date field:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            keyword: { value_count: { field: kwd_indexed } }
+            date: { value_count: { field: dt } }
+
+  - match: { aggregations.keyword.value: 6 }
+  - match: { aggregations.date.value: 6 }
+
+---
 synthetic source keeps every null slot of a keyword field without an index:
   - do:
       search:

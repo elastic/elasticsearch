@@ -68,6 +68,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -1332,6 +1333,172 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         } finally {
             clusterService.close();
             terminate(threadPool);
+        }
+    }
+
+    /// A computation on the latest input triggers the full direct cancellation pass if it converged, and the restricted
+    /// pass if it stopped early. A computation that stopped early is followed by one on the same input, which converges
+    /// with the same assignments and still triggers the full pass.
+    public void testDirectCancellationForComputationOnLatestInput() {
+        final var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
+        final var assignments = Map.of(shardId, new ShardAssignment(Set.of(LOCAL_NODE_ID), 1, 0, 0));
+        final var firstFinishReason = randomFrom(
+            DesiredBalance.ComputationFinishReason.CONVERGED,
+            DesiredBalance.ComputationFinishReason.STOP_EARLY
+        );
+        final var node1 = newNode(LOCAL_NODE_ID);
+        final var initialState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+            .build();
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
+        final var shardsAllocator = createShardsAllocator();
+        final var computations = new AtomicInteger();
+
+        final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            shardsAllocator,
+            threadPool,
+            clusterService,
+            new DesiredBalanceComputer(
+                createBuiltInClusterSettings(),
+                TimeProviderUtils.create(() -> 1L),
+                shardsAllocator,
+                TEST_ONLY_EXPLAINER
+            ) {
+                @Override
+                public DesiredBalance compute(
+                    DesiredBalance previousDesiredBalance,
+                    DesiredBalanceInput desiredBalanceInput,
+                    Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
+                    Predicate<DesiredBalanceInput> isFresh
+                ) {
+                    // A computation that stopped early is followed by another one on the same input, which converges
+                    final var finishReason = computations.getAndIncrement() == 0
+                        ? firstFinishReason
+                        : DesiredBalance.ComputationFinishReason.CONVERGED;
+                    return new DesiredBalance(desiredBalanceInput.index(), assignments, Map.of(), finishReason);
+                }
+            },
+            (clusterState, rerouteStrategy) -> clusterState,
+            EMPTY_NODE_ALLOCATION_STATS,
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
+        ) {
+            @Override
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {}
+
+            @Override
+            protected void submitReconcileTask(DesiredBalance desiredBalance) {}
+        };
+        final List<Boolean> convergedWithLatestInputs = new ArrayList<>();
+        desiredBalanceShardsAllocator.setRecoveryDirectCancellationCallback(
+            (desiredBalance, routingAllocation, convergedWithLatestInput) -> convergedWithLatestInputs.add(convergedWithLatestInput)
+        );
+
+        try (clusterService) {
+            desiredBalanceShardsAllocator.allocate(
+                TestRoutingAllocationFactory.forClusterState(clusterService.state()).mutable(),
+                ActionListener.noop()
+            );
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertFalse(desiredBalanceShardsAllocator.getStats().computationActive());
+
+            if (firstFinishReason == DesiredBalance.ComputationFinishReason.STOP_EARLY) {
+                assertThat(computations.get(), equalTo(2));
+                assertThat(convergedWithLatestInputs, equalTo(List.of(false, true)));
+            } else {
+                assertThat(computations.get(), equalTo(1));
+                assertThat(convergedWithLatestInputs, equalTo(List.of(true)));
+            }
+        }
+    }
+
+    /// A computation superseded by newer input, because it yielded to it or converged after it arrived, triggers the
+    /// restricted direct cancellation pass. The computation on the newer input converges with the same assignments and
+    /// still triggers the full pass.
+    public void testDirectCancellationForComputationSupersededByNewerInput() {
+        final var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
+        final var assignments = Map.of(shardId, new ShardAssignment(Set.of(LOCAL_NODE_ID), 1, 0, 0));
+        final var supersededFinishReason = randomFrom(
+            DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT,
+            DesiredBalance.ComputationFinishReason.CONVERGED
+        );
+        final var node1 = newNode(LOCAL_NODE_ID);
+        final var initialState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+            .build();
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
+        final var shardsAllocator = createShardsAllocator();
+        final var computations = new AtomicInteger();
+        final var allocatorRef = new AtomicReference<DesiredBalanceShardsAllocator>();
+
+        final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            shardsAllocator,
+            threadPool,
+            clusterService,
+            new DesiredBalanceComputer(
+                createBuiltInClusterSettings(),
+                TimeProviderUtils.create(() -> 1L),
+                shardsAllocator,
+                TEST_ONLY_EXPLAINER
+            ) {
+                @Override
+                public DesiredBalance compute(
+                    DesiredBalance previousDesiredBalance,
+                    DesiredBalanceInput desiredBalanceInput,
+                    Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
+                    Predicate<DesiredBalanceInput> isFresh
+                ) {
+                    if (computations.getAndIncrement() == 0) {
+                        // Submit newer input while the first computation runs, so that it is superseded
+                        allocatorRef.get()
+                            .allocate(
+                                TestRoutingAllocationFactory.forClusterState(clusterService.state()).mutable(),
+                                ActionListener.noop()
+                            );
+                        assertFalse(isFresh.test(desiredBalanceInput));
+                        return new DesiredBalance(desiredBalanceInput.index(), assignments, Map.of(), supersededFinishReason);
+                    }
+                    return new DesiredBalance(
+                        desiredBalanceInput.index(),
+                        assignments,
+                        Map.of(),
+                        DesiredBalance.ComputationFinishReason.CONVERGED
+                    );
+                }
+            },
+            (clusterState, rerouteStrategy) -> clusterState,
+            EMPTY_NODE_ALLOCATION_STATS,
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
+        ) {
+            @Override
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {}
+
+            @Override
+            protected void submitReconcileTask(DesiredBalance desiredBalance) {}
+        };
+        final List<Boolean> convergedWithLatestInputs = new ArrayList<>();
+        desiredBalanceShardsAllocator.setRecoveryDirectCancellationCallback(
+            (desiredBalance, routingAllocation, convergedWithLatestInput) -> convergedWithLatestInputs.add(convergedWithLatestInput)
+        );
+        allocatorRef.set(desiredBalanceShardsAllocator);
+
+        try (clusterService) {
+            desiredBalanceShardsAllocator.allocate(
+                TestRoutingAllocationFactory.forClusterState(clusterService.state()).mutable(),
+                ActionListener.noop()
+            );
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertFalse(desiredBalanceShardsAllocator.getStats().computationActive());
+
+            assertThat(computations.get(), equalTo(2));
+            assertThat(convergedWithLatestInputs, equalTo(List.of(false, true)));
         }
     }
 

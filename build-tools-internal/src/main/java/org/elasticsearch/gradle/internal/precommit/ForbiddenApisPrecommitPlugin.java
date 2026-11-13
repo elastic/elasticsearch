@@ -44,6 +44,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
             t.copy("forbidden/jdk-signatures.txt");
             t.copy("forbidden/jdk-deprecated.txt");
             t.copy("forbidden/es-all-signatures.txt");
+            t.copy("forbidden/es-native-signatures.txt");
             t.copy("forbidden/es-test-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
             t.copy("forbidden/http-signatures-hc5.txt");
@@ -65,6 +66,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                     project.files(
                         resourcesDir.toPath().resolve("forbidden/jdk-signatures.txt"),
                         resourcesDir.toPath().resolve("forbidden/es-all-signatures.txt"),
+                        resourcesDir.toPath().resolve("forbidden/es-native-signatures.txt"),
                         resourcesDir.toPath().resolve("forbidden/jdk-deprecated.txt")
                     )
                 );

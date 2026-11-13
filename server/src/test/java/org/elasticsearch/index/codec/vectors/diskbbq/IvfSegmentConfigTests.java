@@ -75,6 +75,12 @@ public class IvfSegmentConfigTests extends ESTestCase {
         assertThat(IvfSegmentConfig.shardMergeBudget(10, 5f), equalTo(50));
     }
 
+    /** With a non-integer k * oversample, half the leaf budget must still cover the merge budget. */
+    public void testLeafCollectorBudgetIsDoubleShardMergeBudget() {
+        assertThat(IvfSegmentConfig.shardMergeBudget(10, 1.02f), equalTo(11));
+        assertThat(IvfSegmentConfig.leafCollectorBudget(10, 1.02f), equalTo(22));
+    }
+
     /**
      * The IVF budget functions take the user's {@code k} and expand it themselves. These numbers are the
      * default {@code bbq_disk} shape (k=10, 1-bit quantization -> oversample 3) and exist so that handing

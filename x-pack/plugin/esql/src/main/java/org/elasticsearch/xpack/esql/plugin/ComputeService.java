@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -38,6 +40,7 @@ import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.DriverExecutor;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
@@ -46,6 +49,7 @@ import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.RemoteSink;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Assertions;
@@ -56,11 +60,13 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -69,7 +75,9 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -213,6 +221,7 @@ public class ComputeService {
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
+    private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ClusterService clusterService;
@@ -260,6 +269,7 @@ public class ComputeService {
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();
+        this.client = transportActionServices.client();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
@@ -298,6 +308,32 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    /**
+     * Options for a request that carries a plan to another node. The plan can hold large local data, such as the result of an
+     * INLINE STATS sub-plan, and the transport layer keeps one serialized copy per target until it has been written, so that
+     * copy is charged to the request breaker and a trip fails the request instead of running the node out of memory.
+     */
+    TransportRequestOptions planRequestOptions() {
+        return TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
+    }
+
+    /**
+     * Wraps the listener of a plan request whose target already holds the exchange that {@code remoteSink} reads from. When the
+     * request fails before it is sent, for example because serializing it trips the breaker, nothing runs on the target to finish
+     * that exchange, and once the failure cancels the request's task the coordinator can no longer tell the target to finish it.
+     * So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the target until
+     * its inactive-sink reaper removes it.
+     */
+    static <T> ActionListener<T> finishRemoteSinkIfNotSent(RemoteSink remoteSink, ActionListener<T> listener) {
+        return listener.delegateResponse((l, e) -> {
+            if (e instanceof SendRequestTransportException) {
+                remoteSink.close(ActionListener.running(() -> l.onFailure(e)));
+            } else {
+                l.onFailure(e);
+            }
+        });
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -883,7 +919,8 @@ public class ComputeService {
                         // No reservation reaches the synchronous path, which only tests take.
                         PlanningMemory.NONE,
                         0,
-                        minTransportVersion
+                        minTransportVersion,
+                        guarded.filteredLimit()
                     );
                 }
                 if (result.plan() instanceof ExternalSourceExec withSplits) {
@@ -985,6 +1022,7 @@ public class ComputeService {
                 discoveryMemory(run),
                 taskConcurrency,
                 minTransportVersion(),
+                work.guarded().filteredLimit(),
                 ioExecutor,
                 ActionListener.wrap(result -> {
                     try {
@@ -1465,6 +1503,7 @@ public class ComputeService {
             }
             var computeContext = new ComputeContext(
                 newChildSession(sessionId),
+                queryId(rootTask),
                 profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
                 flags,
@@ -1574,6 +1613,7 @@ public class ComputeService {
                         rootTask,
                         new ComputeContext(
                             sessionId,
+                            queryId(rootTask),
                             profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
                             flags,
@@ -1637,7 +1677,11 @@ public class ComputeService {
                     }
                 }
                 // starts computes on remote clusters
-                final var remoteClusters = clusterComputeHandler.getRemoteClusters(clusterToConcreteIndices, clusterToOriginalIndices);
+                final var remoteClusters = clusterComputeHandler.getRemoteClusters(
+                    clusterToConcreteIndices,
+                    clusterToOriginalIndices,
+                    execInfo
+                );
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
                     String clusterAlias = cluster.clusterAlias();
                     // Check the initial cluster status set by planning phase before executing the data node plan on remote clusters,
@@ -1720,6 +1764,7 @@ public class ComputeService {
                 rootTask,
                 new ComputeContext(
                     sessionId,
+                    queryId(rootTask),
                     profileDescription(profileQualifier, "final"),
                     LOCAL_CLUSTER,
                     flags,
@@ -1998,7 +2043,9 @@ public class ComputeService {
     ) {
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
         Set<String> unmappedFieldNames = PlannerUtils.unmappedFieldNames(plan);
-        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings, unmappedFieldNames));
+        boolean flattenedKeys = context.configuration().flattenedKeys();
+        var shardContexts = context.searchContexts()
+            .map(csc -> csc.shardContext(singleValueQueryWarnings, unmappedFieldNames, flattenedKeys));
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
@@ -2006,19 +2053,31 @@ public class ComputeService {
         long bytesBefore = directoryBytesRead.getAsLong();
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
+            context.configuration(),
             shardContexts,
             searchService.getIndicesService().getAnalysis(),
             plannerSettings,
             directoryBytesRead,
             singleValueQueryWarnings
         );
-        // the time its sources do not attribute to a shard goes to all the shards of the compute
-        TaskLoadAttribution.Target computeLoad = context.description().equals(DATA_DESCRIPTION) ? shardsLoad(shardContexts) : null;
+        // the time its sources do not attribute to a shard goes to the shards of the compute, or to its load
+        TaskLoadAttribution.Target computeLoad = context.description().equals(DATA_DESCRIPTION)
+            ? shardsLoad(shardContexts)
+            : context.load();
+        assert context.description().equals(REDUCE_DESCRIPTION) == false || computeLoad != null : "node reduce without a load target";
+        Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of());
 
         try {
             var workerThreadPool = transportService.getThreadPool();
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
+            // The planner's client is used solely by the coordinator-local EQL source, which delegates one
+            // EqlSearchAction. Assign the compute task as that search's parent so cancelling the ES|QL query
+            // cancels the delegated EQL search instead of orphaning it (and hanging the driver that waits on it).
+            var eqlDelegateClient = new ParentTaskAssigningClient(
+                client,
+                task.taskInfo(transportService.getLocalNode().getId(), false).taskId()
+            );
             // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
             // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
             // snapshots cannot disagree on anything that is read.
@@ -2044,11 +2103,12 @@ public class ComputeService {
                 physicalOperationProviders,
                 operatorFactoryRegistry,
                 datasetConfigResolver.snapshotBuild(),
-                // the workers of parallel operators read no shard of their own
-                computeLoad == null ? computeExecutor : TaskLoadAttribution.charging(computeExecutor, computeLoad),
+                // the workers of parallel operators are tasks of the query, with no shard of their own
+                computeLoad == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, computeLoad),
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                eqlDelegateClient
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
@@ -2190,7 +2250,12 @@ public class ComputeService {
                 planningBytesRead,
                 approximationApplied
             );
-            driverRunner.executeDrivers(task, drivers, computeExecutor, ActionListener.releaseAfter(driverListener, () -> {
+            QueryDriverExecutor driverExecutor = new QueryDriverExecutor(
+                context.queryId(),
+                // only data drivers read the slices of the shards; the node reduce shares the search contexts
+                context.description().equals(DATA_DESCRIPTION) ? searchedShards(context.searchContexts()) : List.of()
+            );
+            driverRunner.executeDrivers(task, drivers, driverExecutor, ActionListener.releaseAfter(driverListener, () -> {
                 if (hookExecInfo != null) {
                     for (BooleanSupplier hook : registeredStopHooks) {
                         hookExecInfo.removeStopHook(hook);
@@ -2350,6 +2415,51 @@ public class ComputeService {
 
     String newChildSession(String session) {
         return session + "/" + childSessionIdGenerator.incrementAndGet();
+    }
+
+    /**
+     * The id of the query a coordinator task runs.
+     */
+    TaskId queryId(Task coordinatorTask) {
+        return new TaskId(transportService.getLocalNode().getId(), coordinatorTask.getId());
+    }
+
+    /**
+     * Runs the drivers of a query on the node's {@link ComputeExecutor}, through the query scheduler both when they start
+     * and when they resume.
+     */
+    private final class QueryDriverExecutor implements DriverExecutor {
+        private final QueryScheduler.QueryExecutor executor;
+        /** The scheduler passes a wrapped {@link AbstractRunnable} on as an {@link AbstractRunnable}, so the cast holds. */
+        private final Executor resumed = task -> computeExecutor.executeResumed((AbstractRunnable) task);
+
+        QueryDriverExecutor(TaskId queryId, List<QueryScheduler.SearchedShard> shards) {
+            this.executor = searchService.queryScheduler().executor(queryId, computeExecutor, shards);
+        }
+
+        @Override
+        public void execute(Runnable task) {
+            executor.execute(task);
+        }
+
+        @Override
+        public void executeResumed(AbstractRunnable task) {
+            executor.execute(task, resumed);
+        }
+    }
+
+    /**
+     * The shards the drivers search, skipping contexts already closed.
+     */
+    static List<QueryScheduler.SearchedShard> searchedShards(IndexedByShardId<ComputeSearchContext> searchContexts) {
+        List<QueryScheduler.SearchedShard> shards = new ArrayList<>();
+        for (ComputeSearchContext context : searchContexts.iterable()) {
+            IndexShard shard = context.indexShard();
+            if (shard != null) {
+                shards.add(new QueryScheduler.SearchedShard(shard, context.hasUnfinishedSlices()));
+            }
+        }
+        return shards;
     }
 
     String profileDescription(String qualifier, String label) {

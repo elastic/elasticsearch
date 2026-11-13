@@ -752,7 +752,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         sections.adoptCoordinatorFetchCharge(() -> breaker.addWithoutBreaking(-bytes));
         try (sections) {
             return new MultiSearchResponse.Item(
-                new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY, null, null, null),
+                new SearchResponse(sections, null, 1, 1, 0, 0, List.of(), Clusters.EMPTY, null, null, null),
                 null
             );
         }

@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -92,6 +93,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         NamedWriteableRegistry registry,
         Client client,
         BigArrays bigArrays,
+        QuerySinkRegistry querySinkRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider
     ) {
@@ -118,7 +120,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             bigArrays
         );
         var queryLogger = new QueryLogger<>(clusterService.getClusterSettings(), new EqlLogProducer(), logWriterProvider, fieldProvider);
-        this.queryInterceptor = new QueryInterceptor<>(List.of(queryLogger));
+        this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
     }
 
     @Override
@@ -296,7 +298,10 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 new TaskId(nodeId, task.getId()),
                 task,
                 transportService.getRemoteClusterService().crossProjectEnabled(),
-                request.getResolvedIndexExpressions()
+                request.getResolvedIndexExpressions(),
+                // Reuse the coordinator's already-resolved field-caps if the caller (e.g. the ES|QL EQL source command)
+                // supplied it, so the engine skips its own resolution; null (every other caller) means self-resolve.
+                request.takePreResolvedFieldCaps()
             );
             planExecutor.eql(cfg, request.query(), params, wrap(r -> {
                 EqlSearchResponse response = createResponse(r, task.getExecutionId());

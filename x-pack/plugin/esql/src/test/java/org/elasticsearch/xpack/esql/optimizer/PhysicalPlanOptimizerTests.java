@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -176,8 +177,10 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.EqualsSyntheticSourceDelegate;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
@@ -213,6 +216,7 @@ import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -10291,6 +10295,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             ProjectMetadata.builder(randomProjectIdOrDefault()).build(),
             new EsPhysicalOperationProviders(
                 FoldContext.small(),
+                TEST_CFG,
                 EmptyIndexedByShardId.instance(),
                 null,
                 PlannerSettings.DEFAULTS,
@@ -10302,7 +10307,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,  // parallelWorkerExecutor - not needed for these tests
             0,     // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null   // client - not needed for these tests
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());
@@ -10404,6 +10410,47 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var reductionPlan = ((PlannerUtils.TopNReduction) PlannerUtils.reductionPlan(plans.v2())).plan();
         var topN = as(reductionPlan, TopNExec.class);
         assertThat(topN.limit(), equalTo(new Literal(Source.EMPTY, limit, DataType.INTEGER)));
+    }
+
+    /**
+     * A relation that already outputs a {@code _doc}, because the coordinator loads columns by document later, keeps it
+     * through node-level late materialization. A second {@code _doc} would fail the data node's planning.
+     */
+    public void testLateMaterializationReusesTheDocOfTheRelation() {
+        // the global optimization ends the fragment in the projection late materialization starts from
+        var plan = testData.physicalOptimizer().optimize(physicalPlan("""
+            FROM test
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP first_name
+            """));
+        ExchangeSinkExec sink = as(PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config).v2(), ExchangeSinkExec.class);
+        FragmentExec fragment = as(sink.child(), FragmentExec.class);
+        Project project = as(fragment.fragment(), Project.class);
+        FieldAttribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        List<NamedExpression> projections = new ArrayList<>();
+        projections.add(doc);
+        projections.addAll(project.projections());
+        LogicalPlan withDoc = project.withProjections(projections)
+            .transformUp(EsRelation.class, r -> r.withAttributes(CollectionUtils.prependToCopy(doc, r.output())));
+        FragmentExec fragmentWithDoc = fragment.withFragment(withDoc);
+        ExchangeSinkExec sinkWithDoc = new ExchangeSinkExec(sink.source(), fragmentWithDoc.output(), false, fragmentWithDoc);
+
+        ReductionPlan reduction = ComputeService.reductionPlan(
+            PlannerSettings.DEFAULTS,
+            new EsqlFlags(false),
+            config,
+            config.newFoldContext(),
+            sinkWithDoc,
+            true,
+            true,
+            null
+        );
+        as(reduction.nodeReducePlan().child(), ProjectExec.class);
+        FragmentExec dataFragment = as(reduction.dataNodePlan().child(), FragmentExec.class);
+        EsRelation relation = EsqlTestUtils.singleValue(dataFragment.fragment().collect(EsRelation.class));
+        assertThat(relation.output().stream().filter(EsQueryExec::isDocAttribute).toList(), equalTo(List.of(doc)));
+        assertThat(reduction.dataNodePlan().output(), hasItem(doc));
     }
 
     public void testReductionPlanForTopNByUsesNonSortedOutput() {

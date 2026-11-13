@@ -68,7 +68,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -254,6 +253,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 .isEnabled();
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
+                                computeService.queryId(parentTask),
                                 configuration,
                                 clusterAlias,
                                 shards,
@@ -269,18 +269,22 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
                                 dataNodeRequest,
                                 groupTask,
-                                TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
-                                    nodeResponseRef.set(r);
-                                    return r.completionInfo();
-                                }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
+                                computeService.planRequestOptions(),
+                                new ActionListenerResponseHandler<>(
+                                    ComputeService.finishRemoteSinkIfNotSent(remoteSink, computeListener.acquireCompute().map(r -> {
+                                        nodeResponseRef.set(r);
+                                        return r.completionInfo();
+                                    })),
+                                    in -> new DataNodeComputeResponse(in, threadContext),
+                                    searchExecutor
+                                )
                             );
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
                                 remoteSink,
                                 configuration.allowPartialResults() == false,
@@ -400,19 +404,29 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         }
                     }))) {
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                        var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
-                            externalRequest(childSessionId, configuration, dataNodePlan, nodeSplits, requiredClusterStateVersion),
+                            externalRequest(
+                                childSessionId,
+                                computeService.queryId(parentTask),
+                                configuration,
+                                dataNodePlan,
+                                nodeSplits,
+                                requiredClusterStateVersion
+                            ),
                             groupTask,
-                            TransportRequestOptions.EMPTY,
+                            computeService.planRequestOptions(),
                             new ActionListenerResponseHandler<>(
-                                computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo),
+                                ComputeService.finishRemoteSinkIfNotSent(
+                                    remoteSink,
+                                    computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo)
+                                ),
                                 in -> new DataNodeComputeResponse(in, threadContext),
                                 searchExecutor
                             )
                         );
-                        var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                         exchangeSource.addRemoteSink(
                             remoteSink,
                             allowPartial == false,
@@ -596,6 +610,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     private static DataNodeRequest externalRequest(
         String sessionId,
+        TaskId queryId,
         Configuration configuration,
         ExchangeSinkExec dataNodePlan,
         List<ExternalSplit> splits,
@@ -603,6 +618,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     ) {
         return new DataNodeRequest(
             sessionId,
+            queryId,
             configuration,
             "",
             List.of(),
@@ -785,6 +801,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     }
                     var computeContext = new ComputeContext(
                         sessionId,
+                        request.queryId(),
                         ComputeService.DATA_DESCRIPTION,
                         clusterAlias,
                         flags,
@@ -794,7 +811,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         null,
                         () -> exchangeSink(pagesProduced::incrementAndGet),
                         singleNodeOptimizations,
-                        sortBound
+                        sortBound,
+                        null
                     );
                     computeService.runCompute(
                         parentTask,
@@ -983,6 +1001,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     task,
                     new ComputeContext(
                         request.sessionId(),
+                        request.queryId(),
                         ComputeService.REDUCE_DESCRIPTION,
                         request.clusterAlias(),
                         flags,
@@ -991,7 +1010,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         internalExchange::exchangeSource,
                         () -> externalSink.createExchangeSink(() -> {}),
-                        request.singleNodeOptimizations()
+                        request.singleNodeOptimizations(),
+                        null,
+                        reduceLoad(request.shards(), searchContexts)
                     ),
                     reductionPlan.nodeReducePlan(),
                     plannerSettings,
@@ -1026,7 +1047,23 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * Charges the time of tasks equally to {@code shards}.
      */
     private TaskLoadAttribution.Target shardsLoad(List<DataNodeRequest.Shard> shards) {
-        return searchService.getIndicesService().searchLoad(shards.stream().map(DataNodeRequest.Shard::shardId).toList());
+        return searchService.searchLoad(shards.stream().map(DataNodeRequest.Shard::shardId).toList());
+    }
+
+    /**
+     * The query of a data-node request: its {@link DataNodeRequest#queryId()}, or its parent task if the sender does not
+     * send one.
+     */
+    static TaskId queryId(DataNodeRequest request, Task task) {
+        return request.queryId().isSet() ? request.queryId() : task.getParentTaskId();
+    }
+
+    /**
+     * Charges the time of the node-level reduce to {@code shards}, by the rows their sources emitted since the previous task.
+     */
+    private TaskLoadAttribution.Target reduceLoad(List<DataNodeRequest.Shard> shards, AcquiredSearchContexts searchContexts) {
+        List<ShardId> shardIds = shards.stream().map(DataNodeRequest.Shard::shardId).toList();
+        return searchService.searchLoad(shardIds, searchContexts::rowsEmitted);
     }
 
     /**
@@ -1181,6 +1218,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final String sessionId = request.sessionId();
         request = new DataNodeRequest(
             sessionId + "[n]", // internal session
+            queryId(request, task),
             request.configuration(),
             request.clusterAlias(),
             request.shards(),
@@ -1562,6 +1600,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 String internalSessionId = sessionId + "[n]";
                 var computeContext = new ComputeContext(
                     internalSessionId,
+                    queryId(request, task),
                     ComputeService.DATA_DESCRIPTION,
                     request.clusterAlias(),
                     flags,

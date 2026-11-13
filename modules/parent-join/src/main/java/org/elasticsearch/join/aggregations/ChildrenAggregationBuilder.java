@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.join.mapper.Joiner;
+import org.elasticsearch.join.mapper.ParentIdFieldMapper.ParentIdFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -37,8 +38,6 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     public static final String NAME = "children";
 
     private final String childType;
-    private Query parentFilter;
-    private Query childFilter;
 
     /**
      * @param name
@@ -57,8 +56,6 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     protected ChildrenAggregationBuilder(ChildrenAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
         this.childType = clone.childType;
-        this.childFilter = clone.childFilter;
-        this.parentFilter = clone.parentFilter;
     }
 
     @Override
@@ -96,6 +93,13 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
         AggregatorFactory parent,
         Builder subFactoriesBuilder
     ) throws IOException {
+        Query parentFilter = null;
+        Query childFilter = null;
+        if (config.fieldType() instanceof ParentIdFieldType parentIdFieldType) {
+            Joiner joiner = parentIdFieldType.getJoiner();
+            parentFilter = joiner.parentFilter(childType, context);
+            childFilter = joiner.filter(childType, context);
+        }
         return new ChildrenAggregatorFactory(name, config, childFilter, parentFilter, context, parent, subFactoriesBuilder, metadata);
     }
 
@@ -109,9 +113,6 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
             config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), context);
             return config;
         }
-
-        parentFilter = joiner.parentFilter(childType);
-        childFilter = joiner.filter(childType);
         MappedFieldType fieldType = context.getFieldType(joiner.parentJoinField(childType));
         config = ValuesSourceConfig.resolveFieldOnly(fieldType, context);
         return config;

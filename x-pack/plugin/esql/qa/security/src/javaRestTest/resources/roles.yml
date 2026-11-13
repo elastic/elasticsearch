@@ -257,6 +257,28 @@ dls_user:
       privileges: [ 'read' ]
       query: '{"match": {"org": "marketing"}}'
 
+# Reads eql-events, but document-level security exposes only its process events. Used to prove the EQL source command's
+# delegated search runs in the caller's security context (its DLS filter applies to the delegated EQL search).
+eql_dls_user:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: [ 'eql-events' ]
+      privileges: [ 'read' ]
+      query: '{"term": {"event.category": "process"}}'
+
+# Reads eql-events, but field-level security hides the message field. Used to prove the EQL source command's delegated
+# search honors the caller's FLS: the hidden field never appears in the response _source it converts to rows.
+eql_fls_user:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: [ 'eql-events-fls' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'message' ]
+
 dls_user2:
   cluster: []
   indices:
@@ -595,3 +617,13 @@ fls_unmapped_container_except_k:
       field_security:
         grant: [ '*' ]
         except: [ 'k' ]
+
+# Hides one key of a flattened field and keeps the others.
+fls_flattened_except_key:
+  cluster: []
+  indices:
+    - names: [ 'index-flattened-keys*' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'attrs.bar' ]

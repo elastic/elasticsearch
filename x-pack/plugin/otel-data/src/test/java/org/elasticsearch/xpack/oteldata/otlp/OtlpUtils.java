@@ -84,6 +84,39 @@ public class OtlpUtils {
         return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setKvlistValue(keyValueList).build()).build();
     }
 
+    /** An array attribute over arbitrary element values, for shapes {@link #keyValue(String, String...)} cannot express. */
+    public static KeyValue keyValueArray(String key, AnyValue... values) {
+        return KeyValue.newBuilder()
+            .setKey(key)
+            .setValue(AnyValue.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(List.of(values)).build()).build())
+            .build();
+    }
+
+    /** An attribute carrying opaque bytes. */
+    public static KeyValue keyValueBytes(String key, byte[] value) {
+        return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setBytesValue(ByteString.copyFrom(value)).build()).build();
+    }
+
+    public static AnyValue anyValue(String value) {
+        return AnyValue.newBuilder().setStringValue(value).build();
+    }
+
+    public static AnyValue anyValue(long value) {
+        return AnyValue.newBuilder().setIntValue(value).build();
+    }
+
+    public static AnyValue anyValue(KeyValueList value) {
+        return AnyValue.newBuilder().setKvlistValue(value).build();
+    }
+
+    public static AnyValue anyValueArray(AnyValue... values) {
+        return AnyValue.newBuilder().setArrayValue(ArrayValue.newBuilder().addAllValues(List.of(values)).build()).build();
+    }
+
+    public static AnyValue anyValueBytes(byte[] value) {
+        return AnyValue.newBuilder().setBytesValue(ByteString.copyFrom(value)).build();
+    }
+
     private static Resource createResource(List<KeyValue> attributes) {
         return Resource.newBuilder().addAllAttributes(attributes).build();
     }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -185,13 +188,12 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             return inputAggregate;
         }
         TimeSeriesAggregate aggregate = replaceSurrogateTimeseriesAggs(inputAggregate);
-        Holder<Attribute> tsid = new Holder<>();
         // Only look at the time-series source feeding this aggregate. Do not cross into nested sub-plans
         // (the right-hand side of a join, e.g. an IN-subquery rewritten to a SemiJoin), which carry their
         // own time-series source and have their own _tsid - see findTimeSeriesSourceTsid.
-        findTimeSeriesSourceTsid(aggregate, tsid);
+        Holder<Attribute> tsid = new Holder<>(findTimeSeriesSourceTsid(aggregate.child()));
         if (tsid.get() == null) {
-            tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false));
+            tsid.set(newTsid(aggregate.source()));
         }
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
@@ -553,38 +555,96 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
      * are separate time-series sources with their own {@code _tsid} that this aggregate must not adopt. Crossing that boundary previously
      * caused the outer aggregate to inject its {@code _tsid} into a nested subquery relation that already had one, producing a relation
      * with two {@code _tsid} attributes.
+     * <p>
+     * A {@code MergePlan} (e.g. {@code FORK}) stops the walk too. Its branches read their own copies of the source, each with its own
+     * {@code _tsid}, and the merge exposes them as one column of its output. That column is what the aggregate has to group by. When
+     * the merge does not expose {@code _tsid} yet, this returns a new column for it, which {@link #addTsidToTimeSeriesSource} then adds
+     * to the merge.
+     *
+     * @return the {@code _tsid} to group by, or {@code null} if the source does not have one yet
      */
-    private static void findTimeSeriesSourceTsid(LogicalPlan plan, Holder<Attribute> tsid) {
+    @Nullable
+    private static Attribute findTimeSeriesSourceTsid(LogicalPlan plan) {
         if (plan instanceof EsRelation relation) {
-            for (Attribute attr : relation.output()) {
-                if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
-                    tsid.set(attr);
-                }
-            }
-            return;
+            return tsidOf(relation.output());
+        }
+        if (plan instanceof MergePlan merge) {
+            Attribute tsid = tsidOf(merge.output());
+            return tsid != null ? tsid : new ReferenceAttribute(merge.source(), MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE);
         }
         if (plan instanceof BinaryPlan binary) {
-            findTimeSeriesSourceTsid(binary.left(), tsid);
-            return;
+            return findTimeSeriesSourceTsid(binary.left());
         }
+        Attribute tsid = null;
         for (LogicalPlan child : plan.children()) {
-            findTimeSeriesSourceTsid(child, tsid);
+            Attribute found = findTimeSeriesSourceTsid(child);
+            if (found != null) {
+                tsid = found;
+            }
         }
+        return tsid;
+    }
+
+    @Nullable
+    private static Attribute tsidOf(List<Attribute> output) {
+        for (Attribute attr : output) {
+            if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
+                return attr;
+            }
+        }
+        return null;
+    }
+
+    private static Attribute newTsid(Source source) {
+        return new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, false);
     }
 
     /**
-     * Injects {@code tsid} into the time-series source relation(s) of this aggregate and adjusts their index mode, mirroring the traversal
-     * scope of {@code findTimeSeriesSourceTsid}: it never descends into the right-hand side of a {@code BinaryPlan}, so nested subqueries
-     * keep their own {@code _tsid} untouched.
+     * Makes {@code tsid} available to this aggregate: injects it into the time-series source relation(s) and adjusts their index mode,
+     * mirroring the traversal scope of {@link #findTimeSeriesSourceTsid}. It never descends into the right-hand side of a
+     * {@code BinaryPlan}, so nested subqueries keep their own {@code _tsid} untouched.
+     * <p>
+     * The rule runs after the analyzer has fixed the outputs of the plans between the source and the aggregate, so {@code _tsid} is also
+     * carried up through them: a {@code Project} (e.g. a {@code KEEP}) whose input has it keeps it, and a {@code MergePlan} gets it as
+     * one more output column. Each branch of a merge gets its own {@code _tsid}, carried up to the branch output, which the merge
+     * lines up with its {@code _tsid} column by name.
      */
     private static LogicalPlan addTsidToTimeSeriesSource(LogicalPlan plan, Attribute tsid, boolean requiredTimeSeriesSource) {
-        return TranslateTimeSeriesUtils.transformTimeSeriesSource(plan, relation -> {
+        if (plan instanceof EsRelation relation) {
             IndexMode indexMode = requiredTimeSeriesSource ? relation.indexMode() : IndexMode.STANDARD;
             if (relation.output().contains(tsid) == false) {
                 return relation.withIndexMode(indexMode).withAttributes(CollectionUtils.combine(relation.output(), tsid));
             }
             return relation.withIndexMode(indexMode);
-        });
+        }
+        if (plan instanceof MergePlan merge) {
+            List<LogicalPlan> branches = new ArrayList<>(merge.children().size());
+            for (LogicalPlan branch : merge.children()) {
+                Attribute branchTsid = findTimeSeriesSourceTsid(branch);
+                if (branchTsid == null) {
+                    branchTsid = newTsid(branch.source());
+                }
+                branches.add(addTsidToTimeSeriesSource(branch, branchTsid, requiredTimeSeriesSource));
+            }
+            List<Attribute> output = merge.output().contains(tsid) ? merge.output() : CollectionUtils.combine(merge.output(), tsid);
+            return merge.replaceSubPlansAndOutput(branches, output);
+        }
+        if (plan instanceof BinaryPlan binary) {
+            LogicalPlan newLeft = addTsidToTimeSeriesSource(binary.left(), tsid, requiredTimeSeriesSource);
+            return newLeft == binary.left() ? binary : binary.replaceLeft(newLeft);
+        }
+        List<LogicalPlan> newChildren = new ArrayList<>(plan.children().size());
+        boolean changed = false;
+        for (LogicalPlan child : plan.children()) {
+            LogicalPlan newChild = addTsidToTimeSeriesSource(child, tsid, requiredTimeSeriesSource);
+            changed |= newChild != child;
+            newChildren.add(newChild);
+        }
+        LogicalPlan newPlan = changed ? plan.replaceChildren(newChildren) : plan;
+        if (newPlan instanceof Project project && project.output().contains(tsid) == false && project.inputSet().contains(tsid)) {
+            return project.withProjections(CollectionUtils.combine(project.projections(), tsid));
+        }
+        return newPlan;
     }
 
     static LogicalPlan usePackDimsAgg(LogicalPlan plan, AnalyzerContext context) {

@@ -4934,6 +4934,32 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    /**
+     * Time-series aggregations that need the time-series source, such as {@code RATE}, cannot run over a {@code FORK}.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/160269">#160269</a>.
+     */
+    public void testTimeSeriesSourceAggregationOverForkNotAllowed() {
+        assumeTrue("requires TS STATS over FORK fix", EsqlCapabilities.Cap.FIX_TS_STATS_OVER_FORK.isEnabled());
+        tsdb().addK8s().error("""
+            TS k8s
+            | FORK (WHERE cluster == "prod") (WHERE cluster != "prod")
+            | STATS r = SUM(RATE(network.total_bytes_in)) BY cluster""", equalTo("""
+            3:17: RATE over FORK is not supported; [RATE(network.total_bytes_in)] needs the time-series source directly"""));
+
+        tsdb().addK8s().error("""
+            TS k8s
+            | FORK (WHERE cluster == "prod") (WHERE cluster != "prod")
+            | STATS i = MAX(INCREASE(network.total_bytes_in)), r = AVG(RATE(network.total_bytes_in)) BY cluster""", equalTo("""
+            3:17: INCREASE over FORK is not supported; [INCREASE(network.total_bytes_in)] needs the time-series source directly
+            line 3:60: RATE over FORK is not supported; [RATE(network.total_bytes_in)] needs the time-series source directly"""));
+
+        // over-time aggregations that do not need the time-series source work over a FORK
+        tsdb().addK8s().query("""
+            TS k8s
+            | FORK (WHERE cluster == "prod") (WHERE cluster != "prod")
+            | STATS m = MAX(LAST_OVER_TIME(network.total_bytes_in)), b = MAX(TO_LONG(network.bytes_in)) BY cluster""");
+    }
+
     public void testMvExpandBeforeTSStatsNotAllowed() {
         tsdb().error("TS test | MV_EXPAND name | STATS max(network.connections)", equalTo("""
             1:11: mv_expand [MV_EXPAND name] in the time-series before the first aggregation \

@@ -4843,6 +4843,13 @@ public class EsqlCapabilities {
          */
         COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
 
+        /**
+         * Fixes a bug in the planner where a {@code TS} {@code STATS} over a {@code FORK} failed with
+         * "optimized incorrectly due to missing references [_tsid]".
+         * See <a href="https://github.com/elastic/elasticsearch/issues/160269">#160269</a>.
+         */
+        FIX_TS_STATS_OVER_FORK,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

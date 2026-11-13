@@ -33,8 +33,10 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -403,9 +405,38 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 )
             );
         }
+        // reject `TS metrics | FORK ... | STATS RATE(...)`
+        if (p instanceof MergePlan merge) {
+            checkTimeSeriesSourceFunctionsOverMerge(merge, failures);
+        }
         List<LogicalPlan> children = p instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : p.children();
         for (LogicalPlan child : children) {
             checkCommandsBeforeAggregation(child, failures);
+        }
+    }
+
+    /**
+     * Time-series aggregations such as {@code RATE} read the slice index and the future max timestamp that only the time-series source
+     * operator produces, and they need their input in time-series order. A merge of branches provides neither, so reject them over a
+     * merge instead of failing at runtime. Other time-series aggregations work over a merge.
+     */
+    private void checkTimeSeriesSourceFunctionsOverMerge(MergePlan merge, Failures failures) {
+        String mergeName = merge instanceof Fork ? "FORK" : "subqueries";
+        Set<String> reported = new HashSet<>();
+        for (NamedExpression aggregate : aggregates) {
+            aggregate.forEachDown(TimeSeriesAggregateFunction.class, function -> {
+                if (function.requiredTimeSeriesSource() && reported.add(function.functionName())) {
+                    failures.add(
+                        fail(
+                            function,
+                            "{} over {} is not supported; [{}] needs the time-series source directly",
+                            function.functionName(),
+                            mergeName,
+                            function.sourceText()
+                        )
+                    );
+                }
+            });
         }
     }
 

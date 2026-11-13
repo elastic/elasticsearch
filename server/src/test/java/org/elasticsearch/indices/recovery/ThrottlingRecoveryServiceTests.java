@@ -84,6 +84,7 @@ import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSetti
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT_AND_BLOCK;
 import static org.elasticsearch.indices.recovery.RecoveryGateMonitor.ENABLE_RECOVERY_GATES_SETTING;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
@@ -1415,6 +1416,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
         ensureListenersWereNotified(listener);
+        assertThat(listener.failureStrategy(), equalTo(FAIL_SEND));
     }
 
     /// A recorded cancellation must persist across multiple [ThrottlingRecoveryService#enqueue] attempts for the same
@@ -1497,6 +1499,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         taskQueue.runAllTasks();
         assertThat(service.currentQueueSize(), equalTo(0));
         ensureListenersWereNotified(listener1, listener2);
+        assertThat(listener2.failureStrategy(), equalTo(FAIL_SILENT_AND_BLOCK));
     }
 
     public void testStaleRecordedEntryRemovedOnClusterStateChangeWithShardRelocated() {
@@ -1905,6 +1908,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     private static class TestCaptureResultListener extends SubscribableListener<Void> implements RecoveryListener {
         private final ExpectedRecoveryOutcome expectedOutcome;
         private volatile boolean notified;
+        private volatile FailureStrategy failureStrategy;
 
         TestCaptureResultListener(ExpectedRecoveryOutcome expectedOutcome) {
             this.expectedOutcome = expectedOutcome;
@@ -1928,6 +1932,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         @Override
         public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
             assert super.isDone() == false;
+            this.failureStrategy = failureStrategy;
             switch (expectedOutcome) {
                 case FAILED -> {
                     if (failureStrategy != ABORT) {
@@ -1957,6 +1962,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         public boolean wasNotified() {
             return super.isDone();
+        }
+
+        /// The [FailureStrategy] of the failure this listener was notified of, or `null` if it has not been notified of one.
+        public FailureStrategy failureStrategy() {
+            return failureStrategy;
         }
     }
 

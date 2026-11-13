@@ -41,14 +41,13 @@ public final class StreamQueryTestUtils {
         CountingStreamSubscriber subscriber,
         boolean dropNullColumns
     ) throws Exception {
-        int batchSize = ESTestCase.randomIntBetween(1, 10);
         AtomicReference<EsqlStreamQueryAction.ResultStream> startRef = new AtomicReference<>();
         ActionFuture<ActionResponse.Empty> future = client.execute(
             EsqlStreamQueryAction.INSTANCE,
             new EsqlStreamQueryRequest(source, ActionListener.wrap(resultStream -> {
                 startRef.set(resultStream);
                 resultStream.publisher().subscribe(subscriber);
-            }, subscriber.failure::set), dropNullColumns, batchSize)
+            }, subscriber.failure::set), dropNullColumns)
         );
         future.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         EsqlStreamQueryAction.ResultStream resultStream = startRef.get();

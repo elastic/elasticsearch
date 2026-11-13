@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
-import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 
@@ -18,14 +17,21 @@ import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.sourcebatch.SourceSchema;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,7 +43,6 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.anyValueArray;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.anyValueBytes;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createDoubleDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createGaugeMetric;
-import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createHistogramMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createLongDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createResourceMetrics;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createScopeMetrics;
@@ -47,7 +52,30 @@ import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValueArray;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValueBytes;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValueList;
 
-public class OTLPMetricBatchBuilderTests extends ESTestCase {
+public class OTLPMetricBatchBuilderTests extends MetricDocumentTestCase {
+
+    @Override
+    protected boolean producesTsid() {
+        return false;
+    }
+
+    @Override
+    protected Document buildDocument(MappingHints defaultMappingHints, DataPointGroupingContext.DataPointGroup dataPointGroup)
+        throws IOException {
+        Map<String, String> dynamicTemplates = new HashMap<>();
+        Map<String, Map<String, String>> dynamicTemplateParams = new HashMap<>();
+        try (
+            OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(BytesRefRecycler.NON_RECYCLING_INSTANCE, defaultMappingHints)
+        ) {
+            assertTrue(batchBuilder.buildMetricRow(dataPointGroup, dynamicTemplates, dynamicTemplateParams));
+            try (EscfBatch batch = batchBuilder.build()) {
+                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+                SourceRowToXContent.writeRow(batch.row(0), batch.schema(), builder);
+                ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+                return new Document(doc, dynamicTemplates, dynamicTemplateParams, null);
+            }
+        }
+    }
 
     private final long nowNanos = System.currentTimeMillis() * 1_000_000L;
 
@@ -278,47 +306,6 @@ public class OTLPMetricBatchBuilderTests extends ESTestCase {
         assertEquals(List.of("first"), readStringColumn(batch, "resource.attributes.host"));
         assertEquals(List.of(1L), readLongColumn(batch, "scope.attributes.lib"));
         assertEquals(List.of("prod"), readStringColumn(batch, "attributes.env"));
-    }
-
-    /** A histogram data point causes buildMetricRow to return false (falls back to XContent path). */
-    public void testBuildMetricRowReturnsFalseForHistogram() throws Exception {
-        ExportMetricsServiceRequest request = ExportMetricsServiceRequest.newBuilder()
-            .addResourceMetrics(
-                createResourceMetrics(
-                    List.of(keyValue("service.name", "svc")),
-                    List.of(
-                        createScopeMetrics(
-                            "s",
-                            "1",
-                            List.of(
-                                createHistogramMetric(
-                                    "latency",
-                                    "ms",
-                                    List.of(
-                                        io.opentelemetry.proto.metrics.v1.HistogramDataPoint.newBuilder()
-                                            .setTimeUnixNano(nowNanos)
-                                            .setCount(1)
-                                            .setSum(42.0)
-                                            .build()
-                                    ),
-                                    AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-            .build();
-
-        DataPointGroupingContext context = newContext();
-        context.groupDataPoints(request);
-
-        OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
-            BytesRefRecycler.NON_RECYCLING_INSTANCE,
-            MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
-        );
-        context.consume(group -> { assertFalse(batchBuilder.buildMetricRow(group, new HashMap<>(), new HashMap<>())); });
-        assertEquals(0, batchBuilder.docCount());
     }
 
     /** Dotted metric names (e.g. {@code gauge.0}) are written as a nested-path column, not a top-level key. */

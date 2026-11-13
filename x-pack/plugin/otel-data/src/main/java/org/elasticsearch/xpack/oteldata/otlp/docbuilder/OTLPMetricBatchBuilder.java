@@ -23,20 +23,36 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.ExponentialHistogramConverter;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.BUCKET_COUNTS_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.BUCKET_INDICES_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.MAX_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.MIN_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.NEGATIVE_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.POSITIVE_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.SCALE_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.SUM_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.ZERO_COUNT_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.ZERO_FIELD;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent.ZERO_THRESHOLD_FIELD;
+
 /**
  * Columnar counterpart to {@link MetricDocumentBuilder}: writes OTel metric data-point groups directly into
  * an ESCF batch without going through an intermediate XContent representation.
  *
+ * <p>Scalar metrics are written as a single leaf column under {@code metrics}. Structured metric values
+ * (histograms, exponential histograms, summaries) are written through cached sub-schemas such as
+ * {@link HistogramSchema}, see {@link DataPoint#writeColumnarValue}.
+ *
  * <p>{@link #buildMetricRow} writes each group <b>optimistically</b> and returns {@code false} the moment it
- * encounters something that can't be expressed as ESCF columns — a non-scalar data point
- * (histogram/summary/exponential-histogram) or unsupported attributes — rather than scanning the group
- * upfront. A {@code false} return leaves the builder with a half-written row, so callers must discard the
+ * encounters something that can't be expressed as ESCF columns — unsupported attributes — rather than
+ * scanning the group upfront. A {@code false} return leaves the builder with a half-written row, so callers must discard the
  * builder and fall back to the {@link MetricDocumentBuilder} XContent path.
  *
  * <p>The field layout emitted by this class is identical to that of {@link MetricDocumentBuilder}: same field
@@ -72,6 +88,73 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
     private int unitCol = NOT_REGISTERED;
     private int temporalityCol = NOT_REGISTERED;
     private int docCountCol = NOT_REGISTERED;
+
+    private final ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
+
+    /** Layout of a {@code histogram} field value (T-Digest or raw), see {@link DataPoint#buildMetricValue}. */
+    public record HistogramSchema(int countsColIdx, int valuesColIdx) {
+        public static final SubSchemaFactory<HistogramSchema> FACTORY = (parentIdx, name, rootSchema) -> {
+            int histogramObj = rootSchema.appendNonLeaf(name, parentIdx);
+            int countsIdx = rootSchema.appendLeaf("counts", histogramObj);
+            int valuesIdx = rootSchema.appendLeaf("values", histogramObj);
+            return new HistogramSchema(countsIdx, valuesIdx);
+        };
+    }
+
+    /** Layout of an {@code aggregate_metric_double} field value holding a sum and a value count. */
+    public record AggregateMetricDoubleSchema(int sumColIdx, int valueCountColIdx) {
+        public static final SubSchemaFactory<AggregateMetricDoubleSchema> FACTORY = (parentIdx, name, rootSchema) -> {
+            int aggregateObj = rootSchema.appendNonLeaf(name, parentIdx);
+            int sumIdx = rootSchema.appendLeaf("sum", aggregateObj);
+            int valueCountIdx = rootSchema.appendLeaf("value_count", aggregateObj);
+            return new AggregateMetricDoubleSchema(sumIdx, valueCountIdx);
+        };
+    }
+
+    /**
+     * Layout of an {@code exponential_histogram} field value.
+     */
+    public record ExponentialHistogramSchema(
+        int scaleColIdx,
+        int zeroCountColIdx,
+        int zeroThresholdColIdx,
+        int negativeIndicesColIdx,
+        int negativeCountsColIdx,
+        int positiveIndicesColIdx,
+        int positiveCountsColIdx,
+        int sumColIdx,
+        int minColIdx,
+        int maxColIdx
+    ) {
+        public static final SubSchemaFactory<ExponentialHistogramSchema> FACTORY = (parentIdx, name, rootSchema) -> {
+            int histogramObj = rootSchema.appendNonLeaf(name, parentIdx);
+            int scaleIdx = rootSchema.appendLeaf(SCALE_FIELD, histogramObj);
+            int zeroObj = rootSchema.appendNonLeaf(ZERO_FIELD, histogramObj);
+            int zeroCountIdx = rootSchema.appendLeaf(ZERO_COUNT_FIELD, zeroObj);
+            int zeroThresholdIdx = rootSchema.appendLeaf(ZERO_THRESHOLD_FIELD, zeroObj);
+            int negativeObj = rootSchema.appendNonLeaf(NEGATIVE_FIELD, histogramObj);
+            int negativeIndicesIdx = rootSchema.appendLeaf(BUCKET_INDICES_FIELD, negativeObj);
+            int negativeCountsIdx = rootSchema.appendLeaf(BUCKET_COUNTS_FIELD, negativeObj);
+            int positiveObj = rootSchema.appendNonLeaf(POSITIVE_FIELD, histogramObj);
+            int positiveIndicesIdx = rootSchema.appendLeaf(BUCKET_INDICES_FIELD, positiveObj);
+            int positiveCountsIdx = rootSchema.appendLeaf(BUCKET_COUNTS_FIELD, positiveObj);
+            int sumIdx = rootSchema.appendLeaf(SUM_FIELD, histogramObj);
+            int minIdx = rootSchema.appendLeaf(MIN_FIELD, histogramObj);
+            int maxIdx = rootSchema.appendLeaf(MAX_FIELD, histogramObj);
+            return new ExponentialHistogramSchema(
+                scaleIdx,
+                zeroCountIdx,
+                zeroThresholdIdx,
+                negativeIndicesIdx,
+                negativeCountsIdx,
+                positiveIndicesIdx,
+                positiveCountsIdx,
+                sumIdx,
+                minIdx,
+                maxIdx
+            );
+        };
+    }
 
     /** Creates a builder using {@code recycler} to back column byte buffers for high-throughput paths. */
     public OTLPMetricBatchBuilder(Recycler<BytesRef> recycler, MappingHints defaultMappingHints) {
@@ -116,6 +199,16 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
         }
     }
 
+    /** Returns the column of the scalar metric {@code metricName} within the {@code metrics} object. */
+    public int getMetricLeafField(String metricName) {
+        return leafField(metricName, metricsParentCol);
+    }
+
+    /** Returns the sub-schema for the structured metric {@code metricName} within the {@code metrics} object. */
+    public <T> T getMetricSubSchema(String metricName, SubSchemaFactory<T> factory) {
+        return getSubSchema(metricsParentCol, metricName, factory);
+    }
+
     private void writeRow(
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         Map<String, String> dynamicTemplates,
@@ -151,13 +244,10 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
         long docCount = 0;
         for (int i = 0; i < dataPoints.size(); i++) {
             DataPoint dataPoint = dataPoints.get(i);
-            if (dataPoint.supportsColumnarValue() == false) {
-                throw RowIneligibleException.INSTANCE;
-            }
             String metricName = dataPoint.getMetricName();
-            dataPoint.writeColumnarValue(this, leafField(metricName, metricsParentCol));
-
             MappingHints mappingHints = defaultMappingHints.withConfigFromAttributes(dataPoint.getAttributes());
+            dataPoint.writeColumnarValue(mappingHints, this, scratch);
+
             String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
             if (dynamicTemplate != null) {
                 String metricFieldPath = "metrics." + metricName;

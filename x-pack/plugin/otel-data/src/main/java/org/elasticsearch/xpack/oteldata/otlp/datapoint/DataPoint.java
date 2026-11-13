@@ -17,10 +17,11 @@ import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.oteldata.otlp.docbuilder.AbstractOTLPBatchBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.HistogramMapping;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTLPMetricBatchBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -133,29 +134,19 @@ public interface DataPoint {
     long getDocCount();
 
     /**
-     * Returns {@code true} when this data point can be written into an
-     * {@link AbstractOTLPBatchBuilder} as a scalar long or
-     * double field (i.e. via
-     * {@link #writeColumnarValue(AbstractOTLPBatchBuilder, int)}).
-     * Histogram, summary, and exponential-histogram data points return {@code false} because they write
-     * nested objects/arrays that the current ESCF batch builder does not yet support.
-     */
-    default boolean supportsColumnarValue() {
-        return false;
-    }
-
-    /**
-     * Writes the metric value as a scalar field at {@code columnIndex} into the given
-     * {@link AbstractOTLPBatchBuilder}. Only valid when
-     * {@link #supportsColumnarValue()} returns {@code true}.
+     * Columnar counterpart to {@link #buildMetricValue}: writes the metric value of this data point into the current row
+     * of {@code batchBuilder}. Must produce the same field layout as {@link #buildMetricValue} for the same mapping hints,
+     * so that both indexing paths yield identical documents.
      *
+     * @param mappingHints hints for building the metric value
      * @param batchBuilder the batch builder to write into
-     * @param columnIndex  the pre-resolved column index for this metric name within {@code metrics}
-     *                     (see {@code OTLPMetricBatchBuilder})
+     * @param scratch a reusable, temporary buffer for building exponential histograms
      */
-    default void writeColumnarValue(AbstractOTLPBatchBuilder batchBuilder, int columnIndex) {
-        throw new UnsupportedOperationException("writeColumnarValue not supported for " + getClass().getSimpleName());
-    }
+    void writeColumnarValue(
+        MappingHints mappingHints,
+        OTLPMetricBatchBuilder batchBuilder,
+        ExponentialHistogramConverter.BucketBuffer scratch
+    );
 
     record Number(NumberDataPoint dataPoint, Metric metric) implements DataPoint {
 
@@ -248,12 +239,12 @@ public interface DataPoint {
         }
 
         @Override
-        public boolean supportsColumnarValue() {
-            return dataPoint.getValueCase() != NumberDataPoint.ValueCase.VALUE_NOT_SET;
-        }
-
-        @Override
-        public void writeColumnarValue(AbstractOTLPBatchBuilder batchBuilder, int columnIndex) {
+        public void writeColumnarValue(
+            MappingHints mappingHints,
+            OTLPMetricBatchBuilder batchBuilder,
+            ExponentialHistogramConverter.BucketBuffer scratch
+        ) {
+            int columnIndex = batchBuilder.getMetricLeafField(metric.getName());
             switch (dataPoint.getValueCase()) {
                 case AS_DOUBLE -> batchBuilder.doubleField(columnIndex, dataPoint.getAsDouble());
                 case AS_INT -> batchBuilder.longField(columnIndex, dataPoint.getAsInt());
@@ -304,6 +295,40 @@ public interface DataPoint {
                 case TDIGEST -> buildTDigest(builder);
                 case HISTOGRAM_RAW -> buildRawHistogram(builder);
                 case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder);
+            }
+        }
+
+        @Override
+        public void writeColumnarValue(
+            MappingHints mappingHints,
+            OTLPMetricBatchBuilder batchBuilder,
+            ExponentialHistogramConverter.BucketBuffer scratch
+        ) {
+            switch (mappingHints.histogramMapping()) {
+                case AGGREGATE_METRIC_DOUBLE -> writeAggregateMetricDouble(batchBuilder, metric, dataPoint.getSum(), dataPoint.getCount());
+                case TDIGEST -> {
+                    var schema = batchBuilder.getMetricSubSchema(metric.getName(), OTLPMetricBatchBuilder.HistogramSchema.FACTORY);
+                    EscfColumnBuilder counts = batchBuilder.beginArray(schema.countsColIdx());
+                    TDigestConverter.counts(dataPoint, counts::appendLong);
+                    counts.endArray();
+                    EscfColumnBuilder values = batchBuilder.beginArray(schema.valuesColIdx());
+                    TDigestConverter.centroidValues(dataPoint, values::appendDouble);
+                    values.endArray();
+                }
+                case HISTOGRAM_RAW -> {
+                    var schema = batchBuilder.getMetricSubSchema(metric.getName(), OTLPMetricBatchBuilder.HistogramSchema.FACTORY);
+                    EscfColumnBuilder counts = batchBuilder.beginArray(schema.countsColIdx());
+                    RawHistogramConverter.counts(dataPoint, counts::appendLong);
+                    counts.endArray();
+                    EscfColumnBuilder values = batchBuilder.beginArray(schema.valuesColIdx());
+                    RawHistogramConverter.values(dataPoint, values::appendDouble);
+                    values.endArray();
+                }
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.writeExponentialHistogram(
+                    dataPoint,
+                    batchBuilder,
+                    batchBuilder.getMetricSubSchema(metric.getName(), OTLPMetricBatchBuilder.ExponentialHistogramSchema.FACTORY)
+                );
             }
         }
 
@@ -406,6 +431,42 @@ public interface DataPoint {
                 case TDIGEST -> buildTDigest(builder);
                 case HISTOGRAM_RAW -> buildRawHistogram(builder);
                 case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
+            }
+        }
+
+        @Override
+        public void writeColumnarValue(
+            MappingHints mappingHints,
+            OTLPMetricBatchBuilder batchBuilder,
+            ExponentialHistogramConverter.BucketBuffer scratch
+        ) {
+            switch (mappingHints.histogramMapping()) {
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.writeExponentialHistogram(
+                    dataPoint,
+                    metric.getHistogram().getAggregationTemporality(),
+                    batchBuilder,
+                    batchBuilder.getMetricSubSchema(metric.getName(), OTLPMetricBatchBuilder.ExponentialHistogramSchema.FACTORY),
+                    scratch
+                );
+                case TDIGEST -> {
+                    var schema = batchBuilder.getMetricSubSchema(metric.getName(), OTLPMetricBatchBuilder.HistogramSchema.FACTORY);
+                    EscfColumnBuilder counts = batchBuilder.beginArray(schema.countsColIdx());
+                    TDigestConverter.counts(dataPoint, counts::appendLong);
+                    counts.endArray();
+                    EscfColumnBuilder values = batchBuilder.beginArray(schema.valuesColIdx());
+                    TDigestConverter.centroidValues(dataPoint, values::appendDouble);
+                    values.endArray();
+                }
+                case HISTOGRAM_RAW -> {
+                    var schema = batchBuilder.getMetricSubSchema(metric.getName(), OTLPMetricBatchBuilder.HistogramSchema.FACTORY);
+                    EscfColumnBuilder counts = batchBuilder.beginArray(schema.countsColIdx());
+                    RawHistogramConverter.counts(dataPoint, counts::appendLong);
+                    counts.endArray();
+                    EscfColumnBuilder values = batchBuilder.beginArray(schema.valuesColIdx());
+                    RawHistogramConverter.values(dataPoint, values::appendDouble);
+                    values.endArray();
+                }
+                case AGGREGATE_METRIC_DOUBLE -> writeAggregateMetricDouble(batchBuilder, metric, dataPoint.getSum(), dataPoint.getCount());
             }
         }
 
@@ -518,6 +579,15 @@ public interface DataPoint {
         }
 
         @Override
+        public void writeColumnarValue(
+            MappingHints mappingHints,
+            OTLPMetricBatchBuilder batchBuilder,
+            ExponentialHistogramConverter.BucketBuffer scratch
+        ) {
+            writeAggregateMetricDouble(batchBuilder, metric, dataPoint.getSum(), dataPoint.getCount());
+        }
+
+        @Override
         public long getDocCount() {
             return dataPoint.getCount();
         }
@@ -543,5 +613,11 @@ public interface DataPoint {
         builder.field("sum", sum);
         builder.field("value_count", valueCount);
         builder.endObject();
+    }
+
+    private static void writeAggregateMetricDouble(OTLPMetricBatchBuilder batchBuilder, Metric metric, double sum, long valueCount) {
+        var schema = batchBuilder.getMetricSubSchema(metric.getName(), OTLPMetricBatchBuilder.AggregateMetricDoubleSchema.FACTORY);
+        batchBuilder.doubleField(schema.sumColIdx(), sum);
+        batchBuilder.longField(schema.valueCountColIdx(), valueCount);
     }
 }

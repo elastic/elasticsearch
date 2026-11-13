@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -256,6 +257,8 @@ public class DatafeedJobBuilder {
             ccsStabilizationCycles,
             java.time.Duration.ofMillis(ccsStabilizationFloorMs)
         );
+        final boolean isEsqlDatafeed = datafeedConfig.getEsqlQuery() != null;
+        final boolean esqlQueryAggregates = isEsqlDatafeed && EsqlDataExtractor.hasAggregation(datafeedConfig.getEsqlQuery());
         DatafeedJob datafeedJob = new DatafeedJob(
             datafeedConfig.getId(),
             effectiveDatafeedConfig.getProjectRouting(),
@@ -278,8 +281,9 @@ public class DatafeedJobBuilder {
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
             crossClusterSearchStats,
-            datafeedConfig.getEsqlQuery() != null,
-            datafeedConfig.getEsqlQuery() != null ? effectiveDatafeedConfig.getGroupingInterval().millis() : 0L,
+            isEsqlDatafeed,
+            isEsqlDatafeed ? effectiveDatafeedConfig.getGroupingInterval().millis() : 0L,
+            esqlQueryAggregates,
             null,
             null,
             null

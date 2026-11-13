@@ -136,6 +136,7 @@ class DatafeedJob {
         CrossClusterSearchStats crossClusterSearchStats,
         boolean isEsqlDatafeed,
         long groupingIntervalMs,
+        boolean esqlQueryAggregates,
         @Nullable String esqlCheckpointFingerprint,
         @Nullable Long esqlSourceEndMs,
         @Nullable Consumer<EsqlDatafeedSourceCheckpoint> esqlSourceCheckpointPersister
@@ -166,20 +167,33 @@ class DatafeedJob {
         this.isEsqlDatafeed = isEsqlDatafeed;
         this.esqlCheckpointFingerprint = esqlCheckpointFingerprint;
         this.esqlSourceCheckpointPersister = esqlSourceCheckpointPersister;
-        this.esqlSourceEndMs = isEsqlDatafeed ? esqlResumePointMs(esqlSourceEndMs, latestRecordTimeMs, groupingIntervalMs) : null;
+        this.esqlSourceEndMs = isEsqlDatafeed
+            ? esqlResumePointMs(esqlSourceEndMs, latestRecordTimeMs, groupingIntervalMs, esqlQueryAggregates)
+            : null;
         this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
     }
 
     /**
-     * One-shot resume point for an ES|QL datafeed at start: persisted checkpoint, lowered to the first grouping interval
-     * after {@code latest_record_time} when a model snapshot revert left the checkpoint ahead of the reverted data counts.
+     * One-shot resume point at start: the checkpoint, lowered to the first unprocessed time after {@code latest_record_time}
+     * when a model snapshot revert left the checkpoint ahead of the reverted data counts.
      */
     @Nullable
-    static Long esqlResumePointMs(@Nullable Long checkpointSourceEndMs, long latestRecordTimeMs, long groupingIntervalMs) {
-        if (checkpointSourceEndMs == null || latestRecordTimeMs < 0 || groupingIntervalMs <= 0) {
+    static Long esqlResumePointMs(
+        @Nullable Long checkpointSourceEndMs,
+        long latestRecordTimeMs,
+        long groupingIntervalMs,
+        boolean queryAggregates
+    ) {
+        if (checkpointSourceEndMs == null || latestRecordTimeMs < 0) {
             return checkpointSourceEndMs;
         }
-        return Math.min(checkpointSourceEndMs, Intervals.alignToCeil(latestRecordTimeMs + 1, groupingIntervalMs));
+        assert groupingIntervalMs > 0 : "ES|QL datafeeds require a grouping interval";
+        // Aggregating rows carry the grouping bucket start, so the whole bucket holding the latest record was processed.
+        // Raw rows carry source time, so the rest of that bucket may be unread.
+        long firstUnprocessedMs = queryAggregates
+            ? Intervals.alignToCeil(latestRecordTimeMs + 1, groupingIntervalMs)
+            : latestRecordTimeMs + 1;
+        return Math.min(checkpointSourceEndMs, firstUnprocessedMs);
     }
 
     void isolate() {
@@ -565,6 +579,7 @@ class DatafeedJob {
                     }
                     recordCount += counts.getProcessedRecordCount();
                     haveEverSeenData |= (recordCount > 0);
+                    // ES|QL row time is not a source position, so only the source checkpoint advances the resume point.
                     if (isEsqlDatafeed == false && counts.getLatestRecordTimeStamp() != null) {
                         lastEndTimeMs = counts.getLatestRecordTimeStamp().getTime();
                     }
@@ -579,7 +594,7 @@ class DatafeedJob {
                 jobId,
                 error,
                 recordCount,
-                lastEndTimeMs,
+                sourceResumeFromMs(),
                 isRunning(),
                 dataExtractor.isCancelled()
             );
@@ -891,6 +906,7 @@ class DatafeedJob {
     }
 
     private void commitEsqlSourceCheckpoint(long sourceEndMs) {
+        assert isEsqlDatafeed;
         esqlSourceEndMs = sourceEndMs;
         if (esqlSourceCheckpointPersister == null || esqlCheckpointFingerprint == null) {
             return;

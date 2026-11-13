@@ -1375,6 +1375,20 @@ public class DatafeedJobTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(eq(4 * hour), anyLong());
     }
 
+    public void testEsqlRestartWithRawRowsAndUnalignedLatestRecordShouldReplayFromLatestRecord() throws Exception {
+        long hour = TimeValue.timeValueHours(1).millis();
+        long latestRecordMs = 3 * hour + 20 * 60_000L;
+        currentTime = 12 * hour;
+        when(dataExtractor.getEndTime()).thenReturn(currentTime);
+        when(flushJobFuture.actionGet()).thenReturn(new FlushJobAction.Response(true, Instant.ofEpochMilli(0)));
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        DatafeedJob datafeedJob = createEsqlDatafeedJob(60_000L, 0L, hour, false, latestRecordMs, 10 * hour, checkpoint -> {}, null);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(eq(latestRecordMs + 1), anyLong());
+    }
+
     public void testEsqlRestartWithCheckpointBeforeLatestRecordShouldResumeFromCheckpoint() throws Exception {
         long hour = TimeValue.timeValueHours(1).millis();
         currentTime = 12 * hour;
@@ -1561,6 +1575,7 @@ public class DatafeedJobTests extends ESTestCase {
             null,
             false,
             0L,
+            false,
             null,
             null,
             persister
@@ -1631,6 +1646,7 @@ public class DatafeedJobTests extends ESTestCase {
             new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
             false,
             0L,
+            false,
             null,
             null,
             null
@@ -1771,6 +1787,7 @@ public class DatafeedJobTests extends ESTestCase {
             cloudCredentialId,
             false,
             0L,
+            false,
             null,
             null,
             null
@@ -1790,6 +1807,7 @@ public class DatafeedJobTests extends ESTestCase {
         String cloudCredentialId,
         boolean isEsqlDatafeed,
         long groupingIntervalMs,
+        boolean esqlQueryAggregates,
         @Nullable String esqlCheckpointFingerprint,
         @Nullable Long esqlSourceEndMs,
         @Nullable Consumer<EsqlDatafeedSourceCheckpoint> esqlSourceCheckpointPersister
@@ -1827,6 +1845,7 @@ public class DatafeedJobTests extends ESTestCase {
             crossClusterSearchStats,
             isEsqlDatafeed,
             groupingIntervalMs,
+            esqlQueryAggregates,
             esqlCheckpointFingerprint,
             esqlSourceEndMs,
             esqlSourceCheckpointPersister
@@ -1871,6 +1890,28 @@ public class DatafeedJobTests extends ESTestCase {
         @Nullable Consumer<EsqlDatafeedSourceCheckpoint> checkpointPersister,
         @Nullable String esqlCheckpointFingerprint
     ) {
+        return createEsqlDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            groupingIntervalMs,
+            true,
+            latestRecordTimeMs,
+            esqlSourceEndMs,
+            checkpointPersister,
+            esqlCheckpointFingerprint
+        );
+    }
+
+    private DatafeedJob createEsqlDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long groupingIntervalMs,
+        boolean esqlQueryAggregates,
+        long latestRecordTimeMs,
+        @Nullable Long esqlSourceEndMs,
+        @Nullable Consumer<EsqlDatafeedSourceCheckpoint> checkpointPersister,
+        @Nullable String esqlCheckpointFingerprint
+    ) {
         return createDatafeedJob(
             frequencyMs,
             queryDelayMs,
@@ -1884,6 +1925,7 @@ public class DatafeedJobTests extends ESTestCase {
             null,
             true,
             groupingIntervalMs,
+            esqlQueryAggregates,
             esqlCheckpointFingerprint,
             esqlSourceEndMs,
             checkpointPersister

@@ -196,7 +196,7 @@ public class TaskManager implements ClusterStateApplier {
         Map<String, Object> attributes = parentTask.isSet()
             ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
             : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
-        tracer.startTrace(threadContext, task, task.getAction(), attributes);
+        tracer.startTrace(task, task.getAction(), attributes);
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(

@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -37,6 +36,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
@@ -252,9 +252,7 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
-        searchFuture.onResponse(
-            SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
-        );
+        searchFuture.onResponse(SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, List.of(), SearchResponse.Clusters.EMPTY));
         when(client.search(any())).thenReturn(searchFuture);
         assertExecutionWithOrigin(Collections.emptyMap(), client);
     }
@@ -267,9 +265,7 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
-        searchFuture.onResponse(
-            SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
-        );
+        searchFuture.onResponse(SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, List.of(), SearchResponse.Clusters.EMPTY));
         when(client.search(any())).thenReturn(searchFuture);
         Map<String, String> headers = Map.of(
             AuthenticationField.AUTHENTICATION_KEY,
@@ -293,9 +289,7 @@ public class ClientHelperTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
-        searchFuture.onResponse(
-            SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
-        );
+        searchFuture.onResponse(SearchResponseUtils.emptyWithTotalHits(null, 0, 0, 0, 0L, List.of(), SearchResponse.Clusters.EMPTY));
         when(client.search(any())).thenReturn(searchFuture);
         Map<String, String> unrelatedHeaders = Map.of(randomAlphaOfLength(10), "anything");
 

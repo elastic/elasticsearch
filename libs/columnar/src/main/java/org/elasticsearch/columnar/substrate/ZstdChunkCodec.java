@@ -14,7 +14,6 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.lucene.store.IndexInputUtils;
-import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.zstd.Zstd;
 
 import java.io.IOException;
@@ -57,7 +56,6 @@ final class ZstdChunkCodec {
     static final class Decompressor implements ChunkDecompressor {
 
         private byte[] scratch = new byte[0];
-        private final SegmentBufferScratch segmentScratch = new SegmentBufferScratch();
 
         @Override
         public void read(IndexInput in, int storedLength, byte[] dst, int uncompressedLength) throws IOException {
@@ -66,7 +64,12 @@ final class ZstdChunkCodec {
             int decompressed = -1;
             if (IndexInputUtils.canUseSegmentSlices(in)) {
                 try {
-                    decompressed = IndexInputUtils.withSlice(in, storedLength, segmentScratch, src -> ZSTD.decompress(target, src));
+                    decompressed = IndexInputUtils.withSlice(
+                        in,
+                        storedLength,
+                        len -> MemorySegment.ofArray(scratch = ArrayUtil.growNoCopy(scratch, len)),
+                        src -> ZSTD.decompress(target, src)
+                    );
                 } catch (@SuppressWarnings("unused") AlreadyClosedException e) {
                     // The region backing the slice was evicted mid-read; rewind and take the copying path.
                     in.seek(start);

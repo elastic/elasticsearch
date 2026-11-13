@@ -21,10 +21,10 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.matchesPattern;
 
 /**
  * The result of a sub-plan ({@code IN} subquery, {@code INLINE STATS}) becomes a local relation of the main plan, capped by
@@ -32,6 +32,11 @@ import static org.hamcrest.Matchers.lessThan;
  * coordinator pass the cap, not after the sub-plan has read its whole input.
  */
 public class SubPlanResultLimitIT extends AbstractPausableIntegTestCase {
+    /**
+     * Only the collected size varies: it is the size of the first page, which depends on the random page size and data.
+     */
+    private static final String TOO_LARGE_AT_1B = "sub-plan execution results too large \\[at least [\\d.]+[kmg]?b\\] > 1b, "
+        + "the limit set by \\[esql\\.intermediate_local_relation_max_size\\]";
 
     @Before
     public void resetPausePermits() {
@@ -67,7 +72,9 @@ public class SubPlanResultLimitIT extends AbstractPausableIntegTestCase {
         } finally {
             scriptPermits.release(numberOfDocs() * 10);
         }
-        assertResultTooLarge(expectThrows(Exception.class, () -> future.actionGet(60, TimeUnit.SECONDS)));
+        Throwable cause = ExceptionsHelper.unwrapCause(expectThrows(Exception.class, () -> future.actionGet(60, TimeUnit.SECONDS)));
+        assertThat(cause, instanceOf(IllegalArgumentException.class));
+        assertThat(cause.getMessage(), matchesPattern(TOO_LARGE_AT_1B));
     }
 
     /**
@@ -76,7 +83,11 @@ public class SubPlanResultLimitIT extends AbstractPausableIntegTestCase {
      */
     public void testOversizedInlineStatsFailsWhileCollecting() {
         setLimitBelowOnePage();
-        assertResultTooLarge(expectThrows(Exception.class, () -> run("FROM test | INLINE STATS c = COUNT(*) BY foo")));
+        Throwable cause = ExceptionsHelper.unwrapCause(
+            expectThrows(Exception.class, () -> run("FROM test | INLINE STATS c = COUNT(*) BY foo"))
+        );
+        assertThat(cause, instanceOf(IllegalArgumentException.class));
+        assertThat(cause.getMessage(), matchesPattern(TOO_LARGE_AT_1B));
     }
 
     public void testLimitDoesNotApplyToMainPlan() {
@@ -88,12 +99,5 @@ public class SubPlanResultLimitIT extends AbstractPausableIntegTestCase {
 
     private void setLimitBelowOnePage() {
         updateClusterSettings(Settings.builder().put(PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE.getKey(), "1b"));
-    }
-
-    private static void assertResultTooLarge(Exception e) {
-        Throwable cause = ExceptionsHelper.unwrapCause(e);
-        assertThat(cause, instanceOf(IllegalArgumentException.class));
-        assertThat(cause.getMessage(), containsString("sub-plan execution results too large [at least "));
-        assertThat(cause.getMessage(), containsString("[" + PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE.getKey() + "]"));
     }
 }

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -732,10 +733,10 @@ public final class GraphExpandDriver {
             expandedFrontier = frontierField;
         }
         List<Expression> indexPredicates = new ArrayList<>(4);
+        Literal frontierList = new Literal(source, List.copyOf(frontierValues), nodeType);
         if (leg == Leg.OUT || edgeDocuments) {
             indexPredicates.add(new In(source, frontierField, literals));
         } else {
-            Literal frontierList = new Literal(source, List.copyOf(frontierValues), nodeType);
             indexPredicates.add(new MvIntersects(source, frontierField, frontierList));
         }
         if (skipped.isEmpty() == false && (leg == Leg.IN || edgeDocuments)) {
@@ -795,7 +796,22 @@ public final class GraphExpandDriver {
             expandedPointer = pointerField;
             hopChild = graphExpand.documentFilter() == null ? edges : new Filter(source, edges, graphExpand.documentFilter());
         } else {
-            LogicalPlan scanned = new MvExpand(source, beforeExpand, frontierField, expandedFrontier);
+            LogicalPlan scanned;
+            if (leg == Leg.IN) {
+                // Inbound, the frontier field is the pointer array. Exploding the whole array and
+                // keeping the frontier elements with an IN afterwards scans the frontier list once
+                // per exploded element, and an array holds many elements per one it keeps.
+                // Intersecting the array with the frontier first and exploding only the matches
+                // keeps that scan to one per document (mv_intersection_check.py on s1m: 1.3x faster
+                // summed over a hop at a 1,000-id frontier, 2.3x at 10,000; kinds whose arrays hold
+                // one to three ids come out 1.3x to 2.3x slower, long-array kinds 1.6x to 5x faster).
+                // MV_INTERSECTION yields null when nothing matches, which the IS NOT NULL below drops,
+                // and one row per distinct id, so a pointer listed twice counts once.
+                Alias hit = new Alias(source, frontierField.name(), new MvIntersection(source, frontierField, frontierList));
+                scanned = new MvExpand(source, new Eval(source, beforeExpand, List.of(hit)), hit.toAttribute(), expandedFrontier);
+            } else {
+                scanned = new MvExpand(source, beforeExpand, frontierField, expandedFrontier);
+            }
             // The other side of the edge is exploded too, so a multi-valued pointer (an entity's
             // list of relationship targets) yields one edge per value on an outbound leg as well,
             // and UNTIL compares against a single reached id rather than a list. Without STATS
@@ -810,19 +826,22 @@ public final class GraphExpandDriver {
                 false
             );
             scanned = new MvExpand(source, scanned, expandSource, expandedPointer);
-            In inPredicate = new In(source, expandedFrontier, literals);
-            // Null pointer values emit no row (TO IS NOT NULL on the scanned documents).
-            Expression notNullPointer = new IsNotNull(
-                source,
-                retarget(retarget(targetField, frontierField, expandedFrontier), pointerField, expandedPointer)
+            List<Expression> edgePredicates = new ArrayList<>(3);
+            if (leg == Leg.OUT) {
+                // Trim the exploded frontier value to the frontier; inbound the intersection did it.
+                edgePredicates.add(new In(source, expandedFrontier, literals));
+            }
+            // Null pointer values emit no row (TO IS NOT NULL on the scanned documents). Inbound
+            // this is the exploded intersection, so a document with no matching id emits none.
+            edgePredicates.add(
+                new IsNotNull(source, retarget(retarget(targetField, frontierField, expandedFrontier), pointerField, expandedPointer))
             );
-            Expression documentFilter = graphExpand.documentFilter() == null
-                ? null
-                : retarget(retarget(graphExpand.documentFilter(), frontierField, expandedFrontier), pointerField, expandedPointer);
-            Expression edgePredicate = Predicates.combineAnd(
-                documentFilter != null ? List.of(inPredicate, notNullPointer, documentFilter) : List.of(inPredicate, notNullPointer)
-            );
-            hopChild = new Filter(source, scanned, edgePredicate);
+            if (graphExpand.documentFilter() != null) {
+                edgePredicates.add(
+                    retarget(retarget(graphExpand.documentFilter(), frontierField, expandedFrontier), pointerField, expandedPointer)
+                );
+            }
+            hopChild = new Filter(source, scanned, Predicates.combineAnd(edgePredicates));
         }
 
         Attribute nodeFrom = resultAttributes.get(nodeFromIdx);

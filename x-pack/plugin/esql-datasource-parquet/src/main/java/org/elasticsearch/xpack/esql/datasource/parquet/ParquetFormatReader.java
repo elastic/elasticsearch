@@ -2305,10 +2305,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // null count so MIN/MAX/COUNT fall back to a scan for this column. Map values may not be
                     // null anyway (Map.copyOf below rejects nulls).
                     stats.remove(SourceStatisticsSerializer.columnNullCountKey(colName));
-                } else if (isUnservableFloatingBound(minVal, pt) || isUnservableFloatingBound(maxVal, pt)) {
-                    // A NaN bound, or a zero bound whose sign the footer does not preserve, cannot match the scan's
-                    // MIN/MAX. Withhold min/max (the null count stays valid) so MIN/MAX fall back to a scan.
-                } else {
+                } else if (isUnservableFloatingBound(minVal, pt) == false && isUnservableFloatingBound(maxVal, pt) == false) {
                     stats.put(SourceStatisticsSerializer.columnMinKey(colName), minVal);
                     stats.put(SourceStatisticsSerializer.columnMaxKey(colName), maxVal);
                 }

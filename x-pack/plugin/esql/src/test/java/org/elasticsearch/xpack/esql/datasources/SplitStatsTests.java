@@ -107,6 +107,8 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(2.0, SplitStats.mergedMax(1.0, 2.0));
         assertEquals(Double.NaN, SplitStats.mergedMin(Double.NaN, null));
         assertEquals(Double.NaN, SplitStats.mergedMax(null, Double.NaN));
+        assertEquals(5.0, SplitStats.mergedMin(Float.NaN, 5.0));
+        assertEquals(5.0f, SplitStats.mergedMax(5.0f, Double.NaN));
         assertEquals(-0.0, SplitStats.mergedMin(0.0, -0.0));
         assertEquals(0.0, SplitStats.mergedMax(-0.0, 0.0));
     }

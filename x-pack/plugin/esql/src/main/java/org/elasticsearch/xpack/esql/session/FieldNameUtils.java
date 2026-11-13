@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -118,7 +119,7 @@ public class FieldNameUtils {
                 nested[0] = true;
             }
         });
-        if (nested[0]) {
+        if (nested[0] || parsed.anyMatch(NestedExpand.class::isInstance)) {
             return new PreAnalysisResult(Set.of("*", NestedScopeField.REQUEST_MARKER), Set.of());
         }
 

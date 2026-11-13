@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NestedReduce;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
@@ -238,8 +239,9 @@ public class ApproximationSupportTests extends ESTestCase {
         PackDims.class,
         UnpackDims.class,
         TopNPreFilter.class,
-        // Nested reductions read each parent source in full. Sampling those rows is not defined.
-        NestedReduce.class
+        // Nested reductions and expansion read each parent source in full. Sampling those rows is not defined.
+        NestedReduce.class,
+        NestedExpand.class
     );
 
     private static final Set<Class<? extends AggregateFunction>> UNSUPPORTED_AGGS = Set.of(

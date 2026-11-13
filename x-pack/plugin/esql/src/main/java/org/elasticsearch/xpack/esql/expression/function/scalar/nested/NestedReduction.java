@@ -7,29 +7,19 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ParsedContentReservation;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.xcontent.FilterXContentParserWrapper;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -49,10 +39,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -261,7 +248,7 @@ public final class NestedReduction extends EsqlScalarFunction {
                 for (int row = 0; row < parents.getPositionCount(); row++) {
                     context.checkForEarlyTermination();
                     long token = nextInputRowToken++;
-                    String index = singleMetadata(args[1], row, "_index").utf8ToString();
+                    String index = NestedSource.singleMetadata(args[1], row, "_index").utf8ToString();
                     if (index.isEmpty()) {
                         throw new IllegalArgumentException("NESTED requires non-empty _index metadata");
                     }
@@ -272,7 +259,7 @@ public final class NestedReduction extends EsqlScalarFunction {
                     if (args[0].isNull(row)) {
                         throw new IllegalArgumentException("NESTED source-backed PoC requires stored, unfiltered _source");
                     }
-                    BytesRef source = singleMetadata(args[0], row, "_source");
+                    BytesRef source = NestedSource.singleMetadata(args[0], row, "_source");
                     long estimate = 256L + 8L * source.length;
                     context.breaker().addEstimateBytesAndMaybeBreak(estimate, "nested_reduction_frame");
                     // Parser charges outlive parser close: decoded values remain in use until this parent is complete.
@@ -293,7 +280,7 @@ public final class NestedReduction extends EsqlScalarFunction {
         }
 
         private Object reduce(BytesRef source, String index, long token, ParsedContentReservation parsedSource) {
-            List<Map<?, ?>> objects = objects(source, parsedSource);
+            List<Map<?, ?>> objects = NestedSource.objects(path, source, parsedSource, context);
             if (objects.isEmpty()) {
                 return emptyResult();
             }
@@ -344,10 +331,16 @@ public final class NestedReduction extends EsqlScalarFunction {
                             if ((position & 1023) == 0) {
                                 context.checkForEarlyTermination();
                             }
-                            Object value = mappedIndices.get(c).contains(index)
-                                ? XContentMapValues.extractValue(paths.get(c), objects.get(offset + position))
-                                : null;
-                            wrapper.accept(coerce(value, inputs.get(c).dataType(), context));
+                            wrapper.accept(
+                                mappedIndices.get(c).contains(index)
+                                    ? NestedSource.childValue(
+                                        objects.get(offset + position),
+                                        paths.get(c),
+                                        inputs.get(c).dataType(),
+                                        context
+                                    )
+                                    : null
+                            );
                         }
                         channels[c] = wrapper.builder().build();
                     }
@@ -400,70 +393,6 @@ public final class NestedReduction extends EsqlScalarFunction {
             }
         }
 
-        private Map<String, Object> decodeSource(BytesRef source, ParsedContentReservation parsedSource) {
-            try (
-                var parser = new FilterXContentParserWrapper(
-                    parsedSource.track(XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(source)))
-                ) {
-                    private int tokens;
-
-                    @Override
-                    public Token nextToken() throws IOException {
-                        if ((++tokens & 1023) == 0) {
-                            context.checkForEarlyTermination();
-                        }
-                        return super.nextToken();
-                    }
-                }
-            ) {
-                // Read through the wrapper: delegating map() would bypass token-level cancellation.
-                var decoded = AbstractXContentParser.readMap(parser, HashMap::new);
-                // Small parses flush without a limit check. Admit their retained charge before constructing child channels.
-                context.breaker().addEstimateBytesAndMaybeBreak(0, ParsedContentReservation.LABEL);
-                return decoded;
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("Failed to parse NESTED source", e);
-            }
-        }
-
-        private List<Map<?, ?>> objects(BytesRef source, ParsedContentReservation parsedSource) {
-            Object value = XContentMapValues.extractValue(path, decodeSource(source, parsedSource));
-            if (value == null) {
-                return List.of();
-            }
-            if (value instanceof Map<?, ?> map) {
-                context.checkForEarlyTermination();
-                return List.of(map);
-            }
-            if (value instanceof List<?> list) {
-                List<Map<?, ?>> objects = new ArrayList<>();
-                // Indexing flattens arrays of arrays too. Walk iteratively to retain every object without recursive stack growth.
-                ArrayDeque<Iterator<?>> pending = new ArrayDeque<>();
-                pending.push(list.iterator());
-                int visited = 0;
-                while (pending.isEmpty() == false) {
-                    Iterator<?> iterator = pending.peek();
-                    if (iterator.hasNext() == false) {
-                        pending.pop();
-                        continue;
-                    }
-                    if ((visited++ & 1023) == 0) {
-                        context.checkForEarlyTermination();
-                    }
-                    Object item = iterator.next();
-                    if (item instanceof Map<?, ?> object) {
-                        objects.add(object);
-                    } else if (item instanceof List<?> nested) {
-                        pending.push(nested.iterator());
-                    } else if (item != null) {
-                        throw new IllegalArgumentException("mapped nested path [" + path + "] contains a non-object value");
-                    }
-                }
-                return objects;
-            }
-            throw new IllegalArgumentException("mapped nested path [" + path + "] is not an object collection");
-        }
-
         @Override
         public long baseRamBytesUsed() {
             return 128 + metadata.stream().mapToLong(ExpressionEvaluator::baseRamBytesUsed).sum() + scalars.stream()
@@ -477,55 +406,4 @@ public final class NestedReduction extends EsqlScalarFunction {
         }
     }
 
-    private static BytesRef singleMetadata(Block block, int row, String name) {
-        if (block instanceof BytesRefBlock == false || block.getValueCount(row) != 1) {
-            throw new IllegalArgumentException("NESTED requires exactly one " + name + " metadata value per parent row");
-        }
-        return ((BytesRefBlock) block).getBytesRef(block.getFirstValueIndex(row), new BytesRef());
-    }
-
-    private static Object coerce(Object value, DataType type, DriverContext context) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof List<?> list) {
-            // Flatten this field within one child object, matching indexing's array semantics without mixing sibling objects.
-            List<Object> values = new ArrayList<>();
-            ArrayDeque<Iterator<?>> pending = new ArrayDeque<>();
-            pending.push(list.iterator());
-            int visited = 0;
-            while (pending.isEmpty() == false) {
-                Iterator<?> iterator = pending.peek();
-                if (iterator.hasNext() == false) {
-                    pending.pop();
-                    continue;
-                }
-                if ((visited++ & 1023) == 0) {
-                    context.checkForEarlyTermination();
-                }
-                Object item = iterator.next();
-                if (item instanceof List<?> nested) {
-                    pending.push(nested.iterator());
-                } else if (item != null) {
-                    Object converted = coerceScalar(item, type);
-                    if (converted != null) {
-                        values.add(converted);
-                    }
-                }
-            }
-            return values.isEmpty() ? null : values;
-        }
-        return coerceScalar(value, type);
-    }
-
-    private static Object coerceScalar(Object value, DataType type) {
-        return switch (type) {
-            case LONG -> "".equals(value) ? null : NumberFieldMapper.NumberType.LONG.parse(value, true);
-            case INTEGER -> "".equals(value) ? null : NumberFieldMapper.NumberType.INTEGER.parse(value, true);
-            case DOUBLE -> "".equals(value) ? null : NumberFieldMapper.NumberType.DOUBLE.parse(value, true);
-            case BOOLEAN -> value instanceof Boolean b ? b : Booleans.parseBoolean(value.toString(), false);
-            case KEYWORD, TEXT -> new BytesRef(value.toString());
-            default -> throw new IllegalArgumentException("unsupported NESTED child type [" + type + "]");
-        };
-    }
 }

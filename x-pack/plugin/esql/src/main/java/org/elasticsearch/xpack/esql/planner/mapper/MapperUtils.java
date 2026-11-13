@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
@@ -62,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.NestedReduceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -215,6 +217,19 @@ public class MapperUtils {
 
         if (p instanceof MvExpand mvExpand) {
             return new MvExpandExec(mvExpand.source(), child, mvExpand.target(), mvExpand.expanded());
+        }
+
+        if (p instanceof NestedExpand expand) {
+            return new NestedExpandExec(
+                expand.source(),
+                child,
+                expand.metadata(),
+                expand.path(),
+                expand.indices(),
+                expand.expanded(),
+                expand.paths(),
+                expand.mappedIndices()
+            );
         }
 
         if (p instanceof Highlight highlight) {

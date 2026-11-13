@@ -56,13 +56,26 @@ public class NestedReductionsContractTests extends LuceneTestCase {
         }
     }
 
+    /**
+     * Source settings are checked while resolving fields, which this harness does not run. That case is checked by
+     * the REST test and by {@link NestedReductionsSourceValidationTests}.
+     */
+    private static final String FIELD_RESOLUTION_ONLY = "synthetic source is rejected";
+
     @ParametersFactory
     public static Iterable<Object[]> contracts() throws IOException {
         LogConfigurator.configureESLogging();
+        List<Object[]> parameters = new ArrayList<>();
+        parameters.addAll(contracts("292_nested_reductions.yml", 62));
+        parameters.addAll(contracts("295_nested_expand.yml", 23));
+        return parameters;
+    }
+
+    private static List<Object[]> contracts(String file, int expected) throws IOException {
         String yaml;
-        try (var stream = NestedReductionsContractTests.class.getResourceAsStream("/nested-scope-contract/292_nested_reductions.yml")) {
+        try (var stream = NestedReductionsContractTests.class.getResourceAsStream("/nested-scope-contract/" + file)) {
             if (stream == null) {
-                throw new IOException("missing canonical nested scope contract");
+                throw new IOException("missing nested scope contract [" + file + "]");
             }
             yaml = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
@@ -77,12 +90,14 @@ public class NestedReductionsContractTests extends LuceneTestCase {
                 setup = (List<Map<String, Object>>) parsed.get("setup");
             } else {
                 for (var entry : parsed.entrySet()) {
-                    parameters.add(new Object[] { new Contract(entry.getKey(), setup, (List<Map<String, Object>>) entry.getValue()) });
+                    if (entry.getKey().equals(FIELD_RESOLUTION_ONLY) == false) {
+                        parameters.add(new Object[] { new Contract(entry.getKey(), setup, (List<Map<String, Object>>) entry.getValue()) });
+                    }
                 }
             }
         }
-        if (parameters.size() != 62) {
-            throw new AssertionError("expected 62 feature contracts, got " + parameters.size());
+        if (parameters.size() != expected) {
+            throw new AssertionError("expected " + expected + " contracts in [" + file + "], got " + parameters.size());
         }
         return parameters;
     }

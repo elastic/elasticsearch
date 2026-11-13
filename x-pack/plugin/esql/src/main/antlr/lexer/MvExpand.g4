@@ -10,6 +10,8 @@ lexer grammar MvExpand;
 // MV_EXPAND
 //
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
+// NESTED_EXPAND takes one field name, like MV_EXPAND
+DEV_NESTED_EXPAND : 'nested_expand' {this.isDevVersion()}? -> pushMode(MVEXPAND_MODE);
 
 
 mode MVEXPAND_MODE;

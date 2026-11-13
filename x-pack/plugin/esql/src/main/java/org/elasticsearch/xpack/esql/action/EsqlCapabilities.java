@@ -4823,6 +4823,12 @@ public class EsqlCapabilities {
          */
         NESTED_REDUCTIONS(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
 
+        /**
+         * Test-only execution of the {@code NESTED_EXPAND} command, which turns each object of a mapped nested field into a row.
+         * Stays unadvertised under the same switch as {@link #NESTED_REDUCTIONS}.
+         */
+        NESTED_EXPAND(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

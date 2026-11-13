@@ -173,12 +173,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // TODO tighten this up.
     private final Set<ProjectRepo> repositoriesRunningRepositoryDataWriteTasks = Collections.synchronizedSet(new HashSet<>());
 
-    /// Set of snapshots that are currently being finalized or failed by this node. Indicates that the finalization process has claimed
-    /// ownership of the corresponding [#snapshotFinalizationListeners] entries, preventing them from being completed by a master failover.
-    // Previously this was also used to avoid duplicate finalization submissions but that's no longer the case. Also there's no real need
-    // to prevent these listeners failing on a master failover (this protection isn't watertight anyway). TODO remove this
-    private final Set<Snapshot> endingSnapshots = Collections.synchronizedSet(new HashSet<>());
-
     /** Set of currently initializing clone operations */
     private final Set<Snapshot> initializingClones = Collections.synchronizedSet(new HashSet<>());
 
@@ -556,7 +550,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         // Exception handler for IO exceptions with loading index and repo metadata
         final Consumer<Exception> onFailure = e -> {
-            endingSnapshots.add(targetSnapshot);
             initializingClones.remove(targetSnapshot);
             logger.info(() -> "Failed to start snapshot clone [" + cloneEntry + "]", e);
             removeFailedSnapshotFromClusterState(targetSnapshot, e, null, UpdatedShardGenerations.EMPTY);
@@ -974,14 +967,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     private void notifyAbortedByDeletion(Snapshot snapshot) {
-        if (endingSnapshots.add(snapshot)) {
-            logger.info("snapshot [{}] aborted", snapshot);
-            failSnapshotCompletionListeners(
-                snapshot,
-                new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT),
-                Runnable::run
-            );
-        }
+        logger.info("snapshot [{}] aborted", snapshot);
+        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT), Runnable::run);
     }
 
     private void completeOrAddDeleteListener(@Nullable String deleteUUID, ActionListener<Void> listener) {
@@ -1384,35 +1371,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         null
                     );
                 }
-            } else {
-                final List<Runnable> readyToResolveListeners = new ArrayList<>();
-                // line-up mutating concurrent operations which can be in form of clusterApplierService and masterService tasks
-                // to completion and deletion listeners, see #failAllListenersOnMasterFailOver
-                synchronized (repositoriesRunningRepositoryDataWriteTasks) {
-                    // We have snapshot listeners but are not the master anymore. Fail all waiting listeners except for those that
-                    // already have their snapshots finalizing (those that are already finalizing will fail on their own from to update
-                    // the cluster state).
-                    for (final Snapshot snapshot : snapshotFinalizationListeners.keySet()) {
-                        if (endingSnapshots.add(snapshot)) {
-                            failSnapshotCompletionListeners(
-                                snapshot,
-                                new SnapshotException(snapshot, "no longer master"),
-                                readyToResolveListeners::add
-                            );
-                            assert endingSnapshots.contains(snapshot) == false : snapshot;
-                        }
-                    }
-                    if (snapshotDeletionListeners.isEmpty() == false) {
-                        final Exception cause = new NotMasterException("no longer master");
-                        for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
-                            final List<ActionListener<Void>> listeners = it.next();
-                            readyToResolveListeners.add(() -> SnapshotsServiceUtils.failListenersIgnoringException(listeners, cause));
-                            it.remove();
-                        }
-                    }
-                }
-                // fail snapshot listeners outside mutex
-                readyToResolveListeners.forEach(Runnable::run);
+            } else if (snapshotFinalizationListeners.isEmpty() == false || snapshotDeletionListeners.isEmpty() == false) {
+                // Fail all local listeners on master failure. In principle, we could keep these listeners until we apply a state that
+                // has a different master, allowing to preserve these listeners across a brief re-election. But this gets kinda complicated
+                // as we may never fully join the different master, but then get elected again, and the latest cluster state may not match
+                // our pending listeners any more.
+
+                // BUG (see #165373): this might not be enough, we can still technically register listeners on the master-service thread
+                // after failing them here on the cluster applier thread. Usually we'll apply another cluster state update here and go down
+                // this branch again, or else become master again without any intervening updates, but in rare cases we can still leak them.
+                failAllListenersOnMasterFailOver(new NotMasterException("no longer master"));
             }
 
             // Clean up any now-obsolete deletion-start batchers
@@ -1460,21 +1428,16 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         submitUnbatchedTask("assertConsistentWithClusterStateAtEndOfPublish", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState state) {
-                final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
-                if (snapshotsInProgress.isEmpty() == false) {
-                    synchronized (endingSnapshots) {
-                        final Set<Snapshot> runningSnapshots = Stream.concat(
-                            snapshotsInProgress.asStream().map(SnapshotsInProgress.Entry::snapshot),
-                            endingSnapshots.stream()
-                        ).collect(Collectors.toSet());
-                        final Set<Snapshot> snapshotListenerKeys = snapshotFinalizationListeners.keySet();
-                        assert runningSnapshots.containsAll(snapshotListenerKeys)
-                            : "Saw completion listeners for unknown snapshots in "
-                                + snapshotListenerKeys
-                                + " but running snapshots are "
-                                + runningSnapshots;
-                    }
-                }
+                final Set<Snapshot> runningSnapshots = SnapshotsInProgress.get(state)
+                    .asStream()
+                    .map(SnapshotsInProgress.Entry::snapshot)
+                    .collect(Collectors.toSet());
+                final Set<Snapshot> snapshotListenerKeys = snapshotFinalizationListeners.keySet();
+                assert runningSnapshots.containsAll(snapshotListenerKeys)
+                    : "Saw completion listeners for unknown snapshots in "
+                        + snapshotListenerKeys
+                        + " but running snapshots are "
+                        + runningSnapshots;
                 final SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(state);
                 if (snapshotDeletionsInProgress.hasDeletionsInProgress()) {
                     final Set<String> runningDeletes = snapshotDeletionsInProgress.getEntries()
@@ -2362,7 +2325,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // ------------------------------------------------------------------------------------------------------------------------------------
 
     private void finalizeSnapshotEntry(Snapshot snapshot, Metadata metadata, RepositoryData repositoryData) {
-        endingSnapshots.add(snapshot);
         final ProjectId projectId = snapshot.getProjectId();
         final Metadata effectiveMetadata;
         if (serializeProjectMetadata) {
@@ -2579,7 +2541,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             // get a hold of the listeners for this snapshot here and store them in the future so they can be used
                             // by the snapshot info callback below and won't be failed needlessly if choosing the next RepositoryData write
                             // runs into a fatal like e.g. this node stopped being the master node
-                            snapshotListeners.onResponse(endAndGetListenersToResolve(snapshot));
+                            snapshotListeners.onResponse(snapshotFinalizationListeners.remove(snapshot));
                             runNextRepositoryDataWriteTask(projectId, repository, updatedRepositoryData);
                         },
                             e -> handleFinalizationFailure(
@@ -2682,17 +2644,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     }
 
     /**
-     * Remove a snapshot from {@link #endingSnapshots} set and return its completion listeners that must be resolved.
-     */
-    private List<ActionListener<SnapshotInfo>> endAndGetListenersToResolve(Snapshot snapshot) {
-        // get listeners before removing from the ending snapshots set to not trip assertion in #assertConsistentWithClusterState that
-        // makes sure we don't have listeners for snapshots that aren't tracked in any internal state of this class
-        final List<ActionListener<SnapshotInfo>> listenersToComplete = snapshotFinalizationListeners.remove(snapshot);
-        endingSnapshots.remove(snapshot);
-        return listenersToComplete;
-    }
-
-    /**
      * Handles failure to finalize a snapshot. If the exception indicates that this node was unable to publish a cluster state and stopped
      * being the master node, then fail this snapshot's listeners and mark only this repository's RepositoryData write slot idle. Other
      * repositories' write tasks keep running. If this node is already master again, processing of ready tasks is restarted here; otherwise
@@ -2753,8 +2704,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     snapshot,
                     updatedShardGenerations
                 );
-                assert updatedState == currentState || endingSnapshots.contains(snapshot)
-                    : "did not track [" + snapshot + "] in ending snapshots while removing it from the cluster state";
                 // now check if there are any delete operations that refer to the just failed snapshot and remove the snapshot from them
                 return SnapshotsServiceUtils.updateWithSnapshots(
                     updatedState,
@@ -2962,7 +2911,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // ------------------------------------------------------------------------------------------------------------------------------------
 
     private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e, Consumer<Runnable> failingListenersConsumer) {
-        final List<ActionListener<SnapshotInfo>> listeners = endAndGetListenersToResolve(snapshot);
+        final List<ActionListener<SnapshotInfo>> listeners = snapshotFinalizationListeners.remove(snapshot);
         failingListenersConsumer.accept(() -> SnapshotsServiceUtils.failListenersIgnoringException(listeners, e));
     }
 
@@ -3171,7 +3120,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      */
     public boolean assertAllListenersResolved() {
         final DiscoveryNode localNode = clusterService.localNode();
-        assert endingSnapshots.isEmpty() : "Found leaked ending snapshots " + endingSnapshots + " on [" + localNode + "]";
         assert snapshotFinalizationListeners.isEmpty()
             : "Found leaked snapshot finalization listeners " + snapshotFinalizationListeners + " on [" + localNode + "]";
         assert repositoriesRunningRepositoryDataWriteTasks.isEmpty()

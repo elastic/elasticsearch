@@ -321,7 +321,8 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
             active,
             List.of(active),
             List.of("active"),
-            List.of(Set.of("orders"))
+            List.of(Set.of("orders")),
+            Map.of()
         );
         try (
             var evaluator = EvalMapper.toEvaluator(
@@ -663,7 +664,8 @@ public class NestedReductionRuntimeTests extends LuceneTestCase {
             body,
             List.of(price, quantity),
             List.of("price", "quantity"),
-            List.of(Set.of("orders"), Set.of("orders"))
+            List.of(Set.of("orders"), Set.of("orders")),
+            Map.of()
         );
         return EvalMapper.toEvaluator(FoldContext.small(), expression, new Layout.Builder().append(source).append(index).build())
             .get(context);

@@ -6,7 +6,8 @@
 # Parent columns repeat on every row. The child fields become ordinary columns named by their full path.
 # A parent with no objects (empty, null or missing) keeps one row whose child columns are null, as MV_EXPAND does.
 # On a data node, child values come from doc values, like an ordinary field. The expansion reads _source instead
-# when it runs on the coordinator or when a child field has no doc values.
+# when it runs on the coordinator or when a child field has no doc values. The nested_loader pragma
+# (index by default, or source) can force _source.
 ---
 setup:
 - requires:
@@ -506,6 +507,49 @@ expansion on the data node reads doc values like an ordinary field:
 - match:
     values:
     - [[new, sale]]
+# Only _index is loaded: every child field has doc values, so _source is not.
+- match: { values_loaded: 1 }
+
+---
+the source loader pragma reads source order on the data node:
+- do:
+    indices.create:
+      index: ne_tags
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                tags:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: ne_tags
+          _id: x
+      - id: x
+        items:
+        - tags: [sale, new, sale]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM ne_tags | NESTED_EXPAND items | KEEP items.tags | LIMIT 10
+        pragma:
+          nested_loader: source
+- match:
+    values:
+    - [[sale, new, sale]]
+- match: { values_loaded: 2 }
 
 ---
 expansion after a coordinator sort reads source order:
@@ -687,7 +731,7 @@ expansion needs the source rows:
     error.reason: Unknown column [items]
 
 ---
-synthetic source is rejected:
+synthetic source is rejected when reading source:
 - do:
     indices.create:
       index: ne_synthetic
@@ -709,5 +753,44 @@ synthetic source is rejected:
       allow_partial_results: false
       body:
         query: FROM ne_synthetic | NESTED_EXPAND items | KEEP items.price | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: stored, unfiltered
+
+---
+synthetic source expands doc values on the data node:
+- do:
+    indices.create:
+      index: ne_synthetic
+      body:
+        settings:
+          index.mapping.source.mode: synthetic
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: ne_synthetic
+          _id: "1"
+      - items:
+        - price: 10
+        - price: 20
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM ne_synthetic | NESTED_EXPAND items | KEEP items.price | SORT items.price | LIMIT 10
+- match:
+    values:
+    - [10]
+    - [20]

@@ -10,7 +10,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
@@ -20,6 +23,10 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -58,6 +65,69 @@ public final class NestedIndexObjects {
         this.shards = shards;
         this.paths = paths;
         this.values = new Values[paths.size()];
+    }
+
+    /**
+     * Each shard's view of the nested field {@code path} with the child fields {@code paths}, relative to it. Returns
+     * {@code null}, meaning the values must come from {@code _source}, when no shards are local or a shard maps one of
+     * those fields without doc values.
+     */
+    @Nullable
+    public static IndexedByShardId<Shard> shards(
+        @Nullable IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
+        String path,
+        List<String> paths
+    ) {
+        if (shardContexts == null || shardContexts.isEmpty()) {
+            return null;
+        }
+        List<String> fields = paths.stream().map(p -> path + "." + p).toList();
+        for (var shard : shardContexts.iterable()) {
+            if (shard instanceof EsPhysicalOperationProviders.DefaultShardContext == false || withoutDocValues(shard, fields) != null) {
+                return null;
+            }
+        }
+        return shardContexts.map(shard -> {
+            String missing = withoutDocValues(shard, fields);
+            if (missing != null) {
+                throw new IllegalStateException("nested child field [" + missing + "] has no doc values on a later shard");
+            }
+            SearchExecutionContext context = ((EsPhysicalOperationProviders.DefaultShardContext) shard).executionContext();
+            NestedObjectMapper nested = context.nestedLookup().getNestedMappers().get(path);
+            List<IndexFieldData<?>> data = new ArrayList<>(fields.size());
+            for (String field : fields) {
+                MappedFieldType type = shard.fieldType(field);
+                data.add(type == null || nested == null ? null : context.getForField(type, MappedFieldType.FielddataOperation.SEARCH));
+            }
+            return new Shard(
+                shard.searcher().getIndexReader(),
+                context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated())),
+                nested == null ? null : context.bitsetFilter(nested.nestedTypeFilter()),
+                data
+            );
+        });
+    }
+
+    @Nullable
+    private static String withoutDocValues(EsPhysicalOperationProviders.ShardContext shard, List<String> fields) {
+        for (String field : fields) {
+            MappedFieldType type = shard.fieldType(field);
+            if (type != null && type.hasDocValues() == false) {
+                return field;
+            }
+        }
+        return null;
+    }
+
+    /** The {@code _doc} vector of {@code page}, or {@code null} when the page has no doc ids to read the index with. */
+    @Nullable
+    static DocVector docs(Page page) {
+        for (int b = 0; b < page.getBlockCount(); b++) {
+            if (page.getBlock(b) instanceof DocBlock doc) {
+                return doc.asVector();
+            }
+        }
+        return null;
     }
 
     /** The objects of the parent at {@code position}, in document order. */

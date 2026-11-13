@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -182,17 +183,18 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
 
     /**
      * Determines if the provided {@link Alias} expression depends on document data by traversing its expression tree.
-     * Returns {@code true} if any child expression requires access to document-specific values, such as the {@link Score} function.
+     * Returns {@code true} if any child expression requires access to document-specific values, such as the {@link Score} function,
+     * or a {@link NestedReduction}, which reads child documents from the index on data nodes.
      * This is used to prevent pushing down limits past operations that need to evaluate expressions using document data.
      */
     private boolean evalAliasNeedsData(Eval eval) {
-        Holder<Boolean> hasScore = new Holder<>(false);
+        Holder<Boolean> needsData = new Holder<>(false);
         eval.forEachExpression(expr -> {
-            if (expr instanceof Score) {
-                hasScore.set(true);
+            if (expr instanceof Score || expr instanceof NestedReduction) {
+                needsData.set(true);
             }
         });
-        return hasScore.get();
+        return needsData.get();
     }
 
     /**

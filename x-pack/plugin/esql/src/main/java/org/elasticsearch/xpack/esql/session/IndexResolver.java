@@ -422,7 +422,8 @@ public class IndexResolver {
                 needsAnalyzerGroups,
                 needsFieldSemantics,
                 flattenedDataTypeEnabled.getAsBoolean(),
-                namedFields
+                namedFields,
+                response.nestedSourceFailures()
             );
             LOGGER.debug(
                 "previously assumed minimum transport version [{}] updated to effective version [{}]"
@@ -494,6 +495,8 @@ public class IndexResolver {
      *                                 {@link DataType#UNSUPPORTED}, reverting to pre-flattened-support behavior.
      * @param namedFields the names the query uses, which may be keys of {@code flattened} fields, or {@code null} if the query reads
      *                    no keys
+     * @param nestedSourceFailures why NESTED cannot read each index's {@code _source}, by index name. NESTED fails with
+     *                             the reason only if it has to read that index's {@code _source}
      */
     public record FieldsInfo(
         FieldCapabilitiesResponse caps,
@@ -505,8 +508,36 @@ public class IndexResolver {
         boolean needsAnalyzerGroups,
         boolean needsFieldSemantics,
         boolean flattenedDataTypeEnabled,
-        @Nullable Set<String> namedFields
+        @Nullable Set<String> namedFields,
+        Map<String, String> nestedSourceFailures
     ) {
+        public FieldsInfo(
+            FieldCapabilitiesResponse caps,
+            @Nullable TransportVersion minTransportVersion,
+            boolean currentBuildIsSnapshot,
+            boolean useAggregateMetricDoubleWhenNotSupported,
+            boolean useDenseVectorWhenNotSupported,
+            boolean hasTimeSeriesAggregation,
+            boolean needsAnalyzerGroups,
+            boolean needsFieldSemantics,
+            boolean flattenedDataTypeEnabled,
+            @Nullable Set<String> namedFields
+        ) {
+            this(
+                caps,
+                minTransportVersion,
+                currentBuildIsSnapshot,
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported,
+                hasTimeSeriesAggregation,
+                needsAnalyzerGroups,
+                needsFieldSemantics,
+                flattenedDataTypeEnabled,
+                namedFields,
+                Map.of()
+            );
+        }
+
         public FieldsInfo(
             FieldCapabilitiesResponse caps,
             @Nullable TransportVersion minTransportVersion,
@@ -647,7 +678,7 @@ public class IndexResolver {
             fields.put(name, field);
         }
 
-        EsField nestedNamespace = NestedScopeField.namespace(indexResponses);
+        EsField nestedNamespace = NestedScopeField.namespace(indexResponses, fieldsInfo.nestedSourceFailures());
         if (nestedNamespace != null) {
             if (rootFields.containsKey(NestedScopeField.NAMESPACE)) {
                 throw new VerificationException(

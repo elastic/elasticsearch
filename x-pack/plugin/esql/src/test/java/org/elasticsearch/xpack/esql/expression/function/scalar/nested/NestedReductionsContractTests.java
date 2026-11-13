@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Reuses REST inputs and expected results with real compute drivers. HTTP, indexing, and stored-field loading
@@ -60,20 +61,26 @@ public class NestedReductionsContractTests extends LuceneTestCase {
      * Source settings are checked while resolving fields, which this harness does not run. That case is checked by
      * the REST test and by {@link NestedReductionsSourceValidationTests}.
      */
-    private static final String FIELD_RESOLUTION_ONLY = "synthetic source is rejected";
+    private static final String FIELD_RESOLUTION_ONLY = "synthetic source is rejected when reading source";
 
     /**
-     * This harness runs without Lucene, so NESTED_EXPAND always reads source here. The doc-values case is checked
-     * by the REST test.
+     * This harness runs without Lucene, so nested fields are always read from source here. The doc-values cases are
+     * checked by the REST tests.
      */
-    private static final String INDEXED_ONLY = "expansion on the data node reads doc values like an ordinary field";
+    private static final Set<String> INDEXED_ONLY = Set.of(
+        "a reduction on the data node reads doc values like an ordinary field",
+        "a reduction after a sort and limit runs on the data node",
+        "expansion on the data node reads doc values like an ordinary field",
+        "synthetic source expands doc values on the data node"
+    );
 
     @ParametersFactory
     public static Iterable<Object[]> contracts() throws IOException {
         LogConfigurator.configureESLogging();
         List<Object[]> parameters = new ArrayList<>();
-        parameters.addAll(contracts("292_nested_reductions.yml", 62));
-        parameters.addAll(contracts("295_nested_expand.yml", 25));
+        parameters.addAll(contracts("292_nested_reductions.yml", 64));
+        parameters.addAll(contracts("295_nested_expand.yml", 26));
+        parameters.addAll(contracts("296_nested_reductions_pushdown.yml", 8));
         return parameters;
     }
 
@@ -96,7 +103,7 @@ public class NestedReductionsContractTests extends LuceneTestCase {
                 setup = (List<Map<String, Object>>) parsed.get("setup");
             } else {
                 for (var entry : parsed.entrySet()) {
-                    if (entry.getKey().equals(FIELD_RESOLUTION_ONLY) == false && entry.getKey().equals(INDEXED_ONLY) == false) {
+                    if (entry.getKey().equals(FIELD_RESOLUTION_ONLY) == false && INDEXED_ONLY.contains(entry.getKey()) == false) {
                         parameters.add(new Object[] { new Contract(entry.getKey(), setup, (List<Map<String, Object>>) entry.getValue()) });
                     }
                 }

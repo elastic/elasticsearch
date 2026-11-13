@@ -131,10 +131,14 @@ public final class NestedReductionsAnalysis {
         }
         Set<String> indices = new HashSet<>(first.indices());
         indices.addAll(second.indices());
+        Map<String, String> sourceFailures = new HashMap<>(first.sourceFailures());
+        sourceFailures.putAll(second.sourceFailures());
         DataType type = first.getDataType() == second.getDataType() ? first.getDataType() : DataType.UNSUPPORTED;
         // These bindings are already flattened: each child has its own entry and per-index applicability.
         // Retaining one branch's property tree would misrepresent children supplied only by another branch.
-        return left.withField(new NestedScopeField(first.getName(), type, Map.of(), first.path(), indices, first.collection()));
+        return left.withField(
+            new NestedScopeField(first.getName(), type, Map.of(), first.path(), indices, first.collection(), sourceFailures)
+        );
     }
 
     /** Reserve names once, before union resolution can rebuild internal attributes without their synthetic flag. */
@@ -359,6 +363,7 @@ public final class NestedReductionsAnalysis {
         body.forEachDown(Attribute.class, a -> fields.putIfAbsent(a.id(), a));
         String path = null;
         Set<String> indices = new HashSet<>();
+        Map<String, String> sourceFailures = new HashMap<>();
         for (Attribute attr : fields.values()) {
             if (attr instanceof FieldAttribute f && f.field() instanceof NestedScopeField n) {
                 if (path != null && path.equals(n.path()) == false) {
@@ -366,6 +371,7 @@ public final class NestedReductionsAnalysis {
                 }
                 path = n.path();
                 indices.addAll(n.indices());
+                sourceFailures.putAll(n.sourceFailures());
             }
         }
         if (path == null) {
@@ -374,6 +380,7 @@ public final class NestedReductionsAnalysis {
         String scope = path;
         if (roots.containsKey(path)) {
             indices = new HashSet<>(roots.get(path).indices());
+            sourceFailures.putAll(roots.get(path).sourceFailures());
         }
         if (roots.keySet().stream().anyMatch(parent -> scope.startsWith(parent + "."))) {
             throw error(nested, "NESTED supports one nesting level");
@@ -414,7 +421,7 @@ public final class NestedReductionsAnalysis {
             }
             metadata.add(found);
         }
-        return new NestedReduction(nested.source(), metadata, path, indices, bound, channels, paths, mapped);
+        return new NestedReduction(nested.source(), metadata, path, indices, bound, channels, paths, mapped, sourceFailures);
     }
 
     /**
@@ -489,7 +496,18 @@ public final class NestedReductionsAnalysis {
             }
             metadata.add(found);
         }
-        return new NestedExpand(expand.source(), expand.child(), null, metadata, path, scope.indices(), expanded, paths, mapped);
+        return new NestedExpand(
+            expand.source(),
+            expand.child(),
+            null,
+            metadata,
+            path,
+            scope.indices(),
+            expanded,
+            paths,
+            mapped,
+            scope.sourceFailures()
+        );
     }
 
     private static String publicName(FieldAttribute field) {

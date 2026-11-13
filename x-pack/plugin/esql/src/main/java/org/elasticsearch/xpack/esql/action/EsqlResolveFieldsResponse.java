@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class EsqlResolveFieldsResponse extends ActionResponse {
     public static final TransportVersion RESOLVE_FIELDS_RESPONSE_CREATED_TV = TransportVersion.fromName(
@@ -38,13 +39,24 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
     public static final TransportVersion RESOLVE_FIELDS_RESPONSE_USED_TV = TransportVersion.fromName("esql_resolve_fields_response_used");
 
     private final FieldCapabilitiesResponse caps;
+    /**
+     * Why NESTED cannot read each local index's {@code _source}, by index name. Never sent over the wire: NESTED only
+     * reads local indices, so only the coordinator's own resolution needs these.
+     */
+    private final Map<String, String> nestedSourceFailures;
 
     public EsqlResolveFieldsResponse(FieldCapabilitiesResponse caps) {
+        this(caps, Map.of());
+    }
+
+    public EsqlResolveFieldsResponse(FieldCapabilitiesResponse caps, Map<String, String> nestedSourceFailures) {
         this.caps = caps;
+        this.nestedSourceFailures = Map.copyOf(nestedSourceFailures);
     }
 
     public EsqlResolveFieldsResponse(StreamInput in) throws IOException {
         this.caps = readMinTransportVersion(new FieldCapabilitiesResponse(in), in);
+        this.nestedSourceFailures = Map.of();
     }
 
     @Override
@@ -100,5 +112,9 @@ public class EsqlResolveFieldsResponse extends ActionResponse {
 
     public FieldCapabilitiesResponse caps() {
         return caps;
+    }
+
+    public Map<String, String> nestedSourceFailures() {
+        return nestedSourceFailures;
     }
 }

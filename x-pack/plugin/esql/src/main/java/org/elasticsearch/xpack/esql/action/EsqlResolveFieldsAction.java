@@ -35,7 +35,9 @@ import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -126,6 +128,7 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
             listener.delegateFailureAndWrap((l, response) -> {
                 if (request.nestedReductions()) {
                     var metadata = projectResolver.getProjectState(clusterService.state()).metadata();
+                    Map<String, String> sourceFailures = new HashMap<>();
                     for (var indexCaps : response.caps().getIndexResponses()) {
                         var index = metadata.index(indexCaps.getIndexName());
                         if (index == null) {
@@ -133,13 +136,20 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
                                 "NESTED source-backed PoC requires a local index with available mapping metadata"
                             );
                         }
-                        NestedReductionsSourceValidation.validate(
-                            indexCaps.getIndexName(),
-                            index.getSettings(),
-                            index.mapping() == null ? java.util.Map.of() : index.mapping().sourceAsMap(),
-                            indexCaps.get().keySet()
-                        );
+                        try {
+                            NestedReductionsSourceValidation.validate(
+                                indexCaps.getIndexName(),
+                                index.getSettings(),
+                                index.mapping() == null ? Map.of() : index.mapping().sourceAsMap(),
+                                indexCaps.get().keySet()
+                            );
+                        } catch (IllegalArgumentException e) {
+                            // Doc values may still serve the query. Fail only if it has to read this index's _source.
+                            sourceFailures.put(indexCaps.getIndexName(), e.getMessage());
+                        }
                     }
+                    l.onResponse(new EsqlResolveFieldsResponse(response.caps(), sourceFailures));
+                    return;
                 }
                 l.onResponse(response);
             })

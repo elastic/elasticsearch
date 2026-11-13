@@ -228,7 +228,8 @@ public class MapperUtils {
                 expand.indices(),
                 expand.expanded(),
                 expand.paths(),
-                expand.mappedIndices()
+                expand.mappedIndices(),
+                expand.sourceFailures()
             );
         }
 

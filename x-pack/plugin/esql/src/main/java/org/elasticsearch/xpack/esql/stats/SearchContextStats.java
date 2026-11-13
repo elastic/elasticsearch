@@ -211,6 +211,34 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean nestedFieldHasDocValues(FieldName field) {
+        boolean mapped = false;
+        for (SearchExecutionContext context : contexts) {
+            if (context.isMappedField(field.string())) {
+                if (context.getFieldType(field.string()).hasDocValues() == false) {
+                    return false;
+                }
+                mapped = true;
+            }
+        }
+        return mapped;
+    }
+
+    @Override
+    public boolean nestedFieldIsSearchable(FieldName field) {
+        boolean mapped = false;
+        for (SearchExecutionContext context : contexts) {
+            if (context.isMappedField(field.string())) {
+                if (context.getFieldType(field.string()).isSearchable() == false) {
+                    return false;
+                }
+                mapped = true;
+            }
+        }
+        return mapped;
+    }
+
+    @Override
     public boolean readsKey(FieldName field) {
         for (SearchExecutionContext context : contexts) {
             if (context instanceof EsqlSearchExecutionContext esql && esql.readsKey(field.string())) {

@@ -1,5 +1,7 @@
 # Indexed evidence for the source-backed loader's closed failures.
 # These cases must keep failing until a mapper-aware loader reproduces the same values.
+# The failures apply only when values are read from _source: on the coordinator, when a child field has no doc values,
+# or with the nested_loader pragma set to source. Reading doc values gives ordinary field values for the same mappings.
 # Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
 ---
 setup:
@@ -16,7 +18,7 @@ setup:
     reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
 
 ---
-synthetic source is rejected:
+synthetic source is rejected when reading source:
 - do:
     indices.create:
       index: nr_synthetic
@@ -38,11 +40,13 @@ synthetic source is rejected:
       allow_partial_results: false
       body:
         query: FROM nr_synthetic | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: stored, unfiltered
 
 ---
-filtered source is rejected:
+filtered source is rejected when reading source:
 - do:
     indices.create:
       index: nr_filtered
@@ -68,11 +72,13 @@ filtered source is rejected:
       allow_partial_results: false
       body:
         query: FROM nr_filtered | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: stored, unfiltered
 
 ---
-scaled float nested values are rejected:
+scaled float nested values are rejected when reading source:
 - do:
     indices.create:
       index: nr_scaled
@@ -94,11 +100,13 @@ scaled float nested values are rejected:
       allow_partial_results: false
       body:
         query: FROM nr_scaled | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: rounded numeric
 
 ---
-null value replacement on a nested field is rejected:
+null value replacement on a nested field is rejected when reading source:
 - do:
     indices.create:
       index: nr_null_value
@@ -119,12 +127,14 @@ null value replacement on a nested field is rejected:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_null_value | WHERE NESTED(items.sku == "book") | KEEP _id | LIMIT 10
+        query: FROM nr_null_value METADATA _id | WHERE NESTED(items.sku == "book") | KEEP _id | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: null_value
 
 ---
-alias inside a nested object is rejected:
+alias inside a nested object is rejected when reading source:
 - do:
     indices.create:
       index: nr_alias
@@ -148,11 +158,13 @@ alias inside a nested object is rejected:
       allow_partial_results: false
       body:
         query: FROM nr_alias | EVAL total = NESTED(SUM(items.price_alias)) | KEEP total | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: aliases or multifields
 
 ---
-disabled source is rejected:
+disabled source is rejected when reading source:
 - do:
     indices.create:
       index: nr_disabled_source
@@ -175,11 +187,13 @@ disabled source is rejected:
       allow_partial_results: false
       body:
         query: FROM nr_disabled_source | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: stored, unfiltered
 
 ---
-nested multifield is rejected:
+nested multifield is rejected when reading source:
 - do:
     indices.create:
       index: nr_multifield
@@ -202,12 +216,14 @@ nested multifield is rejected:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_multifield | WHERE NESTED(items.price.raw == "book") | KEEP _id | LIMIT 10
+        query: FROM nr_multifield METADATA _id | WHERE NESTED(items.price.raw == "book") | KEEP _id | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: aliases or multifields
 
 ---
-ignore_above on a nested keyword is rejected:
+ignore_above on a nested keyword is rejected when reading source:
 - do:
     indices.create:
       index: nr_ignore_above
@@ -228,12 +244,14 @@ ignore_above on a nested keyword is rejected:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_ignore_above | WHERE NESTED(items.sku == "book") | KEEP _id | LIMIT 10
+        query: FROM nr_ignore_above METADATA _id | WHERE NESTED(items.sku == "book") | KEEP _id | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: ignore_above
 
 ---
-normalizer on a nested keyword is rejected:
+normalizer on a nested keyword is rejected when reading source:
 - do:
     indices.create:
       index: nr_normalizer
@@ -260,12 +278,14 @@ normalizer on a nested keyword is rejected:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_normalizer | WHERE NESTED(items.sku == "book") | KEEP _id | LIMIT 10
+        query: FROM nr_normalizer METADATA _id | WHERE NESTED(items.sku == "book") | KEEP _id | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: normalizer
 
 ---
-copy_to into a visible nested field is rejected:
+copy_to into a visible nested field is rejected when reading source:
 - do:
     indices.create:
       index: nr_copy_to
@@ -289,11 +309,13 @@ copy_to into a visible nested field is rejected:
       allow_partial_results: false
       body:
         query: FROM nr_copy_to | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: copy_to
 
 ---
-index-level ignore_malformed is rejected:
+index-level ignore_malformed is rejected when reading source:
 - do:
     indices.create:
       index: nr_index_ignore_malformed
@@ -315,6 +337,8 @@ index-level ignore_malformed is rejected:
       allow_partial_results: false
       body:
         query: FROM nr_index_ignore_malformed | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+        pragma:
+          nested_loader: source
 - contains:
     error.reason: index-level
 
@@ -389,3 +413,193 @@ explicit ignore_malformed false matches a plain long sum:
 - match: { columns.0.type: long }
 - length: { values: 1 }
 - match: { values.0.0: 10 }
+
+---
+synthetic source reads doc values on the data node:
+- do:
+    indices.create:
+      index: nr_synthetic
+      body:
+        settings:
+          index.mapping.source.mode: synthetic
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_synthetic
+          _id: "1"
+      - items:
+        - price: 10
+        - price: 20
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_synthetic | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+- match:
+    values:
+    - [30]
+
+---
+disabled source reads doc values on the data node:
+- do:
+    indices.create:
+      index: nr_disabled_source
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            enabled: false
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_disabled_source
+          _id: "1"
+      - items:
+        - price: 10
+        - price: 20
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_disabled_source | EVAL total = NESTED(SUM(items.price)) | KEEP total | LIMIT 10
+- match:
+    values:
+    - [30]
+
+---
+normalizer applies to doc values like an ordinary field:
+- do:
+    indices.create:
+      index: nr_normalizer
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          analysis:
+            normalizer:
+              lowercase_norm:
+                type: custom
+                filter:
+                - lowercase
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                sku:
+                  type: keyword
+                  normalizer: lowercase_norm
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_normalizer
+          _id: "1"
+      - items:
+        - sku: BOOK
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_normalizer | EVAL hit = NESTED(items.sku == "book") | KEEP hit | LIMIT 10
+- match:
+    values:
+    - [true]
+
+---
+synthetic source is rejected after a coordinator step:
+- do:
+    indices.create:
+      index: nr_synthetic
+      body:
+        settings:
+          index.mapping.source.mode: synthetic
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_synthetic
+          _id: "1"
+      - id: "1"
+        items:
+        - price: 10
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_synthetic | LIMIT 1 | MV_EXPAND id | EVAL total = NESTED(SUM(items.price)) | KEEP total
+- contains:
+    error.reason: stored, unfiltered
+
+---
+synthetic source sums doc values after a sort and limit:
+- do:
+    indices.create:
+      index: nr_synthetic
+      body:
+        settings:
+          index.mapping.source.mode: synthetic
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_synthetic
+          _id: "1"
+      - id: "1"
+        items:
+        - price: 10
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_synthetic | SORT id | LIMIT 1 | EVAL total = NESTED(SUM(items.price)) | KEEP total
+- match:
+    values:
+    - [10]

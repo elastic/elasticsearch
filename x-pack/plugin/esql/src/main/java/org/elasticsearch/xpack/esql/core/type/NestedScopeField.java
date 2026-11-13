@@ -30,19 +30,25 @@ public final class NestedScopeField extends EsField {
     private final String path;
     private final Set<String> indices;
     private final boolean collection;
+    private final Map<String, String> sourceFailures;
 
+    /**
+     * @param sourceFailures why NESTED cannot read the {@code _source} of some of {@code indices}, by index name
+     */
     public NestedScopeField(
         String name,
         DataType type,
         Map<String, EsField> properties,
         String path,
         Set<String> indices,
-        boolean collection
+        boolean collection,
+        Map<String, String> sourceFailures
     ) {
         super(name, type, properties, false, TimeSeriesFieldType.NONE);
         this.path = path;
         this.indices = Set.copyOf(indices);
         this.collection = collection;
+        this.sourceFailures = Map.copyOf(sourceFailures);
     }
 
     public String path() {
@@ -57,9 +63,13 @@ public final class NestedScopeField extends EsField {
         return collection;
     }
 
+    public Map<String, String> sourceFailures() {
+        return sourceFailures;
+    }
+
     @Override
     public EsField withProperties(Map<String, EsField> properties) {
-        return new NestedScopeField(getName(), getDataType(), properties, path, indices, collection);
+        return new NestedScopeField(getName(), getDataType(), properties, path, indices, collection, sourceFailures);
     }
 
     @Override
@@ -73,12 +83,15 @@ public final class NestedScopeField extends EsField {
             return false;
         }
         NestedScopeField other = (NestedScopeField) obj;
-        return path.equals(other.path) && indices.equals(other.indices) && collection == other.collection;
+        return path.equals(other.path)
+            && indices.equals(other.indices)
+            && collection == other.collection
+            && sourceFailures.equals(other.sourceFailures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, indices, collection);
+        return Objects.hash(super.hashCode(), path, indices, collection, sourceFailures);
     }
 
     /** Finds the actual nested ancestor in this index, rather than inferring one from dots in a name. */
@@ -97,8 +110,11 @@ public final class NestedScopeField extends EsField {
         }
     }
 
-    /** Builds a separate schema so nested fields cannot introduce conflicts into ordinary field resolution. */
-    public static EsField namespace(List<FieldCapabilitiesIndexResponse> responses) {
+    /**
+     * Builds a separate schema so nested fields cannot introduce conflicts into ordinary field resolution.
+     * {@code sourceFailures} holds why NESTED cannot read each index's {@code _source}, by index name.
+     */
+    public static EsField namespace(List<FieldCapabilitiesIndexResponse> responses, Map<String, String> sourceFailures) {
         Map<String, List<IndexFieldCapabilities>> caps = new TreeMap<>();
         Map<String, Set<String>> indices = new HashMap<>();
         Map<String, String> paths = new HashMap<>();
@@ -143,7 +159,14 @@ public final class NestedScopeField extends EsField {
                     .anyMatch(fc -> EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType()).widenSmallNumeric() != firstType);
             DataType type = conflict ? DataType.UNSUPPORTED : firstType;
             Map<String, EsField> properties = parent.containsKey(name) ? parent.get(name).getProperties() : new TreeMap<>();
-            parent.put(name, new NestedScopeField(name, type, properties, paths.get(fullName), indices.get(fullName), collection));
+            Set<String> fieldIndices = indices.get(fullName);
+            Map<String, String> fieldFailures = new HashMap<>();
+            for (String index : fieldIndices) {
+                if (sourceFailures.containsKey(index)) {
+                    fieldFailures.put(index, sourceFailures.get(index));
+                }
+            }
+            parent.put(name, new NestedScopeField(name, type, properties, paths.get(fullName), fieldIndices, collection, fieldFailures));
         }
         return new EsField(NAMESPACE, DataType.OBJECT, roots, false, TimeSeriesFieldType.NONE);
     }

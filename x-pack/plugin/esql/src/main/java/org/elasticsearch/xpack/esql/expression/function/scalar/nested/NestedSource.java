@@ -34,6 +34,19 @@ import java.util.Map;
 final class NestedSource {
     private NestedSource() {}
 
+    /** Fails a command that reads every parent from {@code _source} if any of its indices cannot serve that. */
+    static void checkSources(Map<String, String> sourceFailures) {
+        sourceFailures.keySet().stream().sorted().findFirst().ifPresent(index -> checkSource(sourceFailures, index));
+    }
+
+    /** Fails before reading a parent of {@code index} from {@code _source} if that index cannot serve it. */
+    static void checkSource(Map<String, String> sourceFailures, String index) {
+        String failure = sourceFailures.get(index);
+        if (failure != null) {
+            throw new IllegalArgumentException(failure);
+        }
+    }
+
     static BytesRef singleMetadata(Block block, int row, String name) {
         if (block instanceof BytesRefBlock == false || block.getValueCount(row) != 1) {
             throw new IllegalArgumentException("NESTED requires exactly one " + name + " metadata value per parent row");

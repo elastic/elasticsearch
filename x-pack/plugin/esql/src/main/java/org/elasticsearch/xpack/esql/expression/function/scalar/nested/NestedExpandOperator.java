@@ -45,7 +45,8 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
         Set<String> indices,
         List<DataType> types,
         List<String> paths,
-        List<Set<String>> mappedIndices
+        List<Set<String>> mappedIndices,
+        Map<String, String> sourceFailures
     ) implements Operator.OperatorFactory {
         @Override
         public Operator get(DriverContext context) {
@@ -67,6 +68,9 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
         this.context = context;
         this.factory = factory;
         this.indexed = factory.shards() == null ? null : new NestedIndexObjects(factory.shards(), factory.paths());
+        if (indexed == null) {
+            NestedSource.checkSources(factory.sourceFailures());
+        }
     }
 
     @Override
@@ -83,7 +87,7 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
                     page.getPositionCount()
                 );
             }
-            Block source = page.getBlock(factory.sourceChannel());
+            Block source = factory.sourceChannel() < 0 ? null : page.getBlock(factory.sourceChannel());
             Block index = page.getBlock(factory.indexChannel());
             DocVector docs = indexed == null ? null : ((DocBlock) page.getBlock(factory.docChannel())).asVector();
             int[] positions = new int[page.getPositionCount()];
@@ -104,7 +108,8 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
                         context.breaker().addEstimateBytesAndMaybeBreak(bytes, "nested_expand_frame");
                         estimate = bytes;
                     } else if (factory.indices().contains(indexName)) {
-                        if (source.isNull(row)) {
+                        NestedSource.checkSource(factory.sourceFailures(), indexName);
+                        if (source == null || source.isNull(row)) {
                             throw new IllegalArgumentException("NESTED_EXPAND source-backed PoC requires stored, unfiltered _source");
                         }
                         BytesRef bytes = NestedSource.singleMetadata(source, row, "_source");

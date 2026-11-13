@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -51,12 +52,13 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
     private final List<Attribute> expanded;
     private final List<String> paths;
     private final List<Set<String>> mappedIndices;
+    private final Map<String, String> sourceFailures;
 
     private List<Attribute> output;
 
     /** The parsed, unbound command. */
     public NestedExpand(Source source, LogicalPlan child, NamedExpression target) {
-        this(source, child, target, List.of(), null, Set.of(), List.of(), List.of(), List.of());
+        this(source, child, target, List.of(), null, Set.of(), List.of(), List.of(), List.of(), Map.of());
     }
 
     public NestedExpand(
@@ -68,7 +70,8 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
         Set<String> indices,
         List<Attribute> expanded,
         List<String> paths,
-        List<Set<String>> mappedIndices
+        List<Set<String>> mappedIndices,
+        Map<String, String> sourceFailures
     ) {
         super(source, child);
         this.target = target;
@@ -78,6 +81,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
         this.expanded = List.copyOf(expanded);
         this.paths = List.copyOf(paths);
         this.mappedIndices = mappedIndices.stream().map(Set::copyOf).toList();
+        this.sourceFailures = Map.copyOf(sourceFailures);
     }
 
     private NestedExpand(StreamInput in) throws IOException {
@@ -90,7 +94,8 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
             in.readCollectionAsImmutableSet(StreamInput::readString),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readStringCollectionAsList(),
-            in.readCollectionAsList(stream -> stream.readCollectionAsImmutableSet(StreamInput::readString))
+            in.readCollectionAsList(stream -> stream.readCollectionAsImmutableSet(StreamInput::readString)),
+            in.readImmutableMap(StreamInput::readString)
         );
     }
 
@@ -115,6 +120,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
         out.writeNamedWriteableCollection(expanded);
         out.writeStringCollection(paths);
         out.writeCollection(mappedIndices, StreamOutput::writeStringCollection);
+        out.writeMap(sourceFailures, StreamOutput::writeString);
     }
 
     @Override
@@ -166,6 +172,11 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
         return mappedIndices;
     }
 
+    /** Why the expansion cannot read the {@code _source} of some of {@link #indices()}, by index name. */
+    public Map<String, String> sourceFailures() {
+        return sourceFailures;
+    }
+
     @Override
     public boolean expressionsResolved() {
         return bound();
@@ -200,12 +211,24 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
 
     @Override
     public NestedExpand replaceChild(LogicalPlan newChild) {
-        return new NestedExpand(source(), newChild, target, metadata, path, indices, expanded, paths, mappedIndices);
+        return new NestedExpand(source(), newChild, target, metadata, path, indices, expanded, paths, mappedIndices, sourceFailures);
     }
 
     @Override
     protected NodeInfo<NestedExpand> info() {
-        return NodeInfo.create(this, NestedExpand::new, child(), target, metadata, path, indices, expanded, paths, mappedIndices);
+        return NodeInfo.create(
+            this,
+            NestedExpand::new,
+            child(),
+            target,
+            metadata,
+            path,
+            indices,
+            expanded,
+            paths,
+            mappedIndices,
+            sourceFailures
+        );
     }
 
     @Override
@@ -216,7 +239,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), target, metadata, path, indices, expanded, paths, mappedIndices);
+        return Objects.hash(super.hashCode(), target, metadata, path, indices, expanded, paths, mappedIndices, sourceFailures);
     }
 
     @Override
@@ -231,6 +254,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
             && indices.equals(other.indices)
             && expanded.equals(other.expanded)
             && paths.equals(other.paths)
-            && mappedIndices.equals(other.mappedIndices);
+            && mappedIndices.equals(other.mappedIndices)
+            && sourceFailures.equals(other.sourceFailures);
     }
 }

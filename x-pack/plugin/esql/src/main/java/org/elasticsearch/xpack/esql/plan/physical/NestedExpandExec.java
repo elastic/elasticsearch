@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -37,6 +38,7 @@ public final class NestedExpandExec extends UnaryExec {
     private final List<Attribute> expanded;
     private final List<String> paths;
     private final List<Set<String>> mappedIndices;
+    private final Map<String, String> sourceFailures;
 
     public NestedExpandExec(
         Source source,
@@ -46,7 +48,8 @@ public final class NestedExpandExec extends UnaryExec {
         Set<String> indices,
         List<Attribute> expanded,
         List<String> paths,
-        List<Set<String>> mappedIndices
+        List<Set<String>> mappedIndices,
+        Map<String, String> sourceFailures
     ) {
         super(source, child);
         this.metadata = List.copyOf(metadata);
@@ -55,6 +58,7 @@ public final class NestedExpandExec extends UnaryExec {
         this.expanded = List.copyOf(expanded);
         this.paths = List.copyOf(paths);
         this.mappedIndices = mappedIndices.stream().map(Set::copyOf).toList();
+        this.sourceFailures = Map.copyOf(sourceFailures);
     }
 
     private NestedExpandExec(StreamInput in) throws IOException {
@@ -66,7 +70,8 @@ public final class NestedExpandExec extends UnaryExec {
             in.readCollectionAsImmutableSet(StreamInput::readString),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readStringCollectionAsList(),
-            in.readCollectionAsList(stream -> stream.readCollectionAsImmutableSet(StreamInput::readString))
+            in.readCollectionAsList(stream -> stream.readCollectionAsImmutableSet(StreamInput::readString)),
+            in.readImmutableMap(StreamInput::readString)
         );
     }
 
@@ -81,6 +86,7 @@ public final class NestedExpandExec extends UnaryExec {
         out.writeNamedWriteableCollection(expanded);
         out.writeStringCollection(paths);
         out.writeCollection(mappedIndices, StreamOutput::writeStringCollection);
+        out.writeMap(sourceFailures, StreamOutput::writeString);
     }
 
     @Override
@@ -112,6 +118,10 @@ public final class NestedExpandExec extends UnaryExec {
         return mappedIndices;
     }
 
+    public Map<String, String> sourceFailures() {
+        return sourceFailures;
+    }
+
     @Override
     protected AttributeSet computeReferences() {
         return AttributeSet.of(metadata);
@@ -126,17 +136,28 @@ public final class NestedExpandExec extends UnaryExec {
 
     @Override
     protected NodeInfo<NestedExpandExec> info() {
-        return NodeInfo.create(this, NestedExpandExec::new, child(), metadata, path, indices, expanded, paths, mappedIndices);
+        return NodeInfo.create(
+            this,
+            NestedExpandExec::new,
+            child(),
+            metadata,
+            path,
+            indices,
+            expanded,
+            paths,
+            mappedIndices,
+            sourceFailures
+        );
     }
 
     @Override
     public NestedExpandExec replaceChild(PhysicalPlan newChild) {
-        return new NestedExpandExec(source(), newChild, metadata, path, indices, expanded, paths, mappedIndices);
+        return new NestedExpandExec(source(), newChild, metadata, path, indices, expanded, paths, mappedIndices, sourceFailures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), metadata, path, indices, expanded, paths, mappedIndices);
+        return Objects.hash(child(), metadata, path, indices, expanded, paths, mappedIndices, sourceFailures);
     }
 
     @Override
@@ -154,6 +175,7 @@ public final class NestedExpandExec extends UnaryExec {
             && indices.equals(other.indices)
             && expanded.equals(other.expanded)
             && paths.equals(other.paths)
-            && mappedIndices.equals(other.mappedIndices);
+            && mappedIndices.equals(other.mappedIndices)
+            && sourceFailures.equals(other.sourceFailures);
     }
 }

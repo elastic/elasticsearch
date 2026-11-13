@@ -16,7 +16,6 @@ import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -40,7 +39,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedIndexObjects;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.InsertPartialWindowAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -90,15 +88,6 @@ public abstract class AbstractPhysicalOperationProviders {
         PhysicalOperation source,
         LocalExecutionPlannerContext context
     );
-
-    /**
-     * Each shard's access to the child documents of the nested field {@code path}, or {@code null} when NESTED_EXPAND
-     * must read its children from {@code _source} instead: no shards are local, or a child field has no doc values.
-     */
-    @Nullable
-    public IndexedByShardId<NestedIndexObjects.Shard> nestedShards(String path, List<String> fields) {
-        return null;
-    }
 
     public AnalysisRegistry analysisRegistry() {
         return analysisRegistry;

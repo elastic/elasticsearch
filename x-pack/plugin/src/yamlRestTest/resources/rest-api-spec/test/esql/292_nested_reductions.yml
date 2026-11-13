@@ -4,6 +4,8 @@
 # Error substrings are proposed categories.
 # One wrapper produces one completed Boolean/scalar for every input row, including join/branch copies.
 # Confirmed choices: empty/all-null SUM = null; a selection tie may return either maximum-key candidate.
+# On a data node, child values come from doc values, like an ordinary field. A reduction reads _source instead
+# after a coordinator step, when a child field has no doc values, or with the nested_loader pragma set to source.
 ---
 setup:
 - requires:
@@ -1764,3 +1766,161 @@ branch copies contribute twice to outer aggregation:
     - - 2
       - 460
       - 2000
+
+---
+a reduction on the data node reads doc values like an ordinary field:
+- do:
+    indices.create:
+      index: nr_tags
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                tags:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_tags
+          _id: x
+      - id: x
+        items:
+        - tags: [sale, new, sale]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_tags | EVAL tags = NESTED(SUM(MV_COUNT(items.tags))) | KEEP tags | LIMIT 10
+- match:
+    values:
+    - [2]
+# Only _index is loaded: every child field has doc values, so _source is not.
+- match: { values_loaded: 1 }
+
+---
+the source loader pragma makes a reduction read source:
+- do:
+    indices.create:
+      index: nr_tags
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                tags:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_tags
+          _id: x
+      - id: x
+        items:
+        - tags: [sale, new, sale]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_tags | EVAL tags = NESTED(SUM(MV_COUNT(items.tags))) | KEEP tags | LIMIT 10
+        pragma:
+          nested_loader: source
+- match:
+    values:
+    - [3]
+- match: { values_loaded: 2 }
+
+---
+a reduction after a sort and limit runs on the data node:
+- do:
+    indices.create:
+      index: nr_tags
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                tags:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_tags
+          _id: x
+      - id: x
+        items:
+        - tags: [sale, new, sale]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_tags | SORT id | LIMIT 1 | EVAL tags = NESTED(SUM(MV_COUNT(items.tags))) | KEEP tags
+# Doc values deduplicate the tags: the reduction ran on the data node, below the sort and limit.
+- match:
+    values:
+    - [2]
+
+---
+a reduction after a coordinator step reads source:
+- do:
+    indices.create:
+      index: nr_tags
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                tags:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_tags
+          _id: x
+      - id: x
+        items:
+        - tags: [sale, new, sale]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_tags | LIMIT 1 | MV_EXPAND id | EVAL tags = NESTED(SUM(MV_COUNT(items.tags))) | KEEP tags
+- match:
+    values:
+    - [3]

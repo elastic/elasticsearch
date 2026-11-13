@@ -32,6 +32,19 @@ public interface SearchStats {
     boolean hasDocValues(FieldName field);
 
     /**
+     * Whether {@code field}, a child of a nested object, has doc values on every shard here that maps it, and at least one
+     * shard maps it. {@link #hasDocValues} answers {@code false} for these, since ES|QL does not extract them as columns.
+     */
+    default boolean nestedFieldHasDocValues(FieldName field) {
+        return false;
+    }
+
+    /** Whether every shard here that maps the nested child {@code field} can query it. At least one must map it. */
+    default boolean nestedFieldIsSearchable(FieldName field) {
+        return false;
+    }
+
+    /**
      * Whether every shard here can query {@code field}, read as {@code type}: see
      * {@link SearchContextStats#isQueryable(SearchExecutionContext, String, DataType, boolean)}. At least one must hold the field.
      */

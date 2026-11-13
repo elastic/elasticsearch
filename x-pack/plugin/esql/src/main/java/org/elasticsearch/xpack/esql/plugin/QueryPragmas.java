@@ -90,6 +90,16 @@ public final class QueryPragmas implements Writeable {
         MappedFieldType.FieldExtractPreference.NONE
     );
 
+    /** Where NESTED reductions and NESTED_EXPAND read the values of nested fields. */
+    public enum NestedLoader {
+        /** Doc values of the hidden child documents, falling back to {@code _source} where they can't be used. */
+        INDEX,
+        /** Each parent's stored {@code _source}. */
+        SOURCE
+    }
+
+    public static final Setting<NestedLoader> NESTED_LOADER = Setting.enumSetting(NestedLoader.class, "nested_loader", NestedLoader.INDEX);
+
     /**
      * The maximum number of rounding points to push down to Lucene for the {@code roundTo} function at query level.
      * {@code ReplaceRoundToWithQueryAndTags} checks this threshold before rewriting {@code RoundTo} to range queries.
@@ -275,6 +285,7 @@ public final class QueryPragmas implements Writeable {
         NODE_LEVEL_REDUCTION,
         FOLD_LIMIT,
         FIELD_EXTRACT_PREFERENCE,
+        NESTED_LOADER,
         ROUNDTO_PUSHDOWN_THRESHOLD,
         MAX_KEYWORD_SORT_FIELDS,
         EXTERNAL_DISTRIBUTION,
@@ -436,6 +447,10 @@ public final class QueryPragmas implements Writeable {
      */
     public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
         return FIELD_EXTRACT_PREFERENCE.get(settings);
+    }
+
+    public NestedLoader nestedLoader() {
+        return NESTED_LOADER.get(settings);
     }
 
     public int roundToPushDownThreshold() {

@@ -138,14 +138,13 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     @Override
                     protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
                         throws IOException {
-                        if (alwaysMatchTailQuery == false
+                        if (alwaysMatchTailQuery == false 
                             || segmentSortedByDescTimestamp(context) == false
+                            // check that last document has a value to confirm that all documents have a value 
                             || lastDocumentHasValue(context.reader(), fieldname) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }
                         int maxDoc = context.reader().maxDoc();
-                        // [start, maxDoc) holds the deleted documents plus numHits + 1, so at least numHits + 1 live ones.
-                        // A segment with fewer live documents is read whole.
                         int start = Math.max(0, context.reader().numDocs() - numHits - 1);
                         return new CompetitiveDISIBuilder(this) {
                             @Override
@@ -257,12 +256,12 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         };
     }
 
-    /**
-     * Whether the last document has a value for {@code field}. Documents without one sort last (see
-     * {@link #segmentSortedByDescTimestamp}) and would fill the tail, so the last document has a value only if none is missing.
-     */
     private static boolean lastDocumentHasValue(LeafReader reader, String field) throws IOException {
         return DocValues.getSortedNumeric(reader, field).advanceExact(reader.maxDoc() - 1);
+    }
+
+    private static boolean firstAndLastDocumentsHaveValue(SortedSetDocValues values, int maxDoc) throws IOException {
+        return values.advanceExact(0) && values.advanceExact(maxDoc - 1);
     }
 
     // Checks that the current segment is either directly sorted by descending timestamp,
@@ -291,17 +290,6 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return false;
     }
 
-    /**
-     * Whether the first and the last document both have a value. Documents without one are a separate group of the index sort,
-     * at the start or the end of the segment depending on the sort direction and missing setting, so checking both ends is
-     * enough.
-     *
-     * @param values positioned before the first document, as doc values only move forward
-     */
-    private static boolean firstAndLastDocumentsHaveValue(SortedSetDocValues values, int maxDoc) throws IOException {
-        return values.advanceExact(0) && values.advanceExact(maxDoc - 1);
-    }
-
     private static boolean isHostNameSingletonInSegment(LeafReaderContext context, SortField sortField) throws IOException {
         if (Objects.equals(sortField.getField(), "host.name") == false) {
             return false;
@@ -309,7 +297,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         LeafReader reader = context.reader();
         SortedSetDocValues ssdv = reader.getSortedSetDocValues("host.name");
         if (ssdv != null) {
-            // The value count ignores documents without a host name
+            // host.name can only have one value and all documents must have a value
             return ssdv.getValueCount() == 1 && firstAndLastDocumentsHaveValue(ssdv, reader.maxDoc());
         }
         if (sortField instanceof MultiValuedBinaryDocValuesSortField binarySortField) {

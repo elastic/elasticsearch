@@ -247,7 +247,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 } else if (request.scrollId().equals("_scrollId1")) {
                     ActionListener.respondAndRelease(
                         listener,
-                        SearchResponseUtils.emptyWithTotalHits("_scrollId2", 1, 1, 0, 1, null, null)
+                        SearchResponseUtils.emptyWithTotalHits("_scrollId2", 1, 1, 0, 1, List.of(), null)
                     );
                 } else {
                     listener.onFailure(new ElasticsearchException("test issue"));

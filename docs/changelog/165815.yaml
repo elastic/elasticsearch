@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165815
+summary: Re-list after a missing cached object
+type: enhancement

@@ -15,6 +15,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.sourcebatch.InlineArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -154,7 +155,15 @@ public final class EscfColumnBuilder implements Releasable {
     }
 
     public void addDouble(double value) {
-        setDouble(nextAppendRow(), value);
+        addDouble(value, null);
+    }
+
+    /**
+     * Appends a double together with {@code lexicalForm}, the client's spelling when it is not the canonical
+     * {@code Double.toString} rendering of {@code value}; {@code null} appends a plain double.
+     */
+    public void addDouble(double value, @Nullable XContentString.UTF8Bytes lexicalForm) {
+        setDouble(nextAppendRow(), value, lexicalForm);
     }
 
     public void addBoolean(boolean value) {
@@ -255,11 +264,19 @@ public final class EscfColumnBuilder implements Releasable {
     }
 
     public void setDouble(int row, double value) {
+        setDouble(row, value, null);
+    }
+
+    public void setDouble(int row, double value, @Nullable XContentString.UTF8Bytes lexicalForm) {
+        byte[] text = lexicalForm == null ? null : lexicalForm.bytes();
+        // Position is needed to store the spellings when available.
+        int off = lexicalForm == null ? 0 : lexicalForm.offset();
+        int len = lexicalForm == null ? 0 : lexicalForm.length();
         if (row == lastWrittenRow) {
-            sameRowScalar(EscfColumnKind.DOUBLE, 0L, value, null, 0, 0);
+            sameRowScalar(EscfColumnKind.DOUBLE, 0L, value, text, off, len);
             return;
         }
-        newRowScalar(row, EscfColumnKind.DOUBLE, 0L, value, null, 0, 0);
+        newRowScalar(row, EscfColumnKind.DOUBLE, 0L, value, text, off, len);
     }
 
     public void setBoolean(int row, boolean value) {
@@ -313,12 +330,21 @@ public final class EscfColumnBuilder implements Releasable {
      * {@link Double#doubleToRawLongBits(double)}.
      */
     public void setRawFixed64(int row, byte kind, long bits) {
+        setRawFixed64(row, kind, bits, null);
+    }
+
+    /** Like {@link #setRawFixed64(int, byte, long)}, carrying a DOUBLE value's stored spelling when it has one. */
+    public void setRawFixed64(int row, byte kind, long bits, @Nullable BytesRef lexicalForm) {
         assert kind == EscfColumnKind.LONG || kind == EscfColumnKind.DOUBLE;
+        assert lexicalForm == null || kind == EscfColumnKind.DOUBLE : "only doubles carry a lexical form";
+        byte[] text = lexicalForm == null ? null : lexicalForm.bytes;
+        int off = lexicalForm == null ? 0 : lexicalForm.offset;
+        int len = lexicalForm == null ? 0 : lexicalForm.length;
         if (row == lastWrittenRow) {
-            sameRowScalar(kind, bits, Double.longBitsToDouble(bits), null, 0, 0);
+            sameRowScalar(kind, bits, Double.longBitsToDouble(bits), text, off, len);
             return;
         }
-        newRowScalar(row, kind, bits, Double.longBitsToDouble(bits), null, 0, 0);
+        newRowScalar(row, kind, bits, Double.longBitsToDouble(bits), text, off, len);
     }
 
     /**
@@ -604,7 +630,7 @@ public final class EscfColumnBuilder implements Releasable {
     private static void writeScalar(TypedBuilder b, byte kind, long longBits, double dbl, byte[] bytes, int off, int len) {
         switch (kind) {
             case EscfColumnKind.LONG -> b.addLong(longBits);
-            case EscfColumnKind.DOUBLE -> b.addDouble(dbl);
+            case EscfColumnKind.DOUBLE -> b.addDouble(dbl, bytes, off, len);
             case EscfColumnKind.STRING, EscfColumnKind.BINARY -> b.addBytes(kind, bytes, off, len);
             default -> throw new AssertionError("not a scalar kind: " + EscfColumnKind.name(kind));
         }
@@ -845,7 +871,8 @@ public final class EscfColumnBuilder implements Releasable {
 
         void addLong(long value);
 
-        void addDouble(double value);
+        /** {@code lexicalForm/off/len} is the double's stored spelling, or {@code null} when its canonical rendering is its spelling. */
+        void addDouble(double value, byte[] lexicalForm, int off, int len);
 
         void addBoolean(boolean value);
 
@@ -943,7 +970,7 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
-        public void addDouble(double value) {
+        public void addDouble(double value, byte[] lexicalForm, int off, int len) {
             throw unsupported("double");
         }
 
@@ -970,13 +997,21 @@ public final class EscfColumnBuilder implements Releasable {
         }
     }
 
-    /** LONG / DOUBLE: 8-byte slots (LE), one per document; absent slots are written as zero. */
+    /**
+     * LONG / DOUBLE: 8-byte slots (LE), one per document; absent slots are written as zero. A DOUBLE column keeps
+     * the stored spellings of its values in a {@link VarBuilder} sidecar that is created on the first spelling and
+     * kept in lockstep (one row per document, zero-length where there is none) from then on.
+     */
     private static final class FixedNumericBuilder extends BaseBuilder {
         private final byte kind;
+        private final Recycler<BytesRef> recycler;
         private RecyclerBytesStreamOutput data;
+        /** DOUBLE only; {@code null} while no value has a stored spelling. */
+        private VarBuilder lexicalForms;
 
         FixedNumericBuilder(byte kind, Recycler<BytesRef> recycler) {
             this.kind = kind;
+            this.recycler = recycler;
             this.data = newStream(recycler);
         }
 
@@ -992,14 +1027,24 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
-        public void addDouble(double value) {
+        public void addDouble(double value, byte[] lexicalForm, int off, int len) {
             writeLongLE(data, Double.doubleToRawLongBits(value));
+            if (lexicalForm != null) {
+                lexicalForms().addBytes(EscfColumnKind.STRING, lexicalForm, off, len);
+            } else if (lexicalForms != null) {
+                // Add empty to indicate the lack of spelling in a particular row
+                lexicalForms.addEmpty();
+            }
             advancePresent();
         }
 
         @Override
         public void addAbsent() {
             writeLongLE(data, 0L);
+            if (lexicalForms != null) {
+                // Add empty to indicate the lack of spelling in a missing row
+                lexicalForms.addEmpty();
+            }
             advanceAbsent();
         }
 
@@ -1012,17 +1057,41 @@ public final class EscfColumnBuilder implements Releasable {
                 writeBytes(data, ZERO_BYTES, 0, chunk);
                 remaining -= chunk;
             }
+            if (lexicalForms != null) {
+                // Add empty to indicate the lack of spelling in absent rows
+                lexicalForms.addEmpties(n);
+            }
             bulkAdvanceAbsent(n);
+        }
+
+        /** The spellings sidecar, created on first use with an empty entry for every row written so far. */
+        private VarBuilder lexicalForms() {
+            if (lexicalForms == null) {
+                assert kind == EscfColumnKind.DOUBLE : "only doubles carry a lexical form";
+                lexicalForms = new VarBuilder(EscfColumnKind.STRING, recycler);
+                lexicalForms.addEmpties(count);
+            }
+            return lexicalForms;
         }
 
         @Override
         public void repeatLastRow(int additionalCopies) {
             data.repeatLastBytes(Long.BYTES, additionalCopies);
+            if (lexicalForms != null) {
+                // One sidecar row per value: the copies need its spelling, or its empty entry, too.
+                lexicalForms.repeatLastRow(additionalCopies);
+            }
             bulkAdvancePresent(additionalCopies);
         }
 
         @Override
         public UnionBuilder promote(Recycler<BytesRef> recycler) {
+            if (lexicalForms != null) {
+                // TODO: Union rows cannot carry a stored spelling yet, so a promoted column loses them and its string
+                // consumers see the canonical rendering again (the row keeps the same double).
+                lexicalForms.discard();
+                lexicalForms = null;
+            }
             byte present = kind == EscfColumnKind.LONG ? SourceValueType.LONG : SourceValueType.DOUBLE;
             byte[] typeVec = new byte[count];
             int[] offsets = new int[count + 1];
@@ -1039,6 +1108,9 @@ public final class EscfColumnBuilder implements Releasable {
 
         @Override
         public ArrayBuilder promoteToArray(Recycler<BytesRef> recycler) {
+            // Only MERGE promotes a scalar column to an array, and spellings are only recorded under SPLIT (the
+            // encoder and the scatterer); a MERGE builder therefore never has a sidecar to carry over.
+            assert lexicalForms == null : "a column with stored spellings is never promoted to an array";
             int[] rowOffsets = new int[Math.max(16, count + 1)];
             if (validity == null) {
                 // Dense: positional == element-packed. Adopt the data buffer; null out to prevent double-close via discard().
@@ -1077,12 +1149,16 @@ public final class EscfColumnBuilder implements Releasable {
         @Override
         public EscfColumnData finish(int docCount) {
             assert count == docCount : "builder count " + count + " != docCount " + docCount;
+            if (lexicalForms != null) {
+                return EscfColumnData.ofDouble(docCount, validity, data.moveToBytesReference(), lexicalForms.finish(docCount));
+            }
             return EscfColumnData.ofFixed64(kind, docCount, validity, data.moveToBytesReference());
         }
 
         @Override
         public void discard() {
             if (data != null) data.close();
+            if (lexicalForms != null) lexicalForms.discard();
         }
     }
 
@@ -1194,6 +1270,19 @@ public final class EscfColumnBuilder implements Releasable {
             data.repeatLastBytes(blockBytes, additionalCopies);
             dataLen += blockBytes * additionalCopies;
             bulkAdvancePresent(additionalCopies);
+        }
+
+        /** Records a present, zero-length row. Used for the spellings sidecar of a value that has none. */
+        void addEmpty() {
+            recordOffset();
+            advancePresent();
+        }
+
+        /** Records {@code n} present, zero-length rows. */
+        void addEmpties(int n) {
+            offsets = ensureIntCapacity(offsets, count + n);
+            Arrays.fill(offsets, count, count + n, dataLen);
+            bulkAdvancePresent(n);
         }
 
         private void recordOffset() {
@@ -1503,7 +1592,8 @@ public final class EscfColumnBuilder implements Releasable {
         }
 
         @Override
-        public void addDouble(double value) {
+        public void addDouble(double value, byte[] lexicalForm, int off, int len) {
+            // TODO: A union row cannot carry a stored spelling yet; the double is written without it.
             prep(SourceValueType.DOUBLE);
             writeLongLE(data, Double.doubleToRawLongBits(value));
             dataLen += 8;

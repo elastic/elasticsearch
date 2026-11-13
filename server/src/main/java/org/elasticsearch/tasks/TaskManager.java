@@ -95,6 +95,8 @@ public class TaskManager implements ClusterStateApplier {
 
     private final List<AddedTaskListener> addedTaskListeners = new CopyOnWriteArrayList<>();
 
+    private final List<CancelledChildRequestListener> cancelledChildRequestListeners = new CopyOnWriteArrayList<>();
+
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this(settings, threadPool, taskHeaders, Tracer.NOOP);
@@ -194,7 +196,7 @@ public class TaskManager implements ClusterStateApplier {
         Map<String, Object> attributes = parentTask.isSet()
             ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
             : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
-        tracer.startTrace(threadContext, task, task.getAction(), attributes);
+        tracer.startTrace(task, task.getAction(), attributes);
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -304,7 +306,8 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
-     * Cancels children tasks of the specified parent, with the request ID specified, as long as the request ID is positive.
+     * Cancels children tasks of the specified parent, with the request ID specified, as long as the request ID is positive, and notifies
+     * the {@link CancelledChildRequestListener}s, even if no such child task is running.
      *
      * Note: There may be multiple children for the same request ID. In this edge case all these multiple children are cancelled.
      */
@@ -323,6 +326,19 @@ public class TaskManager implements ClusterStateApplier {
                         );
                     }
                     child.cancel(reason);
+                }
+            }
+            for (CancelledChildRequestListener listener : cancelledChildRequestListeners) {
+                try {
+                    listener.onCancelled(parentTaskId, childRequestId);
+                } catch (Exception e) {
+                    // In production, a failure must not stop the other listeners, nor the caller from releasing the task in
+                    // registerAndExecute.
+                    logger.warn(
+                        () -> format("listener failed on cancelled child request [%d] of parent task [%s]", childRequestId, parentTaskId),
+                        e
+                    );
+                    assert false : e;
                 }
             }
         }
@@ -379,6 +395,18 @@ public class TaskManager implements ClusterStateApplier {
 
     public void unregisterAddedTaskListener(AddedTaskListener addedTaskListener) {
         addedTaskListeners.remove(addedTaskListener);
+    }
+
+    /**
+     * Registers a listener that {@link #cancelChildLocal} notifies about every cancelled child request, see
+     * {@link CancelledChildRequestListener}.
+     */
+    public void registerCancelledChildRequestListener(CancelledChildRequestListener cancelledChildRequestListener) {
+        cancelledChildRequestListeners.add(cancelledChildRequestListener);
+    }
+
+    public void unregisterCancelledChildRequestListener(CancelledChildRequestListener cancelledChildRequestListener) {
+        cancelledChildRequestListeners.remove(cancelledChildRequestListener);
     }
 
     /**

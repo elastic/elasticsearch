@@ -98,7 +98,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public BytesReference data() {
-        assert closed == false : "batch already closed";
+        assertOpen();
         // TODO: Eventually optimize to be more stream like on the serialization path.
         if (serialized == null) {
             EscfColumnData[] dataForSerialize = new EscfColumnData[columns.length];
@@ -117,7 +117,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceRow row(int docIndex) {
-        assert closed == false : "batch already closed";
+        assertOpen();
         if (docIndex < 0 || docIndex >= docCount) {
             throw new IndexOutOfBoundsException("docIndex " + docIndex + " out of range [0, " + docCount + ")");
         }
@@ -132,7 +132,7 @@ public final class EscfBatch implements SourceBatch {
      */
     @Override
     public int[] rowSizesInBytes() {
-        assert closed == false : "batch already closed";
+        assertOpen();
         final int[] sizes = new int[docCount];
         for (EscfColumn column : columns) {
             column.addSizesInBytes(sizes);
@@ -142,7 +142,7 @@ public final class EscfBatch implements SourceBatch {
 
     /** The typed view for {@code columnIndex}. */
     public EscfColumn column(int columnIndex) {
-        assert closed == false : "batch already closed";
+        assertOpen();
         return columns[columnIndex];
     }
 
@@ -153,7 +153,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceBatch slice(int from, int to) {
-        assert closed == false : "batch already closed";
+        assertOpen();
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");
         }
@@ -170,9 +170,13 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public void close() {
-        assert closed == false : "batch already closed";
+        assertOpen();
         closed = true;
         releasable.close();
+    }
+
+    private void assertOpen() {
+        assert closed == false : "batch already closed";
     }
 
     /**
@@ -197,8 +201,9 @@ public final class EscfBatch implements SourceBatch {
     /** Raw value bytes of one column: the payload ref length, or the kind-specific equivalent when there is no payload. */
     private static int valueBytes(EscfColumnData col) {
         return switch (col.kind()) {
-            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION ->
-                (int) refLen(col.data());
+            case EscfColumnKind.LONG, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION -> (int) refLen(col.data());
+            // account for stored spellings too
+            case EscfColumnKind.DOUBLE -> (int) (refLen(col.data()) + (col.lexicalForms() == null ? 0 : refLen(col.lexicalForms().data())));
             // BOOL has no byte payload: values are one bit per document
             case EscfColumnKind.BOOL -> EscfBatchCodec.bitsetBytes(col.docCount());
             // ARRAY has no payload of its own: the elements live in the child column
@@ -239,6 +244,9 @@ public final class EscfBatch implements SourceBatch {
             .offsets() != null ? col.offsets().length * 4L : 0L) + refLen(col.data());
         if (col.child() != null) {
             total += columnRamBytes(col.child());
+        }
+        if (col.lexicalForms() != null) {
+            total += columnRamBytes(col.lexicalForms());
         }
         return total;
     }

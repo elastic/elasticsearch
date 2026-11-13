@@ -4553,6 +4553,47 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /**
+     * A CATEGORIZE over an expression, repeated inside an aggregate expression, refers to that
+     * group's value: the copy inside the agg must be replaced with the grouping's output attribute,
+     * not passed downstream as an unreplaced function (#165176).
+     */
+    public void testCategorizeOnExpressionReusedInsideAggExpression() {
+        var plan = optimizedPlan("""
+            from test
+            | stats count(), x = MV_APPEND(CATEGORIZE(TO_LOWER(first_name)), emp_no) by cat = CATEGORIZE(TO_LOWER(first_name))
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var categorizeAlias = as(agg.groupings().get(0), Alias.class);
+        var mvAppend = aliased(agg.aggregates().get(2), org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend.class);
+        assertThat(mvAppend.children().get(0), is(categorizeAlias.toAttribute()));
+
+        var eval = as(agg.child(), Eval.class);
+        var evalFieldAlias = as(eval.fields().get(0), Alias.class);
+        var categorize = as(categorizeAlias.child(), Categorize.class);
+        assertThat(categorize.field(), is(evalFieldAlias.toAttribute()));
+    }
+
+    /**
+     * CATEGORIZE over an expression combined with another grouping, above a projection: an
+     * untested shape for CombineProjections, which must leave the plan as is rather than trip
+     * the single-CATEGORIZE assumption (#165176).
+     */
+    public void testCategorizeOnExpressionWithAdditionalGroupAboveProject() {
+        var plan = optimizedPlan("""
+            from test
+            | sort first_name
+            | limit 5
+            | stats c = count() by cat = CATEGORIZE(TO_LOWER(first_name)), emp_no
+            | sort cat, emp_no
+            """);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), instanceOf(Aggregate.class));
+    }
+
+    /**
      * Expects
      * {@snippet lang="text":
      * Limit[1000[INTEGER]]

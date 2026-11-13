@@ -250,6 +250,37 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
         );
     }
 
+    public void testBulkMaskedIgnoresVectorsPastTheBlock() {
+        assumeTrue(notSupportedMsg(), supported());
+
+        final int count = randomIntBetween(0, Integer.SIZE - 1);
+        final int mask = randomInvalidBulkMask(count);
+        // vectors and scores for all the 32 positions a mask can select, so that scoring past the block fails the
+        // assertions instead of accessing unallocated memory
+        final TestData testData = createTestData(Integer.SIZE, size, type);
+
+        float[] expectedScores = unselectedScores(Integer.SIZE);
+        ScalarOperations.bulkMasked(
+            function,
+            testData.unpackedQueryVector,
+            testData.unpackedIndexVectors,
+            mask & BulkMask.all(count),
+            expectedScores
+        );
+
+        var bulkScoresSeg = unselectedScoresSegment(Integer.SIZE);
+        nativeSimilarityBulkMaskedRaw(
+            testData.indexSegment,
+            testData.querySegment,
+            testData.indexVectorBytes,
+            testData.indexVectorBytes,
+            mask,
+            count,
+            bulkScoresSeg
+        );
+        assertScoresEquals(expectedScores, bulkScoresSeg);
+    }
+
     public void testBulkSparse() {
         assumeTrue(notSupportedMsg(), supported());
         assumeTrue("BulkSparse only used in production for D1Q4 (BBQ)", type == SimdVecLibrary.BBQType.D1Q4);
@@ -483,6 +514,18 @@ public class SimdVecLibraryBBQTests extends SimdVecLibraryTests {
             case D2Q4 -> getVectorDistance().dotProductD2Q4BulkMasked(a, b, dims, pitch, mask, count, result);
             case D4Q4 -> getVectorDistance().dotProductD4Q4BulkMasked(a, b, dims, pitch, mask, count, result);
             case D2Q4_PACKED -> getVectorDistance().dotProductD2Q4PackedBulkMasked(a, b, dims, pitch, mask, count, result);
+        }
+    }
+
+    /** Like {@link #nativeSimilarityBulkMasked}, but skipping the mask validation of the public bindings. */
+    void nativeSimilarityBulkMaskedRaw(MemorySegment a, MemorySegment b, int dims, int pitch, int mask, int count, MemorySegment result) {
+        switch (type) {
+            case D1Q1 -> getVectorDistance().dotProductD1Q1BulkMasked_raw(a, b, dims, pitch, mask, count, result);
+            case D1Q4 -> getVectorDistance().dotProductD1Q4BulkMasked_raw(a, b, dims, pitch, mask, count, result);
+            case D2Q2 -> getVectorDistance().dotProductD2Q2BulkMasked_raw(a, b, dims, pitch, mask, count, result);
+            case D2Q4 -> getVectorDistance().dotProductD2Q4BulkMasked_raw(a, b, dims, pitch, mask, count, result);
+            case D4Q4 -> getVectorDistance().dotProductD4Q4BulkMasked_raw(a, b, dims, pitch, mask, count, result);
+            case D2Q4_PACKED -> getVectorDistance().dotProductD2Q4PackedBulkMasked_raw(a, b, dims, pitch, mask, count, result);
         }
     }
 

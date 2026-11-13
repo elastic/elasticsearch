@@ -10,8 +10,6 @@
 package org.elasticsearch.telemetry.apm.internal.instrumentation;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -33,16 +31,15 @@ public class HttpServerInstrumentationsTests extends ESTestCase {
     final HttpServerInstrumentation second = mock(HttpServerInstrumentation.class);
     final HttpServerInstrumentations instrumentations = new HttpServerInstrumentations(List.of(first, second));
 
-    final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     final RestRequest request = new FakeRestRequest();
     final RestResponse response = new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
 
     public void testStartDelegatesToAllInOrder() {
-        instrumentations.start(threadContext, request, "route");
+        instrumentations.start(request, "route");
 
         var inOrder = inOrder(first, second);
-        inOrder.verify(first).start(threadContext, request, "route");
-        inOrder.verify(second).start(threadContext, request, "route");
+        inOrder.verify(first).start(request, "route");
+        inOrder.verify(second).start(request, "route");
         inOrder.verifyNoMoreInteractions();
     }
 
@@ -60,10 +57,10 @@ public class HttpServerInstrumentationsTests extends ESTestCase {
     public void testPrepareEndDoesNotCloseDelegatesUntilAggregateIsClosed() {
         Releasable firstReleasable = mock(Releasable.class);
         Releasable secondReleasable = mock(Releasable.class);
-        when(first.prepareEnd(threadContext, request, response)).thenReturn(firstReleasable);
-        when(second.prepareEnd(threadContext, request, response)).thenReturn(secondReleasable);
+        when(first.prepareEnd(request, response)).thenReturn(firstReleasable);
+        when(second.prepareEnd(request, response)).thenReturn(secondReleasable);
 
-        Releasable aggregate = instrumentations.prepareEnd(threadContext, request, response);
+        Releasable aggregate = instrumentations.prepareEnd(request, response);
 
         verifyNoInteractions(firstReleasable, secondReleasable);
 

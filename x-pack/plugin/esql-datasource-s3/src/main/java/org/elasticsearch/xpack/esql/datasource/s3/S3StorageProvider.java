@@ -875,8 +875,13 @@ public class S3StorageProvider implements StorageProvider {
                 if (files.size() + directories.size() > limit) {
                     return null; // too wide to buffer; the caller falls back to listObjects, which pages lazily
                 }
+                if (truncatedWithoutToken(response)) {
+                    throw new TruncatedWithoutTokenException();
+                }
                 continuationToken = response.nextContinuationToken();
             } while (continuationToken != null);
+        } catch (TruncatedWithoutTokenException e) {
+            throw new IOException("Failed to list children in the configured path: " + TRUNCATED_WITHOUT_TOKEN_MESSAGE);
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);
             // Same typing as the other list sites: a 503/429 must surface as ExternalUnavailableException so the
@@ -1137,7 +1142,7 @@ public class S3StorageProvider implements StorageProvider {
 
         private Iterator<S3Object> currentBatch;
         private String continuationToken;
-        private boolean hasMorePages;
+        private boolean firstPageFetched;
 
         /**
          * Non-null on the custom-endpoint, no-explicit-region path; consumed (set to null) after the
@@ -1159,26 +1164,18 @@ public class S3StorageProvider implements StorageProvider {
             this.prefix = prefix;
             this.baseDirectory = baseDirectory;
             this.regionHint = regionHint;
-            this.hasMorePages = true;
             this.retryClientFactory = retryClientFactory;
         }
 
         @Override
         public boolean hasNext() {
-            if (currentBatch == null) {
+            while (currentBatch == null || currentBatch.hasNext() == false) {
+                if (firstPageFetched && continuationToken == null) {
+                    return false;
+                }
                 fetchNextBatch();
             }
-
-            if (currentBatch != null && currentBatch.hasNext()) {
-                return true;
-            }
-
-            if (hasMorePages) {
-                fetchNextBatch();
-                return currentBatch != null && currentBatch.hasNext();
-            }
-
-            return false;
+            return true;
         }
 
         @Override
@@ -1197,6 +1194,7 @@ public class S3StorageProvider implements StorageProvider {
         }
 
         private void fetchNextBatch() {
+            ListObjectsV2Response response;
             try {
                 ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder().bucket(bucket).prefix(prefix);
 
@@ -1204,12 +1202,8 @@ public class S3StorageProvider implements StorageProvider {
                     requestBuilder.continuationToken(continuationToken);
                 }
 
-                ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                response = s3Client.listObjectsV2(requestBuilder.build());
                 ExternalPlanningIo.addMetadataGet(0);
-
-                currentBatch = response.contents().iterator();
-                continuationToken = response.nextContinuationToken();
-                hasMorePages = response.isTruncated();
             } catch (Exception e) {
                 ExternalPlanningIo.addMetadataGet(0);
                 ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
@@ -1238,7 +1232,28 @@ public class S3StorageProvider implements StorageProvider {
                     : "Failed to list objects in the configured path";
                 throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e) + regionHint, e));
             }
+            if (truncatedWithoutToken(response)) {
+                throw new UncheckedIOException(
+                    new IOException("Failed to list objects in the configured path: " + TRUNCATED_WITHOUT_TOKEN_MESSAGE)
+                );
+            }
+            currentBatch = response.contents().iterator();
+            continuationToken = response.nextContinuationToken();
+            firstPageFetched = true;
         }
+    }
+
+    private static final class TruncatedWithoutTokenException extends RuntimeException {
+        TruncatedWithoutTokenException() {
+            super(null, null, false, false);
+        }
+    }
+
+    private static final String TRUNCATED_WITHOUT_TOKEN_MESSAGE =
+        "the store returned a truncated listing page without a continuation token";
+
+    private static boolean truncatedWithoutToken(ListObjectsV2Response response) {
+        return Boolean.TRUE.equals(response.isTruncated()) && response.nextContinuationToken() == null;
     }
 
 }

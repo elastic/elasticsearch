@@ -1072,8 +1072,8 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
     /// asserting a single request. The master may send several requests for the same recoveries:
     ///
     /// - A desired balance that did not converge with the latest input (e.g. superseded by an unrelated concurrent
-    /// reroute) only cancels shards that cannot remain on their node, and always with `cancelIfStarted=false`. It may
-    /// therefore only send a subset of the expected cancellations.
+    ///   reroute) only cancels shards that cannot remain on their node, and always with `cancelIfStarted=false`. It may
+    ///   therefore only send a subset of the expected cancellations.
     /// - The master deduplicates resends, except when `cancelIfStarted` escalates from `false` to `true`.
     ///
     /// Each received cancellation must be expected, and must never carry `cancelIfStarted=true` where `false` is expected.

@@ -104,7 +104,6 @@ import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.CLOSED;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
@@ -221,17 +220,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /// Failure has been (or is being) reported to master; will prevent shard creation for this allocation until removed.
         /// Only cleared when shard allocation becomes stale through a cluster state update.
+        ///
+        /// For a [FailureStrategy#FAIL_SILENT_AND_BLOCK] failure, master has not been sent the failure by [IndicesClusterStateService],
+        /// because it is expected to learn of it by some other route. The entry still prevents shard creation, and if a later cluster state
+        /// still assigns the allocation then [#updatePendingAllocationTracker] sends the failure then, like it does for any other entry
+        /// which master has not yet acted on.
         record FailureReported(ShardRouting routing, long primaryTerm, ShardFailureType failureType) implements PendingAllocationState {}
-
-        /// Failure has been handled locally without being reported to master yet, because master is expected to learn of it by
-        /// some other route (see [FailureStrategy#FAIL_SILENT_AND_BLOCK]). Will prevent shard creation for this allocation until
-        /// removed. Cleared when shard allocation becomes stale through a cluster state update. If a cluster state still assigns
-        /// the allocation, master has not acted on the failure: this could be because the other route has not taken effect yet, or it could
-        /// be that the other route did not work (e.g. a message was lost): the failure is reported to it then, to be on the safe side
-        /// (duplicate reports are harmless), and this entry becomes a [FailureReported].
-        record SilentlyFailedAndBlocked(ShardRouting routing, long primaryTerm, ShardFailureType failureType)
-            implements
-                PendingAllocationState {}
     }
 
     // Visible for tests
@@ -448,12 +442,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // TODO: feels hacky, a block disables state persistence, and then we clean the allocated shards, maybe another flag in blocks?
         if (state.blocks().disableStatePersistence()) {
             // Every index is about to be torn down, so no in-progress creation ticket can still be valid.
+            // FailureReported entries track what master has been told, not a local shard, so they remain
+            // valid regardless and are left alone here.
             // Sweep the tickets before removing the shards for internal consistency in IndicesClusterStateService
             // (updatePendingAllocationTracker runs first in normal operations).
-            // We remove InFlight tickets; other ticket do not represent an in-progress creation, so they remain valid and are left alone.
             int evicted = 0;
             for (final var iterator = pendingAllocationStates.entrySet().iterator(); iterator.hasNext();) {
-                if (iterator.next().getValue() instanceof PendingAllocationState.InFlight) {
+                if (iterator.next().getValue() instanceof PendingAllocationState.FailureReported == false) {
                     iterator.remove();
                     evicted++;
                 }
@@ -489,9 +484,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * allocation stops initializing, since their lifecycle only makes sense during an in-progress creation
      * attempt. For {@link PendingAllocationState.FailureReported} entries, either drops the entry once
      * master has processed the failure, or resends it if master hasn't yet -- the initial failure report
-     * is sent separately, from {@link #createIndicesAndUpdateShards}. {@link PendingAllocationState.SilentlyFailedAndBlocked}
-     * entries are dropped under the same conditions, but if the master hasn't acted yet, the failure is reported to it for the first
-     * time, turning the entry into a {@link PendingAllocationState.FailureReported}.
+     * is sent separately, from {@link #createIndicesAndUpdateShards}, except for a
+     * {@link FailureStrategy#FAIL_SILENT_AND_BLOCK} failure, for which this is where the failure is first sent, if master
+     * has not acted on it by then.
      *
      * @param state new cluster state
      */
@@ -514,13 +509,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             switch (entry.getValue()) {
                 case PendingAllocationState.InFlight ticket -> evictIfAttemptStale(key, ticket, currentRouting, state);
                 case PendingAllocationState.FailureReported ticket -> evictOrResendFailure(key, ticket, currentRouting, state, masterNode);
-                case PendingAllocationState.SilentlyFailedAndBlocked ticket -> evictOrSendFailure(
-                    key,
-                    ticket,
-                    currentRouting,
-                    state,
-                    masterNode
-                );
             }
         }
     }
@@ -579,67 +567,25 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexMetadata.isEmpty() ? "index deleted" : "master already bumped primary term"
             );
             pendingAllocationStates.remove(key, ticket);
-        } else if (masterNode != null) { // TODO: remove this? Is resending shard failures the responsibility of shardStateAction?
-            String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
-            logger.trace("[{}] re-sending failed shard [{}], reason [{}]", key.shardId(), ticket.routing(), message);
-            final Exception resendFailure = failureFor(ticket.failureType(), key.shardId(), state);
-            shardStateAction.localShardFailed(ticket.routing(), message, resendFailure, ActionListener.noop(), state);
-        }
-    }
-
-    /// The failure to report to master for a failure recorded as `failureType`. The original exception isn't retained.
-    @Nullable
-    private static Exception failureFor(ShardFailureType failureType, ShardId shardId, ClusterState state) {
-        return failureType == ShardFailureType.RECOVERY_CANCELLED
-            ? new RecoveryCancelledException(shardId, null, state.nodes().getLocalNode())
-            : null;
-    }
-
-    private static ShardFailureType failureTypeOf(@Nullable Exception failure) {
-        return isRecoveryCancellation(failure) ? ShardFailureType.RECOVERY_CANCELLED : ShardFailureType.FAILED;
-    }
-
-    private void evictOrSendFailure(
-        ShardAllocationKey key,
-        PendingAllocationState.SilentlyFailedAndBlocked ticket,
-        @Nullable ShardRouting currentRouting,
-        ClusterState state,
-        @Nullable DiscoveryNode masterNode
-    ) {
-        assert Thread.holdsLock(this);
-        if (currentRouting == null || requireNonNull(currentRouting.allocationId()).getId().equals(key.allocationId()) == false) {
-            logger.debug("{} evicting stale {} ticket: allocation no longer current", key, ticket);
-            pendingAllocationStates.remove(key, ticket);
-            return;
-        }
-        final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(key.shardId().getIndex());
-        if (indexMetadata.isEmpty() || indexMetadata.get().primaryTerm(key.shardId().id()) > ticket.primaryTerm()) {
-            // Index was deleted, or the master already processed the failure and bumped the primary term.
-            logger.debug(
-                "{} evicting stale {} ticket: {}",
-                key,
-                ticket,
-                indexMetadata.isEmpty() ? "index deleted" : "master already bumped primary term"
-            );
-            pendingAllocationStates.remove(key, ticket);
         } else if (masterNode != null) {
-            // A cluster state still assigns this allocation, so this node would recreate the shard if it were not blocked, which means
-            // the master has not acted on the failure (e.g. the response that would have told it was lost). Report the failure now,
-            // as FAIL_SEND would have. This also replaces this entry with a FailureReported, so the failure is re-sent until the
-            // master acts. If there is no master, keep blocking and try again on the next cluster state.
+            // This is either a re-send of a failure we already sent, or the first send of a FAIL_SILENT_AND_BLOCK failure, which we
+            // deliberately did not send when it happened because master was expected to learn of it some other way. Either way, a
+            // cluster state still assigns this allocation, so master has not acted on the failure (e.g. a message was lost).
             //
-            // This can also be a spurious report: the master may simply not have processed the failure yet (e.g. the response did
-            // arrive but a cluster state was applied here first). That is harmless. If the master gets to it first, this failure
-            // is ignored by ShardFailedTaskExecutor because the allocation no longer exists, and if it doesn't, the master fails the
+            // TODO: remove this? Is resending shard failures the responsibility of shardStateAction? (Note that FAIL_SILENT_AND_BLOCK
+            // relies on this to report the failure at all, so removing it needs a replacement for that case.)
+            //
+            // For FAIL_SILENT_AND_BLOCK this can be a spurious report: master may simply not have processed the failure yet (e.g. its
+            // response arrived but a cluster state was applied here first). That is harmless. If master gets to it first, this failure
+            // is ignored by ShardFailedTaskExecutor because the allocation no longer exists, and if it doesn't, master fails the
             // allocation anyway, as it was about to. A failure which this node reports itself has primary term 0, so it never marks
             // the shard copy as stale.
-            sendFailShard(
-                ticket.routing(),
-                ticket.primaryTerm(),
-                "master " + masterNode + " has not processed the failure of this recovery, sending shard failure",
-                failureFor(ticket.failureType(), key.shardId(), state),
-                state
-            );
+            String message = "master " + masterNode + " has not removed failed shard. sending shard failure";
+            logger.trace("[{}] sending failed shard [{}], reason [{}]", key.shardId(), ticket.routing(), message);
+            final Exception resendFailure = ticket.failureType() == ShardFailureType.RECOVERY_CANCELLED
+                ? new RecoveryCancelledException(key.shardId(), null, state.nodes().getLocalNode())
+                : null;
+            shardStateAction.localShardFailed(ticket.routing(), message, resendFailure, ActionListener.noop(), state);
         }
     }
 
@@ -994,10 +940,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             ShardId shardId = shardRouting.shardId();
             ShardAllocationKey shardAllocationKey = ShardAllocationKey.fromRouting(shardRouting);
 
-            final PendingAllocationState pendingState = pendingAllocationStates.get(shardAllocationKey);
-            if (pendingState instanceof PendingAllocationState.FailureReported
-                || pendingState instanceof PendingAllocationState.SilentlyFailedAndBlocked) {
-                logger.debug("{} not creating/updating shard: allocation already failed [{}]", shardAllocationKey, pendingState);
+            if (pendingAllocationStates.get(shardAllocationKey) instanceof PendingAllocationState.FailureReported) {
+                logger.debug("{} not creating/updating shard: failure already reported to master", shardAllocationKey);
                 continue;
             }
 
@@ -1130,9 +1074,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         for (final ShardRouting shardRouting : localRoutingNode) {
                             boolean thisIndex = shardRouting.index().equals(index);
                             final var key = ShardAllocationKey.fromRouting(shardRouting);
-                            final var pendingState = pendingAllocationStates.get(key);
-                            boolean alreadyFailed = pendingState instanceof PendingAllocationState.FailureReported
-                                || pendingState instanceof PendingAllocationState.SilentlyFailedAndBlocked;
+                            boolean alreadyFailed = pendingAllocationStates.get(key) instanceof PendingAllocationState.FailureReported;
                             if (thisIndex && alreadyFailed == false) {
                                 sendFailShard(
                                     shardRouting,
@@ -1248,9 +1190,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         PendingAllocationState current = pendingAllocationStates.get(key);
         assert current == null || current.primaryTerm() == primaryTerm
             : "stale-term entry " + current + " should have been evicted by the sweep before claiming term " + primaryTerm;
-        if (current instanceof PendingAllocationState.InFlight
-            || current instanceof PendingAllocationState.FailureReported
-            || current instanceof PendingAllocationState.SilentlyFailedAndBlocked) {
+        if (current instanceof PendingAllocationState.InFlight || current instanceof PendingAllocationState.FailureReported) {
             return Optional.empty();
         }
         var inFlightTicket = new PendingAllocationState.InFlight(threadPool.relativeTimeInMillis(), primaryTerm);
@@ -1728,14 +1668,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 )
             );
             if (finalStrategy == FailureStrategy.FAIL_SILENT_AND_BLOCK) {
-                // Swap our InFlight ticket for one that keeps blocking recreation of this allocation, since master isn't being told
-                // about this failure so won't necessarily have removed the allocation by the next cluster state. If it hasn't,
-                // evictOrSendFailure reports the failure then. Nothing else can have replaced the ticket (we hold the lock and checked
-                // it above), so this always succeeds.
+                // Master isn't being told about this failure now, so it won't necessarily have removed the allocation by the next
+                // cluster state. Swap our InFlight ticket for a FailureReported one so that recreation of this allocation stays
+                // blocked, and so that updatePendingAllocationTracker sends the failure if master hasn't acted on it by then.
+                // Nothing else can have replaced the ticket (we hold the lock and checked it above), so this always succeeds.
                 final boolean blocked = pendingAllocationStates.replace(
                     key,
                     inFlightTicket,
-                    new PendingAllocationState.SilentlyFailedAndBlocked(shardRouting, primaryTerm, failureTypeOf(failure))
+                    new PendingAllocationState.FailureReported(shardRouting, primaryTerm, failureTypeOf(failure))
                 );
                 assert blocked : "ticket for " + key + " was replaced while handling recovery failure";
             }
@@ -1745,8 +1685,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             logger.error(wrappedException.getMessage(), e);
             assert false : e;
         } finally {
-            // A no-op if sendFailShard already overwrote this entry with FailureReported (its put always wins);
-            // otherwise there's no further attempt coming for this ticket, so clear it here. Unconditional (not
+            // A no-op if sendFailShard already overwrote this entry with FailureReported (its put always wins), or we swapped it
+            // for one above; otherwise there's no further attempt coming for this ticket, so clear it here. Unconditional (not
             // just on the try's success path) so an unexpected exception above still releases the ticket, rather
             // than leaving it owned forever by an attempt that's already done failing.
             final boolean cleared = pendingAllocationStates.remove(key, inFlightTicket);
@@ -1820,6 +1760,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (failure != null) inner.addSuppressed(failure);
             logger.warn(() -> format("%s failed to mark shard as failed (because of [%s])", shardId, message), inner);
         }
+    }
+
+    private static ShardFailureType failureTypeOf(@Nullable Exception failure) {
+        return isRecoveryCancellation(failure) ? ShardFailureType.RECOVERY_CANCELLED : ShardFailureType.FAILED;
     }
 
     private static boolean isRecoveryCancellation(@Nullable Exception failure) {

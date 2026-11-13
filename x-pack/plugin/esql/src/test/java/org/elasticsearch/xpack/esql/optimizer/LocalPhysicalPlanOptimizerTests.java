@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.apache.lucene.queryparser.xml.builders.BooleanQueryBuilder;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
@@ -145,6 +146,7 @@ import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
+import static org.elasticsearch.test.TransportVersionUtils.randomVersionSupporting;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
@@ -166,6 +168,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -2032,6 +2035,59 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
         var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 20, null, null, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
+    }
+
+    /**
+     * An inline {@code TO_DENSE_VECTOR} over a keyword field has no indexed vector behind it, so KNN must stay in a
+     * {@link FilterExec} as a runtime search rather than be pushed as a Lucene knn query on the keyword field.
+     */
+    public void testKnnOnInlineToDenseVectorOfKeywordNotPushed() {
+        String query = """
+            from test
+            | where KNN(to_dense_vector(keyword), [0.1, 0.2, 0.3])
+            | limit 10
+            """;
+        var plan = knnRuntimePlannerOptimizer().plan(query, IS_SV_STATS);
+
+        assertThat(pushedQuery(plan), nullValue());
+        var knn = as(runtimeFilterCondition(plan), Knn.class);
+        assertTrue(knn.isRuntimeSearch());
+    }
+
+    /**
+     * Only the indexed leg of a conjunction is pushed; the runtime KNN over an inline {@code TO_DENSE_VECTOR} stays behind.
+     */
+    public void testKnnOnInlineToDenseVectorOfKeywordAndIndexedFilterSplit() {
+        String query = """
+            from test
+            | where KNN(to_dense_vector(keyword), [0.1, 0.2, 0.3]) and integer > 10
+            | limit 10
+            """;
+        var plan = knnRuntimePlannerOptimizer().plan(query, IS_SV_STATS);
+
+        var pushed = pushedQuery(plan);
+        assertThat(pushed, notNullValue());
+        assertThat(pushed, not(instanceOf(BooleanQueryBuilder.class)));
+        assertThat(pushed.toString(), not(containsString("knn")));
+        assertThat(pushed, instanceOf(SingleValueQuery.Builder.class));
+        var rangeQueryBuilder = as(((SingleValueQuery.Builder) pushed).next(), RangeQueryBuilder.class);
+        assertEquals("integer", rangeQueryBuilder.fieldName());
+        assertEquals(10, rangeQueryBuilder.from());
+        assertFalse(rangeQueryBuilder.includeLower());
+        var knn = as(runtimeFilterCondition(plan), Knn.class);
+        assertTrue(knn.isRuntimeSearch());
+    }
+
+    /**
+     * Runtime KNN is rejected when a participating node predates it, so pin the minimum version to one that supports it.
+     */
+    private TestPlannerOptimizer knnRuntimePlannerOptimizer() {
+        var analyzer = EsqlTestUtils.analyzer()
+            .configuration(config)
+            .addIndex("test", "mapping-all-types.json")
+            .minimumTransportVersion(randomVersionSupporting(Knn.ESQL_KNN_RUNTIME_FIELD))
+            .buildAnalyzer();
+        return new TestPlannerOptimizer(config, analyzer);
     }
 
     /**

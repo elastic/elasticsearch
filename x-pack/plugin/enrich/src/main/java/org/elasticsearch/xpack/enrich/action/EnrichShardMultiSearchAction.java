@@ -19,7 +19,6 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -423,11 +422,11 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
      * reference is per item rather than on the multi-search response, because when a batch spans several enrich indices, the
      * coordinator frees the response of the index that answered first before the processors have used its items.
      */
-    private static final class ChargedSearchResponse extends SearchResponse {
+    static final class ChargedSearchResponse extends SearchResponse {
         private final SourceBytesReservation reservation;
 
         ChargedSearchResponse(SearchHits hits, SourceBytesReservation reservation) {
-            super(hits, null, null, false, null, null, 0, null, 1, 1, 0, 1L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+            super(hits, null, null, false, null, null, 0, null, 1, 1, 0, 1L, List.of(), SearchResponse.Clusters.EMPTY);
             reservation.mustIncRef();
             this.reservation = reservation;
         }

@@ -10,12 +10,8 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 
 /// The warming timeouts of search shards that relocate from a source node that is shutting down, which depend on the grace deadline of
@@ -25,40 +21,15 @@ import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutCont
 /// [SearchRecoveryTimeoutCalculationService] reads as a choice of the timeout context.
 class RelocationSourceShutdownTimeouts {
 
-    private final StatelessSharedBlobCacheService cacheService;
-    private final ThreadPool threadPool;
-    private volatile int maxConcurrentRelocationRecoveries;
-    private volatile TimeValue searchRecoveryWarmingGracePeriodCap;
+    private final ShutdownTimingSupport timing;
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
-    private volatile double searchRecoveryWarmingCacheRatio;
     private volatile boolean searchRecoveryWarmingFilterSourceShardsByTarget;
 
-    RelocationSourceShutdownTimeouts(
-        StatelessSharedBlobCacheService cacheService,
-        ThreadPool threadPool,
-        ClusterSettings clusterSettings,
-        Settings nodeSettings,
-        ByteSizeValue maxHeap
-    ) {
-        this.cacheService = cacheService;
-        this.threadPool = threadPool;
-        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
-            clusterSettings,
-            nodeSettings,
-            maxHeap,
-            limits -> this.maxConcurrentRelocationRecoveries = limits.maxConcurrentNonCriticalRecoveries()
-        );
-        clusterSettings.initializeAndWatch(
-            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
-            value -> this.searchRecoveryWarmingGracePeriodCap = value
-        );
+    RelocationSourceShutdownTimeouts(ShutdownTimingSupport timing, ClusterSettings clusterSettings) {
+        this.timing = timing;
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             value -> this.searchRecoveryWarmingSourceShutdownShareFactor = value
-        );
-        clusterSettings.initializeAndWatch(
-            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
-            value -> this.searchRecoveryWarmingCacheRatio = value
         );
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING,
@@ -76,9 +47,9 @@ class RelocationSourceShutdownTimeouts {
     ///
     /// with `deadline = start + min(metadata grace, cap)`. The timeout is capped at the remaining grace period.
     ///
-    /// `concurrentRelocations` is this source's share of the target's, split between all relocations to the target from
-    /// any shutting-down source. It may be below one slot, so the timeout may round down to zero (skipping warming). This
-    /// is a rough estimate, and an upper bound: it ignores the other recoveries competing for the target's slots.
+    /// `concurrentRelocations` is this source's share of the slots known to be available to the target's relocations, see
+    /// [#estimateConcurrentRelocations]. It may be below one slot, so the timeout may round down to zero (skipping warming). This is a
+    /// rough estimate, and an upper bound: it ignores the other recoveries competing for the target's slots.
     ///
     /// The heuristics above decide the first plan of the shutdown phase. Only equal-share plans are
     /// [SearchRecoveryTimeout#extendable]. A re-evaluation of an equal-share plan (`previousPlan`) always yields an equal-share
@@ -95,13 +66,8 @@ class RelocationSourceShutdownTimeouts {
     ) {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
         assert shutdown != null;
-        TimeValue grace = shutdown.getGracePeriod();
-        if (grace == null) {
-            grace = searchRecoveryWarmingGracePeriodCap;
-        }
-        final long effectiveGraceMillis = Math.min(grace.getMillis(), searchRecoveryWarmingGracePeriodCap.millis());
-        final long now = threadPool.absoluteTimeInMillis();
-        final long deadline = shutdown.getStartedAtMillis() + effectiveGraceMillis;
+        final long now = timing.nowMillis();
+        final long deadline = timing.graceDeadline(shutdown);
         final long remaining = deadline - now;
         if (remaining <= 0) {
             return new SearchRecoveryTimeout(TimeValue.ZERO, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED);
@@ -114,22 +80,11 @@ class RelocationSourceShutdownTimeouts {
         );
         final double equalShareMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor;
 
-        // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.
-        final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
         // Re-evaluations pass the bytes still to warm (an approximation, see SearchRecoveryTimeoutCalculationService#extendedTimeout),
-        // the first calculation passes all of them. The baseline (the warming cache budget) is still fixed, since it's hard to do the
-        // accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
-        final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
+        // the first calculation passes all of them.
+        final double dataVolumeMs = timing.dataVolumeShareMs(totalBytesToWarm, remaining);
 
-        // The current shard is itself one such relocation, floor at 1 in case it is not yet visible on the source's RoutingNode.
-        final int relocationsFromSourceToTarget = Math.max(1, countRelocationsBetween(state, sourceNodeId, targetNodeId));
-        final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
-
-        // Share the target's cap between shutting-down sources, preserving fractional shares below one slot.
-        final double concurrentRelocations = Math.min(
-            relocationsFromSourceToTarget,
-            (double) maxConcurrentRelocationRecoveries * relocationsFromSourceToTarget / allRelocationsToTarget
-        );
+        final double concurrentRelocations = estimateConcurrentRelocations(state, sourceNodeId, targetNodeId, shardsOnSource);
 
         if (previousPlan != null && previousPlan.isEqualSharePlan() && previousPlan.perShardShareMs() > 0) {
             // Re-evaluation of an equal-share plan: every shard still on the source was already budgeted previousPlan.perShardShareMs()
@@ -167,6 +122,26 @@ class RelocationSourceShutdownTimeouts {
                 equalShareMs
             );
         }
+    }
+
+    /// Returns the estimated number of the shards of `sourceNodeId` that relocate to `targetNodeId` at the same time: the source's share of
+    /// the slots known to be available to the relocations from shutting-down nodes, see [ShutdownTimingSupport#knownRelocationSlots], split between the sources
+    /// in proportion to their relocations in flight, and not more than `shardsOnSource`. It scales the equal share of one shard to the time
+    /// the shards of the source can use the slots together. It can be fractional and below one, when the slots are split between sources.
+    /// Without data node recovery throttling, it is the relocations from the source to the target that are in flight.
+    private double estimateConcurrentRelocations(
+        final ClusterState state,
+        final String sourceNodeId,
+        final String targetNodeId,
+        final int shardsOnSource
+    ) {
+        // The current shard is itself one such relocation, floor at 1 in case it is not yet visible on the source's RoutingNode.
+        final int relocationsFromSourceToTarget = Math.max(1, countRelocationsBetween(state, sourceNodeId, targetNodeId));
+        final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
+        return Math.min(
+            shardsOnSource,
+            (double) timing.knownRelocationSlots(allRelocationsToTarget) * relocationsFromSourceToTarget / allRelocationsToTarget
+        );
     }
 
     private static int countShardsOnNode(ClusterState clusterState, String nodeId) {

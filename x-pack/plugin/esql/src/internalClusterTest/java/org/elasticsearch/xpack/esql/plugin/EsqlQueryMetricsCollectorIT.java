@@ -53,6 +53,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry.GA_TEXT_CODECS;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -697,7 +698,10 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertThat(format + ": read_cpu_nanos > 0", lastMetrics.get(QueryMetricsListener.READ_CPU_NANOS), greaterThan(0L));
     }
 
-    /** A CSV whose header declares an integer column and whose row [badRow] is not an integer: a scan fails on it, after reading the rows before. */
+    /**
+     * A CSV whose header declares an integer column and whose row [badRow] is not an integer: a scan fails on it, after reading
+     * the rows before.
+     */
     private Path writeCsvWithBadRow(int badRow, int rows) throws IOException {
         Path dir = createTempDir();
         StringBuilder csv = new StringBuilder("emp_no:integer\n");
@@ -734,6 +738,67 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
             greaterThan(0L)
         );
         assertThat(lastMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
+    }
+
+    /**
+     * The CPU of a query that failed is in an APM counter of its own, with its outcome, equal to what the listener was given, and
+     * not in the one that matches what is billed.
+     */
+    public void testApmCpuOfAFailedQueryIsNotPartOfTheBilledCounter() throws Exception {
+        assumeFalse("Windows has bad timer resolution, metrics are not accurate", Constants.WINDOWS);
+        Path file = writeCsvWithBadRow(20_000, 40_000);
+        String dataset = registerDataset("metrics_apm_failing_ds", file.toUri().toString(), Map.of("format", "csv"));
+        TestTelemetryPlugin telemetry = internalCluster().getInstance(PluginsService.class)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .get();
+        telemetry.resetMeter();
+
+        expectThrows(Exception.class, () -> {
+            try (var ignored = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS s = SUM(emp_no)"), TIMEOUT)) {
+                // the scan must fail on the malformed row
+            }
+        });
+
+        assertThat(lastOutcome, equalTo(QueryMetricsListener.Outcome.FAILED));
+        assertThat("what is billed is not affected", telemetry.getLongCounterMeasurement(ExternalSourceMetrics.QUERY_CPU_TOTAL), empty());
+        assertUnsuccessfulApmCpuMatches(
+            telemetry,
+            ExternalSourceMetrics.CPU_COMPONENT_PLANNING,
+            ExternalSourceMetrics.OUTCOME_FAILURE,
+            QueryMetricsListener.PLANNING_CPU_NANOS
+        );
+        assertUnsuccessfulApmCpuMatches(
+            telemetry,
+            ExternalSourceMetrics.CPU_COMPONENT_READ,
+            ExternalSourceMetrics.OUTCOME_FAILURE,
+            QueryMetricsListener.READ_CPU_NANOS
+        );
+        assertThat(
+            "nothing is recorded for the other outcome",
+            telemetry.getLongCounterMeasurement(ExternalSourceMetrics.QUERY_UNSUCCESSFUL_CPU_TOTAL)
+                .stream()
+                .filter(m -> ExternalSourceMetrics.OUTCOME_CANCELLED.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+                .toList(),
+            empty()
+        );
+    }
+
+    private static void assertUnsuccessfulApmCpuMatches(
+        TestTelemetryPlugin telemetry,
+        String component,
+        String outcome,
+        String listenerKey
+    ) {
+        long apm = telemetry.getLongCounterMeasurement(ExternalSourceMetrics.QUERY_UNSUCCESSFUL_CPU_TOTAL)
+            .stream()
+            .filter(m -> outcome.equals(m.attributes().get(ExternalSourceMetrics.OUTCOME_ATTRIBUTE)))
+            .filter(m -> component.equals(m.attributes().get(ExternalSourceMetrics.CPU_COMPONENT_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
+        long reported = lastMetrics.get(listenerKey);
+        assertThat("reported " + listenerKey + " > 0", reported, greaterThan(0L));
+        assertThat("APM cpu.unsuccessful.total{" + outcome + "," + component + "} equals reported " + listenerKey, apm, equalTo(reported));
     }
 
     /** The billing listener does not know about outcomes: it is called for the query that succeeded and not for the one that failed. */

@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -529,16 +530,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         long planningCpu = qp.planningCpuNanos();
         long splitDiscoveryCpu = qp.splitDiscoveryCpuNanos();
         // APM and phone-home CPU recording — independent of the billing listener so that a failure
-        // here never silently suppresses the billing call below. It describes the work of the queries that succeeded, like the
-        // billing it is meant to match; the other queries are not part of it.
-        if (outcome == QueryMetricsListener.Outcome.SUCCESS) {
-            try {
-                planExecutor.dataSourceModule()
-                    .externalSourceMetrics()
-                    .recordQueryCpu(executionCpu, readCpu, planningCpu, splitDiscoveryCpu);
-            } catch (Exception ex) {
-                logger.warn("failed to record query CPU metrics", ex);
-            }
+        // here never silently suppresses the billing call below. The CPU of the queries that did not succeed is recorded apart from
+        // the one of those that succeeded, which is what is billed, so that the latter keeps matching the billing signal.
+        try {
+            planExecutor.dataSourceModule()
+                .externalSourceMetrics()
+                .recordQueryCpu(externalSourceOutcome(outcome), executionCpu, readCpu, planningCpu, splitDiscoveryCpu);
+        } catch (Exception ex) {
+            logger.warn("failed to record query CPU metrics", ex);
         }
         // Billing listener — kept in its own try so a CPU-recording failure above never silently skips this call.
         if (metricsCollector.equals(QueryMetricsListener.NOOP) == false) {
@@ -570,6 +569,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 logger.warn("failed to collect query metrics", ex);
             }
         }
+    }
+
+    private static String externalSourceOutcome(QueryMetricsListener.Outcome outcome) {
+        return switch (outcome) {
+            case SUCCESS -> ExternalSourceMetrics.OUTCOME_SUCCESS;
+            case FAILED -> ExternalSourceMetrics.OUTCOME_FAILURE;
+            case CANCELLED -> ExternalSourceMetrics.OUTCOME_CANCELLED;
+        };
     }
 
     /**

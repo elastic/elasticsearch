@@ -275,6 +275,15 @@ public final class ExternalSourceMetrics {
     public static final String QUERY_CPU_TOTAL = "es.esql.datasources.query.cpu.total";
 
     /**
+     * CPU consumed by external-source queries that failed or were cancelled, broken down by
+     * {@link #CPU_COMPONENT_ATTRIBUTE} and by {@link #OUTCOME_ATTRIBUTE} ({@code failure} or {@code cancelled}). Unit:
+     * nanoseconds. These queries are not billed, so their CPU is not part of {@link #QUERY_CPU_TOTAL}, which keeps matching the
+     * billed signal; it is a metric of its own so that what they cost can be told from it. It holds what is known to have been
+     * done before the query ended, which can be less than what was done.
+     */
+    public static final String QUERY_UNSUCCESSFUL_CPU_TOTAL = "es.esql.datasources.query.cpu.unsuccessful.total";
+
+    /**
      * No-op holder backed by {@link MeterRegistry#NOOP}, used where no node registry is available
      * (decorators with no attached holder, tests) so call sites never branch on null. The
      * {@link DataSourceUsageAccumulator} is null on this singleton so it never accumulates shared
@@ -331,6 +340,30 @@ public final class ExternalSourceMetrics {
         Map.of(CPU_COMPONENT_ATTRIBUTE, CPU_COMPONENT_SPLIT_DISCOVERY)
     );
 
+    /**
+     * Pre-built, immutable {@link #OUTCOME_ATTRIBUTE} and {@link #CPU_COMPONENT_ATTRIBUTE} attribute maps of
+     * {@link #QUERY_UNSUCCESSFUL_CPU_TOTAL}, by outcome and then by component.
+     */
+    private static final Map<String, Map<String, Map<String, Object>>> UNSUCCESSFUL_CPU_ATTRIBUTES = Map.of(
+        OUTCOME_FAILURE,
+        unsuccessfulCpuAttributes(OUTCOME_FAILURE),
+        OUTCOME_CANCELLED,
+        unsuccessfulCpuAttributes(OUTCOME_CANCELLED)
+    );
+
+    private static Map<String, Map<String, Object>> unsuccessfulCpuAttributes(String outcome) {
+        Map<String, Map<String, Object>> byComponent = new java.util.HashMap<>();
+        for (String component : List.of(
+            CPU_COMPONENT_EXECUTION,
+            CPU_COMPONENT_READ,
+            CPU_COMPONENT_PLANNING,
+            CPU_COMPONENT_SPLIT_DISCOVERY
+        )) {
+            byComponent.put(component, Map.of(OUTCOME_ATTRIBUTE, outcome, CPU_COMPONENT_ATTRIBUTE, component));
+        }
+        return Map.copyOf(byComponent);
+    }
+
     private final LongCounter requestsTotal;
     private final LongHistogram requestDuration;
     private final LongCounter bytesReadTotal;
@@ -357,6 +390,7 @@ public final class ExternalSourceMetrics {
     private final LongCounter breakerTrippedTotal;
     private final LongCounter configChangesTotal;
     private final LongCounter queryCpuTotal;
+    private final LongCounter queryUnsuccessfulCpuTotal;
 
     public ExternalSourceMetrics(MeterRegistry meterRegistry) {
         this(meterRegistry, null);
@@ -499,6 +533,15 @@ public final class ExternalSourceMetrics {
             QUERY_CPU_TOTAL,
             "CPU consumed by successful ES|QL queries that scanned an external data source, "
                 + "broken down by component (execution, read, planning, split_discovery).",
+            "ns"
+        );
+        this.queryUnsuccessfulCpuTotal = meterRegistry.registerLongCounter(
+            QUERY_UNSUCCESSFUL_CPU_TOTAL,
+            "CPU consumed by ES|QL queries that scanned an external data source and then failed or were cancelled, "
+                + "broken down by outcome (failure, cancelled) and component (execution, read, planning, split_discovery). "
+                + "Not billed, and not part of "
+                + QUERY_CPU_TOTAL
+                + ".",
             "ns"
         );
     }
@@ -882,17 +925,40 @@ public final class ExternalSourceMetrics {
      * Best-effort (self-guarded).
      */
     public void recordQueryCpu(long execution, long read, long planning, long splitDiscovery) {
+        recordQueryCpu(OUTCOME_SUCCESS, execution, read, planning, splitDiscovery);
+    }
+
+    /**
+     * Records the CPU consumed by one external-source query that ended with {@code outcome}, broken down by component. The
+     * CPU of a query that succeeded goes to {@link #QUERY_CPU_TOTAL}, which is what is billed; the CPU of one that failed or was
+     * cancelled goes to {@link #QUERY_UNSUCCESSFUL_CPU_TOTAL}, which is not, so the first keeps matching the billing signal.
+     * Otherwise as {@link #recordQueryCpu(long, long, long, long)}.
+     *
+     * @param outcome one of {@link #OUTCOME_SUCCESS}, {@link #OUTCOME_FAILURE} and {@link #OUTCOME_CANCELLED}
+     */
+    public void recordQueryCpu(String outcome, long execution, long read, long planning, long splitDiscovery) {
         try {
             long e = Math.max(0L, execution);
             long r = Math.max(0L, read);
             long p = Math.max(0L, planning);
             long sd = Math.max(0L, splitDiscovery);
-            if (e > 0) queryCpuTotal.incrementBy(e, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_EXECUTION));
-            if (r > 0) queryCpuTotal.incrementBy(r, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_READ));
-            if (p > 0) queryCpuTotal.incrementBy(p, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_PLANNING));
-            if (sd > 0) queryCpuTotal.incrementBy(sd, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_SPLIT_DISCOVERY));
+            if (OUTCOME_SUCCESS.equals(outcome)) {
+                if (e > 0) queryCpuTotal.incrementBy(e, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_EXECUTION));
+                if (r > 0) queryCpuTotal.incrementBy(r, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_READ));
+                if (p > 0) queryCpuTotal.incrementBy(p, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_PLANNING));
+                if (sd > 0) queryCpuTotal.incrementBy(sd, CPU_COMPONENT_ATTRIBUTES.get(CPU_COMPONENT_SPLIT_DISCOVERY));
+            } else {
+                Map<String, Map<String, Object>> attributes = UNSUCCESSFUL_CPU_ATTRIBUTES.get(outcome);
+                if (attributes == null) {
+                    throw new IllegalArgumentException("not an outcome of a query that did not succeed [" + outcome + "]");
+                }
+                if (e > 0) queryUnsuccessfulCpuTotal.incrementBy(e, attributes.get(CPU_COMPONENT_EXECUTION));
+                if (r > 0) queryUnsuccessfulCpuTotal.incrementBy(r, attributes.get(CPU_COMPONENT_READ));
+                if (p > 0) queryUnsuccessfulCpuTotal.incrementBy(p, attributes.get(CPU_COMPONENT_PLANNING));
+                if (sd > 0) queryUnsuccessfulCpuTotal.incrementBy(sd, attributes.get(CPU_COMPONENT_SPLIT_DISCOVERY));
+            }
             if (usageAccumulator != null) {
-                usageAccumulator.recordQueryCpu(e, r, p, sd);
+                usageAccumulator.recordQueryCpu(DataSourceUsageAccumulator.outcomeIndex(outcome), e, r, p, sd);
             }
         } catch (Exception ex) {
             logger.trace("telemetry: recordQueryCpu failed", ex);

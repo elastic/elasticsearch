@@ -136,7 +136,7 @@ public class EscfBatchCodecTests extends ESTestCase {
         EscfColumnData child = EscfColumnData.ofVarWidth(EscfColumnKind.STRING, 2, null, childOffsets, new BytesArray(childBytes));
 
         BytesReference encoded = EscfBatchCodec.encodeArrayChild(child);
-        EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 2);
+        EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 2, false);
 
         assertEquals(EscfColumnKind.STRING, decoded.kind());
         assertArrayEquals(childOffsets, decoded.offsets());
@@ -151,10 +151,70 @@ public class EscfBatchCodecTests extends ESTestCase {
         EscfColumnData child = EscfColumnData.ofFixed64(EscfColumnKind.LONG, 3, null, new BytesArray(childBytes));
 
         BytesReference encoded = EscfBatchCodec.encodeArrayChild(child);
-        EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 3);
+        EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 3, false);
 
         assertEquals(EscfColumnKind.LONG, decoded.kind());
         assertNull(decoded.offsets());
+        assertEquals(new BytesArray(childBytes), decoded.data());
+    }
+
+    /** Dense (no-null) children encode as the kind byte followed by the values and decode without a validity bitset. */
+    public void testEncodeDecodeDenseChildFlagClear() {
+        byte[] childBytes = new byte[2 * 8];
+        ByteUtils.writeLongLE(42L, childBytes, 0);
+        ByteUtils.writeLongLE(-7L, childBytes, 8);
+        EscfColumnData child = EscfColumnData.ofFixed64(EscfColumnKind.LONG, 2, null, new BytesArray(childBytes));
+
+        BytesReference encoded = EscfBatchCodec.encodeArrayChild(child);
+        // child_kind(1) + data(16) = 17 bytes.
+        assertEquals(17, encoded.length());
+
+        EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 2, false);
+        assertEquals(EscfColumnKind.LONG, decoded.kind());
+        assertNull("dense child must decode without a validity bitset", decoded.validity());
+    }
+
+    /** Nullable long child: the validity bitset precedes the values and round-trips. */
+    public void testEncodeDecodeLongArrayChildWithNullValidity() {
+        // elements 10, null, 30: validity = {1, 0, 1}
+        FixedBitSet validity = new FixedBitSet(3);
+        validity.set(0);
+        validity.set(2);
+        byte[] childBytes = new byte[3 * 8];
+        ByteUtils.writeLongLE(10L, childBytes, 0);
+        ByteUtils.writeLongLE(0L, childBytes, 8);   // placeholder for null
+        ByteUtils.writeLongLE(30L, childBytes, 16);
+        EscfColumnData child = EscfColumnData.ofFixed64(EscfColumnKind.LONG, 3, validity, new BytesArray(childBytes));
+
+        BytesReference encoded = EscfBatchCodec.encodeArrayChild(child);
+        // child_kind(1) + validity(bitsetBytes(3)=8) + data(24) = 33 bytes.
+        assertEquals(33, encoded.length());
+
+        EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 3, true);
+        assertEquals(EscfColumnKind.LONG, decoded.kind());
+        assertNotNull("nullable child must decode with a validity bitset", decoded.validity());
+        assertTrue("element 0 must be non-null", decoded.validity().get(0));
+        assertFalse("element 1 must be null (bit clear)", decoded.validity().get(1));
+        assertTrue("element 2 must be non-null", decoded.validity().get(2));
+    }
+
+    /** Nullable string child: the validity bitset precedes the child offsets and round-trips. */
+    public void testEncodeDecodeStringArrayChildWithNullValidity() {
+        // elements null, "hi": validity = {0, 1}
+        FixedBitSet validity = new FixedBitSet(2);
+        validity.set(1);
+        int[] childOffsets = { 0, 0, 2 }; // zero-length for null, then "hi"
+        byte[] childBytes = "hi".getBytes(StandardCharsets.UTF_8);
+        EscfColumnData child = EscfColumnData.ofVarWidth(EscfColumnKind.STRING, 2, validity, childOffsets, new BytesArray(childBytes));
+
+        BytesReference encoded = EscfBatchCodec.encodeArrayChild(child);
+        EscfColumnData decoded = EscfBatchCodec.decodeArrayChild(encoded, 0, encoded.length(), 2, true);
+
+        assertEquals(EscfColumnKind.STRING, decoded.kind());
+        assertNotNull(decoded.validity());
+        assertFalse("element 0 must be null", decoded.validity().get(0));
+        assertTrue("element 1 must be non-null", decoded.validity().get(1));
+        assertArrayEquals(childOffsets, decoded.offsets());
         assertEquals(new BytesArray(childBytes), decoded.data());
     }
 

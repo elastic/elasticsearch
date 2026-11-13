@@ -11,13 +11,16 @@ package org.elasticsearch.escf;
 
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.Text;
 
 /**
  * An {@link ArrayReader} over an {@link EscfArrayColumn} row: a forward cursor across the
  * child sub-column's elements in {@code [start, end)}. Element values are read directly from the
- * primitive child column. Columnar arrays hold only homogeneous primitives, so {@link #nestedArray()}
- * and {@link #nestedKeyValue()} are unreachable and throw.
+ * primitive child column. An element whose child validity bit is clear is an explicit JSON
+ * {@code null}; {@link #isNull()} and {@link #type()} report it, so callers check them before reading
+ * a value. Columnar arrays hold only homogeneous primitives, so {@link #nestedArray()} and
+ * {@link #nestedKeyValue()} are unreachable and throw.
  */
 final class ColumnarArrayReader implements ArrayReader {
 
@@ -38,13 +41,12 @@ final class ColumnarArrayReader implements ArrayReader {
 
     @Override
     public byte type() {
-        return child.typeByteForPresent(pos);
+        return child.isPresent(pos) == false ? SourceValueType.NULL : child.typeByteForPresent(pos);
     }
 
     @Override
     public boolean isNull() {
-        // TODO: this is an encoder detail not a guarantee and should change. Due to two bitsets there actually can be nulls.
-        return false;
+        return child.isPresent(pos) == false;
     }
 
     @Override

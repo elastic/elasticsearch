@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.SizedBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -43,6 +44,32 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
             AggregatorFactory factory = new DummyAdaptingAggregatorFactory("test", context, null, sub, null);
             Aggregator adapting = factory.create(null, CardinalityUpperBound.ONE);
             assertThat(adapting.subAggregators()[0].parent(), sameInstance(adapting));
+        });
+    }
+
+    /**
+     * A {@code global} sub-aggregation of an {@linkplain AdaptingAggregator} is
+     * rejected with an error that names the adapting aggregation.
+     */
+    public void testGlobalSubAggregationFailsWithIllegalArgument() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        ValuesSourceRegistry.Builder registry = new ValuesSourceRegistry.Builder();
+        registry.registerUsage(GlobalAggregationBuilder.NAME);
+        withAggregationContext(registry.build(), mapperService, List.of(), null, context -> {
+            AggregatorFactories.Builder sub = AggregatorFactories.builder();
+            sub.addAggregator(new GlobalAggregationBuilder("g"));
+            AggregatorFactory factory = new DummyAdaptingAggregatorFactory("test", context, null, sub, null);
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> factory.create(null, CardinalityUpperBound.ONE)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Aggregation [test] cannot have a global sub-aggregation [g]. "
+                        + "Global aggregations can only be defined as top level aggregations"
+                )
+            );
         });
     }
 

@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 163070
+pr: 163596
+summary: Return 400 for `global` sub-aggregation under adapted range/terms aggregations
+type: bug

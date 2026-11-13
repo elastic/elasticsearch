@@ -30,14 +30,20 @@ import java.util.function.BiConsumer;
 
 /**
  * Holds the {@link BatchModeRouter} of one bulk and creates it: from the pre-built {@link EscfBatch} the request
- * carries, or in x-content mode when it carries none. Every item is passed to that router.
+ * carries, or in x-content mode when it carries none. A pre-built batch is registered under the
+ * {@link BatchModeRouter#batchKey} of the items that hold its rows, and an item that targets another abstraction is
+ * rejected; an x-content mode router takes every item.
  */
 final class BatchRouterSet implements Releasable {
 
     private final BatchModeRouter router;
 
-    private BatchRouterSet(BatchModeRouter router) {
+    /** Whether {@link #router} is an x-content mode router, which takes every item without a key check. */
+    private final boolean xContent;
+
+    private BatchRouterSet(BatchModeRouter router, boolean xContent) {
         this.router = router;
+        this.xContent = xContent;
     }
 
     /**
@@ -52,7 +58,7 @@ final class BatchRouterSet implements Releasable {
     static BatchRouterSet create(BulkRequest bulkRequest, boolean batchIndexingSupported, Recycler<BytesRef> recycler) {
         if (bulkRequest.hasPreBuiltBatches() == false) {
             BatchModeRouter xContentRouter = BatchModeRouter.createForXContent(bulkRequest, batchIndexingSupported, recycler);
-            return xContentRouter == null ? null : new BatchRouterSet(xContentRouter);
+            return xContentRouter == null ? null : new BatchRouterSet(xContentRouter, true);
         }
         if (batchIndexingSupported == false) {
             throw new IllegalStateException(
@@ -103,7 +109,7 @@ final class BatchRouterSet implements Releasable {
         }
         Map.Entry<String, SourceBatch> only = batches.entrySet().iterator().next();
         if (only.getValue() instanceof EscfBatch escfBatch) {
-            return new BatchRouterSet(new BatchModeRouter(only.getKey(), escfBatch, recycler));
+            return new BatchRouterSet(new BatchModeRouter(only.getKey(), escfBatch, recycler), false);
         }
         throw new IllegalArgumentException(
             "pre-built batch for index [" + only.getKey() + "] must be an EscfBatch but was [" + only.getValue().getClass().getName() + "]"
@@ -118,7 +124,11 @@ final class BatchRouterSet implements Releasable {
         router.preResolveTimestamps(project, requests);
     }
 
-    /** Records one item for routing. */
+    /**
+     * Records one item for routing.
+     *
+     * @throws IllegalArgumentException if the item targets an index abstraction other than the one the batch is for
+     */
     void route(
         BulkItemRequest bulkItem,
         DocWriteRequest<?> request,
@@ -128,6 +138,17 @@ final class BatchRouterSet implements Releasable {
         ProjectMetadata project,
         Map<ShardId, List<BulkItemRequest>> requestsByShard
     ) {
+        if (xContent == false) {
+            String batchKey = BatchModeRouter.batchKey(abstraction, project);
+            if (batchKey == null || batchKey.equals(router.key) == false) {
+                throw new IllegalArgumentException(
+                    "item targeting index ["
+                        + request.index()
+                        + "] carries a source-row reference but no pre-built batch was supplied under that name;"
+                        + " batches must be keyed by the write target resolved from the target index of the requests whose rows they hold"
+                );
+            }
+        }
         router.route(bulkItem, request, abstraction, concreteIndex, routing, project, requestsByShard);
     }
 

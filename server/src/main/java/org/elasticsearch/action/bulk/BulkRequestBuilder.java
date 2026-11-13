@@ -246,8 +246,8 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     }
 
     /**
-     * Attaches pre-built ESCF batches to the bulk request, keyed by the name its items target — index, alias,
-     * or data stream. See {@link BulkRequest#setPreBuiltBatches} for ownership semantics.
+     * Attaches pre-built ESCF batches to the bulk request, keyed by the write target of the index abstraction its
+     * items target (the data stream's name, or the name of the write index). See {@link BulkRequest#setPreBuiltBatches} for ownership semantics.
      */
     public BulkRequestBuilder setPreBuiltBatches(@Nullable Map<String, SourceBatch> batches) {
         this.preBuiltBatches = batches;

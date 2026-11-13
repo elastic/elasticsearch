@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -254,6 +255,55 @@ public class BatchModeRouterTests extends ESTestCase {
 
     private static Map<String, Object> asMap(BytesReference source) {
         return XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
+    }
+
+    public void testBatchKeyOfPlainIndexIsItsName() {
+        ProjectMetadata project = project(plainMetadata("myindex", 1));
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("myindex"), project), equalTo("myindex"));
+    }
+
+    /** An alias is keyed by its write index, not by its own name, so the key does not depend on how the items name their target. */
+    public void testBatchKeyOfAliasIsItsWriteIndex() {
+        IndexMetadata writeIndex = IndexMetadata.builder(plainMetadata("write-index", 1))
+            .putAlias(AliasMetadata.builder("myalias").writeIndex(true))
+            .build();
+        IndexMetadata otherIndex = IndexMetadata.builder(plainMetadata("other-index", 1))
+            .putAlias(AliasMetadata.builder("myalias").writeIndex(false))
+            .build();
+        ProjectMetadata project = project(writeIndex, otherIndex);
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("myalias"), project), equalTo("write-index"));
+    }
+
+    /** An alias over several indices with no write index has no write target, so it has no key. */
+    public void testBatchKeyOfAliasWithoutWriteIndexIsNull() {
+        IndexMetadata first = IndexMetadata.builder(plainMetadata("first-index", 1)).putAlias(AliasMetadata.builder("myalias")).build();
+        IndexMetadata second = IndexMetadata.builder(plainMetadata("second-index", 1)).putAlias(AliasMetadata.builder("myalias")).build();
+        ProjectMetadata project = project(first, second);
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("myalias"), project), nullValue());
+    }
+
+    public void testBatchKeyOfDataStreamIsItsName() {
+        ProjectMetadata project = projectWithDataStream(tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END));
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get(DATA_STREAM), project), equalTo(DATA_STREAM));
+    }
+
+    /** An alias over a data stream is keyed by the data stream, as the items' backing index is selected by the data stream. */
+    public void testBatchKeyOfAliasOverDataStreamIsTheDataStream() {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectWithDataStream(tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END)));
+        builder.put("ds-alias", DATA_STREAM, true, null);
+        ProjectMetadata project = builder.build();
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get("ds-alias"), project), equalTo(DATA_STREAM));
+    }
+
+    /** A write straight to a backing index has no key: its rows would belong in the batch of the data stream. */
+    public void testBatchKeyOfBackingIndexIsNull() {
+        IndexMetadata backing = tsdbBackingIndex(1, 1, GEN_1_START, GEN_1_END);
+        ProjectMetadata project = projectWithDataStream(backing);
+        assertThat(BatchModeRouter.batchKey(project.getIndicesLookup().get(backing.getIndex().getName()), project), nullValue());
+    }
+
+    public void testBatchKeyOfUnknownAbstractionIsNull() {
+        assertThat(BatchModeRouter.batchKey(null, project()), nullValue());
     }
 
     public void testCreateReturnsNullWhenNoBatches() {

@@ -59,8 +59,9 @@ final class BatchModeRouter implements Releasable {
      */
     private record IndexTarget(Index index, IndexRouting routing, int shardCount, int partitionBase) {}
 
+    /** The {@link #batchKey} of the index abstraction this router's batch holds the rows of; null in x-content mode. */
     @Nullable
-    private final String key;
+    final String key;
     @Nullable
     private final EscfBatch source;
     @Nullable
@@ -129,6 +130,34 @@ final class BatchModeRouter implements Releasable {
             }
         }
         return new BatchModeRouter(new BulkBatchEncoders(recycler), recycler);
+    }
+
+    /**
+     * Returns the key a pre-built batch must be registered under for items that target {@code ia}:
+     *
+     * <ul>
+     *   <li>DATA_STREAM or an alias over one: the data stream's name.</li>
+     *   <li>CONCRETE_INDEX (plain): the index's own name (which is its own write index).</li>
+     *   <li>ALIAS (non-data-stream): the alias's write index's name.</li>
+     *   <li>CONCRETE_INDEX that is a backing index of a data stream: {@code null}; such items cannot be batched
+     *       without a batch-merge utility.</li>
+     *   <li>ALIAS with no write index: {@code null}.</li>
+     * </ul>
+     */
+    @Nullable
+    static String batchKey(@Nullable IndexAbstraction ia, ProjectMetadata project) {
+        if (ia == null) {
+            return null;
+        }
+        if (ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX && ia.getParentDataStream() != null) {
+            return null;
+        }
+        DataStream ds = DataStream.resolveDataStream(ia, project);
+        if (ds != null) {
+            return ds.getName();
+        }
+        Index writeIndex = ia.getWriteIndex();
+        return writeIndex == null ? null : writeIndex.getName();
     }
 
     /**
@@ -349,7 +378,7 @@ final class BatchModeRouter implements Releasable {
             requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), k -> new ArrayList<>()).add(bulkItem);
         } else {
             IndexRequest batchItem = (IndexRequest) request;
-            int targetIdx = prepareRouting(batchItem, abstraction, concreteIndex, routing, project);
+            int targetIdx = prepareRouting(batchItem, concreteIndex, routing, project);
             recordDeferredItem(bulkItem, batchItem.indexSource().rowIndex(), targetIdx);
         }
     }
@@ -371,22 +400,7 @@ final class BatchModeRouter implements Releasable {
      * Validates the request, resolves (or registers) the concrete-index target, and returns the target
      * index into {@link #targets}.
      */
-    private int prepareRouting(
-        IndexRequest request,
-        IndexAbstraction abstraction,
-        Index concreteIndex,
-        IndexRouting routing,
-        ProjectMetadata project
-    ) {
-        if (key.equals(abstraction.getName()) == false) {
-            throw new IllegalArgumentException(
-                "item targeting index ["
-                    + request.index()
-                    + "] carries a source-row reference but no pre-built batch was supplied under that name;"
-                    + " batches must be keyed by the name set on the requests whose rows they hold"
-            );
-        }
-
+    private int prepareRouting(IndexRequest request, Index concreteIndex, IndexRouting routing, ProjectMetadata project) {
         // Linear scan over targets (typically 1–2 entries at a TSDB rollover boundary; no Map needed).
         for (int i = 0; i < targetCount; i++) {
             Index t = targets[i].index();

@@ -23,6 +23,7 @@ import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.InputFile;
@@ -1819,14 +1820,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Validates footer-level invariants that, if violated, indicate a corrupt file. Currently
-     * checks that required columns (maxDefinitionLevel == 0) do not report non-zero null counts
-     * in their row-group statistics. Such files pass parquet-mr footer parsing but produce
-     * garbage or exceptions during data-page decoding.
+     * Validates footer-level invariants that, if violated, indicate a corrupt or unreadable file.
+     * Checks that every column chunk uses a compression codec this reader implements, and that
+     * required columns (maxDefinitionLevel == 0) do not report non-zero null counts in their
+     * row-group statistics. Both refusals are {@link IllegalArgumentException} so they map to
+     * HTTP 400. Unsupported codecs are readable from the footer, so they are refused here before
+     * any page is fetched; {@link PrefetchedRowGroupBuilder} keeps a backstop on the read path.
      */
     static void validateFooterIntegrity(MessageType schema, List<BlockMetaData> rowGroups) {
-        for (BlockMetaData rowGroup : rowGroups) {
+        Set<CompressionCodecName> supported = PlainCompressionCodecFactory.supportedDecompressionCodecs();
+        for (int rowGroupOrdinal = 0; rowGroupOrdinal < rowGroups.size(); rowGroupOrdinal++) {
+            BlockMetaData rowGroup = rowGroups.get(rowGroupOrdinal);
             for (ColumnChunkMetaData col : rowGroup.getColumns()) {
+                CompressionCodecName codec = col.getCodec();
+                if (supported.contains(codec) == false) {
+                    throw invalidParquet(
+                        PlainCompressionCodecFactory.unsupportedDecompressionDetail(col.getPath().toDotString(), codec, rowGroupOrdinal)
+                    );
+                }
                 String[] path = col.getPath().toArray();
                 ColumnDescriptor desc = schema.getColumnDescription(path);
                 if (desc != null && desc.getMaxDefinitionLevel() == 0) {

@@ -23,8 +23,11 @@ import org.xerial.snappy.Snappy;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -87,6 +90,23 @@ import java.util.zip.GZIPOutputStream;
  */
 public final class PlainCompressionCodecFactory implements CompressionCodecFactory {
 
+    /**
+     * Codecs this factory can decompress. The constructor registers exactly this set; an
+     * assertion there (and a unit test) fail if the decompressor map drifts.
+     * {@code BROTLI} and {@code LZO} are the parquet-mr {@link CompressionCodecName} values that
+     * are absent here — they need native libraries this factory exists to keep off the classpath.
+     */
+    private static final Set<CompressionCodecName> SUPPORTED_DECOMPRESSION_CODECS = Collections.unmodifiableSet(
+        EnumSet.of(
+            CompressionCodecName.UNCOMPRESSED,
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.LZ4_RAW,
+            CompressionCodecName.LZ4
+        )
+    );
+
     private final Map<CompressionCodecName, LazyInitializable<BytesInputDecompressor, RuntimeException>> decompressors;
     private final Map<CompressionCodecName, LazyInitializable<BytesInputCompressor, RuntimeException>> compressors;
 
@@ -105,6 +125,7 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
         // and ES|QL must not emit it. getCompressor(LZ4) continues to throw.
         dec.put(CompressionCodecName.LZ4, lazy(Lz4HadoopFramedBytesDecompressor::new));
         this.decompressors = dec;
+        assert dec.keySet().equals(SUPPORTED_DECOMPRESSION_CODECS) : "decompressor map must match supportedDecompressionCodecs()";
 
         Map<CompressionCodecName, LazyInitializable<BytesInputCompressor, RuntimeException>> com = new EnumMap<>(
             CompressionCodecName.class
@@ -119,6 +140,38 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
 
     private static <T> LazyInitializable<T, RuntimeException> lazy(CheckedSupplier<T, RuntimeException> supplier) {
         return new LazyInitializable<>(supplier);
+    }
+
+    /**
+     * Codecs this factory can decompress. Iteration is {@link CompressionCodecName} declaration
+     * order. Used by footer validation so the refusal set cannot drift from the decompressor map.
+     */
+    static Set<CompressionCodecName> supportedDecompressionCodecs() {
+        return SUPPORTED_DECOMPRESSION_CODECS;
+    }
+
+    /**
+     * Client-facing refusal for a codec this factory does not implement. Raised as an
+     * {@link IllegalArgumentException} at the footer and row-group boundaries so
+     * {@code ExternalFailures.classify} maps it to HTTP 400. Does not embed a storage URI:
+     * a path in the message would be withheld from the user, hiding the codec name.
+     */
+    static String unsupportedDecompressionDetail(String columnPath, CompressionCodecName codec, int rowGroupOrdinal) {
+        StringBuilder supported = new StringBuilder();
+        for (CompressionCodecName name : SUPPORTED_DECOMPRESSION_CODECS) {
+            if (supported.length() > 0) {
+                supported.append(", ");
+            }
+            supported.append(name.name());
+        }
+        return "column ["
+            + columnPath
+            + "] in row group ["
+            + rowGroupOrdinal
+            + "] uses compression codec ["
+            + codec
+            + "], which is not supported; supported codecs are "
+            + supported;
     }
 
     @Override

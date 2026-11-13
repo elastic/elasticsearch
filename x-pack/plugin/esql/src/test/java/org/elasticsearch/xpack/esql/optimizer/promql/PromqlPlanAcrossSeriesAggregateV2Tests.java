@@ -40,7 +40,7 @@ public class PromqlPlanAcrossSeriesAggregateV2Tests extends AbstractPromqlPlanOp
 
     /** {@code by(...)} keys each group by the listed labels of its series, read from their fields. */
     public void testByKeepsTheListedLabels() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h sum by (cluster) (network.bytes_in)", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h sum by (cluster) (network.bytes_in)", false);
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(names(collapse.aggregates().stream().flatMap(a -> a.references().stream()).toList()), hasItem("cluster"));
@@ -51,7 +51,7 @@ public class PromqlPlanAcrossSeriesAggregateV2Tests extends AbstractPromqlPlanOp
 
     /** {@code without(...)} keys each group by the labels of its series but the listed ones: the source leaves them out. */
     public void testWithoutLeavesTheListedLabelsOut() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h sum without (pod) (network.bytes_in)", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h sum without (pod) (network.bytes_in)", false);
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(sourceViews(collapse), equalTo(Set.of(List.of("pod"))));
@@ -60,7 +60,7 @@ public class PromqlPlanAcrossSeriesAggregateV2Tests extends AbstractPromqlPlanOp
 
     /** An aggregation without grouping has no labels. */
     public void testAggregationWithoutGroupingHasNoLabels() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h sum(network.bytes_in)", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h sum(network.bytes_in)", false);
 
         assertThat(expressions(plan, TimeSeriesMetadataFilter.class), empty());
         assertThat(names(plan.output()), not(hasItem("_timeseries")));
@@ -68,7 +68,7 @@ public class PromqlPlanAcrossSeriesAggregateV2Tests extends AbstractPromqlPlanOp
 
     /** An aggregation over an aggregation regroups the collapsed table. */
     public void testAggregationOverAggregationRegroups() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h max(sum by (cluster) (network.bytes_in))", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h max(sum by (cluster) (network.bytes_in))", false);
 
         assertThat(plan.collect(TimeSeriesAggregate.class), hasSize(1));
         Aggregate regroup = plan.collect(Aggregate.class)
@@ -87,7 +87,7 @@ public class PromqlPlanAcrossSeriesAggregateV2Tests extends AbstractPromqlPlanOp
             "count(network.bytes_in)",
             "max(sum by (cluster) (network.bytes_in))"
         )) {
-            LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h " + query, true);
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1h " + query, true);
             assertThat(query, plan.collect(TimeSeriesAggregate.class), hasSize(1));
         }
     }
@@ -97,7 +97,7 @@ public class PromqlPlanAcrossSeriesAggregateV2Tests extends AbstractPromqlPlanOp
      * field, which the shard resolves.
      */
     public void testPassthroughLabelReadsItsField() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=otel-metrics step=1h sum by (cpu) (metrics.system.cpu.time)", false);
+        LogicalPlan plan = planPromql("PROMQL index=otel-metrics step=1h sum by (cpu) (metrics.system.cpu.time)", false);
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
         FieldAttribute field = collapse.aggregates()
@@ -114,7 +114,7 @@ public class PromqlPlanAcrossSeriesAggregateV2Tests extends AbstractPromqlPlanOp
 
     /** A label that is not a dimension, which the source's container does not hold, is read from its field. */
     public void testLabelOutsideTheContainerReadsItsField() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h sum by (event) (network.bytes_in)", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h sum by (event) (network.bytes_in)", false);
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
         Values values = expressions(collapse, Values.class).stream()

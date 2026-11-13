@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -45,8 +44,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.Arrays;
 import java.util.List;
@@ -444,17 +441,12 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         assertThat(expressions(pushDown(plan), TimeSeriesMetadataSet.class), hasSize(1));
     }
 
-    /** The configuration of a query translated over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */
-    private static final Configuration V2 = EsqlTestUtils.configuration(
-        new QueryPragmas(Settings.builder().put(QueryPragmas.ENABLE_PROMQL_TRANSLATION_V2.getKey(), true).build())
-    );
-
     /** The rule where every node reads the typed label container: it is under construction, so a release build has none. */
     private static LogicalPlan pushDown(LogicalPlan plan) {
         assumeTrue("_timeseries is under construction", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
         return new ScalarizeTimeSeriesMetadataPaths().apply(
             plan,
-            analyzer().configuration(V2).minimumTransportVersion(TransportVersion.current()).buildContext()
+            analyzer().minimumTransportVersion(TransportVersion.current()).buildContext()
         );
     }
 
@@ -462,7 +454,7 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
     private static LogicalPlan pushDownKeyword(LogicalPlan plan) {
         return new ScalarizeTimeSeriesMetadataPaths().apply(
             plan,
-            analyzer().configuration(V2).minimumTransportVersion(TimeSeriesCollapse.TS_COLLAPSE).buildContext()
+            analyzer().minimumTransportVersion(TimeSeriesCollapse.TS_COLLAPSE).buildContext()
         );
     }
 

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.List;
 
@@ -85,8 +84,4 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
         return true;
     }
 
-    @Override
-    public IntermediateResult translate(TranslationContext context) {
-        return translateValueFunction(context);
-    }
 }

@@ -421,7 +421,7 @@ public class IndexAbstractionResolver {
             }
 
             // see IndexNameExpressionResolver#addIndex for reference
-            if (indexMetadata.getSettings().getAsBoolean("index.frozen", false) && indicesOptions.ignoreThrottled()) {
+            if (indexMetadata.isFrozen() && indicesOptions.ignoreThrottled()) {
                 return false;
             }
 

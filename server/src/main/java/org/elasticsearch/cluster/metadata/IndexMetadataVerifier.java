@@ -226,7 +226,7 @@ public class IndexMetadataVerifier {
             }
             // indices (other than CCR and old-style frozen indices) are read-only compatible
             return compatibilityVersion.before(minimumCompatible)
-                && indexMetadata.getSettings().getAsBoolean("index.frozen", false) == false
+                && indexMetadata.isFrozen() == false
                 && indexMetadata.getSettings().getAsBoolean("index.xpack.ccr.following_index", false) == false;
         }
         return false;

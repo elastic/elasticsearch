@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
@@ -21,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -60,15 +58,6 @@ public class PromqlPlanSelectorV2Tests extends AbstractPromqlPlanOptimizerTests 
     public void testLiteralSelectorHasNoLabels() {
         LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h 1", false);
         assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
-    }
-
-    /** A node without a translation over the label container fails rather than mixing the two translations. */
-    public void testNodeWithoutLabelTranslationFails() {
-        var e = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> planPromqlV2("PROMQL index=k8s step=1h network.bytes_in or network.cost", false)
-        );
-        assertThat(e.getMessage(), containsString("does not translate in V2 yet"));
     }
 
     private static <E extends Expression> List<E> expressions(LogicalPlan plan, Class<E> type) {

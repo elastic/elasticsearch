@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.Int
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperatorV2;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySetV2;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
@@ -123,10 +124,8 @@ public record TranslationContextV2(
             case MetadataManipulationFunction relabel -> MetadataManipulationFunctionV2.translate(relabel, this);
             case SortFunction sort -> SortFunctionV2.translate(sort, this);
             case SortByLabelFunction sort -> SortFunctionV2.translate(sort, this);
-            case VectorBinaryOperator operator when operator instanceof VectorBinarySet == false -> VectorBinaryOperatorV2.translate(
-                operator,
-                this
-            );
+            case VectorBinarySet set -> VectorBinarySetV2.translate(set, this);
+            case VectorBinaryOperator operator -> VectorBinaryOperatorV2.translate(operator, this);
             default -> throw new QlIllegalArgumentException("PromQL plan node [{}] does not translate in V2 yet", node.nodeName());
         };
     }
@@ -574,9 +573,21 @@ public record TranslationContextV2(
                 return finish(emitFinalProjection(joined.plan(), joined.labels(), false), false);
             }
         }
-        IntermediateResult result = translateIntermediate(cmd.promqlPlan(), cmd.stepId(), cmd.valueId());
-        boolean constant = result.kind().constant;
-        return finish(emitFinalProjection(result.plan(), result.labels(), constant), constant);
+        // `or` is the only set operator that adds rows (more series), requiring a top-level multi-branch `UnionAll` that
+        // cannot compose as a single-value sub-expression.
+        List<LogicalPlan> branches = VectorBinarySetV2.flattenUnion(cmd.promqlPlan());
+        if (branches.size() == 1) {
+            IntermediateResult result = translateIntermediate(cmd.promqlPlan(), cmd.stepId(), cmd.valueId());
+            boolean constant = result.kind().constant;
+            return finish(emitFinalProjection(result.plan(), result.labels(), constant), constant);
+        }
+        // Compile every branch as its own module (own step/value ids, own shifted evaluation timestamp), then link.
+        LogicalPlan union = VectorBinarySetV2.translateUnion(
+            this,
+            branches.stream().map(b -> translateIntermediate(b, new NameId(), new NameId())).toList()
+        );
+        Attribute labels = union.output().stream().filter(a -> a.name().equals(MetadataAttribute.TIMESERIES)).findFirst().orElseThrow();
+        return finish(emitFinalProjection(union, labels, false), false);
     }
 
     /** Keeps only steps within the query range; steps are anchored at {@code start} and offset-independent. */

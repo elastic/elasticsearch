@@ -115,7 +115,7 @@ public class FieldNameUtils {
         }
         var nested = new boolean[1];
         parsed.forEachExpressionDown(UnresolvedFunction.class, f -> {
-            if (f.name().equalsIgnoreCase("nested")) {
+            if (f.name().equalsIgnoreCase("nested") || f.name().equalsIgnoreCase("nested_json")) {
                 nested[0] = true;
             }
         });

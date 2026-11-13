@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** Explicit object-scope syntax. Analysis lowers this marker before evaluation or serialization. */
-public final class Nested extends Function implements OptionalArgument {
+public class Nested extends Function implements OptionalArgument {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Nested.class).unaryVariadic(Nested::new).name("nested");
 
     @FunctionInfo(
@@ -96,7 +96,7 @@ public final class Nested extends Function implements OptionalArgument {
     }
 
     @Override
-    protected NodeInfo<Nested> info() {
+    protected NodeInfo<? extends Nested> info() {
         return NodeInfo.create(this, Nested::new, children().getFirst(), children().subList(1, children().size()));
     }
 

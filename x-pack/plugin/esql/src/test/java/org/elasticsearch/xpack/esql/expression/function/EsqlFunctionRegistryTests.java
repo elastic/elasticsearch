@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunct
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.Nested;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedJson;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReductionsContractTests;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -266,7 +267,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         EsqlFunctionRegistry registry = TEST_FUNCTION_REGISTRY.snapshotRegistry();
         Set<String> errors = new TreeSet<>();
         for (FunctionDefinition def : registry.listFunctions()) {
-            if (def.clazz() == Nested.class) {
+            if (def.clazz() == Nested.class || def.clazz() == NestedJson.class) {
                 // This syntax marker requires analyzer context and never executes/serializes unlowered.
                 assertTrue(
                     Arrays.stream(NestedReductionsContractTests.class.getMethods())

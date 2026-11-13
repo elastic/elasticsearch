@@ -21,9 +21,11 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -76,6 +78,8 @@ public final class NestedReduction extends EsqlScalarFunction {
     private final Expression body;
     /** The {@code BY} keys among {@link #inputs}; empty when the reduction is not grouped. */
     private final List<Attribute> groupings;
+    /** Returns the objects as a JSON array instead of reducing them; {@link #body} is unused. */
+    private final boolean json;
     private final List<Attribute> inputs;
     private final List<String> paths;
     private final List<Set<String>> mappedIndices;
@@ -89,6 +93,7 @@ public final class NestedReduction extends EsqlScalarFunction {
         Set<String> indices,
         Expression body,
         List<Attribute> groupings,
+        boolean json,
         List<Attribute> inputs,
         List<String> paths,
         List<Set<String>> mappedIndices,
@@ -99,6 +104,7 @@ public final class NestedReduction extends EsqlScalarFunction {
         this.indices = Set.copyOf(indices);
         this.body = body;
         this.groupings = List.copyOf(groupings);
+        this.json = json;
         this.inputs = List.copyOf(inputs);
         this.paths = List.copyOf(paths);
         this.mappedIndices = mappedIndices.stream().map(Set::copyOf).toList();
@@ -113,6 +119,7 @@ public final class NestedReduction extends EsqlScalarFunction {
             in.readCollectionAsImmutableSet(StreamInput::readString),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readBoolean(),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readStringCollectionAsList(),
             in.readCollectionAsList(stream -> stream.readCollectionAsImmutableSet(StreamInput::readString)),
@@ -136,6 +143,7 @@ public final class NestedReduction extends EsqlScalarFunction {
         out.writeStringCollection(indices);
         out.writeNamedWriteable(body);
         out.writeNamedWriteableCollection(groupings);
+        out.writeBoolean(json);
         out.writeNamedWriteableCollection(inputs);
         out.writeStringCollection(paths);
         out.writeCollection(mappedIndices, StreamOutput::writeStringCollection);
@@ -149,7 +157,7 @@ public final class NestedReduction extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return groupings.isEmpty() ? body.dataType().noText() : DataType.KEYWORD;
+        return json || groupings.isEmpty() == false ? DataType.KEYWORD : body.dataType().noText();
     }
 
     @Override
@@ -172,6 +180,7 @@ public final class NestedReduction extends EsqlScalarFunction {
             indices,
             body,
             groupings,
+            json,
             inputs,
             paths,
             mappedIndices,
@@ -220,7 +229,7 @@ public final class NestedReduction extends EsqlScalarFunction {
 
     @Override
     public NestedReduction replaceChildren(List<Expression> children) {
-        return new NestedReduction(source(), children, path, indices, body, groupings, inputs, paths, mappedIndices, sourceFailures);
+        return new NestedReduction(source(), children, path, indices, body, groupings, json, inputs, paths, mappedIndices, sourceFailures);
     }
 
     @Override
@@ -231,6 +240,7 @@ public final class NestedReduction extends EsqlScalarFunction {
             && indices.equals(other.indices)
             && body.equals(other.body)
             && groupings.equals(other.groupings)
+            && json == other.json
             && inputs.equals(other.inputs)
             && paths.equals(other.paths)
             && mappedIndices.equals(other.mappedIndices)
@@ -239,11 +249,18 @@ public final class NestedReduction extends EsqlScalarFunction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, indices, body, groupings, inputs, paths, mappedIndices, sourceFailures);
+        return Objects.hash(super.hashCode(), path, indices, body, groupings, json, inputs, paths, mappedIndices, sourceFailures);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (json) {
+            var shards = NestedIndexObjects.shards(toEvaluator.shardContexts(), path, paths);
+            if (shards == null) {
+                throw sourceRead();
+            }
+            return operatorFactory(children().stream().map(toEvaluator::apply).toList(), List.of(), shards, null);
+        }
         Expression value = prepareScalar(
             groupings.isEmpty() == false ? ((UnaryAggregateFunction) body).field()
                 : body instanceof Sum sum ? sum.field()
@@ -272,11 +289,19 @@ public final class NestedReduction extends EsqlScalarFunction {
         var shards = NestedIndexObjects.shards(toEvaluator.shardContexts(), path, paths);
         if (shards == null) {
             if (groupings.isEmpty() == false) {
-                throw groupedSourceRead();
+                throw sourceRead();
             }
             NestedSource.checkSources(sourceFailures);
         }
-        HashAggregationOperator.Factory grouping = groupings.isEmpty() ? null : groupingFactory();
+        return operatorFactory(metadata, scalars, shards, groupings.isEmpty() ? null : groupingFactory());
+    }
+
+    private ExpressionEvaluator.Factory operatorFactory(
+        List<ExpressionEvaluator.Factory> metadata,
+        List<ExpressionEvaluator.Factory> scalars,
+        @Nullable IndexedByShardId<NestedIndexObjects.Shard> shards,
+        @Nullable HashAggregationOperator.Factory grouping
+    ) {
         return context -> {
             List<ExpressionEvaluator> args = new ArrayList<>();
             List<ExpressionEvaluator> functions = new ArrayList<>();
@@ -302,8 +327,10 @@ public final class NestedReduction extends EsqlScalarFunction {
         };
     }
 
-    private IllegalArgumentException groupedSourceRead() {
-        return new IllegalArgumentException("NESTED BY reads doc values only; [" + path + "] would have to be read from _source here");
+    private IllegalArgumentException sourceRead() {
+        return new IllegalArgumentException(
+            (json ? "NESTED_JSON" : "NESTED BY") + " reads doc values only; [" + path + "] would have to be read from _source here"
+        );
     }
 
     /** The STATS ... BY operator over one parent's children: the keys come first in each page, the aggregate input last. */
@@ -398,8 +425,8 @@ public final class NestedReduction extends EsqlScalarFunction {
                         }
                         continue;
                     }
-                    if (grouping != null) {
-                        throw groupedSourceRead();
+                    if (grouping != null || json) {
+                        throw sourceRead();
                     }
                     NestedSource.checkSource(sourceFailures, index);
                     if (args[0].isNull(row)) {
@@ -422,12 +449,21 @@ public final class NestedReduction extends EsqlScalarFunction {
         }
 
         private Object emptyResult() {
-            return body instanceof ToAggregator ? null : false;
+            return json || body instanceof ToAggregator ? null : false;
         }
 
         private Object reduce(List<Map<?, ?>> objects, String index, long token) {
             if (objects.isEmpty()) {
                 return emptyResult();
+            }
+            if (json) {
+                return toJson(builder -> {
+                    builder.startArray();
+                    for (Map<?, ?> object : objects) {
+                        builder.value(object);
+                    }
+                    builder.endArray();
+                });
             }
             if (grouping != null) {
                 return reduceGroups(objects, index, token);
@@ -492,12 +528,13 @@ public final class NestedReduction extends EsqlScalarFunction {
                     collectGroups(stats.getOutput(), groups);
                 }
             }
-            if (groups.isEmpty()) {
-                return null;
-            }
-            try (XContentBuilder json = XContentFactory.jsonBuilder()) {
-                json.map(groups);
-                return BytesReference.bytes(json).toBytesRef();
+            return groups.isEmpty() ? null : toJson(builder -> builder.map(groups));
+        }
+
+        private static BytesRef toJson(CheckedConsumer<XContentBuilder, IOException> content) {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                content.accept(builder);
+                return BytesReference.bytes(builder).toBytesRef();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.Nested;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedJson;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -309,13 +310,18 @@ public final class NestedReductionsAnalysis {
                 });
                 List<Alias> reductions = new ArrayList<>();
                 LogicalPlan lowered = p.transformExpressionsOnlyUp(Nested.class, nested -> {
+                    if (nested instanceof NestedJson && p instanceof Eval == false) {
+                        throw error(nested, "NESTED_JSON is supported in EVAL");
+                    }
                     if (p instanceof Eval == false && p instanceof Filter == false) {
                         throw error(nested, "NESTED is supported in EVAL and WHERE");
                     }
                     if (context.minimumVersion().supports(NestedReduction.VERSION) == false) {
                         throw error(nested, "NESTED requires all nodes to support nested reductions");
                     }
-                    var reduction = bind(nested, p.children().getFirst(), context);
+                    var reduction = nested instanceof NestedJson json
+                        ? bindJson(json, p.children().getFirst())
+                        : bind(nested, p.children().getFirst(), context);
                     Alias result = new Alias(
                         nested.source(),
                         Attribute.rawTemporaryName("nested_result", nested.hashCode() + ""),
@@ -366,6 +372,7 @@ public final class NestedReductionsAnalysis {
                     throw error(nested, "NESTED cannot read [" + publicName(f) + "]: " + n.conflict());
                 }
                 collection = n.path();
+                checkNotReplaced(input, collection, nested, "NESTED");
             } else {
                 throw error(nested, "NESTED requires a nested collection first, not [" + nested.collection().sourceText() + "]");
             }
@@ -464,6 +471,22 @@ public final class NestedReductionsAnalysis {
         if (bound instanceof Sum sum) {
             bound = sum.forTransportVersion(context.minimumVersion());
         }
+        return new NestedReduction(
+            nested.source(),
+            metadata(nested, input),
+            path,
+            indices,
+            bound,
+            groupings,
+            false,
+            channels,
+            paths,
+            mapped,
+            sourceFailures
+        );
+    }
+
+    private static List<Expression> metadata(Nested nested, LogicalPlan input) {
         List<Expression> metadata = new ArrayList<>();
         for (String name : METADATA) {
             Attribute found = input.output()
@@ -476,7 +499,73 @@ public final class NestedReductionsAnalysis {
             }
             metadata.add(found);
         }
-        return new NestedReduction(nested.source(), metadata, path, indices, bound, groupings, channels, paths, mapped, sourceFailures);
+        return metadata;
+    }
+
+    /**
+     * A column named like the collection, such as {@code EVAL items = NESTED_JSON(items)}, hides it from the user; reading
+     * the collection behind it would give a different {@code items} than the one the query shows.
+     */
+    private static void checkNotReplaced(LogicalPlan input, String path, Expression at, String function) {
+        if (input.output().stream().anyMatch(a -> a.name().equals(path))) {
+            throw error(at, function + " cannot use [" + path + "]: a column of that name replaces it here");
+        }
+    }
+
+    /** Binds NESTED_JSON to every child field of its collection, in name order, like NESTED_EXPAND. */
+    private static NestedReduction bindJson(NestedJson json, LogicalPlan input) {
+        if ((json.body() instanceof FieldAttribute a && a.field() instanceof NestedScopeField n && n.collection()) == false) {
+            throw error(json, "NESTED_JSON requires a nested collection, not [" + json.body().sourceText() + "]");
+        }
+        FieldAttribute f = (FieldAttribute) json.body();
+        NestedScopeField scope = (NestedScopeField) f.field();
+        if (scope.conflict() != null) {
+            throw error(json, "NESTED_JSON cannot read [" + publicName(f) + "]: " + scope.conflict());
+        }
+        String path = scope.path();
+        checkNotReplaced(input, path, json, "NESTED_JSON");
+        ScopeSchema schema = scopeSchema(input, json);
+        if (schema.roots().keySet().stream().anyMatch(parent -> path.startsWith(parent + "."))) {
+            throw error(json, "NESTED_JSON supports one nesting level");
+        }
+        if (scope.indices().stream().anyMatch(index -> index.contains(":"))) {
+            throw error(json, "NESTED_JSON cross-cluster loading is not supported by this PoC");
+        }
+        List<FieldAttribute> children = new ArrayList<>();
+        for (FieldAttribute field : schema.fields().values()) {
+            NestedScopeField child = (NestedScopeField) field.field();
+            if (child.collection() == false && child.path().equals(path) && child.getDataType() != DataType.OBJECT) {
+                if (SUPPORTED_CHILD_TYPES.contains(child.getDataType()) == false) {
+                    throw error(
+                        json,
+                        "NESTED_JSON does not support child type [" + child.getDataType() + "] for [" + publicName(field) + "]"
+                    );
+                }
+                children.add(field);
+            }
+        }
+        children.sort(Comparator.comparing(NestedReductionsAnalysis::publicName));
+        List<Attribute> channels = new ArrayList<>();
+        List<String> paths = new ArrayList<>();
+        List<Set<String>> mapped = new ArrayList<>();
+        for (FieldAttribute child : children) {
+            channels.add(new ReferenceAttribute(child.source(), child.name(), child.dataType()));
+            paths.add(publicName(child).substring(path.length() + 1));
+            mapped.add(((NestedScopeField) child.field()).indices());
+        }
+        return new NestedReduction(
+            json.source(),
+            metadata(json, input),
+            path,
+            scope.indices(),
+            Literal.NULL,
+            List.of(),
+            true,
+            channels,
+            paths,
+            mapped,
+            scope.sourceFailures()
+        );
     }
 
     /**
@@ -511,6 +600,7 @@ public final class NestedReductionsAnalysis {
             throw error(target, "NESTED_EXPAND cannot read [" + name + "]: " + scope.conflict());
         }
         String path = scope.path();
+        checkNotReplaced(expand.child(), path, target, "NESTED_EXPAND");
         if (collections.stream().anyMatch(parent -> path.startsWith(parent + "."))) {
             throw error(target, "NESTED_EXPAND supports one nesting level");
         }

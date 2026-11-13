@@ -58,7 +58,9 @@ import javax.inject.Inject;
  * Run-first tasks then take the throttle's slots first, longest first.
  *
  * <p>The {@code bcUpgradeTest} suite works the same way with {@code bcUpgradeTest} in place of {@code check}.
- * Splitting it by class is safe because each upgrade test class starts and upgrades its own cluster.
+ * Splitting it by class is safe because each upgrade test class starts and upgrades its own cluster. So does the
+ * ES|QL release test suite ({@code releaseTestCheckEsqlPartN}) with {@code esqlReleaseTestCheck}, which the build
+ * registers on the projects whose release-build checks the ES|QL release test jobs run.
  */
 public abstract class CiPartsPlugin implements Plugin<Project> {
 
@@ -66,21 +68,26 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
     public static final String CHECK_PART_TASK_PREFIX = "checkPart";
     public static final String BC_UPGRADE_ASSIGNMENT_FILE = ".ci/test-parts/bc-upgrade/assignment.json";
     public static final String BC_UPGRADE_PART_TASK_PREFIX = "bcUpgradeTestPart";
+    public static final String ESQL_RELEASE_ASSIGNMENT_FILE = ".ci/test-parts/esql-release/assignment.json";
+    public static final String ESQL_RELEASE_PART_TASK_PREFIX = "releaseTestCheckEsqlPart";
     static final String REST_TESTS_SHARD_PROPERTY = "tests.rest.shard";
 
     /**
      * A set of part tasks: {@code <taskPrefix>N} runs the share of {@code rootTask} that the assignment in
-     * {@code assignmentFile} gives part N.
+     * {@code assignmentFile} gives part N, and, if {@code assembles}, the home part also runs {@code assemble} when
+     * {@link CiPartsExtension#getIncludeAssemble()} asks for it.
      */
-    record Suite(String taskPrefix, String rootTask, String assignmentFile) {
+    record Suite(String taskPrefix, String rootTask, String assignmentFile, boolean assembles) {
         Pattern partTaskPattern() {
             return Pattern.compile("(?:^|:)" + taskPrefix + "(\\d+)$");
         }
     }
 
-    static final Suite CHECK = new Suite(CHECK_PART_TASK_PREFIX, LifecycleBasePlugin.CHECK_TASK_NAME, ASSIGNMENT_FILE);
-    static final Suite BC_UPGRADE = new Suite(BC_UPGRADE_PART_TASK_PREFIX, "bcUpgradeTest", BC_UPGRADE_ASSIGNMENT_FILE);
-    static final List<Suite> SUITES = List.of(CHECK, BC_UPGRADE);
+    static final Suite CHECK = new Suite(CHECK_PART_TASK_PREFIX, LifecycleBasePlugin.CHECK_TASK_NAME, ASSIGNMENT_FILE, true);
+    static final Suite BC_UPGRADE = new Suite(BC_UPGRADE_PART_TASK_PREFIX, "bcUpgradeTest", BC_UPGRADE_ASSIGNMENT_FILE, true);
+    // the ES|QL release test jobs are release builds that only test, so they never assemble
+    static final Suite ESQL_RELEASE = new Suite(ESQL_RELEASE_PART_TASK_PREFIX, "esqlReleaseTestCheck", ESQL_RELEASE_ASSIGNMENT_FILE, false);
+    static final List<Suite> SUITES = List.of(CHECK, BC_UPGRADE, ESQL_RELEASE);
 
     @Inject
     protected abstract ProviderFactory getProviders();
@@ -243,7 +250,7 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
         if (root != null) {
             select(project, root, assignment, part, home, new HashSet<>(), selected);
         }
-        if (home && extension.getIncludeAssemble().get()) {
+        if (home && suite.assembles() && extension.getIncludeAssemble().get()) {
             selected.add(project.getTasks().getByName(LifecycleBasePlugin.ASSEMBLE_TASK_NAME));
         }
         return selected;

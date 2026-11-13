@@ -30,6 +30,14 @@ upgrades its own cluster, so a class never spans shards. Durations come from `pr
 planner's per-part estimate excludes the fixed cost of each job (about 5 minutes, mostly building the base
 version from source). Regenerate with `./gradlew generateBcUpgradeTestPartAssignment`.
 
+## ES|QL release test parts
+
+`esql-release/` holds the same three files for `releaseTestCheckEsqlPart1..N`, the ES|QL release test jobs
+(`.buildkite/pipelines/pull-request/esql-release-tests.yml`, release builds run on ES|QL-labelled PRs). They split
+`esqlReleaseTestCheck`, which the root `build.gradle` registers on the projects those jobs cover. Durations come
+from those jobs, because release builds turn feature flags off and test times differ from snapshot builds.
+Regenerate with `./gradlew generateEsqlReleaseTestPartAssignment`.
+
 ## Refreshing
 
 1. Export durations from the CI stats cluster (median executed duration of each Gradle task in
@@ -37,6 +45,7 @@ version from source). Regenerate with `./gradlew generateBcUpgradeTestPartAssign
    from a cold build (one that changes build logic, so no test or precommit task comes from the cache)
    balance the parts for the slowest case; there, precommit tasks take much longer than usual because
    they compete with the tests for CPU.
-2. Run `./gradlew generateCiPartAssignment` (or `generateBcUpgradeTestPartAssignment`); it prints the
+2. Run `./gradlew generateCiPartAssignment` (or `generateBcUpgradeTestPartAssignment`,
+   `generateEsqlReleaseTestPartAssignment`); it prints the
    planner's per-part estimate.
 3. Review the diff of `assignment.json`.

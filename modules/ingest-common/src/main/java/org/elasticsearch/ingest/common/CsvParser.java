@@ -91,7 +91,7 @@ final class CsvParser {
                 startIndex = currentIndex + 1;
                 return false;
             } else if (c == separator) {
-                startIndex++;
+                startIndex = currentIndex + 1;
                 builder.setLength(0);
                 if (setField(startIndex)) {
                     return true;

@@ -1100,4 +1100,25 @@ public class AutodetectProcessManager implements ClusterStateListener {
         return ByteSizeValue.ofBytes(memoryUsedBytes);
     }
 
+    /**
+     * Counts running jobs on this node whose latest model size stats report a hard memory limit.
+     */
+    public long countJobsAtHardLimit() {
+        long jobsAtHardLimit = 0;
+        for (ProcessContext processContext : processByAllocation.values()) {
+            if (processContext.getState() != ProcessContext.ProcessStateName.RUNNING) {
+                continue;
+            }
+            AutodetectCommunicator communicator = processContext.getAutodetectCommunicator();
+            if (communicator == null) {
+                continue;
+            }
+            ModelSizeStats modelSizeStats = communicator.getModelSizeStats();
+            if (modelSizeStats != null && modelSizeStats.getMemoryStatus() == ModelSizeStats.MemoryStatus.HARD_LIMIT) {
+                jobsAtHardLimit++;
+            }
+        }
+        return jobsAtHardLimit;
+    }
+
 }

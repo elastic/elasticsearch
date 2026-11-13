@@ -185,7 +185,8 @@ final class PlainValues {
             this.chunkTargetBytes = bounds.targetBytes();
         }
 
-        void add(BytesRef value) throws IOException {
+        /** Adds {@code value} and returns whether it equals the value before it. */
+        boolean add(BytesRef value) throws IOException {
             assert transferred != Boolean.TRUE : "a column's values are either added or transferred";
             transferred = false;
             if (constantLength >= 0 && value.length != constantLength) {
@@ -212,6 +213,7 @@ final class PlainValues {
             }
             previousNull = false;
             count++;
+            return repeat;
         }
 
         /**

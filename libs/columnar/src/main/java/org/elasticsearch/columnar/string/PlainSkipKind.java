@@ -53,9 +53,12 @@ interface PlainSkipKind {
 
         /**
          * Takes the slot at {@code address}, held by {@code doc} and owned by {@code chunk}; a null {@code value} is a
-         * null slot.
+         * null slot. {@code repeat} says that the value equals the one before it.
          */
-        void add(long address, int doc, int chunk, BytesRef value) throws IOException;
+        void add(long address, int doc, int chunk, BytesRef value, boolean repeat) throws IOException;
+
+        /** Whether the values taken so far are in ascending order. */
+        boolean ascending();
 
         /** Appends the region to {@code skipIndex} and returns where it went, or null if there is no region. */
         StringColumnMetadata.Plain.Skipper finish(IndexOutput skipIndex) throws IOException;

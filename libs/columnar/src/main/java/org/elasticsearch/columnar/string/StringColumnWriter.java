@@ -268,10 +268,10 @@ public final class StringColumnWriter {
                             nulls++;
                             stream.addNull();
                             if (bounds != null) {
-                                bounds.add(valueAddress, doc, stream.ownerChunk(), null);
+                                bounds.add(valueAddress, doc, stream.ownerChunk(), null, false);
                             }
                         } else {
-                            if (sorted) {
+                            if (bounds == null && sorted) {
                                 if (hasPrevious && previous.get().compareTo(value) > 0) {
                                     sorted = false;
                                 } else {
@@ -279,14 +279,17 @@ public final class StringColumnWriter {
                                     hasPrevious = true;
                                 }
                             }
-                            stream.add(value);
+                            final boolean repeat = stream.add(value);
                             if (bounds != null) {
-                                bounds.add(valueAddress, doc, stream.ownerChunk(), value);
+                                bounds.add(valueAddress, doc, stream.ownerChunk(), value, repeat);
                             }
                         }
                         valueAddress++;
                     }
                 }
+            }
+            if (bounds != null) {
+                sorted &= bounds.ascending();
             }
             written = stream.finish();
             valuesWorthNaming = dictionaryPolicy.enabled() == false || stream.runs() * StringColumnReader.MIN_PAGE_REPEAT <= numValues;

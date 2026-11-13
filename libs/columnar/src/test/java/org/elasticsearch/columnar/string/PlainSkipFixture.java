@@ -154,22 +154,25 @@ final class PlainSkipFixture implements Closeable {
             }
             try (PlainSkipKind.Writer writer = PlainSkipKind.forWriting().newWriter(dir, IOContext.DEFAULT, "fixture", total)) {
                 long address = 0;
+                BytesRef previous = null;
                 for (int doc = 0; doc < docSlots.length; doc++) {
                     if (docSlots[doc] == null) {
                         continue;
                     }
                     for (BytesRef value : docSlots[doc]) {
+                        final boolean repeat = value != null && value.equals(previous);
+                        previous = value;
                         if (value == null) {
-                            writer.add(address, doc, owners[(int) address++], null);
+                            writer.add(address, doc, owners[(int) address++], null, false);
                         } else if (reuseBuffer) {
                             shared.bytes = ArrayUtil.grow(shared.bytes, value.length + 8);
                             System.arraycopy(value.bytes, value.offset, shared.bytes, 4, value.length);
                             shared.offset = 4;
                             shared.length = value.length;
-                            writer.add(address, doc, owners[(int) address++], shared);
+                            writer.add(address, doc, owners[(int) address++], shared, repeat);
                             Arrays.fill(shared.bytes, (byte) 0xAA);
                         } else {
-                            writer.add(address, doc, owners[(int) address++], PlainSkipTestValues.maybeOffset(value));
+                            writer.add(address, doc, owners[(int) address++], PlainSkipTestValues.maybeOffset(value), repeat);
                         }
                     }
                 }

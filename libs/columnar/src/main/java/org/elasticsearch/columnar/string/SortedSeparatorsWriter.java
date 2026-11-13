@@ -60,7 +60,7 @@ final class SortedSeparatorsWriter implements PlainSkipKind.Writer {
     }
 
     @Override
-    public void add(long address, int doc, int chunk, BytesRef value) throws IOException {
+    public void add(long address, int doc, int chunk, BytesRef value, boolean repeat) throws IOException {
         if (address != nextAddress) {
             throw new IllegalStateException("slot [" + address + "] arrived when [" + nextAddress + "] was expected");
         }
@@ -78,7 +78,7 @@ final class SortedSeparatorsWriter implements PlainSkipKind.Writer {
         if (value == null) {
             return;
         }
-        if (inOrder(value) == false) {
+        if (repeat == false && inOrder(value) == false) {
             unordered = true;
             waiting = 0;
             return;
@@ -86,8 +86,15 @@ final class SortedSeparatorsWriter implements PlainSkipKind.Writer {
         if (waiting > 0) {
             flushWaiting(writeSeparator(value));
         }
-        previous.copyBytes(value);
-        hasPrevious = true;
+        if (repeat == false) {
+            previous.copyBytes(value);
+            hasPrevious = true;
+        }
+    }
+
+    @Override
+    public boolean ascending() {
+        return unordered == false && direction >= 0;
     }
 
     @Override

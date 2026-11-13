@@ -13,6 +13,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
@@ -227,7 +228,7 @@ public class SortedSeparatorsSkipTests extends ESTestCase {
                 final PlainSkipKind.Writer writer = PlainSkipKind.forWriting()
                     .newWriter(dir, IOContext.DEFAULT, "unordered", values.size());
                 for (int slot = 0; slot < values.size(); slot++) {
-                    writer.add(slot, slot, slot / 2, new BytesRef(values.get(slot)));
+                    writer.add(slot, slot, slot / 2, new BytesRef(values.get(slot)), false);
                 }
                 assertNull(values.toString(), writer.finish(skipIndex));
                 assertEquals("nothing is written to the skip index", 0, skipIndex.getFilePointer());
@@ -239,7 +240,7 @@ public class SortedSeparatorsSkipTests extends ESTestCase {
     public void testTheStagedFilesAreRemovedWhenTheWriterIsClosedUnfinished() throws IOException {
         try (Directory dir = newDirectory()) {
             final PlainSkipKind.Writer writer = PlainSkipKind.forWriting().newWriter(dir, IOContext.DEFAULT, "unfinished", 4);
-            writer.add(0, 0, 0, new BytesRef("a"));
+            writer.add(0, 0, 0, new BytesRef("a"), false);
             writer.close();
             assertNoStagedFiles(dir);
         }
@@ -248,18 +249,18 @@ public class SortedSeparatorsSkipTests extends ESTestCase {
     public void testASlotOutOfSequenceIsRejected() throws IOException {
         try (Directory dir = newDirectory()) {
             try (PlainSkipKind.Writer writer = PlainSkipKind.forWriting().newWriter(dir, IOContext.DEFAULT, "sequence", 4)) {
-                writer.add(0, 0, 0, new BytesRef("a"));
-                expectThrows(IllegalStateException.class, () -> writer.add(2, 2, 0, new BytesRef("b")));
+                writer.add(0, 0, 0, new BytesRef("a"), false);
+                expectThrows(IllegalStateException.class, () -> writer.add(2, 2, 0, new BytesRef("b"), false));
             }
             try (PlainSkipKind.Writer writer = PlainSkipKind.forWriting().newWriter(dir, IOContext.DEFAULT, "chunks", 4)) {
-                writer.add(0, 0, 3, new BytesRef("a"));
-                expectThrows(IllegalStateException.class, () -> writer.add(1, 1, 2, new BytesRef("b")));
+                writer.add(0, 0, 3, new BytesRef("a"), false);
+                expectThrows(IllegalStateException.class, () -> writer.add(1, 1, 2, new BytesRef("b"), false));
             }
             try (
                 PlainSkipKind.Writer writer = PlainSkipKind.forWriting().newWriter(dir, IOContext.DEFAULT, "short", 4);
                 IndexOutput skipIndex = dir.createOutput("skip", IOContext.DEFAULT)
             ) {
-                writer.add(0, 0, 0, new BytesRef("a"));
+                writer.add(0, 0, 0, new BytesRef("a"), false);
                 expectThrows(IllegalStateException.class, () -> writer.finish(skipIndex));
             }
             assertNoStagedFiles(dir);
@@ -270,7 +271,7 @@ public class SortedSeparatorsSkipTests extends ESTestCase {
         try (Directory dir = newDirectory(); IndexOutput skipIndex = dir.createOutput("skip", IOContext.DEFAULT)) {
             final PlainSkipKind.Writer writer = PlainSkipKind.forWriting().newWriter(dir, IOContext.DEFAULT, "nulls", 3);
             for (int slot = 0; slot < 3; slot++) {
-                writer.add(slot, slot, 0, null);
+                writer.add(slot, slot, 0, null, false);
             }
             assertNull(writer.finish(skipIndex));
             assertNoStagedFiles(dir);
@@ -374,6 +375,43 @@ public class SortedSeparatorsSkipTests extends ESTestCase {
         for (long slot = fixture.entryFirstSlot[entry]; slot < end; slot++) {
             final BytesRef value = fixture.slotValues[(int) slot];
             assertFalse("an excluded entry owns a match", value != null && PlainBlockOracle.matches(value, query));
+        }
+    }
+
+    public void testFlaggingRepeatsChangesNeitherTheRegionNorTheDirectionItReports() throws IOException {
+        final List<List<String>> columns = List.of(
+            List.of("a", "a", "b", "b", "c", "c", "c"),
+            List.of("c", "c", "b", "a", "a"),
+            List.of("a", "a", "a"),
+            List.of("a", "b", "b", "a"),
+            List.of("b", "b", "a", "a", "b")
+        );
+        final List<Boolean> ascending = List.of(true, false, true, false, false);
+        for (int i = 0; i < columns.size(); i++) {
+            final List<String> values = columns.get(i);
+            try (Directory dir = newDirectory()) {
+                final byte[][] written = new byte[2][];
+                final StringColumnMetadata.Plain.Skipper[] skippers = new StringColumnMetadata.Plain.Skipper[2];
+                for (int flagged = 0; flagged < 2; flagged++) {
+                    final String name = "skip" + flagged;
+                    try (IndexOutput skipIndex = dir.createOutput(name, IOContext.DEFAULT)) {
+                        final PlainSkipKind.Writer writer = PlainSkipKind.forWriting()
+                            .newWriter(dir, IOContext.DEFAULT, "repeats" + flagged, values.size());
+                        for (int slot = 0; slot < values.size(); slot++) {
+                            final boolean repeat = flagged == 1 && slot > 0 && values.get(slot).equals(values.get(slot - 1));
+                            writer.add(slot, slot, slot / 2, new BytesRef(values.get(slot)), repeat);
+                        }
+                        assertEquals(values.toString(), ascending.get(i), writer.ascending());
+                        skippers[flagged] = writer.finish(skipIndex);
+                    }
+                    try (IndexInput in = dir.openInput(name, IOContext.READONCE)) {
+                        written[flagged] = new byte[(int) in.length()];
+                        in.readBytes(written[flagged], 0, written[flagged].length);
+                    }
+                }
+                assertEquals(values.toString(), skippers[0], skippers[1]);
+                assertArrayEquals(values.toString(), written[0], written[1]);
+            }
         }
     }
 

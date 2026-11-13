@@ -94,6 +94,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /** Structural {@code TermInSetQuery} reservation. Per-leaf execution charges are tracked under {@link #CATEGORY_UNCATEGORIZED}. */
     public static final String CATEGORY_TERMS = "terms";
 
+    /** Heap taken by parsing request content, see {@link org.elasticsearch.common.xcontent.ParsedContentReservation}. */
+    public static final String CATEGORY_PARSED_REQUEST = "parsed_request";
+
     private static final Set<String> KNOWN_CATEGORIES = Set.of(
         CATEGORY_QUERY,
         CATEGORY_FETCH,
@@ -102,7 +105,8 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         CATEGORY_RANGE,
         CATEGORY_PREALLOCATE,
         CATEGORY_MSEARCH,
-        CATEGORY_TERMS
+        CATEGORY_TERMS,
+        CATEGORY_PARSED_REQUEST
     );
 
     /**

@@ -605,7 +605,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexVersionCreated,
-                indexMode,
                 isExcludeSourceVectors,
                 isExcludeSourceVectorsFinal,
                 experimentalFeaturesEnabled,
@@ -4192,7 +4191,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private final DenseVectorIndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
-    private final IndexMode indexMode;
     private final boolean excludeSourceVectorsSetting;
     private final boolean excludeSourceVectors;
     private final boolean experimentalFeaturesEnabled;
@@ -4205,7 +4203,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         BuilderParams params,
         DenseVectorIndexOptions indexOptions,
         IndexVersion indexCreatedVersion,
-        IndexMode indexMode,
         boolean excludeSourceVectorsSetting,
         boolean excludeSourceVectors,
         boolean experimentalFeaturesEnabled,
@@ -4215,7 +4212,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
-        this.indexMode = indexMode;
         this.excludeSourceVectorsSetting = excludeSourceVectorsSetting;
         this.excludeSourceVectors = excludeSourceVectors;
         this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;

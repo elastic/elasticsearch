@@ -18,12 +18,15 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
@@ -309,6 +312,144 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             );
             nodeA.transportService.onConnectionClosed(connection);
             assertThat(safeGet(future), instanceOf(NodeDisconnectedException.class));
+        }
+    }
+
+    /**
+     * A sender may release a ref-counted request as soon as its response handler completes, and that can happen before the request
+     * reaches the local handler: a timeout, a disconnect or {@link TransportService#doStop} completes the handler as soon as it is
+     * registered. Here a message listener completes it as a disconnect would, from {@link TransportMessageListener#onRequestSent}, which
+     * runs between registration and local dispatch, so the local handler only sees a live request if the transport holds its own
+     * reference while it sends.
+     */
+    public void testLocalRequestStaysReferencedIfResponseHandlerCompletesBeforeDispatch() {
+        final var action = "internal:test/ref-counted";
+        final var threadPool = new TestThreadPool(getTestName());
+        final var transportService = MockTransportService.createNewService(
+            Settings.EMPTY,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
+            threadPool
+        );
+        try {
+            final var handlerSawReference = new PlainActionFuture<Boolean>();
+            transportService.registerRequestHandler(
+                action,
+                randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.generic()),
+                RefCountedRequest::new,
+                (request, channel, task) -> {
+                    handlerSawReference.onResponse(request.hasReferences());
+                    channel.sendResponse(ActionResponse.Empty.INSTANCE);
+                }
+            );
+            transportService.start();
+            transportService.acceptIncomingRequests();
+
+            final var localConnection = transportService.getConnection(transportService.getLocalNode());
+            transportService.addMessageListener(new TransportMessageListener() {
+                @Override
+                public void onRequestSent(
+                    DiscoveryNode node,
+                    long requestId,
+                    String action,
+                    TransportRequest request,
+                    TransportRequestOptions finalOptions,
+                    int networkMessageSize
+                ) {
+                    transportService.onConnectionClosed(localConnection);
+                }
+            });
+
+            final var request = new RefCountedRequest();
+            transportService.sendRequest(localConnection, action, request, TransportRequestOptions.EMPTY, releasingHandler(request));
+
+            assertTrue(safeGet(handlerSawReference));
+            safeAwait(request.released);
+        } finally {
+            transportService.close();
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * As {@link #testLocalRequestStaysReferencedIfResponseHandlerCompletesBeforeDispatch} but for a request sent over a connection,
+     * whose response handler completes, as on a disconnect, before the connection has serialized the request.
+     */
+    public void testRequestStaysReferencedIfResponseHandlerCompletesBeforeSerialization() {
+        try (var nodeA = new TestNode("node-A")) {
+            final var referencedWhileSerializing = new PlainActionFuture<Boolean>();
+            final var connection = new CloseableConnection() {
+                @Override
+                public DiscoveryNode getNode() {
+                    return nodeA.transportService.getLocalNode();
+                }
+
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
+                    nodeA.transportService.onConnectionClosed(this);
+                    referencedWhileSerializing.onResponse(request.hasReferences());
+                }
+
+                @Override
+                public TransportVersion getTransportVersion() {
+                    return TransportVersion.current();
+                }
+            };
+
+            final var request = new RefCountedRequest();
+            nodeA.transportService.sendRequest(
+                connection,
+                TestNode.randomActionName(random()),
+                request,
+                TransportRequestOptions.EMPTY,
+                releasingHandler(request)
+            );
+
+            assertTrue(safeGet(referencedWhileSerializing));
+            safeAwait(request.released);
+        }
+    }
+
+    /**
+     * A response handler that releases the sender's reference to {@code request} when it completes, as senders that hold their request
+     * until the response arrives do.
+     */
+    private static TransportResponseHandler<ActionResponse.Empty> releasingHandler(RefCountedRequest request) {
+        return new ActionListenerResponseHandler<>(
+            ActionListener.running(request::decRef),
+            unusedReader(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+    }
+
+    private static class RefCountedRequest extends AbstractTransportRequest {
+        final CountDownLatch released = new CountDownLatch(1);
+        private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(released::countDown));
+
+        RefCountedRequest() {}
+
+        RefCountedRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
         }
     }
 

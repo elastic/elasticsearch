@@ -1,7 +1,0 @@
-area: Mapping
-issues:
- - 165787
-pr: 165829
-summary: Fixed a bug in the batch indexing path where a sub-batch mixes documents
-  to write and documents to skip
-type: bug

@@ -403,11 +403,18 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
             requireDestCapacity(dest, destLen);
             ByteBuffer input = compressed.toByteBuffer();
             int written;
-            if (input.hasArray()) {
-                written = lz4.decompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), dest, 0, destLen);
-            } else {
-                byte[] in = compressed.toByteArray();
-                written = lz4.decompress(in, 0, in.length, dest, 0, destLen);
+            try {
+                if (input.hasArray()) {
+                    written = lz4.decompress(input.array(), input.arrayOffset() + input.position(), input.remaining(), dest, 0, destLen);
+                } else {
+                    byte[] in = compressed.toByteArray();
+                    written = lz4.decompress(in, 0, in.length, dest, 0, destLen);
+                }
+            } catch (MalformedInputException e) {
+                // Same contract as Lz4HadoopFramedBytesDecompressor: a corrupt page is I/O, not a
+                // bug. Aircompressor's unchecked MalformedInputException would otherwise classify
+                // as HTTP 500 while Snappy/GZIP/Zstd failures on the same bytes are 400.
+                throw new IOException("LZ4_RAW: malformed page", e);
             }
             requireExactUncompressedSize(written, destLen, "LZ4_RAW");
         }
@@ -417,9 +424,15 @@ public final class PlainCompressionCodecFactory implements CompressionCodecFacto
             int origLimit = input.limit();
             int origPos = input.position();
             input.limit(origPos + compressedSize);
-            lz4.decompress(input, output);
-            input.limit(origLimit);
-            input.position(origPos + compressedSize);
+            try {
+                lz4.decompress(input, output);
+                input.position(origPos + compressedSize);
+            } catch (MalformedInputException e) {
+                input.position(origPos);
+                throw new IOException("LZ4_RAW: malformed page", e);
+            } finally {
+                input.limit(origLimit);
+            }
         }
 
         @Override

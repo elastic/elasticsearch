@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166017
+summary: Return 400 for a corrupt Parquet page
+type: bug

@@ -1258,7 +1258,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (advanceRowGroup() == false) {
                     return null;
                 }
-            } catch (IOException e) {
+            } catch (IOException | IllegalArgumentException e) {
                 throw ParquetReadFailures.wrap(
                     e,
                     "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]"
@@ -1906,7 +1906,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
                 return false;
             }
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
             throw ParquetReadFailures.wrap(
                 e,
                 "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]"

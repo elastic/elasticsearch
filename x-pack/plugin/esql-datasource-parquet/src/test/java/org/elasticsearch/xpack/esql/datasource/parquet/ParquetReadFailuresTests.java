@@ -7,6 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import io.airlift.compress.MalformedInputException;
+import io.airlift.compress.lz4.Lz4Compressor;
+
+import org.apache.parquet.bytes.BytesInput;
+import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -23,7 +29,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -178,5 +186,66 @@ public class ParquetReadFailuresTests extends ESTestCase {
         AssertionError error = new AssertionError("boom");
         AssertionError thrown = expectThrows(AssertionError.class, () -> ParquetReadFailures.wrap(new CompletionException(error), "ctx"));
         assertSame(error, thrown);
+    }
+
+    public void testMalformedLz4PayloadIsClient400() throws IOException {
+        byte[] corrupt = corruptLz4Payload();
+        PlainCompressionCodecFactory factory = new PlainCompressionCodecFactory();
+        try {
+            BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4_RAW);
+            IOException thrown = expectThrows(IOException.class, () -> decompressor.decompress(BytesInput.from(corrupt), 4096));
+            assertThat(thrown.getMessage(), containsString("LZ4_RAW"));
+            assertThat(thrown.getCause(), instanceOf(MalformedInputException.class));
+            assertEquals(
+                RestStatus.BAD_REQUEST,
+                ExceptionsHelper.status(ExternalFailures.classify(ParquetReadFailures.wrap(thrown, "ctx")))
+            );
+        } finally {
+            factory.release();
+        }
+    }
+
+    public void testMalformedLz4PayloadIsClient400OnByteBufferOverload() throws IOException {
+        byte[] corrupt = corruptLz4Payload();
+        PlainCompressionCodecFactory factory = new PlainCompressionCodecFactory();
+        try {
+            BytesInputDecompressor decompressor = factory.getDecompressor(CompressionCodecName.LZ4_RAW);
+            ByteBuffer input = ByteBuffer.wrap(corrupt);
+            ByteBuffer output = ByteBuffer.allocate(4096);
+            IOException thrown = expectThrows(IOException.class, () -> decompressor.decompress(input, corrupt.length, output, 4096));
+            assertThat(thrown.getMessage(), containsString("LZ4_RAW"));
+            assertThat(thrown.getCause(), instanceOf(MalformedInputException.class));
+            assertEquals(
+                RestStatus.BAD_REQUEST,
+                ExceptionsHelper.status(ExternalFailures.classify(ParquetReadFailures.wrap(thrown, "ctx")))
+            );
+        } finally {
+            factory.release();
+        }
+    }
+
+    public void testMalformedPageIaeWrapNamesFileAndClassifies400() {
+        IllegalArgumentException iae = new IllegalArgumentException(
+            "Malformed Parquet page for column [id] in row group [0]: declared type [DATA_PAGE_V2] but data_page_header_v2 is missing"
+        );
+        RuntimeException wrapped = ParquetReadFailures.wrap(iae, "Failed to read Parquet column [id] in file [broken.parquet]");
+        assertThat(wrapped.getMessage(), containsString("broken.parquet"));
+        assertThat(wrapped.getMessage(), containsString("id"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(wrapped)));
+    }
+
+    private static byte[] corruptLz4Payload() {
+        byte[] source = new byte[4096];
+        for (int i = 0; i < source.length; i++) {
+            source[i] = (byte) (i % 7);
+        }
+        Lz4Compressor compressor = new Lz4Compressor();
+        byte[] compressed = new byte[compressor.maxCompressedLength(source.length)];
+        int length = compressor.compress(source, 0, source.length, compressed, 0, compressed.length);
+        byte[] corrupt = Arrays.copyOf(compressed, length);
+        for (int i = 8; i < 24; i++) {
+            corrupt[i] ^= 0x5A;
+        }
+        return corrupt;
     }
 }

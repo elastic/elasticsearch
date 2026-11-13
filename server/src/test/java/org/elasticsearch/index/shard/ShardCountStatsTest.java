@@ -40,6 +40,6 @@ class ShardCountStatsTest extends AbstractWireSerializingTestCase<ShardCountStat
 
     @Override
     protected ShardCountStats mutateInstance(ShardCountStats instance) {
-        return new ShardCountStats(randomValueOtherThan(instance.getTotalCount() , () -> randomNonNegativeLong()));
+        return new ShardCountStats(randomValueOtherThan(instance.getTotalCount(), () -> randomNonNegativeLong()));
     }
 }

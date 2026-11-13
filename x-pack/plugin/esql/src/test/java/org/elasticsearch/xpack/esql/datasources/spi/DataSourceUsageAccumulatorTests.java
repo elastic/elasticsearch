@@ -260,10 +260,14 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         acc.recordConfigChange("datasources", "updated");
         acc.recordConfigChange("dataset", "deleted");
         acc.recordConfigChange("datasets", "rejected");
+        acc.recordConfigChange("datasource", "enabled");
+        acc.recordConfigChange("datasets", "disabled");
         assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_CREATED), equalTo(1L));
         assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_UPDATED), equalTo(1L));
         assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_DELETED), equalTo(1L));
         assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_REJECTED), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASOURCE, DataSourceUsageAccumulator.OP_ENABLED), equalTo(1L));
+        assertThat(acc.configChanges(DataSourceUsageAccumulator.KIND_DATASET, DataSourceUsageAccumulator.OP_DISABLED), equalTo(1L));
 
         Counters counters = new Counters();
         DataSourceCounters.populate(acc, counters);
@@ -271,6 +275,9 @@ public class DataSourceUsageAccumulatorTests extends ESTestCase {
         assertThat(counters.get("datasources.config.datasources.changes.by_op.updated"), equalTo(1L));
         assertThat(counters.get("datasources.config.datasets.changes.by_op.deleted"), equalTo(1L));
         assertThat(counters.get("datasources.config.datasets.changes.by_op.rejected"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasources.changes.by_op.enabled"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasets.changes.by_op.disabled"), equalTo(1L));
+        assertThat(counters.get("datasources.config.datasources.changes.by_op.disabled"), equalTo(0L));
     }
 
     public void testRecordQueryFailureByErrorType() {

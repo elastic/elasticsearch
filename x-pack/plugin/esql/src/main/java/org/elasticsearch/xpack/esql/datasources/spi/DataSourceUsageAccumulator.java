@@ -87,8 +87,10 @@ public final class DataSourceUsageAccumulator {
     public static final int OP_UPDATED = 1;
     public static final int OP_DELETED = 2;
     public static final int OP_REJECTED = 3;
-    public static final int OP_COUNT = 4;
-    public static final List<String> OP_NAMES = List.of("created", "updated", "deleted", "rejected");
+    public static final int OP_ENABLED = 4;
+    public static final int OP_DISABLED = 5;
+    public static final int OP_COUNT = 6;
+    public static final List<String> OP_NAMES = List.of("created", "updated", "deleted", "rejected", "enabled", "disabled");
 
     // ---- failure error-type vocabulary (queries.failures.by_error_type / discovery.failures.by_error_type) ----
 
@@ -392,7 +394,7 @@ public final class DataSourceUsageAccumulator {
 
     /**
      * @param kind {@code datasources} or {@code datasets}
-     * @param op {@code created}, {@code updated}, {@code deleted}, or {@code rejected}
+     * @param op {@code created}, {@code updated}, {@code deleted}, {@code rejected}, {@code enabled}, or {@code disabled}
      */
     public void recordConfigChange(String kind, String op) {
         recordConfigChange(kind, op, Type.UNKNOWN, null);
@@ -400,7 +402,7 @@ public final class DataSourceUsageAccumulator {
 
     /**
      * @param kind   {@code datasources} or {@code datasets}
-     * @param op     {@code created}, {@code updated}, {@code deleted}, or {@code rejected}
+     * @param op     {@code created}, {@code updated}, {@code deleted}, {@code rejected}, {@code enabled}, or {@code disabled}
      * @param type   the storage / data-source type the change applies to
      * @param reason one of {@link #REJECT_REASON_NAMES}; only used when {@code op} is {@code rejected}, where {@code null}
      *               counts as {@code other} so the per-reason counters always sum to the {@code rejected} op counter
@@ -619,6 +621,8 @@ public final class DataSourceUsageAccumulator {
             case "updated" -> OP_UPDATED;
             case "deleted" -> OP_DELETED;
             case "rejected" -> OP_REJECTED;
+            case "enabled" -> OP_ENABLED;
+            case "disabled" -> OP_DISABLED;
             default -> throw new IllegalArgumentException("unexpected op: " + op);
         };
     }

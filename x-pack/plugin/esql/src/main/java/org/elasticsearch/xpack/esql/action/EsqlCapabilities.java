@@ -4910,6 +4910,13 @@ public class EsqlCapabilities {
          */
         INTO_COMMAND(Build.current().isSnapshot()),
 
+        /**
+         * Does the usage information for ESQL count datasource/dataset enable and disable toggles
+         * ({@code datasources.config.datasources.changes.by_op.enabled}, {@code .disabled} and the same under
+         * {@code datasources.config.datasets})? Only toggles that flip the flag are counted.
+         */
+        USAGE_CONTAINS_DATASOURCE_CONFIG_ENABLE_DISABLE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

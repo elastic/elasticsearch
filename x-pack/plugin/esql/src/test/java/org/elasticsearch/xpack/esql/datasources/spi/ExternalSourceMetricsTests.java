@@ -741,6 +741,21 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(measurements(InstrumentType.LONG_HISTOGRAM, ExternalSourceMetrics.STORAGE_READ_STALL_DURATION), hasSize(0));
     }
 
+    public void testRecordConfigChangeEnableDisableHaveNoReason() {
+        for (String op : new String[] { "enabled", "disabled" }) {
+            metrics.recordConfigChange("dataset", op, "s3", null);
+        }
+        var measurements = measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.CONFIG_CHANGES_TOTAL);
+        assertThat(measurements, hasSize(2));
+        assertThat(measurements.get(0).attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE), equalTo("enabled"));
+        assertThat(measurements.get(1).attributes().get(ExternalSourceMetrics.OP_ATTRIBUTE), equalTo("disabled"));
+        for (Measurement m : measurements) {
+            assertThat(m.attributes().get(ExternalSourceMetrics.KIND_ATTRIBUTE), equalTo("dataset"));
+            assertThat(m.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE), equalTo("s3"));
+            assertThat(m.attributes().containsKey(ExternalSourceMetrics.REASON_ATTRIBUTE), equalTo(false));
+        }
+    }
+
     public void testRecordConfigChangeCreatedHasNoReason() {
         metrics.recordConfigChange("datasource", "created", "s3", null);
         Measurement m = single(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.CONFIG_CHANGES_TOTAL);

@@ -311,8 +311,9 @@ public class DatasetService {
     }
 
     /**
-     * Enable or disable datasets by name. Idempotent if already in the target state.
-     * Fails with 404 if a name does not exist.
+     * Enable or disable datasets by name. Idempotent if already in the target state; only names whose flag actually
+     * flipped are counted in the config-change telemetry, tagged with their parent data source's type. Fails with 404 if
+     * a name does not exist.
      */
     public void setDatasetsEnabled(
         ProjectId projectId,
@@ -326,17 +327,24 @@ public class DatasetService {
         final DatasetMetadata metadata = getMetadata(projectMetadata);
         final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();
         if (notFound.isPresent()) {
-            listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", notFound.get()));
+            ResourceNotFoundException e = new ResourceNotFoundException("dataset [{}] not found", notFound.get());
+            recordRejected(null, e);
+            listener.onFailure(e);
             return;
         }
         logger.debug("submitting set enabled={} for datasets {}", enabled, names);
-        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
+        final AtomicReference<List<String>> flippedTypes = new AtomicReference<>();
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(
+            masterNodeTimeout,
+            ackTimeout,
+            enabledRecordingListener(listener, enabled, flippedTypes)
+        ) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final DatasetMetadata current = getMetadata(project);
                 final Map<String, Dataset> updated = new HashMap<>(current.datasets());
-                boolean changed = false;
+                final List<String> flipped = new ArrayList<>();
                 for (String name : names) {
                     final Dataset existing = updated.get(name);
                     if (existing == null) {
@@ -345,16 +353,41 @@ public class DatasetService {
                     final Dataset next = existing.withEnabled(enabled);
                     if (next != existing) {
                         updated.put(name, next);
-                        changed = true;
+                        flipped.add(parentType(project, existing.dataSource().getName()));
                     }
                 }
-                if (changed == false) {
+                if (flipped.isEmpty()) {
                     return currentState;
                 }
+                flippedTypes.set(flipped);
                 return ClusterState.builder(currentState).putProjectMetadata(ProjectMetadata.builder(project).datasets(updated)).build();
             }
         };
         taskQueue.submitTask("set-enabled-esql-dataset-metadata-" + names, task, task.timeout());
+    }
+
+    private ActionListener<AcknowledgedResponse> enabledRecordingListener(
+        ActionListener<AcknowledgedResponse> delegate,
+        boolean enabled,
+        AtomicReference<List<String>> flippedTypes
+    ) {
+        return ActionListener.wrap(r -> {
+            List<String> types = flippedTypes.get();
+            if (types != null) {
+                for (String type : types) {
+                    metrics.recordConfigChange(
+                        ConfigChangeTelemetry.KIND_DATASET,
+                        enabled ? ConfigChangeTelemetry.OP_ENABLED : ConfigChangeTelemetry.OP_DISABLED,
+                        ConfigChangeTelemetry.typeToken(type),
+                        null
+                    );
+                }
+            }
+            delegate.onResponse(r);
+        }, e -> {
+            recordRejected(null, e);
+            delegate.onFailure(e);
+        });
     }
 
 }

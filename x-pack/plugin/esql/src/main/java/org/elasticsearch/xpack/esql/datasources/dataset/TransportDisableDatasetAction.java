@@ -73,7 +73,9 @@ public class TransportDisableDatasetAction extends AcknowledgedTransportMasterNo
             );
         } catch (IndexNotFoundException e) {
             final String missing = e.getIndex() != null ? e.getIndex().getName() : String.join(",", request.names());
-            listener.onFailure(new ResourceNotFoundException("dataset [{}] not found", missing));
+            ResourceNotFoundException notFound = new ResourceNotFoundException("dataset [{}] not found", missing);
+            datasetService.recordRejected(null, notFound);
+            listener.onFailure(notFound);
             return;
         }
         if (result.datasets().length == 0) {

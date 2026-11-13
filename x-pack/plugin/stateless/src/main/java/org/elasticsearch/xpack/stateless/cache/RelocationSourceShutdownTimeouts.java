@@ -9,22 +9,10 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
-import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.IncomingRecoveryLimits;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
-
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 
 /// The warming timeouts of search shards that relocate from a source node that is shutting down, which depend on the grace deadline of
 /// the source and on the relocation slots of the target.
@@ -33,57 +21,15 @@ import java.util.function.Function;
 /// [SearchRecoveryTimeoutCalculationService] reads as a choice of the timeout context.
 class RelocationSourceShutdownTimeouts {
 
-    /// The values of the master settings at which the master leaves the throttling of the recoveries to a search node to the data nodes, as
-    /// with data node recovery throttling (DNRT)
-    private static final Map<Setting<Integer>, Integer> MASTER_THROTTLING_DISABLED_VALUES = Map.of(
-        ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING,
-        Integer.MAX_VALUE,
-        ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING,
-        Integer.MAX_VALUE,
-        ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
-        -1
-    );
-
-    private final StatelessSharedBlobCacheService cacheService;
-    private final ThreadPool threadPool;
-    private volatile int maxConcurrentRelocationRecoveries;
-    private volatile boolean masterThrottlingDisabled;
-    private volatile TimeValue searchRecoveryWarmingGracePeriodCap;
+    private final ShutdownTimingSupport timing;
     private volatile double searchRecoveryWarmingSourceShutdownShareFactor;
-    private volatile double searchRecoveryWarmingCacheRatio;
     private volatile boolean searchRecoveryWarmingFilterSourceShardsByTarget;
 
-    RelocationSourceShutdownTimeouts(
-        StatelessSharedBlobCacheService cacheService,
-        ThreadPool threadPool,
-        ClusterSettings clusterSettings,
-        Settings nodeSettings,
-        ByteSizeValue maxHeap
-    ) {
-        this.cacheService = cacheService;
-        this.threadPool = threadPool;
-        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
-            clusterSettings,
-            nodeSettings,
-            maxHeap,
-            limits -> this.maxConcurrentRelocationRecoveries = limits.maxConcurrentNonCriticalRecoveries()
-        );
-        this.masterThrottlingDisabled = masterThrottlingDisabled(clusterSettings::get);
-        clusterSettings.addSettingsUpdateConsumer(
-            settings -> this.masterThrottlingDisabled = masterThrottlingDisabled(setting -> setting.get(settings)),
-            List.copyOf(MASTER_THROTTLING_DISABLED_VALUES.keySet())
-        );
-        clusterSettings.initializeAndWatch(
-            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_GRACE_PERIOD_CAP_SETTING,
-            value -> this.searchRecoveryWarmingGracePeriodCap = value
-        );
+    RelocationSourceShutdownTimeouts(ShutdownTimingSupport timing, ClusterSettings clusterSettings) {
+        this.timing = timing;
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
             value -> this.searchRecoveryWarmingSourceShutdownShareFactor = value
-        );
-        clusterSettings.initializeAndWatch(
-            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
-            value -> this.searchRecoveryWarmingCacheRatio = value
         );
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING,
@@ -119,13 +65,8 @@ class RelocationSourceShutdownTimeouts {
     ) {
         final var shutdown = state.metadata().nodeShutdowns().get(sourceNodeId);
         assert shutdown != null;
-        TimeValue grace = shutdown.getGracePeriod();
-        if (grace == null) {
-            grace = searchRecoveryWarmingGracePeriodCap;
-        }
-        final long effectiveGraceMillis = Math.min(grace.getMillis(), searchRecoveryWarmingGracePeriodCap.millis());
-        final long now = threadPool.absoluteTimeInMillis();
-        final long deadline = shutdown.getStartedAtMillis() + effectiveGraceMillis;
+        final long now = timing.nowMillis();
+        final long deadline = timing.graceDeadline(shutdown);
         final long remaining = deadline - now;
         if (remaining <= 0) {
             return new SearchRecoveryTimeout(TimeValue.ZERO, TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED);
@@ -138,12 +79,9 @@ class RelocationSourceShutdownTimeouts {
         );
         final double equalShareMs = (remaining / (double) shardsOnSource) * searchRecoveryWarmingSourceShutdownShareFactor;
 
-        // Data-volume-proportional heuristic: scale remaining time by the fraction of the warming cache this shard occupies.
-        final long warmingCacheBytes = Math.round(cacheService.getCacheSize() * searchRecoveryWarmingCacheRatio);
         // Re-evaluations pass the bytes still to warm (an approximation, see SearchRecoveryTimeoutCalculationService#extendedTimeout),
-        // the first calculation passes all of them. The baseline (the warming cache budget) is still fixed, since it's hard to do the
-        // accounting of the bytes warmed for shards for all the relocations of a given node shutting down.
-        final double dataVolumeMs = warmingCacheBytes > 0 ? ((double) totalBytesToWarm / warmingCacheBytes) * remaining : 0;
+        // the first calculation passes all of them.
+        final double dataVolumeMs = timing.dataVolumeShareMs(totalBytesToWarm, remaining);
 
         final double concurrentRelocations = estimateConcurrentRelocations(state, sourceNodeId, targetNodeId, shardsOnSource);
 
@@ -186,7 +124,7 @@ class RelocationSourceShutdownTimeouts {
     }
 
     /// Returns the estimated number of the shards of `sourceNodeId` that relocate to `targetNodeId` at the same time: the source's share of
-    /// the slots known to be available to the relocations from shutting-down nodes, see [#knownRelocationSlots], split between the sources
+    /// the slots known to be available to the relocations from shutting-down nodes, see [ShutdownTimingSupport#knownRelocationSlots], split between the sources
     /// in proportion to their relocations in flight, and not more than `shardsOnSource`. It scales the equal share of one shard to the time
     /// the shards of the source can use the slots together. It can be fractional and below one, when the slots are split between sources.
     /// Without data node recovery throttling, it is the relocations from the source to the target that are in flight.
@@ -201,29 +139,8 @@ class RelocationSourceShutdownTimeouts {
         final int allRelocationsToTarget = Math.max(1, countRelocationsFromShuttingDownNodesTo(state, targetNodeId));
         return Math.min(
             shardsOnSource,
-            (double) knownRelocationSlots(allRelocationsToTarget) * relocationsFromSourceToTarget / allRelocationsToTarget
+            (double) timing.knownRelocationSlots(allRelocationsToTarget) * relocationsFromSourceToTarget / allRelocationsToTarget
         );
-    }
-
-    /// The slots known to be available to the relocations to the target: the data node limit, or, while the master throttles and reserves
-    /// no slots, only the ones in use by the relocations in flight.
-    private int knownRelocationSlots(final int allRelocationsToTarget) {
-        return dataNodeRecoveryThrottlingEnabled() ? maxConcurrentRelocationRecoveries : allRelocationsToTarget;
-    }
-
-    /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not
-    /// throttle, see [#masterThrottlingDisabled]. The data node settings are only registered by the stateless plugin, and are unbounded by
-    /// default. While the master throttles, the cluster state shows only the relocations it has started, whatever the data node limit is.
-    // TODO: move to DataNodeRecoveryThrottlingSettings (elastic/elasticsearch-team#5653)
-    private boolean dataNodeRecoveryThrottlingEnabled() {
-        return maxConcurrentRelocationRecoveries < IncomingRecoveryLimits.UNBOUNDED.maxConcurrentNonCriticalRecoveries()
-            && masterThrottlingDisabled;
-    }
-
-    private static boolean masterThrottlingDisabled(final Function<Setting<Integer>, Integer> currentValue) {
-        return MASTER_THROTTLING_DISABLED_VALUES.entrySet()
-            .stream()
-            .allMatch(disabledValue -> disabledValue.getValue().equals(currentValue.apply(disabledValue.getKey())));
     }
 
     private static int countShardsOnNode(ClusterState clusterState, String nodeId) {

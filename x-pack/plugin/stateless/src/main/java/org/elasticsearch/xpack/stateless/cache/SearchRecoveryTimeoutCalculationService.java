@@ -75,7 +75,21 @@ public class SearchRecoveryTimeoutCalculationService {
         Setting.Property.Dynamic
     );
 
+    /// When enabled, a shard relocating from a source that is not shutting down while a search node is shutting down shares the target's
+    /// free relocation
+    /// slots with the shards of the shutting-down node, so that it does not delay them past their grace period, see
+    /// [RelocationOtherNodeShutdownTimeouts#relocationOtherNodeShutdownTimeout]. When disabled, or when the data nodes do not throttle the
+    /// relocations, such a shard always waits for the plain relocation-with-shutdown timeout.
+    public static final Setting<Boolean> OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING = Setting.boolSetting(
+        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_share_slots_with_shutting_down_nodes",
+        true, // FIXME remove before merging
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    private final ShutdownTimingSupport shutdownTimingSupport;
     private final RelocationSourceShutdownTimeouts relocationSourceShutdownTimeouts;
+    private final RelocationOtherNodeShutdownTimeouts relocationOtherNodeShutdownTimeouts;
     private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingNonRelocationTimeout;
@@ -84,6 +98,7 @@ public class SearchRecoveryTimeoutCalculationService {
     private volatile boolean searchRecoveryWarmingTimeoutReevaluationEnabled;
     private volatile TimeValue searchRecoveryReevaluationAbortThreshold;
     private volatile boolean ignoreNonSearchNodeShutdowns;
+    private volatile boolean shareSlotsWithShuttingDownNodes;
 
     public SearchRecoveryTimeoutCalculationService(
         StatelessSharedBlobCacheService cacheService,
@@ -92,13 +107,9 @@ public class SearchRecoveryTimeoutCalculationService {
         Settings nodeSettings,
         ByteSizeValue maxHeap
     ) {
-        this.relocationSourceShutdownTimeouts = new RelocationSourceShutdownTimeouts(
-            cacheService,
-            threadPool,
-            clusterSettings,
-            nodeSettings,
-            maxHeap
-        );
+        this.shutdownTimingSupport = new ShutdownTimingSupport(cacheService, threadPool, clusterSettings, nodeSettings, maxHeap);
+        this.relocationSourceShutdownTimeouts = new RelocationSourceShutdownTimeouts(shutdownTimingSupport, clusterSettings);
+        this.relocationOtherNodeShutdownTimeouts = new RelocationOtherNodeShutdownTimeouts(shutdownTimingSupport, clusterSettings);
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             value -> this.searchRecoveryWarmingRelocationWithShutdownTimeout = value
@@ -130,6 +141,10 @@ public class SearchRecoveryTimeoutCalculationService {
         clusterSettings.initializeAndWatch(
             OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING,
             value -> this.ignoreNonSearchNodeShutdowns = value
+        );
+        clusterSettings.initializeAndWatch(
+            OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING,
+            value -> this.shareSlotsWithShuttingDownNodes = value
         );
     }
 
@@ -194,9 +209,18 @@ public class SearchRecoveryTimeoutCalculationService {
                 );
             }
             if (hasShuttingDownSearchNodeWithShards(state)) {
-                return new SearchRecoveryTimeout(
-                    searchRecoveryWarmingRelocationWithShutdownTimeout,
-                    TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
+                // The slots can be shared only when the data nodes throttle the relocations. While the master does, the relocations of the
+                // shutting-down nodes to this target are not all visible in the cluster state yet.
+                if (shareSlotsWithShuttingDownNodes == false || shutdownTimingSupport.dataNodeRecoveryThrottlingEnabled() == false) {
+                    return new SearchRecoveryTimeout(
+                        searchRecoveryWarmingRelocationWithShutdownTimeout,
+                        TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
+                    );
+                }
+                return relocationOtherNodeShutdownTimeouts.relocationOtherNodeShutdownTimeout(
+                    state,
+                    shardRouting.currentNodeId(),
+                    totalBytesToWarm
                 );
             }
             return new SearchRecoveryTimeout(

@@ -59,6 +59,31 @@ setup:
                   type: boolean
 
   - do:
+      indices.create:
+        index: stored_source_rows
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: columnar_stored
+            index.batch_indexing: false
+          mappings:
+            properties:
+                kwd:
+                  type: keyword
+                txt:
+                  type: text
+                mot:
+                  type: match_only_text
+                lng:
+                  type: long
+                dt:
+                  type: date
+                addr:
+                  type: ip
+                flag:
+                  type: boolean
+  - do:
       bulk:
         index: synthetic_source
         refresh: true
@@ -87,6 +112,32 @@ setup:
   - do:
       bulk:
         index: stored_source
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "kwd": "a", "txt": "a", "mot": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "kwd": [ null ], "txt": [ null ], "mot": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ] }'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{ "kwd": [ null, null ], "txt": [ null, null ], "mot": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "mot": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "kwd": null, "txt": null, "mot": null, "lng": null, "dt": null, "addr": null, "flag": null }'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{ "kwd": [], "txt": [], "mot": [], "lng": [], "dt": [], "addr": [], "flag": [] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "mot": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "mot": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ] }'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "mot": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
+
+  - do:
+      bulk:
+        index: stored_source_rows
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
@@ -111,7 +162,7 @@ setup:
           - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "mot": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
 
 ---
-columnar_stored returns the same source as synthetic for every field type:
+columnar_stored returns the same source as synthetic for every field type on both indexing paths:
   - do:
       search:
         index: synthetic_source
@@ -132,3 +183,67 @@ columnar_stored returns the same source as synthetic for every field type:
           sort: [ _doc ]
 
   - match: { hits.hits: $synthetic_sources }
+
+  - do:
+      search:
+        index: stored_source_rows
+        filter_path: hits.hits._source
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+
+  - match: { hits.hits: $synthetic_sources }
+
+---
+columnar_stored drops the null elements of every field type:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "columnar_stored keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: stored_source
+        filter_path: hits.hits._source
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+
+  - match:
+      hits.hits:
+        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: {}
+        - _source: {}
+        - _source: { kwd: [ a, b ], txt: [ a, b ], mot: [ a, b ], lng: [ 1, 2 ], dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ], addr: [ "192.168.0.1", "192.168.0.2" ], flag: [ true, false ] }
+        - _source: {}
+        - _source: {}
+        - _source: { other: c }
+        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+
+---
+columnar_stored drops the null elements of every field type on the row indexing path:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "columnar_stored keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: stored_source_rows
+        filter_path: hits.hits._source
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+
+  - match:
+      hits.hits:
+        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: {}
+        - _source: {}
+        - _source: { kwd: [ a, b ], txt: [ a, b ], mot: [ a, b ], lng: [ 1, 2 ], dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ], addr: [ "192.168.0.1", "192.168.0.2" ], flag: [ true, false ] }
+        - _source: {}
+        - _source: {}
+        - _source: { other: c }
+        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }

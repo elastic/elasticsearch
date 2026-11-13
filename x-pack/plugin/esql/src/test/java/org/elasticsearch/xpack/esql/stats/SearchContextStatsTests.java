@@ -603,6 +603,51 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     /**
+     * An alias to a multi-valued date field backed by a doc-values skipper must not be reported as single-valued either.
+     * Lucene only knows the concrete field, so reading the skipper under the alias name finds nothing, and a missing skipper
+     * must not be mistaken for proof that the field is single-valued: {@code ROUND_TO} pushdown into the block loader relies on
+     * this and the loader reads the concrete field.
+     */
+    public void testSkipperDateMultiValuedAliasIsNotDetectedAsSingleValued() throws IOException {
+        final Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        final MapperService mapperService = createMapperService(settings, """
+            { "doc": { "properties": {
+                "d": { "type": "date", "index": false },
+                "d_alias": { "type": "alias", "path": "d" }
+            } } }""");
+
+        final Directory dir = newDirectory();
+        final DirectoryReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(
+                List.of(SortedNumericDocValuesField.indexedField("d", 1000L), SortedNumericDocValuesField.indexedField("d", 2000L))
+            );
+            writer.addDocument(List.of(SortedNumericDocValuesField.indexedField("d", 3000L)));
+            writer.forceMerge(1);
+            reader = writer.getReader();
+        }
+
+        try {
+            LeafReader leafReader = reader.leaves().get(0).reader();
+            DocValuesSkipper skipper = leafReader.getDocValuesSkipper("d");
+            assertNotNull("indexedField() must produce a DocValuesSkipper", skipper);
+            assertTrue("one doc has 2 values, so maxValueCount must be > 1", skipper.maxValueCount() > 1);
+
+            SearchStats stats = SearchContextStats.from(List.of(createSearchExecutionContext(mapperService, newSearcher(reader))));
+            assertFalse(
+                "the concrete multi-valued skipper date field must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("d"))
+            );
+            assertFalse(
+                "an alias to a multi-valued skipper date field must not be reported as single-valued",
+                stats.isSingleValue(new FieldAttribute.FieldName("d_alias"))
+            );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /**
      * Keyword-field counterpart of {@link #testSkipperNumericSingleValuedIsDetectedAsSingleValued}:
      * a truly single-valued keyword field backed by a doc-values skipper must be reported as
      * single-valued so that {@code COUNT(kw)} can be pushed down to an exists-doc-count query.

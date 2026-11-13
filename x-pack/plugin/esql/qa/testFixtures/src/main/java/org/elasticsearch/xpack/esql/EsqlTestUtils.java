@@ -384,13 +384,23 @@ public final class EsqlTestUtils {
     public static class TestSearchStats implements SearchStats {
 
         private final boolean supportsLoaderConfig;
+        private final boolean multiValue;
 
         public TestSearchStats() {
             this(true);
         }
 
         public TestSearchStats(boolean supportsLoaderConfig) {
+            this(supportsLoaderConfig, false);
+        }
+
+        /**
+         * @param multiValue whether every field is reported as possibly multivalued, i.e. {@link #isSingleValue} returns
+         *                   {@code false}. Defaults to {@code false}, meaning all fields are single-valued.
+         */
+        public TestSearchStats(boolean supportsLoaderConfig, boolean multiValue) {
             this.supportsLoaderConfig = supportsLoaderConfig;
+            this.multiValue = multiValue;
         }
 
         @Override
@@ -449,7 +459,7 @@ public final class EsqlTestUtils {
 
         @Override
         public boolean isSingleValue(FieldName field) {
-            return false;
+            return multiValue == false;
         }
 
         @Override

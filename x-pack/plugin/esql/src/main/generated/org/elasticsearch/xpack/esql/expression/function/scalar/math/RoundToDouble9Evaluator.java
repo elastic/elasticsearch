@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -51,6 +52,8 @@ public final class RoundToDouble9Evaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public RoundToDouble9Evaluator(Source source, ExpressionEvaluator field, double p0, double p1,
       double p2, double p3, double p4, double p5, double p6, double p7, double p8,
       DriverContext driverContext) {
@@ -66,6 +69,7 @@ public final class RoundToDouble9Evaluator implements ExpressionEvaluator {
     this.p7 = p7;
     this.p8 = p8;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -109,13 +113,15 @@ public final class RoundToDouble9Evaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector fieldVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        double field = fieldVector.getDouble(p);
-        result.appendDouble(p, RoundToDouble.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8));
-      }
-      return result.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      double field = fieldVector.getDouble(p);
+      results[p] = RoundToDouble.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -126,6 +132,7 @@ public final class RoundToDouble9Evaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -35,12 +36,15 @@ public final class ClampMinDoubleEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public ClampMinDoubleEvaluator(Source source, ExpressionEvaluator field, ExpressionEvaluator min,
       DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.min = min;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -104,14 +108,16 @@ public final class ClampMinDoubleEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector fieldVector, DoubleVector minVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        double field = fieldVector.getDouble(p);
-        double min = minVector.getDouble(p);
-        result.appendDouble(p, ClampMin.process(field, min));
-      }
-      return result.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      double field = fieldVector.getDouble(p);
+      double min = minVector.getDouble(p);
+      results[p] = ClampMin.process(field, min);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -122,6 +128,7 @@ public final class ClampMinDoubleEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(field, min);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

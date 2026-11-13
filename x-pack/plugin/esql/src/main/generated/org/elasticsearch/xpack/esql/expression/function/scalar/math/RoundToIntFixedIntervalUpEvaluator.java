@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -39,6 +40,8 @@ public final class RoundToIntFixedIntervalUpEvaluator implements ExpressionEvalu
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public RoundToIntFixedIntervalUpEvaluator(Source source, ExpressionEvaluator field, int first,
       int last, int interval, DriverContext driverContext) {
     this.source = source;
@@ -47,6 +50,7 @@ public final class RoundToIntFixedIntervalUpEvaluator implements ExpressionEvalu
     this.last = last;
     this.interval = interval;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -90,13 +94,15 @@ public final class RoundToIntFixedIntervalUpEvaluator implements ExpressionEvalu
   }
 
   public IntVector eval(int positionCount, IntVector fieldVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        int field = fieldVector.getInt(p);
-        result.appendInt(p, RoundToInt.processFixedUp(field, this.first, this.last, this.interval));
-      }
-      return result.build();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      int field = fieldVector.getInt(p);
+      results[p] = RoundToInt.processFixedUp(field, this.first, this.last, this.interval);
     }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -107,6 +113,7 @@ public final class RoundToIntFixedIntervalUpEvaluator implements ExpressionEvalu
   @Override
   public void close() {
     Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

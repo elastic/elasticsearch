@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -15,6 +16,8 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -40,12 +43,15 @@ public final class ToLongBaseEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public ToLongBaseEvaluator(Source source, ExpressionEvaluator string, ExpressionEvaluator base,
       DriverContext driverContext) {
     this.source = source;
     this.string = string;
     this.base = base;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -115,20 +121,31 @@ public final class ToLongBaseEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, BytesRefVector stringVector, IntVector baseVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      BytesRef stringScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef string = stringVector.getBytesRef(p, stringScratch);
-        int base = baseVector.getInt(p);
-        try {
-          result.appendLong(ToLongBase.process(string, base));
-        } catch (InvalidArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    BytesRef stringScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      BytesRef string = stringVector.getBytesRef(p, stringScratch);
+      int base = baseVector.getInt(p);
+      try {
+        results[p] = ToLongBase.process(string, base);
+      } catch (InvalidArgumentException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      LongBlock block = driverContext.blockFactory().newLongArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -139,6 +156,7 @@ public final class ToLongBaseEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(string, base);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

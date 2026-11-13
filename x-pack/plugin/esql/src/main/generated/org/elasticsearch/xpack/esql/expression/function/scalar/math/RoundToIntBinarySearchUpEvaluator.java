@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -35,12 +36,15 @@ public final class RoundToIntBinarySearchUpEvaluator implements ExpressionEvalua
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public RoundToIntBinarySearchUpEvaluator(Source source, ExpressionEvaluator field, int[] points,
       DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.points = points;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -84,13 +88,15 @@ public final class RoundToIntBinarySearchUpEvaluator implements ExpressionEvalua
   }
 
   public IntVector eval(int positionCount, IntVector fieldVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        int field = fieldVector.getInt(p);
-        result.appendInt(p, RoundToInt.processUp(field, this.points));
-      }
-      return result.build();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      int field = fieldVector.getInt(p);
+      results[p] = RoundToInt.processUp(field, this.points);
     }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -101,6 +107,7 @@ public final class RoundToIntBinarySearchUpEvaluator implements ExpressionEvalua
   @Override
   public void close() {
     Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

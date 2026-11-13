@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -40,6 +41,8 @@ public final class LocateEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public LocateEvaluator(Source source, ExpressionEvaluator str, ExpressionEvaluator substr,
       ExpressionEvaluator start, DriverContext driverContext) {
     this.source = source;
@@ -47,6 +50,7 @@ public final class LocateEvaluator implements ExpressionEvaluator {
     this.substr = substr;
     this.start = start;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -134,17 +138,19 @@ public final class LocateEvaluator implements ExpressionEvaluator {
 
   public IntVector eval(int positionCount, BytesRefVector strVector, BytesRefVector substrVector,
       IntVector startVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      BytesRef strScratch = new BytesRef();
-      BytesRef substrScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef str = strVector.getBytesRef(p, strScratch);
-        BytesRef substr = substrVector.getBytesRef(p, substrScratch);
-        int start = startVector.getInt(p);
-        result.appendInt(p, Locate.process(str, substr, start));
-      }
-      return result.build();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    BytesRef strScratch = new BytesRef();
+    BytesRef substrScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      BytesRef str = strVector.getBytesRef(p, strScratch);
+      BytesRef substr = substrVector.getBytesRef(p, substrScratch);
+      int start = startVector.getInt(p);
+      results[p] = Locate.process(str, substr, start);
     }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -155,6 +161,7 @@ public final class LocateEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, substr, start);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

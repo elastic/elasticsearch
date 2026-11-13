@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.time.ZoneId;
+import java.util.BitSet;
 import java.util.Locale;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -16,6 +17,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -44,6 +47,8 @@ public final class DateParseConstantEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public DateParseConstantEvaluator(Source source, ExpressionEvaluator val, DateFormatter formatter,
       ZoneId zoneId, Locale locale, DriverContext driverContext) {
     this.source = source;
@@ -52,6 +57,7 @@ public final class DateParseConstantEvaluator implements ExpressionEvaluator {
     this.zoneId = zoneId;
     this.locale = locale;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -101,19 +107,30 @@ public final class DateParseConstantEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, BytesRefVector valVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      BytesRef valScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef val = valVector.getBytesRef(p, valScratch);
-        try {
-          result.appendLong(DateParse.process(val, this.formatter, this.zoneId, this.locale));
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    BytesRef valScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      BytesRef val = valVector.getBytesRef(p, valScratch);
+      try {
+        results[p] = DateParse.process(val, this.formatter, this.zoneId, this.locale);
+      } catch (IllegalArgumentException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      LongBlock block = driverContext.blockFactory().newLongArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -124,6 +141,7 @@ public final class DateParseConstantEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

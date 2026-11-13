@@ -8,12 +8,14 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.time.ZoneId;
+import java.util.BitSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -41,6 +43,8 @@ public final class DateExtractNanosEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public DateExtractNanosEvaluator(Source source, ExpressionEvaluator value,
       ExpressionEvaluator chronoField, ZoneId zone, DriverContext driverContext) {
     this.source = source;
@@ -48,6 +52,7 @@ public final class DateExtractNanosEvaluator implements ExpressionEvaluator {
     this.chronoField = chronoField;
     this.zone = zone;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -118,20 +123,31 @@ public final class DateExtractNanosEvaluator implements ExpressionEvaluator {
 
   public LongBlock eval(int positionCount, LongVector valueVector,
       BytesRefVector chronoFieldVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      BytesRef chronoFieldScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        long value = valueVector.getLong(p);
-        BytesRef chronoField = chronoFieldVector.getBytesRef(p, chronoFieldScratch);
-        try {
-          result.appendLong(DateExtract.processNanos(value, chronoField, this.zone));
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    BytesRef chronoFieldScratch = new BytesRef();
+    position: for (int p = 0; p < positionCount; p++) {
+      long value = valueVector.getLong(p);
+      BytesRef chronoField = chronoFieldVector.getBytesRef(p, chronoFieldScratch);
+      try {
+        results[p] = DateExtract.processNanos(value, chronoField, this.zone);
+      } catch (IllegalArgumentException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      LongBlock block = driverContext.blockFactory().newLongArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -142,6 +158,7 @@ public final class DateExtractNanosEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(value, chronoField);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -37,12 +38,15 @@ public final class CopySignLongEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public CopySignLongEvaluator(Source source, ExpressionEvaluator magnitude,
       ExpressionEvaluator sign, DriverContext driverContext) {
     this.source = source;
     this.magnitude = magnitude;
     this.sign = sign;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -106,14 +110,16 @@ public final class CopySignLongEvaluator implements ExpressionEvaluator {
   }
 
   public LongVector eval(int positionCount, LongVector magnitudeVector, DoubleVector signVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long magnitude = magnitudeVector.getLong(p);
-        double sign = signVector.getDouble(p);
-        result.appendLong(p, CopySign.processLong(magnitude, sign));
-      }
-      return result.build();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      long magnitude = magnitudeVector.getLong(p);
+      double sign = signVector.getDouble(p);
+      results[p] = CopySign.processLong(magnitude, sign);
     }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -124,6 +130,7 @@ public final class CopySignLongEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(magnitude, sign);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

@@ -11,6 +11,7 @@ import java.util.Arrays;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -35,11 +36,14 @@ public final class LeastDoubleEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public LeastDoubleEvaluator(Source source, ExpressionEvaluator[] values,
       DriverContext driverContext) {
     this.source = source;
     this.values = values;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -99,17 +103,19 @@ public final class LeastDoubleEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector[] valuesVectors) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      double[] valuesValues = new double[values.length];
-      position: for (int p = 0; p < positionCount; p++) {
-        // unpack valuesVectors into valuesValues
-        for (int i = 0; i < valuesVectors.length; i++) {
-          valuesValues[i] = valuesVectors[i].getDouble(p);
-        }
-        result.appendDouble(p, Least.process(valuesValues));
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    double[] valuesValues = new double[values.length];
+    position: for (int p = 0; p < positionCount; p++) {
+      // unpack valuesVectors into valuesValues
+      for (int i = 0; i < valuesVectors.length; i++) {
+        valuesValues[i] = valuesVectors[i].getDouble(p);
       }
-      return result.build();
+      results[p] = Least.process(valuesValues);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -120,6 +126,7 @@ public final class LeastDoubleEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

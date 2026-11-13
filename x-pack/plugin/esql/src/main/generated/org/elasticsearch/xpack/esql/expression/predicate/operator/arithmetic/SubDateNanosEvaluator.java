@@ -11,9 +11,11 @@ import java.lang.String;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
+import java.util.BitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -41,6 +43,8 @@ public final class SubDateNanosEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public SubDateNanosEvaluator(Source source, ExpressionEvaluator dateNanos,
       TemporalAmount temporalAmount, ZoneId zoneId, DriverContext driverContext) {
     this.source = source;
@@ -48,6 +52,7 @@ public final class SubDateNanosEvaluator implements ExpressionEvaluator {
     this.temporalAmount = temporalAmount;
     this.zoneId = zoneId;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -96,18 +101,29 @@ public final class SubDateNanosEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongVector dateNanosVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long dateNanos = dateNanosVector.getLong(p);
-        try {
-          result.appendLong(Sub.processDateNanos(dateNanos, this.temporalAmount, this.zoneId));
-        } catch (ArithmeticException | DateTimeException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    position: for (int p = 0; p < positionCount; p++) {
+      long dateNanos = dateNanosVector.getLong(p);
+      try {
+        results[p] = Sub.processDateNanos(dateNanos, this.temporalAmount, this.zoneId);
+      } catch (ArithmeticException | DateTimeException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      LongBlock block = driverContext.blockFactory().newLongArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -118,6 +134,7 @@ public final class SubDateNanosEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(dateNanos);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

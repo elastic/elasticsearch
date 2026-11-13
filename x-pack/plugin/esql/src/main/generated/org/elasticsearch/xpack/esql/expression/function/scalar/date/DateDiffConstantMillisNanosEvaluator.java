@@ -8,9 +8,12 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.time.ZoneId;
+import java.util.BitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -42,6 +45,8 @@ public final class DateDiffConstantMillisNanosEvaluator implements ExpressionEva
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public DateDiffConstantMillisNanosEvaluator(Source source, DateDiff.Part datePartFieldUnit,
       ExpressionEvaluator startTimestampMillis, ExpressionEvaluator endTimestampNanos,
       ZoneId zoneId, DriverContext driverContext) {
@@ -51,6 +56,7 @@ public final class DateDiffConstantMillisNanosEvaluator implements ExpressionEva
     this.endTimestampNanos = endTimestampNanos;
     this.zoneId = zoneId;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -121,19 +127,30 @@ public final class DateDiffConstantMillisNanosEvaluator implements ExpressionEva
 
   public IntBlock eval(int positionCount, LongVector startTimestampMillisVector,
       LongVector endTimestampNanosVector) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long startTimestampMillis = startTimestampMillisVector.getLong(p);
-        long endTimestampNanos = endTimestampNanosVector.getLong(p);
-        try {
-          result.appendInt(DateDiff.processMillisNanos(this.datePartFieldUnit, startTimestampMillis, endTimestampNanos, this.zoneId));
-        } catch (IllegalArgumentException | InvalidArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    position: for (int p = 0; p < positionCount; p++) {
+      long startTimestampMillis = startTimestampMillisVector.getLong(p);
+      long endTimestampNanos = endTimestampNanosVector.getLong(p);
+      try {
+        results[p] = DateDiff.processMillisNanos(this.datePartFieldUnit, startTimestampMillis, endTimestampNanos, this.zoneId);
+      } catch (IllegalArgumentException | InvalidArgumentException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      IntBlock block = driverContext.blockFactory().newIntArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -144,6 +161,7 @@ public final class DateDiffConstantMillisNanosEvaluator implements ExpressionEva
   @Override
   public void close() {
     Releasables.closeExpectNoException(startTimestampMillis, endTimestampNanos);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

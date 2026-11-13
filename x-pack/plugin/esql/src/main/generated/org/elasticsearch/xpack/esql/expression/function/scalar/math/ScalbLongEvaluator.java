@@ -8,9 +8,11 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.BitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -38,12 +40,15 @@ public final class ScalbLongEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public ScalbLongEvaluator(Source source, ExpressionEvaluator d, ExpressionEvaluator scaleFactor,
       DriverContext driverContext) {
     this.source = source;
     this.d = d;
     this.scaleFactor = scaleFactor;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -112,19 +117,30 @@ public final class ScalbLongEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector dVector, LongVector scaleFactorVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        double d = dVector.getDouble(p);
-        long scaleFactor = scaleFactorVector.getLong(p);
-        try {
-          result.appendDouble(Scalb.process(d, scaleFactor));
-        } catch (ArithmeticException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    position: for (int p = 0; p < positionCount; p++) {
+      double d = dVector.getDouble(p);
+      long scaleFactor = scaleFactorVector.getLong(p);
+      try {
+        results[p] = Scalb.process(d, scaleFactor);
+      } catch (ArithmeticException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      DoubleBlock block = driverContext.blockFactory().newDoubleArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -135,6 +151,7 @@ public final class ScalbLongEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(d, scaleFactor);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

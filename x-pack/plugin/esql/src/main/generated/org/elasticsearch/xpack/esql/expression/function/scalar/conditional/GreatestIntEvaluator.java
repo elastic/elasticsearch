@@ -11,6 +11,7 @@ import java.util.Arrays;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -35,11 +36,14 @@ public final class GreatestIntEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public GreatestIntEvaluator(Source source, ExpressionEvaluator[] values,
       DriverContext driverContext) {
     this.source = source;
     this.values = values;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -99,17 +103,19 @@ public final class GreatestIntEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      int[] valuesValues = new int[values.length];
-      position: for (int p = 0; p < positionCount; p++) {
-        // unpack valuesVectors into valuesValues
-        for (int i = 0; i < valuesVectors.length; i++) {
-          valuesValues[i] = valuesVectors[i].getInt(p);
-        }
-        result.appendInt(p, Greatest.process(valuesValues));
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    int[] valuesValues = new int[values.length];
+    position: for (int p = 0; p < positionCount; p++) {
+      // unpack valuesVectors into valuesValues
+      for (int i = 0; i < valuesVectors.length; i++) {
+        valuesValues[i] = valuesVectors[i].getInt(p);
       }
-      return result.build();
+      results[p] = Greatest.process(valuesValues);
     }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -120,6 +126,7 @@ public final class GreatestIntEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

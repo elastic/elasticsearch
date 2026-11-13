@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -35,12 +36,15 @@ public final class RoundToDouble1Evaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public RoundToDouble1Evaluator(Source source, ExpressionEvaluator field, double p0,
       DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.p0 = p0;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -84,13 +88,15 @@ public final class RoundToDouble1Evaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector fieldVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        double field = fieldVector.getDouble(p);
-        result.appendDouble(p, RoundToDouble.process(field, this.p0));
-      }
-      return result.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      double field = fieldVector.getDouble(p);
+      results[p] = RoundToDouble.process(field, this.p0);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -101,6 +107,7 @@ public final class RoundToDouble1Evaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

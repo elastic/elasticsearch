@@ -18,7 +18,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
@@ -127,6 +129,14 @@ public class SingletonLongBuilderTests extends ComputeTestCase {
                 }
             }
         }
+    }
+
+    public void testPoolBreaks() {
+        BlockFactory factory = blockFactory(ByteSizeValue.ofBytes(1000));
+        try (LongSingleArrayPool pool = new LongSingleArrayPool(factory.breaker())) {
+            expectThrows(CircuitBreakingException.class, () -> new SingletonLongBuilder(100, factory, pool));
+        }
+        assertThat(factory.breaker().getUsed(), equalTo(0L));
     }
 
     static IndexWriter createIndexWriter(Directory directory) throws IOException {

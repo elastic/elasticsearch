@@ -196,6 +196,7 @@ class ValuesFromManyReader extends ValuesReader {
             readerDocs.setCount(segmentEnd);
             for (CurrentWork c : columnAtATime) {
                 assert c.rowStride == null;
+                blockFactory.field(c.field);
                 try (Block read = (Block) c.columnAtATime.read(blockFactory, readerDocs, segmentStart, c.field.info.nullsFiltered())) {
                     // TODO add a `read(builder, docs, offset, nullsFiltered)` override. Maybe even with the map.
                     assert read.getPositionCount() == segmentEnd - segmentStart

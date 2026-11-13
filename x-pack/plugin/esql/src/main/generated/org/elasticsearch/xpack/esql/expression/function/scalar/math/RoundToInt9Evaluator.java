@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -51,6 +52,8 @@ public final class RoundToInt9Evaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public RoundToInt9Evaluator(Source source, ExpressionEvaluator field, int p0, int p1, int p2,
       int p3, int p4, int p5, int p6, int p7, int p8, DriverContext driverContext) {
     this.source = source;
@@ -65,6 +68,7 @@ public final class RoundToInt9Evaluator implements ExpressionEvaluator {
     this.p7 = p7;
     this.p8 = p8;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -108,13 +112,15 @@ public final class RoundToInt9Evaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector fieldVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        int field = fieldVector.getInt(p);
-        result.appendInt(p, RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8));
-      }
-      return result.build();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      int field = fieldVector.getInt(p);
+      results[p] = RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8);
     }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -125,6 +131,7 @@ public final class RoundToInt9Evaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

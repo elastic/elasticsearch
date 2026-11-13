@@ -12,6 +12,7 @@ import java.time.temporal.ChronoField;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -39,6 +40,8 @@ public final class DateExtractConstantNanosEvaluator implements ExpressionEvalua
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public DateExtractConstantNanosEvaluator(Source source, ExpressionEvaluator value,
       ChronoField chronoField, ZoneId zone, DriverContext driverContext) {
     this.source = source;
@@ -46,6 +49,7 @@ public final class DateExtractConstantNanosEvaluator implements ExpressionEvalua
     this.chronoField = chronoField;
     this.zone = zone;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -89,13 +93,15 @@ public final class DateExtractConstantNanosEvaluator implements ExpressionEvalua
   }
 
   public LongVector eval(int positionCount, LongVector valueVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long value = valueVector.getLong(p);
-        result.appendLong(p, DateExtract.processNanos(value, this.chronoField, this.zone));
-      }
-      return result.build();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      long value = valueVector.getLong(p);
+      results[p] = DateExtract.processNanos(value, this.chronoField, this.zone);
     }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -106,6 +112,7 @@ public final class DateExtractConstantNanosEvaluator implements ExpressionEvalua
   @Override
   public void close() {
     Releasables.closeExpectNoException(value);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

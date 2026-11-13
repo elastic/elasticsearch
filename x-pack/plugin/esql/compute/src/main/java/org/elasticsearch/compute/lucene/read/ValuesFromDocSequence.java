@@ -181,6 +181,7 @@ class ValuesFromDocSequence extends ValuesReader {
             readerDocs.setCount(end);
             for (CurrentWork c : columnAtATime) {
                 assert c.rowStride == null;
+                blockFactory.field(c.field);
                 try (Block read = (Block) c.columnAtATime.read(blockFactory, readerDocs, start, c.field.info.nullsFiltered())) {
                     assert read.getPositionCount() == end - start : read.getPositionCount() + " == " + end + " - " + start + " " + read;
                     c.builder.copyFrom(read, 0, read.getPositionCount());

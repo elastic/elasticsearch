@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -35,12 +36,15 @@ public final class ClampMaxDoubleEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public ClampMaxDoubleEvaluator(Source source, ExpressionEvaluator field, ExpressionEvaluator max,
       DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.max = max;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -104,14 +108,16 @@ public final class ClampMaxDoubleEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, DoubleVector fieldVector, DoubleVector maxVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        double field = fieldVector.getDouble(p);
-        double max = maxVector.getDouble(p);
-        result.appendDouble(p, ClampMax.process(field, max));
-      }
-      return result.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      double field = fieldVector.getDouble(p);
+      double max = maxVector.getDouble(p);
+      results[p] = ClampMax.process(field, max);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -122,6 +128,7 @@ public final class ClampMaxDoubleEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(field, max);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

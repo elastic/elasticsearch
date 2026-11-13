@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -45,6 +46,8 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public DecayUnsignedLongEvaluator(Source source, ExpressionEvaluator value, long origin,
       long scale, long offset, double decay, Decay.DecayFunction decayFunction,
       DriverContext driverContext) {
@@ -56,6 +59,7 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
     this.decay = decay;
     this.decayFunction = decayFunction;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -99,13 +103,15 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, LongVector valueVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long value = valueVector.getLong(p);
-        result.appendDouble(p, Decay.processUnsignedLong(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
-      }
-      return result.build();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      long value = valueVector.getLong(p);
+      results[p] = Decay.processUnsignedLong(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction);
     }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -116,6 +122,7 @@ public final class DecayUnsignedLongEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(value);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

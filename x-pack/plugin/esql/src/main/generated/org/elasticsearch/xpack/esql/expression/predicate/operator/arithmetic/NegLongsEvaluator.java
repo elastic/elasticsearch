@@ -8,9 +8,11 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.BitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -34,10 +36,13 @@ public final class NegLongsEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public NegLongsEvaluator(Source source, ExpressionEvaluator v, DriverContext driverContext) {
     this.source = source;
     this.v = v;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -86,18 +91,29 @@ public final class NegLongsEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongVector vVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long v = vVector.getLong(p);
-        try {
-          result.appendLong(Neg.processLongs(v));
-        } catch (ArithmeticException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    position: for (int p = 0; p < positionCount; p++) {
+      long v = vVector.getLong(p);
+      try {
+        results[p] = Neg.processLongs(v);
+      } catch (ArithmeticException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      LongBlock block = driverContext.blockFactory().newLongArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -108,6 +124,7 @@ public final class NegLongsEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -47,6 +48,8 @@ public final class RoundToLong7UpEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public RoundToLong7UpEvaluator(Source source, ExpressionEvaluator field, long p0, long p1,
       long p2, long p3, long p4, long p5, long p6, DriverContext driverContext) {
     this.source = source;
@@ -59,6 +62,7 @@ public final class RoundToLong7UpEvaluator implements ExpressionEvaluator {
     this.p5 = p5;
     this.p6 = p6;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -102,13 +106,15 @@ public final class RoundToLong7UpEvaluator implements ExpressionEvaluator {
   }
 
   public LongVector eval(int positionCount, LongVector fieldVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long field = fieldVector.getLong(p);
-        result.appendLong(p, RoundToLong.processUp(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6));
-      }
-      return result.build();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      long field = fieldVector.getLong(p);
+      results[p] = RoundToLong.processUp(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6);
     }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -119,6 +125,7 @@ public final class RoundToLong7UpEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

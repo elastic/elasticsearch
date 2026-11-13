@@ -7,9 +7,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.score;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.BitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -45,6 +48,8 @@ public final class DecayDateNanosEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public DecayDateNanosEvaluator(Source source, ExpressionEvaluator value, long origin, long scale,
       long offset, double decay, Decay.DecayFunction decayFunction, DriverContext driverContext) {
     this.source = source;
@@ -55,6 +60,7 @@ public final class DecayDateNanosEvaluator implements ExpressionEvaluator {
     this.decay = decay;
     this.decayFunction = decayFunction;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -103,18 +109,29 @@ public final class DecayDateNanosEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, LongVector valueVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long value = valueVector.getLong(p);
-        try {
-          result.appendDouble(Decay.processDateNanos(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
-        } catch (InvalidArgumentException | IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    position: for (int p = 0; p < positionCount; p++) {
+      long value = valueVector.getLong(p);
+      try {
+        results[p] = Decay.processDateNanos(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction);
+      } catch (InvalidArgumentException | IllegalArgumentException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      DoubleBlock block = driverContext.blockFactory().newDoubleArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -125,6 +142,7 @@ public final class DecayDateNanosEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(value);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

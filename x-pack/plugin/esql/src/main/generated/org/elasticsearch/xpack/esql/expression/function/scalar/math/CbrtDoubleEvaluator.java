@@ -8,9 +8,11 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.BitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -34,10 +36,13 @@ public final class CbrtDoubleEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final DoubleSingleArrayPool pool;
+
   public CbrtDoubleEvaluator(Source source, ExpressionEvaluator val, DriverContext driverContext) {
     this.source = source;
     this.val = val;
     this.driverContext = driverContext;
+    this.pool = new DoubleSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -86,18 +91,29 @@ public final class CbrtDoubleEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector valVector) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        double val = valVector.getDouble(p);
-        try {
-          result.appendDouble(Cbrt.process(val));
-        } catch (ArithmeticException e) {
-          warnings().registerException(e);
-          result.appendNull();
+    final DoubleSingleArrayPool pool = this.pool;
+    final double[] results = pool.getOrAllocate(positionCount);
+    BitSet nulls = null;
+    position: for (int p = 0; p < positionCount; p++) {
+      double val = valVector.getDouble(p);
+      try {
+        results[p] = Cbrt.process(val);
+      } catch (ArithmeticException e) {
+        warnings().registerException(e);
+        if (nulls == null) {
+          nulls = new BitSet(positionCount);
         }
+        nulls.set(p);
       }
-      return result.build();
     }
+    if (nulls != null) {
+      DoubleBlock block = driverContext.blockFactory().newDoubleArrayBlock(results, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+      block.attachReleasable(() -> pool.put(results));
+      return block;
+    }
+    DoubleVector result = driverContext.blockFactory().newDoubleArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result.asBlock();
   }
 
   @Override
@@ -108,6 +124,7 @@ public final class CbrtDoubleEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

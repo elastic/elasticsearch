@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -53,6 +54,8 @@ public final class RoundToLong10UpEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public RoundToLong10UpEvaluator(Source source, ExpressionEvaluator field, long p0, long p1,
       long p2, long p3, long p4, long p5, long p6, long p7, long p8, long p9,
       DriverContext driverContext) {
@@ -69,6 +72,7 @@ public final class RoundToLong10UpEvaluator implements ExpressionEvaluator {
     this.p8 = p8;
     this.p9 = p9;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -112,13 +116,15 @@ public final class RoundToLong10UpEvaluator implements ExpressionEvaluator {
   }
 
   public LongVector eval(int positionCount, LongVector fieldVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long field = fieldVector.getLong(p);
-        result.appendLong(p, RoundToLong.processUp(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
-      }
-      return result.build();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      long field = fieldVector.getLong(p);
+      results[p] = RoundToLong.processUp(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9);
     }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -129,6 +135,7 @@ public final class RoundToLong10UpEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -43,6 +44,8 @@ public final class RoundToInt5UpEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
+  private final IntSingleArrayPool pool;
+
   public RoundToInt5UpEvaluator(Source source, ExpressionEvaluator field, int p0, int p1, int p2,
       int p3, int p4, DriverContext driverContext) {
     this.source = source;
@@ -53,6 +56,7 @@ public final class RoundToInt5UpEvaluator implements ExpressionEvaluator {
     this.p3 = p3;
     this.p4 = p4;
     this.driverContext = driverContext;
+    this.pool = new IntSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -96,13 +100,15 @@ public final class RoundToInt5UpEvaluator implements ExpressionEvaluator {
   }
 
   public IntVector eval(int positionCount, IntVector fieldVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        int field = fieldVector.getInt(p);
-        result.appendInt(p, RoundToInt.processUp(field, this.p0, this.p1, this.p2, this.p3, this.p4));
-      }
-      return result.build();
+    final IntSingleArrayPool pool = this.pool;
+    final int[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      int field = fieldVector.getInt(p);
+      results[p] = RoundToInt.processUp(field, this.p0, this.p1, this.p2, this.p3, this.p4);
     }
+    IntVector result = driverContext.blockFactory().newIntArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -113,6 +119,7 @@ public final class RoundToInt5UpEvaluator implements ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

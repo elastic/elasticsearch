@@ -10,6 +10,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -33,11 +34,14 @@ public final class CastLongToUnsignedLongEvaluator implements ExpressionEvaluato
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public CastLongToUnsignedLongEvaluator(Source source, ExpressionEvaluator v,
       DriverContext driverContext) {
     this.source = source;
     this.v = v;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   @Override
@@ -81,13 +85,15 @@ public final class CastLongToUnsignedLongEvaluator implements ExpressionEvaluato
   }
 
   public LongVector eval(int positionCount, LongVector vVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long v = vVector.getLong(p);
-        result.appendLong(p, Cast.castLongToUnsignedLong(v));
-      }
-      return result.build();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      long v = vVector.getLong(p);
+      results[p] = Cast.castLongToUnsignedLong(v);
     }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -98,6 +104,7 @@ public final class CastLongToUnsignedLongEvaluator implements ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

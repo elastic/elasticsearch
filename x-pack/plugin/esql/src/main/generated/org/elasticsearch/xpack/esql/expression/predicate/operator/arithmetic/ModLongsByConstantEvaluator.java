@@ -16,6 +16,7 @@ import java.util.Optional;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -40,11 +41,14 @@ public abstract class ModLongsByConstantEvaluator implements ExpressionEvaluator
 
   private Warnings warnings;
 
+  private final LongSingleArrayPool pool;
+
   public ModLongsByConstantEvaluator(Source source, ExpressionEvaluator lhs,
       DriverContext driverContext) {
     this.source = source;
     this.lhs = lhs;
     this.driverContext = driverContext;
+    this.pool = new LongSingleArrayPool(driverContext.breaker());
   }
 
   protected abstract long rhs();
@@ -94,13 +98,15 @@ public abstract class ModLongsByConstantEvaluator implements ExpressionEvaluator
   }
 
   public LongVector eval(int positionCount, LongVector lhsVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        long lhs = lhsVector.getLong(p);
-        result.appendLong(p, Mod.processLongsByConstant(lhs, rhs()));
-      }
-      return result.build();
+    final LongSingleArrayPool pool = this.pool;
+    final long[] results = pool.getOrAllocate(positionCount);
+    position: for (int p = 0; p < positionCount; p++) {
+      long lhs = lhsVector.getLong(p);
+      results[p] = Mod.processLongsByConstant(lhs, rhs());
     }
+    LongVector result = driverContext.blockFactory().newLongArrayVector(results, positionCount);
+    result.attachReleasable(() -> pool.put(results));
+    return result;
   }
 
   @Override
@@ -111,6 +117,7 @@ public abstract class ModLongsByConstantEvaluator implements ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs);
+    Releasables.closeExpectNoException(pool);
   }
 
   private Warnings warnings() {

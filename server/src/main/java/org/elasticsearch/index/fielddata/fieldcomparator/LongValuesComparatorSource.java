@@ -138,9 +138,8 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
                     @Override
                     protected XNumericComparator<Long>.CompetitiveDISIBuilder buildCompetitiveDISIBuilder(LeafReaderContext context)
                         throws IOException {
-                        if (alwaysMatchTailQuery == false 
-                            || segmentSortedByDescTimestamp(context) == false
-                            // check that last document has a value to confirm that all documents have a value 
+                        if (alwaysMatchTailQuery == false || segmentSortedByDescTimestamp(context) == false
+                        // check that last document has a value to confirm that all documents have a value
                             || lastDocumentHasValue(context.reader(), fieldname) == false) {
                             return super.buildCompetitiveDISIBuilder(context);
                         }

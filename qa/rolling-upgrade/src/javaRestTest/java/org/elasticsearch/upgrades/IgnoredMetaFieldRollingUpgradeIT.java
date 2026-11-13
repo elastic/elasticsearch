@@ -110,7 +110,9 @@ public class IgnoredMetaFieldRollingUpgradeIT extends AbstractRollingUpgradeTest
             assertRestStatus(client().performRequest(createNewIndex("old-get-index")), RestStatus.OK);
             assertRestStatus(client().performRequest(indexDocument("old-get-index", "foofoo", "192.168.169.300", "1")), RestStatus.CREATED);
             final Map<String, Object> doc = entityAsMap(get("old-get-index", "1"));
-            if (getOldClusterIndexVersion().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
+            if (clusterHasCapability("GET", "/{index}/_doc/{id}", List.of(), List.of("ignored_meta_field_by_default")).orElse(false)) {
+                assertThat(((List<?>) doc.get(IgnoredFieldMapper.NAME)), Matchers.containsInAnyOrder("ip_address", "keyword"));
+            } else if (getOldClusterIndexVersion().onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)) {
                 assertNull(doc.get(IgnoredFieldMapper.NAME));
             }
         } else if (isUpgradedCluster()) {

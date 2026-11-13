@@ -325,11 +325,6 @@ public class DatafeedManager {
             final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
             final boolean hasCpsCredential = hasCallerCloudCredential(credentialTransitions, threadPool, request.getCloudCredential());
 
-            BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
-                warnIfProjectRoutingIsInert(request.getUpdate().getProjectRouting());
-                jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
-            };
-
             final String datafeedId = request.getUpdate().getId();
             final DatafeedUpdate update = request.getUpdate();
             if (Boolean.TRUE.equals(update.getForceRekeying()) && (crossProjectMlEnabled() == false || hasCpsCredential == false)) {
@@ -369,7 +364,23 @@ public class DatafeedManager {
                     // over the minted key's Authentication stored at mint time.
                     final Map<String, String> headersForUpdate = intent == CredentialTransitions.Intent.KEEP
                         && current.getCloudInternalCredential() != null ? Map.of() : headers;
-                    final Consumer<Boolean> executeUpdate = rollbackSnapshotRetained -> {
+                    final java.util.concurrent.atomic.AtomicBoolean rollbackSnapshotRetained =
+                        new java.util.concurrent.atomic.AtomicBoolean(false);
+                    BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
+                        warnIfProjectRoutingIsInert(request.getUpdate().getProjectRouting());
+                        ActionListener<Boolean> afterConfigValidation = ActionListener.wrap(ok -> {
+                            if (requiresRollbackSnapshot) {
+                                retainRollbackSnapshot(current, update, validatorListener.delegateFailureAndWrap((delegate, retained) -> {
+                                    rollbackSnapshotRetained.set(retained);
+                                    delegate.onResponse(Boolean.TRUE);
+                                }));
+                            } else {
+                                validatorListener.onResponse(Boolean.TRUE);
+                            }
+                        }, validatorListener::onFailure);
+                        jobConfigProvider.validateDatafeedJob(updatedConfig, afterConfigValidation);
+                    };
+                    final Runnable executeUpdate = () -> {
                         ActionListener<PutDatafeedAction.Response> updateListener;
                         if (defaultedProjectRoutingForMigration) {
                             updateListener = ActionListener.wrap(response -> {
@@ -390,7 +401,7 @@ public class DatafeedManager {
                         } else if (userInitiatedProjectRoutingChange) {
                             updateListener = l.delegateFailureAndWrap((delegate, response) -> {
                                 delegate.onResponse(response);
-                                notifyUserInitiatedProjectRoutingChange(current, update, threadPool, rollbackSnapshotRetained);
+                                notifyUserInitiatedProjectRoutingChange(current, update, threadPool, rollbackSnapshotRetained.get());
                             });
                         } else {
                             updateListener = l;
@@ -408,14 +419,9 @@ public class DatafeedManager {
                         );
                     };
                     if (requiresRollbackSnapshot) {
-                        retainRollbackSnapshotBeforeScopeChange(
-                            current,
-                            update,
-                            state,
-                            l.delegateFailureAndWrap((v, retained) -> executeUpdate.accept(retained))
-                        );
+                        assertJobClosedForScopeChange(current, state, l.delegateFailureAndWrap((delegate, unused) -> executeUpdate.run()));
                     } else {
-                        executeUpdate.accept(false);
+                        executeUpdate.run();
                     }
                 } catch (Exception e) {
                     l.onFailure(e);
@@ -498,12 +504,7 @@ public class DatafeedManager {
         return firstTimeLocalOnlyAssignment == false;
     }
 
-    private void retainRollbackSnapshotBeforeScopeChange(
-        DatafeedConfig current,
-        DatafeedUpdate rawUpdate,
-        ClusterState state,
-        ActionListener<Boolean> listener
-    ) {
+    private void assertJobClosedForScopeChange(DatafeedConfig current, ClusterState state, ActionListener<Void> listener) {
         PersistentTasksCustomMetadata tasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(current.getJobId(), tasks);
         if (jobState != JobState.CLOSED) {
@@ -514,7 +515,10 @@ public class DatafeedManager {
             );
             return;
         }
+        listener.onResponse(null);
+    }
 
+    private void retainRollbackSnapshot(DatafeedConfig current, DatafeedUpdate rawUpdate, ActionListener<Boolean> listener) {
         jobConfigProvider.getJob(current.getJobId(), null, listener.delegateFailureAndWrap((delegate, jobBuilder) -> {
             Job job = jobBuilder.build();
             String snapshotId = job.getModelSnapshotId();

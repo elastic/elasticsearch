@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -39,6 +40,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
@@ -83,6 +88,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomCloudCredentialEncryptedData;
@@ -93,7 +99,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -307,6 +315,26 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(client).execute(same(TransportSearchAction.TYPE), any(SearchRequest.class), any());
     }
 
+    /**
+     * The ES|QL plugin is not on the ML unit-test classpath; install a mock request builder via {@link SharedSecrets}.
+     */
+    @SuppressWarnings("unchecked")
+    private static AutoCloseable mockEsqlMintProbeSucceeds(CloudCredentialManager credentialManager, Client client) {
+        stubWrapClientForValidateProbe(credentialManager, client);
+        EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> builder = mock();
+        when(builder.query(any())).thenReturn(builder);
+        when(builder.projectRouting(any())).thenReturn(builder);
+        when(builder.params(any())).thenReturn(builder);
+        when(builder.allowPartialResults(anyBoolean())).thenReturn(builder);
+        doAnswer(invocation -> {
+            ActionListener<EsqlQueryResponse> listener = invocation.getArgument(0);
+            listener.onResponse(mock(EsqlQueryResponse.class));
+            return null;
+        }).when(builder).execute(any(ActionListener.class));
+        SharedSecrets.setEsqlQueryRequestBuilderAccess((ElasticsearchClient unused) -> builder);
+        return () -> SharedSecrets.setEsqlQueryRequestBuilderAccess(null);
+    }
+
     @SuppressWarnings("unchecked")
     private static void mockRevokeSucceeds(InternalCloudApiKeyService apiKeyService) {
         doAnswer(invocation -> {
@@ -393,15 +421,22 @@ public class DatafeedManagerTests extends ESTestCase {
             Map<String, String> headers = invocation.getArgument(2);
             DatafeedConfig applied = update.apply(storedConfig, headers, mockClusterStateForUpdate());
 
-            ActionListener<CredentialTransitions.MintedCredential> mintedListener = ActionListener.wrap(minted -> {
+            @SuppressWarnings("unchecked")
+            BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator = invocation.getArgument(4);
+            ActionListener<Tuple<DatafeedConfig, PersistedCloudCredential>> persistedListener = invocation.getArgument(5);
+            ActionListener<CredentialTransitions.MintedCredential> mintHookListener = ActionListener.wrap(minted -> {
                 DatafeedConfig persisted = new DatafeedConfig.Builder(applied).setCloudInternalCredential(minted.credential())
                     .setHeaders(minted.headers())
                     .build();
-                invocation.<ActionListener<Tuple<DatafeedConfig, PersistedCloudCredential>>>getArgument(5)
-                    .onResponse(Tuple.tuple(persisted, storedConfig.getCloudInternalCredential()));
-            }, e -> invocation.<ActionListener<Tuple<DatafeedConfig, PersistedCloudCredential>>>getArgument(5).onFailure(e));
-
-            mint.mintHook().accept(applied, mintedListener);
+                validator.accept(
+                    persisted,
+                    ActionListener.wrap(
+                        ok -> persistedListener.onResponse(Tuple.tuple(persisted, storedConfig.getCloudInternalCredential())),
+                        persistedListener::onFailure
+                    )
+                );
+            }, persistedListener::onFailure);
+            mint.mintHook().accept(applied, mintHookListener);
             return null;
         }).when(mock).updateDatefeedConfig(anyString(), any(), any(), any(CredentialTransitions.Change.Mint.class), any(), any());
     }
@@ -2428,6 +2463,130 @@ public class DatafeedManagerTests extends ESTestCase {
         assertThat(failure.get().getMessage(), containsString("df-scope-open"));
         assertThat(failure.get().getMessage(), containsString("job-scope-open"));
         assertThat(capturedUpdate.get(), nullValue());
+        verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
+    }
+
+    private static DatafeedConfig.Builder esqlDatafeedBuilderForSnapshotTests(String datafeedId, String jobId) {
+        return new DatafeedConfig.Builder(datafeedId, jobId).setEsqlQuery("FROM logs-* | STATS c = COUNT(*) BY t = BUCKET(@timestamp, 1h)")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .setProjectRouting("_alias:_origin");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateDatafeedWhenScopeChangeValidationFailsShouldNotRetainSnapshot() {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+
+        DatafeedConfig storedConfig = migratedCpsDatafeed("df-scope-fail", "job-scope-fail");
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            credentialManager,
+            apiKeyService,
+            client,
+            threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+        mockGetJobWithSnapshot(jobConfigProvider, "job-scope-fail", "rollback-snap-1");
+        ElasticsearchStatusException validationFailure = new ElasticsearchStatusException("validation failed", RestStatus.BAD_REQUEST);
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Boolean>>getArgument(1).onFailure(validationFailure);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.updateDatafeed(
+            new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder("df-scope-fail").setProjectRouting("_alias:prod-*").build()),
+            mockClusterStateForUpdate(),
+            null,
+            threadPool,
+            ActionListener.wrap(r -> fail("expected failure"), failure::set)
+        );
+
+        assertThat(failure.get(), sameInstance(validationFailure));
+        verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateEsqlDatafeedWhenScopeChangeValidationFailsShouldNotRetainSnapshot() throws Exception {
+        assumeTrue("feature under test must be enabled", CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled());
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, apiKeyService);
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            settings,
+            client,
+            mlExtension,
+            mockAuditor()
+        );
+
+        DatafeedConfig storedConfig = esqlDatafeedBuilderForSnapshotTests("df-esql-snap", "job-esql-snap").setProjectRouting(
+            ProjectRoutingResolver.LOCAL_ONLY
+        ).setCloudInternalCredential(randomPersistedCloudCredential("existing-key-id")).build();
+        AtomicReference<DatafeedUpdate> capturedUpdate = new AtomicReference<>();
+        stubUpdateMigrationPath(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            credentialManager,
+            apiKeyService,
+            client,
+            threadPool,
+            storedConfig,
+            capturedUpdate
+        );
+        mockGetJobWithSnapshot(jobConfigProvider, "job-esql-snap", "rollback-snap-1");
+        ElasticsearchStatusException validationFailure = new ElasticsearchStatusException("validation failed", RestStatus.BAD_REQUEST);
+        doAnswer(invocation -> {
+            invocation.<ActionListener<Boolean>>getArgument(1).onFailure(validationFailure);
+            return null;
+        }).when(jobConfigProvider).validateDatafeedJob(any(), any());
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        AutoCloseable esqlProbe = mockEsqlMintProbeSucceeds(credentialManager, client);
+        try {
+            manager.updateDatafeed(
+                new UpdateDatafeedAction.Request(new DatafeedUpdate.Builder("df-esql-snap").setProjectRouting("_alias:prod-*").build()),
+                mockClusterStateForUpdate(),
+                null,
+                threadPool,
+                ActionListener.wrap(r -> fail("expected failure"), failure::set)
+            );
+        } finally {
+            esqlProbe.close();
+        }
+
+        assertThat(failure.get(), sameInstance(validationFailure));
         verify(client, never()).execute(same(UpdateModelSnapshotAction.INSTANCE), any(), any());
     }
 

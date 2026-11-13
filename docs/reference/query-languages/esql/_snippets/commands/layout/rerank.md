@@ -127,7 +127,6 @@ separate document. How `RERANK` sends the documents depends on the endpoint:
 * The default `.rerank-v1-elasticsearch` endpoint scores each document
   independently, so `RERANK` sends documents to it in small parallel batches to
   reduce latency.
-  reduce latency.
 * For every other endpoint, `RERANK` sends the documents for all of its input
   rows in a single request. Listwise rerankers such as `.jina-reranker-v3`
   score each document relative to the other documents in the same request, so

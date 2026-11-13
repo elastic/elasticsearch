@@ -247,8 +247,8 @@ public abstract class BlockArrowFormatter {
      * Conversion of {@code unsigned_long} blocks, which store values with the sign bit flipped so that they sort as signed
      * longs. Arrow's {@code UInt64} expects the plain unsigned bits.
      */
-    public static class AsUnsignedLong extends AsInt64 {
-        public AsUnsignedLong(DataType esqlType) {
+    public static class AsFlippedSignInt64 extends AsInt64 {
+        public AsFlippedSignInt64(DataType esqlType) {
             super(esqlType, Types.MinorType.UINT8);
         }
 

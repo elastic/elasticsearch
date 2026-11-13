@@ -127,12 +127,26 @@ public class ArrowResponseTests extends ESTestCase {
         BigIntVector::get
     );
 
-    static final ValueType ULONG_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, UInt8Vector>(
-        "ulong",
+    /**
+     * Unsigned long blocks with the sign bit flipped, used for {@link DataType#UNSIGNED_LONG}.
+     */
+    static final ValueType ULONG_FLIPPED_SIGN_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, UInt8Vector>(
+        "ulong_flipped_sign",
         factory -> factory.newLongBlockBuilder(0),
         block -> block.appendLong(randomLong()),
         // Blocks store unsigned longs with the sign bit flipped
         (block, i, scratch) -> block.getLong(i) ^ NumericUtils.TWOS_COMPLEMENT_BITMASK,
+        UInt8Vector::get
+    );
+
+    /**
+     * Long blocks holding raw unsigned 64-bit values, with no sign bit flipping, as done for {@link DataType#GEOHASH} cell ids.
+     */
+    static final ValueType ULONG_VALUES = new ValueTypeImpl<LongBlock.Builder, LongBlock, UInt8Vector>(
+        "ulong",
+        factory -> factory.newLongBlockBuilder(0),
+        block -> block.appendLong(randomLong()),
+        (block, i, scratch) -> block.getLong(i),
         UInt8Vector::get
     );
 
@@ -261,7 +275,7 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
         Map.entry(DataType.LONG, LONG_VALUES),
         Map.entry(DataType.COUNTER_LONG, LONG_VALUES),
-        Map.entry(DataType.UNSIGNED_LONG, ULONG_VALUES),
+        Map.entry(DataType.UNSIGNED_LONG, ULONG_FLIPPED_SIGN_VALUES),
         Map.entry(DataType.DOUBLE, DOUBLE_VALUES),
         Map.entry(DataType.COUNTER_DOUBLE, DOUBLE_VALUES),
 

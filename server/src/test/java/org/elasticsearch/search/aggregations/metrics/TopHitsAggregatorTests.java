@@ -50,6 +50,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -86,6 +87,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -102,6 +105,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
@@ -110,6 +114,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
@@ -246,6 +251,111 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
                     STRING_FIELD_TYPE
                 );
             }
+        }
+    }
+
+    /**
+     * The fetch context of a bucket is closed once its hits are registered, so the reference the search takes is the only one left
+     * on them. Uses score order, so it runs the Lucene collector path.
+     */
+    public void testFetchContextIsReleasedOnceItsHitsAreRegistered() throws Exception {
+        int buckets = 100;
+        withIndex(uniqueBuckets(buckets), reader -> {
+            registeredTopHits = new ArrayList<>();
+            try {
+                collectTopHitsPerBucket(reader, buckets, topHits("top"), false, built -> {
+                    assertThat(registeredTopHits, hasSize(buckets));
+                    while (registeredTopHits.isEmpty() == false) {
+                        assertTrue("the search holds the only reference", registeredTopHits.removeLast().decRef());
+                    }
+                });
+            } finally {
+                List<SearchHits> notReleased = registeredTopHits;
+                registeredTopHits = null;
+                notReleased.forEach(SearchHits::decRef);
+            }
+        });
+    }
+
+    /**
+     * The fetch context of a bucket registers no releasable on the context it copies, so the number of releasables there does not
+     * grow with the buckets. Sorted by a number, so it runs the {@link BucketedTopHits} path.
+     */
+    public void testFetchContextIsNotHeldByTheContextItCopies() throws Exception {
+        assertThat(releasablesAddedToSubSearchContext(100), equalTo(releasablesAddedToSubSearchContext(1)));
+    }
+
+    private int releasablesAddedToSubSearchContext(int buckets) throws IOException {
+        AtomicInteger added = new AtomicInteger();
+        withIndex(uniqueBuckets(buckets), reader -> {
+            subSearchContextReleasables = added;
+            try {
+                collectTopHitsPerBucket(
+                    reader,
+                    buckets,
+                    topHits("top").sort(NUMBER_FIELD),
+                    true,
+                    built -> assertThat(((Terms) built).getBuckets(), hasSize(buckets))
+                );
+            } finally {
+                subSearchContextReleasables = null;
+            }
+        });
+        return added.get();
+    }
+
+    /**
+     * Runs {@code topHits} under a {@code terms} on the string field with {@code buckets} buckets, and passes the built result to
+     * {@code check}. {@code expectBucketedSort} is whether the {@code top_hits} must collect with a {@code BucketedSort}.
+     */
+    private void collectTopHitsPerBucket(
+        IndexReader reader,
+        int buckets,
+        TopHitsAggregationBuilder topHits,
+        boolean expectBucketedSort,
+        CheckedConsumer<InternalAggregation, IOException> check
+    ) throws IOException {
+        collect(
+            reader,
+            Queries.ALL_DOCS_INSTANCE,
+            terms("term").field("string").size(buckets).subAggregation(topHits),
+            requestBreakers("1gb"),
+            true,
+            expectBucketedSort,
+            check,
+            STRING_FIELD_TYPE,
+            numberFieldType(NumberFieldMapper.NumberType.LONG)
+        );
+    }
+
+    /** When set, counts the releasables added to the {@link SubSearchContext} that {@code top_hits} copies. */
+    private AtomicInteger subSearchContextReleasables;
+
+    @Override
+    protected SubSearchContext newSubSearchContext(SearchContext context) {
+        AtomicInteger added = subSearchContextReleasables;
+        if (added == null) {
+            return super.newSubSearchContext(context);
+        }
+        return new SubSearchContext(context) {
+            @Override
+            public void addReleasable(Releasable releasable) {
+                added.incrementAndGet();
+                super.addReleasable(releasable);
+            }
+        };
+    }
+
+    /** When set, keeps the hits the search registers, so the test releases them itself. */
+    private List<SearchHits> registeredTopHits;
+
+    @Override
+    protected void registerTopHitsForRelease(SearchHits hits) {
+        if (registeredTopHits == null) {
+            super.registerTopHitsForRelease(hits);
+        } else {
+            hits.incRef();
+            registeredTopHits.add(hits);
         }
     }
 

@@ -81,6 +81,20 @@ This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and i
 
   Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
 
+* Shards can fail to allocate after an upgrade when an index template or index sets [`index.merge.scheduler.max_merge_count`](/reference/elasticsearch/index-settings/merge.md#index-merge-scheduler-max-merge-count) to a value lower than half the number of processors on the node and does not set `index.merge.scheduler.max_thread_count`. In 9.4.0, the default for `max_thread_count` changed to half the number of processors on the node, so it can now exceed `max_merge_count`. The shard fails to open with `maxThreadCount (= <max_thread_count>) should be <= maxMergeCount (= <max_merge_count>)`.
+
+  This issue is fixed in [#155693](https://github.com/elastic/elasticsearch/pull/155693), released in {{es}} 9.5.1. To avoid the issue on an affected version, remove `max_merge_count` from your index templates and indices, or set `max_thread_count` explicitly to a value that is less than or equal to `max_merge_count`.
+
+  Refer to [#155678](https://github.com/elastic/elasticsearch/issues/155678) for further details.
+
+## 9.4.0 [elasticsearch-9.4.0-known-issues]
+
+* Shards can fail to allocate after an upgrade to {{es}} 9.4.0 through 9.4.4 when an index template or index sets [`index.merge.scheduler.max_merge_count`](/reference/elasticsearch/index-settings/merge.md#index-merge-scheduler-max-merge-count) to a value lower than half the number of processors on the node and does not set `index.merge.scheduler.max_thread_count`. In 9.4.0, the default for `max_thread_count` changed to half the number of processors on the node, so it can now exceed `max_merge_count`. The shard fails to open with `maxThreadCount (= <max_thread_count>) should be <= maxMergeCount (= <max_merge_count>)`.
+
+  This issue is fixed in [#155693](https://github.com/elastic/elasticsearch/pull/155693), released in {{es}} 9.4.5. To avoid the issue on an affected version, remove `max_merge_count` from your index templates and indices, or set `max_thread_count` explicitly to a value that is less than or equal to `max_merge_count`.
+
+  Refer to [#155678](https://github.com/elastic/elasticsearch/issues/155678) for further details.
+
 ## 9.3.6 [elasticsearch-9.3.6-known-issues]
 
 * A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.

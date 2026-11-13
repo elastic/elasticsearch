@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -16,7 +15,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportValidateViewAction extends HandledTransportAction<ValidateViewAction.Request, ActionResponse.Empty> {
+public class TransportValidateViewAction extends HandledTransportAction<ValidateViewAction.Request, ValidateViewAction.Response> {
     private final ViewService viewService;
     private final ProjectResolver projectResolver;
 
@@ -40,7 +39,7 @@ public class TransportValidateViewAction extends HandledTransportAction<Validate
     }
 
     @Override
-    protected void doExecute(Task task, ValidateViewAction.Request request, ActionListener<ActionResponse.Empty> listener) {
-        viewService.validateView(projectResolver.getProjectId(), request.view(), listener.map(ignored -> ActionResponse.Empty.INSTANCE));
+    protected void doExecute(Task task, ValidateViewAction.Request request, ActionListener<ValidateViewAction.Response> listener) {
+        viewService.validateView(projectResolver.getProjectId(), request.view(), listener.map(ValidateViewAction.Response::new));
     }
 }

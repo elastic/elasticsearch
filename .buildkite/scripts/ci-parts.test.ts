@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, statSync } from "fs";
-import { join } from "path";
+import { join, relative, sep } from "path";
 import { describe, expect, test } from "vitest";
 
 // checkPartN only runs the share of `check` that .ci/test-parts/assignment.json gives part N, so a
@@ -20,6 +20,7 @@ const PARTS = readPartCount("assignment.json");
 const ALL_PARTS = partList(PARTS);
 const BC_UPGRADE_PARTS = partList(readPartCount("bc-upgrade", "assignment.json"));
 const ESQL_RELEASE_PARTS = partList(readPartCount("esql-release", "assignment.json"));
+const BWC_PARTS = partList(readPartCount("bwc", "assignment.json"));
 
 const pipelineFiles = (dir: string): string[] =>
   readdirSync(dir).flatMap((name) => {
@@ -58,6 +59,20 @@ describe("CI parts", () => {
     const yaml = readFileSync(join(PIPELINES, "pull-request", "esql-release-tests.yml"), "utf-8");
     const parts = [...new Set([...yaml.matchAll(/\breleaseTestCheckEsqlPart(\d+)\b/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
     expect(parts).toEqual(ESQL_RELEASE_PARTS);
+  });
+
+  test("pipelines that run v<version>#bwcTestPartN run every part", () => {
+    const users = pipelineFiles(PIPELINES).filter((f) => /#bwcTestPart\d+\b/.test(readFileSync(f, "utf-8")));
+    // the pull request and intake bwc-snapshots jobs
+    expect(users.map((f) => relative(PIPELINES, f).split(sep).join("/")).sort()).toEqual([
+      "intake.template.yml",
+      "intake.yml",
+      "pull-request/bwc-snapshots.yml",
+    ]);
+    for (const file of users) {
+      const parts = [...new Set([...readFileSync(file, "utf-8").matchAll(/#bwcTestPart(\d+)\b/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
+      expect(parts, file).toEqual(BWC_PARTS);
+    }
   });
 
   test("every pull request part variant has one pipeline per part", () => {

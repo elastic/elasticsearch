@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
@@ -860,8 +860,13 @@ public final class GraphExpandDriver {
         Attribute evalTo = seenTarget;
         // Grouped hub guard: an inbound leg, or any leg over edge documents, reaches one node per
         // document, so there is no array to slice. Instead the rows are grouped by the frontier
-        // value (and the kind, over edge documents), counted, and at most hub_degree + 1 of the
-        // reached ids kept with TOP.
+        // value (and the kind, over edge documents), counted, and the reached ids collected with
+        // VALUES. TOP(id, hub_degree + 1) used to do the collecting, so that a hub shipped at most
+        // hub_degree + 1 ids; but TOP reserves its full capacity for every group, and at a
+        // hub_degree of 100,000 that reservation was most of a wide hop's time (13.4 s against 1.9 s
+        // at 1,000 on a 30,000-node walk) and tripped the request breaker on a 20,000-node frontier.
+        // VALUES holds only what a group has. A hub therefore ships all of its ids in one row before
+        // the refusal below drops it, which max_edges_per_hop still bounds per subplan.
         boolean groupedGuard = hubDegree != null && countOnlyAggregates() && (leg == Leg.IN || edgeDocuments);
         if (groupedGuard) {
             // A hub thus ships just enough rows for the refusal after the fetch to see it, with its
@@ -870,11 +875,7 @@ public final class GraphExpandDriver {
             // statement has none or counts rows; each row here is one holder document, so COUNT(*)
             // is 1 (Kibana's statement).
             Alias degree = new Alias(source, HUB_DEGREE_COLUMN, new Count(source, Literal.keyword(source, "*")));
-            Alias reachedTop = new Alias(
-                source,
-                HUB_REACHED_COLUMN,
-                new Top(source, expandedPointer, new Literal(source, hubDegree + 1, DataType.INTEGER), Literal.keyword(source, "asc"), null)
-            );
+            Alias reachedTop = new Alias(source, HUB_REACHED_COLUMN, new Values(source, expandedPointer));
             List<Expression> guardGroupings = new ArrayList<>(2);
             guardGroupings.add(expandedFrontier);
             List<NamedExpression> guardAggregates = new ArrayList<>(List.of(degree, reachedTop, expandedFrontier));

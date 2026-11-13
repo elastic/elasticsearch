@@ -45,6 +45,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -276,30 +280,28 @@ public class IndicesQueryCacheTests extends ESTestCase {
         final CountDownLatch arrived = new CountDownLatch(searches);
         final CountDownLatch release = new CountDownLatch(1);
         final ParkingQuery query = new ParkingQuery(arrived, release);
-        final Thread[] threads = new Thread[searches];
-        final AtomicReference<Throwable> failure = new AtomicReference<>();
-        for (int i = 0; i < searches; i++) {
-            threads[i] = new Thread(() -> {
-                try {
-                    assertEquals(docs, searcher.count(query));
-                } catch (Throwable t) {
-                    failure.set(t);
-                }
-            }, "parking-search-" + i);
-            threads[i].start();
-        }
+        final ExecutorService executor = Executors.newFixedThreadPool(searches);
+        final List<Future<Integer>> counts = new ArrayList<>();
+        try {
+            for (int i = 0; i < searches; i++) {
+                counts.add(executor.submit(() -> searcher.count(query)));
+            }
 
-        // every search is now getting its scorer: one of them is populating the cache, the others gave up on it
-        safeAwait(arrived);
-        assertThat(cache.inFlightPopulationCount(), equalTo(1));
-        assertThat(query.populatingScorers.get(), equalTo(1));
-        assertThat(query.uncachedScorers.get(), equalTo(searches - 1));
-
-        release.countDown();
-        for (Thread thread : threads) {
-            thread.join();
+            // every search is now getting its scorer: one of them is populating the cache, the others gave up on it
+            safeAwait(arrived);
+            assertThat(cache.inFlightPopulationCount(), equalTo(1));
+            assertThat(query.populatingScorers.get(), equalTo(1));
+            assertThat(query.uncachedScorers.get(), equalTo(searches - 1));
+        } finally {
+            // always unpark the searches, otherwise a failed assertion above would leave them hanging
+            release.countDown();
+            executor.shutdown();
         }
-        assertNull(failure.get());
+        assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        // assert on the results of the searches here rather than inside their threads
+        for (Future<Integer> count : counts) {
+            assertEquals(docs, safeGet(count).intValue());
+        }
 
         // the one population made it to the cache and nothing is in flight anymore
         assertThat(cache.inFlightPopulationCount(), equalTo(0));

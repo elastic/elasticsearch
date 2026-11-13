@@ -3338,7 +3338,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testNestedReductionHonorsFieldAndDocumentSecurity() throws Exception {
-        assumeTrue("NESTED is registered on snapshot builds", Build.current().isSnapshot());
+        assumeTrue("NESTED_ANY is registered on snapshot builds", Build.current().isSnapshot());
         Request delete = new Request("DELETE", "nr-security");
         delete.addParameter("ignore_unavailable", "true");
         client().performRequest(delete);
@@ -3357,7 +3357,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(east);
         refresh("nr-security");
 
-        String total = "FROM nr-security | EVAL total = NESTED(SUM(items.price * items.quantity)) | STATS amount = SUM(total)";
+        String total = "FROM nr-security | EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) | STATS amount = SUM(total)";
         Response admin = runESQLCommand("test-admin", total);
         assertOK(admin);
         @SuppressWarnings("unchecked")
@@ -3372,7 +3372,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         ResponseException denied = expectThrows(
             ResponseException.class,
-            () -> runESQLCommand("nested_reductions_fls_user", "FROM nr-security | EVAL total = NESTED(SUM(items.price)) | KEEP total")
+            () -> runESQLCommand("nested_reductions_fls_user", "FROM nr-security | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total")
         );
         assertThat(denied.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
         String body = EntityUtils.toString(denied.getResponse().getEntity());

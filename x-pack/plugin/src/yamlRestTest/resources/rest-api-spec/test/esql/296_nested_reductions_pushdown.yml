@@ -1,4 +1,4 @@
-# WHERE NESTED(<predicate>) runs in Lucene as a nested query when the predicate translates exactly, so only matching
+# WHERE NESTED_ANY(<predicate>) runs in Lucene as a nested query when the predicate translates exactly, so only matching
 # parents leave the index: documents_found counts them. Otherwise the reduction filters in memory and every parent is read.
 # Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
 ---
@@ -68,7 +68,7 @@ a nested predicate is pushed to Lucene:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_push | WHERE NESTED(items.price > 10) | KEEP id | SORT id | LIMIT 10
+        query: FROM nr_push | WHERE NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
 - match:
     values:
     - [a]
@@ -81,7 +81,7 @@ a pushed conjunction matches within one nested object:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_push | WHERE NESTED(items.price > 10 AND items.qty == 1) | KEEP id | SORT id | LIMIT 10
+        query: FROM nr_push | WHERE NESTED_ANY(items.price > 10 AND items.qty == 1) | KEEP id | SORT id | LIMIT 10
 - match:
     values:
     - [d]
@@ -93,7 +93,7 @@ a pushed keyword predicate:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_push | WHERE NESTED(items.sku == "book") | KEEP id | SORT id | LIMIT 10
+        query: FROM nr_push | WHERE NESTED_ANY(items.sku == "book") | KEEP id | SORT id | LIMIT 10
 - match:
     values:
     - [a]
@@ -106,7 +106,7 @@ a nested predicate is pushed beside a parent filter:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_push | WHERE id != "d" AND NESTED(items.price > 10) | KEEP id | SORT id | LIMIT 10
+        query: FROM nr_push | WHERE id != "d" AND NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
 - match:
     values:
     - [a]
@@ -118,7 +118,7 @@ the source loader pragma filters in memory:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_push | WHERE NESTED(items.price > 10) | KEEP id | SORT id | LIMIT 10
+        query: FROM nr_push | WHERE NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
         pragma:
           nested_loader: source
 - match:
@@ -133,7 +133,7 @@ an untranslatable nested predicate filters in memory:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_push | WHERE NESTED(items.price + items.qty >= 21) | KEEP id | SORT id | LIMIT 10
+        query: FROM nr_push | WHERE NESTED_ANY(items.price + items.qty >= 21) | KEEP id | SORT id | LIMIT 10
 - match:
     values:
     - [a]
@@ -146,7 +146,7 @@ a negated nested predicate filters in memory:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_push | WHERE NOT NESTED(items.price > 10) | KEEP id | SORT id | LIMIT 10
+        query: FROM nr_push | WHERE NOT NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
 - match:
     values:
     - [b]
@@ -159,7 +159,7 @@ a nested predicate in a disjunction filters in memory:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_push | WHERE id == "b" OR NESTED(items.price > 10) | KEEP id | SORT id | LIMIT 10
+        query: FROM nr_push | WHERE id == "b" OR NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
 - match:
     values:
     - [a]

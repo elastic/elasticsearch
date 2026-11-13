@@ -106,7 +106,7 @@ after filtering, sorting and limiting parents:
     esql.query:
       body:
         query: >-
-          FROM nj_orders | WHERE NESTED(items.price < 10) | SORT id DESC | LIMIT 1
+          FROM nj_orders | WHERE NESTED_ANY(items.price < 10) | SORT id DESC | LIMIT 1
           | EVAL items = NESTED_JSON(items) | KEEP id, items
 - match:
     values:
@@ -118,7 +118,7 @@ another name keeps the collection usable:
     esql.query:
       body:
         query: >-
-          FROM nj_orders | EVAL shipped = NESTED_JSON(shipments) | EVAL has_items = NESTED(items, true)
+          FROM nj_orders | EVAL shipped = NESTED_JSON(shipments) | EVAL has_items = NESTED_ANY(items, true)
           | KEEP id, shipped, has_items | SORT id | LIMIT 2
 - match:
     values:
@@ -161,9 +161,9 @@ a replaced name is no longer a nested scope:
     catch: bad_request
     esql.query:
       body:
-        query: FROM nj_orders | EVAL items = NESTED_JSON(items) | EVAL x = NESTED(items, true) | LIMIT 1
+        query: FROM nj_orders | EVAL items = NESTED_JSON(items) | EVAL x = NESTED_ANY(items, true) | LIMIT 1
 - contains:
-    error.reason: "NESTED cannot use [items]: a column of that name replaces it here"
+    error.reason: "NESTED_ANY cannot use [items]: a column of that name replaces it here"
 
 ---
 a replaced name cannot be expanded:

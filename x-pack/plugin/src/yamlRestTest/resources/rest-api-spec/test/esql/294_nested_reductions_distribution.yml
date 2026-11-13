@@ -60,7 +60,7 @@ reductions from two primary shards add up:
       body:
         query: >
           FROM nr_shards
-          | EVAL total = NESTED(SUM(items.price * items.quantity))
+          | EVAL total = NESTED_ANY(SUM(items.price * items.quantity))
           | STATS n = COUNT(*), amount = SUM(total)
           | LIMIT 10
 - match: { columns.0.name: n }
@@ -119,7 +119,7 @@ LAST null keys and values follow ordinary LAST:
         query: >
           FROM nr_last
           | WHERE id == "null_value"
-          | EVAL picked = NESTED(LAST(items.sku, items.rank))
+          | EVAL picked = NESTED_ANY(LAST(items.sku, items.rank))
           | KEEP id, picked
           | LIMIT 10
 - match: { columns.1.name: picked }
@@ -134,7 +134,7 @@ LAST null keys and values follow ordinary LAST:
         query: >
           FROM nr_last
           | WHERE id == "null_keys"
-          | EVAL picked = NESTED(LAST(items.sku, items.rank))
+          | EVAL picked = NESTED_ANY(LAST(items.sku, items.rank))
           | KEEP id, picked
           | LIMIT 10
 - match: { columns.1.type: keyword }

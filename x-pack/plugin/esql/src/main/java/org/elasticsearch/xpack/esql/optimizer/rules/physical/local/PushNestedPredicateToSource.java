@@ -48,11 +48,11 @@ import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.transla
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 /**
- * Runs {@code WHERE NESTED(<predicate>)} in Lucene as a {@code nested} query, so only parents with a matching child document
+ * Runs {@code WHERE NESTED_ANY(<predicate>)} in Lucene as a {@code nested} query, so only parents with a matching child document
  * leave the index. The in-memory check reads the child values from doc values, so a query on the indexed child fields gives
  * the same answer when every child field is searchable and has doc values here. A predicate that translates exactly replaces
  * the reduction; one that needs a recheck is pushed and still evaluated; anything else stays in memory. A {@code true}
- * predicate, as in {@code NESTED(items, true)}, matches any child document.
+ * predicate, as in {@code NESTED_ANY(items, true)}, matches any child document.
  */
 public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     FilterExec,

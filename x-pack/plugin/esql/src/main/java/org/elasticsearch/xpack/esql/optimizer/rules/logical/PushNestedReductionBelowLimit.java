@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 /**
- * Moves an EVAL holding a NESTED reduction below the LIMIT it follows, so a {@code SORT | LIMIT | EVAL NESTED(...)} reduces
+ * Moves an EVAL holding a NESTED reduction below the LIMIT it follows, so a {@code SORT | LIMIT | EVAL NESTED_ANY(...)} reduces
  * the rows the limit keeps on the data node, where child values are read from the index, instead of on the coordinator, which
  * can only read {@code _source}. An EVAL keeps every row, so the limit is unchanged.
  * <p>

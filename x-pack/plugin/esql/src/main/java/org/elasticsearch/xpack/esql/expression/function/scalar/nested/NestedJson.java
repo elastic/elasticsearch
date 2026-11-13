@@ -44,6 +44,11 @@ public final class NestedJson extends Nested {
     }
 
     @Override
+    public String functionName() {
+        return "NESTED_JSON";
+    }
+
+    @Override
     protected NodeInfo<NestedJson> info() {
         return NodeInfo.create(this, NestedJson::new, body());
     }

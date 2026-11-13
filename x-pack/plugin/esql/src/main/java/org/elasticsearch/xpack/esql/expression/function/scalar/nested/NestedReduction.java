@@ -329,7 +329,7 @@ public final class NestedReduction extends EsqlScalarFunction {
 
     private IllegalArgumentException sourceRead() {
         return new IllegalArgumentException(
-            (json ? "NESTED_JSON" : "NESTED BY") + " reads doc values only; [" + path + "] would have to be read from _source here"
+            (json ? "NESTED_JSON" : "NESTED_ANY BY") + " reads doc values only; [" + path + "] would have to be read from _source here"
         );
     }
 
@@ -619,7 +619,9 @@ public final class NestedReduction extends EsqlScalarFunction {
                         for (Block block : evaluated) {
                             for (int i = 0; i < block.getPositionCount(); i++) {
                                 if (block.getValueCount(i) > 1) {
-                                    throw new IllegalArgumentException("NESTED selection requires scalar child values and ordering keys");
+                                    throw new IllegalArgumentException(
+                                        "NESTED_ANY selection requires scalar child values and ordering keys"
+                                    );
                                 }
                             }
                         }
@@ -635,7 +637,7 @@ public final class NestedReduction extends EsqlScalarFunction {
                         context.checkForEarlyTermination();
                     }
                     if (evaluated[0].getValueCount(i) > 1) {
-                        throw new IllegalArgumentException("NESTED existence requires a scalar predicate result per child");
+                        throw new IllegalArgumentException("NESTED_ANY existence requires a scalar predicate result per child");
                     }
                     // A true child cannot hide an invalid multivalue result later in the same scope.
                     matched |= Boolean.TRUE.equals(BlockUtils.toJavaObject(evaluated[0], i));

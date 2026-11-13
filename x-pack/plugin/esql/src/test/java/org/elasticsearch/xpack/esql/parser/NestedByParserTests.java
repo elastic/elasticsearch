@@ -19,14 +19,14 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-/** {@code NESTED(<aggregate> BY <keys>)} parses its keys into one trailing argument, and BY is rejected anywhere else. */
+/** {@code NESTED_ANY(<aggregate> BY <keys>)} parses its keys into one trailing argument, and BY is rejected anywhere else. */
 public class NestedByParserTests extends AbstractStatementParserTests {
 
     public void testKeysBecomeTheLastArgument() {
-        assumeTrue("NESTED BY is snapshot-only", Build.current().isSnapshot());
-        Eval eval = as(query("row a = 1 | eval x = nested(count(*) by b, c.d)"), Eval.class);
+        assumeTrue("NESTED_ANY BY is snapshot-only", Build.current().isSnapshot());
+        Eval eval = as(query("row a = 1 | eval x = nested_any(count(*) by b, c.d)"), Eval.class);
         UnresolvedFunction nested = as(as(eval.fields().getFirst(), Alias.class).child(), UnresolvedFunction.class);
-        assertThat(nested.name(), equalTo("nested"));
+        assertThat(nested.name(), equalTo("nested_any"));
         assertThat(nested.children().size(), equalTo(2));
         assertThat(nested.children().getFirst(), instanceOf(UnresolvedFunction.class));
         NestedGroupings keys = as(nested.children().get(1), NestedGroupings.class);
@@ -34,7 +34,16 @@ public class NestedByParserTests extends AbstractStatementParserTests {
     }
 
     public void testByOutsideNestedIsRejected() {
-        assumeTrue("NESTED BY is snapshot-only", Build.current().isSnapshot());
-        expectError("row a = 1 | eval x = mv_count(a by b)", "BY is only allowed inside NESTED");
+        assumeTrue("NESTED_ANY BY is snapshot-only", Build.current().isSnapshot());
+        expectError("row a = 1 | eval x = mv_count(a by b)", "BY is only allowed inside NESTED_ANY");
+    }
+
+    public void testByInsideNestedJsonIsRejected() {
+        assumeTrue("NESTED_ANY BY is snapshot-only", Build.current().isSnapshot());
+        expectError("row a = 1 | eval x = nested_json(a by b)", "BY is only allowed inside NESTED_ANY");
+    }
+
+    public void testNestedIsNotAFunction() {
+        expectError("row a = 1 | eval x = NESTED(a)", "NESTED is not a function, use NESTED_ANY or NESTED_JSON instead");
     }
 }

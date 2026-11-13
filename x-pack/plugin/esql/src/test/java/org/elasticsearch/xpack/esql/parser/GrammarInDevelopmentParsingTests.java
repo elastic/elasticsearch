@@ -40,7 +40,7 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
     }
 
     public void testDevelopmentNestedBy() throws Exception {
-        expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = nested(count(*) by a)"));
+        expectThrows(ParsingException.class, () -> parser().parseQuery("row a = 1 | eval b = nested_any(count(*) by a)"));
     }
 
     void parse(String query, String errorMessage) {

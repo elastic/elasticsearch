@@ -48,7 +48,7 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
 
     @Before
     public void onlySnapshotBuildsRegisterNested() {
-        assumeTrue("NESTED is registered on snapshot builds", Build.current().isSnapshot());
+        assumeTrue("NESTED_ANY is registered on snapshot builds", Build.current().isSnapshot());
     }
 
     @BeforeClass
@@ -61,7 +61,7 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         assertEquals(
             List.of(row("alpha", 26L), row("beta", 14L)),
             run(
-                "FROM (FROM alpha), (FROM beta) | EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP id, total | SORT id",
+                "FROM (FROM alpha), (FROM beta) | EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) | KEEP id, total | SORT id",
                 List.of(alpha(), beta(true, "long"))
             )
         );
@@ -71,8 +71,8 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         assertEquals(
             List.of(row("alpha", 26L, 8L, false), row("beta", null, 7L, true)),
             run(
-                "FROM (FROM alpha), (FROM beta) | EVAL total = NESTED(SUM(items.price * items.quantity)), "
-                    + "price = NESTED(SUM(items.price)), missing = NESTED(items.quantity IS NULL) "
+                "FROM (FROM alpha), (FROM beta) | EVAL total = NESTED_ANY(SUM(items.price * items.quantity)), "
+                    + "price = NESTED_ANY(SUM(items.price)), missing = NESTED_ANY(items.quantity IS NULL) "
                     + "| KEEP id, total, price, missing | SORT id",
                 List.of(alpha(), beta(false, "long"))
             )
@@ -83,8 +83,8 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         assertEquals(
             List.of(row("alpha", 26L, true), row("gamma", null, false)),
             run(
-                "FROM (FROM alpha), (FROM gamma) | EVAL total = NESTED(SUM(items.price * items.quantity)), "
-                    + "present = NESTED(items.price > 0) | KEEP id, total, present | SORT id",
+                "FROM (FROM alpha), (FROM gamma) | EVAL total = NESTED_ANY(SUM(items.price * items.quantity)), "
+                    + "present = NESTED_ANY(items.price > 0) | KEEP id, total, present | SORT id",
                 List.of(alpha(), gamma())
             )
         );
@@ -94,7 +94,7 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         assertEquals(
             List.of(row(3L, 66L)),
             run(
-                "FROM (FROM alpha), (FROM beta), (FROM alpha) | EVAL total = NESTED(SUM(items.price * items.quantity)) "
+                "FROM (FROM alpha), (FROM beta), (FROM alpha) | EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) "
                     + "| STATS n = COUNT(*), amount = SUM(total)",
                 List.of(alpha(), beta(true, "long"))
             )
@@ -105,7 +105,7 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         assertEquals(
             List.of(row(3L, 40L)),
             run(
-                "FROM (FROM (FROM alpha), (FROM beta)), (FROM gamma) | EVAL total = NESTED(SUM(items.price * items.quantity)) "
+                "FROM (FROM (FROM alpha), (FROM beta)), (FROM gamma) | EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) "
                     + "| STATS n = COUNT(*), amount = SUM(total)",
                 List.of(alpha(), beta(true, "long"), gamma())
             )
@@ -114,7 +114,7 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
 
     public void testMultiIndexFromAndUnionAgree() throws Exception {
         var fixtures = List.of(alpha(), beta(false, "long"), gamma());
-        String suffix = " | EVAL total = NESTED(SUM(items.price * items.quantity)), missing = NESTED(items.quantity IS NULL) "
+        String suffix = " | EVAL total = NESTED_ANY(SUM(items.price * items.quantity)), missing = NESTED_ANY(items.quantity IS NULL) "
             + "| KEEP id, total, missing | SORT id";
         var expected = List.of(row("alpha", 26L, false), row("beta", null, true), row("gamma", null, false));
         assertEquals(expected, run("FROM alpha,beta,gamma" + suffix, fixtures));
@@ -126,7 +126,7 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
             assertThrows(
                 VerificationException.class,
                 () -> NestedReductionsTestSupport.analyze(
-                    "FROM (FROM alpha), (FROM beta) | EVAL total = NESTED(SUM(" + expression + "))",
+                    "FROM (FROM alpha), (FROM beta) | EVAL total = NESTED_ANY(SUM(" + expression + "))",
                     schemas(List.of(alpha(), beta(true, "keyword"))),
                     Map.of()
                 )
@@ -138,7 +138,7 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         assertEquals(
             List.of(row("alpha", 6L), row("beta", 2L)),
             run(
-                "FROM (FROM alpha), (FROM beta) | EVAL quantity = NESTED(SUM(items.quantity)) | KEEP id, quantity | SORT id",
+                "FROM (FROM alpha), (FROM beta) | EVAL quantity = NESTED_ANY(SUM(items.quantity)) | KEEP id, quantity | SORT id",
                 List.of(alpha(), beta(true, "keyword"))
             )
         );
@@ -154,7 +154,7 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
             var error = assertThrows(
                 VerificationException.class,
                 () -> NestedReductionsTestSupport.analyze(
-                    "FROM alpha | " + command + " | EVAL quantity = NESTED(SUM(items.quantity))",
+                    "FROM alpha | " + command + " | EVAL quantity = NESTED_ANY(SUM(items.quantity))",
                     schemas(List.of(alpha())),
                     Map.of()
                 )
@@ -179,16 +179,19 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         );
         assertEquals(
             List.of(row("nr_nested_arrays", 26L)),
-            run("FROM nr_nested_arrays | EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP id, total", fixtures)
+            run("FROM nr_nested_arrays | EVAL total = NESTED_ANY(SUM(items.price * items.quantity)) | KEEP id, total", fixtures)
         );
         assertEquals(
             List.of(row("nr_nested_arrays")),
-            run("FROM nr_nested_arrays | WHERE NESTED(items.price == 5 AND items.quantity == 4) | KEEP id", fixtures)
+            run("FROM nr_nested_arrays | WHERE NESTED_ANY(items.price == 5 AND items.quantity == 4) | KEEP id", fixtures)
         );
-        assertEquals(List.of(), run("FROM nr_nested_arrays | WHERE NESTED(items.price == 3 AND items.quantity == 4) | KEEP id", fixtures));
+        assertEquals(
+            List.of(),
+            run("FROM nr_nested_arrays | WHERE NESTED_ANY(items.price == 3 AND items.quantity == 4) | KEEP id", fixtures)
+        );
         assertEquals(
             List.of(row("nr_nested_arrays", 5L)),
-            run("FROM nr_nested_arrays | EVAL picked = NESTED(LAST(items.price, items.quantity)) | KEEP id, picked", fixtures)
+            run("FROM nr_nested_arrays | EVAL picked = NESTED_ANY(LAST(items.price, items.quantity)) | KEEP id, picked", fixtures)
         );
     }
 
@@ -196,7 +199,7 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         assertThrows(
             VerificationException.class,
             () -> NestedReductionsTestSupport.analyze(
-                "FROM (FROM alpha), (FROM beta) | EVAL total = NESTED(SUM(items.price))",
+                "FROM (FROM alpha), (FROM beta) | EVAL total = NESTED_ANY(SUM(items.price))",
                 schemas(List.of(alpha(), beta(true, "integer"))),
                 Map.of()
             )
@@ -207,8 +210,9 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         assertEquals(
             List.of(row(2L, 15L)),
             run(
-                "FROM (FROM alpha | EVAL total = NESTED(SUM(items.price)) | KEEP total), "
-                    + "(FROM beta | EVAL total = NESTED(SUM(items.price::long)) | KEEP total) | STATS n = COUNT(*), amount = SUM(total)",
+                "FROM (FROM alpha | EVAL total = NESTED_ANY(SUM(items.price)) | KEEP total), "
+                    + "(FROM beta | EVAL total = NESTED_ANY(SUM(items.price::long)) | KEEP total) "
+                    + "| STATS n = COUNT(*), amount = SUM(total)",
                 List.of(alpha(), beta(true, "keyword"))
             )
         );

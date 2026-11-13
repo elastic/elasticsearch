@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.List;
 
 /**
- * The keys of {@code NESTED(<aggregate> BY <keys>)}, passed as the last argument of {@code NESTED}. It keeps them apart from
+ * The keys of {@code NESTED_ANY(<aggregate> BY <keys>)}, passed as the last argument of {@code NESTED_ANY}. It keeps them apart from
  * ordinary arguments; analysis lowers it with its {@link Nested} before evaluation or serialization.
  */
 public final class NestedGroupings extends Expression {

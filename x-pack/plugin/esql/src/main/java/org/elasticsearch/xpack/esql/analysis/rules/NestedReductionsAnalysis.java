@@ -287,7 +287,7 @@ public final class NestedReductionsAnalysis {
     public static final class Resolve extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            // A query that never calls NESTED has nothing to bind. Carrying every synthetic attribute through its
+            // A query that never calls a nested function has nothing to bind. Carrying every synthetic attribute through its
             // projections also pulls the empty-output marker into KEEP and DROP, so a later project still names it
             // after the scan has stopped producing it.
             if (usesNested(plan) == false) {
@@ -300,12 +300,14 @@ public final class NestedReductionsAnalysis {
                 if (p.children().isEmpty() || p.childrenResolved() == false || p.expressionsResolved() == false) {
                     return p;
                 }
-                if (p instanceof Aggregate && p.expressions().stream().anyMatch(e -> e.anyMatch(Nested.class::isInstance))) {
-                    throw error(p.expressions().getFirst(), "NESTED reductions must be completed in EVAL before outer STATS");
+                if (p instanceof Aggregate) {
+                    p.forEachExpression(Nested.class, nested -> {
+                        throw error(nested, nested.functionName() + " must be completed in EVAL before outer STATS");
+                    });
                 }
                 p.forEachExpression(Nested.class, nested -> {
                     if (nested.children().stream().anyMatch(c -> c.anyMatch(Nested.class::isInstance))) {
-                        throw error(nested, "NESTED wrappers cannot be nested");
+                        throw error(nested, nested.functionName() + " cannot contain another nested function");
                     }
                 });
                 List<Alias> reductions = new ArrayList<>();
@@ -314,10 +316,10 @@ public final class NestedReductionsAnalysis {
                         throw error(nested, "NESTED_JSON is supported in EVAL");
                     }
                     if (p instanceof Eval == false && p instanceof Filter == false) {
-                        throw error(nested, "NESTED is supported in EVAL and WHERE");
+                        throw error(nested, nested.functionName() + " is supported in EVAL and WHERE");
                     }
                     if (context.minimumVersion().supports(NestedReduction.VERSION) == false) {
-                        throw error(nested, "NESTED requires all nodes to support nested reductions");
+                        throw error(nested, nested.functionName() + " requires all nodes to support nested reductions");
                     }
                     var reduction = nested instanceof NestedJson json
                         ? bindJson(json, p.children().getFirst())
@@ -359,22 +361,22 @@ public final class NestedReductionsAnalysis {
         Map<String, NestedScopeField> roots = scopeSchema(input, nested).roots();
         Expression body = nested.body();
         if (body.anyMatch(e -> e instanceof Nested || e instanceof FullTextFunction)) {
-            throw error(nested, "NESTED does not allow inner scopes or full-text functions");
+            throw error(nested, "NESTED_ANY does not allow inner scopes or full-text functions");
         }
         List<Expression> keys = nested.keys();
         if (nested.extraArguments().isEmpty() == false) {
-            throw error(nested, "NESTED takes a collection and one expression");
+            throw error(nested, "NESTED_ANY takes a collection and one expression");
         }
         String collection = null;
         if (nested.collection() != null) {
             if (nested.collection() instanceof FieldAttribute f && f.field() instanceof NestedScopeField n && n.collection()) {
                 if (n.conflict() != null) {
-                    throw error(nested, "NESTED cannot read [" + publicName(f) + "]: " + n.conflict());
+                    throw error(nested, "NESTED_ANY cannot read [" + publicName(f) + "]: " + n.conflict());
                 }
                 collection = n.path();
-                checkNotReplaced(input, collection, nested, "NESTED");
+                checkNotReplaced(input, collection, nested, "NESTED_ANY");
             } else {
-                throw error(nested, "NESTED requires a nested collection first, not [" + nested.collection().sourceText() + "]");
+                throw error(nested, "NESTED_ANY requires a nested collection first, not [" + nested.collection().sourceText() + "]");
             }
         }
         if (keys.isEmpty() == false) {
@@ -382,11 +384,11 @@ public final class NestedReductionsAnalysis {
                 && body instanceof Sum == false
                 && body instanceof Min == false
                 && body instanceof Max == false) {
-                throw error(nested, "NESTED BY supports COUNT, SUM, MIN and MAX, not [" + body.sourceText() + "]");
+                throw error(nested, "NESTED_ANY BY supports COUNT, SUM, MIN and MAX, not [" + body.sourceText() + "]");
             }
             for (Expression key : keys) {
                 if (key instanceof FieldAttribute == false) {
-                    throw error(key, "NESTED BY requires child fields, not [" + key.sourceText() + "]");
+                    throw error(key, "NESTED_ANY BY requires child fields, not [" + key.sourceText() + "]");
                 }
                 if (((FieldAttribute) key).field() instanceof NestedScopeField == false) {
                     throw error(key, "Field [" + key.sourceText() + "] is outside the nested scope");
@@ -394,22 +396,22 @@ public final class NestedReductionsAnalysis {
             }
         } else if (body instanceof Sum == false && body instanceof Last == false) {
             if (body.anyMatch(AggregateFunction.class::isInstance)) {
-                throw error(nested, "NESTED supports SUM and LAST only, not [" + body.sourceText() + "]");
+                throw error(nested, "NESTED_ANY supports SUM and LAST only, not [" + body.sourceText() + "]");
             }
             if (body.dataType() == DataType.SOURCE || body.dataType() == DataType.OBJECT) {
-                throw error(nested, "NESTED requires a scalar reduction, not an object collection");
+                throw error(nested, "NESTED_ANY requires a scalar reduction, not an object collection");
             }
             if (body.dataType() != DataType.BOOLEAN) {
-                throw error(nested, "NESTED requires an explicit reduction for per-item values");
+                throw error(nested, "NESTED_ANY requires an explicit reduction for per-item values");
             }
         }
         if (body instanceof AggregateFunction aggregate) {
             if (aggregate.filter().equals(Literal.TRUE) == false || aggregate.window().equals(AggregateFunction.NO_WINDOW) == false) {
-                throw error(nested, "NESTED does not support inner aggregate filters or windows");
+                throw error(nested, "NESTED_ANY does not support inner aggregate filters or windows");
             }
             for (Expression field : aggregate.fields()) {
                 if (field.anyMatch(AggregateFunction.class::isInstance)) {
-                    throw error(nested, "NESTED does not support nested aggregates");
+                    throw error(nested, "NESTED_ANY does not support nested aggregates");
                 }
             }
         }
@@ -422,13 +424,13 @@ public final class NestedReductionsAnalysis {
         for (Attribute attr : fields.values()) {
             if (attr instanceof FieldAttribute f && f.field() instanceof NestedScopeField n) {
                 if (n.conflict() != null) {
-                    throw error(nested, "NESTED cannot read [" + publicName(f) + "]: " + n.conflict());
+                    throw error(nested, "NESTED_ANY cannot read [" + publicName(f) + "]: " + n.conflict());
                 }
                 if (collection != null && collection.equals(n.path()) == false) {
                     throw error(nested, "Field [" + publicName(f) + "] is outside the nested scope [" + collection + "]");
                 }
                 if (path != null && path.equals(n.path()) == false) {
-                    throw error(nested, "NESTED requires one nested path");
+                    throw error(nested, "NESTED_ANY requires one nested path");
                 }
                 path = n.path();
                 indices.addAll(n.indices());
@@ -436,7 +438,7 @@ public final class NestedReductionsAnalysis {
             }
         }
         if (path == null) {
-            throw error(nested, "NESTED requires a mapped nested field");
+            throw error(nested, "NESTED_ANY requires a mapped nested field");
         }
         String scope = path;
         if (roots.containsKey(path)) {
@@ -444,10 +446,10 @@ public final class NestedReductionsAnalysis {
             sourceFailures.putAll(roots.get(path).sourceFailures());
         }
         if (roots.keySet().stream().anyMatch(parent -> scope.startsWith(parent + "."))) {
-            throw error(nested, "NESTED supports one nesting level");
+            throw error(nested, "NESTED_ANY supports one nesting level");
         }
         if (indices.stream().anyMatch(index -> index.contains(":"))) {
-            throw error(nested, "NESTED cross-cluster loading is not supported by this PoC");
+            throw error(nested, "NESTED_ANY cross-cluster loading is not supported by this PoC");
         }
         List<Attribute> channels = new ArrayList<>();
         List<String> paths = new ArrayList<>();
@@ -458,7 +460,7 @@ public final class NestedReductionsAnalysis {
                 throw error(nested, "Field [" + attr.name() + "] is outside the nested scope");
             }
             if (SUPPORTED_CHILD_TYPES.contains(attr.dataType()) == false) {
-                throw error(nested, "NESTED does not support child type [" + attr.dataType() + "] for [" + attr.name() + "]");
+                throw error(nested, "NESTED_ANY does not support child type [" + attr.dataType() + "] for [" + attr.name() + "]");
             }
             ReferenceAttribute ref = new ReferenceAttribute(attr.source(), attr.name(), attr.dataType());
             channels.add(ref);
@@ -495,7 +497,7 @@ public final class NestedReductionsAnalysis {
                 .findFirst()
                 .orElse(null);
             if (found == null) {
-                throw error(nested, "NESTED input is missing required source metadata [" + name + "]");
+                throw error(nested, nested.functionName() + " input is missing required source metadata [" + name + "]");
             }
             metadata.add(found);
         }

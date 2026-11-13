@@ -11,42 +11,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
-import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
-import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/** Explicit object-scope syntax. Analysis lowers this marker before evaluation or serialization. */
-public class Nested extends Function implements OptionalArgument {
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Nested.class).unaryVariadic(Nested::new).name("nested");
-
-    @FunctionInfo(
-        preview = true,
-        returnType = { "boolean", "integer", "long", "double", "keyword", "text" },
-        briefSummary = "Evaluates an expression in one explicit nested object scope.",
-        description = "Returns one completed Boolean or scalar reduction for each input parent row. "
-            + "With `BY`, returns a keyword holding a JSON object of the aggregate for each group of nested objects."
-    )
-    public Nested(
-        Source source,
-        @Param(
-            name = "expression",
-            type = { "boolean", "integer", "long", "double", "keyword", "text", "_source" },
-            description = "Expression using fields from one nested path, or the nested collection the next expression reads."
-        ) Expression child,
-        @Param(
-            name = "keys",
-            type = { "boolean", "integer", "long", "double", "keyword", "text" },
-            optional = true,
-            description = "The expression over the named collection, then the child fields after `BY` to group the nested objects by."
-        ) List<Expression> rest
-    ) {
+/**
+ * The nested object-scope functions, such as {@link NestedAny} and {@link NestedJson}. Not a function itself: each subclass is
+ * its own syntax, and analysis resolves and lowers them all the same way before evaluation or serialization.
+ */
+public abstract class Nested extends Function {
+    protected Nested(Source source, Expression child, List<Expression> rest) {
         super(source, children(child, rest));
     }
 
@@ -79,7 +55,7 @@ public class Nested extends Function implements OptionalArgument {
         return children().getLast() instanceof NestedGroupings keys ? keys.children() : List.of();
     }
 
-    /** Arguments after the collection and the expression, which NESTED does not accept. */
+    /** Arguments after the collection and the expression, which the nested functions do not accept. */
     public List<Expression> extraArguments() {
         List<Expression> arguments = beforeKeys();
         return arguments.subList(Math.min(2, arguments.size()), arguments.size());
@@ -96,22 +72,15 @@ public class Nested extends Function implements OptionalArgument {
     }
 
     @Override
-    protected NodeInfo<? extends Nested> info() {
-        return NodeInfo.create(this, Nested::new, children().getFirst(), children().subList(1, children().size()));
-    }
-
-    @Override
-    public Nested replaceChildren(List<Expression> children) {
-        return new Nested(source(), children.getFirst(), children.subList(1, children.size()));
-    }
+    public abstract Nested replaceChildren(List<Expression> children);
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException("unlowered NESTED expression");
+        throw new UnsupportedOperationException("unlowered nested expression");
     }
 
     @Override
     public void writeTo(StreamOutput out) {
-        throw new UnsupportedOperationException("unlowered NESTED expression");
+        throw new UnsupportedOperationException("unlowered nested expression");
     }
 }

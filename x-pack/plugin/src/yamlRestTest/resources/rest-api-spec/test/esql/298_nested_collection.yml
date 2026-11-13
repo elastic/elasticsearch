@@ -1,5 +1,5 @@
-# NESTED(<collection>, <expression>) names the nested collection first, so the expression need not read a child field:
-# NESTED(items, true) is true when the parent has at least one object in items, and NOT NESTED(items, true) finds parents
+# NESTED_ANY(<collection>, <expression>) names the nested collection first, so the expression need not read a child field:
+# NESTED_ANY(items, true) is true when the parent has at least one object in items, and NOT NESTED_ANY(items, true) finds parents
 # whose items are empty or missing. In WHERE it runs in Lucene as a nested match_all query.
 # Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
 ---
@@ -79,7 +79,7 @@ a collection with at least one object:
 - do:
     esql.query:
       body:
-        query: FROM nc_orders | EVAL has_items = NESTED(items, true) | KEEP id, has_items | SORT id | LIMIT 10
+        query: FROM nc_orders | EVAL has_items = NESTED_ANY(items, true) | KEEP id, has_items | SORT id | LIMIT 10
 - match:
     columns:
     - name: id
@@ -99,7 +99,7 @@ the source loader sees the same objects:
 - do:
     esql.query:
       body:
-        query: FROM nc_orders | EVAL has_items = NESTED(items, true) | KEEP id, has_items | SORT id | LIMIT 10
+        query: FROM nc_orders | EVAL has_items = NESTED_ANY(items, true) | KEEP id, has_items | SORT id | LIMIT 10
         pragma:
           nested_loader: source
 - match:
@@ -116,7 +116,7 @@ a non-empty collection filter is pushed to Lucene:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nc_orders | WHERE NESTED(items, true) | KEEP id | SORT id | LIMIT 10
+        query: FROM nc_orders | WHERE NESTED_ANY(items, true) | KEEP id | SORT id | LIMIT 10
 - match:
     values:
     - [a]
@@ -130,7 +130,7 @@ an empty or missing collection:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nc_orders | WHERE NOT NESTED(items, true) | KEEP id | SORT id | LIMIT 10
+        query: FROM nc_orders | WHERE NOT NESTED_ANY(items, true) | KEEP id | SORT id | LIMIT 10
 - match:
     values:
     - [b]
@@ -141,7 +141,7 @@ another collection is a separate scope:
 - do:
     esql.query:
       body:
-        query: FROM nc_orders | EVAL shipped = NESTED(shipments, true) | KEEP id, shipped | SORT id | LIMIT 10
+        query: FROM nc_orders | EVAL shipped = NESTED_ANY(shipments, true) | KEEP id, shipped | SORT id | LIMIT 10
 - match:
     values:
     - [a, true]
@@ -156,7 +156,7 @@ a predicate over the named collection is pushed:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nc_orders | WHERE NESTED(items, items.price > 10) | KEEP id | SORT id | LIMIT 10
+        query: FROM nc_orders | WHERE NESTED_ANY(items, items.price > 10) | KEEP id | SORT id | LIMIT 10
 - match:
     values:
     - [a]
@@ -167,7 +167,7 @@ a reduction over the named collection:
 - do:
     esql.query:
       body:
-        query: FROM nc_orders | EVAL total = NESTED(items, SUM(items.price)) | KEEP id, total | SORT id | LIMIT 10
+        query: FROM nc_orders | EVAL total = NESTED_ANY(items, SUM(items.price)) | KEEP id, total | SORT id | LIMIT 10
 - match:
     values:
     - [a, 25]
@@ -182,9 +182,9 @@ the collection must be a nested field:
     catch: bad_request
     esql.query:
       body:
-        query: FROM nc_orders | EVAL x = NESTED(items.price, true) | LIMIT 1
+        query: FROM nc_orders | EVAL x = NESTED_ANY(items.price, true) | LIMIT 1
 - contains:
-    error.reason: "NESTED requires a nested collection first, not [items.price]"
+    error.reason: "NESTED_ANY requires a nested collection first, not [items.price]"
 
 ---
 a parent field is not a collection:
@@ -192,9 +192,9 @@ a parent field is not a collection:
     catch: bad_request
     esql.query:
       body:
-        query: FROM nc_orders | EVAL x = NESTED(id, true) | LIMIT 1
+        query: FROM nc_orders | EVAL x = NESTED_ANY(id, true) | LIMIT 1
 - contains:
-    error.reason: "NESTED requires a nested collection first, not [id]"
+    error.reason: "NESTED_ANY requires a nested collection first, not [id]"
 
 ---
 the expression reads only the named collection:
@@ -202,7 +202,7 @@ the expression reads only the named collection:
     catch: bad_request
     esql.query:
       body:
-        query: FROM nc_orders | EVAL x = NESTED(items, shipments.carrier == "ups") | LIMIT 1
+        query: FROM nc_orders | EVAL x = NESTED_ANY(items, shipments.carrier == "ups") | LIMIT 1
 - contains:
     error.reason: "Field [shipments.carrier] is outside the nested scope [items]"
 
@@ -212,6 +212,6 @@ a collection takes one expression:
     catch: bad_request
     esql.query:
       body:
-        query: FROM nc_orders | EVAL x = NESTED(items, true, false) | LIMIT 1
+        query: FROM nc_orders | EVAL x = NESTED_ANY(items, true, false) | LIMIT 1
 - contains:
-    error.reason: "NESTED takes a collection and one expression"
+    error.reason: "NESTED_ANY takes a collection and one expression"

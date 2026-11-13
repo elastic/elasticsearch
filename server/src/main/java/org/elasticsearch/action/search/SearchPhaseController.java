@@ -747,7 +747,7 @@ public final class SearchPhaseController {
             if (other.terminatedEarly != null) {
                 if (this.terminatedEarly == null) {
                     this.terminatedEarly = other.terminatedEarly;
-                } else if (terminatedEarly) {
+                } else if (other.terminatedEarly) {
                     this.terminatedEarly = true;
                 }
             }

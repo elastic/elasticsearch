@@ -31,6 +31,7 @@ import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.MergeEventListener;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -53,6 +54,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStatelessPluginIntegTestCase {
@@ -215,7 +217,9 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
 
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, sourceNode, targetNode));
         uploadGate.awaitBlocked();
-        assertTrue(findIndexShard(resolveIndex(indexName), 0, sourceNode).isActivelyRelocatingPrimary());
+        final var sourceShard = findIndexShard(resolveIndex(indexName), 0, sourceNode);
+        assertTrue(sourceShard.isActivelyRelocatingPrimary());
+        assertThat(sourceShard.getActiveOperationsCount(), not(equalTo(IndexShard.OPERATIONS_BLOCKED)));
 
         try {
             final var startingMerges = getPrimaryMergeTotal(indexName);

@@ -915,6 +915,7 @@ public enum IndexMode {
     }
 
     private static final List<Setting<?>> TIME_SERIES_UNSUPPORTED = List.of(
+        IndexSortConfig.INDEX_SORT_SETTING,
         IndexSortConfig.INDEX_SORT_FIELD_SETTING,
         IndexSortConfig.INDEX_SORT_ORDER_SETTING,
         IndexSortConfig.INDEX_SORT_MODE_SETTING,

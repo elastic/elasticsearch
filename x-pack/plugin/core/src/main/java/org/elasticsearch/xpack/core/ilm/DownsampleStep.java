@@ -75,9 +75,11 @@ public class DownsampleStep extends AsyncActionStep {
             IndexMetadata.DownsampleTaskStatus downsampleIndexStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
                 downsampleIndexMetadata.getSettings()
             );
-            if (IndexMetadata.DownsampleTaskStatus.SUCCESS.equals(downsampleIndexStatus)) {
-                // Downsample index has already been created with the generated name and its status is "success".
-                // So we skip index downsample creation.
+            if (IndexMetadata.DownsampleTaskStatus.SUCCESS.equals(downsampleIndexStatus)
+                && DownsampleConfig.isTargetOfSource(downsampleIndexMetadata, indexMetadata.getIndex())) {
+                // Downsample index has already been created with the generated name for this source index and its status is "success".
+                // So we skip index downsample creation. If it belongs to another source index, we issue the request so the downsample
+                // API fails and reports the conflict.
                 LOGGER.info(
                     "skipping [{}] step for index [{}] as part of policy [{}] as the downsample index [{}] already exists",
                     DownsampleStep.NAME,

@@ -877,8 +877,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             );
             IndexMetadata targetDownsampleIndexMeta = project.index(downsampleIndexName);
             boolean targetDownsampleIndexExists = targetDownsampleIndexMeta != null;
-
-            if (targetDownsampleIndexExists) {
+            boolean roundInProgress = targetDownsampleIndexExists
+                && DownsampleConfig.isTargetOfSource(targetDownsampleIndexMeta, backingIndex.getIndex());
+            if (roundInProgress) {
                 Index downsamplingNotComplete = evaluateDownsampleStatus(
                     project.id(),
                     dataStream,
@@ -892,26 +893,47 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (downsamplingNotComplete != null) {
                     return sourceIndex;
                 }
-            } else {
-                if (round.equals(lastRound)) {
-                    // no maintenance needed for previously started downsampling actions and we are on the last matching round, so it's time
-                    // to kick off downsampling if possible
-                    String sourceIndexName = sourceIndex.getName();
-                    if (canTriggerNewDownsampling) {
-                        ErrorEntry error = errorStore.getError(project.id(), sourceIndex);
-                        if (ThrottledDownsampledIndexWarning.isThrottledDownsampledIndexWarning(error)) {
-                            errorStore.clearRecordedError(project.id(), sourceIndex);
-                        }
-                        downsampleIndexOnce(round, downsamplingMethod, project.id(), backingIndex, downsampleIndexName);
-                    } else {
-                        errorStore.recordError(
-                            project.id(),
-                            sourceIndex,
-                            new ThrottledDownsampledIndexWarning(sourceIndexName, dataStream.getName(), maxDownsamplingIndicesInProgress)
-                        );
-                    }
-                    return sourceIndex;
+            } else if (round.equals(lastRound)) {
+                String sourceIndexName = sourceIndex.getName();
+                if (targetDownsampleIndexExists) {
+                    // target downsampling index exists and is not a downsampling index (name clash?)
+                    // we fail now but perhaps we should just randomise the name?
+                    errorStore.recordAndLogError(
+                        project.id(),
+                        backingIndex.getIndex(),
+                        new ResourceAlreadyExistsException(
+                            "Downsampling target {} already exists",
+                            targetDownsampleIndexMeta.getIndex().toString()
+                        ),
+                        String.format(
+                            Locale.ROOT,
+                            "Data stream lifecycle service is unable to downsample backing index [%s] for data "
+                                + "stream [%s] and donwsampling round [%s] because the target downsample index [%s] already exists",
+                            sourceIndexName,
+                            dataStream.getName(),
+                            round,
+                            downsampleIndexName
+                        ),
+                        signallingErrorRetryInterval
+                    );
+                    return null;
                 }
+                // no maintenance needed for previously started downsampling actions and we are on the last matching round, so it's time
+                // to kick off downsampling if possible
+                if (canTriggerNewDownsampling) {
+                    ErrorEntry error = errorStore.getError(project.id(), sourceIndex);
+                    if (ThrottledDownsampledIndexWarning.isThrottledDownsampledIndexWarning(error)) {
+                        errorStore.clearRecordedError(project.id(), sourceIndex);
+                    }
+                    downsampleIndexOnce(round, downsamplingMethod, project.id(), backingIndex, downsampleIndexName);
+                } else {
+                    errorStore.recordError(
+                        project.id(),
+                        sourceIndex,
+                        new ThrottledDownsampledIndexWarning(sourceIndexName, dataStream.getName(), maxDownsamplingIndicesInProgress)
+                    );
+                }
+                return sourceIndex;
             }
         }
         return null;
@@ -983,28 +1005,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Index backingIndex = backingIndexMetadata.getIndex();
         String downsampleIndexName = downsampleIndex.getName();
         return switch (downsampleStatus) {
-            case UNKNOWN -> {
-                if (currentRound.equals(lastRound)) {
-                    // target downsampling index exists and is not a downsampling index (name clash?)
-                    // we fail now but perhaps we should just randomise the name?
-                    errorStore.recordAndLogError(
-                        projectId,
-                        backingIndex,
-                        new ResourceAlreadyExistsException(downsampleIndexName),
-                        String.format(
-                            Locale.ROOT,
-                            "Data stream lifecycle service is unable to downsample backing index [%s] for data "
-                                + "stream [%s] and donwsampling round [%s] because the target downsample index [%s] already exists",
-                            backingIndex.getName(),
-                            dataStream.getName(),
-                            currentRound,
-                            downsampleIndexName
-                        ),
-                        signallingErrorRetryInterval
-                    );
-                }
-                yield null;
-            }
             case STARTED -> {
                 // Being here means that we have a downsampled index created, but there is no persistent task yet (otherwise
                 // we would have skipped the index).
@@ -1032,6 +1032,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     replaceBackingIndexWithDownsampleIndexOnce(projectId, dataStream, backingIndex, downsampleIndexName);
                     yield downsampleIndex;
                 }
+                yield null;
+            }
+            case UNKNOWN -> {
+                assert false : "An non valid downsampling target for the source index has been handled already";
                 yield null;
             }
         };

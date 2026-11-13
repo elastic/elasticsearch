@@ -50,6 +50,13 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
             [(":lib:internalClusterTest"): 2],
             [(":lib"): 1]
         ).toJson()
+        new File(workspace, ".ci/test-parts/bwc").mkdirs()
+        new File(workspace, CiPartsPlugin.BWC_ASSIGNMENT_FILE).text = new CiPartAssignment(
+            3,
+            [(":lib:v{V}#bwcTest"): new CiPartAssignment.Split(2, CiPartAssignment.SplitBy.CLASS)],
+            [(":lib:v{V}#bwcTest#0"): 1, (":lib:v{V}#bwcTest#1"): 2, (":lib:v{V}#yamlBwcTest"): 3],
+            [(":lib"): 3]
+        ).toJson()
         rootProject = buildProject("elasticsearch", null, workspace)
         project = buildProject("lib", rootProject)
         project.pluginManager.apply(JavaPlugin)
@@ -187,6 +194,7 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         taskNames              | override || expectedLimit
         ["checkPart2"]         | null     || 8
         ["bcUpgradeTestPart1"] | null     || 8
+        ["v9.1.0#bwcTestPart1"] | null    || 8
         ["checkPart2"]         | "3"      || 3
         ["checkPart2"]         | "0"      || null
         ["check"]              | null     || null
@@ -196,6 +204,65 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         expect:
         CiPartsPlugin.requestedParts(CiPartsPlugin.CHECK, ["checkPart3", ":server:checkPart12", "check", "checkPart", "checkPart2x", "bcUpgradeTestPart1"]) == [3, 12] as Set
         CiPartsPlugin.requestedParts(CiPartsPlugin.BC_UPGRADE, ["checkPart3", "bcUpgradeTestPart1", ":qa:rolling-upgrade:bcUpgradeTestPart2"]) == [1, 2] as Set
+    }
+
+    def "requested BWC parts are read by version"() {
+        expect:
+        CiPartsPlugin.requestedPartsByVersion(
+            CiPartsPlugin.BWC,
+            ["v9.1.0#bwcTestPart2", ":qa:rolling-upgrade:v8.19.3#bwcTestPart5", "v9.1.0#bwcTestPart3", "checkPart3", "bwcTestPart1", "v9.1#bwcTestPart1"]
+        ) == ["8.19.3": [5] as Set, "9.1.0": [2, 3] as Set]
+        CiPartsPlugin.requestedParts(CiPartsPlugin.BWC, ["v9.1.0#bwcTestPart2", ":x:v8.19.3#bwcTestPart5"]) == [2, 5] as Set
+        // the other suites don't take BWC part requests for their own
+        CiPartsPlugin.requestedParts(CiPartsPlugin.CHECK, ["v9.1.0#bwcTestPart2"]).isEmpty()
+        CiPartsPlugin.requestedPartsByVersion(CiPartsPlugin.CHECK, ["checkPart3"]) == ["": [3] as Set]
+    }
+
+    def "BWC parts are created on request for any version and split v<version>#bwcTest"() {
+        given:
+        registerBwcTasks("9.1.0")
+        applyPluginUnderTest(project)
+
+        expect:
+        bwcNames("9.1.0", 1) == [":lib:v9.1.0#bwcTest"] as Set
+        bwcNames("9.1.0", 2) == [":lib:v9.1.0#bwcTest"] as Set
+        // the test task bwcTest depends on is placed on its own
+        bwcNames("9.1.0", 3) == [":lib:v9.1.0#yamlBwcTest"] as Set
+        project.tasks.findByName("v9.1.0#bwcTestPart4") == null
+        // a version the project has no tests for gets empty parts
+        bwcNames("8.19.3", 1) == [] as Set
+        // the union of all parts is what v<version>#bwcTest runs
+        (1..3).collect { bwcNames("9.1.0", it) }.sum() == [":lib:v9.1.0#bwcTest", ":lib:v9.1.0#yamlBwcTest"] as Set
+    }
+
+    def "a requested BWC part runs only its shards and skips the chained test tasks it doesn't hold"() {
+        given:
+        registerBwcTasks("9.1.0")
+        registerBwcTasks("8.19.3")
+        project.gradle.startParameter.taskNames = ["v9.1.0#bwcTestPart2"]
+        applyPluginUnderTest(project)
+        bwcNames("9.1.0", 2)
+
+        expect:
+        project.tasks.getByName("v9.1.0#bwcTest").inputs.properties["ciShards"] == "CLASS=2:1"
+        // yamlBwcTest runs in part 3; Gradle still schedules it here as a dependency of bwcTest, where it is skipped
+        project.tasks.getByName("v9.1.0#yamlBwcTest").onlyIf.isSatisfiedBy(project.tasks.getByName("v9.1.0#yamlBwcTest")) == false
+        // other versions' tasks are untouched
+        project.tasks.getByName("v8.19.3#bwcTest").inputs.properties["ciShards"] == null
+        project.tasks.getByName("v8.19.3#yamlBwcTest").onlyIf.isSatisfiedBy(project.tasks.getByName("v8.19.3#yamlBwcTest"))
+    }
+
+    def "a chained test task runs in the BWC part that holds it"() {
+        given:
+        registerBwcTasks("9.1.0")
+        project.gradle.startParameter.taskNames = ["v9.1.0#bwcTestPart3"]
+        applyPluginUnderTest(project)
+        bwcNames("9.1.0", 3)
+        def yaml = project.tasks.getByName("v9.1.0#yamlBwcTest")
+
+        expect:
+        yaml.onlyIf.isSatisfiedBy(yaml)
+        project.tasks.getByName("v9.1.0#bwcTest").inputs.properties["ciShards"] == null
     }
 
     def "bcUpgradeTest parts split the bcUpgradeTest task by class"() {
@@ -309,6 +376,17 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         names.every { n -> kept.findIndexOf { it.contains("${n}.class".toString()) } == kept.findIndexOf { it.contains("${n}\$Inner.class".toString()) } }
         kept.every { it.contains("org/foo/resource.txt") }
         kept.every { it.size() > 50 }
+    }
+
+    /** Like rolling upgrade: bwcTest is a test task that depends on another one. */
+    private void registerBwcTasks(String version) {
+        def yaml = project.tasks.register("v${version}#yamlBwcTest", Test)
+        project.tasks.register("v${version}#bwcTest", Test) { dependsOn yaml }
+    }
+
+    private Set<String> bwcNames(String version, int part) {
+        def task = project.tasks.getByName("v${version}#bwcTestPart${part}")
+        return task.taskDependencies.getDependencies(task).collect { it.path } as Set
     }
 
     private boolean usesThrottle(String taskName) {

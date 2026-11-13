@@ -355,48 +355,12 @@ allprojects {
     }
   }
 
-  // checkPartN and bcUpgradeTestPartN are registered by the elasticsearch.ci-parts plugin from the checked-in
-  // assignments in .ci/test-parts. The project-path split below only still drives the bwc parts.
-  def splitForCI = { proj, partString ->
-    proj.tasks.addRule("Pattern: v<BWC_VERSION>#bwcTest$partString") { name ->
-      if (name.endsWith("#bwcTest$partString")) {
-        proj.project.getTasks().register(name) {
-          task -> task.dependsOn(proj.tasks.named { tskName -> tskName == (name - partString) })
-        }
-      }
-    }
-  }
-
+  // checkPartN, bcUpgradeTestPartN, releaseTestCheckEsqlPartN and v<BWC_VERSION>#bwcTestPartN are registered by the
+  // elasticsearch.ci-parts plugin from the checked-in assignments in .ci/test-parts.
   plugins.withId('lifecycle-base') {
     apply plugin: 'elasticsearch.ci-parts'
     withReleaseBuild {
       ciParts.includeAssemble = true
-    }
-    if (project.path.startsWith(":x-pack:")) {
-      if (project.path.contains("security") || project.path.contains(":ml")) {
-        splitForCI(project, "Part4")
-      } else if (project.path.contains(":esql-datasource") || project.path.contains(":esql-core")) {
-        splitForCI(project, "Part5")
-      } else if (project.path.contains(":esql:qa") && project.path.contains("multi-node")) {
-        splitForCI(project, "Part5")
-      } else if (project.path.contains(":esql:qa")) {
-        splitForCI(project, "Part3")
-      } else if (project.path.contains(":eql") || project.path.contains(":sql") || project.path.contains(":transform") ||
-          project.path.contains("multi-node") || project.path.contains(":inference")) {
-        splitForCI(project, "Part5")
-      } else if (project.path.contains("ql")) {
-        splitForCI(project, "Part3")
-      } else if (project.path == ":x-pack:plugin") {
-        splitForCI(project, "Part1")
-      } else {
-        splitForCI(project, "Part2")
-      }
-    } else if (project.path.startsWith(":qa:") || project.path.startsWith(":test:")) {
-      splitForCI(project, "Part6")
-    } else if (project.path.startsWith(":libs:")) {
-      splitForCI(project, "Part6")
-    } else {
-      splitForCI(project, "Part1")
     }
     tasks.register('functionalTests') {
       dependsOn 'check'
@@ -590,6 +554,14 @@ tasks.register("generateEsqlReleaseTestPartAssignment", GenerateCiPartAssignment
   configFile = layout.settingsDirectory.file('.ci/test-parts/esql-release/config.json')
   durationsFile = layout.settingsDirectory.file('.ci/test-parts/esql-release/durations.json')
   assignmentFile = layout.settingsDirectory.file('.ci/test-parts/esql-release/assignment.json')
+}
+
+tasks.register("generateBwcTestPartAssignment", GenerateCiPartAssignmentTask) {
+  group = 'build'
+  description = 'Regenerates .ci/test-parts/bwc/assignment.json from config.json and durations.json.'
+  configFile = layout.settingsDirectory.file('.ci/test-parts/bwc/config.json')
+  durationsFile = layout.settingsDirectory.file('.ci/test-parts/bwc/durations.json')
+  assignmentFile = layout.settingsDirectory.file('.ci/test-parts/bwc/assignment.json')
 }
 
 tasks.register("checkBuildLogic").configure {

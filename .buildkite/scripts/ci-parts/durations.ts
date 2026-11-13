@@ -22,10 +22,22 @@ export const SHARED_PREREQUISITE_TYPES = new Set([
 /** A fixed cost needs at least this many executions with item durations, or the planner's default is used. */
 export const MIN_OVERHEAD_SAMPLES = 3;
 
-/** Same as CiHeavyTestThrottle#isHeavy: test tasks that start clusters (REST, cluster and spec tests). */
+/** Stands for the BWC version in the BWC suite's assignment keys, as in CiPartsPlugin: `:qa:rolling-upgrade:v{V}#bwcTest`. */
+export const VERSION_PLACEHOLDER = "{V}";
+
+const VERSIONED_PATH = /:v(\d+\.\d+\.\d+)#/;
+
+/** The assignment key of a BWC test task path: its version replaced by VERSION_PLACEHOLDER. Other paths stay as they are. */
+export const versionKey = (taskPath: string): string => taskPath.replace(VERSIONED_PATH, `:v${VERSION_PLACEHOLDER}#`);
+
+/** The BWC version in a task path, or "" for a path without one. */
+export const versionOf = (taskPath: string): string => VERSIONED_PATH.exec(taskPath)?.[1] ?? "";
+
+/** Same as CiHeavyTestThrottle#isHeavy: test tasks that start clusters (REST, cluster, spec and BWC tests). */
 export const isClusterTest = (taskPath: string): boolean => {
   const name = taskPath.substring(taskPath.lastIndexOf(":") + 1);
   return (
+    /^v(\d+\.\d+\.\d+|\{V\})#/.test(name) ||
     name.includes("RestTest") ||
     name.includes("RestCompatTest") ||
     name.includes("ClusterTest") ||
@@ -303,6 +315,8 @@ export const splitCandidates = (tests: Map<string, number>, config: PlannerConfi
 
 export interface DurationInputs {
   source: string;
+  /** Rows of several BWC versions folded by key (versioned* below): split task durations then take the slowest version. */
+  versioned?: boolean;
   config: PlannerConfig;
   projectWork: ProjectWork;
   currentSplits: Set<string>;
@@ -317,7 +331,8 @@ export const buildDurations = (inputs: DurationInputs): Durations => {
   const overheads = overheadSeconds(inputs.executions, inputs.itemSums);
   const defaultOverhead = inputs.config.shardOverheadSeconds ?? 0;
   const overheadOf = (task: string): number => overheads.get(task) ?? defaultOverhead;
-  for (const [task, seconds] of splitTaskSeconds(inputs.executions, inputs.currentSplits, overheadOf)) {
+  const splitSeconds = inputs.versioned ? versionedSplitTaskSeconds : splitTaskSeconds;
+  for (const [task, seconds] of splitSeconds(inputs.executions, inputs.currentSplits, overheadOf)) {
     if (tests.has(task)) {
       tests.set(task, seconds);
     }
@@ -332,6 +347,68 @@ export const buildDurations = (inputs: DurationInputs): Durations => {
     items: sortedRecord(items),
   };
 };
+
+// One assignment serves every BWC version (CiPartsPlugin's BWC suite), so the BWC suite's rows are folded by key before
+// anything else sees them. The slowest version's duration is kept rather than a mix, so the plan fits every version.
+
+const foldByKey = <T>(rows: T[], keyOf: (row: T) => string, ms: (row: T) => number, rekey: (row: T) => T): T[] => {
+  const folded = new Map<string, T>();
+  for (const row of rows) {
+    const key = keyOf(row);
+    const current = folded.get(key);
+    if (current === undefined || ms(row) > ms(current)) {
+      folded.set(key, rekey(row));
+    }
+  }
+  return [...folded.values()];
+};
+
+/** One task row per key and type, the slowest version's. */
+export const versionedTaskRows = (rows: TaskRow[]): TaskRow[] =>
+  foldByKey(
+    rows,
+    (r) => JSON.stringify([versionKey(r.path), r.type]),
+    (r) => r.p50Ms,
+    (r) => ({ ...r, path: versionKey(r.path) })
+  );
+
+/** One item row per key and item name, the slowest version's. */
+export const versionedItemRows = (rows: ItemRow[]): ItemRow[] =>
+  foldByKey(
+    rows,
+    (r) => JSON.stringify([versionKey(r.task), r.name]),
+    (r) => r.p50Ms,
+    (r) => ({ ...r, task: versionKey(r.task) })
+  );
+
+/**
+ * Executions under their keys. Each version is a build of its own here: the versions' jobs run the same split task
+ * side by side, and adding their shards up would count the task once per version.
+ */
+export const versionedExecutions = (rows: ExecutionRow[]): ExecutionRow[] =>
+  rows.map((r) => ({ ...r, path: versionKey(r.path), build: `${r.build}@${versionOf(r.path)}` }));
+
+/** splitTaskSeconds per BWC version (the suffix versionedExecutions gives each build), then the slowest version's. */
+export const versionedSplitTaskSeconds = (
+  executions: ExecutionRow[],
+  splitTasks: Set<string>,
+  overheadOf: (task: string) => number
+): Map<string, number> => {
+  const byVersion = new Map<string, ExecutionRow[]>();
+  for (const e of executions) {
+    const version = e.build.substring(e.build.lastIndexOf("@") + 1);
+    byVersion.set(version, [...(byVersion.get(version) ?? []), e]);
+  }
+  const slowest = new Map<string, number>();
+  for (const rows of byVersion.values()) {
+    for (const [task, seconds] of splitTaskSeconds(rows, splitTasks, overheadOf)) {
+      slowest.set(task, Math.max(slowest.get(task) ?? 0, seconds));
+    }
+  }
+  return slowest;
+};
+
+export const versionedItemSums = (rows: JobItemSum[]): JobItemSum[] => rows.map((r) => ({ ...r, task: versionKey(r.task) }));
 
 /** Same layout as the checked-in files, so refreshes produce small diffs. */
 export const formatDurations = (durations: Durations): string => JSON.stringify(durations, null, 1) + "\n";

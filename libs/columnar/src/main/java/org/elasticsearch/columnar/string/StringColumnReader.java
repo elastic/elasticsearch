@@ -547,7 +547,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         if (first == count || matches(valueAt(first), prefix, exact) == false) {
             return new RankRange(first, first);
         }
-        return new RankRange(first, runEnd(first, prefix, exact, windows.endHigh()));
+        return new RankRange(first, runEnd(first, prefix, exact, windows.endLow(), windows.endHigh()));
     }
 
     /**
@@ -577,16 +577,18 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /**
      * The rank one past the run starting at {@code first}, whose value is known to match. Doubling the step
      * before bisecting the bracket keeps the reads next to {@code first}, where a short run ends, rather
-     * than bisecting the whole column above it.
+     * than bisecting the whole column above it. The rank after the run is at least {@code endLow}, so every
+     * rank before it matches and the doubling starts there when that is past {@code first}.
      */
-    private int runEnd(int first, BytesRef prefix, BytesRef exact, int count) throws IOException {
-        int lo = first;
+    private int runEnd(int first, BytesRef prefix, BytesRef exact, int endLow, int count) throws IOException {
+        final int from = Math.max(first, endLow - 1);
+        int lo = from;
         long step = 1;
-        int hi = (int) Math.min(first + step, count);
+        int hi = (int) Math.min(from + step, count);
         while (hi < count && matches(valueAt(hi), prefix, exact)) {
             lo = hi;
             step <<= 1;
-            hi = (int) Math.min(first + step, count);
+            hi = (int) Math.min(from + step, count);
         }
         while (lo + 1 < hi) {
             final int mid = lo + ((hi - lo) >>> 1);

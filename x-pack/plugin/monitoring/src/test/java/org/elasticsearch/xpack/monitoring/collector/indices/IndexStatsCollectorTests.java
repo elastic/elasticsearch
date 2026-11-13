@@ -112,7 +112,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
                 }
             }
         }
-        when(indicesStatsResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[0]);
+        when(indicesStatsResponse.shardFailuresList()).thenReturn(List.of());
 
         final String[] indexNames = indicesMetadata.keySet().toArray(new String[0]);
         when(projectMetadata.getConcreteAllIndices()).thenReturn(indexNames);
@@ -185,13 +185,14 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         final MonitoringDoc.Node node = randomMonitoringNode(random());
 
-        when(indicesStatsResponse.getShardFailures()).thenReturn(
-            new DefaultShardOperationFailedException[] {
+        when(indicesStatsResponse.shardFailuresList()).thenReturn(
+            List.of(
                 new DefaultShardOperationFailedException(
                     "test",
                     0,
                     new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout"))
-                ) }
+                )
+            )
         );
 
         final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class)));

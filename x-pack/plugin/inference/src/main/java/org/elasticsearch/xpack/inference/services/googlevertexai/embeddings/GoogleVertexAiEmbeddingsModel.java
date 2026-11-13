@@ -56,7 +56,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
             taskType,
             service,
             GoogleVertexAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            GoogleVertexAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
             GoogleVertexAiSecretSettings.fromMap(secrets)
         );

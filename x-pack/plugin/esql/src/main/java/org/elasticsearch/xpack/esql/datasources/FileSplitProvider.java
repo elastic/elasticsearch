@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.FolderRangePredicate;
 import org.elasticsearch.xpack.esql.datasources.glob.ListingExtents;
 import org.elasticsearch.xpack.esql.datasources.glob.PlanningMemory;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -77,6 +79,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.AutomataMa
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -89,6 +92,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SplitFilterClassifier;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -552,6 +556,15 @@ public class FileSplitProvider implements SplitProvider {
             }
         }
         return files.size();
+    }
+
+    /**
+     * After phase-2 planning, empty splits on a complete listing mean every survivor was a stats MISS
+     * (phase-1 certified skips already returned earlier). Truncated listings retry the whole dataset
+     * instead of claiming a prune — a later file might still match.
+     */
+    private static boolean exhaustivelyPrunedAfterPlanning(FileList fileList, List<ExternalSplit> splits) {
+        return splits.isEmpty() && fileList.fileCount() > 0 && fileList.isTruncated() == false;
     }
 
     /**
@@ -1080,7 +1093,14 @@ public class FileSplitProvider implements SplitProvider {
             // Each surviving file produces at least one split, so the survivor count is the number of
             // distinct files that are actually scanned after coordinator-side pruning.
             return new Attempt(
-                resultOver(context, splits, false, splitDiscoveryCpuNanos.get(), discoveryWarnings.get(), splitDiscoveryProbes.get()),
+                resultOver(
+                    context,
+                    splits,
+                    exhaustivelyPrunedAfterPlanning(fileList, splits),
+                    splitDiscoveryCpuNanos.get(),
+                    discoveryWarnings.get(),
+                    splitDiscoveryProbes.get()
+                ),
                 fileList.isTruncated(),
                 budget.satisfied()
             );
@@ -1250,7 +1270,7 @@ public class FileSplitProvider implements SplitProvider {
                                         resultOver(
                                             context,
                                             splits,
-                                            false,
+                                            exhaustivelyPrunedAfterPlanning(fileList, splits),
                                             splitDiscoveryCpuNanos.get(),
                                             discoveryWarnings.get(),
                                             splitDiscoveryProbes.get()
@@ -1296,7 +1316,10 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, DataType> reconciledTypes,
         Map<ColumnMapping, ColumnMapping> mappingCache,
         boolean anchorPinnedFirstFileWins,
-        ExternalSchema fileBackedQuerySchema
+        ExternalSchema fileBackedQuerySchema,
+        // Data-column conjuncts only. Partition / _file.* / metadata stay out: footer stats treat an
+        // absent column as all-null, which would drop files that match on a path-derived value.
+        List<Expression> statsFilter
     ) {
         int size() {
             return fileIndices.length;
@@ -1482,7 +1505,8 @@ public class FileSplitProvider implements SplitProvider {
             reconciledTypes,
             mappingCache,
             anchorPinnedFirstFileWins,
-            fileBackedQuerySchema
+            fileBackedQuerySchema,
+            dataColumnStatsFilter(context)
         );
     }
 
@@ -1715,7 +1739,10 @@ public class FileSplitProvider implements SplitProvider {
             if (isCancelled.getAsBoolean()) {
                 throw new TaskCancelledException(RecordBoundaryProbe.CANCELLED_MESSAGE);
             }
-            return processFileForSplits(task, hoistedProvider, strideBytes, isCancelled, batch.context().rowLimit());
+            return dropStatsMisses(
+                processFileForSplits(task, hoistedProvider, strideBytes, isCancelled, batch.context().rowLimit()),
+                batch.statsFilter()
+            );
         } finally {
             releaseFileTask();
         }
@@ -1933,7 +1960,7 @@ public class FileSplitProvider implements SplitProvider {
                     long length = fileList.size(fileIndex);
                     List<SplitRange> cached = peekCachedSplitRanges(path, length, fileList.version(fileIndex), config, hoistedProvider);
                     if (cached != null) {
-                        slots[i] = planResultFromCachedRanges(resolveSurvivor(batch, i), cached);
+                        slots[i] = dropStatsMisses(planResultFromCachedRanges(resolveSurvivor(batch, i), cached), batch.statsFilter());
                     } else {
                         missSlots[missCount[0]++] = i;
                     }
@@ -1984,8 +2011,9 @@ public class FileSplitProvider implements SplitProvider {
 
                     @Override
                     public void onResponse(PlanResult result) {
-                        budget.account(result);
-                        finish(() -> itemListener.onResponse(result));
+                        PlanResult pruned = dropStatsMisses(result, batch.statsFilter());
+                        budget.account(pruned);
+                        finish(() -> itemListener.onResponse(pruned));
                     }
 
                     @Override
@@ -4475,6 +4503,80 @@ public class FileSplitProvider implements SplitProvider {
         return false;
     }
 
+    /**
+     * Filter conjuncts that footer min/max may classify. Partition, metadata, and virtual columns are
+     * excluded: a payload-absent column reads as all-null in {@link SplitFilterClassifier}, which would
+     * drop files that match on a Hive path value or {@code _file.*}. Mixed OR of partition+data is
+     * dropped as a whole (conservative keep) rather than classified.
+     */
+    static List<Expression> dataColumnStatsFilter(SplitDiscoveryContext context) {
+        List<Expression> hints = context.filterHints();
+        if (hints.isEmpty()) {
+            return List.of();
+        }
+        Set<String> skipNames = new HashSet<>();
+        PartitionMetadata partitionInfo = context.partitionInfo();
+        if (partitionInfo != null && partitionInfo.isEmpty() == false) {
+            skipNames.addAll(partitionInfo.partitionColumns().keySet());
+        }
+        skipNames.addAll(context.metadataColumnNames());
+        List<Expression> data = new ArrayList<>(hints.size());
+        for (Expression hint : hints) {
+            if (skipForStatsClassification(hint, skipNames)) {
+                continue;
+            }
+            data.add(hint);
+        }
+        return data.isEmpty() ? List.of() : List.copyOf(data);
+    }
+
+    private static boolean skipForStatsClassification(Expression conjunct, Set<String> skipNames) {
+        for (Attribute attr : conjunct.references()) {
+            if (skipNames.contains(attr.name()) || PushdownPredicates.isVirtualColumn(attr)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static PlanResult dropStatsMisses(PlanResult result, List<Expression> statsFilter) {
+        if (statsFilter.isEmpty() || result instanceof PlanResult.Splits == false) {
+            return result;
+        }
+        PlanResult.Splits planned = (PlanResult.Splits) result;
+        List<ExternalSplit> kept = dropStatsMisses(planned.splits(), statsFilter);
+        return kept == planned.splits() ? result : new PlanResult.Splits(kept);
+    }
+
+    /**
+     * Drops splits whose min/max cannot overlap {@code statsFilter}. Splits without statistics stay
+     * (AMBIGUOUS). Footer formats treat an absent column as all-null ({@code implicitNulls=true});
+     * text splits typically have no stats and are kept. Package-visible for tests.
+     */
+    static List<ExternalSplit> dropStatsMisses(List<ExternalSplit> splits, List<Expression> statsFilter) {
+        if (statsFilter.isEmpty() || splits.isEmpty()) {
+            return splits;
+        }
+        Expression rewritten = PushdownLiteralConversion.rewrite(
+            statsFilter.size() == 1 ? statsFilter.getFirst() : Predicates.combineAnd(statsFilter)
+        );
+        List<ExternalSplit> kept = null;
+        for (int i = 0; i < splits.size(); i++) {
+            ExternalSplit split = splits.get(i);
+            SplitStats stats = split.splitStats();
+            boolean miss = stats != null
+                && SplitFilterClassifier.classifyRewritten(rewritten, stats, true) == SplitFilterClassifier.SplitMatch.MISS;
+            if (miss) {
+                if (kept == null) {
+                    kept = new ArrayList<>(splits.subList(0, i));
+                }
+            } else if (kept != null) {
+                kept.add(split);
+            }
+        }
+        return kept == null ? splits : kept;
+    }
+
     /** Whether the operand is a literal that is not null, which is what makes a missing column answer false. */
     private static boolean isNonNullLiteral(Expression e) {
         return e instanceof Literal literal && literal.value() != null;
@@ -4691,11 +4793,7 @@ public class FileSplitProvider implements SplitProvider {
      * {@code IN} disagrees with {@code ==}, and would prune matching files under plain {@code IN} once the two agree.
      */
     private static boolean zerosOfOppositeSign(Object a, Object b) {
-        return a instanceof Number na
-            && b instanceof Number nb
-            && na.doubleValue() == 0.0
-            && nb.doubleValue() == 0.0
-            && Double.compare(na.doubleValue(), nb.doubleValue()) != 0;
+        return StatValueComparator.zerosOfOppositeSign(a, b);
     }
 
     private static Boolean nullableAnd(Boolean a, Boolean b) {

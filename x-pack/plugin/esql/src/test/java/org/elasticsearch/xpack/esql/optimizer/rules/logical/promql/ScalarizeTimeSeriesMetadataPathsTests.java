@@ -136,7 +136,11 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Expression without = new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "pod")), true);
         Alias rendered = new Alias(SOURCE, MetadataAttribute.TIMESERIES, new ToString(SOURCE, without, EsqlTestUtils.TEST_CFG));
-        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(new Eval(SOURCE, collapse, List.of(rendered)), EsqlTestUtils.TEST_CFG, false);
+        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(
+            new Eval(SOURCE, collapse, List.of(rendered)),
+            EsqlTestUtils.TEST_CFG,
+            false
+        );
 
         assertThat(expressions(plan, TimeSeriesWithout.class), hasSize(1));
         assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());

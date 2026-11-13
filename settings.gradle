@@ -7,6 +7,19 @@ pluginManagement {
   repositories {
     mavenCentral()
     gradlePluginPortal()
+    // JitPack is used to resolve the protobuf gradle plugin from a custom
+    // build tied to a specific upstream commit (see resolutionStrategy below).
+    maven { url = uri("https://jitpack.io") }
+  }
+
+  resolutionStrategy {
+    eachPlugin {
+      // Resolve the protobuf gradle plugin via JitPack from the google/protobuf-gradle-plugin
+      // repository, pinned to a specific commit instead of a released version on the plugin portal.
+      if (requested.id.id == 'com.google.protobuf') {
+        useModule("com.github.google:protobuf-gradle-plugin:${requested.version}")
+      }
+    }
   }
 
   includeBuild "build-conventions"

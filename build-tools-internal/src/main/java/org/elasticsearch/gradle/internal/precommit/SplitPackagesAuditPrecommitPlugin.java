@@ -31,7 +31,12 @@ public class SplitPackagesAuditPrecommitPlugin extends PrecommitPlugin {
             t.setProjectBuildDirs(getProjectBuildDirs(project));
             t.setClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
-            t.dependsOn(mainSourceSet.getJava().getSourceDirectories());
+            // getSrcDirs() below is fed from every source directory of the main source set, which can
+            // include directories produced by other tasks (e.g. the protobuf plugin's
+            // processProtoResources generates build/generated/proto-resources/main). Depend on the
+            // combined source directories so those generators run first; getSourceDirectories()
+            // carries the builtBy task dependencies that Gradle 9.9 requires us to declare explicitly.
+            t.dependsOn(mainSourceSet.getAllSource().getSourceDirectories());
             t.getSrcDirs().set(project.provider(() -> mainSourceSet.getAllSource().getSrcDirs()));
         });
         return task;

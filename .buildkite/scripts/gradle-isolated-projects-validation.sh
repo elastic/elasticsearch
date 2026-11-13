@@ -7,9 +7,12 @@ readonly REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 readonly WORKSPACE_DIR="${WORKSPACE:-$REPO_ROOT}"
 
 # Lower this baseline as isolated-projects issues are fixed. The target is zero.
-# Locally measured 956 violations; the ceiling adds headroom for CI-specific
-# setups (extra init scripts, agents, environment) that can surface a few more.
-readonly DEFAULT_MAX_ISOLATED_PROJECTS_VIOLATIONS=1000
+# Gradle 9.9 reports these problems under the "Gradle:Isolated Projects:" problem
+# group; older Gradle versions used "validation:configuration-cache:". Both prefixes
+# are matched below so the count keeps working across versions. Measured 493
+# violations on Gradle 9.9; the ceiling adds headroom for CI-specific setups (extra
+# init scripts, agents, environment) that can surface a few more.
+readonly DEFAULT_MAX_ISOLATED_PROJECTS_VIOLATIONS=550
 readonly MAX_ISOLATED_PROJECTS_VIOLATIONS="${GRADLE_ISOLATED_PROJECTS_MAX_VIOLATIONS:-$DEFAULT_MAX_ISOLATED_PROJECTS_VIOLATIONS}"
 readonly REPORT_ARTIFACT_PATH="build/problems-status.json"
 readonly REPORT_FILE="$WORKSPACE_DIR/$REPORT_ARTIFACT_PATH"
@@ -63,10 +66,10 @@ fi
 
 upload_report_artifact
 
-violation_count=$(jq -r '[.problems[] | select(.id | startswith("validation:configuration-cache:")) | .count] | add // 0' "$REPORT_FILE")
+violation_count=$(jq -r '[.problems[] | select(.id | startswith("validation:configuration-cache:") or startswith("Gradle:Isolated Projects:")) | .count] | add // 0' "$REPORT_FILE")
 summary=$(jq -r '
   (.problems // []) as $problems
-  | ($problems | map(select(.id | startswith("validation:configuration-cache:")))) as $isolatedProjectProblems
+  | ($problems | map(select(.id | startswith("validation:configuration-cache:") or startswith("Gradle:Isolated Projects:")))) as $isolatedProjectProblems
   | ["Severity breakdown (isolated-projects validation only):"]
   + (($isolatedProjectProblems | sort_by(.severity) | group_by(.severity) | map("- \(.[0].severity): \(map(.count) | add)")) // [])
   + [""]

@@ -67,9 +67,8 @@ public class PromqlPlanHistogramFunctionCallV2Tests extends AbstractPromqlPlanOp
 
     /** A native histogram is a value transformation over each series. */
     public void testNativeHistogramIsAValueTransformation() {
-        LogicalPlan plan = withPromqlTranslationV2(
-            analyzerWithEnrichPolicies().addIndex("exp_histo", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
-        ).query("PROMQL index=exp_histo step=1m histogram_quantile(0.9, responseTime)");
+        LogicalPlan plan = analyzerWithEnrichPolicies().addIndex("exp_histo", "exp_histo_sample-mappings.json", IndexMode.TIME_SERIES)
+            .query("PROMQL index=exp_histo step=1m histogram_quantile(0.9, responseTime)");
 
         assertThat(expressions(plan, HistogramPercentile.class), hasSize(1));
         assertThat(expressions(plan, PromqlHistogramQuantile.class), empty());
@@ -89,8 +88,10 @@ public class PromqlPlanHistogramFunctionCallV2Tests extends AbstractPromqlPlanOp
     }
 
     private LogicalPlan planClassic(String query, boolean optimize) {
-        LogicalPlan analyzed = withPromqlTranslationV2(
-            analyzerWithEnrichPolicies().addIndex("prom_hist", "mapping-promql-classic-histogram.json", IndexMode.TIME_SERIES)
+        LogicalPlan analyzed = analyzerWithEnrichPolicies().addIndex(
+            "prom_hist",
+            "mapping-promql-classic-histogram.json",
+            IndexMode.TIME_SERIES
         ).query("PROMQL index=prom_hist step=1m " + query);
         return optimize ? logicalOptimizer.optimize(analyzed) : analyzed;
     }

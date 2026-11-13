@@ -35,7 +35,7 @@ public class PromqlPlanMetadataManipulationFunctionV2Tests extends AbstractPromq
 
     /** {@code label_replace} writes the expanded source label under the destination. */
     public void testLabelReplaceWritesTheDestination() {
-        LogicalPlan plan = planPromqlV2(
+        LogicalPlan plan = planPromql(
             "PROMQL index=k8s step=1h label_replace(sum by (pod) (network.bytes_in), \"dst\", \"$1\", \"pod\", \"(.*)\")",
             false
         );
@@ -46,7 +46,7 @@ public class PromqlPlanMetadataManipulationFunctionV2Tests extends AbstractPromq
 
     /** {@code label_join} writes the joined source labels under the destination. */
     public void testLabelJoinWritesTheDestination() {
-        LogicalPlan plan = planPromqlV2(
+        LogicalPlan plan = planPromql(
             "PROMQL index=k8s step=1h label_join(sum by (cluster, pod) (network.bytes_in), \"dst\", \"-\", \"cluster\", \"pod\")",
             false
         );
@@ -57,7 +57,7 @@ public class PromqlPlanMetadataManipulationFunctionV2Tests extends AbstractPromq
 
     /** {@code label_join} without source labels writes an empty value, which removes the destination like Prometheus. */
     public void testLabelJoinWithoutSourcesWritesAnEmptyValue() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h label_join(sum by (cluster) (network.bytes_in), \"dst\", \"-\")", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h label_join(sum by (cluster) (network.bytes_in), \"dst\", \"-\")", false);
 
         assertThat(as(destination(plan), Literal.class).value(), nullValue());
     }
@@ -71,7 +71,7 @@ public class PromqlPlanMetadataManipulationFunctionV2Tests extends AbstractPromq
             // the series id keys the collapse under the label it writes
             "sum by (dst) (label_replace(network.bytes_in, \"dst\", \"$1\", \"region\", \"(.+)\"))"
         )) {
-            LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h " + query, true);
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1h " + query, true);
             assertThat(query, plan.collect(TimeSeriesAggregate.class), hasSize(1));
         }
     }

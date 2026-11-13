@@ -78,10 +78,6 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-        // the translation it follows emits label containers only with V2
-        if (context.configuration().pragmas().enablePromqlTranslationV2() == false) {
-            return plan;
-        }
         return pushDown(plan, context.configuration(), usesLabelContainer(context));
     }
 

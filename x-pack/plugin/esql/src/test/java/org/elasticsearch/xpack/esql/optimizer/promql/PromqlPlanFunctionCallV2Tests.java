@@ -35,7 +35,7 @@ public class PromqlPlanFunctionCallV2Tests extends AbstractPromqlPlanOptimizerTe
 
     /** A function over a range keeps the labels of each series: the collapse is keyed by the source's label container. */
     public void testRangeFunctionKeepsTheSourceLabels() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=5m rate(network.total_bytes_in[5m])", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=5m rate(network.total_bytes_in[5m])", false);
 
         TimeSeriesAggregate collapse = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(expressions(collapse, Rate.class), hasSize(1));
@@ -45,7 +45,7 @@ public class PromqlPlanFunctionCallV2Tests extends AbstractPromqlPlanOptimizerTe
 
     /** A function over an instant vector keeps the labels of each series. */
     public void testInstantFunctionKeepsTheSourceLabels() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=5m abs(network.bytes_in)", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=5m abs(network.bytes_in)", false);
 
         assertThat(expressions(plan, Abs.class), hasSize(1));
         assertThat(sourceViews(plan.collect(TimeSeriesAggregate.class).getFirst()), equalTo(Set.of(List.of())));
@@ -54,13 +54,13 @@ public class PromqlPlanFunctionCallV2Tests extends AbstractPromqlPlanOptimizerTe
 
     /** The translated function plans through the optimizer. */
     public void testRangeFunctionOptimizes() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=5m rate(network.total_bytes_in[5m])", true);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=5m rate(network.total_bytes_in[5m])", true);
         assertThat(plan.collect(TimeSeriesAggregate.class), hasSize(1));
     }
 
     /** {@code scalar} returns one value per step, without labels. */
     public void testScalarDropsTheLabels() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h scalar(network.bytes_in)", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h scalar(network.bytes_in)", false);
 
         assertThat(expressions(plan, Scalar.class), hasSize(1));
         assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
@@ -69,7 +69,7 @@ public class PromqlPlanFunctionCallV2Tests extends AbstractPromqlPlanOptimizerTe
 
     /** A scalar function has no labels. */
     public void testTimeHasNoLabels() {
-        LogicalPlan plan = planPromqlV2("PROMQL index=k8s step=1h time()", false);
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1h time()", false);
         assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
     }
 

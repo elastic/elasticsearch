@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -27,7 +25,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 
 import java.time.Instant;
@@ -75,11 +72,6 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         return planPromql(tsAnalyzer(), query, allowEmptyReferences, optimize);
     }
 
-    /** Plans {@code query} translated over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */
-    protected LogicalPlan planPromqlV2(String query, boolean optimize) {
-        return planPromql(withPromqlTranslationV2(tsAnalyzer()), query, false, optimize);
-    }
-
     /**
      * The labels each view of the source's series in {@code collapse} leaves out, sorted: the typed label container's
      * {@link TimeSeriesWithout}, or the keyword {@code _timeseries} it is lowered to where a node before 9.7 takes part.
@@ -96,12 +88,6 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
             }
         });
         return views;
-    }
-
-    /** {@code analyzer} translating PromQL over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */
-    protected static TestAnalyzer withPromqlTranslationV2(TestAnalyzer analyzer) {
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.ENABLE_PROMQL_TRANSLATION_V2.getKey(), true).build());
-        return analyzer.configuration(EsqlTestUtils.configuration(pragmas));
     }
 
     private LogicalPlan planPromql(TestAnalyzer analyzer, String query, boolean allowEmptyReferences, boolean optimize) {

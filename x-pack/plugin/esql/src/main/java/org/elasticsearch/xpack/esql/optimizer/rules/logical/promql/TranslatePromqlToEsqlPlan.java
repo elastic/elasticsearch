@@ -12,8 +12,6 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
 
 /**
@@ -28,9 +26,10 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
  *           \_ Aggregate[avg(sum_result), groupBy=[step]]
  *                 \_ TimeSeriesAggregate[sum(rate(value)), groupBy=[step, cluster]]
  * </pre>
- * Mechanism: a {@link TranslationContext} per command; recursive descent via {@link PromqlPlan#translate} where every
- * PromQL node produces an {@code IntermediateResult} its parent composes, and {@link TranslationContext#translateFinal}
- * stitches the top-level forms (single branch, {@code or} union) into finished tables.
+ * Mechanism: a {@link TranslationContextV2} per command; recursive descent via {@link TranslationContextV2#translate} where every
+ * PromQL node produces an {@code IntermediateResult} its parent composes, and {@link TranslationContextV2#translateFinal}
+ * projects the result to the command's declared output. Labels travel as one {@code _timeseries} container;
+ * {@link ScalarizeTimeSeriesMetadataPaths}, the rule right after it, replaces the container's path reads with columns.
  */
 public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.ParameterizedAnalyzerRule<PromqlCommand, AnalyzerContext> {
 
@@ -41,10 +40,6 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
     @Override
     protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
-        // the translation it follows emits label containers only with V2
-        if (context.configuration().pragmas().enablePromqlTranslationV2()) {
-            return new TranslationContextV2(cmd, context).translateFinal();
-        }
-        return new TranslationContext(cmd, context).translateFinal();
+        return new TranslationContextV2(cmd, context).translateFinal();
     }
 }

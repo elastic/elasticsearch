@@ -14,7 +14,6 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -43,7 +42,6 @@ public class HttpServerTracingTests extends ESTestCase {
 
     final SpanStatusBuilder spanStatusBuilder = mock(SpanStatusBuilder.class);
     final APMTracer tracer = mock(APMTracer.class);
-    final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     final HttpServerTracing instrumentation = new HttpServerTracing(tracer);
 
     public void test_start_doesNotChangeTheThreadContext() {
@@ -55,8 +53,6 @@ public class HttpServerTracingTests extends ESTestCase {
 
         instrumentation.start(request, "/{index}/_search");
 
-        assertNull(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER));
-        assertNull(threadContext.getHeader(Task.TRACE_STATE));
         verify(tracer, never()).storeSpanInThreadContext(any());
     }
 

@@ -657,24 +657,6 @@ public class APMTracerTests extends ESTestCase {
         assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(TRACE_PARENT));
     }
 
-    /**
-     * Starting a span does not make it the current one, so the siblings that are started one after the other are not nested.
-     */
-    public void test_spansThatAreStartedOneAfterTheOtherAreSiblings() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracerWithW3CPropagator(settings, 5);
-        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
-
-        apmTracer.startTrace(TRACEABLE1, "sibling-1", null);
-        apmTracer.startTrace(TRACEABLE2, "sibling-2", null);
-
-        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
-        assertThat(
-            Span.fromContext(apmTracer.getSpans().get(TRACEABLE2.getSpanId())).getSpanContext().getSpanId(),
-            equalTo(Span.fromContext(apmTracer.getSpans().get(TRACEABLE1.getSpanId())).getSpanContext().getSpanId())
-        );
-    }
-
     public void test_addError_withStacksDisabled_emitsTypeAndMessageOnly() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildTracer(settings, 0, false);

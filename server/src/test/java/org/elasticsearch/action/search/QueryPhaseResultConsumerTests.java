@@ -747,6 +747,117 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     }
 
     /**
+     * A fetch-phase abort can skip response construction after query reduction has handed off its top_hits.
+     * Search failure must still release the hits created by both partial and final reductions.
+     */
+    public void testTopHitsReleasedWhenFetchPhaseFailsBeforeBuildingResponse() throws Exception {
+        final String aggName = "th";
+        SearchPhaseController productionLikeController = new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+
+            @Override
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+        });
+
+        int numShards = 3;
+        SearchRequest request = new SearchRequest("index");
+        request.source(new SearchSourceBuilder().aggregation(new TopHitsAggregationBuilder(aggName).size(1)).size(0));
+        request.setBatchedReduceSize(2);
+
+        List<SearchHits> shardHitsToTrack = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(numShards);
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = productionLikeController.newSearchPhaseResults(
+                executor,
+                NoopCircuitBreaker.INSTANCE,
+                () -> false,
+                SearchProgressListener.NOOP,
+                request,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            for (int i = 0; i < numShards; i++) {
+                SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
+                QuerySearchResult querySearchResult = new QuerySearchResult(new ShardSearchContextId("", i), searchShardTarget, null);
+                try {
+                    SearchHit hit = new SearchHit(0, "id-" + i);
+                    hit.sourceRef(Source.fromMap(Map.of("f", "v"), XContentType.JSON).internalSourceRef());
+                    hit.score(1.0f);
+                    SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
+                    assertTrue(searchHits.isPooled());
+                    shardHitsToTrack.add(searchHits);
+
+                    TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(
+                        new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1.0f) }),
+                        1.0f
+                    );
+                    InternalTopHits internalTopHits = new InternalTopHits(aggName, 0, 1, topDocsAndMaxScore, searchHits, null);
+                    querySearchResult.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    querySearchResult.aggregations(InternalAggregations.from(Collections.singletonList(internalTopHits)));
+                    querySearchResult.setShardIndex(i);
+                    querySearchResult.size(0);
+                    consumer.consumeResult(querySearchResult, latch::countDown);
+                } finally {
+                    querySearchResult.decRef();
+                }
+            }
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+
+            SearchPhaseController.ReducedQueryPhase reduce = consumer.reduce();
+            assertNotNull(reduce.aggregations());
+            InternalTopHits reducedTopHits = reduce.aggregations().get(aggName);
+            assertNotNull(reducedTopHits);
+            assertThat(reducedTopHits.getHits().getHits().length, equalTo(1));
+
+            // A failed fetch can terminate the search before buildResponse is called.
+            List<SearchHits> ownedHits = List.copyOf(reduce.topHitsToRelease());
+            assertFalse(ownedHits.isEmpty());
+            assertTrue(ownedHits.stream().allMatch(SearchHits::isPooled));
+            // The production transition skips this supplier on fatal shard failures. MockSearchPhaseContext
+            // normally always invokes it, so explicitly simulate the abort, as FetchSearchPhaseTests does.
+            MockSearchPhaseContext context = new MockSearchPhaseContext(numShards) {
+                @Override
+                public void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+                    onPhaseFailure(currentPhase, "simulated fetch failure", new RuntimeException("simulated fetch failure"));
+                }
+            };
+            context.addReleasable(consumer);
+            try {
+                new FetchSearchPhase(consumer, null, context, reduce).run();
+                assertNotNull(context.phaseFailure.get());
+                assertNull(context.searchResponse.get());
+                assertTrue(((QueryPhaseResultConsumer) consumer).isClosed());
+                for (SearchHits hits : ownedHits) {
+                    assertFalse("top_hits must be released when fetch fails before building a response", hits.hasReferences());
+                }
+            } finally {
+                // Release any leaked references so the failing assertion does not also trigger leak-tracker failures.
+                for (SearchHits hits : ownedHits) {
+                    if (hits.hasReferences()) {
+                        hits.decRef();
+                    }
+                }
+                context.results.close();
+            }
+        }
+
+        for (SearchHits shardHits : shardHitsToTrack) {
+            assertFalse(shardHits.hasReferences());
+        }
+    }
+
+    /**
      * DelayableWriteable that delegates expansion to a supplier.
      */
     private static class DelegatingDelayableWriteable<T extends Writeable> extends DelayableWriteable<T> {

@@ -79,9 +79,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final boolean hasTopDocs;
     private final boolean hasAggs;
     private final boolean performFinalReduce;
+    /**
+     * Pooled {@link SearchHits} created by top_hits during partial and final reductions. This list is shared with the
+     * {@link SearchPhaseController.ReducedQueryPhase}, which drains it when it builds the search response (so ownership moves
+     * to the response). Whatever is still in the list when this consumer is closed was never handed to a response, for example
+     * because the search failed after the reduce, so {@link #doClose()} releases it. All access after the reduce must
+     * synchronize on the list itself.
+     */
     private final List<SearchHits> topHitsToRelease;
-    // Set when the list is passed to ReducedQueryPhase so doClose() does not release it
-    private volatile boolean topHitsOwnershipTransferred;
 
     private final Consumer<Exception> onPartialMergeFailure;
 
@@ -170,11 +175,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     protected synchronized void doClose() {
         assert assertFailureAndBreakerConsistent();
         releaseBuffer();
-        if (topHitsToRelease != null && topHitsOwnershipTransferred == false) {
-            for (SearchHits h : topHitsToRelease) {
-                h.decRef();
+        if (topHitsToRelease != null) {
+            synchronized (topHitsToRelease) {
+                for (SearchHits h : topHitsToRelease) {
+                    h.decRef();
+                }
+                topHitsToRelease.clear();
             }
-            topHitsToRelease.clear();
         }
         circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
         circuitBreakerBytes = 0;
@@ -318,7 +325,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 queryPhaseRankCoordinatorContext,
                 topHitsToRelease
             );
-            topHitsOwnershipTransferred = true;
             buffer = null;
         } finally {
             if (buffer != null) {

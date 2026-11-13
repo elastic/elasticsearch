@@ -8785,6 +8785,50 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(rateHolder.get().window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(7)));
     }
 
+    public void testAggregateWindowMustBeConstantTimeDuration() {
+        // Nested agg / field windows are not foldable constants (#159176).
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS AVG(RATE(network.total_bytes_in, RATE(network.total_bytes_in))) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be a constant [time_duration]"));
+
+        e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS AVG(RATE(network.total_bytes_in, client.ip)) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be a constant [time_duration]"));
+
+        // Integer is foldable but not time_duration.
+        e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS AVG(RATE(network.total_bytes_in, 10)) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be [time_duration]"));
+        assertThat(e.getMessage(), containsString("type [integer]"));
+
+        // date_period (e.g. 1 day) is invalid; suggest a fixed duration instead.
+        e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS AVG(RATE(network.total_bytes_in, 1 day)) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be [time_duration]"));
+        assertThat(e.getMessage(), containsString("type [date_period]"));
+        assertThat(e.getMessage(), containsString("24 hours"));
+
+        // Same window rules apply beyond RATE.
+        e = expectThrows(
+            VerificationException.class,
+            () -> planMetrics("TS k8s | STATS MAX(MAX_OVER_TIME(network.cost, 1 day)) BY TBUCKET(1h)")
+        );
+        assertThat(e.getMessage(), containsString("must be [time_duration]"));
+        assertThat(e.getMessage(), containsString("type [date_period]"));
+
+        e = expectThrows(VerificationException.class, () -> planMetrics("TS k8s | STATS MAX(DELTA(network.cost, 10)) BY TBUCKET(1h)"));
+        assertThat(e.getMessage(), containsString("must be [time_duration]"));
+        assertThat(e.getMessage(), containsString("type [integer]"));
+    }
+
     public void testMvSortInvalidOrder() {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test

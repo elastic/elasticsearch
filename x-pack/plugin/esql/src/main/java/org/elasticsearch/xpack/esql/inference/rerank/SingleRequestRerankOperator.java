@@ -287,7 +287,13 @@ public class SingleRequestRerankOperator extends AsyncOperator<SingleRequestRera
 
     @Override
     public String toString() {
-        return "RerankOperator[inference_id=[" + inferenceId + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
+        return "SingleRequestRerankOperator[inference_id=["
+            + inferenceId
+            + "], query=["
+            + queryText
+            + "], score_channel=["
+            + scoreChannel
+            + "]]";
     }
 
     /**

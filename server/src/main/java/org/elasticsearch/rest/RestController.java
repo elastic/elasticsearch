@@ -568,7 +568,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
             // Parsing the content can take far more heap than the content itself, so the request's parsers charge for what they read, and
-            // the charge is held until the response is sent, like the in-flight bytes. Only content or a source parameter is parsed.
+            // the charge is held until the response is sent, like the in-flight bytes, or until the work that keeps the parsed request ends
+            // if that is later, see ParsedContentReservation#hold. Only content or a source parameter is parsed.
             final ParsedContentReservation parsedContentReservation = request.hasContentOrSourceParam()
                 ? new ParsedContentReservation(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST), handler.canTripCircuitBreaker())
                 : null;

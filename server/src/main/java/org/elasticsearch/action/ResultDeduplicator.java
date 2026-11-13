@@ -13,8 +13,9 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Iterator;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
 
@@ -74,7 +75,7 @@ public final class ResultDeduplicator<T, R> {
 
     private final class CompositeListener implements ActionListener<R> {
 
-        private final List<ActionListener<R>> listeners = new ArrayList<>();
+        private final Deque<ActionListener<R>> listeners = new ArrayDeque<>();
 
         private final T request;
 
@@ -108,7 +109,7 @@ public final class ResultDeduplicator<T, R> {
                 this.isNotified = true;
             }
             try {
-                ActionListener.onResponse(listeners, response);
+                ActionListener.onResponse(drainListeners(), response);
             } finally {
                 requests.remove(request);
             }
@@ -121,10 +122,28 @@ public final class ResultDeduplicator<T, R> {
                 this.isNotified = true;
             }
             try {
-                ActionListener.onFailure(listeners, failure);
+                ActionListener.onFailure(drainListeners(), failure);
             } finally {
                 requests.remove(request);
             }
+        }
+
+        /**
+         * Hands out the listeners in registration order, dropping each one as it is taken so that whatever it retains does not stay
+         * reachable until the last one has been notified. Only called once notified, after which nothing is added.
+         */
+        private Iterable<ActionListener<R>> drainListeners() {
+            return () -> new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return listeners.isEmpty() == false;
+                }
+
+                @Override
+                public ActionListener<R> next() {
+                    return listeners.removeFirst();
+                }
+            };
         }
     }
 }

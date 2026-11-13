@@ -1162,7 +1162,8 @@ public class PromqlVerifierTests extends ESTestCase {
 
     /**
      * An {@link Analyzer} that runs only the first analyzer batch, with the PromQL→ESQL {@link TranslatePromqlToEsqlPlan}
-     * translation and its {@link ScalarizeTimeSeriesMetadataPaths} removed. The result keeps the PromQL plan resolved and verified but un-lowered.
+     * translation and its {@link ScalarizeTimeSeriesMetadataPaths} removed. The result keeps the PromQL plan resolved and
+     * verified but un-lowered.
      */
     private static final class ResolveOnlyAnalyzer extends Analyzer {
         ResolveOnlyAnalyzer(AnalyzerContext context) {
@@ -1178,7 +1179,9 @@ public class PromqlVerifierTests extends ESTestCase {
             Batch<LogicalPlan> first = super.batches().iterator().next();
             @SuppressWarnings({ "rawtypes", "unchecked" })
             Rule<?, LogicalPlan>[] withoutTranslation = Arrays.stream(first.rules())
-                .filter(rule -> rule instanceof TranslatePromqlToEsqlPlan == false && rule instanceof ScalarizeTimeSeriesMetadataPaths == false)
+                .filter(
+                    rule -> rule instanceof TranslatePromqlToEsqlPlan == false && rule instanceof ScalarizeTimeSeriesMetadataPaths == false
+                )
                 .toArray(Rule[]::new);
             return List.of(first.with(withoutTranslation));
         }

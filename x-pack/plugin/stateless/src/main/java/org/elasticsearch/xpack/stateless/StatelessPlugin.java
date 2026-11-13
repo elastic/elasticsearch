@@ -507,10 +507,6 @@ public class StatelessPlugin extends Plugin
     }
 
     private static StatelessThreadPools.ThreadPoolConfig getThreadPoolConfig(Settings settings, boolean hasIndexRole) {
-        // TODO: Consider modifying these pool counts if we change the object store client connections based on node size.
-        // Right now we have 10 threads for snapshots, 1 or 8 threads for translog and 20 or 28 threads for shard thread pools. This is to
-        // attempt to keep the threads below the default client connections limit of 50. This assumption is currently broken by the snapshot
-        // metadata pool having 50 threads. But we will continue to iterate on this numbers and limits.
         final int processors = EsExecutors.allocatedProcessors(settings);
 
         if (hasIndexRole) {
@@ -522,25 +518,32 @@ public class StatelessPlugin extends Plugin
             final int uploadPrewarmMaxThreads = Math.min(processors * 4, 10);
 
             return StatelessThreadPools.ThreadPoolConfig.builder()
-                .shardReadMaxThreads(Math.min(processors * 4, 10))
+                // Shard read threads are used during recovery to read BCC headers.
+                // These reads are generally small, and so we can allow high concurrency
+                // without hitting network/disk throughput limits.
+                .shardReadMaxThreads(processors * 2)
+                // Based on production experience 8 is enough for current workloads.
                 .translogThreads(2, Math.min(processors * 2, 8))
+                // Based on production experience 10 is enough for current workloads.
                 .shardWriteThreads(2, Math.min(processors * 4, 10))
                 .clusterStateReadWriteThreads(2, 4)
                 .getVirtualBatchedCompoundCommitChunkThreads(1, Math.min(processors, 4))
                 .fillVirtualBatchedCompoundCommitCacheThreads(0, 1)
-                .prewarmMaxThreads(Math.min(processors * 2, 32))
+                // Similar to `shardReadMaxThreads`, on indexing nodes prewarm reads
+                // are generally small, so we allow high concurrency.
+                .prewarmMaxThreads(processors * 2)
                 .uploadPrewarmThreads(uploadPrewarmMaxThreads / 2, uploadPrewarmMaxThreads)
                 .blobCopyThreads(0, 4)
                 .build();
         } else {
-            // fill vbcc cache threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some
-            // idle threads around to reduce churn and re-use the existing buffers more
             return StatelessThreadPools.ThreadPoolConfig.builder()
                 .shardReadMaxThreads(Math.min(processors * 4, 28))
                 .translogThreads(0, 1)
                 .shardWriteThreads(0, 1)
                 .clusterStateReadWriteThreads(0, 1)
                 .getVirtualBatchedCompoundCommitChunkThreads(0, 1)
+                // fill vbcc cache threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep
+                // some idle threads around to reduce churn and re-use the existing buffers more
                 .fillVirtualBatchedCompoundCommitCacheThreads(Math.max(processors / 2, 2), Math.max(processors, 2))
                 .prewarmMaxThreads(Math.min(processors * 4, 32))
                 .uploadPrewarmThreads(0, 1)

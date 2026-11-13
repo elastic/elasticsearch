@@ -87,14 +87,18 @@ public class FailedComputeUsageTransportTests extends ESTestCase {
 
             target.registerRequestHandler(ACTION, EsExecutors.DIRECT_EXECUTOR_SERVICE, Request::new, (request, channel, task) -> {
                 ActionListener<TransportResponse> channelListener = new ChannelActionListener<>(channel);
-                FailedComputeUsageHeader.write(threadContext, usage());
                 if (failFromAnotherThread) {
                     ActionListener<TransportResponse> preserving = ContextPreservingActionListener.wrapPreservingContext(
                         channelListener,
                         threadContext
                     );
-                    threadPool.generic().execute(() -> preserving.onFailure(failure));
+                    // as in production, the header is written on the thread that delivers the failure, just before it
+                    threadPool.generic().execute(() -> {
+                        FailedComputeUsageHeader.write(threadContext, usage());
+                        preserving.onFailure(failure);
+                    });
                 } else {
+                    FailedComputeUsageHeader.write(threadContext, usage());
                     channelListener.onFailure(failure);
                 }
             });

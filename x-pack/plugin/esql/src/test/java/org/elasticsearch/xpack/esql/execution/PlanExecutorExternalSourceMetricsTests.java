@@ -300,8 +300,10 @@ public class PlanExecutorExternalSourceMetricsTests extends ESTestCase {
     }
 
     /**
-     * The outcome the metering listener is called with and the one the by_outcome counters are published with are one
-     * classification, see {@link PlanExecutor#outcomeOf}.
+     * The outcome the metering listener is called with and the one the by_outcome counters are published with are classified by the
+     * same method, see {@link PlanExecutor#outcomeOf}. They can still differ for a query cancelled after its compute completed: the
+     * by_outcome counters are published when the session completes, before the cancellation is seen, so they count it as a success,
+     * while the metering listener, which is called when the response is built, reports it as cancelled.
      */
     public void testOutcomeOf() {
         assertThat(PlanExecutor.outcomeOf(null), equalTo(QueryMetricsListener.Outcome.SUCCESS));

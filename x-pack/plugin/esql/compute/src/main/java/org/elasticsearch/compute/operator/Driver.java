@@ -346,8 +346,8 @@ public class Driver implements Releasable, Describable {
         if (started.compareAndSet(false, true)) {
             drainAndCloseOperators(reason);
             try {
-                // Unlike the failure of a running driver, this does not wait for asynchronous actions, as abort never did:
-                // operators with off-driver work are read again now, not after it.
+                // Unlike the failure of a running driver, abort does not wait for asynchronous actions: operators with
+                // off-driver work are read again now, not after it.
                 publishFinalStatus();
             } finally {
                 completionListener.onFailure(reason);

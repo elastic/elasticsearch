@@ -2342,8 +2342,9 @@ public class ComputeService {
 
     /**
      * What the drivers did before the compute failed or was cancelled. Every driver has finished by now, a failed one
-     * with the status of the operators it closed, so the usage adds up the same way as for a successful compute.
-     * Best effort: the failure of the compute is what matters, so a usage that cannot be read is reported as nothing.
+     * with the status of the operators it closed, so the usage adds up the same way as for a successful compute, which
+     * {@link DriverCompletionInfo#excludingProfiles} asserts. If reading it throws, the failure of the compute is what matters, so
+     * the usage of all the drivers is reported as nothing.
      */
     private static DriverCompletionInfo usageOfFailedDrivers(List<Driver> drivers, long planningBytesRead, boolean approximated) {
         try {

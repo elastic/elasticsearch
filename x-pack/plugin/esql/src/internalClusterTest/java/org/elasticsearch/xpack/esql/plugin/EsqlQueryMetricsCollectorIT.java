@@ -121,6 +121,15 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assumeTrue("requires local filesystem feature flag", HttpDataSourcePlugin.ESQL_EXTERNAL_DATASOURCES_LOCAL_FEATURE_FLAG.isEnabled());
     }
 
+    /**
+     * The collectors are loaded by every integration test that loads the metrics collectors, which run in the same JVM, so queries of
+     * another test can leave their calls here: start from nothing, not only end with nothing.
+     */
+    @Before
+    protected void resetCollectors() {
+        clearLastMetrics();
+    }
+
     @After
     protected void clearLastMetrics() {
         lastMetrics = null;

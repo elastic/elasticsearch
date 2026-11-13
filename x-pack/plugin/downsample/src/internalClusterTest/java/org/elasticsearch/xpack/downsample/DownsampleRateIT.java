@@ -408,7 +408,8 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     private static void createIndex() {
         CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
         request.settings(
-            randomBatchIndexing(Settings.builder()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "metricset")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), START_TIME)
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), END_TIME)
@@ -425,7 +426,8 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
             }""";
         CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
         request.settings(
-            randomBatchIndexing(Settings.builder()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "metricset,temporality")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), START_TIME)
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), END_TIME)
@@ -523,7 +525,8 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
             }""";
         CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME);
         request.settings(
-            randomBatchIndexing(Settings.builder()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "metricset,temporality")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), START_TIME)
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), END_TIME)

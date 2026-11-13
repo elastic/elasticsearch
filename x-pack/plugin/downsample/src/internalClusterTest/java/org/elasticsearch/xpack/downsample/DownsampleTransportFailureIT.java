@@ -180,7 +180,8 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
 
     @Override
     public Settings indexSettings() {
-        return randomBatchIndexing(Settings.builder()).put(super.indexSettings())
+        return Settings.builder()
+            .put(super.indexSettings())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)

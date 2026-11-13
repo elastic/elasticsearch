@@ -475,7 +475,6 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
             .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false)
             .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
-        randomBatchIndexing(indexSettings);
 
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()

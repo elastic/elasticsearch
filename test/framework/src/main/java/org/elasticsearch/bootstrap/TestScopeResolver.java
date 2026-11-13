@@ -85,7 +85,6 @@ public final class TestScopeResolver {
             }
         }
         if (scope == null) {
-            logger.warn("Cannot identify a scope for class [{}], location [{}]", callerClass.getName(), location);
             return PolicyScope.unknown(location);
         }
         return scope;

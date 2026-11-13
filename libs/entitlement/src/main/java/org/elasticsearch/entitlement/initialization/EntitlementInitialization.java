@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
+import org.elasticsearch.entitlement.runtime.delegation.DelegationHolder;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
@@ -154,8 +155,18 @@ public class EntitlementInitialization {
         }
     }
 
+    /**
+     * Every entitlement check reads the {@link DelegationHolder}. Loading that class performs instrumented operations, such as
+     * reading the jar that contains it; if it were loaded from within a check, those operations would be checked too, and
+     * would load it again, recursively. Load and initialize it before instrumentation is wired up.
+     */
+    private static void preloadDelegationHolder() {
+        DelegationHolder.current();
+    }
+
     static void initInstrumentation(Instrumentation instrumentation) throws Exception {
         preloadProtectionDomainSupport();
+        preloadDelegationHolder();
 
         var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
         if (verifyBytecode) {

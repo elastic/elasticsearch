@@ -53,6 +53,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.entitlement.runtime.api.EntitlementDelegation;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
@@ -82,6 +83,11 @@ import static java.util.Map.entry;
 public class Analysis {
 
     private static final Logger logger = LogManager.getLogger(Analysis.class);
+
+    /**
+     * Reads word lists and other analysis files with the entitlements of the code that asks for them, such as an analysis plugin.
+     */
+    private static final EntitlementDelegation DELEGATION = EntitlementDelegation.asCaller();
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {
         String value = settings.get("stem_exclusion");
@@ -442,19 +448,21 @@ public class Analysis {
     }
 
     private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {
-        final List<String> result = new ArrayList<>();
-        try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            String word;
-            while ((word = br.readLine()) != null) {
-                if (Strings.hasText(word) == false) {
-                    continue;
-                }
-                if (removeComments == false || word.startsWith("#") == false) {
-                    result.add(word.trim());
+        return DELEGATION.call(() -> {
+            final List<String> result = new ArrayList<>();
+            try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+                String word;
+                while ((word = br.readLine()) != null) {
+                    if (Strings.hasText(word) == false) {
+                        continue;
+                    }
+                    if (removeComments == false || word.startsWith("#") == false) {
+                        result.add(word.trim());
+                    }
                 }
             }
-        }
-        return result;
+            return result;
+        });
     }
 
     /**
@@ -463,30 +471,32 @@ public class Analysis {
      *          If the Reader can not be instantiated.
      */
     public static Reader getReaderFromFile(Environment env, String filePath, String settingPrefix) {
-        if (filePath == null) {
-            return null;
-        }
-        final Path path = env.configDir().resolve(filePath);
-        try {
-            return Files.newBufferedReader(path, StandardCharsets.UTF_8);
-        } catch (CharacterCodingException ex) {
-            String message = String.format(
-                Locale.ROOT,
-                "Unsupported character encoding detected while reading %s_path: %s files must be UTF-8 encoded",
-                settingPrefix,
-                path.toString()
-            );
-            throw new IllegalArgumentException(message, ex);
-        } catch (IOException ioe) {
-            if (isNotEntitled(ioe)) {
-                throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "Access denied trying to read file %s_path: %s", settingPrefix, path.toString()),
-                    ioe
-                );
+        return DELEGATION.call(() -> {
+            if (filePath == null) {
+                return null;
             }
-            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
-            throw new IllegalArgumentException(message, ioe);
-        }
+            final Path path = env.configDir().resolve(filePath);
+            try {
+                return Files.newBufferedReader(path, StandardCharsets.UTF_8);
+            } catch (CharacterCodingException ex) {
+                String message = String.format(
+                    Locale.ROOT,
+                    "Unsupported character encoding detected while reading %s_path: %s files must be UTF-8 encoded",
+                    settingPrefix,
+                    path.toString()
+                );
+                throw new IllegalArgumentException(message, ex);
+            } catch (IOException ioe) {
+                if (isNotEntitled(ioe)) {
+                    throw new IllegalArgumentException(
+                        String.format(Locale.ROOT, "Access denied trying to read file %s_path: %s", settingPrefix, path.toString()),
+                        ioe
+                    );
+                }
+                String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
+                throw new IllegalArgumentException(message, ioe);
+            }
+        });
     }
 
     public static Reader getReaderFromIndex(

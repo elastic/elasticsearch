@@ -75,6 +75,19 @@ In any case, before adding a `server` entitlement or make any change to the serv
 
 Finally, there are some actions that are always denied; these actions do not have an associated entitlement, they are blocked with no option to allow them via a policy. Examples are: spawning a new process, manipulating files via file descriptors, starting a HTTP server, changing the locale, timezone, in/out/err streams, the default exception handler, etc.
 
+### Server code that works for a plugin
+
+An entitlement check uses the entitlements of the class that calls the instrumented method. So when a plugin calls a server utility that reads a file, the check uses the entitlements of `server`, not those of the plugin: the plugin can be denied a path it is entitled to, such as one of its exclusive paths, and it can read a path that only `server` should read.
+
+Server code can make its checks use the entitlements of the plugin instead, with `EntitlementDelegation`:
+- `EntitlementDelegation.asCaller()`, when the work happens during the plugin's call: the checks use the entitlements of the class that called the server code. Keep it in a `private static final` field. `Analysis` is an example.
+- `EntitlementDelegation.asCreator()`, when the work continues after the plugin's call returns, for example on a background thread: the checks use the entitlements of the class that created the instance. Keep it in an instance field. `FileWatcher` is an example.
+  - The creator is the first class on the stack outside the delegating class when the instance is constructed: typically, this is the class calling the constructor. Beware of subclasses: when a subclass declared outside the delegating class is constructed, its own constructor is that first frame, so the subclass will appear as the creator. Avoid using this mechanism with complex class hierarchies.
+
+Only classes in the server layer can delegate. The "server layer" consist of the modules of the boot layer outside the trusted JDK modules (i.e. server, its libraries and their dependencies, plus `java.desktop` and `java.xml`). In production, `EntitlementDelegation` is exported only to the server module.
+
+In both cases, wrap sensitive operations in `delegation.call(() -> { ... })`.
+
 ## Tips
 
 ### What to do when you have a NotEntitledException

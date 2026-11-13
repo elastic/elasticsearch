@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
-import org.elasticsearch.xpack.security.EntitledFileWatcher;
 import org.elasticsearch.xpack.security.authz.FileRoleValidator;
 
 import java.io.IOException;
@@ -111,7 +110,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         }
         this.licenseState = licenseState;
         this.xContentRegistry = xContentRegistry;
-        FileWatcher watcher = new EntitledFileWatcher(file.getParent());
+        FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
         permissions = parseFile(file, logger, settings, licenseState, xContentRegistry, roleValidator);

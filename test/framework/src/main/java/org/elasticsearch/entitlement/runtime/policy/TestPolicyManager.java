@@ -11,6 +11,8 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.bootstrap.TestScopeResolver;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.URI;
@@ -27,6 +29,7 @@ import java.util.function.Function;
 import static java.util.Objects.requireNonNull;
 
 public class TestPolicyManager extends PolicyManager {
+    private static final Logger logger = LogManager.getLogger(TestPolicyManager.class);
 
     boolean isActive;
     boolean isTriviallyAllowingTestCode;
@@ -39,6 +42,13 @@ public class TestPolicyManager extends PolicyManager {
     final Map<Class<?>, ModuleEntitlements> classEntitlementsMap = new ConcurrentHashMap<>();
     final Collection<Path> classpath;
     final Collection<URI> testOnlyClasspath;
+
+    private final ClassValue<Boolean> canDelegateCache = new ClassValue<>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            return isTrustedSystemClass(type) == false && resolveScope(type).kind() == ComponentKind.SERVER;
+        }
+    };
 
     public TestPolicyManager(
         Policy serverPolicy,
@@ -137,9 +147,18 @@ public class TestPolicyManager extends PolicyManager {
         return classpath; // required to grant read access to the production source and test resources
     }
 
-    private boolean isEntitlementClass(Class<?> requestingClass) {
+    @Override
+    protected boolean isEntitlementClass(Class<?> requestingClass) {
         return requestingClass.getPackageName().startsWith("org.elasticsearch.entitlement")
             && (requestingClass.getName().contains("Test") == false);
+    }
+
+    /**
+     * Without modules, server classes are identified by their scope instead of the server layer.
+     */
+    @Override
+    protected boolean canDelegate(Class<?> type) {
+        return canDelegateCache.get(type);
     }
 
     private boolean isTestFrameworkClass(Class<?> requestingClass) {
@@ -233,6 +252,13 @@ public class TestPolicyManager extends PolicyManager {
 
     @Override
     protected ModuleEntitlements getEntitlements(Class<?> requestingClass) {
-        return classEntitlementsMap.computeIfAbsent(requestingClass, this::computeEntitlements);
+        return classEntitlementsMap.computeIfAbsent(requestingClass, c -> {
+            ModuleEntitlements entitlements = computeEntitlements(c);
+            if (entitlements.componentName().equals(ComponentKind.UNKNOWN.componentName)) {
+                // the test build info does not cover the location of this class, so it gets default entitlements
+                logger.warn("Cannot identify a scope for class [{}], location [{}]", c.getName(), entitlements.moduleName());
+            }
+            return entitlements;
+        });
     }
 }

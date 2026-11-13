@@ -150,6 +150,13 @@ public final class SearchFeatures implements FeatureSpecification {
      */
     public static final NodeFeature KNN_FILTER_NESTED_LEVELS = new NodeFeature("search.vectors.knn_filter_nested_levels");
 
+    /**
+     * Test-only gate for REST tests sorting on a field that is mapped in some of the searched indices only, with an
+     * {@code unmapped_type} that differs from the mapped type. Older nodes fail the search with an incompatible sort types error
+     * even though no doc of the indices that don't map the field can have a value for it.
+     */
+    public static final NodeFeature SORT_UNMAPPED_TYPE_PLACEHOLDER_MERGE = new NodeFeature("search.sort.unmapped_type_placeholder_merge");
+
     @Override
     public Set<NodeFeature> getTestFeatures() {
         Set<NodeFeature> features = new HashSet<>(
@@ -193,6 +200,7 @@ public final class SearchFeatures implements FeatureSpecification {
                 KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE,
                 KNN_FILTER_NESTED_LEVELS,
                 PROFILE_RESCORE,
+                SORT_UNMAPPED_TYPE_PLACEHOLDER_MERGE,
                 RECENT_SEARCH_WAITING
             )
         );

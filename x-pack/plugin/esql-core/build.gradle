@@ -7,7 +7,10 @@ esplugin {
   name = 'x-pack-esql-core'
   description = 'Elasticsearch infrastructure plugin for ESQL'
   classname = 'org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin'
-  extendedPlugins = ['x-pack-core']
+  // mapper-version is extended (not bundled) so its classes have a single identity shared with any other
+  // module that also uses mapper-version (e.g. x-pack-ql). This avoids jar hell when a plugin's classloader
+  // chain reaches both esql-core and ql (e.g. the ESQL EQL command, where esql extends both esql-core and eql->ql).
+  extendedPlugins = ['x-pack-core', 'mapper-version']
 }
 
 base {
@@ -15,8 +18,11 @@ base {
 }
 
 dependencies {
-  api project(path: xpackModule('mapper-version'))
+  // Provided by the extended 'mapper-version' module at runtime (see esplugin.extendedPlugins); compileOnly
+  // here so esql-core does not bundle its own copy and duplicate mapper-version across the distribution.
+  compileOnly project(path: xpackModule('mapper-version'))
   api "org.locationtech.jts:jts-core:${versions.jts}"
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('mapper-version'))
 }

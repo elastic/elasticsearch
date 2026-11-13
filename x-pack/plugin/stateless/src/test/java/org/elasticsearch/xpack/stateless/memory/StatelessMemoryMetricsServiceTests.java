@@ -63,6 +63,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.elasticsearch.xpack.stateless.memory.ShardHeapEstimator.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService.estimateIndexMetadataHeapBytes;
 import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.computeShardHeapEstimate;
@@ -166,6 +167,58 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             assertThat(shardHeapUsages.get(shardId2).shardHeapUsageBytes(), equalTo(estimate.shardHeapUsageBytes()));
             assertThat(shardHeapUsages.get(shardId2).indexHeapUsageBytes(), equalTo(estimate.indexHeapUsageBytes()));
         }
+    }
+
+    /**
+     * Tests that the shard heap usage returned to the allocation decider
+     * ({@link StatelessMemoryMetricsService#getShardHeapUsageEstimates()}) is the plain adaptive estimate.
+     * The adaptive minimum threshold is an autoscaling floor only and must not affect per-shard allocation decisions.
+     * {@link StatelessMemoryMetricsService#aggregateShardMetrics} (since it's used by autoscaling) should still apply this floor.
+     */
+    public void testShardHeapUsageForAllocationDeciderIsNotInflatedByAdaptiveFloorEstimate() {
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), "-1b")
+                .put(StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), "0%")
+                .put(StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING.getKey(), true)
+                .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 1_000)
+                .build()
+        );
+
+        // Firstly, a sanity check that the autoscaling floor is greater than the default adaptive overhead
+        long adaptiveOverhead = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes();
+        long floor = service.getAdaptiveShardMemoryEstimationMinThreshold();
+        assertThat(floor, greaterThan(adaptiveOverhead));
+
+        // This creates a shard with no segments, fields, postings, live-docs, or points.
+        // The adaptive estimate should be just ADAPTIVE_SHARD_MEMORY_OVERHEAD (75 KB), well below the autoscaling floor.
+        var emptyShardMetrics = new StatelessMemoryMetricsService.ShardMemoryMetrics(
+            0L,
+            0,
+            0,
+            0L,
+            0L,
+            0L,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            0L,
+            MetricQuality.EXACT,
+            "node-0",
+            System.nanoTime()
+        );
+        var shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), 0);
+        service.getShardMemoryMetrics().put(shardId, emptyShardMetrics);
+
+        var shardHeapUsages = service.getShardHeapUsageEstimates();
+        assertThat(shardHeapUsages.perShard().get(shardId).shardHeapUsageBytes(), equalTo(adaptiveOverhead));
+        assertThat(shardHeapUsages.defaultForShardsWithoutMetrics().shardHeapUsageBytesExcludingPostings(), equalTo(adaptiveOverhead));
+        assertThat(computeShardHeapEstimate(service, emptyShardMetrics).shardHeapUsageBytesExcludingPostings(), equalTo(adaptiveOverhead));
+
+        // Now check that the autoscaling estimates are inflated
+        var tierAggregate = service.aggregateShardMetrics(
+            StatelessMemoryMetricsService.PostingsInEstimate.EXCLUDE,
+            StatelessMemoryMetricsService.SelfReportedShardOverhead.DISABLE
+        );
+        assertThat(tierAggregate.totalShardHeapInBytes(), equalTo(floor));
     }
 
     public void testShardHeapUsageIncludesPointsMemory() {
@@ -713,7 +766,8 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     }
 
     /**
-     * Same parity with every shard sitting at the adaptive per-shard floor, as they do for projects with many small indices.
+     * Same parity when the autoscaling floor is enabled and every shard's adaptive estimate is below that floor.
+     * Neither the master's per-node estimate nor the recovery-gate self-estimate may be raised to the floor.
      */
     public void testEstimateNodeHeapUsageMatchesMasterPerNodeEstimateAtAdaptiveMinThreshold() {
         runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(true, true);
@@ -738,7 +792,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final Map<ShardId, ShardMappingSize> shardMappingSizes = randomMemoryMetrics(
             node0,
             clusterState,
-            // Few segments keep each shard's adaptive estimate below the floor
+            // Few segments keep each shard's adaptive estimate below the autoscaling floor
             shardsAtAdaptiveMinThreshold ? 10 : 1_000
         );
         service.updateShardsMappingSize(new HeapMemoryUsage(1, shardMappingSizes));
@@ -746,9 +800,9 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final NodeHeapEstimates masterEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
         if (shardsAtAdaptiveMinThreshold) {
             assertThat(
-                "shards should be small enough to sit at the adaptive floor",
+                "allocation estimates must not be inflated to the adaptive floor",
                 masterEstimate.hostedShardsHeapUsage(),
-                greaterThanOrEqualTo(shardMappingSizes.size() * service.getAdaptiveShardMemoryEstimationMinThreshold())
+                lessThan(shardMappingSizes.size() * service.getAdaptiveShardMemoryEstimationMinThreshold())
             );
         }
 

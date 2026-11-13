@@ -90,6 +90,33 @@ public class EscfColumnSliceTests extends ESTestCase {
         assertEquals(3.3, reparsed.getDoubleValue(1), 0.0);
     }
 
+    public void testDoubleSliceKeepsLexicalForms() {
+        // 4 docs: [1.10, 2.2, 3.30, absent]; slice [1, 4) → [2.2, 3.30, absent]
+        var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
+        b.addDouble(1.1, lexicalForm("1.10"));
+        b.addDouble(2.2);
+        b.addDouble(3.3, lexicalForm("3.30"));
+        b.addAbsent();
+        EscfColumn col = EscfColumn.from(b.finish(4));
+        EscfColumn slice = col.sliceInternal(1, 3);
+
+        assertEquals(3, slice.docCount);
+        assertEquals(SourceValueType.DOUBLE, slice.getTypeByte(0));
+        assertEquals(2.2, slice.getDoubleValue(0), 0.0);
+        assertEquals(SourceValueType.DOUBLE, slice.getTypeByte(1));
+        assertEquals(3.3, slice.getDoubleValue(1), 0.0);
+        assertEquals("3.30", slice.getStringValue(1).string());
+        assertTrue(slice.isAbsent(2));
+
+        EscfColumnData sliceData = slice.toColumnData();
+        assertEquals(EscfColumnKind.DOUBLE, sliceData.kind());
+        assertNotNull(sliceData.lexicalForms());
+        EscfColumn reparsed = EscfColumn.from(sliceData);
+        assertEquals(SourceValueType.DOUBLE, reparsed.getTypeByte(0));
+        assertEquals("3.30", reparsed.getStringValue(1).string());
+        assertTrue(reparsed.isAbsent(2));
+    }
+
     public void testStringSliceReadsAndRoundTrip() {
         // 4 docs: ["hello", "world", absent, "bar"]; slice [1, 4) → ["world", absent, "bar"]
         var b = new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT);
@@ -354,5 +381,10 @@ public class EscfColumnSliceTests extends ESTestCase {
         for (int i = 0; i < expected.length; i++) {
             assertEquals("byte[" + i + "]", expected[i], ref.bytes[ref.offset + i]);
         }
+    }
+
+    private static XContentString.UTF8Bytes lexicalForm(String spelling) {
+        byte[] bytes = spelling.getBytes(StandardCharsets.UTF_8);
+        return new XContentString.UTF8Bytes(bytes, 0, bytes.length);
     }
 }

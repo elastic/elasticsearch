@@ -108,21 +108,49 @@ public class FieldNameUtils {
     }
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
+        PreAnalysisResult result = collectFieldNames(parsed, hasEnriches, includePrefixFields);
+        var nested = new boolean[1];
+        // NESTED_JSON and NESTED_EXPAND read every child field of the collection they name.
+        Set<String> collections = new HashSet<>();
+        parsed.forEachExpressionDown(UnresolvedFunction.class, f -> {
+            String name = f.name().toLowerCase(Locale.ROOT);
+            if (NESTED_FUNCTIONS.contains(name)) {
+                nested[0] = true;
+                if (name.equals("nested_json") && f.children().getFirst() instanceof UnresolvedAttribute collection) {
+                    collections.add(collection.name());
+                }
+            }
+        });
+        parsed.forEachDown(NestedExpand.class, expand -> {
+            nested[0] = true;
+            collections.add(expand.target().name());
+        });
+        if (nested[0] == false) {
+            return result;
+        }
+        Set<String> fieldNames = new HashSet<>(result.fieldNames());
+        fieldNames.add(NestedScopeField.REQUEST_MARKER);
+        if (result.fieldNames().contains(WILDCARD) == false) {
+            // Field caps reports the nested path of a field on one of its parents.
+            for (String name : result.fieldNames()) {
+                fieldNames.addAll(parentPrefixes(name));
+            }
+            for (String collection : collections) {
+                fieldNames.add(collection);
+                fieldNames.addAll(parentPrefixes(collection));
+                fieldNames.add(collection + ".*");
+            }
+        }
+        return new PreAnalysisResult(fieldNames, result.parentPaths(), result.wildcardJoinIndices());
+    }
+
+    private static PreAnalysisResult collectFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // The EQL command's output is the whole mapping: its query references fields the ES|QL field-name walk
         // cannot see, and a narrow set risks a zero-column schema for `EQL x "q" | STATS COUNT(*)`, so resolve all
         // fields. A future field-name-narrowing pass could tighten this once the walk understands EQL queries.
         if (parsed.anyMatch(UnresolvedEqlRelation.class::isInstance)) {
             return new PreAnalysisResult(IndexResolver.ALL_FIELDS, Set.of());
-        }
-        var nested = new boolean[1];
-        parsed.forEachExpressionDown(UnresolvedFunction.class, f -> {
-            if (NESTED_FUNCTIONS.contains(f.name().toLowerCase(Locale.ROOT))) {
-                nested[0] = true;
-            }
-        });
-        if (nested[0] || parsed.anyMatch(NestedExpand.class::isInstance)) {
-            return new PreAnalysisResult(Set.of("*", NestedScopeField.REQUEST_MARKER), Set.of());
         }
 
         // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy

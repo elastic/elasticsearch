@@ -1151,7 +1151,7 @@ public class IndexResolver {
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices(Strings.commaDelimitedListToStringArray(index));
         boolean nestedScope = fieldNames.contains(NestedScopeField.REQUEST_MARKER);
-        request.fields(nestedScope ? new String[] { "*" } : fieldNames.toArray(String[]::new));
+        request.fields(fieldNames.stream().filter(name -> name.equals(NestedScopeField.REQUEST_MARKER) == false).toArray(String[]::new));
         request.includeUnmapped(true);
         request.indexFilter(requestFilter);
         request.returnLocalAll(false);

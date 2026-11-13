@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
@@ -414,7 +415,25 @@ public final class DatasetRewriter {
             throw new VerificationException("Unknown index [" + resolution.explicitUnauthorized().iterator().next() + "]");
         }
 
-        List<String> datasetNames = new ArrayList<>(resolution.resolvedExternalDatasets());
+        // A disabled dataset (or one whose data source is disabled) is refused when the FROM names it, and skipped when only a
+        // wildcard reaches it: an admin switch should not break every query whose pattern happens to cover the dataset, the way
+        // a closed index is skipped by a wildcard but refused by name.
+        Set<String> namedInRelation = exactNames(patternsOf(relation));
+        List<String> datasetNames = new ArrayList<>();
+        List<String> skippedDisabled = new ArrayList<>();
+        for (String name : resolution.resolvedExternalDatasets()) {
+            String disabled = disabledMessage(name, datasets, dataSources);
+            if (disabled == null) {
+                datasetNames.add(name);
+            } else if (namedInRelation.contains(name)) {
+                throw new VerificationException(disabled);
+            } else {
+                skippedDisabled.add(name);
+            }
+        }
+        if (skippedDisabled.isEmpty() == false) {
+            HeaderWarning.addWarning("a wildcard in FROM skipped the disabled datasets {}", skippedDisabled);
+        }
 
         if (datasetNames.isEmpty()) {
             // Nothing resolved here: the relation flows through to index resolution unchanged. Note this
@@ -619,6 +638,23 @@ public final class DatasetRewriter {
         return hasPositiveWildcard ? preserved : List.of();
     }
 
+    /**
+     * Why {@code name} cannot be read because an admin disabled it or its data source, or {@code null} when it can. A
+     * dataset whose data source is not registered is not disabled: {@link #buildDatasetBranch} reports that state.
+     */
+    private static String disabledMessage(String name, DatasetMetadata datasets, DataSourceMetadata dataSources) {
+        Dataset dataset = datasets.get(name);
+        if (dataset.enabled() == false) {
+            return "dataset [" + name + "] is disabled";
+        }
+        DataSource parent = dataSources.get(dataset.dataSource().getName());
+        if (parent != null && parent.enabled() == false) {
+            // Does not name the data source: querying a dataset needs read on the dataset only, not on its data source.
+            return "dataset [" + name + "] is disabled because its data source is disabled";
+        }
+        return null;
+    }
+
     private static LogicalPlan buildDatasetBranch(
         String name,
         DatasetMetadata datasets,
@@ -627,9 +663,6 @@ public final class DatasetRewriter {
         List<NamedExpression> metadataFields
     ) {
         Dataset dataset = datasets.get(name);
-        if (dataset.enabled() == false) {
-            throw new VerificationException("dataset [" + name + "] is disabled");
-        }
         DataSource parent = dataSources.get(dataset.dataSource().getName());
         // DataSourceService.deleteDataSources rejects (409) on orphans, so a null parent here
         // means a broken-invariant state (e.g. corrupt cluster-state restore) — throw with context.
@@ -637,9 +670,6 @@ public final class DatasetRewriter {
             throw new IllegalStateException(
                 "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
             );
-        }
-        if (parent.enabled() == false) {
-            throw new VerificationException("data source [" + parent.name() + "] referenced by dataset [" + name + "] is disabled");
         }
         Literal path = Literal.keyword(source, dataset.resource());
         return new UnresolvedExternalRelation(source, path, datasetConfig(parent, dataset), metadataFields, name, dataset.mapping());

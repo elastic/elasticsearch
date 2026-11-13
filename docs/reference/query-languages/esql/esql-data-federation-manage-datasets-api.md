@@ -20,8 +20,8 @@ Datasets are managed under the `/_query/dataset` endpoint. All dataset operation
 | [Create or update](#create-or-update-a-dataset) | `PUT /_query/dataset/{name}` | [Create or update an ES\|QL dataset]({{es-apis}}operation/operation-esql-put-dataset) |
 | [Get](#get-a-dataset) | `GET /_query/dataset/{name}` | [Get ES\|QL datasets]({{es-apis}}operation/operation-esql-get-dataset) |
 | [List all](#list-all-datasets) | `GET /_query/dataset` | [Get ES\|QL datasets]({{es-apis}}operation/operation-esql-get-dataset) |
-| [Enable](#enable-or-disable-a-dataset) | `POST /_query/dataset/{name}/_enable` | Enable an ES\|QL dataset |
-| [Disable](#enable-or-disable-a-dataset) | `POST /_query/dataset/{name}/_disable` | Disable an ES\|QL dataset |
+| [Enable](#enable-or-disable-a-dataset) {applies_to}`stack: preview 9.7+` | `POST /_query/dataset/{name}/_enable` | Enable an ES\|QL dataset |
+| [Disable](#enable-or-disable-a-dataset) {applies_to}`stack: preview 9.7+` | `POST /_query/dataset/{name}/_disable` | Disable an ES\|QL dataset |
 | [Delete](#delete-a-dataset) | `DELETE /_query/dataset/{name}` | [Delete ES\|QL datasets]({{es-apis}}operation/operation-esql-delete-dataset) |
 
 This page is a quick reference for each operation. For the complete request and response details, follow the API reference links in the table.
@@ -138,7 +138,16 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/dataset" \
 
 ## Enable or disable a dataset
 
-Admin cost control: disable a dataset to stop `FROM` queries against it, then re-enable after investigation. Requires `manage_dataset`, `manage`, or `all` on the dataset name. GET responses include an `enabled` field. Create defaults to enabled; replace preserves the current flag.
+{applies_to}`stack: preview 9.7+` Disable a dataset to stop queries from reading it, for example to control cost, then re-enable it after investigation. Requires `manage_dataset`, `manage`, or `all` on the dataset name. GET responses include an `enabled` field. Creating a dataset enables it, and replacing a dataset keeps its current state.
+
+A disabled dataset behaves as follows:
+
+* A query that names the dataset in `FROM` fails with a `400` error.
+* A `FROM` wildcard that matches the dataset, when the `wildcards_match_datasets` query setting is on, skips it and returns a warning. The rest of the query runs.
+* A query that is already running may finish, or fail if the node that reads the dataset starts after you disable it.
+* You can still get, list, and replace the dataset.
+
+Enabling and disabling are refused until every node in the cluster supports them, for example during a rolling upgrade. Both actions are recorded in the [audit log](esql-data-federation-manage-datasets.md#audit-logging). Enabling or disabling a dataset that is already in that state succeeds and changes nothing.
 
 ```console
 POST /_query/dataset/access_logs/_disable

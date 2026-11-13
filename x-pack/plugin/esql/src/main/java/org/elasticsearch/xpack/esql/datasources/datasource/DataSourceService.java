@@ -280,7 +280,7 @@ public class DataSourceService {
                     validated.type(),
                     validated.description(),
                     merged,
-                    current == null ? true : current.enabled()
+                    validated.enabled()
                 );
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
                 updated.put(stored.name(), stored);
@@ -536,6 +536,16 @@ public class DataSourceService {
         boolean enabled,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        // A node that predates the enabled flag reads every resource as enabled, so a query it coordinates would ignore the
+        // disable while this call reported success. Refuse until every node knows the flag.
+        if (clusterService.state().getMinTransportVersion().supports(DataSource.ESQL_DATASOURCE_DATASET_ENABLED) == false) {
+            IllegalArgumentException e = new IllegalArgumentException(
+                "cannot enable or disable data sources until all nodes in the cluster are upgraded to a version that supports it"
+            );
+            recordRejected(null, e);
+            listener.onFailure(e);
+            return;
+        }
         final ProjectMetadata projectMetadata = clusterService.state().metadata().getProject(projectId);
         final DataSourceMetadata metadata = getMetadata(projectMetadata);
         final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();

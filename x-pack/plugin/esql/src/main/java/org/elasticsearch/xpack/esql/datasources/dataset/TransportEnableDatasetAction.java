@@ -63,6 +63,9 @@ public class TransportEnableDatasetAction extends AcknowledgedTransportMasterNod
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        // Resolve to datasets only: `resolveDatasets` is additive, so a wildcard expands across the whole
+        // namespace; index names must not reach the registry. Explicit names must still resolve to datasets;
+        // missing, hidden, or co-resident foreign resources are reported as not-found.
         final DatasetResolutionService.DatasetResolutionResult result;
         try {
             result = datasetResolutionService.resolveDatasets(

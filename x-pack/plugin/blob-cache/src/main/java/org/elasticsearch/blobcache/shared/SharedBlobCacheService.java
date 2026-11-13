@@ -1448,21 +1448,28 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             try {
                 incRefEnsureOpen();
                 try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
-                    final SubscribableListener<Void> rangeAvailable = awaitPendingFill ? new SubscribableListener<>() : null;
-                    ActionListener<Void> trackerListener = rangeAvailable != null ? rangeAvailable : ActionListener.noop();
+                    ActionListener<Void> wholeRangeAvailableListener;
+                    final ActionListener<Boolean> anythingFetchedListener;
+                    if (awaitPendingFill) {
+                        final var wholeRangeAvailable = new SubscribableListener<Void>();
+                        wholeRangeAvailableListener = wholeRangeAvailable;
+                        anythingFetchedListener = delayResponseUntil(wholeRangeAvailable, listener);
+                    } else {
+                        wholeRangeAvailableListener = ActionListener.noop();
+                        anythingFetchedListener = listener;
+                    }
                     if (Assertions.ENABLED) {
-                        trackerListener = ActionListener.runBefore(
-                            trackerListener,
-                            () -> { assert blobCacheService.regionOwners.get(nonVolatileIO()) == this; }
-                        );
+                        wholeRangeAvailableListener = ActionListener.runBefore(wholeRangeAvailableListener, () -> {
+                            assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
+                        });
                     }
                     final var gapsOpt = tracker.waitForRange(
                         rangeToWrite,
                         rangeToWrite,
-                        ActionListener.releaseAfter(trackerListener, refs.acquire())
+                        ActionListener.releaseAfter(wholeRangeAvailableListener, refs.acquire())
                     );
                     if (gapsOpt.isEmpty()) {
-                        completePopulateWithFetchedBoolean(rangeAvailable, listener, false);
+                        anythingFetchedListener.onResponse(false);
                         return;
                     }
                     executor.execute(new AbstractRunnable() {
@@ -1472,7 +1479,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         protected void doRun() {
                             final List<SparseFileTracker.Gap> gaps = gapsOpt.get().claim();
                             if (gaps.isEmpty()) {
-                                completePopulateWithFetchedBoolean(rangeAvailable, listener, false);
+                                anythingFetchedListener.onResponse(false);
                                 return;
                             }
                             final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
@@ -1483,12 +1490,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     streamFactory == null ? "without" : "with"
                                 )
                             );
-                            final ActionListener<Void> ownGapsDoneListener = listener.delegateFailure(
-                                (l, unused) -> completePopulateWithFetchedBoolean(rangeAvailable, l, true)
-                            );
                             final ActionListener<Void> gapsDoneListener = streamFactory != null
-                                ? ActionListener.releaseBefore(streamFactory, ownGapsDoneListener)
-                                : ownGapsDoneListener;
+                                ? ActionListener.releaseBefore(streamFactory, anythingFetchedListener.map(unused -> true))
+                                : anythingFetchedListener.map(unused -> true);
                             try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
                                 // Use current thread to fill the gaps in order
                                 for (SparseFileTracker.Gap gap : gaps) {
@@ -1504,7 +1508,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
                         @Override
                         public void onFailure(Exception e) {
-                            listener.onFailure(e);
+                            anythingFetchedListener.onFailure(e);
                         }
 
                         @Override
@@ -1518,16 +1522,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
         }
 
-        private static void completePopulateWithFetchedBoolean(
-            @Nullable SubscribableListener<Void> rangeAvailable,
-            ActionListener<Boolean> listener,
-            boolean fetched
-        ) {
-            if (rangeAvailable == null) {
-                listener.onResponse(fetched);
-            } else {
-                rangeAvailable.addListener(listener.map(ignored -> fetched));
-            }
+        private static <T> ActionListener<T> delayResponseUntil(SubscribableListener<Void> condition, ActionListener<T> listener) {
+            return listener.delegateFailureAndWrap((l, response) -> condition.addListener(l.map(ignored -> response)));
         }
 
         void populateAndRead(

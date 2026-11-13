@@ -68,6 +68,32 @@ public class NativeMemoryCalculatorTests extends ESTestCase {
         USE_AUTO_MACHINE_MEMORY_PERCENT
     );
 
+    /**
+     * Pins the ML native memory offered by the node sizes used in serverless (xpack.ml.use_auto_machine_memory_percent=true).
+     * The elasticsearch-controller declares these capacities as {@code modelMemory} of the ML scaling steps in
+     * {@code helm/values.yaml}. If this test fails, update that file too: a step that claims more than the node offers makes
+     * the autoscaler pick a node size on which a job cannot be placed (elastic/elasticsearch-controller#2218), while a step that
+     * claims less only wastes memory.
+     */
+    public void testServerlessNodeSizesNativeMemoryCapacity() {
+        assertThat(
+            NativeMemoryCalculator.allowedBytesForMl(ByteSizeValue.ofGb(4).getBytes(), 30, true),
+            equalTo(ByteSizeValue.ofMb(2260).getBytes())
+        );
+        assertThat(
+            NativeMemoryCalculator.allowedBytesForMl(ByteSizeValue.ofGb(8).getBytes(), 30, true),
+            equalTo(ByteSizeValue.ofMb(4716).getBytes())
+        );
+        assertThat(
+            NativeMemoryCalculator.allowedBytesForMl(ByteSizeValue.ofGb(16).getBytes(), 30, true),
+            equalTo(ByteSizeValue.ofMb(9632).getBytes())
+        );
+        assertThat(
+            NativeMemoryCalculator.allowedBytesForMl(ByteSizeValue.ofGb(32).getBytes(), 30, true),
+            equalTo(ByteSizeValue.ofMb(24376).getBytes())
+        );
+    }
+
     public void testAllowedBytesForMLWhenAutoIsFalse() {
         for (int i = 0; i < NUM_TEST_RUNS; i++) {
             long nodeSize = randomLongBetween(ByteSizeValue.ofMb(500).getBytes(), ByteSizeValue.ofGb(64).getBytes());

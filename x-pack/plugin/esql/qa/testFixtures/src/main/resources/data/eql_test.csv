@@ -1,0 +1,5 @@
+@timestamp:date,ingested:date,category:keyword,name:keyword,pid:long
+2026-07-22T10:00:00.000Z,2026-07-22T12:00:00.000Z,process,cmd.exe,100
+2026-07-22T10:00:01.000Z,2026-07-22T12:00:01.000Z,network,,100
+2026-07-22T10:00:02.000Z,2026-07-22T12:00:02.000Z,process,powershell.exe,200
+2026-07-22T10:00:03.000Z,2026-07-22T12:00:03.000Z,network,,200

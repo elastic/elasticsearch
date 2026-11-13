@@ -15,6 +15,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.DateTimeException;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -71,6 +72,54 @@ public class DateFormatTests extends ESTestCase {
         int year = ZonedDateTime.now(ZoneOffset.UTC).getYear();
         ZonedDateTime dateTime = javaFunction.apply("12/06");
         assertThat(dateTime.getYear(), is(year));
+    }
+
+    /**
+     * A format without a year goes through a separate code path that fills in the current year. The offset parsed from the
+     * input must still take precedence over the processor timezone, exactly as it does when the format contains a year.
+     */
+    public void testParseJavaDefaultYearWithOffset() {
+        assertParsedZoneTakesPrecedence("MMM d HH:mm:ss XXX", "Jan 2 10:11:43 -05:00", ZoneOffset.UTC, "01-02T15:11:43");
+
+        int year = ZonedDateTime.now(ZoneOffset.UTC).getYear();
+        LocalDateTime local = LocalDateTime.of(year, 1, 2, 10, 11, 43);
+        ZoneId timezone = randomValueOtherThanMany(
+            zone -> zone.getRules().getOffset(local).equals(ZoneOffset.ofHours(-5)),
+            ESTestCase::randomZone
+        );
+        assertParsedZoneTakesPrecedence("MMM d HH:mm:ss XXX", "Jan 2 10:11:43 -05:00", timezone, "01-02T15:11:43");
+    }
+
+    /**
+     * A zone ID parsed from the input must be applied with its rules (here daylight saving time), not just as a fixed offset.
+     */
+    public void testParseJavaDefaultYearWithZoneId() {
+        assertParsedZoneTakesPrecedence("MMM dd HH:mm:ss VV", "Jul 24 01:29:01 America/New_York", ZoneOffset.UTC, "07-24T05:29:01");
+    }
+
+    /**
+     * Without a zone in the input, a format without a year keeps using the processor timezone.
+     */
+    public void testParseJavaDefaultYearWithoutZoneUsesTimezone() {
+        Function<String, ZonedDateTime> javaFunction = DateFormat.Java.getFunction(
+            "MMM dd HH:mm:ss",
+            ZoneId.of("Asia/Seoul"),
+            Locale.ENGLISH
+        );
+        assertThat(formatUtc(javaFunction.apply("Nov 24 01:29:01")), equalTo("11-23T16:29:01"));
+    }
+
+    private static void assertParsedZoneTakesPrecedence(String format, String input, ZoneId timezone, String expectedUtc) {
+        ZonedDateTime dateTime = DateFormat.Java.getFunction(format, timezone, Locale.ENGLISH).apply(input);
+        assertThat(formatUtc(dateTime), equalTo(expectedUtc));
+        // the same input with an explicit year must resolve to the same instant
+        ZonedDateTime withYear = DateFormat.Java.getFunction("yyyy " + format, timezone, Locale.ENGLISH)
+            .apply(dateTime.withZoneSameInstant(ZoneOffset.UTC).getYear() + " " + input);
+        assertThat(dateTime.toInstant(), equalTo(withYear.toInstant()));
+    }
+
+    private static String formatUtc(ZonedDateTime dateTime) {
+        return dateTime.withZoneSameInstant(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("MM-dd'T'HH:mm:ss", Locale.ENGLISH));
     }
 
     public void testParseWeekBasedYearAndWeek() {

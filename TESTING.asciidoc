@@ -774,6 +774,21 @@ no guarantee on the order in which operations occur across threads. Adding
 randomization to the mix usually makes things worse and should be done with
 care.
 
+==== Polling cluster state with assertBusy
+
+Use `awaitClusterState` when the condition is a predicate on applied cluster
+state. `assertBusy` retries the check on the test thread, sleeping between
+attempts. `awaitClusterState` registers a temporary `ClusterStateListener` and
+returns as soon as a matching state is applied. An example of this is below:
+
+[source,java]
+----
+awaitClusterState(state -> state.metadata().getProject().hasIndex("source") == false);
+----
+
+Keep `assertBusy` for conditions that are not cluster state, such as task
+completion, index stats, or files on disk.
+
 == Test coverage analysis
 
 Generating test coverage reports for Elasticsearch is currently not possible through Gradle.

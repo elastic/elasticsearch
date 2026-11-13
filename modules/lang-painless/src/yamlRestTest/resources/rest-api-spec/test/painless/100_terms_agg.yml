@@ -140,3 +140,51 @@ setup:
   - match: { aggregations.placeholder.buckets.0.str_terms.buckets.1.doc_count: 1 }
   - match: { aggregations.placeholder.buckets.0.the_bucket_script.value: 2.0 }
 
+
+---
+"Terms agg script returning params":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [doc_lookup_enumeration_illegal_argument]
+      reason: "scripts that return the doc or _fields lookup are rejected with a 400"
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            t:
+              terms:
+                script:
+                  source: "return params"
+
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "/.*does\\ not\\ support\\ \\[isEmpty\\].*/" }
+
+---
+"Script field returning params":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [doc_lookup_enumeration_illegal_argument]
+      reason: "scripts that return the doc or _fields lookup are rejected with a 400"
+
+  - do:
+      catch: bad_request
+      search:
+        index: test_1
+        body:
+          script_fields:
+            p:
+              script:
+                source: "return params"
+
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "/.*does\\ not\\ support\\ \\[isEmpty\\].*/" }

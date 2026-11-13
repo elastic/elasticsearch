@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
@@ -19,6 +20,7 @@ import java.util.List;
 public interface TelemetryPlugin {
 
     TelemetryProvider getTelemetryProvider(
+        ThreadContext threadContext,
         Environment environment,
         List<TelemetryLoggingFilterProvider> filterProviders,
         TelemetryLogResourceProvider logResourceProvider

@@ -1,0 +1,13 @@
+area: ES|QL
+breaking:
+  area: ES|QL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false
+  title: Union types lenient casting
+issues:
+ - 144400
+pr: 160905
+summary: Union types lenient casting
+type: breaking

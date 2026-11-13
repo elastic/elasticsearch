@@ -202,6 +202,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
@@ -3995,15 +3996,11 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * TO_TEXT only accepts {@code keyword}/{@code text} inputs (see {@code ToText#EVALUATORS}). When
-     * a union-typed field has a leg outside that set (here {@code ip} vs {@code keyword}), the
-     * conversion function can't resolve every leg, so the field falls through to the generic
-     * ambiguous-type-conflict error rather than being implicitly converted. This pins that
-     * "forbid for now" boundary so intentionally widening TO_TEXT's accepted union legs is a
-     * deliberate, test-breaking change. See union_types.csv-spec#multiIndexIpToTextWithExplicitCast
-     * for the supported workaround (an explicit inner cast to a type TO_TEXT does accept).
+     * TO_TEXT only accepts {@code keyword}/{@code text} inputs (see {@code ToText#EVALUATORS}). On a union, the keyword
+     * leg converts and the ip leg loads as null, with a warning. See union_types.csv-spec#multiIndexIpToTextWithExplicitCast
+     * for the fully-castable workaround of an explicit inner cast.
      */
-    public void testToTextOnNonStringUnionTypeFails() {
+    public void testToTextOnNonStringUnionTypeIsLenient() {
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
             List.of(
                 fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "ip")),
@@ -4012,15 +4009,104 @@ public class AnalyzerTests extends AnalyzerTestCase {
             List.of()
         );
         IndexResolution resolution = mergedResolution("foo,bar", caps);
-        analyzer().addIndex(resolution)
-            .error(
-                "FROM foo, bar | EVAL x = TO_TEXT(value)",
-                equalTo(
-                    "Found 1 problem\n"
-                        + "line 1:34: Cannot use field [value] due to ambiguities being mapped as [2] incompatible types: "
-                        + "[ip] in [foo], [keyword] in [bar]"
-                )
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(resolution)
+            .query("FROM foo, bar | EVAL x = TO_TEXT(value)");
+        assertWarnings("Field [value] of type [ip] in [foo] cannot be converted to [TEXT] and will be null in those indices.");
+    }
+
+    /**
+     * An index that maps the field to a type ES|QL doesn't support doesn't block a cast: the other indices are converted, and the
+     * unsupported one loads as null, with a warning naming its original type.
+     */
+    public void testCastOnUnionWithUnsupportedTypeIsLenient() {
+        IndexResolution resolution = mergedResolution("foo,bar", rankFeatureAndKeywordCaps());
+        TypeConflictedField field = as(resolution.get().mapping().get("value"), TypeConflictedField.class);
+        assertThat(field.getTypesToIndices(), equalTo(Map.of("keyword", Set.of("bar"))));
+        assertThat(field.getUnsupportedTypesToIndices(), equalTo(Map.of("rank_feature", Set.of("foo"))));
+
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(resolution)
+            .query("FROM foo, bar | EVAL x = value::keyword");
+        assertWarnings("Field [value] of type [rank_feature] in [foo] cannot be converted to [KEYWORD] and will be null in those indices.");
+    }
+
+    public void testUnionWithUnsupportedTypeWithoutCastFails() {
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(mergedResolution("foo,bar", rankFeatureAndKeywordCaps()))
+            .error("FROM foo, bar | WHERE value == \"x\"", containsString("Cannot use field [value] with unsupported type [rank_feature]"));
+    }
+
+    /**
+     * Older nodes can't cast a union leniently, so a conflict with an unsupported type makes the whole field unsupported, as before.
+     */
+    public void testUnionWithUnsupportedTypeIsUnsupportedOnOlderNodes() {
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo,bar",
+            false,
+            new IndexResolver.FieldsInfo(
+                rankFeatureAndKeywordCaps(),
+                TransportVersion.minimumCompatible(),
+                false,
+                false,
+                false,
+                false,
+                true,
+                true
+            ),
+            false,
+            IndexResolver.DO_NOT_GROUP
+        );
+        UnsupportedEsField field = as(resolution.get().mapping().get("value"), UnsupportedEsField.class);
+        assertThat(field.getOriginalTypes(), equalTo(List.of("rank_feature")));
+    }
+
+    public void testConflictOfOnlyUnsupportedTypesStaysUnsupported() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "rank_feature")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "rank_features"))
+            ),
+            List.of()
+        );
+        UnsupportedEsField field = as(mergedResolution("foo,bar", caps).get().mapping().get("value"), UnsupportedEsField.class);
+        assertThat(field.getOriginalTypes(), equalTo(List.of("rank_feature")));
+    }
+
+    /**
+     * A field that is a {@code keyword} in one index, unsupported in another and unmapped in a third isn't a single mapped type
+     * loaded from {@code _source}: it needs a cast like any other conflict with an unsupported type.
+     */
+    public void testPartiallyUnmappedUnionWithUnsupportedTypeNeedsCast() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "rank_feature")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "keyword")),
+                fieldCapabilitiesIndexResponse("baz", fieldResponseMap("other", "keyword"))
+            ),
+            List.of()
+        );
+        IndexResolution resolution = mergedResolution("foo,bar,baz", caps, true);
+        TypeConflictedField field = as(resolution.get().mapping().get("value"), TypeConflictedField.class);
+        assertTrue(field.isPotentiallyUnmapped());
+        assertFalse(field.isSingleTypePotentiallyUnmapped());
+
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(resolution)
+            .statementError(
+                AnalyzerUnmappedTestBase.setUnmappedLoad("FROM foo, bar, baz | WHERE value == \"x\""),
+                containsString("Cannot use field [value] with unsupported type [rank_feature]")
             );
+    }
+
+    private static FieldCapabilitiesResponse rankFeatureAndKeywordCaps() {
+        return new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "rank_feature")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "keyword"))
+            ),
+            List.of()
+        );
     }
 
     public void testValidFuse() {
@@ -6225,22 +6311,128 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * Reproducer for #150375.
+     * Reproducer for #150375. {@code ::double} accepts {@code datetime} but not {@code date_nanos}, so the nanos leg is
+     * nulled. {@code ::ip} accepts neither date type, so the cast is null everywhere.
      */
-    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleTypeFails() {
+    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleType() {
         IndexResolution index = indexWithDateDateNanosUnionType();
-        analyzer().addIndex(index)
-            .error(
-                "FROM index* | EVAL x = date_and_date_nanos::double",
-                containsString("Mapped types [date_nanos] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::double]")
-            );
-        analyzer().addIndex(index)
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(index)
+            .query("FROM index* | EVAL x = date_and_date_nanos::double");
+        assertWarnings(
+            "Field [date_and_date_nanos] of type [date_nanos] cannot be converted to [DOUBLE] and will be null in those indices."
+        );
+        LogicalPlan plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(index)
+            .query("FROM index* | EVAL x = date_and_date_nanos::ip");
+        assertWarnings(
+            "Field [date_and_date_nanos] of type [date_nanos], [datetime] cannot be converted to [IP] and will be null in those indices."
+        );
+        assertNullLiteral(as(as(plan, Limit.class).child(), Eval.class).fields().get(0).child(), IP);
+    }
+
+    public void testExplicitCastOfDateAndDateNanosUnionToIncompatibleTypeFailsOnOlderNodes() {
+        analyzer().minimumTransportVersion(TransportVersion.minimumCompatible())
+            .addIndex(indexWithDateDateNanosUnionType())
             .error(
                 "FROM index* | EVAL x = date_and_date_nanos::ip",
                 containsString(
                     "Mapped types [date_nanos, datetime] of [date_and_date_nanos] cannot be accepted in [date_and_date_nanos::ip]"
                 )
             );
+    }
+
+    /**
+     * When no mapped type converts, the cast is null in every index, with a warning naming every type.
+     */
+    public void testCastOnUnionWhereNoTypeConvertsIsNull() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "boolean"))
+            ),
+            List.of()
+        );
+        LogicalPlan plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(mergedResolution("foo,bar", caps))
+            .query("FROM foo, bar | EVAL x = value::ip");
+        assertWarnings(
+            "Field [value] of type [boolean] in [bar], [long] in [foo] cannot be converted to [IP] and will be null in those indices."
+        );
+        assertNullLiteral(as(as(plan, Limit.class).child(), Eval.class).fields().get(0).child(), IP);
+    }
+
+    public void testCastOnUnionWhereNoTypeConvertsFailsOnOlderNodes() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "long")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "boolean"))
+            ),
+            List.of()
+        );
+        analyzer().minimumTransportVersion(TransportVersion.minimumCompatible())
+            .addIndex(mergedResolution("foo,bar", caps))
+            .error(
+                "FROM foo, bar | EVAL x = value::ip",
+                containsString("Cannot use field [value] due to ambiguities being mapped as [2] incompatible types")
+            );
+    }
+
+    public void testImpossibleCastOfSingleTypedFieldIsNull() {
+        LogicalPlan plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(indexWithDateDateNanosUnionType())
+            .query("FROM index* | EVAL x = date_and_date_nanos::date_nanos::ip");
+        assertWarnings("[date_and_date_nanos] of type [date_nanos] cannot be converted to [IP] and will be null.");
+        assertNullLiteral(as(as(as(plan, Project.class).child(), Limit.class).child(), Eval.class).fields().get(0).child(), IP);
+    }
+
+    public void testImpossibleCastsOfFieldExpressionAndLiteralAreNull() {
+        LogicalPlan plan = defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .query("FROM test | EVAL a = salary::ip, b = TO_IP(salary + 1), c = true::ip | KEEP a, b, c");
+        assertWarnings(
+            "[salary] of type [integer] cannot be converted to [IP] and will be null.",
+            "[salary + 1] of type [integer] cannot be converted to [IP] and will be null.",
+            "[true] of type [boolean] cannot be converted to [IP] and will be null."
+        );
+        Eval eval = as(as(as(plan, Limit.class).child(), Project.class).child(), Eval.class);
+        for (Alias alias : eval.fields()) {
+            assertNullLiteral(alias.child(), IP);
+        }
+    }
+
+    /**
+     * {@code ResolveUnionTypes} stops at an {@code Aggregate}, so a cast after {@code STATS} needs its own rule.
+     */
+    public void testImpossibleCastAfterStatsIsNull() {
+        LogicalPlan plan = defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .query("FROM test | STATS c = COUNT(*) | EVAL x = c::ip");
+        assertWarnings("[c] of type [long] cannot be converted to [IP] and will be null.");
+        assertNullLiteral(as(as(plan, Limit.class).child(), Eval.class).fields().get(0).child(), IP);
+    }
+
+    public void testImpossibleCastFailsOnOlderNodes() {
+        defaultMapping().minimumTransportVersion(TransportVersion.minimumCompatible())
+            .error(
+                "FROM test | EVAL x = salary::ip",
+                containsString("argument of [salary::ip] must be [ip or string], found value [salary] type [integer]")
+            );
+    }
+
+    /**
+     * Functions that need a constant input keep their error: it's about the input not being a constant, not about its type.
+     */
+    public void testImpossibleCastToConstantOnlyFunctionStillFails() {
+        defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .error(
+                "FROM test | EVAL x = salary::time_duration",
+                containsString("argument of [salary::time_duration] must be [time_duration or string], found value [salary] type [integer]")
+            );
+    }
+
+    private static void assertNullLiteral(Expression expression, DataType type) {
+        Literal literal = as(expression, Literal.class);
+        assertNull(literal.value());
+        assertEquals(type, literal.dataType());
     }
 
     public void testGroupingOverridesInStats() {

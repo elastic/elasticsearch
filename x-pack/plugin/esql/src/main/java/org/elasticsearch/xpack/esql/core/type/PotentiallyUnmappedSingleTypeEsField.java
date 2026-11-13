@@ -70,6 +70,11 @@ public final class PotentiallyUnmappedSingleTypeEsField extends TypeConflictedFi
     }
 
     @Override
+    public Map<String, Set<String>> getUnsupportedTypesToIndices() {
+        return Map.of();
+    }
+
+    @Override
     public boolean isPotentiallyUnmapped() {
         return true;
     }
@@ -77,6 +82,11 @@ public final class PotentiallyUnmappedSingleTypeEsField extends TypeConflictedFi
     @Override
     Map<String, Sample> samples() {
         throw new IllegalStateException("A single-type PUNK should never fail as it always auto-casts or falls back to null.");
+    }
+
+    @Override
+    Map<String, Sample> unsupportedSamples() {
+        return Map.of();
     }
 
     @Override

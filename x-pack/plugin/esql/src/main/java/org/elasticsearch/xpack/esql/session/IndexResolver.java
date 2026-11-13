@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactInvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
@@ -979,12 +980,18 @@ public class IndexResolver {
             case OBJECT -> field;
             case KEYWORD -> new PotentiallyUnmappedKeywordEsField(name);
             default -> {
-                if (field instanceof TypeConflictedField) {
+                if (field instanceof TypeConflictedField tcf) {
+                    Map<String, Set<String>> unsupportedTypesToIndices = tcf.getUnsupportedTypesToIndices();
                     yield useLegacyField
-                        ? InvalidMappedField.potentiallyUnmapped(name, partiallyUnmappedTypesByName(field, mappedIndices))
+                        ? InvalidMappedField.potentiallyUnmapped(
+                            name,
+                            partiallyUnmappedTypesByName(field, mappedIndices),
+                            unsupportedTypesToIndices
+                        )
                         : CompactInvalidMappedField.potentiallyUnmapped(
                             name,
                             partiallyUnmappedTypesByDataType(field, mappedIndices),
+                            unsupportedTypesToIndices,
                             indexDedupCache
                         );
                 }
@@ -1008,8 +1015,19 @@ public class IndexResolver {
     }
 
     private static UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
-        String originalType = fc.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : fc.type();
-        return new UnsupportedEsField(name, List.of(originalType));
+        return new UnsupportedEsField(name, List.of(originalType(fc)));
+    }
+
+    private static String originalType(IndexFieldCapabilities fc) {
+        return fc.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : fc.type();
+    }
+
+    /**
+     * Whether every node can cast a type conflict leniently, so a conflict that includes unsupported types can be kept as a union:
+     * a cast then loads the unsupported types as {@code null}. Older nodes would fail on it, so there the whole field is unsupported.
+     */
+    private static boolean supportsLenientUnionCasts(FieldsInfo fieldsInfo) {
+        return fieldsInfo.minTransportVersion() != null && fieldsInfo.minTransportVersion().supports(Analyzer.ESQL_LENIENT_UNION_CAST);
     }
 
     private static EsField conflictingTypes(
@@ -1021,22 +1039,42 @@ public class IndexResolver {
         EsField.TimeSeriesFieldType timeSeriesFieldType
     ) {
         Map<DataType, Set<String>> typesToIndices = new TreeMap<>();
+        Map<String, Set<String>> unsupportedTypesToIndices = new TreeMap<>();
+        IndexFieldCapabilities firstUnsupported = null;
+        boolean keepUnsupportedTypes = supportsLenientUnionCasts(fieldsInfo);
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
             if (fc != null && isLeaf(fc, fieldsInfo)) {
                 DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType());
                 if (type == UNSUPPORTED) {
-                    return unsupported(name, fc);
+                    if (keepUnsupportedTypes == false) {
+                        return unsupported(name, fc);
+                    }
+                    if (firstUnsupported == null) {
+                        firstUnsupported = fc;
+                    }
+                    unsupportedTypesToIndices.computeIfAbsent(originalType(fc), _key -> new TreeSet<>()).add(ir.getIndexName());
+                    continue;
                 }
                 typesToIndices.computeIfAbsent(type, _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
+        if (firstUnsupported != null && typesToIndices.keySet().stream().allMatch(type -> type == OBJECT)) {
+            // No type that holds values, so no cast could use the field: keep it unsupported everywhere, sub-fields included.
+            return unsupported(name, firstUnsupported);
+        }
         if (indexDedupCache != null) {
-            return CompactInvalidMappedField.mappedEverywhere(name, typesToIndices, indexDedupCache, timeSeriesFieldType);
+            return CompactInvalidMappedField.mappedEverywhere(
+                name,
+                typesToIndices,
+                unsupportedTypesToIndices,
+                indexDedupCache,
+                timeSeriesFieldType
+            );
         }
         Map<String, Set<String>> stringKeyed = new TreeMap<>();
         typesToIndices.forEach((type, indices) -> stringKeyed.put(type.typeName(), indices));
-        return new InvalidMappedField(name, stringKeyed, timeSeriesFieldType);
+        return InvalidMappedField.withUnsupportedTypes(name, stringKeyed, unsupportedTypesToIndices, timeSeriesFieldType);
     }
 
     /** The field of {@code fields} that {@code name} is under and that holds it as a key, if any. */

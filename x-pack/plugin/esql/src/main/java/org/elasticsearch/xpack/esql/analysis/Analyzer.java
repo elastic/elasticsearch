@@ -357,7 +357,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveUnmapped(),
                 new InsertDefaultInnerTimeSeriesAggregate(),
                 new ImplicitCastAggregateMetricDoubles(),
-                new InsertFromAggregateMetricDouble()
+                new InsertFromAggregateMetricDouble(),
+                new ResolveImpossibleCasts()
             ),
             new Batch<>(
                 "Finish Analysis",
@@ -388,6 +389,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     public static final TransportVersion ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION = TransportVersion.fromName(
         "esql_lookup_join_full_text_function"
     );
+
+    /**
+     * Behavior gate for lenient explicit casts of union-typed fields. Partial conversion maps use the existing wire format, but older
+     * data nodes are not trusted to null-load a missing conversion entry, so mixed clusters keep the strict all-or-nothing cast.
+     */
+    public static final TransportVersion ESQL_LENIENT_UNION_CAST = TransportVersion.fromName("esql_lenient_union_cast");
 
     private final Verifier verifier;
 
@@ -4331,8 +4338,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <ol>
          *   <li>If the field has unresolved type conflicts ({@link TypeConflictedField}), we try to build a {@link UnionTypeEsField} with
          *   per-type conversions.</li>
-         *   <li>If the field was already implicitly cast to a union type ({@link UnionTypeEsField}), rewrap with the explicit cast, or
-         *   return an {@link UnresolvedAttribute} if the cast cannot consume one of the field's original mapped types.</li>
+         *   <li>If the field was already implicitly cast to a union type ({@link UnionTypeEsField}), rewrap with the explicit cast. On
+         *   older nodes, return an {@link UnresolvedAttribute} if the cast cannot consume one of the field's original mapped types.</li>
          *   <li>If the convert's input is itself a convert, e.g.: {@code foo::long::double}, recurse and resolve the inner one first.</li>
          * </ol>
          *
@@ -4375,18 +4382,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 });
 
-                // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
-                if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
+                boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
+                boolean allResolved = typeResolutions.size() == tcf.getTypesToIndices().size() && tcf.hasUnsupportedTypes() == false;
+                boolean unmappedKeywordSupported = tcf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD);
+                // Lenient casts succeed when at least one mapped type converts, or the unmapped keyword leg does.
+                // Unconvertible branches are omitted from the conversion map and load as null.
+                if (allResolved || (lenient && (typeResolutions.isEmpty() == false || unmappedKeywordSupported))) {
                     boolean loadUnmappedFields = context.unmappedResolution().loadsUnmappedFields();
-                    if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, tcf, supportedTypes)) {
+                    if (lenient == false && skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, tcf, supportedTypes)) {
                         return convertExpression;
                     }
 
-                    Expression potentiallyUnmappedConversion = tcf.isPotentiallyUnmapped()
+                    Expression potentiallyUnmappedConversion = unmappedKeywordSupported
                         ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, tcf)
                         : null;
+                    if (lenient) {
+                        warnLenientDroppedTypes(context, fa.name(), tcf, supportedTypes, convertExpression);
+                    }
                     EsField resolvedField = resolvedUnionTypeFields(fa, tcf, typeResolutions, potentiallyUnmappedConversion, context);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
+                }
+                if (lenient) {
+                    // No type converts, so the cast is null in every index.
+                    warnLenientDroppedTypes(context, fa.name(), tcf, supportedTypes, convertExpression);
+                    return new Literal(convertExpression.source(), null, convertExpression.dataType());
                 }
             } else if (convert.field() instanceof FieldAttribute fa
                 && fa.synthetic() == false // UnionTypeEsField in EsRelation created by DateMillisToNanosInEsRelation or
@@ -4405,19 +4424,43 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
 
                     Set<DataType> supportedTypes = convert.supportedTypes();
+                    UnionTypeEsField castField = unionTypeEsField;
                     if (areMappedTypesSupported(unionTypeEsField, supportedTypes) == false) {
-                        return new UnresolvedAttribute(
-                            fa.source(),
-                            fa.name(),
-                            unsupportedExplicitCastMessage(unionTypeEsField, supportedTypes, fa.name(), convertExpression.sourceText())
-                        );
+                        boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
+                        boolean anyMapped = anyMappedTypeSupported(unionTypeEsField, supportedTypes);
+                        Expression unmappedExprForSupport = unionTypeEsField.getUnmappedConversionExpression();
+                        boolean unmappedKeywordSupported = unmappedExprForSupport instanceof AbstractConvertFunction
+                            && supportedTypes.contains(KEYWORD);
+                        if (lenient == false) {
+                            return new UnresolvedAttribute(
+                                fa.source(),
+                                fa.name(),
+                                unsupportedExplicitCastMessage(unionTypeEsField, supportedTypes, fa.name(), convertExpression.sourceText())
+                            );
+                        }
+                        warnLenientDroppedUnionTypes(context, fa.name(), unionTypeEsField, supportedTypes, convertExpression);
+                        if (anyMapped == false && unmappedKeywordSupported == false) {
+                            // No type converts, so the cast is null in every index.
+                            if (unmappedExprForSupport != null) {
+                                context.deferredHeaderWarnings()
+                                    .add(
+                                        lenientNullWarning(
+                                            fa.name(),
+                                            "[keyword] due to loading from _source",
+                                            castTargetName(convertExpression)
+                                        )
+                                    );
+                            }
+                            return new Literal(convertExpression.source(), null, convertExpression.dataType());
+                        }
+                        castField = unionTypeEsField.retainingSupportedSourceTypes(supportedTypes);
                     }
 
-                    Expression unmappedExpr = unionTypeEsField.getUnmappedConversionExpression();
+                    Expression unmappedExpr = castField.getUnmappedConversionExpression();
                     // Resolve surrogates immediately, since expressions stored in UnionTypeEsField are serialized
                     // to data nodes, and SurrogateExpressions cannot be serialized.
                     Expression resolvedConvertExpression = SubstituteSurrogateExpressions.rule(convertExpression);
-                    UnionTypeEsField rewrapped = unionTypeEsField.rewrapWithCast(resolvedConvertExpression);
+                    UnionTypeEsField rewrapped = castField.rewrapWithCast(resolvedConvertExpression);
 
                     if (unmappedExpr instanceof AbstractConvertFunction existingConvert) {
                         if (supportedTypes.contains(KEYWORD)) {
@@ -4521,6 +4564,70 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     e -> e instanceof AbstractConvertFunction convertFunction
                         && supportedTypes.contains(convertFunction.field().dataType().widenSmallNumeric())
                 );
+        }
+
+        private static boolean anyMappedTypeSupported(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
+            return unionTypeEsField.getConversionExpressions()
+                .stream()
+                .anyMatch(
+                    e -> e instanceof AbstractConvertFunction convertFunction
+                        && supportedTypes.contains(convertFunction.field().dataType().widenSmallNumeric())
+                );
+        }
+
+        /**
+         * {@code Field [val] of type [long] in [idx] cannot be converted to [IP] and will be null in those indices.}
+         */
+        private static String lenientNullWarning(String fieldName, String typeDescription, String targetTypeName) {
+            return Strings.format(
+                "Field [%s] of type %s cannot be converted to [%s] and will be null in those indices.",
+                fieldName,
+                typeDescription,
+                targetTypeName
+            );
+        }
+
+        private static String castTargetName(Expression convertExpression) {
+            return convertExpression.dataType().nameUpper();
+        }
+
+        private static void warnLenientDroppedTypes(
+            AnalyzerContext context,
+            String fieldName,
+            TypeConflictedField tcf,
+            Set<DataType> supportedTypes,
+            Expression convertExpression
+        ) {
+            Set<String> dropped = new LinkedHashSet<>();
+            for (DataType type : tcf.types()) {
+                if (supportedTypes.contains(type.widenSmallNumeric()) == false) {
+                    dropped.add(type.typeName());
+                }
+            }
+            dropped.addAll(tcf.getUnsupportedTypesToIndices().keySet());
+            String target = castTargetName(convertExpression);
+            if (dropped.isEmpty() == false) {
+                context.deferredHeaderWarnings().add(lenientNullWarning(fieldName, tcf.describeTypes(dropped), target));
+            }
+            if (tcf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD) == false && dropped.contains(KEYWORD.typeName()) == false) {
+                context.deferredHeaderWarnings().add(lenientNullWarning(fieldName, "[keyword] due to loading from _source", target));
+            }
+        }
+
+        private static void warnLenientDroppedUnionTypes(
+            AnalyzerContext context,
+            String fieldName,
+            UnionTypeEsField unionTypeEsField,
+            Set<DataType> supportedTypes,
+            Expression convertExpression
+        ) {
+            String dropped = unsupportedMappedTypeNames(unionTypeEsField, supportedTypes);
+            if (dropped.isEmpty()) {
+                return;
+            }
+            // This union is stored per source type, so the warning names the dropped types and not their indices.
+            String described = "[" + dropped.replace(", ", "], [") + "]";
+            context.deferredHeaderWarnings().add(lenientNullWarning(fieldName, described, castTargetName(convertExpression)));
         }
 
         private static String unsupportedMappedTypeNames(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
@@ -4712,7 +4819,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static EsField asTransportable(EsField field) {
             if (field instanceof TypeConflictedField tcf) {
-                return new UnsupportedEsField(tcf.getName(), tcf.getTypesToIndices().keySet().stream().toList());
+                Map<String, Set<String>> originalTypes = tcf.hasUnsupportedTypes()
+                    ? tcf.getUnsupportedTypesToIndices()
+                    : tcf.getTypesToIndices();
+                return new UnsupportedEsField(tcf.getName(), originalTypes.keySet().stream().toList());
             }
             if (field instanceof InvalidMappedTsField imtf) {
                 return new UnsupportedEsField(imtf.getName(), List.of());
@@ -4938,7 +5048,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean allDates(boolean loads, TypeConflictedField tcf) {
-            if (tcf.types().stream().allMatch(DataType::isDate) == false) {
+            // Unsupported types need an explicit cast, which loads them as null with a warning.
+            if (tcf.hasUnsupportedTypes() || tcf.types().stream().allMatch(DataType::isDate) == false) {
                 return false;
             }
             // If the field is potentially unmapped (i.e. not mapped in all indices), we treat it as a keyword (not all dates),
@@ -5174,7 +5285,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean canBeCast(TypeConflictedField tcf) {
-            return tcf.types().contains(AGGREGATE_METRIC_DOUBLE)
+            return tcf.hasUnsupportedTypes() == false
+                && tcf.types().contains(AGGREGATE_METRIC_DOUBLE)
                 && tcf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric());
         }
 
@@ -5394,6 +5506,56 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * {@code date_nanos} here when a subquery UnionAll sibling was widened; FORK-only queries are not implicitly cast</li>
      * </ol>
      */
+    /**
+     * A cast whose input has a single type the cast doesn't accept, like {@code ip_field::long}, {@code (a + b)::ip} or
+     * {@code true::ip}, is {@code null}, with a warning, instead of failing the query. This matches the lenient casts of union-typed
+     * fields in {@link ResolveUnionTypes}, and is gated with them, so every cast stays strict until every node supports it.
+     * <p>
+     * Runs last in its batch, so the rules that settle a cast first (union types, unmapped fields, implicit casts) see it.
+     * Union-typed and unsupported inputs have no single type and keep their own errors, as do functions that need a constant,
+     * conversions with more arguments, like {@code TO_LONG(x, base)}, and inputs of types a query can't return, like
+     * {@code date_period}.
+     * </p>
+     */
+    private static class ResolveImpossibleCasts extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            if (context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST) == false) {
+                return plan;
+            }
+            return plan.transformUp(LogicalPlan.class, p -> p.transformExpressionsOnly(Expression.class, e -> {
+                if (e instanceof ConvertFunction convert && e instanceof FoldablesConvertFunction == false && isImpossible(convert)) {
+                    Expression input = convert.field();
+                    context.deferredHeaderWarnings()
+                        .add(
+                            Strings.format(
+                                "[%s] of type [%s] cannot be converted to [%s] and will be null.",
+                                input.sourceText(),
+                                input.dataType().typeName(),
+                                e.dataType().nameUpper()
+                            )
+                        );
+                    return new Literal(e.source(), null, e.dataType());
+                }
+                return e;
+            }));
+        }
+
+        private static boolean isImpossible(ConvertFunction convert) {
+            Expression input = convert.field();
+            Expression cast = (Expression) convert;
+            // A conversion with more arguments, like TO_LONG(x, base), accepts other types than the cast it extends.
+            if (cast.resolved() || cast.children().size() != 1 || input.resolved() == false) {
+                return false;
+            }
+            DataType type = input.dataType();
+            return type != UNSUPPORTED
+                && type != NULL
+                && DataType.isRepresentableInOutput(type)
+                && convert.supportedTypes().contains(type) == false;
+        }
+    }
+
     private static class ResolveUnionTypesInUnionAll extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         @Override
@@ -6046,6 +6208,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Attribute attr = out.get(columnIndex);
                 if (attr instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
                     dataTypes.addAll(tcf.types().stream().map(DataType::typeName).toList());
+                    dataTypes.addAll(tcf.getUnsupportedTypesToIndices().keySet());
                 } else {
                     dataTypes.add(attr.dataType().typeName());
                 }

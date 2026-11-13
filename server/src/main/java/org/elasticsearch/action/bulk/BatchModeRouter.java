@@ -59,8 +59,9 @@ final class BatchModeRouter implements Releasable {
      */
     private record IndexTarget(Index index, IndexRouting routing, int shardCount, int partitionBase) {}
 
+    /** The {@link #batchKey} of the index abstraction this router's batch holds the rows of; null in x-content mode. */
     @Nullable
-    private final String indexAbstractionName;
+    final String key;
     @Nullable
     private final EscfBatch source;
     @Nullable
@@ -96,8 +97,8 @@ final class BatchModeRouter implements Releasable {
     /** Per-bulk cache of the {@code index.batch_indexing} decision per concrete index (x-content mode only). */
     private final Map<Index, Boolean> batchEnabledByIndex = new HashMap<>();
 
-    private BatchModeRouter(String indexAbstractionName, EscfBatch source, Recycler<BytesRef> recycler) {
-        this.indexAbstractionName = indexAbstractionName;
+    BatchModeRouter(String key, EscfBatch source, Recycler<BytesRef> recycler) {
+        this.key = key;
         this.source = source;
         this.partitionIds = new int[source.docCount()];
         this.items = new BulkItemRequest[source.docCount()];
@@ -106,7 +107,7 @@ final class BatchModeRouter implements Releasable {
     }
 
     private BatchModeRouter(BulkBatchEncoders encoders, Recycler<BytesRef> recycler) {
-        this.indexAbstractionName = null;
+        this.key = null;
         this.source = null;
         this.partitionIds = null;
         this.items = null;
@@ -114,18 +115,12 @@ final class BatchModeRouter implements Releasable {
         this.encoders = encoders;
     }
 
-    /** Returns the router for this bulk, or {@code null} when batch indexing does not apply. */
+    /**
+     * Returns the x-content mode router for this bulk, or {@code null} when batch indexing does not apply.
+     * Bulks carrying pre-built batches are handled by {@link BatchRouterSet#create}.
+     */
     @Nullable
-    static BatchModeRouter create(BulkRequest bulkRequest, boolean batchIndexingSupported, Recycler<BytesRef> recycler) {
-        if (bulkRequest.hasPreBuiltBatches()) {
-            if (batchIndexingSupported == false) {
-                throw new IllegalStateException(
-                    "pre-built source batch submitted but batch indexing is not supported"
-                        + " (setting disabled, feature flag off, or mixed-version cluster)"
-                );
-            }
-            return createForProvidedBatches(bulkRequest, bulkRequest.takePreBuiltBatches(), recycler);
-        }
+    static BatchModeRouter createForXContent(BulkRequest bulkRequest, boolean batchIndexingSupported, Recycler<BytesRef> recycler) {
         if (batchIndexingSupported == false || bulkRequest.isSimulated() || bulkRequest.requests().isEmpty()) {
             return null;
         }
@@ -137,56 +132,32 @@ final class BatchModeRouter implements Releasable {
         return new BatchModeRouter(new BulkBatchEncoders(recycler), recycler);
     }
 
-    private static BatchModeRouter createForProvidedBatches(
-        BulkRequest bulkRequest,
-        Map<String, SourceBatch> provided,
-        Recycler<BytesRef> recycler
-    ) {
-        boolean success = false;
-        try {
-            if (provided.size() > 1) {
-                throw new IllegalArgumentException(
-                    "pre-built source batch bulk carries "
-                        + provided.size()
-                        + " batches, but at most one is supported in step 1; multi-batch support will be added in a follow-up"
-                );
-            }
-            for (DocWriteRequest<?> request : bulkRequest.requests()) {
-                if (request instanceof IndexRequest indexRequest) {
-                    if (indexRequest.indexSource().hasSourceRow() == false) {
-                        throw new IllegalArgumentException(
-                            "item targeting index ["
-                                + request.index()
-                                + "] must carry a source-row reference when a pre-built batch is attached"
-                        );
-                    }
-                } else {
-                    throw new IllegalArgumentException(
-                        "["
-                            + request.opType()
-                            + "] operation on index ["
-                            + request.index()
-                            + "] cannot be mixed with pre-built source batches; every item of such a bulk must be an index"
-                            + " request carrying a source-row reference"
-                    );
-                }
-            }
-            Map.Entry<String, SourceBatch> only = provided.entrySet().iterator().next();
-            String name = only.getKey();
-            SourceBatch batch = only.getValue();
-            if (batch instanceof EscfBatch escfBatch) {
-                BatchModeRouter router = new BatchModeRouter(name, escfBatch, recycler);
-                success = true;
-                return router;
-            }
-            throw new IllegalArgumentException(
-                "pre-built batch for index [" + name + "] must be an EscfBatch but was [" + batch.getClass().getName() + "]"
-            );
-        } finally {
-            if (success == false) {
-                Releasables.close(provided.values());
-            }
+    /**
+     * Returns the key a pre-built batch must be registered under for items that target {@code ia}:
+     *
+     * <ul>
+     *   <li>DATA_STREAM or an alias over one: the data stream's name.</li>
+     *   <li>CONCRETE_INDEX (plain): the index's own name (which is its own write index).</li>
+     *   <li>ALIAS (non-data-stream): the alias's write index's name.</li>
+     *   <li>CONCRETE_INDEX that is a backing index of a data stream: {@code null}; such items cannot be batched
+     *       without a batch-merge utility.</li>
+     *   <li>ALIAS with no write index: {@code null}.</li>
+     * </ul>
+     */
+    @Nullable
+    static String batchKey(@Nullable IndexAbstraction ia, ProjectMetadata project) {
+        if (ia == null) {
+            return null;
         }
+        if (ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX && ia.getParentDataStream() != null) {
+            return null;
+        }
+        DataStream ds = DataStream.resolveDataStream(ia, project);
+        if (ds != null) {
+            return ds.getName();
+        }
+        Index writeIndex = ia.getWriteIndex();
+        return writeIndex == null ? null : writeIndex.getName();
     }
 
     /**
@@ -201,8 +172,8 @@ final class BatchModeRouter implements Releasable {
      * <p>All-or-none: if every request already has a timestamp set (producer supplied it out-of-band),
      * returns immediately. A mixed batch (some set, some not) throws.
      *
-     * @param requests the bulk request's items, in the same order as the bulk; each row-bearing
-     *                 {@link IndexRequest}'s row index is used to map it to the batch column
+     * @param requests the bulk request's items; only those whose {@link #batchKey} matches this router are
+     *                 considered, so the full request list of a multi-batch bulk can be passed
      * @throws IllegalArgumentException if {@code @timestamp} is missing, an unsupported kind,
      *                                  or a row has no value for it
      */
@@ -211,7 +182,7 @@ final class BatchModeRouter implements Releasable {
             return;
         }
         // Only TSDB data streams need per-document backing-index selection.
-        IndexAbstraction ia = project.getIndicesLookup().get(indexAbstractionName);
+        IndexAbstraction ia = project.getIndicesLookup().get(key);
         if (ia == null) {
             return;
         }
@@ -227,6 +198,10 @@ final class BatchModeRouter implements Releasable {
         boolean anyLacksTimestamp = false;
         for (DocWriteRequest<?> req : requests) {
             if (req instanceof IndexRequest ir && ir.indexSource().hasSourceRow()) {
+                // Items of other routers of the same bulk have overlapping row indices; skip them.
+                if (key.equals(batchKey(project.getIndicesLookup().get(ir.index()), project)) == false) {
+                    continue;
+                }
                 int rowIndex = ir.indexSource().rowIndex();
                 if (rowIndex >= 0 && rowIndex < byRow.length) {
                     byRow[rowIndex] = ir;
@@ -242,7 +217,7 @@ final class BatchModeRouter implements Releasable {
         if (anyHasTimestamp && anyLacksTimestamp) {
             throw new IllegalArgumentException(
                 "pre-built batch for ["
-                    + indexAbstractionName
+                    + key
                     + "] has a mix of requests with and without a pre-set timestamp;"
                     + " either all requests must supply a timestamp (producer-side) or none"
             );
@@ -258,7 +233,7 @@ final class BatchModeRouter implements Releasable {
         if (leaf < 0) {
             throw new IllegalArgumentException(
                 "pre-built batch for ["
-                    + indexAbstractionName
+                    + key
                     + "] targets a TSDB data stream but the batch has no ["
                     + DataStream.TIMESTAMP_FIELD_NAME
                     + "] column; the batch producer must include a timestamp column"
@@ -274,7 +249,7 @@ final class BatchModeRouter implements Releasable {
             case EscfColumnKind.UNION -> resolveTimestampsFromUnion(col, byRow);
             default -> throw new UnsupportedOperationException(
                 "pre-built batch for ["
-                    + indexAbstractionName
+                    + key
                     + "] has a ["
                     + DataStream.TIMESTAMP_FIELD_NAME
                     + "] column of unsupported kind ["
@@ -297,7 +272,7 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, Instant.ofEpochMilli(cursor.longValue()));
             seen[r] = true;
         }
-        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
+        checkAllRowsHaveTimestamp(seen, byRow, key);
     }
 
     /**
@@ -316,7 +291,7 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, ts);
             seen[r] = true;
         }
-        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
+        checkAllRowsHaveTimestamp(seen, byRow, key);
     }
 
     /**
@@ -339,7 +314,7 @@ final class BatchModeRouter implements Releasable {
             } else {
                 throw new UnsupportedOperationException(
                     "pre-built batch for ["
-                        + indexAbstractionName
+                        + key
                         + "] row "
                         + r
                         + " has a UNION ["
@@ -352,15 +327,15 @@ final class BatchModeRouter implements Releasable {
             setTimestampOnRequest(byRow, r, ts);
             seen[r] = true;
         }
-        checkAllRowsHaveTimestamp(seen, byRow, indexAbstractionName);
+        checkAllRowsHaveTimestamp(seen, byRow, key);
     }
 
-    private static void checkAllRowsHaveTimestamp(boolean[] seen, IndexRequest[] byRow, String indexAbstractionName) {
+    private static void checkAllRowsHaveTimestamp(boolean[] seen, IndexRequest[] byRow, String key) {
         for (int row = 0; row < seen.length; row++) {
             if (seen[row] == false && byRow[row] != null) {
                 throw new IllegalArgumentException(
                     "pre-built batch for ["
-                        + indexAbstractionName
+                        + key
                         + "] row "
                         + row
                         + " has no ["
@@ -407,7 +382,7 @@ final class BatchModeRouter implements Releasable {
             requestsByShard.computeIfAbsent(new ShardId(concreteIndex, shardId), k -> new ArrayList<>()).add(bulkItem);
         } else {
             IndexRequest batchItem = (IndexRequest) request;
-            int targetIdx = prepareRouting(batchItem, abstraction, concreteIndex, routing, project);
+            int targetIdx = prepareRouting(batchItem, concreteIndex, routing, project);
             recordDeferredItem(bulkItem, batchItem.indexSource().rowIndex(), targetIdx);
         }
     }
@@ -429,22 +404,7 @@ final class BatchModeRouter implements Releasable {
      * Validates the request, resolves (or registers) the concrete-index target, and returns the target
      * index into {@link #targets}.
      */
-    private int prepareRouting(
-        IndexRequest request,
-        IndexAbstraction abstraction,
-        Index concreteIndex,
-        IndexRouting routing,
-        ProjectMetadata project
-    ) {
-        if (indexAbstractionName.equals(abstraction.getName()) == false) {
-            throw new IllegalArgumentException(
-                "item targeting index ["
-                    + request.index()
-                    + "] carries a source-row reference but no pre-built batch was supplied under that name;"
-                    + " batches must be keyed by the name set on the requests whose rows they hold"
-            );
-        }
-
+    private int prepareRouting(IndexRequest request, Index concreteIndex, IndexRouting routing, ProjectMetadata project) {
         // Linear scan over targets (typically 1–2 entries at a TSDB rollover boundary; no Map needed).
         for (int i = 0; i < targetCount; i++) {
             Index t = targets[i].index();
@@ -494,7 +454,7 @@ final class BatchModeRouter implements Releasable {
         int docCount = source.docCount();
         if (rowIndex < 0 || rowIndex >= docCount) {
             throw new IllegalArgumentException(
-                "rowIndex " + rowIndex + " is out of range [0, " + docCount + ") for pre-built batch [" + indexAbstractionName + "]"
+                "rowIndex " + rowIndex + " is out of range [0, " + docCount + ") for pre-built batch [" + key + "]"
             );
         }
         if (rowIndex <= lastRow) {
@@ -504,7 +464,7 @@ final class BatchModeRouter implements Releasable {
                     + " is not strictly greater than the previous row "
                     + lastRow
                     + " of pre-built batch ["
-                    + indexAbstractionName
+                    + key
                     + "]; rows must arrive in ascending order"
             );
         }
@@ -540,7 +500,7 @@ final class BatchModeRouter implements Releasable {
         if (routedCount != source.docCount()) {
             throw new IllegalStateException(
                 "pre-built batch ["
-                    + indexAbstractionName
+                    + key
                     + "] had "
                     + source.docCount()
                     + " rows but only "

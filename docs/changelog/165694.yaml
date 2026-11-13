@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165694
+summary: Fix `TS` planning failures with inline filters on aggregate expressions and `STATS BY _tsid`
+type: bug

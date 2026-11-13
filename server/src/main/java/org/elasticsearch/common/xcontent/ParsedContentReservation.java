@@ -28,9 +28,9 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>What a request is parsed into can be far larger than its content, since every token becomes at least one object. The in-flight
  * requests breaker only charges the content, so parsers from {@link #track} charge for what they read. A request that responds before
- * its work ends, such as an async search, keeps the parsed request after the response, so its work holds the charge until it ends, see
- * {@link #hold(ThreadContext)}. Other such requests, such as a task started with {@code wait_for_completion=false}, still release the
- * charge at the response.
+ * its work ends, such as an async search or a reindex with {@code wait_for_completion=false}, keeps the parsed request after the
+ * response, so its work holds the charge until it ends, see {@link #hold(ThreadContext)}. Other such requests still release the charge
+ * at the response.
  *
  * <p>A request can be read by many parsers, such as one per {@code _msearch} line. The reservation counts what they charge without a
  * check, so the request is checked once per chunk however small each parser is.

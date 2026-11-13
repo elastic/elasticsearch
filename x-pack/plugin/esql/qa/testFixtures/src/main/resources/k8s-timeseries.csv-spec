@@ -673,6 +673,34 @@ cnt:long | cluster:keyword | pod:keyword
 1        | prod            | three
 ;
 
+statsByTsid
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+required_capability: fix_ts_stats_by_tsid
+
+TS k8s METADATA _tsid
+| STATS BY _tsid
+| STATS series = COUNT(*)
+;
+
+series:long
+9
+;
+
+statsByAliasedTsidWithAggregate
+required_capability: ts_command_v0
+required_capability: metadata_tsid_field
+required_capability: fix_ts_stats_by_tsid
+
+TS k8s METADATA _tsid
+| STATS bytes = max(last_over_time(network.bytes_in)) BY series = _tsid
+| STATS series = COUNT(series), bytes = max(bytes)
+;
+
+series:long | bytes:long
+9           | 972
+;
+
 inlineStatsAfterStatsCommand
 required_capability: ts_command_v0
 required_capability: tbucket

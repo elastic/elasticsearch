@@ -16,9 +16,6 @@ folders, but filtering on a file column like `WHERE ts > "2024-03-15T00:00:00Z"`
 opens every file. An ISO-8601 string compared to a datetime column does not need `::datetime`;
 ES|QL casts the keyword literal. `::datetime` is still valid.
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 [`partition_detection`](esql-data-federation-dataset-settings.md#partition-detection) and
 [`partition_path`](esql-data-federation-dataset-settings.md#partition-path) still decide how the folder
 names are found.

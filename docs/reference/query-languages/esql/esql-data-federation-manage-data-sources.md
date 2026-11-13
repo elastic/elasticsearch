@@ -10,9 +10,6 @@ products:
 
 # Connect and manage data sources for {{esql}} Data Federation
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 You can manage data sources in the {{kib}} UI or with the {{es}} API.
 
 ## Manage data sources in the {{kib}} UI [manage-data-sources-using-the-kibana-ui]

@@ -10,9 +10,6 @@ products:
 
 # Create and manage datasets with the {{es}} API
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 Datasets are managed under the `/_query/dataset` endpoint. All dataset operations require the index `manage` privilege on the dataset name, or a fine-grained dataset privilege. Refer to [manage credentials and privileges](esql-data-federation-security.md) for details.
 
 | Operation | Endpoint | API reference |

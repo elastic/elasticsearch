@@ -11,9 +11,6 @@ products:
 
 # Create and manage datasets in the {{kib}} UI
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 In the {{kib}} UI, you create and manage datasets from the **Datasets** tab under **Data management** > **{{esql}} Data Federation**.
 
 {applies_to}`stack: experimental =9.5` To use the UI, [enable it in {{kib}}](esql-data-federation.md#enable-the-feature) first.

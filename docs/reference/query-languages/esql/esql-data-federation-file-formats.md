@@ -12,9 +12,6 @@ products:
 
 {{esql}} Data Federation reads Parquet, newline-delimited JSON (NDJSON), comma-separated values (CSV), and tab-separated values (TSV) files from external storage. Use the file extension, schema source, and compression support in this reference when defining a [dataset](esql-data-federation-datasets.md).
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 The following table compares the supported file formats:
 
 | Format | Recognized extensions | Schema source | Compression |

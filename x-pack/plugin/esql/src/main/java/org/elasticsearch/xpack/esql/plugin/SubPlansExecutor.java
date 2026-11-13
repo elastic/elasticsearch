@@ -420,7 +420,8 @@ final class SubPlansExecutor {
                     initialClusterStatuses,
                     configuration.profile() ? new PlanTimeProfile() : null,
                     warnIndexCoordinatorOnce,
-                    SiblingPlacement.forMerge(mergeKind, siblingIndex, siblingCount)
+                    SiblingPlacement.forMerge(mergeKind, siblingIndex, siblingCount),
+                    null
                 );
             } catch (Exception e) {
                 resultListener.onFailure(e);

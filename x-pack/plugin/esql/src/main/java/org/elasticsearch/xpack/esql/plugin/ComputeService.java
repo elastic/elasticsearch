@@ -1262,47 +1262,11 @@ public class ComputeService {
     /**
      * Runs one producer after split discovery, placing it with {@code placement} so sibling
      * UNION leaves rotate and hop instead of stacking on the coordinator.
-     */
-    public void executePlan(
-        String sessionId,
-        CancellableTask rootTask,
-        EsqlFlags flags,
-        PhysicalPlan physicalPlan,
-        Configuration configuration,
-        FoldContext foldContext,
-        EsqlExecutionInfo execInfo,
-        String profileQualifier,
-        ActionListener<Result> listener,
-        Supplier<ExchangeSink> exchangeSinkSupplier,
-        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
-        PlanTimeProfile planTimeProfile,
-        Runnable warnIndexCoordinatorOnce,
-        SiblingPlacement placement
-    ) {
-        executePlan(
-            sessionId,
-            rootTask,
-            flags,
-            physicalPlan,
-            configuration,
-            foldContext,
-            execInfo,
-            profileQualifier,
-            listener,
-            exchangeSinkSupplier,
-            initialClusterStatuses,
-            planTimeProfile,
-            warnIndexCoordinatorOnce,
-            placement,
-            null
-        );
-    }
-
-    /**
+     *
      * @param maxResultSize limit on the result pages collected when {@code exchangeSinkSupplier} is {@code null}, or
      *                      {@code null} for no limit, see {@link BoundedPageCollector}
      */
-    private void executePlan(
+    public void executePlan(
         String sessionId,
         CancellableTask rootTask,
         EsqlFlags flags,

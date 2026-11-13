@@ -122,6 +122,63 @@ public class FillNullTests extends ESTestCase {
         assertTrue("the fill alias wraps a COALESCE", aliasFor(materialized, "i").child() instanceof Coalesce);
     }
 
+    /**
+     * Types that have no default and that no value converts into, not even a string that would cast: ES|QL converts a string only to
+     * datetime, date_nanos, ip, version and boolean. Both forms leave the column unchanged and report it.
+     */
+    private static final List<DataType> UNFILLABLE_TYPES = List.of(
+        DataType.GEO_POINT,
+        DataType.GEO_SHAPE,
+        DataType.CARTESIAN_POINT,
+        DataType.CARTESIAN_SHAPE,
+        DataType.GEOHASH,
+        DataType.GEOTILE,
+        DataType.GEOHEX,
+        DataType.DENSE_VECTOR,
+        DataType.AGGREGATE_METRIC_DOUBLE,
+        DataType.DATE_RANGE,
+        DataType.DOUBLE_RANGE,
+        DataType.HISTOGRAM,
+        DataType.EXPONENTIAL_HISTOGRAM,
+        DataType.TDIGEST,
+        DataType.COUNTER_LONG,
+        DataType.COUNTER_INTEGER,
+        DataType.COUNTER_DOUBLE
+    );
+
+    public void testDefaultFillLeavesTypesWithoutADefaultUnchanged() {
+        for (DataType type : UNFILLABLE_TYPES) {
+            Attribute column = getFieldAttribute("c", type);
+            FillNull materialized = materialize(allFields(List.of(column)), List.of(column), TEST_CFG);
+            assertTrue("DEFAULT has no value for " + type, materialized.fillAliases().isEmpty());
+            assertEquals(type + " is reported", Set.of("c"), unfillableNames(materialized));
+        }
+    }
+
+    public void testStringFillLeavesTypesThatCannotTakeItUnchanged() {
+        for (DataType type : UNFILLABLE_TYPES) {
+            Attribute column = getFieldAttribute("c", type);
+            for (String value : List.of("POINT(1 2)", "0", "{}")) {
+                FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(column)), keyword(value), List.of(column));
+                FillNull materialized = materialize(fillNull, List.of(column), TEST_CFG);
+                assertTrue("[" + value + "] is not converted into " + type, materialized.fillAliases().isEmpty());
+                assertEquals(type + " is reported", Set.of("c"), unfillableNames(materialized));
+            }
+        }
+    }
+
+    public void testNumericFillLeavesTypesThatCannotTakeItUnchanged() {
+        for (DataType type : UNFILLABLE_TYPES) {
+            Attribute column = getFieldAttribute("c", type);
+            for (Literal fill : List.of(new Literal(Source.EMPTY, 0, DataType.INTEGER), new Literal(Source.EMPTY, 0.0, DataType.DOUBLE))) {
+                FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(column)), fill, List.of(column));
+                FillNull materialized = materialize(fillNull, List.of(column), TEST_CFG);
+                assertTrue(fill + " is not converted into " + type, materialized.fillAliases().isEmpty());
+                assertEquals(type + " is reported", Set.of("c"), unfillableNames(materialized));
+            }
+        }
+    }
+
     public void testOutputKeepsTheChildIdsAndTurnsFilledColumnsIntoReferences() {
         Attribute i = getFieldAttribute("i", DataType.INTEGER);
         Attribute d = getFieldAttribute("d", DataType.DATETIME);

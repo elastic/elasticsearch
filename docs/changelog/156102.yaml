@@ -1,0 +1,5 @@
+area: Engine
+issues: []
+pr: 156102
+summary: Guard against empty @timestamp skipper in `readTimestampFieldValueRangeAcrossSegments`
+type: bug

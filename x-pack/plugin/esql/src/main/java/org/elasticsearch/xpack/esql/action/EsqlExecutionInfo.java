@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
@@ -42,6 +43,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -132,6 +134,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * metering independently of the scan counters, so an external-source query that ends up scanning nothing is still metered.
      */
     private transient volatile boolean externalSource;
+    // What the computes that failed did: a failure carries no DriverCompletionInfo, unlike a compute that succeeds. Created when
+    // the first one is added, which is never for most queries.
+    private final transient AtomicReference<DriverCompletionInfo.AtomicAccumulator> failedWork = new AtomicReference<>();
 
     private final EsqlQueryProfile queryProfile;
 
@@ -256,6 +261,38 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     /** @return whether the analyzed plan contained an external relation, whether or not anything was scanned */
     public boolean externalSource() {
         return externalSource;
+    }
+
+    /**
+     * Adds what a compute that failed did before it failed. A failure carries no {@link DriverCompletionInfo}, so this is where the
+     * work of a query that failed or was cancelled is kept, to be reported with it. Each compute that fails adds its own work
+     * once. Only the counters are kept. Not serialized.
+     */
+    public void addFailedWork(DriverCompletionInfo work) {
+        DriverCompletionInfo counters = new DriverCompletionInfo(
+            work.documentsFound(),
+            work.valuesLoaded(),
+            work.rowsEmitted(),
+            work.bytesRead(),
+            work.readNanos(),
+            work.readCpuNanos(),
+            work.cpuNanos(),
+            work.driverNanos(),
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of()
+        );
+        failedWork.updateAndGet(accumulator -> accumulator == null ? new DriverCompletionInfo.AtomicAccumulator() : accumulator)
+            .accumulate(counters);
+    }
+
+    /** @return the work added by {@link #addFailedWork}, which is nothing for a query that did not fail */
+    public DriverCompletionInfo failedWork() {
+        DriverCompletionInfo.AtomicAccumulator accumulator = failedWork.get();
+        return accumulator == null ? DriverCompletionInfo.EMPTY : accumulator.finish();
     }
 
     /** @return the reservation installed for this query, or {@code null} when planning has nothing to charge */

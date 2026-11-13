@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
@@ -446,6 +447,20 @@ public class PlanExecutor {
     }
 
     /**
+     * How a query ended, from the exception it ended with, which is {@code null} for a query that succeeded: a
+     * {@link TaskCancelledException} anywhere in the cause chain means it was cancelled, whatever cancelled it (the user, the task
+     * management API, the expiry of an async query), and any other exception that it failed.
+     */
+    public static QueryMetricsListener.Outcome outcomeOf(@Nullable Throwable failure) {
+        if (failure == null) {
+            return QueryMetricsListener.Outcome.SUCCESS;
+        }
+        return ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null
+            ? QueryMetricsListener.Outcome.CANCELLED
+            : QueryMetricsListener.Outcome.FAILED;
+    }
+
+    /**
      * Publishes the per-query external-source coordinator metrics — but only when the query actually scanned an
      * external source ({@code externalSource}: an {@code ExternalRelation} was seen in the analyzed plan, flagged on
      * {@code PlanTelemetry}). The outcome is classified from {@code failure}: {@code null} → success; a
@@ -476,14 +491,11 @@ public class PlanExecutor {
         if (externalSource == false) {
             return;
         }
-        String outcome;
-        if (failure == null) {
-            outcome = ExternalSourceMetrics.OUTCOME_SUCCESS;
-        } else if (ExceptionsHelper.unwrap(failure, TaskCancelledException.class) != null) {
-            outcome = ExternalSourceMetrics.OUTCOME_CANCELLED;
-        } else {
-            outcome = ExternalSourceMetrics.OUTCOME_FAILURE;
-        }
+        String outcome = switch (outcomeOf(failure)) {
+            case SUCCESS -> ExternalSourceMetrics.OUTCOME_SUCCESS;
+            case CANCELLED -> ExternalSourceMetrics.OUTCOME_CANCELLED;
+            case FAILED -> ExternalSourceMetrics.OUTCOME_FAILURE;
+        };
         if (ExternalSourceMetrics.OUTCOME_FAILURE.equals(outcome)) {
             QueryFailureTelemetry.Failure classified = QueryFailureTelemetry.classify(failure);
             externalSourceMetrics.recordQuery(labels, outcome, durationMillis, partial, classified.errorType(), classified.status());

@@ -625,6 +625,31 @@ took:
   - exists: esql.datasources.queries.cpu_nanos.total
 
 ---
+"Datasource query CPU telemetry of unsuccessful queries":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_contains_datasources_query_cpu_by_outcome ]
+      reason: "Datasource per-component CPU counters of failed and cancelled queries present in /_xpack/usage"
+
+  - do: { xpack.usage: { } }
+  # per-component CPU counters (ns) of the queries that failed or were cancelled, apart from the ones of the queries that
+  # succeeded; always emitted, values are 0 if no such query ran
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.execution
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.read
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.planning
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.split_discovery
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.failure.total
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.execution
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.read
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.planning
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.split_discovery
+  - exists: esql.datasources.queries.cpu_nanos.by_outcome.cancelled.total
+
+---
 "Datasource failure reason telemetry":
   - requires:
       test_runner_features: [ capabilities ]

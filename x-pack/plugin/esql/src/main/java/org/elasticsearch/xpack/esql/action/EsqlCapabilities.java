@@ -1865,6 +1865,15 @@ public class EsqlCapabilities {
         USAGE_CONTAINS_DATASOURCES_QUERY_CPU,
 
         /**
+         * Does the usage information for ESQL contain per-component CPU counters for external-source queries that failed
+         * or were cancelled ({@code datasources.queries.cpu_nanos.by_outcome.failure.*} and
+         * {@code datasources.queries.cpu_nanos.by_outcome.cancelled.*}, each with {@code .execution}, {@code .read},
+         * {@code .planning}, {@code .split_discovery} and {@code .total})? They are not part of
+         * {@code datasources.queries.cpu_nanos.*}, which is the CPU of the queries that succeeded.
+         */
+        USAGE_CONTAINS_DATASOURCES_QUERY_CPU_BY_OUTCOME,
+
+        /**
          * Support loading of ip fields if they are not indexed.
          */
         LOADING_NON_INDEXED_IP_FIELDS,

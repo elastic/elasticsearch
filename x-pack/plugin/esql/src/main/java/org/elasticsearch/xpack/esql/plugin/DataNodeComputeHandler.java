@@ -388,8 +388,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     // Mirror the indexed path (startComputeOnDataNodes): forward the inner
                     // ComputeListener's accumulated DriverCompletionInfo (driver + plan profiles)
                     // into a dedicated parentComputeListener.acquireCompute() slot.
-                    final ActionListener<DriverCompletionInfo> profileSlot = parentComputeListener.acquireCompute();
+                    final ComputeCompletionListener profileSlot = parentComputeListener.acquireCompute();
                     final ActionListener<Void> outerL = l;
+                    // What the group did before it failed, which the failure cannot carry: set just before the failure is delivered.
+                    final AtomicReference<DriverCompletionInfo> failedUsage = new AtomicReference<>(DriverCompletionInfo.EMPTY);
                     try (var computeListener = new ComputeListener(onGroupFailure, ActionListener.wrap(info -> {
                         try {
                             profileSlot.onResponse(info);
@@ -398,11 +400,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         }
                     }, e -> {
                         try {
-                            profileSlot.onFailure(e);
+                            profileSlot.onFailure(e, failedUsage.get());
                         } finally {
                             outerL.onFailure(e);
                         }
-                    }))) {
+                    }), failedUsage::set)) {
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                         var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                         transportService.sendChildRequest(
@@ -421,7 +423,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             new ActionListenerResponseHandler<>(
                                 ComputeService.finishRemoteSinkIfNotSent(
                                     remoteSink,
-                                    computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo)
+                                    responseListener(computeListener.acquireCompute(), threadContext)
                                 ),
                                 in -> new DataNodeComputeResponse(in, threadContext),
                                 searchExecutor
@@ -639,6 +641,26 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private static final org.apache.logging.log4j.Logger OBSERVER_LOGGER = org.apache.logging.log4j.LogManager.getLogger(
         DataNodeComputeHandler.class
     );
+
+    /**
+     * The listener for the response of an external data node request: it completes {@code slot} with what the data node reports. If
+     * the data node failed, what it did before it failed travels in a response header, see {@link FailedComputeUsageHeader}. The
+     * header is taken off the thread context first, so that it never reaches the client, and is handed to {@code slot} with the
+     * failure.
+     */
+    private static ActionListener<DataNodeComputeResponse> responseListener(ComputeCompletionListener slot, ThreadContext threadContext) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(DataNodeComputeResponse response) {
+                slot.onResponse(response.completionInfo());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                slot.onFailure(e, FailedComputeUsageHeader.take(threadContext));
+            }
+        };
+    }
 
     /**
      * Keeps an {@link ExchangeSourceHandler} from completing while external distribution is being wired up.
@@ -1586,14 +1608,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             return;
         }
 
+        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
-                listener.map(profiles -> new DataNodeComputeResponse(profiles, Map.of()))
+                listener.map(profiles -> new DataNodeComputeResponse(profiles, Map.of())),
+                // Called just before the failure is delivered, on the thread that delivers it: the header is sent with that response.
+                usage -> FailedComputeUsageHeader.write(threadContext, usage)
             )
         ) {
             var parentListener = computeListener.acquireAvoid();
-            final ActionListener<DriverCompletionInfo> driverCompletionListener = ActionListener.notifyOnce(
+            final ComputeCompletionListener driverCompletionListener = ComputeCompletionListener.notifyOnce(
                 computeListener.acquireCompute()
             );
             try {
@@ -1618,23 +1643,33 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     plannerSettings,
                     LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
-                    ActionListener.wrap(resp -> {
-                        // don't return until all pages are fetched
-                        externalSink.addCompletionListener(ActionListener.running(() -> {
-                            exchangeService.finishSinkHandler(sessionId, null);
-                            driverCompletionListener.onResponse(resp);
-                        }));
-                    }, e -> {
-                        LOGGER.warn(
-                            "external source compute failed on data node [{}] with {} splits, session [{}]",
-                            transportService.getLocalNode().getName(),
-                            request.externalSplits().size(),
-                            sessionId,
-                            e
-                        );
-                        exchangeService.finishSinkHandler(sessionId, e);
-                        driverCompletionListener.onFailure(e);
-                    })
+                    new ComputeCompletionListener() {
+                        @Override
+                        public void onResponse(DriverCompletionInfo resp) {
+                            try {
+                                // don't return until all pages are fetched
+                                externalSink.addCompletionListener(ActionListener.running(() -> {
+                                    exchangeService.finishSinkHandler(sessionId, null);
+                                    driverCompletionListener.onResponse(resp);
+                                }));
+                            } catch (Exception e) {
+                                onFailure(e, DriverCompletionInfo.EMPTY);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e, DriverCompletionInfo usage) {
+                            LOGGER.warn(
+                                "external source compute failed on data node [{}] with {} splits, session [{}]",
+                                transportService.getLocalNode().getName(),
+                                request.externalSplits().size(),
+                                sessionId,
+                                e
+                            );
+                            exchangeService.finishSinkHandler(sessionId, e);
+                            driverCompletionListener.onFailure(e, usage);
+                        }
+                    }
                 );
                 parentListener.onResponse(null);
             } catch (Exception e) {

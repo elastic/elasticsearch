@@ -128,41 +128,41 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * Any expression can be asked about at a node, not only a column. Here they are the groupings of a {@code STATS}, asked about at
-     * the child of the {@code STATS}, which is the node whose columns the groupings read.
+     * Any expression can be asked about, not only a column. Here they are the groupings of a {@code STATS}, which read the columns that
+     * the child of the {@code STATS} outputs.
      */
     public void testExpressionAtANode() {
         var plan = analyzerWithSingleValuedFields(Set.of()).query("FROM test | STATS c = COUNT(*) BY MV_MIN(languages), salary + 1");
         Aggregate aggregate = plan.collect(Aggregate.class).get(0);
         assertThat(aggregate.groupings(), hasSize(2));
-        assertThat(ValueCardinality.of(aggregate.groupings().get(0), aggregate.child()), equalTo(SINGLE));
-        assertThat(ValueCardinality.of(aggregate.groupings().get(1), aggregate.child()), equalTo(MAYBE_MULTI));
+        assertThat(ValueCardinality.ofReadBy(aggregate.groupings().get(0), aggregate), equalTo(SINGLE));
+        assertThat(ValueCardinality.ofReadBy(aggregate.groupings().get(1), aggregate), equalTo(MAYBE_MULTI));
     }
 
     /**
-     * For an expression that is written in a node, the caller passes the node, and the plan to resolve its columns against is chosen
-     * from the type of the node. A grouping of a {@code STATS} reads the columns that the child outputs.
+     * A grouping that is a column of the child, here a field of an earlier {@code EVAL} and a field of the source.
      */
-    public void testWrittenInAnAggregate() {
+    public void testReadByAnAggregate() {
         var plan = analyzerWithSingleValuedFields(Set.of()).query(
             "FROM test | EVAL a = MV_MIN(languages) | STATS c = COUNT(*) BY a, salary"
         );
         Aggregate aggregate = plan.collect(Aggregate.class).get(0);
         assertThat(aggregate.groupings(), hasSize(2));
-        assertThat(ValueCardinality.ofWrittenIn(aggregate.groupings().get(0), aggregate), equalTo(SINGLE));
-        assertThat(ValueCardinality.ofWrittenIn(aggregate.groupings().get(1), aggregate), equalTo(MAYBE_MULTI));
+        assertThat(ValueCardinality.ofReadBy(aggregate.groupings().get(0), aggregate), equalTo(SINGLE));
+        assertThat(ValueCardinality.ofReadBy(aggregate.groupings().get(1), aggregate), equalTo(MAYBE_MULTI));
     }
 
     /**
-     * An {@code EVAL} field can read an earlier field of the same {@code EVAL}. That column is not output by the child, so asking at the
-     * child cannot find it. Passing the {@code EVAL} to {@code ofWrittenIn} picks the right plan.
+     * An {@code EVAL} field can read an earlier field of the same {@code EVAL}. That column is not output by the child, so asking about
+     * the output of the child cannot find it. {@code ofReadBy} picks the {@code EVAL} itself. The second assertion uses {@code ofOutput}
+     * because {@code ofReadBy} cannot ask the wrong question: it shows what a caller would get by choosing the plan itself.
      */
-    public void testWrittenInAnEvalThatReadsItsOwnEarlierField() {
+    public void testReadByAnEvalIncludesItsOwnEarlierFields() {
         var plan = analyzerWithSingleValuedFields(Set.of()).query("FROM test | EVAL a = MV_MIN(languages), k = a");
         Eval eval = plan.collect(Eval.class).get(0);
         Expression definitionOfK = eval.fields().get(1).child();
-        assertThat(ValueCardinality.ofWrittenIn(definitionOfK, eval), equalTo(SINGLE));
-        assertThat(ValueCardinality.of(definitionOfK, eval.child()), equalTo(MAYBE_MULTI));
+        assertThat(ValueCardinality.ofReadBy(definitionOfK, eval), equalTo(SINGLE));
+        assertThat(ValueCardinality.ofOutput(definitionOfK, eval.child()), equalTo(MAYBE_MULTI));
     }
 
     /**
@@ -186,6 +186,21 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
 
     public void testRowListIsUnknown() {
         assertThat(cardinalityOfKey("ROW x = [1, 2] | STATS c = COUNT(*) BY x", "x"), equalTo(MAYBE_MULTI));
+    }
+
+    /**
+     * A group key has the same id before and after the {@code STATS}, but not the same answer. As the {@code STATS} outputs it, it is
+     * one value per group. As the {@code STATS} reads it, it is whatever the source says.
+     */
+    public void testGroupKeyAsReadAndAsOutputDiffer() {
+        var plan = analyzerWithSingleValuedFields(Set.of()).query("FROM test | STATS c = COUNT(*) BY languages");
+        Aggregate aggregate = plan.collect(Aggregate.class).get(0);
+        Attribute input = aggregate.child().output().stream().filter(a -> a.name().equals("languages")).findFirst().orElseThrow();
+        Attribute output = aggregate.output().stream().filter(a -> a.name().equals("languages")).findFirst().orElseThrow();
+
+        assertThat(output.id(), equalTo(input.id()));
+        assertThat(ValueCardinality.ofReadBy(input, aggregate), equalTo(MAYBE_MULTI));
+        assertThat(ValueCardinality.ofOutput(output, aggregate), equalTo(SINGLE));
     }
 
     public void testEarlierAggregateCountIsSingle() {
@@ -308,6 +323,6 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         // The last STATS is the one whose key the query asks about; collect lists the outermost first.
         Aggregate aggregate = aggregates.get(0);
         Attribute key = aggregate.child().output().stream().filter(a -> a.name().equals(keyName)).findFirst().orElseThrow();
-        return ValueCardinality.of(key, aggregate.child());
+        return ValueCardinality.ofReadBy(key, aggregate);
     }
 }

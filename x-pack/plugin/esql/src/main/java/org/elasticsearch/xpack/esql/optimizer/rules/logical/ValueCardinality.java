@@ -40,7 +40,7 @@ import java.util.List;
  * Whether an attribute is <em>definitely</em> single-valued: on every row it holds one value or {@code null}, never a list.
  * <p>
  * The data type does not say so, because every ES|QL type may hold a list. Optimizer rewrites that are only valid for
- * single-valued inputs (for example recomputing a {@code STATS BY} key above the aggregation) need a proof, and {@link #of}
+ * single-valued inputs (for example recomputing a {@code STATS BY} key above the aggregation) need a proof, and {@link #ofReadBy}
  * is the one place that gives it. An answer is {@link #SINGLE} only when a rule below proves it; everything else, including
  * every plan shape this class does not know, is {@link #MAYBE_MULTI}. A caller must treat {@code MAYBE_MULTI} as "unknown", not
  * as "multi-valued".
@@ -75,22 +75,30 @@ enum ValueCardinality {
     private static final int MAX_DEPTH = ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 
     /**
-     * Whether {@code expression} is single-valued at {@code plan}: the node, or stage, of the pipeline that the expression is evaluated
-     * at, meaning the pipeline from the source up to that node. The columns that the expression reads must be outputs of that node, so
-     * for an expression that belongs to a node, such as a grouping of a {@code STATS}, pass the child of the node.
+     * Whether {@code expression} is single-valued as {@code node} reads it. This is the question a rewrite rule asks. For
+     * {@code ... | STATS c = COUNT(*) BY k}, is {@code k} single-valued in the rows that the {@code STATS} reads? Ask
+     * {@code ofReadBy(k, aggregate)}.
+     * <p>
+     * Which values are meant needs care, because the same column can be single-valued at one point of a pipeline and not at another.
+     * For {@code k} above there are two questions:
+     * <ol>
+     *   <li>Is {@code k}, as the {@code STATS} outputs it, single-valued? Yes, always. A group key holds one value per group, because
+     *       the aggregation unrolls a list into one group per value. {@link #ofOutput} asks this.</li>
+     *   <li>Is {@code k}, as the {@code STATS} reads it, single-valued? This depends on the nodes before the {@code STATS}. A rewrite
+     *       that recomputes values from the key needs this answer. {@code ofReadBy} asks this.</li>
+     * </ol>
+     * A node usually reads the output of its child. {@code EVAL} and {@code ROW} are the exception. A field can read an earlier field
+     * of the same node, as in {@code EVAL a = MV_MAX(x), k = a}, so these nodes also read their own earlier fields. For them
+     * {@code ofReadBy} uses the output of the node itself. To ask about a column that a node defines, such as {@code k} in that
+     * example, use {@link #ofOutput}.
+     * <p>
+     * The answer is {@link #MAYBE_MULTI} for a node that is not one of {@code EVAL}, {@code ROW}, {@code STATS}, {@code WHERE},
+     * {@code SORT}, {@code KEEP} and {@code RENAME}, {@code LIMIT} and {@code TopN}.
      */
-    static ValueCardinality of(Expression expression, LogicalPlan plan) {
-        return ofExpression(expression, plan, 0);
-    }
-
-    /**
-     * Whether {@code expression}, written in {@code node}, is single-valued. Picks the plan to pass to {@link #of} from the type of the
-     * node, so the caller does not have to. The answer is {@link #MAYBE_MULTI} for a node that is not listed.
-     */
-    static ValueCardinality ofWrittenIn(Expression expression, LogicalPlan node) {
+    static ValueCardinality ofReadBy(Expression expression, LogicalPlan node) {
         if (node instanceof Eval || node instanceof Row) {
             // These can read their own earlier fields, so evaluate over the node itself: EVAL a = MV_MAX(languages), k = a
-            return of(expression, node);
+            return ofOutput(expression, node);
         }
         if (node instanceof Aggregate
             || node instanceof Filter
@@ -99,9 +107,21 @@ enum ValueCardinality {
             || node instanceof Limit
             || node instanceof TopN) {
             // These read the columns that their child outputs.
-            return of(expression, node.children().get(0));
+            return ofOutput(expression, node.children().get(0));
         }
         return MAYBE_MULTI;
+    }
+
+    /**
+     * Whether {@code expression} is single-valued in the output of {@code plan}: the columns that it reads are columns that
+     * {@code plan} outputs. It works for any node. Rules should use {@link #ofReadBy}, which picks the plan for them. This is
+     * package-private so that tests can ask about the output of a node directly.
+     * <p>
+     * What a node outputs and what it reads can give different answers for the same column. For a group key of a {@code STATS}, the
+     * output is always single-valued, but what the {@code STATS} reads may not be. See {@link #ofReadBy}.
+     */
+    static ValueCardinality ofOutput(Expression expression, LogicalPlan plan) {
+        return ofExpression(expression, plan, 0);
     }
 
     /**

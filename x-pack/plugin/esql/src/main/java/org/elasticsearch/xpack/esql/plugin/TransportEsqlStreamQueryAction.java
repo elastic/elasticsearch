@@ -213,7 +213,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             request.allowPartialResults(defaultAllowPartialResults);
         }
         EsqlExecutionInfo executionInfo = transportEsqlQueryAction.createEsqlExecutionInfo(request);
-        PageStreamPublisher publisher = new PageStreamPublisher(request.batchSize());
+        PageStreamPublisher publisher = new PageStreamPublisher();
         AtomicReference<Result> resultRef = new AtomicReference<>();
         queryInterceptor.wrapAndRun(
             listener,

@@ -4426,6 +4426,13 @@ public class EsqlCapabilities {
         FILLNULL_INLINE_STATS_PASS_THROUGH(FILLNULL.isEnabled()),
 
         /**
+         * {@code FILLNULL} fills an {@code unsigned_long} column with a whole-number value such as {@code 7}, where it used to leave
+         * the column unchanged and warn that the value could not be applied; a negative value is still refused.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/162987">#162987</a>.
+         */
+        FILLNULL_WHOLE_NUMBER_INTO_UNSIGNED_LONG(FILLNULL.isEnabled()),
+
+        /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
          * field-caps request, so the coordinator never plans nested subfields. Shard extraction
          * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of

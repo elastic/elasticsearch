@@ -156,6 +156,14 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
         doTestShape(geometry, geoShapeValue, reader, new Point(0, 0));
     }
 
+    public void testDatelineCrossingBoxOnEquator() throws Exception {
+        // minLon above maxLon wraps the dateline: a box as wide as the globe, although every edge encodes to 0
+        Geometry geometry = new Rectangle(1.401298464324817E-45, 0.0, 1.401298464324817E-45, 0.0);
+        GeoShapeValues.GeoShapeValue geoShapeValue = GeoTestUtils.geoShapeValue(geometry);
+        GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(geometry, CoordinateEncoder.GEO);
+        doTestShape(geometry, geoShapeValue, reader, new Point(0, 0));
+    }
+
     private <T extends LatLonGeometry> void doTestShapes(Supplier<T> supplier) throws Exception {
         Geometry geometry = GeometryNormalizer.apply(Orientation.CCW, GeometryTestUtils.randomGeometryWithoutCircle(0, false));
         GeoShapeValues.GeoShapeValue geoShapeValue = GeoTestUtils.geoShapeValue(geometry);
@@ -392,6 +400,10 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
 
         @Override
         public Boolean visit(Rectangle rectangle) {
+            if (rectangle.getMinX() > rectangle.getMaxX()) {
+                // wraps the dateline: two pieces, never one point
+                return false;
+            }
             int eMinX = encodeLongitude(rectangle.getMinX());
             int eMaxX = encodeLongitude(rectangle.getMaxX());
             int eMinY = encodeLatitude(rectangle.getMinY());

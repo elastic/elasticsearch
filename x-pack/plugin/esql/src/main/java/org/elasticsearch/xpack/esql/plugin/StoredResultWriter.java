@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -47,7 +48,8 @@ import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.TRANSPORT
  * is written first; each page of rows is then serialized as it is handed to the client and indexed in the
  * background, one bulk at a time. Only the serialized bytes wait for the bulk to be acknowledged, and producers
  * are held back while too many bytes are waiting. Page {@code 0} is rewritten last, once the query is done, and
- * the index is then refreshed so the whole result is visible.
+ * the index is then refreshed so the whole result is visible. Pages are serialized with the minimum transport version
+ * of the cluster so that any node can read them.
  */
 final class StoredResultWriter implements PageStreamPublisher.PageObserver {
 
@@ -59,6 +61,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     private record Pending(IndexRequest request, long bytes) {}
 
     private final Client client;
+    private final ClusterService clusterService;
     private final String docId;
     private final StoredResultMetadata running;
     private final long expirationTime;
@@ -73,8 +76,16 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     private boolean finished;
     private Exception failure;
 
-    StoredResultWriter(Client client, String docId, StoredResultMetadata running, long expirationTime, PageStreamPublisher publisher) {
+    StoredResultWriter(
+        Client client,
+        ClusterService clusterService,
+        String docId,
+        StoredResultMetadata running,
+        long expirationTime,
+        PageStreamPublisher publisher
+    ) {
         this.client = new OriginSettingClient(client, ASYNC_SEARCH_ORIGIN);
+        this.clusterService = clusterService;
         this.docId = docId;
         this.running = running;
         this.expirationTime = expirationTime;
@@ -232,7 +243,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     }
 
     private IndexRequest request(String id, int seq, long firstRow, int rowCount, Writeable content) throws IOException {
-        TransportVersion version = TransportVersion.current();
+        TransportVersion version = clusterService.state().getMinTransportVersion();
         BytesReference bytes;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);

@@ -478,6 +478,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         if (resultId != null) {
             StoredResultWriter writer = new StoredResultWriter(
                 client,
+                clusterService,
                 resultId.getDocId(),
                 StoredResultMetadata.running(securityHeaders, columns, zoneId),
                 threadPool.absoluteTimeInMillis() + Objects.requireNonNullElse(request.keepAlive(), EsqlQueryRequest.DEFAULT_KEEP_ALIVE)

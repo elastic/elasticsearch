@@ -19,6 +19,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
@@ -27,6 +28,7 @@ import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncResultsService;
@@ -334,6 +336,78 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    /**
+     * GET wait_for_completion must return when SEARCH is fully occupied. Timeout used to run on SEARCH
+     * and would sit behind those workers.
+     */
+    public void testGetWaitForCompletionWhenSearchPoolBusy() throws Exception {
+        CountDownLatch executionLatch = new CountDownLatch(1);
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation() {
+            @Override
+            public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+                executorService.submit(() -> {
+                    try {
+                        assertThat(executionLatch.await(10, TimeUnit.SECONDS), equalTo(true));
+                    } catch (InterruptedException ex) {
+                        fail("Shouldn't be here");
+                    }
+                    super.execute(request, task, listener);
+                });
+            }
+        });
+        TestRequest request = new TestRequest(randomAlphaOfLength(10), TimeValue.timeValueDays(1));
+        PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
+        service.asyncExecute(request, TimeValue.timeValueMillis(1), request.keepAlive, true, submit);
+        TestResponse initial = submit.get(10, TimeUnit.SECONDS);
+        assertThat(initial.id, notNullValue());
+        assertThat(initial.string, nullValue());
+
+        try {
+            withSearchPoolOccupied(() -> {
+                StoredAsyncResponse<TestResponse> response = getResponse(initial.id, TimeValue.timeValueMillis(100));
+                assertThat(response.getException(), nullValue());
+                assertThat(response.getResponse(), notNullValue());
+                assertThat(response.getResponse().id, equalTo(initial.id));
+                assertThat(response.getResponse().string, nullValue());
+            });
+        } finally {
+            executionLatch.countDown();
+        }
+    }
+
+    /**
+     * Submit wait_for_completion must return an id when SEARCH is fully occupied. Timeout used to run
+     * on SEARCH and would sit behind those workers.
+     */
+    public void testSubmitWaitForCompletionWhenSearchPoolBusy() throws Exception {
+        CountDownLatch executionLatch = new CountDownLatch(1);
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation() {
+            @Override
+            public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
+                executorService.submit(() -> {
+                    try {
+                        assertThat(executionLatch.await(10, TimeUnit.SECONDS), equalTo(true));
+                    } catch (InterruptedException ex) {
+                        fail("Shouldn't be here");
+                    }
+                    super.execute(request, task, listener);
+                });
+            }
+        });
+        TestRequest request = new TestRequest(randomAlphaOfLength(10), TimeValue.timeValueDays(1));
+        try {
+            withSearchPoolOccupied(() -> {
+                PlainActionFuture<TestResponse> submit = new PlainActionFuture<>();
+                service.asyncExecute(request, TimeValue.timeValueMillis(100), request.keepAlive, true, submit);
+                TestResponse initial = submit.get(10, TimeUnit.SECONDS);
+                assertThat(initial.id, notNullValue());
+                assertThat(initial.string, nullValue());
+            });
+        } finally {
+            executionLatch.countDown();
+        }
+    }
+
     public void testUpdateKeepAliveToTask() throws Exception {
         long now = System.currentTimeMillis();
         CountDownLatch executionLatch = new CountDownLatch(1);
@@ -603,6 +677,33 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
                     once.onFailure(e);
                 }
             });
+        }
+    }
+
+    /**
+     * Runs {@code action} while every SEARCH worker is parked. Always releases the pool — this suite
+     * shares the node.
+     */
+    private void withSearchPoolOccupied(CheckedRunnable<Exception> action) throws Exception {
+        var threadPool = transportService.getThreadPool();
+        int threads = threadPool.info(ThreadPool.Names.SEARCH).getMax();
+        CountDownLatch releaseSearch = new CountDownLatch(1);
+        CountDownLatch occupied = new CountDownLatch(threads);
+        for (int i = 0; i < threads; i++) {
+            threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+                occupied.countDown();
+                try {
+                    releaseSearch.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+        try {
+            assertThat(occupied.await(10, TimeUnit.SECONDS), equalTo(true));
+            action.run();
+        } finally {
+            releaseSearch.countDown();
         }
     }
 

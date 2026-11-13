@@ -93,6 +93,7 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 
 ## Formatting & Imports
 - Absolutely no wildcard imports; keep existing import order and avoid reordering untouched lines.
+- Do not use fully qualified imports where avoidable
 - In `switch` statements, do not use `default` as a branch for valid or expected options. Enumerate those cases explicitly and reserve `default` for throwing an exception for unexpected values, or an assertion error if this code branch is unreachable.
 
 ## Types, Generics, and Suppressions
@@ -194,3 +195,6 @@ Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this
 
 ## Documentation
 When building or editing docs, read `docs/AGENTS.md` first.
+
+## Benchmarks
+When working on mappers, the columnar or batch indexing path, or asked about indexing performance or its benchmarks, read `benchmarks/AGENTS.md` first.

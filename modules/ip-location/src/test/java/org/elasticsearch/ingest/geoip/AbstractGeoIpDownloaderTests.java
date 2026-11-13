@@ -9,12 +9,9 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -44,11 +41,7 @@ public class AbstractGeoIpDownloaderTests extends ESTestCase {
 
     @Before
     public void setupThreadPool() {
-        threadPool = new ThreadPool(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), getTestName()).build(),
-            MeterRegistry.NOOP,
-            new DefaultBuiltInExecutorBuilders()
-        );
+        threadPool = new TestThreadPool(getTestName());
     }
 
     @After

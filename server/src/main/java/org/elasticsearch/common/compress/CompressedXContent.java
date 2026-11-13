@@ -38,6 +38,7 @@ import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.Map;
+import java.util.zip.CRC32;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
@@ -260,6 +261,25 @@ public final class CompressedXContent implements Writeable {
     @Override
     public String toString() {
         return string();
+    }
+
+    private static int crc32FromCompressed(byte[] compressed) {
+        CRC32 crc32 = new CRC32();
+        try (InflaterAndBuffer inflaterAndBuffer = inflater.get()) {
+            final Inflater inflater = inflaterAndBuffer.inflater;
+            final ByteBuffer buffer = inflaterAndBuffer.buffer;
+            assert assertBufferIsCleared(buffer);
+            setInflaterInput(compressed, inflater);
+            do {
+                if (inflater.inflate(buffer) > 0) {
+                    crc32.update(buffer.flip());
+                }
+                buffer.clear();
+            } while (inflater.finished() == false);
+            return (int) crc32.getValue();
+        } catch (DataFormatException e) {
+            throw new ElasticsearchException(e);
+        }
     }
 
     /**

@@ -543,11 +543,6 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testSourcesFinishedUnregistersSink
   issue: https://github.com/elastic/elasticsearch/issues/165591
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testRelocationSourceWaitsForEarlyPrewarmBeforeHandoff
-  issue: https://github.com/elastic/elasticsearch/issues/165656
 - class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
   tasks:
   - :server:test

@@ -1574,9 +1574,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         // make the source node wait at least `minWaitInMillis` before we release the prewarming, so we can then verify prewarm metric
         final var sourceThreadPool = internalCluster().getInstance(ThreadPool.class, sourceNode);
-        final long start = sourceThreadPool.relativeTimeInMillis();
+        final long start = sourceThreadPool.rawRelativeTimeInMillis();
         final long minWaitInMillis = randomLongBetween(10, 100);
-        assertTrue(waitUntil(() -> sourceThreadPool.relativeTimeInMillis() - start >= minWaitInMillis));
+        assertTrue(waitUntil(() -> sourceThreadPool.rawRelativeTimeInMillis() - start >= minWaitInMillis));
 
         releaseEarlyPrewarming.countDown();
         ensureGreen(indexName);

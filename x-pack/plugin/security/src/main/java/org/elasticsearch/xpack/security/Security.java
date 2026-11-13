@@ -90,7 +90,6 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -114,6 +113,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -253,8 +253,10 @@ import org.elasticsearch.xpack.core.ssl.TransportTLSBootstrapCheck;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
+import org.elasticsearch.xpack.security.action.SecurityMigrationAction;
 import org.elasticsearch.xpack.security.action.TransportClearSecurityCacheAction;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.security.action.TransportSecurityMigrationAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportBulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCloneApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCreateApiKeyAction;
@@ -791,7 +793,7 @@ public class Security extends Plugin
                 services.environment(),
                 services.indexNameExpressionResolver(),
                 services.telemetryProvider(),
-                new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
+                services.taskManager(),
                 services.linkedProjectConfigService(),
                 services.projectResolver(),
                 services.crossProjectModeDecider(),
@@ -869,7 +871,7 @@ public class Security extends Plugin
         Environment environment,
         IndexNameExpressionResolver expressionResolver,
         TelemetryProvider telemetryProvider,
-        PersistentTasksService persistentTasksService,
+        TaskManager taskManager,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
         CrossProjectModeDecider crossProjectModeDecider,
@@ -890,7 +892,7 @@ public class Security extends Plugin
 
         systemIndices.init(client, featureService, clusterService, projectResolver);
 
-        this.migrationManager.set(new SecurityMigrations.Manager(clusterService, persistentTasksService, systemIndices));
+        this.migrationManager.set(new SecurityMigrations.Manager(clusterService, client, taskManager, projectResolver, systemIndices));
 
         scriptServiceReference.set(scriptService);
         // We need to construct the checks here while the secure settings are still available.
@@ -909,6 +911,7 @@ public class Security extends Plugin
         List<Object> components = new ArrayList<>();
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
+        components.add(systemIndices); // used by TransportSecurityMigrationAction
 
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
         assert systemDataStreamsNotManageableByDataStreamLifecycle(coreSystemIndices, restrictedIndices).isEmpty()
@@ -1971,6 +1974,7 @@ public class Security extends Plugin
             new ActionHandler(UpdateSecuritySettingsAction.INSTANCE, TransportUpdateSecuritySettingsAction.class),
             new ActionHandler(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
             new ActionHandler(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
+            new ActionHandler(SecurityMigrationAction.INSTANCE, TransportSecurityMigrationAction.class),
             new ActionHandler(GetSecurityStatsAction.INSTANCE, TransportSecurityStatsAction.class),
             usageAction,
             infoAction

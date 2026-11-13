@@ -69,7 +69,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -79,6 +78,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -141,6 +141,7 @@ import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivilegesViolation;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.CrossClusterAccessSecurityExtension;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -289,7 +290,7 @@ public class SecurityTests extends ESTestCase {
             env,
             TestIndexNameExpressionResolver.newInstance(threadContext),
             TelemetryProvider.NOOP,
-            mock(PersistentTasksService.class),
+            new TaskManager(settings, threadPool, Set.of()),
             StubLinkedProjectConfigService.INSTANCE,
             projectResolver,
             CrossProjectModeDecider.NOOP,
@@ -335,6 +336,18 @@ public class SecurityTests extends ESTestCase {
     @After
     public void cleanup() {
         threadContext = null;
+    }
+
+    /**
+     * {@link SecuritySystemIndices} is injected into {@code TransportSecurityMigrationAction}, which only works if it is registered as
+     * a component. Guards against dropping the registration when component registration is refactored.
+     */
+    public void testRegistersSystemIndicesForInjection() throws Exception {
+        final Collection<Object> components = createComponents(Settings.EMPTY);
+        assertNotNull(
+            "SecuritySystemIndices must be registered as a component for TransportSecurityMigrationAction",
+            findComponent(SecuritySystemIndices.class, components)
+        );
     }
 
     public void testCustomRealmExtension() throws Exception {

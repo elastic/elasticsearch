@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.action.datafeed.DatafeedEsqlGates;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
@@ -252,8 +253,20 @@ public class DatafeedManager {
                     }
                 });
                 if (request.getDatafeed().getEsqlQuery() != null) {
-                    // Rollup caps are keyed off the DSL indices list; ES|QL sources are validated in #160858.
-                    getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
+                    final String[] esqlSourceIndices = EsqlDatafeedQueryValidator.leadingSourceIndexExpressions(
+                        request.getDatafeed().getEsqlQuery()
+                    )
+                        .stream()
+                        .filter(expr -> expr.startsWith("-") == false)
+                        .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
+                        .toArray(String[]::new);
+                    indicesPrivilegesBuilder.indices(esqlSourceIndices).privileges(EsqlDatafeedQueryValidator.ESQL_QUERY_ACTION_NAME);
+                    if (esqlSourceIndices.length == 0) {
+                        privResponseListener.onResponse(new HasPrivilegesResponse());
+                    } else {
+                        privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
+                        client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                    }
                 } else if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
                     getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
                 } else {

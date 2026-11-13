@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -648,13 +649,18 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testPutEsqlDatafeedWithSecurityEnabledShouldShortCircuitIndexPrivilegeCheck() {
+    public void testPutEsqlDatafeedWithSecurityEnabledShouldCheckLeadingFromPrivileges() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String callerAuthentication = "caller-auth";
         threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, callerAuthentication);
 
         SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings(), threadContext);
         when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
+        doAnswer(invocation -> {
+            ActionListener<HasPrivilegesResponse> listener = invocation.getArgument(2);
+            listener.onResponse(new HasPrivilegesResponse());
+            return null;
+        }).when(harness.client()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
         harness.stubSuccessfulPutPrerequisites();
         AtomicReference<Map<String, String>> storedHeaders = new AtomicReference<>();
         harness.stubPutDatafeedConfigCapturingHeaders(storedHeaders);
@@ -678,12 +684,113 @@ public class DatafeedManagerTests extends ESTestCase {
             );
 
         assertThat(response.get(), notNullValue());
-        // Index privileges are not checked at PUT for ES|QL datafeeds, so the persisted datafeed headers
-        // (used by every runtime query) must carry the caller's identity.
         assertThat(storedHeaders.get(), notNullValue());
         assertThat(storedHeaders.get().get(AuthenticationField.AUTHENTICATION_KEY), equalTo(callerAuthentication));
-        verify(harness.client(), never()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
+        verify(harness.client()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
         verify(harness.client(), never()).execute(same(GetRollupIndexCapsAction.INSTANCE), any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutEsqlDatafeedWhenCallerLacksSourceReadPrivilegeShouldFailBeforePersist() {
+        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings());
+        when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
+        doAnswer(invocation -> {
+            ActionListener<HasPrivilegesResponse> listener = invocation.getArgument(2);
+            listener.onResponse(
+                new HasPrivilegesResponse(
+                    "user",
+                    false,
+                    Collections.emptyMap(),
+                    List.of(
+                        org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges.builder("logs")
+                            .addPrivilege(
+                                org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator.ESQL_QUERY_ACTION_NAME,
+                                false
+                            )
+                            .build()
+                    ),
+                    Collections.emptyMap()
+                )
+            );
+            return null;
+        }).when(harness.client()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
+
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        harness.manager()
+            .putDatafeed(
+                new PutDatafeedAction.Request(datafeed),
+                mockClusterStateWithNoTasks(),
+                mockSecurityContextWithUser("df-user"),
+                harness.threadPool(),
+                ActionListener.wrap(r -> fail("expected failure"), failure::set)
+            );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchSecurityException.class));
+        verify(harness.datafeedConfigProvider(), never()).putDatafeedConfig(any(), any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutEsqlDatafeedWhenAuthorizedUserHasPrivilegeOnMissingSourceShouldPersist() {
+        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings());
+        when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
+        harness.stubSuccessfulPutPrerequisites();
+        harness.stubPutDatafeedConfigSuccess();
+        doAnswer(invocation -> {
+            ActionListener<HasPrivilegesResponse> listener = invocation.getArgument(2);
+            listener.onResponse(new HasPrivilegesResponse());
+            return null;
+        }).when(harness.client()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
+
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM missing-index")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
+        harness.manager()
+            .putDatafeed(
+                new PutDatafeedAction.Request(datafeed),
+                mockClusterStateWithNoTasks(),
+                mockSecurityContextWithUser("df-user"),
+                harness.threadPool(),
+                ActionTestUtils.assertNoFailureListener(response::set)
+            );
+
+        assertThat(response.get(), notNullValue());
+        verify(harness.datafeedConfigProvider()).putDatafeedConfig(any(), any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutEsqlDatafeedPutShouldOmitRemoteLeadingSourceFromPrivilegeRequest() {
+        SecurityEnabledPutHarness harness = newSecurityEnabledPutHarness(securityEnabledSettings());
+        when(harness.credentialManager().hasCloudManagedCredential(any())).thenReturn(false);
+        harness.stubSuccessfulPutPrerequisites();
+        AtomicReference<HasPrivilegesRequest> captured = new AtomicReference<>();
+        doAnswer(invocation -> {
+            captured.set(invocation.getArgument(1));
+            ActionListener<HasPrivilegesResponse> listener = invocation.getArgument(2);
+            listener.onResponse(new HasPrivilegesResponse());
+            return null;
+        }).when(harness.client()).execute(same(HasPrivilegesAction.INSTANCE), any(), any());
+
+        DatafeedConfig datafeed = new DatafeedConfig.Builder("test-datafeed", "test-job").setEsqlQuery("FROM logs, remote:logs")
+            .setSourceTimeField("@timestamp")
+            .setGroupingInterval(TimeValue.timeValueHours(1))
+            .build();
+        harness.manager()
+            .putDatafeed(
+                new PutDatafeedAction.Request(datafeed),
+                mockClusterStateWithNoTasks(),
+                mockSecurityContextWithUser("df-user"),
+                harness.threadPool(),
+                ActionTestUtils.assertNoFailureListener(r -> {})
+            );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(captured.get().indexPrivileges()[0].getIndices(), equalTo(new String[] { "logs" }));
     }
 
     @SuppressWarnings("unchecked")

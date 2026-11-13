@@ -33,10 +33,16 @@ public final class SegmentBufferScratch implements IntFunction<MemorySegment> {
     public MemorySegment apply(int count) {
         if (slice == null || slice.byteSize() != count) {
             if (backing == null || backing.byteSize() < count) {
-                backing = ThreadConfinedArena.allocate(count, ValueLayout.JAVA_LONG.byteAlignment());
+                // allocate on a power-of-two to reduce the number of excessive re-allocations
+                // as allocated buffers are not deallocated until the arena is closed,
+                // and also to make things easier for malloc
+                int bufferSize = count <= 1 ? 2 : Integer.highestOneBit(count - 1) << 1;
+                backing = ThreadConfinedArena.allocate(bufferSize, ValueLayout.JAVA_LONG.byteAlignment());
             }
             slice = backing.asSlice(0, count);
         }
+        assert backing.scope().isAlive() : "Segment has been de-allocated";
+        assert backing.isAccessibleBy(Thread.currentThread()) : "Another thread is trying to access an allocated thread-confined buffer";
         return slice;
     }
 }

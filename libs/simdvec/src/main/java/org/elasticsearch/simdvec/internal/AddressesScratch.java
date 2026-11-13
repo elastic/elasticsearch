@@ -9,7 +9,7 @@
 
 package org.elasticsearch.simdvec.internal;
 
-import org.elasticsearch.lucene.store.ThreadConfinedArena;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -24,7 +24,7 @@ import java.util.function.IntFunction;
  */
 public final class AddressesScratch implements IntFunction<MemorySegment> {
 
-    private MemorySegment seg;
+    private final SegmentBufferScratch buffer = new SegmentBufferScratch();
 
     /**
      * Returns a {@link MemorySegment} of at least {@code count} native-address slots.
@@ -35,10 +35,6 @@ public final class AddressesScratch implements IntFunction<MemorySegment> {
      */
     @Override
     public MemorySegment apply(int count) {
-        long needed = (long) count * ValueLayout.ADDRESS.byteSize();
-        if (seg == null || seg.byteSize() < needed) {
-            seg = ThreadConfinedArena.allocate(needed, ValueLayout.ADDRESS.byteAlignment());
-        }
-        return seg;
+        return buffer.apply(count * Math.toIntExact(ValueLayout.ADDRESS.byteSize()));
     }
 }

@@ -601,8 +601,13 @@ public class IndicesQueryCache implements QueryCache, Closeable {
          */
         public abstract boolean chargeCachePopulation(LeafReaderContext leaf, long bytes);
 
-        /** The weight this one wraps, so that {@link #doCache} can see through it. */
-        final Weight wrapped() {
+        /**
+         * The weight this one wraps. The searcher adds this wrapper around every weight it hands to a {@link QueryCache}, including
+         * a weight that is already cached (a query like {@code ConstantScoreQuery} hands its child's cached weight back to the
+         * searcher). A {@link QueryCache} that guards against caching an already cached weight, as {@link #doCache} does, must
+         * therefore look through this wrapper, or it caches the same clause twice.
+         */
+        public final Weight wrapped() {
             return in;
         }
     }

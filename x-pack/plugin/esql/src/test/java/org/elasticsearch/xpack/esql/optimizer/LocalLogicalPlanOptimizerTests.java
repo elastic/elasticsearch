@@ -143,6 +143,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLocalPropagateEmptyRelationThroughPlanDeeperThanRuleExecutionLimit() {
+        // emp_no is missing only in data-node stats, so the empty relation appears during local optimization.
         StringBuilder query = new StringBuilder("FROM test | WHERE emp_no > 10");
         for (int i = 0; i < 150; i++) {
             query.append(" | MV_EXPAND languages");

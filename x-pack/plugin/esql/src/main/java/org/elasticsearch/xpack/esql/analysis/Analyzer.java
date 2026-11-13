@@ -87,7 +87,6 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.UnmappedEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -2445,10 +2444,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        private static @Nullable FieldAttribute mappedSiblingField(Attribute attr) {
-            return attr instanceof FieldAttribute fa
-                && fa instanceof UnsupportedAttribute == false
-                && fa.field() instanceof UnmappedEsField == false ? fa : null;
+        /**
+         * Whether the column {@code attr} of a merge, which some branch has and another lacks, can be one that the other branch has in
+         * its own {@code _source}: it has a type, which is the one that every branch that has it agrees on, and it is not metadata or
+         * something the analyzer made, neither of which is in {@code _source}.
+         */
+        private static boolean siblingColumnMayBeInSource(Attribute attr) {
+            return attr instanceof UnsupportedAttribute == false
+                && attr instanceof MetadataAttribute == false
+                && MetadataAttribute.isSupported(attr.name()) == false
+                && attr.synthetic() == false
+                && attr.dataType() != NULL
+                && attr.dataType() != UNSUPPORTED;
         }
 
         /**
@@ -2539,9 +2546,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Either adds what the relation needs to {@code toLoad} (and, to convert it, an alias to {@code aliases}) and returns
          * {@code true}, or leaves the branch contributing nulls and returns {@code false}.
          * <ul>
-         *   <li>A {@code LOAD_ALL} extra: a sibling mapped the column and this branch never named it, so the keyword read from
-         *   {@code _source} is cast to the sibling's type when a cast exists, and otherwise null-filled with a warning. A field this
-         *   branch already named stays a keyword and conflicts further down, same as load.</li>
+         *   <li>A {@code LOAD_ALL} sibling column: a sibling branch of a union or a {@code FORK} has the column, with the same type in
+         *   every branch that has it, and this branch does not, so the keyword read from {@code _source} is cast to that type when a
+         *   cast exists, and otherwise null-filled with a warning. How the sibling got the column (a mapping, an {@code EVAL}, a
+         *   {@code RENAME}, a union or {@code FORK} nested in it) makes no difference, and neither does the order of the branches. A
+         *   column with no single type, such as one that the siblings disagree on, is not loaded. A field this branch already named
+         *   stays a keyword and conflicts further down, same as load.</li>
          *   <li>A field materialized in a sibling branch is materialized here too (rather than null-filled), unless this branch
          *   cannot surface it: loaded from {@code _source} under {@code LOAD}/{@code LOAD_ALL}, null-typed under nullify. This keeps
          *   the branches' source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...)
@@ -2567,13 +2577,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             UnmappedResolution unmappedResolution = context.unmappedResolution();
             LogicalPlan branch = mergePlan.children().get(branchIndex);
-            FieldAttribute mapped = mappedSiblingField(attr);
-            if (mapped != null
-                && mergePlan instanceof UnionAll
+            if ((mergePlan instanceof UnionAll || mergePlan instanceof Fork)
                 && unmappedResolution.loadsAllUnmappedFields()
+                && siblingColumnMayBeInSource(attr)
+                && context.fieldCapsAsksFor(attr.name())
                 && branchCanSurfaceLoadedField(branch, attr.name())) {
+                // A sibling has the column, and has it with one type in every branch that does (otherwise the merged column is
+                // unsupported). The branch does not, so read it from its own _source and cast it to that type. What the sibling does
+                // to get the column (a mapping, an EVAL, a RENAME, a nested union or FORK) makes no difference. Only a column the field
+                // caps requests ask for: a branch that lacks one that was not asked for may well map it, with another type, and the
+                // query does not read the column then (see AnalyzerContext#fieldCapsAsksFor).
                 FieldAttribute loaded = unmappedKeyword(attr);
-                AbstractConvertFunction cast = EsqlDataTypeConverter.castFromKeyword(mapped.dataType(), loaded, context.configuration());
+                AbstractConvertFunction cast = EsqlDataTypeConverter.castFromKeyword(attr.dataType(), loaded, context.configuration());
                 if (cast != null) {
                     toLoad.add(loaded);
                     if (cast.isNoop() == false) {
@@ -2581,7 +2596,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 } else {
                     // The branch contributes nulls to the column, as for any column it lacks; warn that it could not be loaded.
-                    context.subqueryNonLoadableNullFills().add(mapped.name());
+                    context.subqueryNonLoadableNullFills().add(attr.name());
                 }
                 return true;
             }

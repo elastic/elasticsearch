@@ -188,6 +188,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -6931,6 +6932,35 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         e = expectThrows(VerificationException.class, () -> planTypes("""
             from types  | EVAL x = keyword, y = date - to_timeduration(x)"""));
         assertEquals("1:60: argument of [to_timeduration(x)] must be a constant, received [x]", e.getMessage().substring(header.length()));
+    }
+
+    public void testPropagateEmptyRelationThroughPlanDeeperThanRuleExecutionLimit() {
+        var plan = optimizedPlan(emptyRelationBelowDeepUnaryChain());
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(LocalSupplier.EMPTY));
+    }
+
+    public void testPropagateEmptyRelationThroughPlanDeeperThanRuleExecutionLimitWithUngroupedStats() {
+        var plan = optimizedPlan(emptyRelationBelowDeepUnaryChain() + " | STATS c = COUNT(*)");
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(equalTo(LocalSupplier.EMPTY)));
+        Block[] blocks = local.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
+    }
+
+    // MV_EXPAND is one unary node per level. EVAL would be merged first, and 150 levels exceeds Limiter.DEFAULT (100).
+    private static String emptyRelationBelowDeepUnaryChain() {
+        StringBuilder query = new StringBuilder("FROM test | WHERE false");
+        for (int i = 0; i < 150; i++) {
+            query.append(" | MV_EXPAND languages");
+        }
+        return query.toString();
     }
 
     public void testWhereNull() {

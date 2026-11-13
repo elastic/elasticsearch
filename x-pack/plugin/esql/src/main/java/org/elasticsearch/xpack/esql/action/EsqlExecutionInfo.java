@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
@@ -80,6 +79,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public static final TransportVersion EXECUTION_METADATA_VERSION = TransportVersion.fromName("esql_execution_metadata");
     public static final TransportVersion EXECUTION_CLUSTER_NAME_VERSION = TransportVersion.fromName("esql_cluster_name");
     public static final TransportVersion EXECUTION_PROFILE_FORMAT_VERSION = TransportVersion.fromName("esql_profile_format");
+    public static final TransportVersion EXECUTION_DROP_SKIP_UNAVAILABLE_VERSION = TransportVersion.fromName("esql_drop_skip_unavailable");
 
     public enum IncludeExecutionMetadata {
         ALWAYS,
@@ -166,7 +166,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.includeExecutionMetadata = in.readBoolean() ? IncludeExecutionMetadata.CCS_ONLY : IncludeExecutionMetadata.NEVER;
         }
         this.isPartial = in.readBoolean();
-        this.skipOnFailurePredicate = Predicates.always();
+        this.skipOnFailurePredicate = clusterAlias -> {
+            throw new UnsupportedOperationException("shouldSkipOnFailure(String clusterAlias) must be used on coordinator only");
+        };
         this.queryProfile = in.getTransportVersion().supports(ESQL_QUERY_PLANNING_DURATION)
             ? EsqlQueryProfile.readFrom(in)
             : new EsqlQueryProfile();
@@ -265,6 +267,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
+     * Checks if a failure from a remote cluster should be skipped.
+     * Must be used on coordinator only.
+     *
      * @param clusterAlias to check if we should skip this cluster on failure
      * @return whether it's OK to skip the cluster on failure.
      * @throws NoSuchRemoteClusterException if clusterAlias is unknown to this node's RemoteClusterService
@@ -312,7 +317,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                     : previous.getIndexExpression() + "," + indexExpression;
             }
             var displayClusterAlias = Objects.equals(clusterAlias, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? localCusterName : null;
-            return new Cluster(clusterAlias, displayClusterAlias, expr, shouldSkipOnFailure(clusterAlias));
+            return new Cluster(clusterAlias, displayClusterAlias, expr);
         });
     }
 
@@ -523,7 +528,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         @Nullable
         private final String displayClusterAlias;
         private final String indexExpression; // original index expression from the user for this cluster
-        private final boolean skipUnavailable;
         private final Cluster.Status status;
         private final Integer totalShards;
         private final Integer successfulShards;
@@ -554,22 +558,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
          * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
          *                     for the local cluster
          * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
-         * @param skipUnavailable whether this Cluster is marked as skip_unavailable in remote cluster settings
          */
-        public Cluster(String clusterAlias, String displayClusterAlias, String indexExpression, boolean skipUnavailable) {
-            this(
-                clusterAlias,
-                displayClusterAlias,
-                indexExpression,
-                skipUnavailable,
-                Cluster.Status.RUNNING,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            );
+        public Cluster(String clusterAlias, String displayClusterAlias, String indexExpression) {
+            this(clusterAlias, displayClusterAlias, indexExpression, Cluster.Status.RUNNING, null, null, null, null, null, null);
         }
 
         /**
@@ -577,14 +568,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
          * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
          *                     for the local cluster
          * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
-         * @param skipUnavailable whether cluster is marked as skip_unavailable in remote cluster settings
          * @param status current status of the search on this Cluster
          */
         public Cluster(
             String clusterAlias,
             String displayClusterAlias,
             String indexExpression,
-            boolean skipUnavailable,
             Cluster.Status status,
             Integer totalShards,
             Integer successfulShards,
@@ -599,7 +588,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.clusterAlias = clusterAlias;
             this.displayClusterAlias = displayClusterAlias;
             this.indexExpression = indexExpression;
-            this.skipUnavailable = skipUnavailable;
             this.status = status;
             this.totalShards = totalShards;
             this.successfulShards = successfulShards;
@@ -619,7 +607,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             this.skippedShards = in.readOptionalInt();
             this.failedShards = in.readOptionalInt();
             this.took = in.readOptionalTimeValue();
-            this.skipUnavailable = in.readBoolean();
+            if (in.getTransportVersion().supports(EXECUTION_DROP_SKIP_UNAVAILABLE_VERSION) == false) {
+                in.readBoolean();
+            }
             this.failures = Collections.unmodifiableList(in.readCollectionAsList(ShardSearchFailure::readShardSearchFailure));
         }
 
@@ -636,7 +626,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             out.writeOptionalInt(skippedShards);
             out.writeOptionalInt(failedShards);
             out.writeOptionalTimeValue(took);
-            out.writeBoolean(skipUnavailable);
+            if (out.getTransportVersion().supports(EXECUTION_DROP_SKIP_UNAVAILABLE_VERSION) == false) {
+                out.writeBoolean(false);
+            }
             out.writeCollection(failures);
         }
 
@@ -673,7 +665,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                     original.getClusterAlias(),
                     original.getDisplayClusterAlias(),
                     original.getIndexExpression(),
-                    original.isSkipUnavailable(),
                     status != null ? status : original.getStatus(),
                     totalShards != null ? totalShards : original.getTotalShards(),
                     successfulShards != null ? successfulShards : original.getSuccessfulShards(),
@@ -787,10 +778,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                 .collect(joining(","));
         }
 
-        private boolean isSkipUnavailable() {
-            return skipUnavailable;
-        }
-
         public Cluster.Status getStatus() {
             return status;
         }
@@ -874,10 +861,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                 + took
                 + ", indexExpression='"
                 + indexExpression
-                + '\''
-                + ", skipUnavailable="
-                + skipUnavailable
-                + '}';
+                + "'}";
         }
     }
 }

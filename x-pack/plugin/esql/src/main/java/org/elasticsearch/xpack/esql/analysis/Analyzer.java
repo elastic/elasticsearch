@@ -357,7 +357,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveUnmapped(),
                 new InsertDefaultInnerTimeSeriesAggregate(),
                 new ImplicitCastAggregateMetricDoubles(),
-                new InsertFromAggregateMetricDouble()
+                new InsertFromAggregateMetricDouble(),
+                new ResolveImpossibleCasts()
             ),
             new Batch<>(
                 "Finish Analysis",
@@ -5505,6 +5506,56 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * {@code date_nanos} here when a subquery UnionAll sibling was widened; FORK-only queries are not implicitly cast</li>
      * </ol>
      */
+    /**
+     * A cast whose input has a single type the cast doesn't accept, like {@code ip_field::long}, {@code (a + b)::ip} or
+     * {@code true::ip}, is {@code null}, with a warning, instead of failing the query. This matches the lenient casts of union-typed
+     * fields in {@link ResolveUnionTypes}, and is gated with them, so every cast stays strict until every node supports it.
+     * <p>
+     * Runs last in its batch, so the rules that settle a cast first (union types, unmapped fields, implicit casts) see it.
+     * Union-typed and unsupported inputs have no single type and keep their own errors, as do functions that need a constant,
+     * conversions with more arguments, like {@code TO_LONG(x, base)}, and inputs of types a query can't return, like
+     * {@code date_period}.
+     * </p>
+     */
+    private static class ResolveImpossibleCasts extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            if (context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST) == false) {
+                return plan;
+            }
+            return plan.transformUp(LogicalPlan.class, p -> p.transformExpressionsOnly(Expression.class, e -> {
+                if (e instanceof ConvertFunction convert && e instanceof FoldablesConvertFunction == false && isImpossible(convert)) {
+                    Expression input = convert.field();
+                    context.deferredHeaderWarnings()
+                        .add(
+                            Strings.format(
+                                "[%s] of type [%s] cannot be converted to [%s] and will be null.",
+                                input.sourceText(),
+                                input.dataType().typeName(),
+                                e.dataType().nameUpper()
+                            )
+                        );
+                    return new Literal(e.source(), null, e.dataType());
+                }
+                return e;
+            }));
+        }
+
+        private static boolean isImpossible(ConvertFunction convert) {
+            Expression input = convert.field();
+            Expression cast = (Expression) convert;
+            // A conversion with more arguments, like TO_LONG(x, base), accepts other types than the cast it extends.
+            if (cast.resolved() || cast.children().size() != 1 || input.resolved() == false) {
+                return false;
+            }
+            DataType type = input.dataType();
+            return type != UNSUPPORTED
+                && type != NULL
+                && DataType.isRepresentableInOutput(type)
+                && convert.supportedTypes().contains(type) == false;
+        }
+    }
+
     private static class ResolveUnionTypesInUnionAll extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         @Override

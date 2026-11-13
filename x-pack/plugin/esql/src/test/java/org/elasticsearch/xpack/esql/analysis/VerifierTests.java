@@ -1712,11 +1712,9 @@ public class VerifierTests extends AnalyzerTestCase {
         }
     }
 
-    public void testInlineImpossibleConvert() {
-        defaultAnalyzer().error(
-            "ROW false::ip",
-            equalTo("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]")
-        );
+    public void testInlineImpossibleConvertOnOlderNodes() {
+        defaultAnalyzer().minimumTransportVersion(TransportVersion.minimumCompatible())
+            .error("ROW false::ip", equalTo("1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]"));
     }
 
     public void testAggregateOnCounter() {

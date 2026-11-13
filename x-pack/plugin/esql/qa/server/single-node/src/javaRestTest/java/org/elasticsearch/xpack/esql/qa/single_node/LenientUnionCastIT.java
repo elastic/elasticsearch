@@ -41,8 +41,8 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Every {@code union_*} catalog index paired with every other, cast to every conversion target.
- * A lenient union cast returns a value or null, even when nothing can convert.
- * It must not fail with the generic "due to ambiguities" error, and it must not 5xx.
+ * A cast returns a value or null, even when nothing can convert, so no pair may fail.
+ * Paired with an object, the field has a single type, as an object index doesn't map it.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class LenientUnionCastIT extends ESRestTestCase {
@@ -154,12 +154,7 @@ public class LenientUnionCastIT extends ESRestTestCase {
         } catch (ResponseException e) {
             int status = e.getResponse().getStatusLine().getStatusCode();
             String reason = String.valueOf(entityAsMap(e.getResponse()).get("error"));
-            // An object index doesn't map the field, so paired with an object the field has a single type:
-            // argument of [TO_IP(field)] must be [ip or string], found value [field] type [boolean]
-            boolean allowed = reason.contains("argument of [");
-            if (status >= 500 || reason.contains("due to ambiguities") || allowed == false) {
-                failures.add(label + " status " + status + " " + abbreviate(reason));
-            }
+            failures.add(label + " status " + status + " " + abbreviate(reason));
         }
     }
 

@@ -4754,6 +4754,12 @@ public class EsqlCapabilities {
         UNION_TYPES_LENIENT_CAST_NOTHING_CONVERTS,
 
         /**
+         * A cast whose input has a single type the cast doesn't accept, like {@code ip_field::long}, {@code (a + b)::ip} or
+         * {@code true::ip}, is {@code null} with a warning, instead of failing the query.
+         */
+        LENIENT_IMPOSSIBLE_CASTS,
+
+        /**
          * Warning, emitted before optimization, when an explicit NULL literal is misused: either the
          * expression always evaluates to NULL, or a NULL in an IN list never matches.
          */

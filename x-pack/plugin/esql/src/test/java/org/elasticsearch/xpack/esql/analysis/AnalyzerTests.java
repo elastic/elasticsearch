@@ -6378,6 +6378,57 @@ public class AnalyzerTests extends AnalyzerTestCase {
             );
     }
 
+    public void testImpossibleCastOfSingleTypedFieldIsNull() {
+        LogicalPlan plan = analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(indexWithDateDateNanosUnionType())
+            .query("FROM index* | EVAL x = date_and_date_nanos::date_nanos::ip");
+        assertWarnings("[date_and_date_nanos] of type [date_nanos] cannot be converted to [IP] and will be null.");
+        assertNullLiteral(as(as(as(plan, Project.class).child(), Limit.class).child(), Eval.class).fields().get(0).child(), IP);
+    }
+
+    public void testImpossibleCastsOfFieldExpressionAndLiteralAreNull() {
+        LogicalPlan plan = defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .query("FROM test | EVAL a = salary::ip, b = TO_IP(salary + 1), c = true::ip | KEEP a, b, c");
+        assertWarnings(
+            "[salary] of type [integer] cannot be converted to [IP] and will be null.",
+            "[salary + 1] of type [integer] cannot be converted to [IP] and will be null.",
+            "[true] of type [boolean] cannot be converted to [IP] and will be null."
+        );
+        Eval eval = as(as(as(plan, Limit.class).child(), Project.class).child(), Eval.class);
+        for (Alias alias : eval.fields()) {
+            assertNullLiteral(alias.child(), IP);
+        }
+    }
+
+    /**
+     * {@code ResolveUnionTypes} stops at an {@code Aggregate}, so a cast after {@code STATS} needs its own rule.
+     */
+    public void testImpossibleCastAfterStatsIsNull() {
+        LogicalPlan plan = defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .query("FROM test | STATS c = COUNT(*) | EVAL x = c::ip");
+        assertWarnings("[c] of type [long] cannot be converted to [IP] and will be null.");
+        assertNullLiteral(as(as(plan, Limit.class).child(), Eval.class).fields().get(0).child(), IP);
+    }
+
+    public void testImpossibleCastFailsOnOlderNodes() {
+        defaultMapping().minimumTransportVersion(TransportVersion.minimumCompatible())
+            .error(
+                "FROM test | EVAL x = salary::ip",
+                containsString("argument of [salary::ip] must be [ip or string], found value [salary] type [integer]")
+            );
+    }
+
+    /**
+     * Functions that need a constant input keep their error: it's about the input not being a constant, not about its type.
+     */
+    public void testImpossibleCastToConstantOnlyFunctionStillFails() {
+        defaultMapping().minimumTransportVersion(TransportVersion.current())
+            .error(
+                "FROM test | EVAL x = salary::time_duration",
+                containsString("argument of [salary::time_duration] must be [time_duration or string], found value [salary] type [integer]")
+            );
+    }
+
     private static void assertNullLiteral(Expression expression, DataType type) {
         Literal literal = as(expression, Literal.class);
         assertNull(literal.value());

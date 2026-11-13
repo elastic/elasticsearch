@@ -404,3 +404,66 @@ setup:
   - length: { values: 2 }
   - match: { values.0: [null] }
   - match: { values.1: [null] }
+
+---
+"impossible cast of a single-typed field returns null":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_impossible_casts]
+      reason: "Impossible casts return null"
+  - do:
+      warnings:
+        - "[f] of type [long] cannot be converted to [IP] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long | EVAL x = f::ip, y = TO_IP(f) | KEEP id, x, y'
+  - length: { values: 1 }
+  - match: { columns.1.type: "ip" }
+  - match: { columns.2.type: "ip" }
+  - match: { values.0: [4, null, null] }
+
+---
+"impossible casts of expressions and literals return null":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_impossible_casts]
+      reason: "Impossible casts return null"
+  - do:
+      warnings_regex:
+        - "\\[\\(?a \\+ 1\\)?\\] of type \\[integer\\] cannot be converted to \\[IP\\] and will be null."
+        - "\\[true\\] of type \\[boolean\\] cannot be converted to \\[IP\\] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'ROW a = 1 | EVAL x = (a + 1)::ip, y = true::ip | KEEP x, y'
+  - match: { columns.0.type: "ip" }
+  - match: { columns.1.type: "ip" }
+  - match: { values.0: [null, null] }
+
+---
+"impossible cast after STATS returns null":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_impossible_casts]
+      reason: "Impossible casts return null"
+  - do:
+      warnings:
+        - "[c] of type [long] cannot be converted to [IP] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long | STATS c = COUNT(*) | EVAL x = c::ip | WHERE x IS NULL'
+  - match: { values.0: [1, null] }

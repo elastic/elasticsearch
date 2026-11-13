@@ -98,6 +98,14 @@ setup:
   - match: { values.1: [ "index3", null ] }
 ---
 'aggregate_metric_double cast on fully unmapped field':
+  - skip:
+      features: capabilities
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_impossible_casts]
+      reason: "impossible casts return null instead of failing"
   - do:
       catch: bad_request
       esql.query:
@@ -108,6 +116,29 @@ setup:
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
   - contains: { error.reason: 'line 1:55: argument of [x::aggregate_metric_double] must be [numeric or aggregate_metric_double], found value [x] type [keyword]' }
+
+---
+'aggregate_metric_double cast on fully unmapped field is null':
+  - requires:
+      test_runner_features: [capabilities, warnings, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_impossible_casts]
+      reason: "impossible casts return null instead of failing"
+  - do:
+      warnings:
+        - "[x] of type [keyword] cannot be converted to [AGGREGATE_METRIC_DOUBLE] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          # [x] is fully unmapped; it doesn't appear in any index's mapping.
+          query: 'SET unmapped_fields="load"; FROM index2,index3 | EVAL y = x::aggregate_metric_double | KEEP y'
+  - length: { values: 2 }
+  - match: { values.0: [null] }
+  - match: { values.1: [null] }
 ---
 'aggregate_metric_double cast on punk field':
   - skip:

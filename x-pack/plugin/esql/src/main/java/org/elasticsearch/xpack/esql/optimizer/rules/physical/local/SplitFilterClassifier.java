@@ -356,6 +356,12 @@ public final class SplitFilterClassifier {
         if (min == null || max == null) {
             return SplitMatch.AMBIGUOUS;
         }
+        // IN tells opposite-sign zeros apart; compare() equates them for ==. Leave the pair unknown.
+        for (Object lit : literalValues) {
+            if (StatValueComparator.zerosOfOppositeSign(lit, min) || StatValueComparator.zerosOfOppositeSign(lit, max)) {
+                return SplitMatch.AMBIGUOUS;
+            }
+        }
 
         boolean anyInRange = false;
         for (Object lit : literalValues) {

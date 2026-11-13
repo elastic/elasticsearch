@@ -790,11 +790,12 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     // the file back. The fixture is registerSignedZeroTree: d=-0e0 holds id 0, d=0e0 holds id 1, d=1e5 holds id 2.
 
     public void testCsvNegativeZeroPartitionIsNotPrunedByEqualsZero() throws Exception {
-        assertSignedZeroEquality(registerSignedZeroTree("csv_signed_zero", "csv", false));
+        assertSignedZeroEquality(registerSignedZeroTree("csv_signed_zero", "csv", false), SIGNED_ZERO_FILES);
     }
 
     public void testParquetNegativeZeroPartitionIsNotPrunedByEqualsZero() throws Exception {
-        assertSignedZeroEquality(registerSignedZeroTree("pq_signed_zero", "parquet", false));
+        // id is a data column: parquet footer min/max drops the two non-zero files. CSV cannot.
+        assertSignedZeroEquality(registerSignedZeroTree("pq_signed_zero", "parquet", false), 1);
     }
 
     /**
@@ -873,8 +874,8 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
      * The zero folders are readable and the non-zero folder answers its own equality, so an empty answer to
      * {@code d == 0.0} can only come from pruning.
      */
-    private void assertSignedZeroEquality(String dataset) {
-        assertPrune(dataset, "WHERE id == 0", SIGNED_ZERO_FILES, SIGNED_ZERO_FILES, List.of(0L));
+    private void assertSignedZeroEquality(String dataset, int expectedIdFilesScanned) {
+        assertPrune(dataset, "WHERE id == 0", SIGNED_ZERO_FILES, expectedIdFilesScanned, List.of(0L));
         assertPrune(dataset, "WHERE d == 100000.0", SIGNED_ZERO_FILES, 1, List.of(2L));
         assertPrune(dataset, "WHERE d == 0.0", SIGNED_ZERO_FILES, 2, List.of(0L, 1L));
     }

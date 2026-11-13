@@ -466,6 +466,20 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(StoragePath.of("s3://b/high.parquet"), ((FileSplit) kept.get(0)).path());
     }
 
+    public void testMinMaxFilterKeepsOppositeSignZeroEquals() {
+        ExternalSplit negZero = splitWithRange("s3://b/neg.parquet", "d", -0.0, -0.0);
+        ExternalSplit one = splitWithRange("s3://b/one.parquet", "d", 1.0, 1.0);
+        FieldAttribute d = new FieldAttribute(
+            SRC,
+            "d",
+            new EsField("d", DataType.DOUBLE, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression eq = new Equals(SRC, d, new Literal(SRC, 0.0, DataType.DOUBLE), null);
+        List<ExternalSplit> kept = FileSplitProvider.dropStatsMisses(List.of(negZero, one), List.of(eq));
+        assertEquals(1, kept.size());
+        assertEquals(StoragePath.of("s3://b/neg.parquet"), ((FileSplit) kept.get(0)).path());
+    }
+
     public void testDataColumnStatsFilterDropsPartitionConjunct() {
         StoragePath path = StoragePath.of("s3://b/year=2024/file.parquet");
         FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://b/year=*/*.parquet");
@@ -10828,7 +10842,7 @@ public class FileSplitProviderTests extends ESTestCase {
         );
     }
 
-    private static ExternalSplit splitWithRange(String uri, String column, int min, int max) {
+    private static ExternalSplit splitWithRange(String uri, String column, Object min, Object max) {
         Map<String, Object> stats = new HashMap<>();
         stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
         stats.put(SourceStatisticsSerializer.columnMinKey(column), min);

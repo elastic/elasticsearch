@@ -4793,11 +4793,7 @@ public class FileSplitProvider implements SplitProvider {
      * {@code IN} disagrees with {@code ==}, and would prune matching files under plain {@code IN} once the two agree.
      */
     private static boolean zerosOfOppositeSign(Object a, Object b) {
-        return a instanceof Number na
-            && b instanceof Number nb
-            && na.doubleValue() == 0.0
-            && nb.doubleValue() == 0.0
-            && Double.compare(na.doubleValue(), nb.doubleValue()) != 0;
+        return StatValueComparator.zerosOfOppositeSign(a, b);
     }
 
     private static Boolean nullableAnd(Boolean a, Boolean b) {

@@ -477,6 +477,26 @@ public class SplitFilterClassifierTests extends ESTestCase {
         assertEquals(0, compareValues(1.5, 1.5));
     }
 
+    public void testCompareValuesSignedZeros() {
+        assertEquals(0, compareValues(-0.0, 0.0));
+        assertEquals(0, compareValues(0.0, -0.0));
+    }
+
+    public void testEqualsKeepsOppositeSignZero() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
+        SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
+        assertEquals(MATCH, classify(equalsOf(score, of(0.0)), negZero));
+        assertEquals(MATCH, classify(greaterThanOrEqualOf(score, of(0.0)), negZero));
+        assertEquals(MISS, classify(greaterThanOf(score, of(0.0)), negZero));
+    }
+
+    public void testInLeavesOppositeSignZeroUnknown() {
+        ReferenceAttribute score = referenceAttribute("score", DataType.DOUBLE);
+        SplitStats negZero = colStats("score", -0.0, -0.0, 10L, 0L);
+        assertEquals(AMBIGUOUS, classify(in(score, of(0.0)), negZero));
+        assertEquals(MATCH, classify(in(score, of(-0.0)), negZero));
+    }
+
     public void testCompareValuesNull() {
         assertEquals(Integer.MIN_VALUE, compareValues(null, 10L));
         assertEquals(Integer.MIN_VALUE, compareValues(10L, null));

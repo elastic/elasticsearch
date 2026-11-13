@@ -96,7 +96,7 @@ final class BatchModeRouter implements Releasable {
     /** Per-bulk cache of the {@code index.batch_indexing} decision per concrete index (x-content mode only). */
     private final Map<Index, Boolean> batchEnabledByIndex = new HashMap<>();
 
-    private BatchModeRouter(String key, EscfBatch source, Recycler<BytesRef> recycler) {
+    BatchModeRouter(String key, EscfBatch source, Recycler<BytesRef> recycler) {
         this.key = key;
         this.source = source;
         this.partitionIds = new int[source.docCount()];
@@ -114,18 +114,12 @@ final class BatchModeRouter implements Releasable {
         this.encoders = encoders;
     }
 
-    /** Returns the router for this bulk, or {@code null} when batch indexing does not apply. */
+    /**
+     * Returns the x-content mode router for this bulk, or {@code null} when batch indexing does not apply.
+     * Bulks carrying pre-built batches are handled by {@link BatchRouterSet#create}.
+     */
     @Nullable
-    static BatchModeRouter create(BulkRequest bulkRequest, boolean batchIndexingSupported, Recycler<BytesRef> recycler) {
-        if (bulkRequest.hasPreBuiltBatches()) {
-            if (batchIndexingSupported == false) {
-                throw new IllegalStateException(
-                    "pre-built source batch submitted but batch indexing is not supported"
-                        + " (setting disabled, feature flag off, or mixed-version cluster)"
-                );
-            }
-            return createForProvidedBatches(bulkRequest, bulkRequest.takePreBuiltBatches(), recycler);
-        }
+    static BatchModeRouter createForXContent(BulkRequest bulkRequest, boolean batchIndexingSupported, Recycler<BytesRef> recycler) {
         if (batchIndexingSupported == false || bulkRequest.isSimulated() || bulkRequest.requests().isEmpty()) {
             return null;
         }
@@ -135,58 +129,6 @@ final class BatchModeRouter implements Releasable {
             }
         }
         return new BatchModeRouter(new BulkBatchEncoders(recycler), recycler);
-    }
-
-    private static BatchModeRouter createForProvidedBatches(
-        BulkRequest bulkRequest,
-        Map<String, SourceBatch> provided,
-        Recycler<BytesRef> recycler
-    ) {
-        boolean success = false;
-        try {
-            if (provided.size() > 1) {
-                throw new IllegalArgumentException(
-                    "pre-built source batch bulk carries "
-                        + provided.size()
-                        + " batches, but at most one is supported in step 1; multi-batch support will be added in a follow-up"
-                );
-            }
-            for (DocWriteRequest<?> request : bulkRequest.requests()) {
-                if (request instanceof IndexRequest indexRequest) {
-                    if (indexRequest.indexSource().hasSourceRow() == false) {
-                        throw new IllegalArgumentException(
-                            "item targeting index ["
-                                + request.index()
-                                + "] must carry a source-row reference when a pre-built batch is attached"
-                        );
-                    }
-                } else {
-                    throw new IllegalArgumentException(
-                        "["
-                            + request.opType()
-                            + "] operation on index ["
-                            + request.index()
-                            + "] cannot be mixed with pre-built source batches; every item of such a bulk must be an index"
-                            + " request carrying a source-row reference"
-                    );
-                }
-            }
-            Map.Entry<String, SourceBatch> only = provided.entrySet().iterator().next();
-            String name = only.getKey();
-            SourceBatch batch = only.getValue();
-            if (batch instanceof EscfBatch escfBatch) {
-                BatchModeRouter router = new BatchModeRouter(name, escfBatch, recycler);
-                success = true;
-                return router;
-            }
-            throw new IllegalArgumentException(
-                "pre-built batch for index [" + name + "] must be an EscfBatch but was [" + batch.getClass().getName() + "]"
-            );
-        } finally {
-            if (success == false) {
-                Releasables.close(provided.values());
-            }
-        }
     }
 
     /**

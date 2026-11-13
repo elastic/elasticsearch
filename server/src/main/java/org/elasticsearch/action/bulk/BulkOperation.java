@@ -112,7 +112,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final boolean clusterHasFailureStoreFeature;
     @Nullable
-    private final BatchModeRouter router;
+    private final BatchRouterSet router;
 
     BulkOperation(
         Task task,
@@ -197,7 +197,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.failureStoreMetrics = failureStoreMetrics;
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         this.clusterHasFailureStoreFeature = clusterHasFailureStoreFeature;
-        this.router = BatchModeRouter.create(
+        this.router = BatchRouterSet.create(
             bulkRequest,
             ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService),
             recycler
@@ -338,7 +338,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ClusterState clusterState,
         Iterator<BulkItemRequest> it,
         BiConsumer<IndexAbstraction, DocWriteRequest<?>> indexOperationValidator,
-        @Nullable BatchModeRouter batchRouter
+        @Nullable BatchRouterSet batchRouter
     ) {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         final ConcreteIndices concreteIndices = new ConcreteIndices(project, indexNameExpressionResolver);

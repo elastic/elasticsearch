@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165685
+summary: Keep command output from hiding unmapped fields
+type: enhancement

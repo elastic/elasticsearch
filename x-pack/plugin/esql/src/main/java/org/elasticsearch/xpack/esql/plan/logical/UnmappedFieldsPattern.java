@@ -120,9 +120,10 @@ public final class UnmappedFieldsPattern implements NamedWriteable, UnmappedFiel
      *
      * <p>Only wildcard removals need to be carried: planning cannot know which unmapped source fields a wildcard
      * will match. An explicitly
-     * named removal is already excluded downstream, because {@code DetermineUnmappedFieldsToKeep} excludes every
-     * {@code EsRelation.output()} name — which covers both mapped columns and the fields
-     * {@code ResolveUnmapped} demand-loads for explicit references.
+     * named removal of a column of the relation is already excluded downstream, because {@code DetermineUnmappedFieldsToKeep}
+     * excludes every {@code EsRelation.output()} name — which covers both mapped columns and the fields
+     * {@code ResolveUnmapped} demand-loads for explicit references. A name that a command adds is not excluded, so removing it
+     * does not remove a source field of that name.
      */
     public static UnmappedFieldsPattern forDrop(List<? extends NamedExpression> removals) {
         return excludes(

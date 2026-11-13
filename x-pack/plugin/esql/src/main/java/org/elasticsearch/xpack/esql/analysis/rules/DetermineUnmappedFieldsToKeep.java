@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -114,7 +115,35 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             result = ViewUtils.transformUpOutsideViews(result, MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields);
             result = ViewUtils.transformUpOutsideViews(result, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         }
-        return result;
+        return unmappedFieldsLast(result);
+    }
+
+    /**
+     * The {@code _unmapped_fields} column is the last one of the output, wherever the commands of the query add their own. It is
+     * stamped on the relation, so it would otherwise sit right after the columns of the relation and before the ones that {@code EVAL},
+     * {@code INLINE STATS} and the like add, while the output of a {@code FORK} or a union has it last, as it unions it at the end. The
+     * same query should not return the columns in another order because a {@code FORK} follows.
+     */
+    private static LogicalPlan unmappedFieldsLast(LogicalPlan plan) {
+        List<Attribute> output = plan.output();
+        int column = -1;
+        for (int i = 0; i < output.size(); i++) {
+            if (output.get(i) instanceof UnmappedFieldsAttribute) {
+                column = i;
+                break;
+            }
+        }
+        if (column < 0 || column == output.size() - 1) {
+            return plan;
+        }
+        // A ResolvingProject computes its projections from the output of its child, and appends the unmapped fields after the others,
+        // which is what moves it. Like a KEEP *, it is also kept up to date when later rules change that output, which a plain Project
+        // would not be, e.g. for the columns that FILLNULL loads late.
+        return new ResolvingProject(
+            Source.EMPTY,
+            plan,
+            new ResolvingProject.Command(ResolvingProject.Kind.KEEP, List.of(new UnresolvedStar(Source.EMPTY, null)), attrs -> attrs)
+        );
     }
 
     /**
@@ -134,10 +163,12 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * <p>
      * Two things restrict the pattern. KEEP/DROP (as {@link ResolvingProject}) contribute the
      * include/exclude patterns they were written with: each one adds a single OR group, while
-     * {@link UnmappedFieldsPattern#intersect} applies AND across chained commands. And every name that any
-     * node in the plan outputs is excluded: a mapped field, a name the query introduced (EVAL's aliases,
-     * RENAME's targets, ENRICH/LOOKUP JOIN fields) are all already columns of their own, so returning a
-     * source field of that name in {@code _unmapped_fields} as well would collide with them.
+     * {@link UnmappedFieldsPattern#intersect} applies AND across chained commands. And the names of the columns of a relation are
+     * excluded: a mapped field, or a field that the query names and that is loaded for it, is already a column of its own, so
+     * returning a source field of that name in {@code _unmapped_fields} as well would repeat it. A column that a command adds or
+     * shadows (an EVAL alias, a RENAME target, an ENRICH or LOOKUP JOIN field) is not excluded: it is a different value from the
+     * source field of that name, and the unmapped fields hold what the documents had, as the keys of a {@code flattened} field do
+     * after such a command.
      * <p>
      * For {@link Join}, only the left side is recursed into. {@link MergePlan} is treated as transparent (no include restriction beyond
      * excluding its output names); branch-local {@code KEEP}/{@code DROP} patterns are applied in {@link #annotate} by recomputing
@@ -162,7 +193,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         UnmappedFieldsPattern restricted = plan instanceof ResolvingProject project
             ? project.unmappedFieldsPattern().intersect(fromChild)
             : fromChild;
-        return restricted.withAdditionalExcludes(Expressions.names(plan.output()));
+        // A relation's own columns, mapped or demand-loaded, are not unmapped fields. What a command adds or shadows is not excluded.
+        return plan instanceof EsRelation relation ? restricted.withAdditionalExcludes(Expressions.names(relation.output())) : restricted;
     }
 
     /**

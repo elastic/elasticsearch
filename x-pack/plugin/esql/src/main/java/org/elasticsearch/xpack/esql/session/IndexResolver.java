@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -568,6 +569,14 @@ public class IndexResolver {
             );
         }
 
+        /**
+         * Whether a field under a nested object is a column. An older data node would load null for it, so it needs every node
+         * to read the children.
+         */
+        boolean flattenedLeaves() {
+            return NestedField.FLATTENED_LEAVES && minTransportVersion != null && minTransportVersion.supports(NestedReduction.VERSION);
+        }
+
         /** Whether an object is not a leaf, so it neither maps its name nor gives a column its type. */
         boolean objectsAreNotLeaves() {
             return minTransportVersion != null && minTransportVersion.supports(ESQL_OBJECTS_ARE_NOT_LEAVES);
@@ -634,7 +643,8 @@ public class IndexResolver {
             fieldsInfo.caps,
             trackUnmappedFieldIndices,
             fieldsInfo.objectsAreNotLeaves(),
-            fieldsInfo.keyNames()
+            fieldsInfo.keyNames(),
+            fieldsInfo.flattenedLeaves()
         );
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
 
@@ -742,12 +752,14 @@ public class IndexResolver {
     /**
      * @param objectsAreNotLeaves whether an object neither maps its name nor gives a column its type
      * @param keyNames the names that an index maps as the keys of a {@code flattened} field they are under
+     * @param flattenedLeaves whether a field under a nested object is a column; otherwise it is left out
      */
     private static CollectedFieldCaps collectFieldCaps(
         FieldCapabilitiesResponse fieldCapsResponse,
         boolean trackUnmappedFieldIndices,
         boolean objectsAreNotLeaves,
-        Set<String> keyNames
+        Set<String> keyNames,
+        boolean flattenedLeaves
     ) {
         Map<String, Integer> indexMappingHashToDuplicateCount = new HashMap<>();
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = new HashMap<>();
@@ -761,7 +773,11 @@ public class IndexResolver {
                     // Like an object, a nested object only shapes the fields under it
                     continue;
                 }
-                IndexFieldCapabilities fc = NestedField.pathFor(mapped.name(), response.get()) == null ? mapped : flattened(mapped);
+                boolean underNested = NestedField.pathFor(mapped.name(), response.get()) != null;
+                if (underNested && flattenedLeaves == false) {
+                    continue;
+                }
+                IndexFieldCapabilities fc = underNested ? flattened(mapped) : mapped;
                 if (fc.isMetadatafield()) {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
                     continue;

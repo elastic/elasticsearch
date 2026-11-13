@@ -31,6 +31,7 @@ import org.elasticsearch.telemetry.apm.internal.tracing.LocalTraceDepth;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Samples a span based on several settings-driven conditions: span name filter, max trace depth, max number of spans per trace, and based
@@ -45,6 +46,8 @@ public final class ElasticTracestateSampler implements Sampler {
 
     private static final Logger logger = LogManager.getLogger(ElasticTracestateSampler.class);
 
+    private final AtomicBoolean enabled; // instance shared with tracer
+
     // TODO: emit the modern th: tracestate instead of ot=p: once exporting to EDOT gateway
     private final Sampler root;
     private final String localRootOt;
@@ -57,13 +60,9 @@ public final class ElasticTracestateSampler implements Sampler {
     private volatile int maxTraceDepth;
     private volatile int maxSpansInTrace;
 
-    /** Samples by the given rate only, there are no limits on the names, the depth and the number of the spans. */
-    ElasticTracestateSampler(double sampleRate) {
-        this(sampleRate, List.of(), List.of(), Integer.MAX_VALUE, Integer.MAX_VALUE);
-    }
-
-    public ElasticTracestateSampler(Settings settings) {
+    public ElasticTracestateSampler(AtomicBoolean enabled, Settings settings) {
         this(
+            enabled,
             OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.get(settings),
             APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings),
             APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings),
@@ -72,13 +71,16 @@ public final class ElasticTracestateSampler implements Sampler {
         );
     }
 
-    public ElasticTracestateSampler(
+    // visible for tests
+    ElasticTracestateSampler(
+        AtomicBoolean enabled,
         double sampleRate,
         List<String> includeNames,
         List<String> excludeNames,
         int maxTraceDepth,
         int maxSpansInTrace
     ) {
+        this.enabled = enabled;
         this.root = Sampler.parentBased(Sampler.traceIdRatioBased(sampleRate));
         this.localRootOt = sampleRate > 0 ? pValueForRate(sampleRate) : null;
         this.includeNames = includeNames;
@@ -115,6 +117,10 @@ public final class ElasticTracestateSampler implements Sampler {
         Attributes attributes,
         List<LinkData> parentLinks
     ) {
+        if (enabled.get() == false) {
+            return SamplingResult.drop();
+        }
+
         SamplingResult result = root.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
         if (result.getDecision() == SamplingDecision.DROP) {
             return result;

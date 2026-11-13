@@ -25,13 +25,14 @@ import org.elasticsearch.telemetry.apm.internal.tracing.LocalTraceDepth;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ElasticTracestateSamplerTests extends ESTestCase {
 
-    private final ElasticTracestateSampler sampler = new ElasticTracestateSampler(0.001);
+    private final ElasticTracestateSampler sampler = sampler(0.001, List.of(), List.of(), Integer.MAX_VALUE, Integer.MAX_VALUE);
 
     public void testElasticSampleRateTranslatedToOt() {
         assertThat(sample(TraceState.builder().put("es", "s:0.125").build()).get("ot"), equalTo("p:3"));
@@ -54,21 +55,21 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
     }
 
     public void testSpanWithAFilteredOutNameIsDropped() {
-        final var sampler = new ElasticTracestateSampler(1.0, List.of("included*"), List.of(), Integer.MAX_VALUE, Integer.MAX_VALUE);
+        final var sampler = sampler(1.0, List.of("included*"), List.of(), Integer.MAX_VALUE, Integer.MAX_VALUE);
 
         assertThat(decision(sampler, "included-1", localContext(0)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
         assertThat(decision(sampler, "other", localContext(0)), equalTo(SamplingDecision.DROP));
     }
 
     public void testExcludedNameIsDroppedEvenIfIncluded() {
-        final var sampler = new ElasticTracestateSampler(1.0, List.of("name-*"), List.of("name-b*"), Integer.MAX_VALUE, Integer.MAX_VALUE);
+        final var sampler = sampler(1.0, List.of("name-*"), List.of("name-b*"), Integer.MAX_VALUE, Integer.MAX_VALUE);
 
         assertThat(decision(sampler, "name-a", localContext(0)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
         assertThat(decision(sampler, "name-b", localContext(0)), equalTo(SamplingDecision.DROP));
     }
 
     public void testNamesCanBeUpdated() {
-        final var sampler = new ElasticTracestateSampler(1.0, List.of(), List.of(), Integer.MAX_VALUE, Integer.MAX_VALUE);
+        final var sampler = sampler(1.0, List.of(), List.of(), Integer.MAX_VALUE, Integer.MAX_VALUE);
         assertThat(decision(sampler, "name-a", localContext(0)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
 
         sampler.setExcludeNames(List.of("name-a"));
@@ -82,7 +83,7 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
     }
 
     public void testSpansDeeperThanTheMaximumDepthAreDropped() {
-        final var sampler = new ElasticTracestateSampler(1.0, List.of(), List.of(), 1, Integer.MAX_VALUE);
+        final var sampler = sampler(1.0, List.of(), List.of(), 1, Integer.MAX_VALUE);
 
         assertThat(decision(sampler, "root", localContext(0)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
         assertThat(decision(sampler, "child", localContext(1)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
@@ -90,7 +91,7 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
     }
 
     public void testMaximumDepthCanBeUpdated() {
-        final var sampler = new ElasticTracestateSampler(1.0, List.of(), List.of(), 0, Integer.MAX_VALUE);
+        final var sampler = sampler(1.0, List.of(), List.of(), 0, Integer.MAX_VALUE);
         assertThat(decision(sampler, "child", localContext(1)), equalTo(SamplingDecision.DROP));
 
         sampler.setMaxTraceDepth(1);
@@ -99,7 +100,7 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
     }
 
     public void testSpansBeyondTheMaximumCountAreDropped() {
-        final var sampler = new ElasticTracestateSampler(1.0, List.of(), List.of(), Integer.MAX_VALUE, 2);
+        final var sampler = sampler(1.0, List.of(), List.of(), Integer.MAX_VALUE, 2);
         final var count = new LocalSpanCount();
 
         assertThat(decision(sampler, "child-1", localContext(1, count)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
@@ -109,7 +110,7 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
     }
 
     public void testFilteredOutSpansAreGivenBackToTheCount() {
-        final var sampler = new ElasticTracestateSampler(1.0, List.of(), List.of("excluded"), Integer.MAX_VALUE, 1);
+        final var sampler = sampler(1.0, List.of(), List.of("excluded"), Integer.MAX_VALUE, 1);
         final var count = new LocalSpanCount();
 
         assertThat(decision(sampler, "excluded", localContext(1, count)), equalTo(SamplingDecision.DROP));
@@ -118,7 +119,7 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
 
     /** The rate is what is checked first, so the spans that it drops are never counted. */
     public void testSpansThatAreDroppedByTheRateAreNotCounted() {
-        final var sampler = new ElasticTracestateSampler(0.0, List.of(), List.of(), Integer.MAX_VALUE, 1);
+        final var sampler = sampler(0.0, List.of(), List.of(), Integer.MAX_VALUE, 1);
         final var count = new LocalSpanCount();
 
         // a span whose local parent is not sampled is not sampled either
@@ -133,7 +134,7 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
 
     /** The depth is checked before the number of the spans, so the spans that are too deep are never counted. */
     public void testSpansThatAreTooDeepAreNotCounted() {
-        final var sampler = new ElasticTracestateSampler(1.0, List.of(), List.of(), 1, 1);
+        final var sampler = sampler(1.0, List.of(), List.of(), 1, 1);
         final var count = new LocalSpanCount();
 
         assertThat(decision(sampler, "grandchild-1", localContext(2, count)), equalTo(SamplingDecision.DROP));
@@ -143,7 +144,7 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
     }
 
     public void testLocalRootCountsAgainstTheMaximum() {
-        final var sampler = new ElasticTracestateSampler(1.0, List.of(), List.of(), Integer.MAX_VALUE, 2);
+        final var sampler = sampler(1.0, List.of(), List.of(), Integer.MAX_VALUE, 2);
         final var count = new LocalSpanCount();
 
         assertThat(decision(sampler, "root", localContext(0, count)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
@@ -152,13 +153,13 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
     }
 
     public void testNothingIsRecordedWithoutRoomForTheLocalRoot() {
-        final var sampler = new ElasticTracestateSampler(1.0, List.of(), List.of(), Integer.MAX_VALUE, 0);
+        final var sampler = sampler(1.0, List.of(), List.of(), Integer.MAX_VALUE, 0);
 
         assertThat(decision(sampler, "root", localContext(0, new LocalSpanCount())), equalTo(SamplingDecision.DROP));
     }
 
     public void testMaximumCanBeUpdated() {
-        final var sampler = new ElasticTracestateSampler(1.0, List.of(), List.of(), Integer.MAX_VALUE, 1);
+        final var sampler = sampler(1.0, List.of(), List.of(), Integer.MAX_VALUE, 1);
         final var count = new LocalSpanCount();
         assertThat(decision(sampler, "child-1", localContext(1, count)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
         assertThat(decision(sampler, "child-2", localContext(1, count)), equalTo(SamplingDecision.DROP));
@@ -170,6 +171,7 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
 
     public void testSettingsDefineTheLimits() {
         final var sampler = new ElasticTracestateSampler(
+            new AtomicBoolean(true),
             Settings.builder()
                 .put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0)
                 .putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(), "excluded")
@@ -183,9 +185,50 @@ public class ElasticTracestateSamplerTests extends ESTestCase {
         assertThat(decision(sampler, "grandchild", localContext(2, new LocalSpanCount())), equalTo(SamplingDecision.DROP));
     }
 
+    public void testSettingsDefineWhetherTracingIsEnabled() {
+        final var settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0).build();
+
+        assertThat(
+            decision(new ElasticTracestateSampler(new AtomicBoolean(true), settings), "root", localContext(0)),
+            equalTo(SamplingDecision.RECORD_AND_SAMPLE)
+        );
+        assertThat(
+            decision(new ElasticTracestateSampler(new AtomicBoolean(false), settings), "root", localContext(0)),
+            equalTo(SamplingDecision.DROP)
+        );
+    }
+
+    public void testTracingCanBeEnabledAndDisabledWhileTheSamplerIsInUse() {
+        final var enabled = new AtomicBoolean(true);
+        final var sampler = new ElasticTracestateSampler(enabled, 1.0, List.of(), List.of(), Integer.MAX_VALUE, Integer.MAX_VALUE);
+        assertThat(decision(sampler, "root", localContext(0)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
+
+        enabled.set(false);
+        assertThat(decision(sampler, "root", localContext(0)), equalTo(SamplingDecision.DROP));
+
+        enabled.set(true);
+        assertThat(decision(sampler, "root", localContext(0)), equalTo(SamplingDecision.RECORD_AND_SAMPLE));
+    }
+
+    private static ElasticTracestateSampler sampler(
+        double sampleRate,
+        List<String> includeNames,
+        List<String> excludeNames,
+        int maxTraceDepth,
+        int maxSpansInTrace
+    ) {
+        return new ElasticTracestateSampler(
+            new AtomicBoolean(true),
+            sampleRate,
+            includeNames,
+            excludeNames,
+            maxTraceDepth,
+            maxSpansInTrace
+        );
+    }
+
     private static final String TRACE_ID = "00000000000000000000000000000001";
 
-    /** A context of a sampled local span at the given depth. */
     private static Context localContext(int depth) {
         return localContext(depth, new LocalSpanCount());
     }

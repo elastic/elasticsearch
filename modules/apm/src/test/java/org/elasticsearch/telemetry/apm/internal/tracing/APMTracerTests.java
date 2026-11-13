@@ -524,7 +524,7 @@ public class APMTracerTests extends ESTestCase {
         final Span span = tracer.spanBuilder("name1").startSpan();
         assertThat(isRecorded(span), is(false));
         try (var ignored = span.storeInThreadContext()) {
-            assertLocalTraceDropped();
+            assertTraceIsDropped();
         }
         span.end();
 
@@ -545,7 +545,9 @@ public class APMTracerTests extends ESTestCase {
             final Span span = tracer.spanBuilder("name1").setParent(root).startSpan();
             assertThat(isRecorded(span), is(false));
             try (var ignored2 = span.storeInThreadContext()) {
-                assertLocalTraceDropped();
+                assertTraceIsDropped();
+                // it is still the trace of the span that was current when tracing was disabled
+                assertThat(currentSpanContext().getTraceId(), equalTo(spanContextOf(((APMSpan) root).context()).getTraceId()));
             }
         }
         root.end();
@@ -943,9 +945,9 @@ public class APMTracerTests extends ESTestCase {
         return TimeUnit.SECONDS.toNanos(instant.getEpochSecond()) + instant.getNano();
     }
 
-    /** Asserts that the thread context marks the local trace as dropped and that no trace context is propagated. */
-    private void assertLocalTraceDropped() {
-        assertThat(currentSpanContext().isValid(), is(false));
+    private void assertTraceIsDropped() {
+        assertThat(currentSpanContext().isValid(), is(true));
+        assertThat(currentSpanContext().isSampled(), is(false));
         assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
         assertThat(threadContext.getHeader(Task.TRACE_STATE), nullValue());
     }

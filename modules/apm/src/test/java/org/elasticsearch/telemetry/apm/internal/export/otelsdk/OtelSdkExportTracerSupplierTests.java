@@ -24,6 +24,8 @@ import org.elasticsearch.telemetry.apm.internal.tracing.LocalSpanCount;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -43,7 +45,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
     }
 
     private void assertDegradesToNoop(Settings settings) {
-        try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
+        try (var supplier = supplier(settings, MeterProvider::noop)) {
             assertThat(supplier.get(), is(OpenTelemetry.noop()));
             assertThat(supplier.attemptFlushTraces().isSuccess(), is(true));
         }
@@ -55,7 +57,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
             .put(OtelSdkSettings.TELEMETRY_EXPORT_SEND_TIMEOUT.getKey(), "200ms")
             .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "300ms")
             .build();
-        try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
+        try (var supplier = supplier(settings, MeterProvider::noop)) {
             assertNotNull(supplier.get());
         }
     }
@@ -74,7 +76,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
             .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "300ms")
             .put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0)
             .build();
-        try (var supplier = new OtelSdkExportTracerSupplier(settings, () -> meterProvider)) {
+        try (var supplier = supplier(settings, () -> meterProvider)) {
             // Start and end a span so BatchSpanProcessor registers its queue metrics.
             var span = supplier.get().getTracer("test").spanBuilder("test").setParent(contextWithSpanCount()).startSpan();
             span.end();
@@ -98,7 +100,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
             .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "300ms")
             .setSecureSettings(secureSettings)
             .build();
-        try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
+        try (var supplier = supplier(settings, MeterProvider::noop)) {
             secureSettings.close();
             supplier.get();
             assertThat(supplier.authHeader, equalTo("Bearer tok"));
@@ -106,7 +108,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
     }
 
     public void testGetReturnsTheSameInstanceOnceItIsCreated() {
-        try (var supplier = new OtelSdkExportTracerSupplier(exportingSettings(), MeterProvider::noop)) {
+        try (var supplier = supplier(exportingSettings(), MeterProvider::noop)) {
             final OpenTelemetry first = supplier.get();
 
             assertThat(first, not(is(OpenTelemetry.noop())));
@@ -115,7 +117,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
     }
 
     public void testGetAfterCloseDoesNotCreateANewSdk() {
-        final var supplier = new OtelSdkExportTracerSupplier(exportingSettings(), MeterProvider::noop);
+        final var supplier = supplier(exportingSettings(), MeterProvider::noop);
         final OpenTelemetry sdk = supplier.get();
         supplier.close();
 
@@ -128,7 +130,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
     }
 
     public void testCloseBeforeTheFirstGetPreventsTheSdkFromBeingCreated() {
-        final var supplier = new OtelSdkExportTracerSupplier(exportingSettings(), MeterProvider::noop);
+        final var supplier = supplier(exportingSettings(), MeterProvider::noop);
 
         supplier.close();
 
@@ -137,7 +139,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
     }
 
     public void testCloseIsIdempotent() {
-        final var supplier = new OtelSdkExportTracerSupplier(exportingSettings(), MeterProvider::noop);
+        final var supplier = supplier(exportingSettings(), MeterProvider::noop);
         supplier.get();
 
         supplier.close();
@@ -164,7 +166,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
             .put(OtelSdkSettings.TELEMETRY_EXPORT_INTERVAL.getKey(), "300ms")
             .put(OtelSdkSettings.TELEMETRY_TRACING_SAMPLE_RATE.getKey(), 1.0)
             .build();
-        try (var supplier = new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)) {
+        try (var supplier = supplier(settings, MeterProvider::noop)) {
             var span = supplier.get().getTracer("test").spanBuilder("root").setParent(contextWithSpanCount()).startSpan();
             assertThat(span.getSpanContext().getTraceState().get("ot"), equalTo("p:0"));
             span.end();
@@ -174,5 +176,9 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
     /** The sampler relies on the counter, which is always there for the spans that are started by the span builder of the tracer. */
     private static Context contextWithSpanCount() {
         return Context.root().with(new LocalSpanCount());
+    }
+
+    private static OtelSdkExportTracerSupplier supplier(Settings settings, Supplier<MeterProvider> meterProvider) {
+        return new OtelSdkExportTracerSupplier(settings, meterProvider, new ElasticTracestateSampler(new AtomicBoolean(true), settings));
     }
 }

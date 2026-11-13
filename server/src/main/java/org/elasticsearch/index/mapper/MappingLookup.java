@@ -441,6 +441,10 @@ public final class MappingLookup {
     }
 
     void checkLimits(IndexSettings settings) {
+        long nestedFieldsLimit = settings.getMappingNestedFieldsLimit();
+        if (nestedLookup.getNestedMappers().size() > nestedFieldsLimit) {
+            throw new MapperParsingException("Limit of nested fields [" + nestedFieldsLimit + "] has been exceeded");
+        }
         checkNestedParentsLimit(settings.getMappingNestedParentsLimit());
         checkDimensionFieldLimit(settings.getMappingDimensionFieldsLimit());
     }

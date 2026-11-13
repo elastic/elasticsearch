@@ -83,6 +83,11 @@ public final class SearchCapabilities {
 
     /** A text field that indexes no positions answers positional queries from the values it keeps. */
     private static final String POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS = "positional_queries_on_text_without_positions";
+    /**
+     * A {@code terms} aggregation over a field mapped as {@code ip} in one index and {@code keyword} in another is rejected with a
+     * 400 when both return buckets, and takes the key format of the indices that return buckets otherwise.
+     */
+    private static final String TERMS_AGG_IP_KEYWORD_MISMATCH_BAD_REQUEST = "terms_agg_ip_keyword_mismatch_bad_request";
     /** A knn search on a slice-enabled index is rejected unless the request selects the slices to search by name. */
     private static final String KNN_REQUIRES_SLICE_SELECTION = "knn_requires_slice_selection";
     /** A composite aggregation with a non-positive {@code size} is rejected with a 400 instead of failing with an NPE. */
@@ -135,6 +140,7 @@ public final class SearchCapabilities {
         capabilities.add(KEYED_FLATTENED_PATTERN_QUERIES);
         capabilities.add(POSITIONAL_QUERIES_ON_TEXT_WITHOUT_POSITIONS);
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
+        capabilities.add(TERMS_AGG_IP_KEYWORD_MISMATCH_BAD_REQUEST);
         capabilities.add(KNN_REQUIRES_SLICE_SELECTION);
         capabilities.add(COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE);
         capabilities.add(NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING);

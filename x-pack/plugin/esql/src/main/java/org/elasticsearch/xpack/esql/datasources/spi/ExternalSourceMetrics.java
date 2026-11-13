@@ -151,7 +151,7 @@ public final class ExternalSourceMetrics {
     public static final String BREAKER_TRIPPED_TOTAL = "es.esql.datasources.breaker.tripped.total";
 
     /**
-     * One data-source or dataset CRUD change (create / update / delete / rejected), dimensioned by
+     * One data-source or dataset CRUD change (create / update / delete / rejected / enable / disable), dimensioned by
      * kind, op, type, and (on rejected) reason.
      */
     public static final String CONFIG_CHANGES_TOTAL = "es.esql.datasources.config.changes.total";
@@ -173,7 +173,7 @@ public final class ExternalSourceMetrics {
     /** CRUD object kind: {@code datasource} or {@code dataset}. */
     public static final String KIND_ATTRIBUTE = "es_datasource_kind";
 
-    /** CRUD operation: {@code created}, {@code updated}, {@code deleted}, {@code rejected}. */
+    /** CRUD operation: {@code created}, {@code updated}, {@code deleted}, {@code rejected}, {@code enabled}, {@code disabled}. */
     public static final String OP_ATTRIBUTE = "es_datasource_op";
 
     /** Rejection reason, present only when {@link #OP_ATTRIBUTE} is {@code rejected}. */
@@ -492,7 +492,7 @@ public final class ExternalSourceMetrics {
         );
         this.configChangesTotal = meterRegistry.registerLongCounter(
             CONFIG_CHANGES_TOTAL,
-            "ES|QL data-source or dataset configuration changes (create, update, delete, rejected)",
+            "ES|QL data-source or dataset configuration changes (create, update, delete, rejected, enable, disable)",
             "unit"
         );
         this.queryCpuTotal = meterRegistry.registerLongCounter(

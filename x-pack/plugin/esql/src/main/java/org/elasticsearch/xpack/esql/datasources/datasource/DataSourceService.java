@@ -525,8 +525,8 @@ public class DataSourceService {
     }
 
     /**
-     * Enable or disable data sources by name. Idempotent if already in the target state.
-     * Fails with 404 if a name does not exist.
+     * Enable or disable data sources by name. Idempotent if already in the target state; only names whose flag actually
+     * flipped are counted in the config-change telemetry. Fails with 404 if a name does not exist.
      */
     public void setDataSourcesEnabled(
         ProjectId projectId,
@@ -540,17 +540,24 @@ public class DataSourceService {
         final DataSourceMetadata metadata = getMetadata(projectMetadata);
         final Optional<String> notFound = names.stream().filter(n -> metadata.get(n) == null).findAny();
         if (notFound.isPresent()) {
-            listener.onFailure(new ResourceNotFoundException("data source [{}] not found", notFound.get()));
+            ResourceNotFoundException e = new ResourceNotFoundException("data source [{}] not found", notFound.get());
+            recordRejected(null, e);
+            listener.onFailure(e);
             return;
         }
         logger.debug("submitting set enabled={} for data sources {}", enabled, names);
-        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
+        final AtomicReference<List<String>> flippedTypes = new AtomicReference<>();
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(
+            masterNodeTimeout,
+            ackTimeout,
+            enabledRecordingListener(listener, enabled, flippedTypes)
+        ) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final DataSourceMetadata current = getMetadata(project);
                 final Map<String, DataSource> updated = new HashMap<>(current.dataSources());
-                boolean changed = false;
+                final List<String> flipped = new ArrayList<>();
                 for (String name : names) {
                     final DataSource existing = updated.get(name);
                     if (existing == null) {
@@ -559,12 +566,13 @@ public class DataSourceService {
                     final DataSource next = existing.withEnabled(enabled);
                     if (next != existing) {
                         updated.put(name, next);
-                        changed = true;
+                        flipped.add(existing.type());
                     }
                 }
-                if (changed == false) {
+                if (flipped.isEmpty()) {
                     return currentState;
                 }
+                flippedTypes.set(flipped);
                 return ClusterState.builder(currentState)
                     .putProjectMetadata(
                         ProjectMetadata.builder(project).putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(updated))
@@ -573,6 +581,30 @@ public class DataSourceService {
             }
         };
         taskQueue.submitTask("set-enabled-esql-data-source-metadata-" + names, task, task.timeout());
+    }
+
+    private ActionListener<AcknowledgedResponse> enabledRecordingListener(
+        ActionListener<AcknowledgedResponse> delegate,
+        boolean enabled,
+        AtomicReference<List<String>> flippedTypes
+    ) {
+        return ActionListener.wrap(r -> {
+            List<String> types = flippedTypes.get();
+            if (types != null) {
+                for (String type : types) {
+                    metrics.recordConfigChange(
+                        ConfigChangeTelemetry.KIND_DATASOURCE,
+                        enabled ? ConfigChangeTelemetry.OP_ENABLED : ConfigChangeTelemetry.OP_DISABLED,
+                        ConfigChangeTelemetry.typeToken(type),
+                        null
+                    );
+                }
+            }
+            delegate.onResponse(r);
+        }, e -> {
+            recordRejected(null, e);
+            delegate.onFailure(e);
+        });
     }
 
 }

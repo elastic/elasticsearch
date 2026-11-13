@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
@@ -43,6 +44,9 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsAction;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsRequest;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsResponse;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 
 import java.nio.file.Path;
@@ -1027,6 +1031,63 @@ public class DataSourceCrudIT extends ESIntegTestCase {
             assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("toggle_res_*")));
             assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
         }
+    }
+
+    /**
+     * Enable/disable feed the config-change phone-home counters, and count only toggles that actually flip the flag:
+     * a toggle onto the state a resource already has is acknowledged but not counted, and a refused one is counted as rejected.
+     */
+    public void testEnableDisableConfigChangeTelemetry() throws Exception {
+        final String dsName = "toggle_telemetry_ds";
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-east-1"))));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("toggle_tel_a", dsName, "test://a/", Map.of())));
+        assertAcked(client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("toggle_tel_b", dsName, "test://b/", Map.of())));
+        try {
+            final String sources = "datasources.config.datasources.changes.by_op.";
+            final String sets = "datasources.config.datasets.changes.by_op.";
+            final long sourcesDisabled = configCounter(sources + "disabled");
+            final long sourcesEnabled = configCounter(sources + "enabled");
+            final long setsDisabled = configCounter(sets + "disabled");
+            final long setsEnabled = configCounter(sets + "enabled");
+            final long setsRejected = configCounter(sets + "rejected");
+
+            assertAcked(client().execute(DisableDataSourceAction.INSTANCE, disableDataSourceRequest(dsName)));
+            assertAcked(client().execute(DisableDataSourceAction.INSTANCE, disableDataSourceRequest(dsName)));
+            assertThat(configCounter(sources + "disabled"), equalTo(sourcesDisabled + 1));
+            assertAcked(client().execute(EnableDataSourceAction.INSTANCE, enableDataSourceRequest(dsName)));
+            assertAcked(client().execute(EnableDataSourceAction.INSTANCE, enableDataSourceRequest(dsName)));
+            assertThat(configCounter(sources + "enabled"), equalTo(sourcesEnabled + 1));
+
+            // A batch counts once per dataset that flipped; the one already disabled is skipped.
+            assertAcked(client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("toggle_tel_a")));
+            assertThat(configCounter(sets + "disabled"), equalTo(setsDisabled + 1));
+            assertAcked(client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("toggle_tel_*")));
+            assertThat(configCounter(sets + "disabled"), equalTo(setsDisabled + 2));
+            assertAcked(client().execute(EnableDatasetAction.INSTANCE, enableDatasetRequest("toggle_tel_*")));
+            assertThat(configCounter(sets + "enabled"), equalTo(setsEnabled + 2));
+
+            assertThat(configCounter(sets + "rejected"), equalTo(setsRejected));
+            expectThrows(
+                ExecutionException.class,
+                () -> client().execute(DisableDatasetAction.INSTANCE, disableDatasetRequest("toggle_tel_missing")).get()
+            );
+            assertThat(configCounter(sets + "rejected"), equalTo(setsRejected + 1));
+        } finally {
+            assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("toggle_tel_*")));
+            assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
+        }
+    }
+
+    /** Sums one phone-home counter over every node: a change is counted on the master that applied it. */
+    private long configCounter(String name) throws Exception {
+        EsqlStatsRequest request = new EsqlStatsRequest();
+        request.includeStats(true);
+        long total = 0;
+        for (EsqlStatsResponse.NodeStatsResponse node : client().execute(EsqlStatsAction.INSTANCE, request).get().getNodes()) {
+            Counters stats = node.getStats();
+            total += stats == null ? 0 : stats.get(name);
+        }
+        return total;
     }
 
     static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {

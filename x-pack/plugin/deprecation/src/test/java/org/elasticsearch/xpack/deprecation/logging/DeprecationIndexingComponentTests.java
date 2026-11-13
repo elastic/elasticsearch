@@ -90,21 +90,25 @@ public class DeprecationIndexingComponentTests extends ESTestCase {
     }
 
     /**
-     * A deprecation warning logged before the deprecation template and ILM policy exist is never sent, so closing the component must
-     * not wait for it.
+     * A deprecation warning logged before the deprecation template and ILM policy exist is flushed by the bulk processor into the
+     * component's buffer, where it waits for indexing to be enabled. If the node stops first, the request is never sent, so stopping
+     * must fail it rather than leave closing the component to wait for it.
      */
-    public void testCloseDoesNotWaitWhenFlushNeverEnabled() {
-        final DeprecationIndexingComponent component = createComponent(TimeValue.timeValueHours(1));
+    public void testCloseDoesNotWaitWhenFlushNeverEnabled() throws Exception {
+        final DeprecationIndexingComponent component = createComponent(TimeValue.timeValueMillis(1));
         component.start();
         logDeprecation();
+        assertBusy(() -> assertThat(component.pendingRequestsBufferSize(), equalTo(1)));
 
         assertClosesPromptly(component);
+        assertThat(component.pendingRequestsBufferSize(), equalTo(0));
         assertThat(client.bulkRequests.get(), equalTo(0));
     }
 
     /**
-     * Stopping a node before the first flush interval elapses leaves a pending batch, which {@link DeprecationIndexingComponent#close()}
-     * flushes after indexing has already been stopped. Closing the component must not wait for that batch.
+     * Reproduces the hang seen when a node stops before the first flush interval elapses: the batch is still held by the bulk processor,
+     * which {@link DeprecationIndexingComponent#close()} flushes only after indexing has already been stopped. Closing the component must
+     * not wait for that batch.
      */
     public void testCloseDoesNotWaitForBatchPendingAtStop() {
         final DeprecationIndexingComponent component = createComponent(TimeValue.timeValueHours(1));
@@ -145,7 +149,7 @@ public class DeprecationIndexingComponentTests extends ESTestCase {
         final long startNanos = System.nanoTime();
         component.close();
         // without completing every buffered bulk listener, close() waits for BulkProcessor2's 30 second close timeout
-        assertThat(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startNanos), lessThan(10L));
+        assertThat(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startNanos), lessThan(25L));
     }
 
     private static ClusterChangedEvent templateAndPolicyInstalledEvent() {

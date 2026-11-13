@@ -206,6 +206,14 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         this.processor.close();
     }
 
+    /**
+     * Lets tests wait until a bulk request has reached the buffer, i.e. it was flushed by the bulk processor before the deprecation
+     * template and ILM policy were installed.
+     */
+    int pendingRequestsBufferSize() {
+        return pendingRequestsBuffer.size();
+    }
+
     public void enableDeprecationLogIndexing(boolean newEnabled) {
         if (appender.isEnabled() != newEnabled) {
             appender.setEnabled(newEnabled);

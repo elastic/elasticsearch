@@ -11,6 +11,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -44,12 +45,14 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -80,7 +83,8 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      *
      * @param in       reader to filter
      * @param filter   fields to filter.
-     * @param isMapped whether a field is mapped or not.
+     * @param isMapped whether a field is mapped or not. Keys of a field with dynamic keys (e.g. a flattened field) must not count as
+     *                 mapped, so that the companions such a field writes follow its FLS decision.
      */
     public static DirectoryReader wrap(
         DirectoryReader in,
@@ -169,20 +173,41 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
             String name = fi.name;
-            if (fi.getName().endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
-                name = fi.getName().substring(0, fi.getName().length() - TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX.length());
+
+            // Stored-value fallback companions (._original / ._ignore_malformed / .source_geometry) store a parent field's value(s) so
+            // synthetic source can be rebuilt, and must be filtered under the parent's name (when the parent is unmapped, the companion is
+            // all that represents it). A field that is itself mapped is filtered under its own name, even if it happens to end with one of
+            // these suffixes, so only re-map when the field is not mapped.
+            if (isMapped.apply(fi.getName()) == false) {
+                name = storedValueFallbackCompanionParent(fi.getName());
             }
-            if (fi.getName().endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
-                && isMapped.apply(fi.getName()) == false) {
-                name = fi.getName()
-                    .substring(0, fi.getName().length() - IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX.length());
+
+            // Resolved before .offsets, so that the counts of a flattened field's binary .offsets sidecar (<field>.offsets.counts) follow
+            // the sidecar too.
+            String countsSuffix = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+            if (name.endsWith(countsSuffix) && isMapped.apply(fi.getName()) == false) {
+                String parent = stripSuffix(name, countsSuffix);
+                if (parent.isEmpty() == false && companionParentExists(in.getFieldInfos(), parent, isMapped)) {
+                    name = parent;
+                }
             }
-            // Columnar shape fields store normalized geometries in an unmapped companion used to rebuild synthetic source.
-            if (fi.getName().endsWith(AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX)
-                && isMapped.apply(fi.getName()) == false) {
-                name = fi.getName()
-                    .substring(0, fi.getName().length() - AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX.length());
+
+            // The .offsets sidecar records array order for its parent field's doc values, so its visibility must follow the parent.
+            // Filtering it independently would leave orphaned offsets behind a hidden field, and synthetic source reconstruction would
+            // then read offsets pointing at absent values. Only treat it as a companion when the parent exists, so a user field that
+            // merely ends with the suffix but has no such parent is unaffected.
+            if (name.endsWith(FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX) && isMapped.apply(fi.getName()) == false) {
+                String parent = stripSuffix(name, FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
+                if (companionParentExists(in.getFieldInfos(), parent, isMapped)) {
+                    // Only a flattened field writes its offsets as binary doc values, and they point into its keyed values rather than
+                    // into the field itself, so they follow <field>._keyed. The doc values type is checked rather than whether the keyed
+                    // values exist, as a segment made only of arrays of nulls has offsets but no keyed values.
+                    FieldInfo offsets = in.getFieldInfos().fieldInfo(name);
+                    boolean flattened = offsets != null && offsets.getDocValuesType() == DocValuesType.BINARY;
+                    name = flattened ? parent + FlattenedFieldMapper.KEYED_FIELD_SUFFIX : parent;
+                }
             }
+
             if (filter.run(name)) {
                 filteredInfos.add(fi);
             }
@@ -190,6 +215,65 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.filter = filter;
         this.ignoredSourceFormat = ignoredSourceFormat;
+    }
+
+    /**
+     * Resolves the name a field should be filtered under, accounting for stored-value fallback companions. Each such companion appears in
+     * two field shapes that must both resolve to the same parent, so field-level security keeps or drops the parent and its companion
+     * together: the companion field itself (e.g. {@code "user._ignore_malformed"}) and its {@code .counts} sibling (e.g.
+     * {@code "user._ignore_malformed.counts"}). Returns the parent field name when {@code fieldName} is such a companion, or
+     * {@code fieldName} unchanged otherwise.
+     */
+    private static String storedValueFallbackCompanionParent(String fieldName) {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+
+        // A text-family field stores its original value in a <field>._original companion.
+        String original = TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX;
+        if (fieldName.endsWith(original + counts)) {
+            return stripSuffix(fieldName, original + counts);
+        }
+        if (fieldName.endsWith(original)) {
+            return stripSuffix(fieldName, original);
+        }
+
+        // A value that failed to parse is kept verbatim in a <field>._ignore_malformed companion.
+        String ignoreMalformed = IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX;
+        if (fieldName.endsWith(ignoreMalformed + counts)) {
+            return stripSuffix(fieldName, ignoreMalformed + counts);
+        }
+        if (fieldName.endsWith(ignoreMalformed)) {
+            return stripSuffix(fieldName, ignoreMalformed);
+        }
+
+        // A flattened field keeps the values that trip ignore_above in a <field>._keyed._ignored companion. Its .offsets point into these
+        // as well as into the keyed values, so both must follow the keyed values' FLS decision.
+        String keyedIgnored = FlattenedFieldMapper.KEYED_IGNORED_VALUES_FIELD_SUFFIX;
+        if (fieldName.endsWith(keyedIgnored + counts)) {
+            return stripSuffix(fieldName, keyedIgnored + counts) + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
+        }
+        if (fieldName.endsWith(keyedIgnored)) {
+            return stripSuffix(fieldName, keyedIgnored) + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
+        }
+
+        // Columnar shape fields store normalized geometries in an unmapped companion used to rebuild synthetic source.
+        if (fieldName.endsWith(AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX)) {
+            return stripSuffix(fieldName, AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX);
+        }
+
+        return fieldName;
+    }
+
+    /**
+     * Whether {@code parent} exists, so that a field named {@code parent + suffix} is its companion. The mapping is checked as well as the
+     * segment: a companion can be written without its parent (e.g. a document whose array holds only nulls), so a segment made only of
+     * such documents has the companion but not the parent. The segment is still checked for parents that are not mapped field types.
+     */
+    private static boolean companionParentExists(FieldInfos fieldInfos, String parent, Function<String, Boolean> isMapped) {
+        return isMapped.apply(parent) || fieldInfos.fieldInfo(parent) != null;
+    }
+
+    private static String stripSuffix(String value, String suffix) {
+        return value.substring(0, value.length() - suffix.length());
     }
 
     /** returns true if this field is allowed. */

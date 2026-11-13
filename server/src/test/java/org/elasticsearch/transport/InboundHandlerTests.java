@@ -17,17 +17,21 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -58,8 +62,10 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -74,6 +80,7 @@ public class InboundHandlerTests extends ESTestCase {
     private InboundHandler handler;
     private FakeTcpChannel channel;
     private MockBytesRefRecycler recycler;
+    private CircuitBreaker requestBreaker;
 
     @Before
     public void initHandler() throws Exception {
@@ -81,6 +88,7 @@ public class InboundHandlerTests extends ESTestCase {
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         requestHandlers = new Transport.RequestHandlers();
         responseHandlers = new Transport.ResponseHandlers();
+        requestBreaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         handler = createInboundHandler(true); // suppress assertions to test production error-handling
         recycler = new MockBytesRefRecycler();
     }
@@ -112,6 +120,7 @@ public class InboundHandlerTests extends ESTestCase {
             requestHandlers,
             responseHandlers,
             new HandlingTimeTracker(),
+            () -> requestBreaker,
             ignoreDeserializationErrors
         );
     }
@@ -721,6 +730,292 @@ public class InboundHandlerTests extends ESTestCase {
         );
         // Nothing to assert: it passes if the message is dropped without failing
         handler.inboundMessage(channel, new InboundMessage(responseHeader(randomNonNegativeLong(), between(1, 1000)), trip));
+    }
+
+    /**
+     * What a request's objects keep beyond its serialized message is charged to the request breaker as the request is read, and held
+     * until the response is sent, with the serialized size on the in-flight requests breaker, whether it is a response or a failure.
+     */
+    public void testDecodedRequestBytesHeldUntilResponse() throws Exception {
+        requestBreaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        handler = createInboundHandler(false);
+        final long decodedBytes = between(1, 2 * (int) DecodedRequestBytes.CHUNK_BYTES);
+        final AtomicLong chargedWhenHandled = new AtomicLong(-1);
+        final AtomicReference<BooleanSupplier> held = new AtomicReference<>();
+        final AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
+        final String action = "test-request";
+        requestHandlers.registerHandler(new RequestHandlerRegistry<>(action, in -> {
+            final TestRequest request = new TestRequest(in);
+            // A reader that wraps the stream it is given still charges the request
+            held.set(new NamedWriteableAwareStreamInput(in, in.namedWriteableRegistry()).chargeDecodedBytes(decodedBytes, "test"));
+            return request;
+        }, taskManager, (request, channel, task) -> {
+            chargedWhenHandled.set(requestBreaker.getUsed());
+            channelCaptor.set(channel);
+        }, EsExecutors.DIRECT_EXECUTOR_SERVICE, false, true));
+
+        for (boolean failure : new boolean[] { false, true }) {
+            final AtomicBoolean inFlightReleased = new AtomicBoolean();
+            try (var out = new RecyclerBytesStreamOutput(recycler)) {
+                handler.inboundMessage(channel, requestMessage(action, randomNonNegativeLong(), out, () -> inFlightReleased.set(true)));
+            }
+            assertThat(chargedWhenHandled.get(), equalTo(decodedBytes));
+            assertThat("held until the response is sent", requestBreaker.getUsed(), equalTo(decodedBytes));
+            assertTrue(held.get().getAsBoolean());
+            assertFalse(inFlightReleased.get());
+
+            if (failure) {
+                channelCaptor.get().sendResponse(new ElasticsearchException("boom"));
+            } else {
+                channelCaptor.get().sendResponse(new TestResponse(randomAlphaOfLength(10)));
+            }
+            assertThat(requestBreaker.getUsed(), equalTo(0L));
+            assertTrue("released with the in-flight charge", inFlightReleased.get());
+            assertFalse("objects kept after the response are no longer charged here", held.get().getAsBoolean());
+        }
+    }
+
+    /**
+     * The breaker is checked each time a request's charges reach a chunk, and once more after the request is read, not on every charge.
+     */
+    public void testDecodedRequestBytesCheckedPerChunkAndOnceRead() throws Exception {
+        final CheckCountingBreaker breaker = new CheckCountingBreaker(ByteSizeValue.ofMb(10));
+        requestBreaker = breaker;
+        handler = createInboundHandler(false);
+        // Four pieces reach the first chunk, the last three stay under the next one
+        final long pieceBytes = DecodedRequestBytes.CHUNK_BYTES * 3 / 10;
+        final int pieces = 7;
+        final AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
+        final String action = "test-request";
+        requestHandlers.registerHandler(new RequestHandlerRegistry<>(action, in -> {
+            final TestRequest request = new TestRequest(in);
+            for (int i = 0; i < pieces; i++) {
+                assertNotNull(in.chargeDecodedBytes(pieceBytes, "test"));
+            }
+            return request;
+        }, taskManager, (request, channel, task) -> channelCaptor.set(channel), EsExecutors.DIRECT_EXECUTOR_SERVICE, false, true));
+
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            handler.inboundMessage(channel, requestMessage(action, randomNonNegativeLong(), out, () -> {}));
+        }
+        assertNotNull("handled", channelCaptor.get());
+        assertThat("one check at the chunk, one once read", breaker.checks.get(), equalTo(2));
+        assertThat(breaker.getUsed(), equalTo(pieces * pieceBytes));
+
+        channelCaptor.get().sendResponse(new TestResponse(randomAlphaOfLength(10)));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A request whose last charge reaches a chunk is checked there, and not again once it is read.
+     */
+    public void testDecodedRequestBytesEndingOnAChunkCheckedOnce() throws Exception {
+        final CheckCountingBreaker breaker = new CheckCountingBreaker(ByteSizeValue.ofMb(10));
+        requestBreaker = breaker;
+        handler = createInboundHandler(false);
+        final AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
+        final String action = "test-request";
+        requestHandlers.registerHandler(new RequestHandlerRegistry<>(action, in -> {
+            final TestRequest request = new TestRequest(in);
+            in.chargeDecodedBytes(DecodedRequestBytes.CHUNK_BYTES, "test");
+            return request;
+        }, taskManager, (request, channel, task) -> channelCaptor.set(channel), EsExecutors.DIRECT_EXECUTOR_SERVICE, false, true));
+
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            handler.inboundMessage(channel, requestMessage(action, randomNonNegativeLong(), out, () -> {}));
+        }
+        assertNotNull("handled", channelCaptor.get());
+        assertThat(breaker.checks.get(), equalTo(1));
+
+        channelCaptor.get().sendResponse(new TestResponse(randomAlphaOfLength(10)));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A request charged less than a chunk is still checked once it is read, so it is rejected over the limit before it waits to run, and
+     * what it charged is released.
+     */
+    public void testDecodedRequestBytesUnderAChunkOverTheLimitRejectedOnceRead() throws Exception {
+        final int limit = between(100, 1000);
+        requestBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(limit));
+        handler = createInboundHandler(false);
+        final long decodedBytes = randomLongBetween(limit + 1, DecodedRequestBytes.CHUNK_BYTES - 1);
+        final AtomicBoolean read = new AtomicBoolean();
+        final String action = "test-request";
+        requestHandlers.registerHandler(new RequestHandlerRegistry<>(action, in -> {
+            final TestRequest request = new TestRequest(in);
+            in.chargeDecodedBytes(decodedBytes, "test");
+            read.set(true);
+            return request;
+        },
+            taskManager,
+            (request, channel, task) -> fail("handled a request over the limit"),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            false,
+            true
+        ));
+        final CapturingResponseHandler responseHandler = readingResponseHandler();
+        final long requestId = responseHandlers.add(responseHandler, null, action).requestId();
+
+        final AtomicBoolean inFlightReleased = new AtomicBoolean();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            handler.inboundMessage(channel, requestMessage(action, requestId, out, () -> inFlightReleased.set(true)));
+        }
+        assertTrue(read.get());
+        assertThat(requestBreaker.getUsed(), equalTo(0L));
+        assertTrue(inFlightReleased.get());
+        assertTripReplied(requestId, responseHandler);
+    }
+
+    /**
+     * Charges smaller than a chunk add up, so the one that brings a request to a chunk over the limit trips while the request is read, and
+     * what it charged before is released.
+     */
+    public void testDecodedRequestBytesTripWhenPiecesReachAChunk() throws Exception {
+        requestBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(DecodedRequestBytes.CHUNK_BYTES));
+        // A breaker trip must not trip the assertion on deserialization failures
+        handler = createInboundHandler(false);
+        final long pieceBytes = DecodedRequestBytes.CHUNK_BYTES * 6 / 10;
+        final AtomicBoolean trippedWhileRead = new AtomicBoolean();
+        final String action = "test-request";
+        requestHandlers.registerHandler(new RequestHandlerRegistry<>(action, in -> {
+            final TestRequest request = new TestRequest(in);
+            assertNotNull(in.chargeDecodedBytes(pieceBytes, "test"));
+            try {
+                in.chargeDecodedBytes(pieceBytes, "test");
+            } catch (CircuitBreakingException e) {
+                trippedWhileRead.set(true);
+                throw e;
+            }
+            return request;
+        },
+            taskManager,
+            (request, channel, task) -> fail("handled a request that tripped the breaker"),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            false,
+            true
+        ));
+        final CapturingResponseHandler responseHandler = readingResponseHandler();
+        final long requestId = responseHandlers.add(responseHandler, null, action).requestId();
+
+        final AtomicBoolean inFlightReleased = new AtomicBoolean();
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            handler.inboundMessage(channel, requestMessage(action, requestId, out, () -> inFlightReleased.set(true)));
+        }
+        assertTrue("tripped by the piece that reached a chunk, not once read", trippedWhileRead.get());
+        assertThat(requestBreaker.getUsed(), equalTo(0L));
+        assertTrue(inFlightReleased.get());
+        assertTripReplied(requestId, responseHandler);
+    }
+
+    /**
+     * A request whose handler is not allowed to trip a breaker is charged without breaking, as it is on the in-flight requests breaker.
+     */
+    public void testDecodedRequestBytesOfRequestThatCannotTripAreChargedWithoutBreaking() throws Exception {
+        final int limit = between(100, 1000);
+        requestBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(limit));
+        handler = createInboundHandler(false);
+        final long decodedBytes = DecodedRequestBytes.CHUNK_BYTES + between(1, 1000);
+        final AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
+        final String action = "test-request";
+        requestHandlers.registerHandler(new RequestHandlerRegistry<>(action, in -> {
+            final TestRequest request = new TestRequest(in);
+            assertNotNull(in.chargeDecodedBytes(decodedBytes, "test"));
+            return request;
+        }, taskManager, (request, channel, task) -> channelCaptor.set(channel), EsExecutors.DIRECT_EXECUTOR_SERVICE, false, false));
+
+        try (var out = new RecyclerBytesStreamOutput(recycler)) {
+            handler.inboundMessage(channel, requestMessage(action, randomNonNegativeLong(), out, () -> {}));
+        }
+        assertNotNull("handled", channelCaptor.get());
+        assertThat(requestBreaker.getUsed(), equalTo(decodedBytes));
+
+        channelCaptor.get().sendResponse(new TestResponse(randomAlphaOfLength(10)));
+        assertThat(requestBreaker.getUsed(), equalTo(0L));
+    }
+
+    private static CapturingResponseHandler readingResponseHandler() {
+        return new CapturingResponseHandler() {
+            @Override
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse(in);
+            }
+        };
+    }
+
+    /**
+     * Passes the reply the handler sent back to the sender, and checks that it is the breaker trip, as a 429.
+     */
+    private void assertTripReplied(long requestId, CapturingResponseHandler responseHandler) throws Exception {
+        handler.inboundMessage(channel, replyMessage(requestId, true));
+        final TransportException exception = responseHandler.exceptionCaptor.get();
+        assertThat(ExceptionsHelper.unwrapCause(exception), instanceOf(CircuitBreakingException.class));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(exception));
+    }
+
+    /**
+     * Counts how often the breaker is checked, which is how often a request's charges are checked against the limit.
+     */
+    private static class CheckCountingBreaker extends LimitedBreaker {
+        final AtomicInteger checks = new AtomicInteger();
+
+        CheckCountingBreaker(ByteSizeValue max) {
+            super(CircuitBreaker.REQUEST, max);
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            checks.incrementAndGet();
+            super.addEstimateBytesAndMaybeBreak(bytes, label);
+        }
+    }
+
+    /**
+     * A {@link TestRequest} for {@code action} as it arrives over the network, serialized into {@code out}, whose in-flight charge
+     * {@code inFlightRelease} releases.
+     */
+    private InboundMessage requestMessage(String action, long requestId, RecyclerBytesStreamOutput out, Releasable inFlightRelease)
+        throws IOException {
+        final BytesReference fullRequestBytes = OutboundHandler.serialize(
+            OutboundHandler.MessageDirection.REQUEST,
+            action,
+            requestId,
+            false,
+            TransportVersion.current(),
+            null,
+            new TestRequest(randomAlphaOfLength(10)),
+            threadPool.getThreadContext(),
+            out,
+            recycler
+        );
+        final BytesReference content = fullRequestBytes.slice(TcpHeader.HEADER_SIZE, fullRequestBytes.length() - TcpHeader.HEADER_SIZE);
+        final Header header = new Header(
+            fullRequestBytes.length() - 6,
+            requestId,
+            TransportStatus.setRequest((byte) 0),
+            TransportVersion.current()
+        );
+        final InboundMessage message = new InboundMessage(header, ReleasableBytesReference.wrap(content), inFlightRelease);
+        header.finishParsingHeader(message.openOrGetStreamInput());
+        return message;
+    }
+
+    /**
+     * The reply the handler last sent on {@link #channel}, as it arrives back at the node that sent the request.
+     */
+    private InboundMessage replyMessage(long requestId, boolean isError) throws IOException {
+        final BytesReference fullReplyBytes = channel.getMessageCaptor().get();
+        final BytesReference content = fullReplyBytes.slice(TcpHeader.HEADER_SIZE, fullReplyBytes.length() - TcpHeader.HEADER_SIZE);
+        final byte status = TransportStatus.setResponse((byte) 0);
+        final Header header = new Header(
+            fullReplyBytes.length() - 6,
+            requestId,
+            isError ? TransportStatus.setError(status) : status,
+            TransportVersion.current()
+        );
+        final InboundMessage message = new InboundMessage(header, ReleasableBytesReference.wrap(content), () -> {});
+        header.finishParsingHeader(message.openOrGetStreamInput());
+        return message;
     }
 
     private static Header responseHeader(long requestId, int length) {

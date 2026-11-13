@@ -184,6 +184,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE;
@@ -2702,7 +2703,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (CollectionUtils.isEmpty(source.searchAfter()) == false) {
             String collapseField = source.collapse() != null ? source.collapse().getField() : null;
-            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter(), collapseField);
+            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(
+                context.sort(),
+                source.searchAfter(),
+                collapseField,
+                field -> searchExecutionContext.isFieldMapped(field) == false
+            );
             context.searchAfter(fieldDoc);
         }
 
@@ -3252,10 +3258,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Charges the time of tasks equally to those of {@code shardIds} still on this node when a task completes.
+     * Charges the time of tasks equally to those of {@code shardIds} on this node.
      */
     public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
         return indicesService.searchLoad(shardIds);
+    }
+
+    /**
+     * Charges the time of tasks to those of {@code shardIds} on this node by how much their {@code total} grew since the previous
+     * task, see {@link IndicesService#searchLoad(List, ToLongFunction)}.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> total) {
+        return indicesService.searchLoad(shardIds, total);
     }
 
     /**

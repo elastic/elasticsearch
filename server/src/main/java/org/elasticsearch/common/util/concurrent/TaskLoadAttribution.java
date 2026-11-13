@@ -30,9 +30,6 @@ public final class TaskLoadAttribution {
         void charge(long nanos, long finishNanos);
     }
 
-    /** For a task that charges its time itself, so its pool charges nothing. */
-    public static final Target CHARGED_BY_TASK = (nanos, finishNanos) -> {};
-
     /**
      * The pool task running on an {@link EsExecutors.EsThread}.
      */

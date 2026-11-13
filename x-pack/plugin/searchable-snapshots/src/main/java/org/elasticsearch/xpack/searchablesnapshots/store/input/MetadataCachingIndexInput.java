@@ -18,7 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
-import org.elasticsearch.blobcache.common.ByteBufferReference;
+import org.elasticsearch.blobcache.common.BufferFillScope;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -262,22 +262,21 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
 
     private void readWithBlobCache(ByteBuffer b, long position, ByteRange blobCacheByteRange) throws Exception {
         // Callbacks that fill the buffer may run on other threads, and may still be running if this read fails, so they only write to it
-        // through byteBufferReference. Finishing it waits for them and stops any later one, and only then advances the buffer's position.
-        final ByteBufferReference byteBufferReference = new ByteBufferReference(b);
+        // through fillScope. Completing it waits for them and stops any later one.
+        final BufferFillScope fillScope = BufferFillScope.of(b);
         try {
-            int bytesRead = readWithBlobCache(byteBufferReference, b, position, blobCacheByteRange);
-            byteBufferReference.finish(bytesRead);
+            final int bytesRead = readWithBlobCache(fillScope, b, position, blobCacheByteRange);
+            fillScope.complete(bytesRead);
         } finally {
-            byteBufferReference.finish(0);
+            fillScope.complete(0);
         }
     }
 
     /**
-     * @return the number of bytes that were written to {@code b} through {@code byteBufferReference}, which the caller must pass when
-     *         finishing it. Bytes that are put into {@code b} directly on the calling thread are not included.
+     * @return the number of bytes that were written to {@code b} through {@code fillScope}, which the caller must pass when completing
+     *         it. Bytes that are put into {@code b} directly on the calling thread are not included.
      */
-    private int readWithBlobCache(ByteBufferReference byteBufferReference, ByteBuffer b, long position, ByteRange blobCacheByteRange)
-        throws Exception {
+    private int readWithBlobCache(BufferFillScope fillScope, ByteBuffer b, long position, ByteRange blobCacheByteRange) throws Exception {
         final int length = b.remaining();
         final CacheFile cacheFile = cacheFileReference.get();
 
@@ -287,7 +286,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             Releasables.assertOnce(() -> {}),
             (chan, onReadComplete) -> {
                 try (onReadComplete) {
-                    final int read = readCacheFile(chan, position, length, byteBufferReference);
+                    final int read = readCacheFile(chan, position, length, fillScope);
                     assert read == length : read + " vs " + length;
                     return read;
                 }
@@ -303,7 +302,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         // we did not find the bytes on disk, try the cache index before falling back to the blob store
         final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange);
         if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
-            return fillBlobCacheIndex(byteBufferReference, length, blobCacheByteRange, position, cacheFile);
+            return fillBlobCacheIndex(fillScope, length, blobCacheByteRange, position, cacheFile);
         } else {
             readAndCopyFromBlobCacheIndex(b, position, cacheFile, cachedBlob);
             return 0;
@@ -317,27 +316,22 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
      * index as well as writes it to local disk into a {@link CacheFile}. This is used for ranges that should be stored in the internal
      * cache index but haven't been found during a read attempt.
      *
-     * @param byteBufferReference reference to the buffer to fill with the request byte range
+     * @param fillScope scope of the buffer to fill with the request byte range
      * @param length number of bytes to read into the buffer
      * @param blobCacheByteRange byte range to cache in the internal index
      * @param position position in the file to start reading from
      * @param cacheFile cache file for this operation
-     * @return the number of bytes written to the buffer through {@code byteBufferReference}
+     * @return the number of bytes written to the buffer through {@code fillScope}
      * @throws Exception on failure
      */
-    private int fillBlobCacheIndex(
-        ByteBufferReference byteBufferReference,
-        int length,
-        ByteRange blobCacheByteRange,
-        long position,
-        CacheFile cacheFile
-    ) throws Exception {
+    private int fillBlobCacheIndex(BufferFillScope fillScope, int length, ByteRange blobCacheByteRange, long position, CacheFile cacheFile)
+        throws Exception {
         // We would have liked to find a cached entry, but we did not find anything: the cache on the disk will be requested,
         // so we compute the region of the file we would like to have the next time. The region is expressed as a tuple of
         // {start, end} where positions are relative to the whole file.
         // We must fill in a cache miss even if CACHE_NOT_READY since the cache index is only created on the first put.
         // TODO TBD use a different trigger for creating the cache index and avoid a put in the CACHE_NOT_READY case.
-        final Future<Integer> populateCacheFuture = populateAndRead(byteBufferReference, length, position, cacheFile, blobCacheByteRange);
+        final Future<Integer> populateCacheFuture = populateAndRead(fillScope, length, position, cacheFile, blobCacheByteRange);
 
         fillIndexCache(cacheFile, blobCacheByteRange);
         if (compoundFileOffset > 0L && blobCacheByteRange.equals(headerBlobCacheByteRange) && footerBlobCacheByteRange.isEmpty() == false) {
@@ -431,10 +425,10 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
      * Read {@code length} bytes from given {@code cacheFile} into the buffer, starting at the given {@code position}, while storing
      * {@code rangeToWrite} in the cache file.
      *
-     * <p>The read may be completed on another thread, so it only writes to the buffer through {@code byteBufferReference}.
-     * The caller must finish the reference before it relies on the buffer, or lets anything else use it.
+     * <p>The read may be completed on another thread, so it only writes to the buffer through {@code fillScope}.
+     * The caller must complete the scope before it relies on the buffer, or lets anything else use it.
      *
-     * @param byteBufferReference reference to the buffer to read into
+     * @param fillScope scope of the buffer to read into
      * @param length number of bytes to read into the buffer
      * @param position position in the file to start reading from
      * @param cacheFile file to read from
@@ -442,7 +436,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
      * @return future that resolves to the number of bytes read
      */
     protected Future<Integer> populateAndRead(
-        ByteBufferReference byteBufferReference,
+        BufferFillScope fillScope,
         int length,
         long position,
         CacheFile cacheFile,
@@ -453,7 +447,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
 
         return cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, onReadComplete) -> {
             try (onReadComplete) {
-                return readCacheFile(channel, position, length, byteBufferReference);
+                return readCacheFile(channel, position, length, fillScope);
             }
         }, (fc, start, end, progressUpdater) -> {
             assert assertFileChannelOpen(fc);
@@ -486,26 +480,20 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     }
 
     /**
-     * Reads {@code length} bytes at {@code position} from the cache file into the buffer behind {@code byteBufferReference}. The read is
-     * skipped, and reported as done, if the reference is already finished, because then the reader has given up on it.
+     * Reads {@code length} bytes at {@code position} from the cache file into the buffer behind {@code fillScope}. The read is
+     * skipped, and reported as done, if the scope is already complete, because then the reader has given up on it.
      */
-    private int readCacheFile(final FileChannel fc, final long position, final int length, final ByteBufferReference byteBufferReference)
+    private int readCacheFile(final FileChannel fc, final long position, final int length, final BufferFillScope fillScope)
         throws IOException {
         assert assertFileChannelOpen(fc);
-        final ByteBuffer dst = byteBufferReference.tryAcquire(0, length);
-        if (dst == null) {
-            return length;
-        }
-        try {
+        return fillScope.fillSlice(0, length, dst -> {
             final int bytesRead = Channels.readFromFileChannel(fc, position, dst);
             if (bytesRead == -1) {
                 throwEOF(position, dst.remaining());
             }
             stats.addCachedBytesRead(bytesRead);
             return bytesRead;
-        } finally {
-            byteBufferReference.release();
-        }
+        }).orElse(length);
     }
 
     private void fillIndexCache(CacheFile cacheFile, ByteRange indexCacheMiss) {

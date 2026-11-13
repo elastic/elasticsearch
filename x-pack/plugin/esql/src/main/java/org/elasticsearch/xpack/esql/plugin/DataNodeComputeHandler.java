@@ -68,7 +68,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -270,18 +269,22 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
                                 dataNodeRequest,
                                 groupTask,
-                                TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
-                                    nodeResponseRef.set(r);
-                                    return r.completionInfo();
-                                }), in -> new DataNodeComputeResponse(in, threadContext), searchExecutor)
+                                computeService.planRequestOptions(),
+                                new ActionListenerResponseHandler<>(
+                                    ComputeService.finishRemoteSinkIfNotSent(remoteSink, computeListener.acquireCompute().map(r -> {
+                                        nodeResponseRef.set(r);
+                                        return r.completionInfo();
+                                    })),
+                                    in -> new DataNodeComputeResponse(in, threadContext),
+                                    searchExecutor
+                                )
                             );
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
                                 remoteSink,
                                 configuration.allowPartialResults() == false,
@@ -401,6 +404,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         }
                     }))) {
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                        var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
@@ -413,14 +417,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 requiredClusterStateVersion
                             ),
                             groupTask,
-                            TransportRequestOptions.EMPTY,
+                            computeService.planRequestOptions(),
                             new ActionListenerResponseHandler<>(
-                                computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo),
+                                ComputeService.finishRemoteSinkIfNotSent(
+                                    remoteSink,
+                                    computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo)
+                                ),
                                 in -> new DataNodeComputeResponse(in, threadContext),
                                 searchExecutor
                             )
                         );
-                        var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                         exchangeSource.addRemoteSink(
                             remoteSink,
                             allowPartial == false,

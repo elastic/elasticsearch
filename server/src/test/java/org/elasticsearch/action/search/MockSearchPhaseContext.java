@@ -166,7 +166,7 @@ public class MockSearchPhaseContext extends AbstractSearchAsyncAction<SearchPhas
                 numSuccess.get(),
                 0,
                 0,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                failures,
                 SearchResponse.Clusters.EMPTY,
                 searchContextId,
                 null,

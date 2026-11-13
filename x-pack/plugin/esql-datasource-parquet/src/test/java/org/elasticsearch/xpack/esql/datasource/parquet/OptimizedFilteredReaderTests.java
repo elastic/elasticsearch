@@ -582,6 +582,44 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     /**
+     * Parquet min/max omit NaN, so a two-row group {@code {5.0, NaN}} looks constant-5 and
+     * parquet-java would drop it for {@code d != 5.0}. Same for {@code {6.0, NaN}} under
+     * {@code NOT (d > 5.0)} rewritten as {@code d <= 5.0}. Those predicates must not be
+     * pushed; late-mat keeps the NaN row.
+     */
+    public void testIeeeNanSurvivesFiniteNotEqAndInvertedGt() throws IOException {
+        MessageType schema = Types.buildMessage().required(INT32).named("id").required(DOUBLE).named("d").named("ieee_nan_group");
+        ReferenceAttribute d = new ReferenceAttribute(Source.EMPTY, "d", DataType.DOUBLE);
+        Literal five = new Literal(Source.EMPTY, 5.0, DataType.DOUBLE);
+
+        byte[] eqGroup = createParquetFile(
+            schema,
+            factory -> List.of(
+                factory.newGroup().append("id", 1).append("d", 5.0),
+                factory.newGroup().append("id", 2).append("d", Double.NaN)
+            )
+        );
+        assertThat(
+            "d != 5.0 keeps the NaN row of a {5.0, NaN} group",
+            idsOf(readWithPushedExpressions(eqGroup, new NotEquals(Source.EMPTY, d, five, null))),
+            equalTo(List.of(2))
+        );
+
+        byte[] gtGroup = createParquetFile(
+            schema,
+            factory -> List.of(
+                factory.newGroup().append("id", 1).append("d", 6.0),
+                factory.newGroup().append("id", 2).append("d", Double.NaN)
+            )
+        );
+        assertThat(
+            "NOT (d > 5.0) keeps the NaN row of a {6.0, NaN} group",
+            idsOf(readWithPushedExpressions(gtGroup, new Not(Source.EMPTY, new GreaterThan(Source.EMPTY, d, five, null)))),
+            equalTo(List.of(2))
+        );
+    }
+
+    /**
      * A dictionary of {@code +0.0} must still return every row for {@code d == -0.0}. parquet-java's
      * DictionaryFilter uses {@code HashSet.contains}, which separates the zeros.
      */

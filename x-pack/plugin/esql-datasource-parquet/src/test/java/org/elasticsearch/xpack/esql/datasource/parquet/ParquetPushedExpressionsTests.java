@@ -2028,7 +2028,27 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
             "NOT(eq(0.0)) declines because the inner does",
             predicateFor(schema, new Not(Source.EMPTY, eq("score", DataType.DOUBLE, 0.0)))
         );
+        assertNull(
+            "notEq(5.0) can drop a {5.0, NaN} group",
+            predicateFor(schema, new NotEquals(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null))
+        );
+        assertNull(
+            "NOT(gt(5.0)) inverts to lte and can drop {6.0, NaN}",
+            predicateFor(schema, new Not(Source.EMPTY, new GreaterThan(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null)))
+        );
+        assertNull("NOT(eq(5.0)) inverts to notEq", predicateFor(schema, new Not(Source.EMPTY, eq("score", DataType.DOUBLE, 5.0))));
+        assertNull(
+            "NOT(IN(5.0, 6.0)) inverts to notIn",
+            predicateFor(
+                schema,
+                new Not(Source.EMPTY, new In(Source.EMPTY, score, List.of(lit(5.0, DataType.DOUBLE), lit(6.0, DataType.DOUBLE))))
+            )
+        );
         assertNotNull("eq(0.5) stays pushed", predicateFor(schema, eq("score", DataType.DOUBLE, 0.5)));
+        assertNotNull(
+            "gt(5.0) of a finite non-zero stays pushed",
+            predicateFor(schema, new GreaterThan(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null))
+        );
         assertNotNull(
             "IN of non-zero finites stays pushed",
             predicateFor(schema, new In(Source.EMPTY, score, List.of(lit(1.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE))))

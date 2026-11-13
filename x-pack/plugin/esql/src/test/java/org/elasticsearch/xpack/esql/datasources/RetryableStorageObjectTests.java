@@ -3500,7 +3500,8 @@ public class RetryableStorageObjectTests extends ESTestCase {
         };
     }
 
-    private String readAndObserveHeader(RetryableStorageObject obj, ThreadContext threadContext) throws Exception {
+    /** Issues an async read and returns the header the listener sees; a failure fails the test unless {@code expectFailure}. */
+    private String readAndObserveHeader(RetryableStorageObject obj, ThreadContext threadContext, boolean expectFailure) throws Exception {
         threadContext.putHeader(CONTEXT_HEADER, "issuing-user");
         PlainActionFuture<String> observed = new PlainActionFuture<>();
         obj.startReadBytesAsync(
@@ -3508,10 +3509,19 @@ public class RetryableStorageObjectTests extends ESTestCase {
             4,
             len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
             Runnable::run,
-            ActionListener.wrap(
-                buffer -> observed.onResponse(threadContext.getHeader(CONTEXT_HEADER)),
-                e -> observed.onResponse(threadContext.getHeader(CONTEXT_HEADER))
-            )
+            ActionListener.wrap(buffer -> {
+                if (expectFailure) {
+                    observed.onFailure(new IllegalStateException("expected the read to fail"));
+                } else {
+                    observed.onResponse(threadContext.getHeader(CONTEXT_HEADER));
+                }
+            }, e -> {
+                if (expectFailure) {
+                    observed.onResponse(threadContext.getHeader(CONTEXT_HEADER));
+                } else {
+                    observed.onFailure(e);
+                }
+            })
         );
         return observed.get(10, TimeUnit.SECONDS);
     }
@@ -3526,7 +3536,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 RetryScheduler.DIRECT,
                 threadContext
             );
-            assertThat(readAndObserveHeader(obj, threadContext), equalTo("issuing-user"));
+            assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
         } finally {
             terminate(sdkThread);
         }
@@ -3542,7 +3552,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 RetryScheduler.DIRECT,
                 threadContext
             );
-            assertThat(readAndObserveHeader(obj, threadContext), equalTo("issuing-user"));
+            assertThat(readAndObserveHeader(obj, threadContext, true), equalTo("issuing-user"));
         } finally {
             terminate(sdkThread);
         }
@@ -3563,7 +3573,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 onSdkThread,
                 threadContext
             );
-            assertThat(readAndObserveHeader(obj, threadContext), equalTo("issuing-user"));
+            assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
         } finally {
             terminate(sdkThread);
         }
@@ -3578,7 +3588,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 new RetryPolicy(3, 1, 10),
                 RetryScheduler.DIRECT
             );
-            assertNull(readAndObserveHeader(obj, threadContext));
+            assertNull(readAndObserveHeader(obj, threadContext, false));
         } finally {
             terminate(sdkThread);
         }
@@ -3594,7 +3604,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
                 RetryScheduler.DIRECT,
                 threadContext
             );
-            assertThat(readAndObserveHeader(obj, threadContext), equalTo("issuing-user"));
+            assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
         } finally {
             terminate(sdkThread);
         }

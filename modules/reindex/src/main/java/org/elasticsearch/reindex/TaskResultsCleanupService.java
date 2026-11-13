@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -25,11 +26,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.Scheduler;
@@ -38,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collection;
 import java.util.List;
 import java.util.OptionalLong;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 import static org.elasticsearch.tasks.TaskResultsService.TASK_START_TIME_IN_MILLIS_PATH;
@@ -262,14 +267,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
             projectResolver.executeOnProject(
                 projectId,
                 () -> clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(response -> {
-                    logger.debug(
-                        "deleted [{}] expired task results from [{}] in project [{}] in [{}], skipped [{}] version conflicts",
-                        response.getDeleted(),
-                        TASK_INDEX,
-                        projectId,
-                        response.getTook(),
-                        response.getVersionConflicts()
-                    );
+                    logDeleteByQueryResponse(projectId, response);
                     contextPreservingActionListener.onResponse(null);
                 }, e -> {
                     logger.warn(() -> "failed to delete expired task results from [" + TASK_INDEX + "] in project [" + projectId + "]", e);
@@ -279,6 +277,42 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         } catch (Exception e) {
             logger.warn(() -> "failed to start deleting expired task results from [" + TASK_INDEX + "] in project [" + projectId + "]", e);
             contextPreservingActionListener.onFailure(e);
+        }
+    }
+
+    private static void logDeleteByQueryResponse(ProjectId projectId, BulkByPaginatedSearchResponse response) {
+        final List<BulkItemResponse.Failure> bulkFailures = response.getBulkFailures();
+        final List<PaginatedSearchFailure> searchFailures = response.getSearchFailures();
+        if (response.isTimedOut() == false && bulkFailures.isEmpty() && searchFailures.isEmpty()) {
+            logger.debug(
+                "deleted [{}] expired task results from [{}] in project [{}] in [{}], skipped [{}] version conflicts",
+                response.getDeleted(),
+                TASK_INDEX,
+                projectId,
+                response.getTook(),
+                response.getVersionConflicts()
+            );
+            return;
+        }
+        final Supplier<String> message = () -> Strings.format(
+            "deleted [%s] expired task results from [%s] in project [%s] in [%s], skipped [%s] version conflicts, but the cleanup was "
+                + "not fully successful: timed out [%s], [%s] bulk failures, [%s] search failures; remaining expired task results are "
+                + "retried on the next cleanup",
+            response.getDeleted(),
+            TASK_INDEX,
+            projectId,
+            response.getTook(),
+            response.getVersionConflicts(),
+            response.isTimedOut(),
+            bulkFailures.size(),
+            searchFailures.size()
+        );
+        if (bulkFailures.isEmpty() == false) {
+            logger.warn(message, bulkFailures.get(0).getCause());
+        } else if (searchFailures.isEmpty() == false) {
+            logger.warn(message, searchFailures.get(0).getReason());
+        } else {
+            logger.warn(message);
         }
     }
 

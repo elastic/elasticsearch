@@ -59,31 +59,14 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * Pushes the labels of a translated PromQL plan down into columns, right after {@link TranslatePromqlToEsqlPlanV2}; off unless
- * {@code enable_promql_translation_v2} is set.
+ * The logical plan may store time-series dimensions in a boxed {@code _timeseries} container of type
+ * {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}. It maps dimension names to values, accessed
+ * through {@link TimeSeriesMetadataPath}.
  * <p>
- * Translation carries the labels of a series as one label container ({@code _timeseries}) and states every label operation as a
- * call over it: {@link TimeSeriesMetadataFilter} keeps some labels or leaves them out, {@link TimeSeriesMetadataSet} writes one
- * and {@link TimeSeriesMetadataPath} reads one; aggregations, joins, unions and hashing compare containers as a whole. Translation
- * reads every label from the source's container, while the container holds the dimensions alone: a label the plan names is read
- * from its field here, a field that is not a dimension or a passthrough alias such as {@code cpu} included. Comparing and
- * rewriting whole containers is slow, and a node before 9.7 cannot read the typed container at all. This rule splits each container
- * into columns instead: a residual container, which the source reads as a view leaving out the labels the plan removes or writes,
- * and one column per label the plan names. Every operation then works on columns, and the residual view is the keyword
- * {@code _timeseries} once lowered ({@code LowerLabelContainerToKeyword}). Only the command's rendered label container writes
- * labels back into the residual one.
- * <p>
- * The containers a join or a union compares, and the ones an expression combines, are split alike: they share the set of labels in
- * columns. The rule first collects those sets ({@link Classes}), then rewrites the plan bottom-up, keeping each container's split as
- * a {@link Shape} until a node needs it as columns.
- * <p>
- * A collapse keeping one row per series keys by its keyword view of every label when nothing above it reads a view of the series, and
- * otherwise by the
- * one view the source reads: the one leaving out only what every reader leaves out. Any other aggregate keys by the view leaving out
- * every label its class removes or writes. Labels key packed ({@link PackDims}): a label of several values keys as a whole, and the
- * residual container, which is large, keys as it is.
+ * These accesses may hurt performance of the vectorized operator pipeline. This rule replaces them with direct
+ * column references, using a compiler optimization called scalar replacement of aggregates (SROA).
  */
-public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -381,7 +364,7 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
 
         /** Whether {@code expression} reads a label container of the plan, or the source's labels within its collapse. */
         private boolean reads(Expression expression) {
-            return classes.reads(expression) || (source != null && expression.anyMatch(PushDownPromqlLabels::isSource));
+            return classes.reads(expression) || (source != null && expression.anyMatch(ScalarizeTimeSeriesMetadataPaths::isSource));
         }
 
         // -- nodes --
@@ -518,7 +501,7 @@ public final class PushDownPromqlLabels extends ParameterizedRule<LogicalPlan, L
                     columns.put(label, get(shape, Source.EMPTY, label));
                 }
             }
-            columns.values().removeIf(PushDownPromqlLabels::isAbsent);
+            columns.values().removeIf(ScalarizeTimeSeriesMetadataPaths::isAbsent);
             Set<String> excluded = Shape.union(shape.excluded(), removed);
             if (shape.view() != null) {
                 return new Shape(null, shape.view(), excluded, columns);

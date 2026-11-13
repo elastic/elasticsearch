@@ -224,13 +224,13 @@ public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStateless
             final var iterations = randomIntBetween(8, 12);
             for (int i = 0; i < iterations; i++) {
                 indexDocs(indexName, randomIntBetween(10, 20));
-                indicesAdmin().prepareRefresh(indexName).get();
+                safeGet(indicesAdmin().prepareRefresh(indexName).execute());
             }
             logger.info("--> indexing complete [{} iterations], starting merge", iterations);
             assertThat(getPrimaryMergeTotal(indexName), equalTo(startingMerges));
 
             // Don't flush, the force-merge flush would wait on the (blocked) relocation pre-flush.
-            client(sourceNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(false).get();
+            safeGet(client(sourceNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(false).execute());
             // The merge stats are updated after Lucene marks the merge as finished, so the force merge can return before they are.
             assertBusy(() -> assertThat(getPrimaryMergeTotal(indexName), equalTo(startingMerges + 1)));
         } finally {

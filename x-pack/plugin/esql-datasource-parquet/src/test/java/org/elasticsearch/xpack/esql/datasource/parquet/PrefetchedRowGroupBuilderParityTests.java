@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReadStore;
+import org.apache.parquet.column.statistics.LongStatistics;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -19,6 +21,7 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.OutputFile;
@@ -26,6 +29,7 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -35,10 +39,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
@@ -50,10 +56,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.TreeMap;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
 
@@ -147,6 +157,52 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
             );
             assertEquals("prefetchedChunks must not be null", exception.getMessage());
         }
+    }
+
+    public void testDecompressorRefusalNamesColumnAndRowGroup() {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        CompressionCodecName codec = randomBoolean() ? CompressionCodecName.BROTLI : CompressionCodecName.LZO;
+        LongStatistics stats = new LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(0);
+        ColumnChunkMetaData ccm = ColumnChunkMetaData.get(
+            ColumnPath.get("id"),
+            Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("id"),
+            codec,
+            null,
+            EnumSet.of(Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        BlockMetaData block = new BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> PrefetchedRowGroupBuilder.build(
+                block,
+                3,
+                schema,
+                Set.of("id"),
+                null,
+                PreloadedRowGroupMetadata.empty(),
+                new TreeMap<>(),
+                codecFactory,
+                blockFactory.breaker()
+            )
+        );
+        assertThat(exception.getMessage(), containsString("column [id]"));
+        assertThat(exception.getMessage(), containsString("row group [3]"));
+        assertThat(exception.getMessage(), containsString(codec.name()));
+        assertThat(exception.getMessage(), containsString("LZ4_RAW"));
+        RuntimeException classified = ExternalFailures.classify(exception);
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        assertThat(classified.getMessage(), containsString(codec.name()));
     }
 
     public void testDuplicateColumnClosesEveryReaderOwnedDuringBuild() throws IOException {

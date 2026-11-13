@@ -6003,6 +6003,70 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
     }
 
+    public void testValidateFooterIntegrityRejectsUnsupportedCodec() {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        CompressionCodecName codec = randomBoolean() ? CompressionCodecName.BROTLI : CompressionCodecName.LZO;
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(0);
+        PrimitiveType type = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            codec,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ParquetFormatReader.validateFooterIntegrity(schema, List.of(block))
+        );
+        assertThat(ex.getMessage(), containsString("column [id]"));
+        assertThat(ex.getMessage(), containsString(codec.name()));
+        assertThat(ex.getMessage(), containsString("LZ4_RAW"));
+        assertThat(ex.getMessage(), containsString("Could not read the Parquet file"));
+        RuntimeException classified = ExternalFailures.classify(ex);
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        assertThat(classified.getMessage(), containsString(codec.name()));
+    }
+
+    public void testValidateFooterIntegrityAcceptsEverySupportedCodec() {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        for (CompressionCodecName codec : PlainCompressionCodecFactory.supportedDecompressionCodecs()) {
+            org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+            stats.setMinMax(1L, 100L);
+            stats.setNumNulls(0);
+            PrimitiveType type = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+            org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+                org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+                type,
+                codec,
+                null,
+                java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+                stats,
+                0L,
+                0L,
+                100L,
+                0L,
+                0L
+            );
+            org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+            block.setRowCount(100);
+            block.addColumn(ccm);
+            ParquetFormatReader.validateFooterIntegrity(schema, List.of(block));
+        }
+    }
+
     public void testValidParquetZeroRowsMetadata() throws Exception {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
         byte[] parquetData = createParquetFile(schema, factory -> List.of());

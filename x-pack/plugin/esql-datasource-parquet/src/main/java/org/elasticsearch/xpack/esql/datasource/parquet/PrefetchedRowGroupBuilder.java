@@ -59,10 +59,11 @@ import java.util.Set;
  *       {@code totalSize} bytes are consumed.</li>
  * </ul>
  *
- * <p>Encrypted columns are not supported and surface as {@link IllegalArgumentException} (HTTP
- * 400) so user-supplied encrypted files produce a clear client-side error rather than a 500.
- * Pages with CRC verification enabled are also unsupported; the optimized iterator never
- * enables CRC, so a request to handle one is treated as a programmer error.
+ * <p>Encrypted columns and compression codecs this reader does not implement (Brotli, LZO)
+ * surface as {@link IllegalArgumentException} (HTTP 400) so user-supplied files produce a
+ * clear client-side error rather than a 500. Pages with CRC verification enabled are also
+ * unsupported; the optimized iterator never enables CRC, so a request to handle one is
+ * treated as a programmer error.
  */
 final class PrefetchedRowGroupBuilder {
 
@@ -161,7 +162,19 @@ final class PrefetchedRowGroupBuilder {
                 if (descriptor == null) {
                     continue;
                 }
-                BytesInputDecompressor decompressor = codecFactory.getDecompressor(column.getCodec());
+                BytesInputDecompressor decompressor;
+                try {
+                    decompressor = codecFactory.getDecompressor(column.getCodec());
+                } catch (UnsupportedOperationException e) {
+                    // parquet-mr's CompressionCodecFactory contract for an unimplemented codec.
+                    // Raise IAE so ExternalFailures.classify maps this to HTTP 400, matching the
+                    // encrypted-column refusal above. The UOE is chained for the node log; classify
+                    // does not forward IAE causes.
+                    throw new IllegalArgumentException(
+                        PlainCompressionCodecFactory.unsupportedDecompressionDetail(path, column.getCodec(), rowGroupOrdinal),
+                        e
+                    );
+                }
                 OffsetIndex offsetIndex = preloadedMetadata != null ? preloadedMetadata.getOffsetIndex(rowGroupOrdinal, path) : null;
 
                 PrefetchedSource source = new PrefetchedSource(prefetchedChunks, rowGroupOrdinal);

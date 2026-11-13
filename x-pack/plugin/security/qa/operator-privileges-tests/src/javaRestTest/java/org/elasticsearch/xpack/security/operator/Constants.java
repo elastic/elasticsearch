@@ -703,6 +703,7 @@ public class Constants {
         "internal:cluster/nodes/state/await_version",
         "internal:cluster/master_history/get",
         "internal:cluster/coordination_diagnostics/info",
+        "internal:cluster/encryption/key/can_persist",
         "internal:cluster/formation/info",
         "internal:cluster/snapshot/update_snapshot_status",
         "internal:data/read/search/fetch/coordination",

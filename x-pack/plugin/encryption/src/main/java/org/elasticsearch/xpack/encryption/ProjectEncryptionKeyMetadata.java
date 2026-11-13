@@ -17,6 +17,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -55,9 +57,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * next-rotation decision. Non-active keys age out after a grace period before being retired.
  *
  * <p>If a node cannot unwrap the on-disk blob at startup (missing or wrong password), {@link #fromXContent} produces a <em>degraded</em>
- * instance ({@link #isUnwrapFailed()} returns {@code true}) instead of throwing. The node starts normally, but the encryption service
- * reports {@code UNAVAILABLE_DECRYPTION_FAILED} and all encrypt/decrypt calls fail until the operator fixes the password and restarts,
- * or calls {@code POST /_encryption/_reset?accept_data_loss=true}.
+ * instance ({@link #isUnwrapFailed()} returns {@code true}) instead of throwing, so the node still starts. A follower gets the key from
+ * the elected master's next publication. If the node is elected master, it publishes the degraded instance, and encrypt/decrypt calls
+ * fail on every node until it reads the key from its own disk (see {@link KeyRotationCoordinator}) or
+ * {@code POST /_encryption/_reset?accept_data_loss=true} is called.
  */
 class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
     static final String TYPE = "primary_encryption_key";
@@ -91,6 +94,9 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         WrappedKey wrap(byte[] plaintextPek);
 
         byte[] unwrap(byte[] wrappedPek, String passwordId);
+
+        /** Returns this node's {@link GatewayKeys}. */
+        GatewayKeys gatewayKeys();
     }
 
     /** Plaintext AES-256 key bytes and generation timestamp */
@@ -142,26 +148,82 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     private record GatewayBytes(String passwordId, Map<String, byte[]> wrappedByKeyId) {}
 
-    private record PreservedGatewayBlob(
+    private record GatewayCopy(
         String activeKeyId,
         String passwordId,
         Map<String, KeyEntry> wrappedKeys,
         Map<String, String> handlerKeyIds
     ) {}
 
-    private record ParseContext(PekEncryption pek, DegradedBlobHolder holder) {}
-
     /**
-     * Node-scoped holder for the wrapped PEK ciphertext last read from this node's own disk. Populated by
-     * {@link #fromXContent} and consulted by degraded instances during GATEWAY serialization so each node
-     * re-emits its own password-specific blob regardless of what a degraded master published.
+     * The wrapped keys in the cluster state this node last read from or wrote to its disk. While the elected master holds no key, this
+     * node keeps writing this copy instead of erasing it, so that a master that can read it can restore the key. Set by
+     * {@link #fromXContent} and by GATEWAY serialization in {@link #toXContentChunked}.
      */
-    static final class DegradedBlobHolder {
-        volatile PreservedGatewayBlob blob;
-    }
+    @FixForMultiProject(description = "one copy per node; with multiple projects each project's copy overwrites the others")
+    static final class GatewayKeys {
+        private record ReadCheck(GatewayCopy copy, Settings settings, boolean readable) {}
 
-    @Nullable
-    private final DegradedBlobHolder degradedBlobHolder;
+        private GatewayCopy copy;
+        private volatile ReadCheck readCheck;
+
+        synchronized void set(@Nullable GatewayCopy copy) {
+            this.copy = copy;
+        }
+
+        /** Forgets this node's copy if it is for {@code activeKeyId}, a key that a reset removed. */
+        synchronized void forgetCopyOf(String activeKeyId) {
+            if (copy != null && copy.activeKeyId().equals(activeKeyId)) {
+                copy = null;
+            }
+        }
+
+        synchronized boolean holdsKeys() {
+            return copy != null;
+        }
+
+        /** Returns the id of the password this node's copy is wrapped with, or {@code null} if it holds none. */
+        @Nullable
+        synchronized String passwordId() {
+            return copy == null ? null : copy.passwordId();
+        }
+
+        /**
+         * Returns whether {@code pekEncryption} can unwrap this node's copy of the active key with the passwords in {@code settings}, or
+         * {@code null} if this node holds no copy. Unwraps at most once per copy and secure settings snapshot, outside the lock, since
+         * health reports call it.
+         */
+        @Nullable
+        Boolean canRead(PekEncryption pekEncryption, Settings settings) {
+            GatewayCopy current;
+            synchronized (this) {
+                current = copy;
+            }
+            if (current == null) {
+                return null;
+            }
+            ReadCheck check = readCheck;
+            if (check == null || check.copy() != current || check.settings() != settings) {
+                boolean readable;
+                try {
+                    byte[] key = pekEncryption.unwrap(current.wrappedKeys().get(current.activeKeyId()).bytes(), current.passwordId());
+                    Arrays.fill(key, (byte) 0);
+                    readable = true;
+                } catch (RuntimeException e) {
+                    readable = false;
+                }
+                check = new ReadCheck(current, settings, readable);
+                readCheck = check;
+            }
+            return check.readable();
+        }
+
+        /** Returns this node's copy if it is for {@code activeKeyId}, otherwise {@code null}. */
+        @Nullable
+        synchronized GatewayCopy copyFor(String activeKeyId) {
+            return copy != null && copy.activeKeyId().equals(activeKeyId) ? copy : null;
+        }
+    }
 
     ProjectEncryptionKeyMetadata(
         Map<String, KeyEntry> keys,
@@ -190,7 +252,6 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         this.handlerKeyIds = Map.copyOf(handlerKeyIds);
         this.pekEncryption = pekEncryption;
         this.unwrapFailureReason = null;
-        this.degradedBlobHolder = null;
     }
 
     /**
@@ -203,8 +264,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         String passwordId,
         Map<String, String> handlerKeyIds,
         PekEncryption pekEncryption,
-        @Nullable String unwrapFailureReason,
-        @Nullable DegradedBlobHolder degradedBlobHolder
+        @Nullable String unwrapFailureReason
     ) {
         this.keys = keys;
         this.activeKeyId = activeKeyId;
@@ -212,12 +272,10 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         this.handlerKeyIds = handlerKeyIds;
         this.pekEncryption = pekEncryption;
         this.unwrapFailureReason = unwrapFailureReason;
-        this.degradedBlobHolder = degradedBlobHolder;
     }
 
-    ProjectEncryptionKeyMetadata(StreamInput in, PekEncryption pekEncryption, DegradedBlobHolder degradedBlobHolder) throws IOException {
+    ProjectEncryptionKeyMetadata(StreamInput in, PekEncryption pekEncryption) throws IOException {
         this.pekEncryption = pekEncryption;
-        this.degradedBlobHolder = degradedBlobHolder;
         if (in.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_CLEARTEXT_TRANSPORT) && in.readBoolean()) {
             this.unwrapFailureReason = in.readString();
             this.activeKeyId = in.readString();
@@ -248,26 +306,31 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
     /**
      * Creates a degraded instance that carries the failure reason but no usable key material. Used by {@link #fromXContent} when the
-     * on-disk blob cannot be unwrapped. Holds the original ciphertext from disk, or {@code null} if the disk blob had no key material.
-     * When non-null, {@link #toXContentChunked} in GATEWAY context re-emits these bytes verbatim so recovery remains possible once the
-     * correct password is supplied.
+     * on-disk blob cannot be unwrapped. In GATEWAY context it writes this node's {@link GatewayKeys} for the same active key, so the
+     * node keeps its copy of the key while the elected master holds none.
      */
     static ProjectEncryptionKeyMetadata degraded(
         @Nullable String activeKeyId,
         String passwordId,
         PekEncryption pekEncryption,
-        String unwrapFailureReason,
-        @Nullable DegradedBlobHolder degradedBlobHolder
+        String unwrapFailureReason
     ) {
-        return new ProjectEncryptionKeyMetadata(
-            Map.of(),
-            activeKeyId,
-            passwordId,
-            Map.of(),
-            pekEncryption,
-            unwrapFailureReason,
-            degradedBlobHolder
-        );
+        return new ProjectEncryptionKeyMetadata(Map.of(), activeKeyId, passwordId, Map.of(), pekEncryption, unwrapFailureReason);
+    }
+
+    /**
+     * Returns the keys from this node's {@link GatewayKeys} for {@code activeKeyId}, unwrapped with this node's password, or {@code null}
+     * if this node holds no copy of that key. Throws if the copy cannot be unwrapped.
+     */
+    @Nullable
+    static ProjectEncryptionKeyMetadata unwrapGatewayKeys(String activeKeyId, PekEncryption pekEncryption) {
+        GatewayCopy copy = gatewayCopyFor(activeKeyId, pekEncryption);
+        return copy == null ? null : unwrap(copy, pekEncryption);
+    }
+
+    @Nullable
+    private static GatewayCopy gatewayCopyFor(@Nullable String activeKeyId, PekEncryption pekEncryption) {
+        return pekEncryption.gatewayKeys().copyFor(activeKeyId);
     }
 
     static String generateKeyId() {
@@ -383,11 +446,13 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         }
 
         if (unwrapFailureReason != null) {
-            PreservedGatewayBlob blob = degradedBlobHolder != null ? degradedBlobHolder.blob : null;
-            if (blob == null || blob.wrappedKeys().isEmpty()) {
+            // a copy for a different active key would roll the key set back if this node were later elected master
+            GatewayCopy copy = gatewayCopyFor(activeKeyId, pekEncryption);
+            if (copy == null) {
+                setGatewayCopy(null);
                 return emptyGatewayChunk();
             }
-            return gatewayChunk(blob.activeKeyId(), blob.passwordId(), blob.wrappedKeys(), blob.handlerKeyIds());
+            return gatewayChunk(copy);
         }
 
         GatewayBytes gw = getOrComputeWrappedKeys();
@@ -395,7 +460,13 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         for (Map.Entry<String, KeyEntry> e : keys.entrySet()) {
             wrappedEntries.put(e.getKey(), new KeyEntry(gw.wrappedByKeyId().get(e.getKey()), e.getValue().generatedAt()));
         }
-        return gatewayChunk(activeKeyId, gw.passwordId(), wrappedEntries, handlerKeyIds);
+        GatewayCopy copy = new GatewayCopy(activeKeyId, gw.passwordId(), Map.copyOf(wrappedEntries), handlerKeyIds);
+        setGatewayCopy(copy);
+        return gatewayChunk(copy);
+    }
+
+    private void setGatewayCopy(@Nullable GatewayCopy copy) {
+        pekEncryption.gatewayKeys().set(copy);
     }
 
     private Iterator<? extends ToXContent> apiChunk() {
@@ -418,17 +489,12 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         });
     }
 
-    private Iterator<? extends ToXContent> gatewayChunk(
-        String activeKeyId,
-        String passwordId,
-        Map<String, KeyEntry> wrappedEntries,
-        Map<String, String> handlerIds
-    ) {
+    private static Iterator<? extends ToXContent> gatewayChunk(GatewayCopy copy) {
         return chunk((builder, p) -> {
-            builder.field(ACTIVE_KEY_ID_FIELD.getPreferredName(), activeKeyId);
-            builder.field(PASSWORD_ID_FIELD.getPreferredName(), passwordId);
+            builder.field(ACTIVE_KEY_ID_FIELD.getPreferredName(), copy.activeKeyId());
+            builder.field(PASSWORD_ID_FIELD.getPreferredName(), copy.passwordId());
             builder.startObject(KEYS_FIELD.getPreferredName());
-            for (Map.Entry<String, KeyEntry> entry : wrappedEntries.entrySet()) {
+            for (Map.Entry<String, KeyEntry> entry : copy.wrappedKeys().entrySet()) {
                 builder.startObject(entry.getKey());
                 builder.field(BYTES_FIELD.getPreferredName(), entry.getValue().bytes());
                 builder.field(GENERATED_AT_FIELD.getPreferredName(), entry.getValue().generatedAt());
@@ -436,7 +502,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
             }
             builder.endObject();
             builder.startObject(HANDLER_KEY_IDS_FIELD.getPreferredName());
-            for (Map.Entry<String, String> entry : handlerIds.entrySet()) {
+            for (Map.Entry<String, String> entry : copy.handlerKeyIds().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
@@ -483,10 +549,10 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ProjectEncryptionKeyMetadata, ParseContext> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<ProjectEncryptionKeyMetadata, PekEncryption> PARSER = new ConstructingObjectParser<>(
         TYPE,
         false,
-        (args, ctx) -> {
+        (args, pekEncryption) -> {
             String activeKeyId = (String) args[0];
             // password_id is optional for gateway BWC. Default to the empty string
             String passwordId = args[1] != null ? (String) args[1] : "";
@@ -494,15 +560,9 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
             Map<String, KeyEntry> keys = list.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2));
             Map<String, String> handlerKeyIds = args[3] != null ? (Map<String, String>) args[3] : Map.of();
             if (keys.isEmpty()) {
-                return degraded(
-                    activeKeyId,
-                    passwordId,
-                    ctx.pek(),
-                    "no key material found on disk (previously degraded state)",
-                    ctx.holder()
-                );
+                return degraded(activeKeyId, passwordId, pekEncryption, "no key material found on disk (previously degraded state)");
             }
-            return new ProjectEncryptionKeyMetadata(keys, activeKeyId, passwordId, handlerKeyIds, ctx.pek());
+            return new ProjectEncryptionKeyMetadata(keys, activeKeyId, passwordId, handlerKeyIds, pekEncryption);
         }
     );
     static {
@@ -512,41 +572,40 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapStrings(), HANDLER_KEY_IDS_FIELD);
     }
 
-    static ProjectEncryptionKeyMetadata fromXContent(
-        XContentParser parser,
-        PekEncryption pekEncryption,
-        DegradedBlobHolder degradedBlobHolder
-    ) throws IOException {
-        ProjectEncryptionKeyMetadata parsed = PARSER.parse(parser, new ParseContext(pekEncryption, degradedBlobHolder));
+    /** Parses this node's on-disk cluster state, and records what it read as this node's {@link GatewayKeys}. */
+    static ProjectEncryptionKeyMetadata fromXContent(XContentParser parser, PekEncryption pekEncryption) throws IOException {
+        ProjectEncryptionKeyMetadata parsed = PARSER.parse(parser, pekEncryption);
         if (parsed.isUnwrapFailed()) {
+            parsed.setGatewayCopy(null);
             return parsed;
         }
-        Map<String, KeyEntry> plaintextKeys = HashMap.newHashMap(parsed.keys.size());
+        GatewayCopy copy = new GatewayCopy(parsed.activeKeyId, parsed.passwordId, parsed.keys, parsed.handlerKeyIds);
+        parsed.setGatewayCopy(copy);
         try {
-            for (Map.Entry<String, KeyEntry> entry : parsed.keys.entrySet()) {
-                byte[] plaintext = pekEncryption.unwrap(entry.getValue().bytes(), parsed.passwordId);
-                plaintextKeys.put(entry.getKey(), new KeyEntry(plaintext, entry.getValue().generatedAt()));
-            }
+            return unwrap(copy, pekEncryption);
         } catch (RuntimeException e) {
-            logger.error(
+            logger.warn(
                 () -> Strings.format(
-                    "failed to unwrap project encryption key [passwordId=%s] from disk; node starting in degraded state."
-                        + " To recover: fix the password and restart, or call POST /_encryption/_reset?accept_data_loss=true",
-                    parsed.passwordId
+                    "cannot decrypt the project encryption key on this node's disk [passwordId=%s]; the node starts without it and gets it"
+                        + " from the elected master, unless it is elected itself. Configure [%s] and the matching [%s<id>] secure"
+                        + " setting on this node",
+                    parsed.passwordId,
+                    ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY,
+                    ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
                 ),
                 e
             );
-            degradedBlobHolder.blob = new PreservedGatewayBlob(parsed.activeKeyId, parsed.passwordId, parsed.keys, parsed.handlerKeyIds);
-            return degraded(parsed.activeKeyId, parsed.passwordId, pekEncryption, e.getMessage(), degradedBlobHolder);
+            return degraded(parsed.activeKeyId, parsed.passwordId, pekEncryption, e.getMessage());
         }
-        degradedBlobHolder.blob = new PreservedGatewayBlob(parsed.activeKeyId, parsed.passwordId, parsed.keys, parsed.handlerKeyIds);
-        return new ProjectEncryptionKeyMetadata(
-            Map.copyOf(plaintextKeys),
-            parsed.activeKeyId,
-            parsed.passwordId,
-            parsed.handlerKeyIds,
-            pekEncryption
-        );
+    }
+
+    private static ProjectEncryptionKeyMetadata unwrap(GatewayCopy copy, PekEncryption pekEncryption) {
+        Map<String, KeyEntry> plaintextKeys = HashMap.newHashMap(copy.wrappedKeys().size());
+        for (Map.Entry<String, KeyEntry> entry : copy.wrappedKeys().entrySet()) {
+            byte[] plaintext = pekEncryption.unwrap(entry.getValue().bytes(), copy.passwordId());
+            plaintextKeys.put(entry.getKey(), new KeyEntry(plaintext, entry.getValue().generatedAt()));
+        }
+        return new ProjectEncryptionKeyMetadata(plaintextKeys, copy.activeKeyId(), copy.passwordId(), copy.handlerKeyIds(), pekEncryption);
     }
 
     @Override

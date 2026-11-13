@@ -83,6 +83,57 @@ final class ProjectEncryptionKeyPasswordSettings {
     }
 
     /**
+     * Returns why {@code settings} don't let a node wrap the key for its persisted cluster state, or {@code null} if they do. Derives a
+     * wrapping key, since a configured password can still be unusable, such as one too short for FIPS; that is slow, so callers should
+     * cache the result.
+     */
+    @Nullable
+    static String wrapForGatewayFailure(Settings settings) {
+        String passwordId = getActivePasswordId(settings);
+        if (passwordId == null) {
+            return "[" + ACTIVE_PASSWORD_ID_KEY + "] is not configured";
+        }
+        try (SecureString password = getPassword(settings, passwordId)) {
+            if (password == null) {
+                return "[" + PASSWORD_PREFIX + passwordId + "] is not configured";
+            }
+            PasswordBasedEncryption.deriveKek(password.getChars(), PasswordBasedEncryption.generateSalt());
+            return null;
+        } catch (Exception e) {
+            return "[" + PASSWORD_PREFIX + passwordId + "] cannot be used to wrap the key: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Rejects a reload that removes a password this node needs while the cluster uses a key: the active one, which it wraps the key
+     * with, or the one its on-disk copy of the key is wrapped with, which it needs to read the key back after a restart.
+     */
+    static void validateReload(boolean currentCanWrap, Settings current, Settings updated, @Nullable String keyOnDiskPasswordId) {
+        if (currentCanWrap) {
+            String failure = wrapForGatewayFailure(updated);
+            if (failure != null) {
+                throw new IllegalArgumentException(
+                    "cannot reload cluster state encryption settings: the cluster uses a cluster state encryption key, and with the"
+                        + " reloaded settings this node could no longer persist cluster state ("
+                        + failure
+                        + "); keeping the previous settings"
+                );
+            }
+        }
+        if (hasPassword(current, keyOnDiskPasswordId) && hasPassword(updated, keyOnDiskPasswordId) == false) {
+            String missing = PASSWORD_PREFIX + keyOnDiskPasswordId;
+            throw new IllegalArgumentException(
+                "cannot reload cluster state encryption settings: this node's on-disk copy of the cluster state encryption key is wrapped"
+                    + " with ["
+                    + missing
+                    + "], which is missing from the reloaded secure settings; keeping the previous settings. Keep ["
+                    + missing
+                    + "] until this node has persisted cluster state with the new password"
+            );
+        }
+    }
+
+    /**
      * Returns a {@link Settings} that merges all non-secure entries from {@code settings} with a durable in-memory snapshot of the
      * encryption-related secure settings read from the same source. The returned instance does not hold a reference to the original
      * keystore, so it remains valid after {@link org.elasticsearch.plugins.ReloadablePlugin#reload} closes it.

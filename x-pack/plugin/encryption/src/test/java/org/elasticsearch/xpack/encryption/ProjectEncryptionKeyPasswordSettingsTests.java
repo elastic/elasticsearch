@@ -11,10 +11,14 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ProjectEncryptionKeyPasswordSettingsTests extends ESTestCase {
+
+    private static final String ACTIVE_ID_KEY = ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY;
+    private static final String PREFIX = ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX;
 
     public void testActivePasswordIdAbsent() {
         assertThat(ProjectEncryptionKeyPasswordSettings.getActivePasswordId(Settings.EMPTY), nullValue());
@@ -57,5 +61,62 @@ public class ProjectEncryptionKeyPasswordSettingsTests extends ESTestCase {
         }
 
         assertThat(ProjectEncryptionKeyPasswordSettings.getPassword(settings, "v3"), nullValue());
+    }
+
+    public void testWrapForDiskFailure() {
+        assertThat(ProjectEncryptionKeyPasswordSettings.wrapForGatewayFailure(Settings.EMPTY), containsString(ACTIVE_ID_KEY));
+        assertThat(ProjectEncryptionKeyPasswordSettings.wrapForGatewayFailure(settings("v1", "v2")), containsString(PREFIX + "v1"));
+        assertThat(ProjectEncryptionKeyPasswordSettings.wrapForGatewayFailure(settings("v1", "v1")), nullValue());
+    }
+
+    /** FIPS needs at least 112 bits of password, so a configured password can still be unable to wrap the key. */
+    public void testWrapForDiskFailsForPasswordTooShortForFips() {
+        MockSecureSettings secure = new MockSecureSettings();
+        secure.setString(ACTIVE_ID_KEY, "v1");
+        secure.setString(PREFIX + "v1", "short");
+        String failure = ProjectEncryptionKeyPasswordSettings.wrapForGatewayFailure(Settings.builder().setSecureSettings(secure).build());
+        if (inFipsJvm()) {
+            assertThat(failure, containsString("cannot be used to wrap the key"));
+        } else {
+            assertThat(failure, nullValue());
+        }
+    }
+
+    public void testValidateReloadRejectsLosingTheActivePassword() {
+        assertRejected(true, settings(null, "v1"), null, ACTIVE_ID_KEY);
+        assertRejected(true, settings("v2", "v1"), null, PREFIX + "v2");
+    }
+
+    public void testValidateReloadRejectsLosingThePasswordTheKeyOnDiskIsWrappedWith() {
+        assertRejected(false, settings("v2", "v2"), "v1", PREFIX + "v1");
+        assertRejected(true, settings("v2", "v2"), "v1", PREFIX + "v1");
+    }
+
+    /** Rotating while keeping the on-disk copy's password, a node that could not wrap before, or nothing on disk to read back. */
+    public void testValidateReloadAllowsChangesThatKeepNeededPasswords() {
+        ProjectEncryptionKeyPasswordSettings.validateReload(true, settings("v1", "v1"), settings("v2", "v1", "v2"), "v1");
+        ProjectEncryptionKeyPasswordSettings.validateReload(true, settings("v2", "v1", "v2"), settings("v2", "v2"), "v2");
+        ProjectEncryptionKeyPasswordSettings.validateReload(false, settings("v1"), Settings.EMPTY, null);
+        ProjectEncryptionKeyPasswordSettings.validateReload(true, settings("v2", "v2"), settings("v2", "v2"), "v1");
+    }
+
+    private static void assertRejected(boolean currentCanWrap, Settings updated, String keyOnDiskPasswordId, String missingSetting) {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ProjectEncryptionKeyPasswordSettings.validateReload(currentCanWrap, settings("v1", "v1"), updated, keyOnDiskPasswordId)
+        );
+        assertThat(e.getMessage(), containsString("[" + missingSetting + "]"));
+        assertThat(e.getMessage(), containsString("keeping the previous settings"));
+    }
+
+    private static Settings settings(String activePasswordId, String... passwordIds) {
+        MockSecureSettings secure = new MockSecureSettings();
+        if (activePasswordId != null) {
+            secure.setString(ACTIVE_ID_KEY, activePasswordId);
+        }
+        for (String id : passwordIds) {
+            secure.setString(PREFIX + id, "password-for-" + id);
+        }
+        return Settings.builder().setSecureSettings(secure).build();
     }
 }

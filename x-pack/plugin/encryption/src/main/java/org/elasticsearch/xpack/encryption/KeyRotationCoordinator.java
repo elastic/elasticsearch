@@ -10,7 +10,9 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -19,11 +21,13 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -46,18 +50,39 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
- * Owns the PEK lifecycle on the elected master: installs the initial key, rotates the active key on a timer, updates
- * {@link ProjectEncryptionKeyMetadata#getPasswordId()} when the active password changes, drives registered
- * {@link EncryptedDataHandler}s to re-encrypt their data, and retires expired non-active keys.
+ * Owns the project encryption key (PEK) lifecycle on the elected master.
+ * <ul>
+ *   <li><b>Install</b>: with no key and an active password configured, the master asks every node that persists cluster state whether
+ *   it can wrap the key ({@link TransportNodesCanPersistKeyAction}) and installs one only once all can. {@link InstallKeyTask} is dropped
+ *   if such a node joined since the check.</li>
+ *   <li><b>Persist check retry</b>: while a node can't, the master asks again after {@link #PERSIST_CHECK_INTERVAL}, or right
+ *   away when it reloads its secure settings or a node that persists cluster state joins or leaves.</li>
+ *   <li><b>Persist check recheck</b>: an install or restore requested while a check is in flight, e.g. by a join, runs once that check
+ *   completes.</li>
+ *   <li><b>Join condition</b>: once the key is installed, a node that persists cluster state but can't wrap the key can't join
+ *   ({@link EncryptionPlugin#getJoinValidator()}).</li>
+ *   <li><b>Key rotation</b>: once the active key is older than {@link #ROTATION_INTERVAL_SETTING}, a new key becomes active, the
+ *   registered {@link EncryptedDataHandler}s re-encrypt their data under it, and keys no longer in use are retired.</li>
+ *   <li><b>Password rotation</b>: when the active password id changes, {@link ProjectEncryptionKeyMetadata#getPasswordId()} follows.</li>
+ *   <li><b>Restore</b>: a master that can't read the key on its disk after a restart holds no key
+ *   ({@link ProjectEncryptionKeyMetadata#isUnwrapFailed()}) and drops every other task. It reads the key from its disk once a secure
+ *   settings reload gives it the password, and restores it, like the install, only once every node that persists cluster state can
+ *   wrap it.</li>
+ *   <li><b>Reset</b>: on every node, not only the master, forgets this node's copy of a key that a reset removed.</li>
+ * </ul>
  *
  * <p>Re-encryption uses a compute-then-CAS pattern: each handler re-encrypts against a cluster-state snapshot on the generic pool, then
  * a {@link ReEncryptApplyTask} atomically applies the result — aborting if the snapshot is stale. Conflicts retry on the next tick.
@@ -68,6 +93,9 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
     // Number of check_intervals a non-active key persists after its deactivation time before retirement.
     private static final int GRACE_TICKS = 10;
+
+    // how long the master waits for nodes to answer whether they can persist the key, and before asking again while some can't
+    static final TimeValue PERSIST_CHECK_INTERVAL = TimeValue.timeValueSeconds(10);
 
     /**
      * How frequently the project encryption key is rotated. {@link TimeValue#ZERO} disables rotation.
@@ -132,13 +160,27 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private final ProjectEncryptionKeyMetadata.PekEncryption pekEncryption;
     private final ClusterStateListener clusterStateListener = this::onClusterStateChanged;
     private final Supplier<Settings> settingsSupplier;
+    private final Client client;
+    private final boolean stateless;
 
     private volatile Scheduler.Cancellable scheduledTask;
     private volatile boolean closed = false;
     private final AtomicBoolean reEncrypting = new AtomicBoolean(false);
-    private final AtomicBoolean installInFlight = new AtomicBoolean(false);
+    // held from the check that every node can persist the key until the install or restore is submitted or, if a node is not ready,
+    // until the retry
+    private final AtomicBoolean persistCheckInFlight = new AtomicBoolean(false);
     private final AtomicBoolean beginRotationInFlight = new AtomicBoolean(false);
     private final AtomicBoolean passwordIdRotateInFlight = new AtomicBoolean(false);
+    // set by a call that found a check in flight; once that check succeeds, the master reconciles again
+    private final AtomicBoolean persistCheckRecheck = new AtomicBoolean(false);
+    // set while a retry of that check is pending; whichever of the scheduled retry and an early one takes it releases the check
+    private final AtomicReference<Object> pendingPersistCheckRetry = new AtomicReference<>();
+    // node names in the last "cannot persist it" warning, so it is logged only when they change
+    private final AtomicReference<Set<String>> nodesWithoutPEKPassword = new AtomicReference<>();
+    // one restore attempt per secure settings snapshot while master, since only a reload can make this node's copy readable
+    private final AtomicReference<Settings> lastRestoreAttempt = new AtomicReference<>();
+    // the keys this master unwrapped from its copy on disk, restored once every node that persists cluster state can wrap them
+    private final AtomicReference<ProjectEncryptionKeyMetadata> keysToRestore = new AtomicReference<>();
 
     static KeyRotationCoordinator create(
         ClusterService clusterService,
@@ -148,7 +190,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         EncryptionService encryptionService,
         Collection<EncryptedDataHandler<?>> handlers,
         Supplier<Settings> settingsSupplier,
-        ProjectEncryptionKeyMetadata.PekEncryption pekEncryption
+        ProjectEncryptionKeyMetadata.PekEncryption pekEncryption,
+        Client client
     ) {
         KeyRotationCoordinator coordinator = new KeyRotationCoordinator(
             clusterService,
@@ -158,7 +201,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             encryptionService,
             handlers,
             settingsSupplier,
-            pekEncryption
+            pekEncryption,
+            client
         );
         clusterService.addLocalNodeMasterListener(coordinator);
         clusterService.addListener(coordinator.clusterStateListener);
@@ -173,18 +217,21 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         EncryptionService encryptionService,
         Collection<EncryptedDataHandler<?>> handlers,
         Supplier<Settings> settingsSupplier,
-        ProjectEncryptionKeyMetadata.PekEncryption pekEncryption
+        ProjectEncryptionKeyMetadata.PekEncryption pekEncryption,
+        Client client
     ) {
+        this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.projectResolver = projectResolver;
         this.featureService = featureService;
         this.encryptionService = encryptionService;
         this.handlers = new CopyOnWriteArrayList<>(handlers);
+        this.stateless = DiscoveryNode.isStateless(clusterService.getSettings());
         this.taskQueue = clusterService.createTaskQueue(
             "project-encryption-key",
             Priority.NORMAL,
-            new KeyRotationExecutor(projectResolver, pekEncryption)
+            new KeyRotationExecutor(projectResolver, pekEncryption, stateless)
         );
         Settings initialSettings = settingsSupplier.get();
         this.rotationInterval = ROTATION_INTERVAL_SETTING.get(initialSettings);
@@ -194,19 +241,18 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     }
 
     /**
-     * Triggers a password-id check on the generic thread pool after a secure-settings reload. This avoids a listener-ordering race where
+     * Reconciles the key with the reloaded secure settings on the generic thread pool. This avoids a listener-ordering race where
      * {@link #onClusterStateChanged} fires before {@link EncryptionPlugin#reload} updates the shared settings supplier, causing the
      * mismatch to go undetected until the next periodic tick.
      */
     void reload() {
         threadPool.generic().execute(() -> {
-            if (closed) return;
-            ClusterState state = clusterService.state();
-            if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
-                || state.nodes().isLocalNodeElectedMaster() == false) {
-                return;
+            Object retry = pendingPersistCheckRetry.get();
+            if (retry != null) {
+                runPersistCheckRetry(retry);
+            } else {
+                reconcileKeyIfMaster();
             }
-            checkPasswordId(state);
         });
     }
 
@@ -224,6 +270,9 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             return;
         }
         reEncrypting.set(false);
+        lastRestoreAttempt.set(null);
+        keysToRestore.set(null);
+        nodesWithoutPEKPassword.set(null);
         stopSchedule();
     }
 
@@ -236,21 +285,54 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
+        // on every node, not only the master
+        forgetCopyIfKeyWasReset(event);
         if (event.localNodeMaster() == false) {
             return;
         }
-        checkPasswordId(state);
+        Object retry = pendingPersistCheckRetry.get();
+        // a node that needs a password joined or left, which may unblock the waiting install or restore
+        if (retry != null && nodesThatNeedPasswordChanged(event)) {
+            threadPool.generic().execute(() -> runPersistCheckRetry(retry));
+            return;
+        }
+        reconcileKey(state);
     }
 
-    private void checkPasswordId(ClusterState state) {
+    private void forgetCopyIfKeyWasReset(ClusterChangedEvent event) {
+        if (event.previousState().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
+            ProjectEncryptionKeyMetadata previous = getCurrentMetadata(event.previousState());
+            if (previous != null && getCurrentMetadata(event.state()) == null) {
+                pekEncryption.gatewayKeys().forgetCopyOf(previous.getActiveKeyId());
+            }
+        }
+    }
+
+    private boolean nodesThatNeedPasswordChanged(ClusterChangedEvent event) {
+        return event.nodesChanged()
+            && Stream.concat(event.nodesDelta().addedNodes().stream(), event.nodesDelta().removedNodes().stream())
+                .anyMatch(node -> PasswordPekEncryption.persistsClusterState(node.getRoles(), stateless));
+    }
+
+    /** Installs the first key, restores a key the master can't read, or follows a changed active password id, whichever applies. */
+    private void reconcileKey(ClusterState state) {
         var metadata = getCurrentMetadata(state);
         String activePasswordId = ProjectEncryptionKeyPasswordSettings.getActivePasswordId(settingsSupplier.get());
+        // First install
         if (metadata == null) {
-            if (activePasswordId != null && checkPekFeatureAvailable(state)) {
-                scheduleInstall(activePasswordId);
+            if (activePasswordId != null
+                && featureService.clusterHasFeature(state, ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE)) {
+                scheduleInstall(activePasswordId, state);
             }
             return;
         }
+        // Previous failed unwrap of encrypted PEK
+        if (metadata.isUnwrapFailed()) {
+            scheduleRestore(metadata, state);
+            return;
+        }
+        keysToRestore.set(null);
+        nodesWithoutPEKPassword.set(null);
         if (activePasswordId != null && activePasswordId.equals(metadata.getPasswordId()) == false) {
             schedulePasswordIdChange(metadata, activePasswordId);
         }
@@ -303,10 +385,10 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) || state.nodes().isLocalNodeElectedMaster() == false) {
             return;
         }
-        checkPasswordId(state);
+        reconcileKey(state);
 
         ProjectEncryptionKeyMetadata metadata = getCurrentMetadata(state);
-        if (metadata == null) {
+        if (metadata == null || metadata.isUnwrapFailed()) {
             return;
         }
         long now = threadPool.absoluteTimeInMillis();
@@ -406,6 +488,15 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         return true;
     }
 
+    /**
+     * Returns the names of the nodes that the elected master last found unable to persist the key while an install or restore waits
+     * for them. Empty on other nodes, and once the key is installed or restored.
+     */
+    Set<String> nodesWithoutPassword() {
+        Set<String> nodes = nodesWithoutPEKPassword.get();
+        return nodes == null ? Set.of() : nodes;
+    }
+
     // Visible for testing
     void register(EncryptedDataHandler<?> handler) {
         handlers.add(handler);
@@ -417,37 +508,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         return projectResolver.getProjectState(state).metadata().custom(ProjectEncryptionKeyMetadata.TYPE);
     }
 
-    private boolean checkPekFeatureAvailable(ClusterState state) {
-        if (featureService.clusterHasFeature(state, ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE) == false) {
-            logger.debug("not all nodes support project encryption key feature, waiting for rolling upgrade to complete");
-            return false;
-        }
-        return true;
-    }
-
-    private void scheduleInstall(String passwordId) {
-        if (installInFlight.compareAndSet(false, true) == false) {
-            return;
-        }
-        threadPool.generic().execute(new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                generateAndSubmitInstall(passwordId);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn(() -> "failed to submit install-project-encryption-key task for passwordId=" + passwordId, e);
-            }
-
-            @Override
-            public void onAfter() {
-                installInFlight.set(false);
-            }
-        });
-    }
-
-    private void generateAndSubmitInstall(String passwordId) {
+    private void scheduleInstall(String passwordId, ClusterState state) {
         if (ProjectEncryptionKeyPasswordSettings.hasPassword(settingsSupplier.get(), passwordId) == false) {
             logger.warn(
                 "project encryption key install skipped: secure setting [{}{}] is not configured",
@@ -456,13 +517,226 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             );
             return;
         }
+        whenEveryNodeCanPersist(state, "installed", ready -> submitInstall(passwordId, ready));
+    }
+
+    /**
+     * Calls {@code onReady} with the ids of the nodes that reported they can wrap the key, once every node that persists cluster state
+     * has, and asks again while some can't. One check runs at a time. {@code operation} is what waits for it, as a past participle for
+     * the warning ("installed" or "restored"). When every node gets the password from cluster secrets, calls it right away with
+     * {@code null}. A call made while a check runs doesn't call its {@code onReady}; the master reconciles again once that check completes.
+     */
+    private void whenEveryNodeCanPersist(ClusterState state, String operation, Consumer<Set<String>> onReady) {
+        if (PasswordPekEncryption.passwordsFromClusterSecrets(state, stateless)) {
+            onReady.accept(null);
+            return;
+        }
+        // If a node joined during the check, the install or restore would be dropped (not all nodes are guaranteed to be able to wrap the
+        // PEK), so check again once this one completes. Set before acquiring, so a holder that releases concurrently still sees it.
+        persistCheckRecheck.set(true);
+        if (persistCheckInFlight.compareAndSet(false, true) == false) {
+            return;
+        }
+        persistCheckRecheck.set(false);
+        DiscoveryNode[] nodes = state.nodes()
+            .getAllNodes()
+            .stream()
+            .filter(node -> PasswordPekEncryption.persistsClusterState(node.getRoles(), stateless))
+            .toArray(DiscoveryNode[]::new);
+
+        ActionListener<TransportNodesCanPersistKeyAction.Response> listener = ActionListener.wrap(
+            response -> onPersistCheckResponse(state, response, operation, onReady),
+            e -> {
+                logger.warn("failed to check whether every node can persist the project encryption key", e);
+                schedulePersistCheckRetry();
+            }
+        );
+        // forked to avoid calling on the cluster applier thread
+        threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
+            var request = new TransportNodesCanPersistKeyAction.Request(nodes);
+            request.setTimeout(PERSIST_CHECK_INTERVAL);
+            try (var ignored = threadPool.getThreadContext().newEmptySystemContext()) {
+                client.execute(TransportNodesCanPersistKeyAction.TYPE, request, l);
+            }
+        }));
+    }
+
+    private void onPersistCheckResponse(
+        ClusterState state,
+        TransportNodesCanPersistKeyAction.Response response,
+        String operation,
+        Consumer<Set<String>> onReady
+    ) {
+        Set<String> ready = response.readyNodeIds();
+        if (everyPersistingNodeIsReady(state, ready, stateless) == false) {
+            warnAboutNodesThatCannotPersist(response, operation);
+            schedulePersistCheckRetry();
+            return;
+        }
+        nodesWithoutPEKPassword.set(null);
+        try {
+            onReady.accept(ready);
+        } catch (Exception e) {
+            // not rethrown: the failure handler would schedule a retry that releases a check another call may hold by then
+            logger.warn(() -> "failed to submit the project encryption key task once every node could persist it", e);
+        } finally {
+            persistCheckInFlight.set(false);
+        }
+        if (persistCheckRecheck.getAndSet(false)) {
+            reconcileKeyIfMaster();
+        }
+    }
+
+    private void warnAboutNodesThatCannotPersist(TransportNodesCanPersistKeyAction.Response response, String operation) {
+        Set<String> notReady = response.getNodes()
+            .stream()
+            .filter(r -> r.canPersist() == false)
+            .map(r -> r.getNode().getName())
+            .collect(Collectors.toCollection(TreeSet::new));
+        Set<String> previouslyNotReady = this.nodesWithoutPEKPassword.getAndSet(notReady.isEmpty() ? null : notReady);
+        if (notReady.isEmpty() == false && notReady.equals(previouslyNotReady) == false) {
+            logger.warn(
+                "project encryption key not {} yet: nodes {} cannot persist it. Configure [{}] and the matching [{}<id>]"
+                    + " secure setting on these nodes and reload their secure settings",
+                operation,
+                notReady,
+                ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY,
+                ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
+            );
+        }
+        if (response.hasFailures()) {
+            logger.debug(
+                "project encryption key not {} yet: nodes did not report whether they can persist it {}",
+                operation,
+                response.failures()
+            );
+        }
+    }
+
+    /** Returns whether every node in {@code state} that persists cluster state is among {@code readyNodeIds}, by ephemeral id. */
+    static boolean everyPersistingNodeIsReady(ClusterState state, Set<String> readyNodeIds, boolean stateless) {
+        return state.nodes()
+            .getAllNodes()
+            .stream()
+            .noneMatch(
+                node -> PasswordPekEncryption.persistsClusterState(node.getRoles(), stateless)
+                    && readyNodeIds.contains(node.getEphemeralId()) == false
+            );
+    }
+
+    private void releasePersistCheck() {
+        persistCheckInFlight.set(false);
+        persistCheckRecheck.set(false);
+    }
+
+    private void submitInstall(String passwordId, @Nullable Set<String> readyNodeIds) {
         byte[] plaintextPek = randomKey();
         String keyId = ProjectEncryptionKeyMetadata.generateKeyId();
         logger.debug("submitting install-project-encryption-key task: keyId={}, passwordId={}", keyId, passwordId);
         submitTaskIfOpen(
             "install-project-encryption-key",
-            new InstallKeyTask(keyId, plaintextPek, passwordId, threadPool.absoluteTimeInMillis())
+            new InstallKeyTask(keyId, plaintextPek, passwordId, threadPool.absoluteTimeInMillis(), readyNodeIds)
         );
+    }
+
+    // nodes don't tell the master when they reload secure settings, so it has to ask again
+    private void schedulePersistCheckRetry() {
+        Object retry = new Object();
+        pendingPersistCheckRetry.set(retry);
+        try {
+            threadPool.schedule(() -> runPersistCheckRetry(retry), PERSIST_CHECK_INTERVAL, threadPool.generic());
+        } catch (Exception e) {
+            pendingPersistCheckRetry.set(null);
+            releasePersistCheck();
+            logger.debug("could not schedule a retry of the project encryption key persist check", e);
+        }
+    }
+
+    private void runPersistCheckRetry(Object retry) {
+        if (pendingPersistCheckRetry.compareAndSet(retry, null)) {
+            releasePersistCheck();
+            reconcileKeyIfMaster();
+        }
+    }
+
+    private void reconcileKeyIfMaster() {
+        if (closed == false) {
+            ClusterState state = clusterService.state();
+            if (state.nodes().isLocalNodeElectedMaster()
+                && state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
+                reconcileKey(state);
+            }
+        }
+    }
+
+    /**
+     * Restores the key while this master holds none. Once it has unwrapped its copy of the key on disk, waits for every node that
+     * persists cluster state and submits {@link RestoreKeysTask}; until then, tries to unwrap it once per secure settings snapshot, since
+     * only a reload can make its copy readable.
+     */
+    private void scheduleRestore(ProjectEncryptionKeyMetadata degraded, ClusterState state) {
+        String activeKeyId = degraded.getActiveKeyId();
+        ProjectEncryptionKeyMetadata keys = keysToRestore.get();
+        if (keys != null && Objects.equals(keys.getActiveKeyId(), activeKeyId)) {
+            whenEveryNodeCanPersist(
+                state,
+                "restored",
+                ready -> submitTaskIfOpen("restore-project-encryption-keys", new RestoreKeysTask(keys, ready))
+            );
+            return;
+        }
+        Settings settings = settingsSupplier.get();
+        // No settings changed so nothing to restore
+        if (settings == lastRestoreAttempt.getAndSet(settings)) {
+            return;
+        }
+        if (ProjectEncryptionKeyPasswordSettings.hasPassword(
+            settings,
+            ProjectEncryptionKeyPasswordSettings.getActivePasswordId(settings)
+        )) {
+            unwrapGatewayKeys(activeKeyId);
+        } else {
+            logger.warn(
+                "the elected master holds no project encryption key [{}] and cannot persist it, so cluster state encryption is unavailable."
+                    + " Configure [{}] and the matching [{}<id>] secure setting on this node and reload secure settings",
+                activeKeyId,
+                ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY,
+                ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
+            );
+        }
+    }
+
+    private void unwrapGatewayKeys(String activeKeyId) {
+        threadPool.generic().execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                ProjectEncryptionKeyMetadata keys = ProjectEncryptionKeyMetadata.unwrapGatewayKeys(activeKeyId, pekEncryption);
+                if (keys == null) {
+                    throw new IllegalStateException("this node has no copy of it on disk");
+                }
+                logger.info(
+                    "unwrapped project encryption key [{}] from this node's disk, restoring it once every node can persist it",
+                    activeKeyId
+                );
+                keysToRestore.set(keys);
+                reconcileKeyIfMaster();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(
+                    () -> Strings.format(
+                        "the elected master holds no project encryption key [%s] and cannot read it from its disk, so cluster state"
+                            + " encryption is unavailable. Configure the password the key on its disk is wrapped with and reload secure"
+                            + " settings, or fail the master over to a master-eligible node that can read its copy, for example by"
+                            + " excluding this node from the voting configuration. If no node can, call"
+                            + " POST /_encryption/_reset?accept_data_loss=true, which deletes all encrypted data",
+                        activeKeyId
+                    ),
+                    e
+                );
+            }
+        });
     }
 
     private void submitBeginRotation() {
@@ -510,14 +784,6 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     private void submitPasswordIdChange(ProjectEncryptionKeyMetadata metadata, String newPasswordId) {
         String oldPasswordId = metadata.getPasswordId();
         Settings settings = this.settingsSupplier.get();
-        if (ProjectEncryptionKeyPasswordSettings.hasPassword(settings, oldPasswordId) == false) {
-            logger.warn(
-                "password id update aborted: previous password [{}{}] is not configured",
-                ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX,
-                oldPasswordId
-            );
-            return;
-        }
         if (ProjectEncryptionKeyPasswordSettings.hasPassword(settings, newPasswordId) == false) {
             logger.warn(
                 "password id update aborted: new password [{}{}] is not configured",
@@ -537,7 +803,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     }
 
     sealed interface KeyRotationTask extends ClusterStateTaskListener permits InstallKeyTask, BeginRotationTask, RetireKeysTask,
-        ReEncryptApplyTask, UpdatePasswordIdTask {
+        ReEncryptApplyTask, UpdatePasswordIdTask, RestoreKeysTask {
 
         String description();
 
@@ -547,7 +813,13 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         }
     }
 
-    record InstallKeyTask(String keyId, byte[] pekBytes, String passwordId, long generatedAt) implements KeyRotationTask {
+    /**
+     * Installs the first key, but only if every node that persists cluster state is among {@code readyNodeIds}, the ephemeral ids of the
+     * nodes that reported they can persist the key. {@code null} when the passwords come from cluster secrets and no node is checked.
+     */
+    record InstallKeyTask(String keyId, byte[] pekBytes, String passwordId, long generatedAt, @Nullable Set<String> readyNodeIds)
+        implements
+            KeyRotationTask {
         @Override
         public String description() {
             return "project encryption key initial install";
@@ -556,6 +828,17 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         @Override
         public String toString() {
             return "InstallKeyTask[keyId=" + keyId + ", passwordId=" + passwordId + ", generatedAt=" + generatedAt + "]";
+        }
+    }
+
+    /**
+     * Replaces the key-less metadata an elected master published with the keys it read from its own disk for the same active key, but
+     * only if every node that persists cluster state is among {@code readyNodeIds}, as for {@link InstallKeyTask}.
+     */
+    record RestoreKeysTask(ProjectEncryptionKeyMetadata keys, @Nullable Set<String> readyNodeIds) implements KeyRotationTask {
+        @Override
+        public String description() {
+            return "project encryption key restore [" + keys.getActiveKeyId() + "]";
         }
     }
 
@@ -618,19 +901,27 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
         private final ProjectResolver projectResolver;
         private final ProjectEncryptionKeyMetadata.PekEncryption pekEncryption;
+        private final boolean stateless;
 
-        KeyRotationExecutor(ProjectResolver projectResolver, ProjectEncryptionKeyMetadata.PekEncryption pekEncryption) {
+        KeyRotationExecutor(ProjectResolver projectResolver, ProjectEncryptionKeyMetadata.PekEncryption pekEncryption, boolean stateless) {
             this.projectResolver = projectResolver;
             this.pekEncryption = pekEncryption;
+            this.stateless = stateless;
         }
 
         @Override
         public Tuple<ClusterState, Void> executeTask(KeyRotationTask task, ClusterState clusterState) {
             ProjectState projectState = projectResolver.getProjectState(clusterState);
             ProjectEncryptionKeyMetadata existing = projectState.metadata().custom(ProjectEncryptionKeyMetadata.TYPE);
+            // while the master holds no key, any other task would publish metadata without the keys still on the nodes' disks
+            if (existing != null && existing.isUnwrapFailed() && task instanceof RestoreKeysTask == false) {
+                logger.debug("dropping [{}]: the elected master holds no project encryption key", task.description());
+                return Tuple.tuple(clusterState, null);
+            }
 
             return switch (task) {
                 case InstallKeyTask install -> executeInstallInitial(clusterState, projectState, existing, install);
+                case RestoreKeysTask restore -> executeRestoreKeys(clusterState, projectState, existing, restore);
                 case BeginRotationTask begin -> executeBeginRotation(clusterState, projectState, existing, begin);
                 case RetireKeysTask retireKeysTask -> executeRetireKeys(clusterState, projectState, existing, retireKeysTask);
                 case UpdatePasswordIdTask updatePasswordId -> executeUpdatePasswordId(
@@ -652,6 +943,9 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             if (existing != null) {
                 return Tuple.tuple(clusterState, null);
             }
+            if (aNodeJoinedSinceTheCheck(task, clusterState, task.readyNodeIds())) {
+                return Tuple.tuple(clusterState, null);
+            }
             ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
                 Map.of(task.keyId(), new ProjectEncryptionKeyMetadata.KeyEntry(task.pekBytes(), task.generatedAt())),
                 task.keyId(),
@@ -661,6 +955,34 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             );
             logger.info("installing project encryption key [{}] under password id [{}]", task.keyId(), task.passwordId());
             return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
+        }
+
+        private Tuple<ClusterState, Void> executeRestoreKeys(
+            ClusterState clusterState,
+            ProjectState projectState,
+            ProjectEncryptionKeyMetadata existing,
+            RestoreKeysTask task
+        ) {
+            // never undo a reset or replace a newer key: only replace key-less metadata for the same active key
+            if (existing == null
+                || existing.isUnwrapFailed() == false
+                || Objects.equals(task.keys().getActiveKeyId(), existing.getActiveKeyId()) == false) {
+                logger.debug("dropping restore task: project encryption key metadata changed to [{}]", existing);
+                return Tuple.tuple(clusterState, null);
+            }
+            if (aNodeJoinedSinceTheCheck(task, clusterState, task.readyNodeIds())) {
+                return Tuple.tuple(clusterState, null);
+            }
+            logger.info("restored project encryption key [{}]", task.keys().getActiveKeyId());
+            return Tuple.tuple(putMetadata(clusterState, projectState, task.keys()), null);
+        }
+
+        private boolean aNodeJoinedSinceTheCheck(KeyRotationTask task, ClusterState clusterState, @Nullable Set<String> readyNodeIds) {
+            if (readyNodeIds == null || everyPersistingNodeIsReady(clusterState, readyNodeIds, stateless)) {
+                return false;
+            }
+            logger.debug("dropping [{}]: a node joined since the readiness check", task.description());
+            return true;
         }
 
         private Tuple<ClusterState, Void> executeBeginRotation(

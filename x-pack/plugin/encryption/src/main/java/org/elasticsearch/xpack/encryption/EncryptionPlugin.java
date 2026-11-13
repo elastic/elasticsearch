@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.encryption;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +22,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -35,6 +39,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -44,20 +49,30 @@ import static java.util.Collections.singletonList;
  * Plugin for the project encryption key (PEK) lifecycle. Wires up the key service, rotation coordinator, AES-GCM encryption service, and
  * health indicator. Loads {@link EncryptedDataHandlerProvider} contributions from other plugins and forwards secure-settings reloads.
  */
-public class EncryptionPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, ReloadablePlugin, HealthPlugin {
+public class EncryptionPlugin extends Plugin
+    implements
+        ActionPlugin,
+        ExtensiblePlugin,
+        ReloadablePlugin,
+        HealthPlugin,
+        ClusterCoordinationPlugin {
 
     private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
     private final SetOnce<KeyRotationCoordinator> coordinator = new SetOnce<>();
     private final SetOnce<ProjectEncryptionKeyHealthIndicatorService> healthIndicatorService = new SetOnce<>();
     private final SetOnce<SnapshotEncryptedDataFilter> snapshotEncryptedDataFilter = new SetOnce<>();
+    private final SetOnce<ProjectEncryptionKeyService> pekService = new SetOnce<>();
+    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
 
+    private final boolean stateless;
+    private final boolean persistsClusterState;
     private volatile Settings pekSettings;
 
-    private final ProjectEncryptionKeyMetadata.PekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);
-    private final ProjectEncryptionKeyMetadata.DegradedBlobHolder degradedBlobHolder =
-        new ProjectEncryptionKeyMetadata.DegradedBlobHolder();
+    private final PasswordPekEncryption pekEncryption = new PasswordPekEncryption(() -> this.pekSettings);
 
     public EncryptionPlugin(Settings settings) {
+        this.stateless = DiscoveryNode.isStateless(settings);
+        this.persistsClusterState = PasswordPekEncryption.persistsClusterState(DiscoveryNode.getRolesFromSettings(settings), stateless);
         this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
         // Clear any service left in the registry by a previously constructed plugin instance (e.g. a prior node in the same test JVM),
         // so this node's createComponents publishes into a clean slot.
@@ -96,20 +111,28 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             encryptionService,
             handlers,
             () -> this.pekSettings,
-            pekEncryption
+            pekEncryption,
+            services.client()
         );
         ProjectEncryptionKeyHealthIndicatorService healthIndicator = new ProjectEncryptionKeyHealthIndicatorService(
             services.clusterService(),
             services.projectResolver(),
-            pekService
+            pekService,
+            pekEncryption,
+            handlerRegistry,
+            coordinator::nodesWithoutPassword,
+            persistsClusterState
         );
 
         this.coordinator.set(coordinator);
         this.healthIndicatorService.set(healthIndicator);
+        this.pekService.set(pekService);
+        this.clusterService.set(services.clusterService());
 
         List<Object> components = new ArrayList<>();
         components.add(new PluginComponentBinding<>(EncryptionService.class, encryptionService));
         components.add(pekService);
+        components.add(pekEncryption);
         components.add(coordinator);
         components.add(healthIndicator);
         components.add(handlerRegistry);
@@ -125,12 +148,75 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         return all;
     }
 
+    // synchronized so concurrent reloads can't each validate against the same stale settings
     @Override
-    public void reload(Settings settings) {
-        this.pekSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
+    public synchronized void reload(Settings settings) {
+        Settings updated = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
+        if (shouldValidateReload()) {
+            ProjectEncryptionKeyPasswordSettings.validateReload(
+                pekEncryption.canWrapForGateway(),
+                pekSettings,
+                updated,
+                pekEncryption.gatewayKeys().passwordId()
+            );
+        }
+        this.pekSettings = updated;
         KeyRotationCoordinator localCoordinator = this.coordinator.get();
         if (localCoordinator != null) {
             localCoordinator.reload();
+        }
+    }
+
+    // while the cluster has a key, including while the elected master holds none, since the key can still be restored
+    private boolean shouldValidateReload() {
+        if (persistsClusterState == false) {
+            return false;
+        }
+        ProjectEncryptionKeyService service = pekService.get();
+        ClusterService localClusterService = clusterService.get();
+        if (service == null || localClusterService == null) {
+            return false;
+        }
+        ClusterState state = localClusterService.state();
+        return PasswordPekEncryption.passwordsFromClusterSecrets(state, stateless) == false && service.metadataIn(state) != null;
+    }
+
+    /**
+     * Rejects this node joining a cluster that uses a cluster state encryption key while the node cannot persist it, since it could
+     * not persist any cluster state. While the elected master holds no key, nodes may join so that the cluster can form and recover.
+     */
+    @Override
+    public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
+        return persistsClusterState ? this::rejectIfThisNodeCannotPersistKey : null;
+    }
+
+    private void rejectIfThisNodeCannotPersistKey(DiscoveryNode node, ClusterState state) {
+        ClusterService localClusterService = clusterService.get();
+        ProjectEncryptionKeyService service = pekService.get();
+        // the master also runs join validators, for the joining node, which this node's settings say nothing about
+        if (localClusterService == null || service == null || node.getId().equals(localClusterService.localNode().getId()) == false) {
+            return;
+        }
+        // the node gets the password from cluster secrets once it joins, whatever it loaded at startup
+        if (PasswordPekEncryption.passwordsFromClusterSecrets(state, stateless)) {
+            return;
+        }
+        ProjectEncryptionKeyMetadata metadata = service.metadataIn(state);
+        // no key to persist: none created yet, or the elected master holds none and the cluster must still form
+        if (metadata == null || metadata.isUnwrapFailed()) {
+            return;
+        }
+        String wrapFailure = pekEncryption.wrapForGatewayFailure();
+        if (wrapFailure != null) {
+            throw new IllegalStateException(
+                "this node cannot join the cluster: the cluster uses a cluster state encryption key and this node cannot persist it ("
+                    + wrapFailure
+                    + "). Configure ["
+                    + ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY
+                    + "] and the matching ["
+                    + ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX
+                    + "<id>] secure setting in this node's keystore, then restart it or reload its secure settings"
+            );
         }
     }
 
@@ -147,7 +233,10 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
 
     @Override
     public Collection<ActionHandler> getActions() {
-        return List.of(new ActionHandler(TransportEncryptionResetAction.TYPE, TransportEncryptionResetAction.class));
+        return List.of(
+            new ActionHandler(TransportEncryptionResetAction.TYPE, TransportEncryptionResetAction.class),
+            new ActionHandler(TransportNodesCanPersistKeyAction.TYPE, TransportNodesCanPersistKeyAction.class)
+        );
     }
 
     @Override
@@ -170,7 +259,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             new NamedWriteableRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 ProjectEncryptionKeyMetadata.TYPE,
-                in -> new ProjectEncryptionKeyMetadata(in, pekEncryption, degradedBlobHolder)
+                in -> new ProjectEncryptionKeyMetadata(in, pekEncryption)
             ),
             new NamedWriteableRegistry.Entry(NamedDiff.class, ProjectEncryptionKeyMetadata.TYPE, ProjectEncryptionKeyMetadata::readDiffFrom)
         );
@@ -182,7 +271,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
             new NamedXContentRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 new ParseField(ProjectEncryptionKeyMetadata.TYPE),
-                parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption, degradedBlobHolder)
+                parser -> ProjectEncryptionKeyMetadata.fromXContent(parser, pekEncryption)
             )
         );
     }

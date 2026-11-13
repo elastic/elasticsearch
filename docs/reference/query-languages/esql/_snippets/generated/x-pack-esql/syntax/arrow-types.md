@@ -11,24 +11,24 @@
 | `boolean` | `Bool` |
 | `cartesian_point` | `Binary` |
 | `cartesian_shape` | `Binary` |
-| `counter_double` | `FloatingPoint(DOUBLE)` |
-| `counter_integer` | `Int(32, true)` |
-| `counter_long` | `Int(64, true)` |
-| `date` | `Timestamp(MILLISECOND, null)` |
-| `date_nanos` | `Timestamp(NANOSECOND, null)` |
+| `counter_double` | `FloatingPoint(precision: DOUBLE)` |
+| `counter_integer` | `Int(bitWidth: 32, isSigned: true)` |
+| `counter_long` | `Int(bitWidth: 64, isSigned: true)` |
+| `date` | `Timestamp(unit: MILLISECOND, timezone: null)` |
+| `date_nanos` | `Timestamp(unit: NANOSECOND, timezone: null)` |
 | `date_range` | `Struct` |
-| `double` | `FloatingPoint(DOUBLE)` |
+| `double` | `FloatingPoint(precision: DOUBLE)` |
 | `double_range` | `Struct` |
 | `flattened` | `Utf8` |
 | `geo_point` | `Binary` |
 | `geo_shape` | `Binary` |
-| `integer` | `Int(32, true)` |
+| `integer` | `Int(bitWidth: 32, isSigned: true)` |
 | `ip` | `Binary` |
 | `keyword` | `Utf8` |
-| `long` | `Int(64, true)` |
+| `long` | `Int(bitWidth: 64, isSigned: true)` |
 | `null` | `Null` |
 | `text` | `Utf8` |
-| `unsigned_long` | `Int(64, false)` |
+| `unsigned_long` | `Int(bitWidth: 64, isSigned: false)` |
 | `unsupported` | `Null` |
 | `version` | `Utf8` |
 
@@ -220,7 +220,7 @@
 
 :::{schema-tree} Arrow schema
 
-* `value` — `FloatingPoint(DOUBLE)` — nullable
+* `value` — `FloatingPoint(precision: DOUBLE)` — nullable
 
   Metadata: `elastic:type = counter_double`
 
@@ -236,7 +236,7 @@
 
   Metadata: `elastic:type = counter_double`
 
-  * `$data$` — `FloatingPoint(DOUBLE)` — non-null
+  * `$data$` — `FloatingPoint(precision: DOUBLE)` — non-null
 
     Metadata: `elastic:type = counter_double`
 
@@ -256,7 +256,7 @@
 
 :::{schema-tree} Arrow schema
 
-* `value` — `Int(32, true)` — nullable
+* `value` — `Int(bitWidth: 32, isSigned: true)` — nullable
 
   Metadata: `elastic:type = counter_integer`
 
@@ -272,7 +272,7 @@
 
   Metadata: `elastic:type = counter_integer`
 
-  * `$data$` — `Int(32, true)` — non-null
+  * `$data$` — `Int(bitWidth: 32, isSigned: true)` — non-null
 
     Metadata: `elastic:type = counter_integer`
 
@@ -292,7 +292,7 @@
 
 :::{schema-tree} Arrow schema
 
-* `value` — `Int(64, true)` — nullable
+* `value` — `Int(bitWidth: 64, isSigned: true)` — nullable
 
   Metadata: `elastic:type = counter_long`
 
@@ -308,7 +308,7 @@
 
   Metadata: `elastic:type = counter_long`
 
-  * `$data$` — `Int(64, true)` — non-null
+  * `$data$` — `Int(bitWidth: 64, isSigned: true)` — non-null
 
     Metadata: `elastic:type = counter_long`
 
@@ -328,7 +328,7 @@
 
 :::{schema-tree} Arrow schema
 
-* `value` — `Timestamp(MILLISECOND, null)` — nullable
+* `value` — `Timestamp(unit: MILLISECOND, timezone: null)` — nullable
 
   Metadata: `elastic:type = date`
 
@@ -344,7 +344,7 @@
 
   Metadata: `elastic:type = date`
 
-  * `$data$` — `Timestamp(MILLISECOND, null)` — non-null
+  * `$data$` — `Timestamp(unit: MILLISECOND, timezone: null)` — non-null
 
     Metadata: `elastic:type = date`
 
@@ -364,7 +364,7 @@
 
 :::{schema-tree} Arrow schema
 
-* `value` — `Timestamp(NANOSECOND, null)` — nullable
+* `value` — `Timestamp(unit: NANOSECOND, timezone: null)` — nullable
 
   Metadata: `elastic:type = date_nanos`
 
@@ -380,7 +380,7 @@
 
   Metadata: `elastic:type = date_nanos`
 
-  * `$data$` — `Timestamp(NANOSECOND, null)` — non-null
+  * `$data$` — `Timestamp(unit: NANOSECOND, timezone: null)` — non-null
 
     Metadata: `elastic:type = date_nanos`
 
@@ -404,9 +404,9 @@
 
   Metadata: `elastic:type = date_range`
 
-  * `from` — `Timestamp(MILLISECOND, null)` — nullable
+  * `from` — `Timestamp(unit: MILLISECOND, timezone: null)` — nullable
 
-  * `to` — `Timestamp(MILLISECOND, null)` — nullable
+  * `to` — `Timestamp(unit: MILLISECOND, timezone: null)` — nullable
 
 :::
 
@@ -424,9 +424,9 @@
 
     Metadata: `elastic:type = date_range`
 
-    * `from` — `Timestamp(MILLISECOND, null)` — nullable
+    * `from` — `Timestamp(unit: MILLISECOND, timezone: null)` — nullable
 
-    * `to` — `Timestamp(MILLISECOND, null)` — nullable
+    * `to` — `Timestamp(unit: MILLISECOND, timezone: null)` — nullable
 
 :::
 
@@ -444,7 +444,7 @@
 
 :::{schema-tree} Arrow schema
 
-* `value` — `FloatingPoint(DOUBLE)` — nullable
+* `value` — `FloatingPoint(precision: DOUBLE)` — nullable
 
   Metadata: `elastic:type = double`
 
@@ -460,7 +460,7 @@
 
   Metadata: `elastic:type = double`
 
-  * `$data$` — `FloatingPoint(DOUBLE)` — non-null
+  * `$data$` — `FloatingPoint(precision: DOUBLE)` — non-null
 
     Metadata: `elastic:type = double`
 
@@ -484,9 +484,9 @@
 
   Metadata: `elastic:type = double_range`
 
-  * `from` — `FloatingPoint(DOUBLE)` — nullable
+  * `from` — `FloatingPoint(precision: DOUBLE)` — nullable
 
-  * `to` — `FloatingPoint(DOUBLE)` — nullable
+  * `to` — `FloatingPoint(precision: DOUBLE)` — nullable
 
 :::
 
@@ -504,9 +504,9 @@
 
     Metadata: `elastic:type = double_range`
 
-    * `from` — `FloatingPoint(DOUBLE)` — nullable
+    * `from` — `FloatingPoint(precision: DOUBLE)` — nullable
 
-    * `to` — `FloatingPoint(DOUBLE)` — nullable
+    * `to` — `FloatingPoint(precision: DOUBLE)` — nullable
 
 :::
 
@@ -632,7 +632,7 @@
 
 :::{schema-tree} Arrow schema
 
-* `value` — `Int(32, true)` — nullable
+* `value` — `Int(bitWidth: 32, isSigned: true)` — nullable
 
   Metadata: `elastic:type = integer`
 
@@ -648,7 +648,7 @@
 
   Metadata: `elastic:type = integer`
 
-  * `$data$` — `Int(32, true)` — non-null
+  * `$data$` — `Int(bitWidth: 32, isSigned: true)` — non-null
 
     Metadata: `elastic:type = integer`
 
@@ -740,7 +740,7 @@
 
 :::{schema-tree} Arrow schema
 
-* `value` — `Int(64, true)` — nullable
+* `value` — `Int(bitWidth: 64, isSigned: true)` — nullable
 
   Metadata: `elastic:type = long`
 
@@ -756,7 +756,7 @@
 
   Metadata: `elastic:type = long`
 
-  * `$data$` — `Int(64, true)` — non-null
+  * `$data$` — `Int(bitWidth: 64, isSigned: true)` — non-null
 
     Metadata: `elastic:type = long`
 
@@ -824,7 +824,7 @@
 
 :::{schema-tree} Arrow schema
 
-* `value` — `Int(64, false)` — nullable
+* `value` — `Int(bitWidth: 64, isSigned: false)` — nullable
 
   Metadata: `elastic:type = unsigned_long`
 
@@ -840,7 +840,7 @@
 
   Metadata: `elastic:type = unsigned_long`
 
-  * `$data$` — `Int(64, false)` — non-null
+  * `$data$` — `Int(bitWidth: 64, isSigned: false)` — non-null
 
     Metadata: `elastic:type = unsigned_long`
 

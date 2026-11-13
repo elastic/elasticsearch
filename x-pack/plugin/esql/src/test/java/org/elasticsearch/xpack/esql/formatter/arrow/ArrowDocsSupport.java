@@ -7,17 +7,25 @@
 
 package org.elasticsearch.xpack.esql.formatter.arrow;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.Map;
 
 /** Generates the Arrow reference through the same write/assert callbacks as ES|QL function docs. */
 final class ArrowDocsSupport {
+    private static final ObjectMapper JACKSON = new ObjectMapper();
+
     private ArrowDocsSupport() {}
 
     static void renderDocs() throws IOException {
@@ -36,7 +44,7 @@ final class ArrowDocsSupport {
             reference.append("| `")
                 .append(type.outputType())
                 .append("` | `")
-                .append(ArrowResponse.ESQL_FORMATTERS.get(type).arrowField("value").getType())
+                .append(renderType(ArrowResponse.ESQL_FORMATTERS.get(type).arrowField("value").getType()))
                 .append("` |\n");
         }
         reference.append("\n");
@@ -74,7 +82,7 @@ final class ArrowDocsSupport {
             .append("* `")
             .append(field.getName())
             .append("` — `")
-            .append(field.getType())
+            .append(renderType(field.getType()))
             .append("` — ")
             .append(field.isNullable() ? "nullable" : "non-null")
             .append("\n\n");
@@ -93,5 +101,38 @@ final class ArrowDocsSupport {
         for (var child : field.getChildren()) {
             appendField(reference, child, depth + 1);
         }
+    }
+
+    /**
+     * Renders an Arrow type for the reference, e.g. {@code Int(bitWidth: 32, isSigned: true)}.
+     * <p>
+     * {@link ArrowType#toString()} emits a bare positional list ({@code Int(32, true)}) that reads like a Java
+     * constructor call, so the parameters are unnamed. Arrow's type classes carry Jackson annotations, so we
+     * serialize the type to get named parameters. The serialized {@code name} property is dropped because it
+     * duplicates the type id, which is used as the rendered prefix.
+     */
+    private static String renderType(ArrowType type) {
+        JsonNode json;
+        try {
+            json = JACKSON.valueToTree(type);
+        } catch (IllegalArgumentException e) {
+            // Annotated types serialize structurally; keep the raw form for anything Jackson can't handle.
+            return type.toString();
+        }
+        var parameters = new ArrayList<String>();
+        for (Iterator<Map.Entry<String, JsonNode>> it = json.fields(); it.hasNext();) {
+            Map.Entry<String, JsonNode> entry = it.next();
+            if ("name".equals(entry.getKey()) == false) {
+                parameters.add(entry.getKey() + ": " + renderValue(entry.getValue()));
+            }
+        }
+        if (parameters.isEmpty()) {
+            return type.getTypeID().toString();
+        }
+        return type.getTypeID() + "(" + String.join(", ", parameters) + ")";
+    }
+
+    private static String renderValue(JsonNode value) {
+        return value.isTextual() ? value.textValue() : value.toString();
     }
 }

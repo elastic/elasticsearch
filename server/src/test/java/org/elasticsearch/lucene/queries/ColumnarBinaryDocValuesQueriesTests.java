@@ -36,6 +36,7 @@ import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.ColumnarStringAutomatonQuery;
 import org.elasticsearch.columnar.ColumnarStringTermQuery;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.ScanBudget;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
@@ -300,7 +301,8 @@ public class ColumnarBinaryDocValuesQueriesTests extends ESTestCase {
             (fieldName, type) -> NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(singleValued))
+            StringColumnOptionsSelector.always(StringColumnOptions.DEFAULT.withSingleValued(singleValued)),
+            FormatVersion.CURRENT
         );
         return new FilterCodec(base.getName(), base) {
             private final DocValuesFormat perField = new PerFieldDocValuesFormat() {

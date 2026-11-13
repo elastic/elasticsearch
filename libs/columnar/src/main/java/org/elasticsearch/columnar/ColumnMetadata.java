@@ -24,6 +24,9 @@ import java.io.IOException;
  */
 public sealed interface ColumnMetadata permits NumericColumnMetadata, StringColumnMetadata {
 
-    /** Writes this column's metadata; the matching {@code readFrom} on the implementation reads it back. */
-    void writeTo(DataOutput out) throws IOException;
+    /**
+     * Writes this column's metadata in the layout of {@code formatVersion}; the matching {@code readFrom} on the
+     * implementation reads it back from a file of that version.
+     */
+    void writeTo(DataOutput out, FormatVersion formatVersion) throws IOException;
 }

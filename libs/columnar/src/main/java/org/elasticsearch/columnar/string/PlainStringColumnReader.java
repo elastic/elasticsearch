@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TwoPhaseIterator;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.columnar.substrate.BytesSink;
@@ -38,11 +39,76 @@ public final class PlainStringColumnReader extends StringColumnReader {
 
     private final boolean hasNullSlots;
 
-    PlainStringColumnReader(StringColumnMetadata.Plain column, ColumnInputs inputs) throws IOException {
+    private final StringColumnMetadata.Plain.Skipper skipper;
+
+    private final IndexInput skipIndex;
+
+    private final long numValues;
+
+    PlainStringColumnReader(StringColumnMetadata.Plain column, ColumnInputs inputs, IndexInput skipIndex) throws IOException {
         super(column, inputs, column.values() == null ? StringColumnOptions.DEFAULT_VALUES_PER_BLOCK : column.values().valuesPerBlock());
         this.valuesWorthNaming = column.valuesWorthNaming();
         this.values = column.numDocsWithField() == 0 ? null : column.values().open(inputs);
         this.hasNullSlots = column.hasNullSlots();
+        this.skipper = column.skipper();
+        this.skipIndex = skipIndex;
+        this.numValues = column.values() == null ? 0 : column.values().numValues();
+    }
+
+    /**
+     * The ranks the ends of a match can lie in, from the chunks the region does not rule out. The chunks it keeps are
+     * one run, the first holds the lower end or sits just before it, and the last holds the upper end.
+     */
+    @Override
+    protected SortedWindows sortedWindows(PlainSkipQuery query) throws IOException {
+        if (skipper == null) {
+            return super.sortedWindows(query);
+        }
+        final PlainSkipKind.Reader bounds = PlainSkipKind.forId(skipper.kind()).newReader(skipper, numValues, skipIndex);
+        final int first = bounds.nextCandidate(0, query);
+        if (first >= bounds.entryCount()) {
+            return SortedWindows.NONE;
+        }
+        final int last = bounds.candidatesEnd(first, query) - 1;
+        return new SortedWindows(
+            Math.toIntExact(bounds.firstSlot(first)),
+            Math.toIntExact(bounds.endSlot(first)),
+            Math.toIntExact(bounds.firstSlot(last)),
+            Math.toIntExact(bounds.endSlot(last))
+        );
+    }
+
+    private ColumnIterator presenceWithin(PlainSkipQuery query) throws IOException {
+        final ColumnIterator presence = iterator();
+        if (skipper == null) {
+            return presence;
+        }
+        return new PlainRangePresence(
+            presence,
+            PlainSkipKind.forId(skipper.kind()).newReader(skipper, numValues, skipIndex),
+            query,
+            new PlainRangePresence.Slots() {
+                @Override
+                public long firstAddress(int rank) throws IOException {
+                    return firstValueAddress(rank);
+                }
+
+                @Override
+                public long count(int rank) throws IOException {
+                    return valueCount(rank);
+                }
+
+                @Override
+                public boolean oneSlotADocument() {
+                    return hasValueAddresses() == false;
+                }
+
+                @Override
+                public boolean everySlotHoldsAValue() {
+                    return hasNullSlots == false;
+                }
+            }
+        );
     }
 
     @Override
@@ -143,13 +209,17 @@ public final class PlainStringColumnReader extends StringColumnReader {
     protected DocIdSetIterator unorderedMatches(BytesRef prefix, BytesRef exact) throws IOException {
         final BytesRef target = exact != null ? exact : prefix;
         final SlotWindow window = lengthWindow(target.length, exact != null ? target.length : Integer.MAX_VALUE);
-        final Slots candidates = slotsHeld(window);
+        final ColumnIterator presence = exact != null
+            ? presenceWithin(PlainSkipQuery.range(exact, true, exact, true))
+            : presenceWithin(PlainSkipQuery.prefix(prefix));
+        final PlainRangePresence region = presence instanceof PlainRangePresence kept ? kept : null;
+        final Slots candidates = slotsHeld(window, presence);
         final boolean settled = target.length == 0;
         final LastSeen lastSeen = new LastSeen();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(candidates) {
             @Override
             public boolean matches() throws IOException {
-                if (settled) {
+                if (settled || (region != null && region.accepted())) {
                     return true;
                 }
                 final long first = candidates.firstSlot();
@@ -231,11 +301,15 @@ public final class PlainStringColumnReader extends StringColumnReader {
     @Override
     protected DocIdSetIterator unorderedRangeMatches(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper)
         throws IOException {
-        final ColumnIterator presence = iterator();
+        final ColumnIterator presence = presenceWithin(PlainSkipQuery.range(lower, includeLower, upper, includeUpper));
+        final PlainRangePresence region = presence instanceof PlainRangePresence kept ? kept : null;
         final LastSeen lastSeen = new LastSeen();
         return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(presence) {
             @Override
             public boolean matches() throws IOException {
+                if (region != null && region.accepted()) {
+                    return true;
+                }
                 return matchesRangeRank(presence.rank(), lower, includeLower, upper, includeUpper, lastSeen);
             }
 

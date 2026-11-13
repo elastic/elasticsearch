@@ -126,7 +126,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     public static StringColumnReader open(StringColumnMetadata meta, ColumnInputs inputs, IndexInput skipIndex) throws IOException {
         return switch (meta) {
             case StringColumnMetadata.Dictionary column -> new DictionaryStringColumnReader(column, inputs, skipIndex);
-            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, inputs);
+            case StringColumnMetadata.Plain column -> new PlainStringColumnReader(column, inputs, skipIndex);
         };
     }
 
@@ -419,7 +419,8 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
             return DocIdSetIterator.empty();
         }
         if (valuesSorted() && hasValueAddresses() == false) {
-            return documents(sortedRangeByBounds(lower, includeLower, upper, includeUpper));
+            final SortedWindows windows = sortedWindows(PlainSkipQuery.range(lower, includeLower, upper, includeUpper));
+            return documents(sortedRangeByBounds(lower, includeLower, upper, includeUpper, windows));
         }
         return unorderedRangeMatches(lower, includeLower, upper, includeUpper);
     }
@@ -515,7 +516,10 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         // multiValued() is still false. A column holding a null is never sorted, so the bisection also never
         // meets a slot with no value to compare.
         if (meta.valuesSorted() && meta.hasValueAddresses() == false) {
-            return documents(sortedRange(prefix, exact, 0));
+            final SortedWindows windows = sortedWindows(
+                exact != null ? PlainSkipQuery.range(exact, true, exact, true) : PlainSkipQuery.prefix(prefix)
+            );
+            return documents(sortedRange(prefix, exact, 0, windows));
         }
         return unorderedMatches(prefix, exact);
     }
@@ -532,30 +536,59 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * found by bisection over the values, which needs only the order and no ordinals: a term costs a couple
      * of dozen block reads instead of a comparison per document.
      */
-    private RankRange sortedRange(BytesRef prefix, BytesRef exact, int from) throws IOException {
+    private RankRange sortedRange(BytesRef prefix, BytesRef exact, int from, SortedWindows windows) throws IOException {
+        if (windows.isNone()) {
+            return new RankRange(from, from);
+        }
         final int count = meta.numDocsWithField();
         final BytesRef target = exact != null ? exact : prefix;
-        final int first = firstAtLeast(target, from, count);
+        final int first = firstAtLeast(target, Math.max(from, windows.startLow()), windows.startHigh(), from > 0);
         // NOTE: an empty range still reports where the search stopped, which bounds the next target below.
         if (first == count || matches(valueAt(first), prefix, exact) == false) {
             return new RankRange(first, first);
         }
-        return new RankRange(first, runEnd(first, prefix, exact, count));
+        return new RankRange(first, runEnd(first, prefix, exact, windows.endLow(), windows.endHigh()));
+    }
+
+    /**
+     * Where the ends of a match can lie in a column whose values arrive in term order, as inclusive ranks. The first
+     * rank at or after the lower end is in {@code [startLow, startHigh]}, and the rank after the last match is in
+     * {@code [endLow, endHigh]}, so a bisection for either end reads no value outside its range.
+     */
+    protected record SortedWindows(int startLow, int startHigh, int endLow, int endHigh) {
+
+        /** A window that proves the query matches nothing. */
+        static final SortedWindows NONE = new SortedWindows(1, 0, 1, 0);
+
+        static SortedWindows whole(int count) {
+            return new SortedWindows(0, count, 0, count);
+        }
+
+        boolean isNone() {
+            return startLow > startHigh;
+        }
+    }
+
+    /** The windows a query can be confined to; the whole column unless the layout can say better. */
+    protected SortedWindows sortedWindows(PlainSkipQuery query) throws IOException {
+        return SortedWindows.whole(meta.numDocsWithField());
     }
 
     /**
      * The rank one past the run starting at {@code first}, whose value is known to match. Doubling the step
      * before bisecting the bracket keeps the reads next to {@code first}, where a short run ends, rather
-     * than bisecting the whole column above it.
+     * than bisecting the whole column above it. The rank after the run is at least {@code endLow}, so every
+     * rank before it matches and the doubling starts there when that is past {@code first}.
      */
-    private int runEnd(int first, BytesRef prefix, BytesRef exact, int count) throws IOException {
-        int lo = first;
+    private int runEnd(int first, BytesRef prefix, BytesRef exact, int endLow, int count) throws IOException {
+        final int from = Math.max(first, endLow - 1);
+        int lo = from;
         long step = 1;
-        int hi = (int) Math.min(first + step, count);
+        int hi = (int) Math.min(from + step, count);
         while (hi < count && matches(valueAt(hi), prefix, exact)) {
             lo = hi;
             step <<= 1;
-            hi = (int) Math.min(first + step, count);
+            hi = (int) Math.min(from + step, count);
         }
         while (lo + 1 < hi) {
             final int mid = lo + ((hi - lo) >>> 1);
@@ -583,17 +616,21 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      * The ranks whose values fall in the byte range, for a column whose values arrive in term order.
      * Both bisections run over the column's sorted values and cost a handful of block reads each.
      */
-    private RankRange sortedRangeByBounds(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper) throws IOException {
+    private RankRange sortedRangeByBounds(BytesRef lower, boolean includeLower, BytesRef upper, boolean includeUpper, SortedWindows windows)
+        throws IOException {
+        if (windows.isNone()) {
+            return RankRange.EMPTY;
+        }
         final int count = numDocsWithField();
 
         int from;
         if (lower == null) {
             from = 0;
         } else {
-            from = firstAtLeast(lower, 0, count);
+            from = firstAtLeast(lower, windows.startLow(), windows.startHigh(), false);
             if (includeLower == false && from < count && valueAt(from).compareTo(lower) == 0) {
                 int lo = from;
-                int hi = count;
+                int hi = windows.startHigh();
                 while (lo < hi) {
                     final int mid = (lo + hi) >>> 1;
                     if (valueAt(mid).compareTo(lower) <= 0) {
@@ -613,8 +650,8 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
         if (upper == null) {
             to = count;
         } else {
-            int lo = from;
-            int hi = count;
+            int lo = Math.max(from, windows.endLow());
+            int hi = Math.max(lo, windows.endHigh());
             while (lo < hi) {
                 final int mid = (lo + hi) >>> 1;
                 final int cmp = valueAt(mid).compareTo(upper);
@@ -639,6 +676,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
      */
     private List<RankRange> sortedRangesOfTerms(NavigableSet<BytesRef> terms) throws IOException {
         final List<RankRange> ranges = new ArrayList<>();
+        final SortedWindows whole = SortedWindows.whole(meta.numDocsWithField());
         BytesRef previous = null;
         int from = 0;
         for (BytesRef term : terms) {
@@ -646,7 +684,7 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
                 from = 0;
             }
             previous = term;
-            final RankRange range = sortedRange(term, term, from);
+            final RankRange range = sortedRange(term, term, from, whole);
             from = range.to();
             if (range.isEmpty() == false) {
                 ranges.add(range);
@@ -676,14 +714,15 @@ public abstract sealed class StringColumnReader permits PlainStringColumnReader,
     /**
      * The first rank at or after {@code from} whose value sorts at or after {@code target}. Doubling the step
      * before bisecting the bracket costs reads proportional to the distance rather than to the column, and
-     * keeps them close enough together to share a decoded block.
+     * keeps them close enough together to share a decoded block. A search confined to a chunk window starts at
+     * its low end without a cursor to carry, and bisects it.
      */
-    private int firstAtLeast(BytesRef target, int from, int count) throws IOException {
+    private int firstAtLeast(BytesRef target, int from, int count, boolean carriedCursor) throws IOException {
         int lo = from;
         int hi = count;
         // NOTE: doubling only pays while the target is near `from`, which is so for a cursor carried across
         // ascending targets and not for a lone bound that can sit anywhere.
-        if (from > 0) {
+        if (carriedCursor) {
             long step = 1;
             hi = (int) Math.min(from + step, count);
             while (hi < count && valueAt(hi).compareTo(target) < 0) {

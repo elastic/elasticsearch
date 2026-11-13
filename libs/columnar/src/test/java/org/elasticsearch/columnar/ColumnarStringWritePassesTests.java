@@ -210,7 +210,8 @@ public class ColumnarStringWritePassesTests extends ESTestCase {
             (fieldName, type) -> NumericPipeline::defaultPipeline,
             field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            StringColumnOptionsSelector.always(options)
+            StringColumnOptionsSelector.always(options),
+            FormatVersion.CURRENT
         );
         final DocValuesFormat counting = counting(columnar, cursors, values);
         final IndexWriterConfig iwc = new IndexWriterConfig();

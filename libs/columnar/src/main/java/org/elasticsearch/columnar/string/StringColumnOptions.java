@@ -28,6 +28,8 @@ import org.elasticsearch.columnar.substrate.ChunkCodec;
  *                     decodes a source that is not a ColumNAR column with the target's framing
  * @param enableSkipIndex whether a dictionary column without escapes writes the smallest and largest ordinal of
  *                     each interval of documents, which a range query uses to skip intervals
+ * @param enablePlainSkipIndex whether a plain column writes the bounds of the values each compressed chunk owns,
+ *                     which a query uses to skip chunks
  */
 public record StringColumnOptions(
     DictionaryPolicy dictionary,
@@ -35,7 +37,8 @@ public record StringColumnOptions(
     ChunkCodec chunkCodec,
     Sizes sizes,
     boolean singleValued,
-    boolean enableSkipIndex
+    boolean enableSkipIndex,
+    boolean enablePlainSkipIndex
 ) {
 
     /**
@@ -200,13 +203,16 @@ public record StringColumnOptions(
 
     public static final boolean DEFAULT_ENABLE_SKIP_INDEX = true;
 
+    public static final boolean DEFAULT_ENABLE_PLAIN_SKIP_INDEX = false;
+
     public static final StringColumnOptions DEFAULT = new StringColumnOptions(
         DEFAULT_DICTIONARY,
         DEFAULT_SUMMARY,
         ChunkCodec.ZSTD,
         DEFAULT_SIZES,
         DEFAULT_SINGLE_VALUED,
-        DEFAULT_ENABLE_SKIP_INDEX
+        DEFAULT_ENABLE_SKIP_INDEX,
+        DEFAULT_ENABLE_PLAIN_SKIP_INDEX
     );
 
     /**
@@ -231,7 +237,8 @@ public record StringColumnOptions(
             DEFAULT_LENGTH_BLOCK_SIZE
         ),
         DEFAULT_SINGLE_VALUED,
-        DEFAULT_ENABLE_SKIP_INDEX
+        DEFAULT_ENABLE_SKIP_INDEX,
+        DEFAULT_ENABLE_PLAIN_SKIP_INDEX
     );
 
     public StringColumnOptions {
@@ -255,21 +262,33 @@ public record StringColumnOptions(
      * so twice rather than setting one and inheriting the other.
      */
     public StringColumnOptions withPolicies(DictionaryPolicy dictionaryPolicy, SummaryPolicy summaryPolicy) {
-        return new StringColumnOptions(dictionaryPolicy, summaryPolicy, chunkCodec, sizes, singleValued, enableSkipIndex);
+        return new StringColumnOptions(
+            dictionaryPolicy,
+            summaryPolicy,
+            chunkCodec,
+            sizes,
+            singleValued,
+            enableSkipIndex,
+            enablePlainSkipIndex
+        );
     }
 
     /** These options with different sizes, for a field whose shape is not what the defaults were measured on. */
     public StringColumnOptions withSizes(Sizes other) {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, other, singleValued, enableSkipIndex);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, other, singleValued, enableSkipIndex, enablePlainSkipIndex);
     }
 
     /** These options for a field whose documents each hold exactly one value, handed over as its own bytes. */
     public StringColumnOptions withSingleValued(boolean singleValued) {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, enableSkipIndex);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, enableSkipIndex, enablePlainSkipIndex);
     }
 
     /** These options for a field whose ordinals should not be indexed. */
     public StringColumnOptions withoutSkipIndex() {
-        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, false);
+        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, false, enablePlainSkipIndex);
+    }
+
+    public StringColumnOptions withPlainSkipIndex(boolean enablePlainSkipIndex) {
+        return new StringColumnOptions(dictionary, summary, chunkCodec, sizes, singleValued, enableSkipIndex, enablePlainSkipIndex);
     }
 }

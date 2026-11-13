@@ -265,6 +265,12 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
             if (dt != LONG && dt != DATETIME && dt != DATE_NANOS) {
                 return null;
             }
+            // The evaluator turns a multivalued input into null (plus a warning), but the block loader rounds every value of a
+            // multivalued document and returns a multivalued block. Hence, we only push down when every shard proves the field
+            // is single-valued, otherwise grouping by e.g. BUCKET(mv_date, ...) would put one document into several buckets.
+            if (stats.isSingleValue(f.fieldName()) == false) {
+                return null;
+            }
             long[] pts = new long[points.size()];
             for (int i = 0; i < points.size(); i++) {
                 if (points.get(i) instanceof Literal lit) {

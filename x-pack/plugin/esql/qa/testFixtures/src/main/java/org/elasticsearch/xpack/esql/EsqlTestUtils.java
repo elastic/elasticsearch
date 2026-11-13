@@ -384,13 +384,24 @@ public final class EsqlTestUtils {
     public static class TestSearchStats implements SearchStats {
 
         private final boolean supportsLoaderConfig;
+        private final boolean singleValue;
 
         public TestSearchStats() {
             this(true);
         }
 
         public TestSearchStats(boolean supportsLoaderConfig) {
+            this(supportsLoaderConfig, false);
+        }
+
+        /**
+         * @param singleValue what {@link #isSingleValue} reports for every field. Defaults to {@code false}, i.e. "not proven
+         *                    single-valued", which is what optimizations that must not apply to multivalued fields, such as
+         *                    {@code RoundTo} block loader pushdown, see unless a test opts in.
+         */
+        public TestSearchStats(boolean supportsLoaderConfig, boolean singleValue) {
             this.supportsLoaderConfig = supportsLoaderConfig;
+            this.singleValue = singleValue;
         }
 
         @Override
@@ -449,7 +460,7 @@ public final class EsqlTestUtils {
 
         @Override
         public boolean isSingleValue(FieldName field) {
-            return false;
+            return singleValue;
         }
 
         @Override
@@ -563,7 +574,16 @@ public final class EsqlTestUtils {
         }
 
         public TestSearchStatsWithMinMax(Map<String, Object> minValues, Map<String, Object> maxValues, boolean supportsLoaderConfig) {
-            super(supportsLoaderConfig);
+            this(minValues, maxValues, supportsLoaderConfig, false);
+        }
+
+        public TestSearchStatsWithMinMax(
+            Map<String, Object> minValues,
+            Map<String, Object> maxValues,
+            boolean supportsLoaderConfig,
+            boolean singleValue
+        ) {
+            super(supportsLoaderConfig, singleValue);
             this.minValues = minValues;
             this.maxValues = maxValues;
         }

@@ -34,6 +34,8 @@ import java.util.stream.Collectors;
 public class DirectoryMetrics implements ToXContentFragment, Writeable {
     public static final DirectoryMetrics EMPTY = new DirectoryMetrics(Map.of());
 
+    public static final String BLOB_STORE_CACHE_METRICS_NAME = "blob_store_cache";
+
     public interface PluggableMetrics<T extends PluggableMetrics<T>> extends ToXContentObject, NamedWriteable {
         /**
          * A delta object that measures the delta of the metric between invoking the delta method and

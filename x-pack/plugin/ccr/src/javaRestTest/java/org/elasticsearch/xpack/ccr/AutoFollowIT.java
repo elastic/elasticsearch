@@ -1112,6 +1112,103 @@ public class AutoFollowIT extends AbstractCCRRestTestCase {
         );
     }
 
+    public void testDataStreamSettingsAndMappingsArePropagated() throws Exception {
+        if (targetCluster != TargetCluster.FOLLOWER) {
+            return;
+        }
+
+        final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
+        final String dataStreamName = autoFollowPatternName + "-logs";
+        final String indexTemplateName = autoFollowPatternName + "-template";
+
+        final Map<String, Object> expectedSettings = Map.of("index", Map.of("number_of_shards", "2"));
+        final Map<String, Object> expectedMappings = Map.of("properties", Map.of("custom_field", Map.of("type", "keyword")));
+
+        try {
+            try (RestClient leaderClient = buildLeaderClient()) {
+                Request putTemplateRequest = new Request("PUT", "/_index_template/" + indexTemplateName);
+                putTemplateRequest.setJsonEntity("""
+                    {
+                      "index_patterns": ["%s*"],
+                      "data_stream": {}
+                    }
+                    """.formatted(dataStreamName));
+                assertOK(leaderClient.performRequest(putTemplateRequest));
+
+                Request createDataStreamRequest = new Request("PUT", "/_data_stream/" + dataStreamName);
+                assertOK(leaderClient.performRequest(createDataStreamRequest));
+
+                Request updateSettingsRequest = new Request("PUT", "/_data_stream/" + dataStreamName + "/_settings");
+                updateSettingsRequest.setJsonEntity("""
+                    {
+                      "index.number_of_shards": 2
+                    }
+                    """);
+                assertOK(leaderClient.performRequest(updateSettingsRequest));
+
+                Request updateMappingsRequest = new Request("PUT", "/_data_stream/" + dataStreamName + "/_mappings");
+                updateMappingsRequest.setJsonEntity("""
+                    {
+                      "properties": {
+                        "custom_field": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                    """);
+                assertOK(leaderClient.performRequest(updateMappingsRequest));
+
+                assertThat(getDataStreamInfo(leaderClient, dataStreamName).get("settings"), equalTo(expectedSettings));
+                assertThat(getDataStreamInfo(leaderClient, dataStreamName).get("mappings"), equalTo(expectedMappings));
+            }
+
+            int successfulFollowedIndicesBefore = getNumberOfSuccessfulFollowedIndices();
+
+            createAutoFollowPattern(client(), autoFollowPatternName, dataStreamName + "*", "leader_cluster", null);
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
+                assertOK(leaderClient.performRequest(rolloverRequest));
+
+                verifyDataStream(leaderClient, dataStreamName, 1, 2);
+            }
+
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(successfulFollowedIndicesBefore + 1));
+
+                verifyDataStream(client(), dataStreamName, 2);
+                ensureYellow(dataStreamName);
+
+                try (RestClient leaderClient = buildLeaderClient()) {
+                    Map<String, Object> leaderDataStream = getDataStreamInfo(leaderClient, dataStreamName);
+                    Map<String, Object> followerDataStream = getDataStreamInfo(client(), dataStreamName);
+
+                    assertThat(followerDataStream.get("settings"), equalTo(leaderDataStream.get("settings")));
+                    assertThat(followerDataStream.get("mappings"), equalTo(leaderDataStream.get("mappings")));
+
+                    assertThat(followerDataStream.get("settings"), equalTo(expectedSettings));
+                    assertThat(followerDataStream.get("mappings"), equalTo(expectedMappings));
+                }
+            });
+        } finally {
+            cleanUpFollower(List.of(), List.of(dataStreamName), List.of(autoFollowPatternName));
+            cleanUpLeader(List.of(), List.of(dataStreamName), List.of());
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                Request deleteTemplateRequest = new Request("DELETE", "/_index_template/" + indexTemplateName);
+                assertOK(leaderClient.performRequest(deleteTemplateRequest));
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> getDataStreamInfo(RestClient client, String name) throws IOException {
+        Request request = new Request("GET", "/_data_stream/" + name);
+        Map<String, Object> response = toMap(client.performRequest(request));
+        List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) response.get("data_streams");
+        return dataStreams.getFirst();
+    }
+
     private void testDataStreamPromotionWarnings(Boolean createFollowerTemplate) throws Exception {
         final int numDocs = 64;
         final String dataStreamName = getTestName().toLowerCase(Locale.ROOT) + "-dopromo";

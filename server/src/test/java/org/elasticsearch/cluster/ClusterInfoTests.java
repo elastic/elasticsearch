@@ -71,7 +71,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
     }
 
     public void testSearchLaneRequirementsAreTransportVersionGated() throws Exception {
-        final var clusterInfo = ClusterInfo.builder().shardSearchLaneRequirements(randomShardSearchLaneRequirements()).build();
+        final var clusterInfo = ClusterInfo.builder().shardSearchLaneRequirements(randomPerShardDoubles()).build();
 
         final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
         assertThat(currentVersionCopy.getShardSearchLaneRequirements(), equalTo(clusterInfo.getShardSearchLaneRequirements()));
@@ -79,6 +79,17 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
         final var preLaneVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.SEARCH_LANE_REQUIREMENTS_IN_CLUSTER_INFO);
         final var preLaneCopy = copyInstance(clusterInfo, preLaneVersion);
         assertThat(preLaneCopy.getShardSearchLaneRequirements(), equalTo(Map.of()));
+    }
+
+    public void testSearchLoadsAreTransportVersionGated() throws Exception {
+        final var clusterInfo = ClusterInfo.builder().shardSearchLoads(randomPerShardDoubles()).build();
+
+        final var currentVersionCopy = copyInstance(clusterInfo, TransportVersion.current());
+        assertThat(currentVersionCopy.getShardSearchLoads(), equalTo(clusterInfo.getShardSearchLoads()));
+
+        final var preSearchLoadVersion = TransportVersionUtils.getPreviousVersion(ClusterInfo.SHARD_SEARCH_LOAD_IN_CLUSTER_INFO);
+        final var preSearchLoadCopy = copyInstance(clusterInfo, preSearchLoadVersion);
+        assertThat(preSearchLoadCopy.getShardSearchLoads(), equalTo(Map.of()));
     }
 
     @Override
@@ -108,17 +119,18 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomShardHeapUsages(),
             randomShardAndIndexHeapUsage(),
             randomNodeUsageStatsForThreadPools(),
-            randomShardWriteLoad(),
+            randomPerShardDoubles(),
             randomMaxHeapSizes(),
             randomNodeIdsWriteLoadHotspottingSet(),
             randomNodeCacheSizeAndCommitmentsMap(),
             randomShardCacheRequirements(),
             randomHostedShardsPartitionSizes(),
-            randomShardSearchLaneRequirements()
+            randomPerShardDoubles(),
+            randomPerShardDoubles()
         );
     }
 
-    private static Map<ShardId, Double> randomShardSearchLaneRequirements() {
+    private static Map<ShardId, Double> randomPerShardDoubles() {
         final int numEntries = randomIntBetween(0, 128);
         final Map<ShardId, Double> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
@@ -146,15 +158,6 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             );
         }
         return shardCacheRequirements;
-    }
-
-    private static Map<ShardId, Double> randomShardWriteLoad() {
-        final int numEntries = randomIntBetween(0, 128);
-        final Map<ShardId, Double> builder = new HashMap<>(numEntries);
-        for (int i = 0; i < numEntries; i++) {
-            builder.put(randomShardId(), randomDouble());
-        }
-        return builder;
     }
 
     private static Map<String, ByteSizeValue> randomMaxHeapSizes() {

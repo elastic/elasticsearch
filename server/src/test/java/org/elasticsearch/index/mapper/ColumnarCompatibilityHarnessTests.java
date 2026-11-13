@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 
 import java.io.IOException;
 
@@ -27,10 +26,7 @@ public class ColumnarCompatibilityHarnessTests extends AbstractColumnarMapperCom
     private static final String FIELD = "f";
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     /** A batch the batch path accepts is compared with the row path and passes, so the refusals below are not the harness's default. */

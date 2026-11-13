@@ -27,6 +27,11 @@ public final class BundledJdkPlatforms {
      */
     static final int FIRST_MAJOR_WITHOUT_DARWIN_X64 = 27;
 
+    /**
+     * The platforms a JDK is bundled for, in the order the bundled JDKs are registered.
+     */
+    public static final List<String> PLATFORMS = List.of("darwin", "windows", "linux");
+
     private BundledJdkPlatforms() {}
 
     /**
@@ -59,5 +64,12 @@ public final class BundledJdkPlatforms {
      */
     public static boolean isSupported(String platform, String architecture, int bundledJdkMajor) {
         return architecturesFor(platform, bundledJdkMajor).contains(architecture);
+    }
+
+    /**
+     * The name the bundled JDK for the given platform and architecture is registered under in the {@code jdks} container.
+     */
+    public static String jdkName(String platform, String architecture) {
+        return "bundled_" + platform + "_" + architecture;
     }
 }

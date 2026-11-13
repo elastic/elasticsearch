@@ -54,8 +54,8 @@ final class UnionTypeCsvDatasets {
 
     private static CsvTestsDataLoader.TestDataset datasetFor(DataType type) {
         return switch (type) {
-            case UNSUPPORTED, NULL, SOURCE, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG, GEOHASH, GEOTILE,
-                GEOHEX -> null;
+            case UNSUPPORTED, NULL, SOURCE, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, TIME_SERIES_METADATA_DATA_TYPE,
+                PARTIAL_AGG, GEOHASH, GEOTILE, GEOHEX -> null;
             case BOOLEAN -> simple(type, "\"type\": \"boolean\"", "boolean", "true");
             case LONG -> simple(type, "\"type\": \"long\"", "long", "1");
             case INTEGER -> simple(type, "\"type\": \"integer\"", "integer", "1");

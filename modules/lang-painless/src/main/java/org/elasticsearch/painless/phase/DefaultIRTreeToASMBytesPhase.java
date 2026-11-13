@@ -304,10 +304,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
             // public void $checkAllocBytes(long bytes) {
             // long total = this.$allocBytes += bytes;
-            // if (total > <limit>) AllocationGuard.allocationLimitExceeded(bytes, total, <limit>); // only when enforcing
+            // if (total > <limit>) { // only when enforcing
+            // $allocMetrics.recordLimitExceeded(); // only when metrics are on
+            // AllocationGuard.allocationLimitExceeded(<context>, bytes, total, <limit>);
             // }
-            // The limit is a baked-in constant; the breach path delegates to AllocationGuard to keep this method compact.
-            // Metrics-only omits the comparison and just charges the total.
+            // }
+            // The limit and context name are baked-in constants; the breach path delegates to AllocationGuard to keep this
+            // method compact. Metrics-only omits the comparison and just charges the total.
             MethodWriter checkAllocBytes = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.CHECK_ALLOC_BYTES);
             checkAllocBytes.visitCode();
             checkAllocBytes.loadThis();
@@ -325,6 +328,15 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 checkAllocBytes.loadLocal(totalSlot);
                 checkAllocBytes.push(maxAllocationBytes);
                 checkAllocBytes.ifCmp(Type.LONG_TYPE, MethodWriter.LE, withinLimit);
+                if (scriptScope.getCompilerSettings().isAllocationMetricsEnabled()) {
+                    checkAllocBytes.getStatic(
+                        WriterConstants.CLASS_TYPE,
+                        WriterConstants.ALLOC_METRICS_FIELD,
+                        WriterConstants.ALLOC_METRICS_TYPE
+                    );
+                    checkAllocBytes.invokeVirtual(WriterConstants.ALLOC_METRICS_TYPE, WriterConstants.RECORD_LIMIT_EXCEEDED);
+                }
+                checkAllocBytes.push(scriptScope.getCompilerSettings().getScriptContextName());
                 checkAllocBytes.loadArg(0);
                 checkAllocBytes.loadLocal(totalSlot);
                 checkAllocBytes.push(maxAllocationBytes);
@@ -859,12 +871,16 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         visit(irForEachSubIterableNode.getConditionNode(), writeScope);
 
         if (painlessMethod == null) {
-            // DefBootstrap.ITERATOR carries no annotation, so there is no estimator to replay. The size is the same either
-            // way, a collection iterator or the ValueIterator wrapper for an array, so charge the constant inline.
-            writeAllocationCheck(writeScope, AllocSizes.ITERATOR_BYTES);
-
-            Type methodType = Type.getMethodType(Type.getType(ValueIterator.class), Type.getType(Object.class));
-            methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
+            if (isAllocationTrackingActive(writeScope)) {
+                // The receiver's class is only known at runtime, so pass the script and let the bootstrap charge the iterator()
+                // estimator it resolves, or the wrapper for an array.
+                writeInstanceScriptCapture(writeScope, methodWriter);
+                Type methodType = Type.getMethodType(Type.getType(ValueIterator.class), Type.getType(Object.class), CLASS_TYPE);
+                methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR, 1);
+            } else {
+                Type methodType = Type.getMethodType(Type.getType(ValueIterator.class), Type.getType(Object.class));
+                methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
+            }
         } else {
             java.lang.reflect.Method iteratorEstimator = irForEachSubIterableNode.getDecorationValue(IRDAllocationEstimator.class);
 

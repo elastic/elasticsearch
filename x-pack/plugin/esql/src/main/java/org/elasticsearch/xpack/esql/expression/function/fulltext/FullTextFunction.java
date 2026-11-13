@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -90,6 +91,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
@@ -599,6 +601,11 @@ public abstract class FullTextFunction extends Function
         Holder<Attribute> current = new Holder<>((Attribute) fieldExpression);
         Holder<FieldAttribute> resolved = new Holder<>();
         plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+            // FILLNULL keeps the id of a column it fills until the optimizer expands it, but the column is no longer the field below.
+            if (p instanceof FillNull fillNull && fillNull.fills(current.get())) {
+                breakEarly.set(true);
+                return;
+            }
             if (p instanceof Project project) {
                 for (NamedExpression ne : project.projections()) {
                     if (ne instanceof Alias alias && alias.toAttribute().id().equals(current.get().id())) {
@@ -685,8 +692,8 @@ public abstract class FullTextFunction extends Function
             return builder;
         }
         // Coordinator-side query-builder rewrite is skipped for runtime search (see requiresQueryBuilderRewrite).
-        // ReplacePotentiallyUnmappedFieldWithMappedField can later make the field pushable on a data node without
-        // attaching a rewritten QueryBuilder to the expression, so build it here when needed.
+        // A data node can find the field pushable once its shards resolve it, without a rewritten QueryBuilder attached to the
+        // expression, so build it here when needed.
         assert isRuntimeSearch() == false : "runtime search must not use LuceneQueryEvaluator";
         return asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder();
     }
@@ -701,6 +708,14 @@ public abstract class FullTextFunction extends Function
         // Runtime search is evaluated per row rather than through a Lucene query, and does not contribute to the
         // score (yet).
         return isRuntimeSearch() == false;
+    }
+
+    /**
+     * Whether {@code expression} holds a search that adds to {@code _score}. A filter adds its searches' scores after
+     * it has filtered, so a predicate on {@code _score} has to run after that to see them.
+     */
+    public static boolean containsScoringSearch(Expression expression) {
+        return expression.anyMatch(e -> e instanceof FullTextFunction ftf && ftf.contributesToScore());
     }
 
     private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {
@@ -739,18 +754,19 @@ public abstract class FullTextFunction extends Function
     }
 
     /**
-     * Whether wrapping {@code fieldAttribute} in a conversion to {@code targetType} (TEXT via {@code TO_TEXT}, or
-     * KEYWORD via {@code TO_STRING}) changes its matching semantics from what a Lucene pushdown on the raw field
-     * would do. Only TEXT and KEYWORD targets can differ this way (analyzed vs. exact matching), so any other
-     * target is treated as safe without further checks. For a TEXT/KEYWORD target, safe (a no-op) only when the
+     * Whether wrapping {@code fieldAttribute} in a conversion to {@code targetType} (TEXT via {@code TO_TEXT},
+     * KEYWORD via {@code TO_STRING}, or DENSE_VECTOR via {@code TO_DENSE_VECTOR}) changes its matching semantics from what a Lucene
+     * pushdown on the raw field would do. Only TEXT, KEYWORD and DENSE_VECTOR targets can differ this way
+     * (analyzed vs. exact matching for TEXT/KEYWORD, DENSE_VECTOR supports very different kinds of operations), so any other
+     * target is treated as safe without further checks. For these targets, safe (a no-op) only when the
      * field is already {@code targetType} everywhere it's mapped; unsafe for an ordinary field of a different type,
-     * or a union-typed field whose per-branch conversions aren't uniformly a {@code targetType} no-op - covering both
+     * or a union-typed field whose per-branch conversions aren't uniformly a {@code targetType} - covering both
      * {@link UnionTypeEsField} representations (the modern {@code CompactMultiTypeEsField} and the legacy
      * {@code MultiTypeEsField}, the  latter still produced by cross-cluster searches against a remote cluster whose
      * minimum transport version predates {@code compact_multi_type_es_field}).
      */
     private static boolean isUnsafeAnalysisConversion(DataType targetType, FieldAttribute fieldAttribute) {
-        if (targetType != TEXT && targetType != KEYWORD) {
+        if (targetType != TEXT && targetType != KEYWORD && targetType != DENSE_VECTOR) {
             return false;
         }
         if (fieldAttribute.dataType() != targetType) {

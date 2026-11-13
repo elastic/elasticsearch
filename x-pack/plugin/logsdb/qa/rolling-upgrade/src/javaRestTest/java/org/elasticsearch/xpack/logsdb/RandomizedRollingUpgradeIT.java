@@ -199,11 +199,16 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
             }))
             .withDataSourceHandlers(List.of(new DefaultMappingParametersHandler() {
                 @Override
-                protected Object extendedDocValuesParams() {
-                    if (oldClusterHasFeature(MapperFeatures.DOC_VALUES_MULTI_VALUE_RENAME)) {
-                        return super.extendedDocValuesParams();
+                protected boolean supportsTopLevelDocValuesAttributes() {
+                    return oldClusterHasFeature(MapperFeatures.DOC_VALUES_TOP_LEVEL_ATTRIBUTES);
+                }
+
+                @Override
+                protected void putExtendedDocValuesParams(Map<String, Object> mapping) {
+                    if (oldClusterHasFeature(MapperFeatures.DOC_VALUES_MULTI_VALUE_RENAME) == false) {
+                        return;
                     }
-                    return ESTestCase.randomBoolean();
+                    super.putExtendedDocValuesParams(mapping);
                 }
 
                 @Override

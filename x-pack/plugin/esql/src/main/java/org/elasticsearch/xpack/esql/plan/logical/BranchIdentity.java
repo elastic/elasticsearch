@@ -56,6 +56,22 @@ public record BranchIdentity(@Nullable String name, RelationClass kind, List<Str
     }
 
     /**
+     * The view whose own {@code SET} governs this branch. {@link #name()} is the outermost view after compaction
+     * lifts a nested view into its parent — that name is what warnings report — while {@link #lineage()} still ends
+     * with the view that owned the piece. A definition's settings do not leak into a view nested inside it, so they
+     * are keyed by this innermost name. Before any lift, lineage is just {@code [name]} and the two agree.
+     */
+    public String settingsViewName() {
+        if (isView() == false) {
+            return null;
+        }
+        if (lineage.isEmpty() == false) {
+            return lineage.getLast();
+        }
+        return name;
+    }
+
+    /**
      * The identity a branch has after being lifted out of {@code outer}'s subtree into {@code outer}'s own level.
      * Lifting through a view promotes every piece to the view's identity — the outer view's name wins (lifting happens
      * only after the metadata freeze, so this name serves warnings and {@code _lineage}, not {@code _name}), with the

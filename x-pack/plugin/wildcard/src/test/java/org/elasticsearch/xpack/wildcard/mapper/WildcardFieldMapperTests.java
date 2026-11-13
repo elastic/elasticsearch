@@ -91,7 +91,6 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -384,6 +383,32 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         dir.close();
     }
 
+    public void testCaseInsensitiveTermQueryOnEmptyString() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER_7_10);
+        iwc.setMergePolicy(newTieredMergePolicy(random()));
+        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+
+        for (String value : List.of("", "a")) {
+            Document doc = new Document();
+            LuceneDocument parseDoc = new LuceneDocument();
+            addFields(parseDoc, doc, value);
+            indexDoc(parseDoc, doc, iw);
+        }
+
+        iw.forceMerge(1);
+        DirectoryReader reader = iw.getReader();
+        IndexSearcher searcher = newSearcher(reader);
+        iw.close();
+
+        expectTermMatch(searcher, "", 1);
+        Query q = wildcardFieldType.fieldType().termQueryCaseInsensitive("", MOCK_CONTEXT);
+        assertThat(searcher.count(q), equalTo(1));
+
+        reader.close();
+        dir.close();
+    }
+
     private void expectTermMatch(IndexSearcher searcher, String term, long count) throws IOException {
         Query q = wildcardFieldType.fieldType().termQuery(term, MOCK_CONTEXT);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
@@ -444,7 +469,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 }
                 case 1 -> {
                     pattern = getRandomRegexPattern(values);
-                    int matchFlags = randomBoolean() ? 0 : RegExp.ASCII_CASE_INSENSITIVE;
+                    int matchFlags = randomBoolean() ? 0 : RegExp.CASE_INSENSITIVE;
                     wildcardFieldQuery = wildcardFieldType.fieldType()
                         .regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_CONTEXT);
                     keywordFieldQuery = keywordFieldType.fieldType()
@@ -1619,10 +1644,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnBatchNgramWrappingShape() throws Exception {
-        Settings columnarSettings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService ms = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "wildcard")));
 
         final String value = "hello";
@@ -1664,10 +1686,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     public void testColumnBatchMultiValueArrayOrderShape() throws Exception {
-        Settings columnarSettings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService ms = createMapperService(columnarSettings, fieldMapping(b -> b.field("type", "wildcard")));
 
         withColumnBatch(ms, "field", columns -> {

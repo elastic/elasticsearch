@@ -36,9 +36,10 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
     public static CompactInvalidMappedField mappedEverywhere(
         String name,
         Map<DataType, Set<String>> typesToIndices,
-        Map<Set<String>, Set<String>> indexDedupCache
+        Map<Set<String>, Set<String>> indexDedupCache,
+        TimeSeriesFieldType timeSeriesFieldType
     ) {
-        return mappedEverywhere(name, typesToIndices, Map.of(), indexDedupCache);
+        return mappedEverywhere(name, typesToIndices, Map.of(), indexDedupCache, timeSeriesFieldType);
     }
 
     /**
@@ -49,13 +50,15 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         String name,
         Map<DataType, Set<String>> typesToIndices,
         Map<String, Set<String>> unsupportedTypesToIndices,
-        Map<Set<String>, Set<String>> indexDedupCache
+        Map<Set<String>, Set<String>> indexDedupCache,
+        TimeSeriesFieldType timeSeriesFieldType
     ) {
         return new CompactInvalidMappedField(
             name,
             truncatedAndDedup(typesToIndices, indexDedupCache),
             truncatedAndDedup(unsupportedTypesToIndices, indexDedupCache),
-            false
+            false,
+            timeSeriesFieldType
         );
     }
 
@@ -77,7 +80,8 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
             name,
             truncatedAndDedup(typesToIndices, indexDedupCache),
             truncatedAndDedup(unsupportedTypesToIndices, indexDedupCache),
-            true
+            true,
+            TimeSeriesFieldType.UNKNOWN
         );
     }
 
@@ -91,9 +95,10 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         String name,
         Map<DataType, TruncatedIndices> typesToIndices,
         Map<String, TruncatedIndices> unsupportedTypesToIndices,
-        boolean isPotentiallyUnmapped
+        boolean isPotentiallyUnmapped,
+        TimeSeriesFieldType timeSeriesFieldType
     ) {
-        super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, TimeSeriesFieldType.UNKNOWN);
+        super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, timeSeriesFieldType);
         this.typesToIndices = typesToIndices;
         this.unsupportedTypesToIndices = unsupportedTypesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;

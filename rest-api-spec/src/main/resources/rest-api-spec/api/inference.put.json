@@ -40,6 +40,7 @@
               "options": [
                 "chat_completion",
                 "completion",
+                "decision",
                 "document_extraction",
                 "embedding",
                 "rerank",

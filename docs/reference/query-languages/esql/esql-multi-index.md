@@ -152,6 +152,11 @@ FROM events_*
 | 2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889 | Connected to 10.1.0.2 |
 | 2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233 | Connected to 10.1.0.3 |
 
+{applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
+A `MATCH` search on a converted union-typed field, such as `MATCH(TO_TEXT(message), "error")`, is a
+[runtime search](/reference/query-languages/esql/esql-runtime-search.md): it scans values row by row instead of
+using the index, and analyzes `text` values with the `standard` analyzer rather than the analyzers in the mappings.
+
 ### Date and date_nanos union type [esql-multi-index-date-date-nanos-union]
 ```{applies_to}
 stack: ga 9.2.0
@@ -230,6 +235,8 @@ FROM events_* METADATA _index
 | events_keyword | 2023-10-23T12:27:28.948Z | 172.21.2.113 | 2764889 | Connected to 10.1.0.2 |
 | events_keyword | 2023-10-23T12:15:03.360Z | 172.21.2.162 | 3450233 | Connected to 10.1.0.3 |
 
-Note that `_METADATA _index` will return `null` if the index pattern is a
-[subquery](/reference/query-languages/esql/esql-subquery.md) or a
-[view](/reference/query-languages/esql/esql-views.md).
+When a `FROM` source is a [subquery](esql-from-subquery.md#subqueries-with-metadata) or
+[view](esql-views.md#views-with-metadata), an outer `METADATA _index` request returns
+`null` unless that source retains `_index` in its output.
+
+For `_index` behavior on datasets, refer to [Use metadata columns](esql-data-federation-querying.md#use-metadata-columns).

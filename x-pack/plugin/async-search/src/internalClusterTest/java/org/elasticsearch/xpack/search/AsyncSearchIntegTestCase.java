@@ -79,7 +79,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         @Override
         public List<QuerySpec<?>> getQueries() {
             return Arrays.asList(new QuerySpec<>(BlockingQueryBuilder.NAME, BlockingQueryBuilder::new, p -> {
-                throw new IllegalStateException("not implemented");
+                // For REST requests, which have no other way to block a search.
+                p.skipChildren();
+                return new BlockingQueryBuilder(0L);
             }),
                 new QuerySpec<>(
                     ThrowingQueryBuilder.NAME,
@@ -170,6 +172,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
             }
         });
         ensureAllSearchContextsReleased();
+
+        // Wait for the replica of the just-created async results index to finish peer recovery. Restarting its node mid-recovery
+        // leaves an empty copy that is only reallocated after the 1m node-left delay,
+        // https://github.com/elastic/elasticsearch/issues/162607
+        ensureGreen(ASYNC_RESULTS_INDEX, indexName);
 
         internalCluster().restartNode(node.getName(), new InternalTestCluster.RestartCallback() {
             @Override

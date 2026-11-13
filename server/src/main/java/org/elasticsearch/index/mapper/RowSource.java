@@ -68,14 +68,15 @@ public final class RowSource implements DocumentSource {
     }
 
     /**
-     * Streams every field of the row as is; {@code configuration}, including its filtering and
-     * include-source-on-error setting, leaves the output unchanged.
+     * Streams every field of the row as is; {@code configuration}'s filtering and include-source-on-error
+     * setting leave the output unchanged. Its registry and deprecation handler are honoured, since mappers
+     * such as the percolator resolve named objects from this parser.
      */
     @Override
     public XContentParser parser(XContentParserConfiguration configuration) {
-        // TODO: batch row parsing does not currently support XContentParserConfiguration or includeSourceOnError. Need to evaluate
+        // TODO: batch row parsing does not currently support filtering or includeSourceOnError. Need to evaluate
         // these features.
-        return new SourceRowXContentParser(schemaTree, row);
+        return new SourceRowXContentParser(schemaTree, row, configuration.registry(), configuration.deprecationHandler());
     }
 
     // Synchronized for now to be safe. Probably unnecessary.

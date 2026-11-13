@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.openshiftai.request.completion;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -21,7 +20,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -47,10 +45,9 @@ public class OpenShiftAiChatCompletionRequestTests extends ESTestCase {
         var request = createRequest(MODEL_VALUE, URL_VALUE, API_KEY_VALUE, input, true);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(request.getURI().toString(), is(URL_VALUE));
         assertThat(requestMap.get(STREAM_FIELD_NAME), is(true));
         assertThat(requestMap.get(MODEL_FIELD_NAME), is(MODEL_VALUE));

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
@@ -17,6 +19,7 @@ import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -28,9 +31,10 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -132,15 +136,19 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         return r.getCompletionInfo();
                     });
                     ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     transportService.sendChildRequest(
                         cluster.connection,
                         ComputeService.CLUSTER_ACTION_NAME,
                         clusterRequest,
                         groupTask,
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(clusterListener, in -> new ComputeResponse(in, threadContext), searchExecutor)
+                        computeService.planRequestOptions(),
+                        new ActionListenerResponseHandler<>(
+                            ComputeService.finishRemoteSinkIfNotSent(remoteSink, clusterListener),
+                            in -> new ComputeResponse(in, threadContext),
+                            searchExecutor
+                        )
                     );
-                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     exchangeSource.addRemoteSink(
                         remoteSink,
                         failFast,
@@ -207,7 +215,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
 
     List<RemoteCluster> getRemoteClusters(
         Map<String, OriginalIndices> clusterToConcreteIndices,
-        Map<String, OriginalIndices> clusterToOriginalIndices
+        Map<String, OriginalIndices> clusterToOriginalIndices,
+        EsqlExecutionInfo executionInfo
     ) {
         List<RemoteCluster> remoteClusters = new ArrayList<>(clusterToConcreteIndices.size());
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
@@ -220,8 +229,16 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 throw new IllegalStateException("can't find original indices for cluster " + clusterAlias);
             }
             if (concreteIndices.indices().length > 0) {
-                Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
-                remoteClusters.add(new RemoteCluster(clusterAlias, connection, concreteIndices.indices(), originalIndices));
+                try {
+                    Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
+                    remoteClusters.add(new RemoteCluster(clusterAlias, connection, concreteIndices.indices(), originalIndices));
+                } catch (RuntimeException ex) {
+                    if (ExceptionsHelper.isRemoteUnavailableException(ex) && executionInfo.shouldSkipOnFailure(clusterAlias)) {
+                        ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, clusterAlias, false, ex);
+                    } else {
+                        throw ex;
+                    }
+                }
             }
         }
         return remoteClusters;
@@ -247,6 +264,15 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         var plan = remoteClusterPlan.plan();
         if (plan instanceof ExchangeSinkExec == false) {
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
+            return;
+        }
+        // Datasets are local to the cluster that registered them: a querying cluster plans a remote cluster's work from
+        // indices only, so a plan reaching here with an external node was not built by any coordinator for this cluster.
+        // Refused before planning, whatever the credential; the querying cluster opened the sink before sending.
+        if (ExternalSourceDatasets.hasExternalNode(plan)) {
+            Exception refusal = ExternalSourceAuthorizer.notLocal();
+            exchangeService.finishSinkHandler(request.sessionId(), refusal);
+            listener.onFailure(refusal);
             return;
         }
         runComputeOnRemoteCluster(
@@ -280,7 +306,19 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         OriginalIndices originalIndices,
         ActionListener<ComputeResponse> listener
     ) {
-        final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
+        final ExchangeSinkHandler exchangeSink;
+        try {
+            exchangeSink = exchangeService.getSinkHandlerIfOpen(globalSessionId);
+        } catch (ResourceNotFoundException e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (exchangeSink == null) {
+            // The querying cluster already finished this exchange. An empty result lets that cluster keep the
+            // error it already has; a not-found failure here would become the query error instead.
+            listener.onResponse(new ComputeResponse(DriverCompletionInfo.EMPTY));
+            return;
+        }
         parentTask.addListener(
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
@@ -316,6 +354,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     parentTask,
                     new ComputeContext(
                         localSessionId,
+                        computeService.queryId(parentTask),
                         "remote_reduce",
                         clusterAlias,
                         flags,

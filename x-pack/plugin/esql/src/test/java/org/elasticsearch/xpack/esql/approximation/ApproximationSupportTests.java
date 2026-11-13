@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgSerializationTests;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PredictLinear;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramFraction;
@@ -67,9 +69,12 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTi
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -94,7 +99,7 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
@@ -110,6 +115,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.SortByLabelFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.SortFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
@@ -177,6 +183,7 @@ public class ApproximationSupportTests extends ESTestCase {
         ScalarConversionFunction.class,
         ScalarFunction.class,
         SortFunction.class,
+        SortByLabelFunction.class,
         ValueTransformationFunction.class,
         VectorBinarySet.class,
         VectorBinaryArithmetic.class,
@@ -194,6 +201,9 @@ public class ApproximationSupportTests extends ESTestCase {
         ShowInfo.class,
         MetricsInfo.class,
         ExternalRelation.class,
+        // EQL delegates to an exact _eql/search over its own bounded result set; there is no index scan to
+        // sample, so a query with SET approximation over an EQL source runs exact (approximation is skipped).
+        EqlRelation.class,
         TsInfo.class,
 
         // The plans are superclasses of other plans.
@@ -209,9 +219,10 @@ public class ApproximationSupportTests extends ESTestCase {
         // These plans don't occur in a correct analyzed/optimzed query.
         AntiJoin.class,
         Dedup.class,
+        Describe.class,
         Drop.class,
         FillNull.class,
-        InnerJoin.class,
+        HashJoin.class,
         InlineStats.class,
         Keep.class,
         MarkJoin.class,
@@ -224,6 +235,7 @@ public class ApproximationSupportTests extends ESTestCase {
         SparklineGenerateEmptyBuckets.class,
 
         // internals
+        Fetch.class,
         PackDims.class,
         UnpackDims.class,
         TopNPreFilter.class
@@ -284,6 +296,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // Time series aggregates are not supported yet.
         AbsentOverTime.class,
         AvgOverTime.class,
+        Changes.class,
         CountDistinctOverTime.class,
         CountOverTime.class,
         DefaultTimeSeriesAggregateFunction.class,
@@ -300,6 +313,7 @@ public class ApproximationSupportTests extends ESTestCase {
         MaxOverTime.class,
         MinOverTime.class,
         PercentileOverTime.class,
+        PredictLinear.class,
         PresentOverTime.class,
         Rate.class,
         StddevOverTime.class,

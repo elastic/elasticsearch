@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
 import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
@@ -125,7 +126,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  *     String Template generators that we use for things like {@link Block} and {@link Vector}.
  * </p>
  */
-public class In extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
+public class In extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware, NullMisuseSuggestion {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
     private static final Logger logger = LogManager.getLogger(In.class);
 
@@ -249,6 +250,12 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             return null;
         }
         return super.fold(ctx);
+    }
+
+    @Override
+    public String nullMisuseAlternative() {
+        // Only an all-null list is a null check. `NULL IN (x, y)` is always NULL whatever x and y are.
+        return list.stream().allMatch(NullMisuseSuggestion::isNullOperand) ? NullMisuseSuggestion.isNullCheckText(value, false) : null;
     }
 
     protected boolean areCompatible(DataType left, DataType right) {
@@ -537,7 +544,13 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             return Translatable.NO;
         }
         if (pushdownPredicates.isPushableAttribute(value)) {
-            return Translatable.YES;
+            // When null is in the list, any non-matching row evaluates to null (not false) under
+            // three-valued logic. translate() drops null list entries before building the terms query,
+            // which is still correct for the positive IN direction: matching rows are included (true)
+            // and non-matching rows are excluded (null acts like false in a filter).
+            // However, negating the terms query for NOT IN would incorrectly include non-matching
+            // rows that three-valued logic says should be null (and therefore excluded).
+            return list().stream().anyMatch(Expressions::isGuaranteedNull) ? Translatable.YES_BUT_RECHECK_NEGATED : Translatable.YES;
         }
         if (LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, value)) {
             // The field answers over the values it keeps, which the expression asks it for on the shard.

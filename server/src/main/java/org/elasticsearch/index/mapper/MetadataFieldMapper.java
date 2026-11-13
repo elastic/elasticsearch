@@ -52,17 +52,12 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      * ignored by the update merge.  Instead, we use an {@link Explicit} object that
      * will serialize its value if it has been configured, no matter what the value is.
      */
-    public static Parameter<Explicit<Boolean>> updateableBoolParam(
-        String name,
-        Function<FieldMapper, Explicit<Boolean>> initializer,
-        boolean defaultValue
-    ) {
+    public static Parameter<Explicit<Boolean>> updateableBoolParam(String name, boolean defaultValue) {
         return new Parameter<>(
             name,
             true,
             defaultValue ? () -> Explicit.IMPLICIT_TRUE : () -> Explicit.IMPLICIT_FALSE,
             (n, c, o) -> Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(o)),
-            initializer,
             (b, n, v) -> b.field(n, v.value()),
             v -> Boolean.toString(v.value())
         );
@@ -137,7 +132,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         /**
          * Returns true if any parameter has a value that differs from its default.
          */
-        private boolean hasNonDefaultParameters() {
+        protected boolean hasNonDefaultParameters() {
             for (Parameter<?> param : getParameters()) {
                 if (param.isConfigured()) {
                     return true;
@@ -145,6 +140,28 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             }
             return false;
         }
+
+        /**
+         * Writes nothing at all, not an empty object, unless a parameter differs from its default; the built-in
+         * metadata fields are present in a mapping as exactly those absent entries. There is no {@code type}, and
+         * {@code include_defaults} plays no part in the decision, only in how a written parameter is rendered.
+         */
+        @Override
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (hasNonDefaultParameters() == false) {
+                return builder;
+            }
+            builder.startObject(leafName());
+            serializeParameters(builder, params);
+            return builder.endObject();
+        }
+
+        /**
+         * Checks this field against the rest of the mapping once the root has been normalized, and fails the build
+         * if they are inconsistent. Runs on the builders, so it sees what the user configured explicitly rather
+         * than what was resolved at build time.
+         */
+        void validateMapping(RootObjectMapper.Builder root) {}
 
         @Override
         public final MetadataFieldMapper build(MapperBuilderContext context) {
@@ -196,11 +213,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         super(mappedFieldType.name(), mappedFieldType, BuilderParams.empty());
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new ConstantBuilder(this);
-    }
-
     /**
      * A trivial builder for non-configurable metadata field mappers that have no parameters.
      * Wraps a built mapper and returns it unchanged from {@link #build()}.
@@ -227,17 +239,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         public String contentType() {
             return mapper.typeName();
         }
-    }
-
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        MetadataFieldMapper.Builder mergeBuilder = (MetadataFieldMapper.Builder) getMergeBuilder();
-        if (mergeBuilder.hasNonDefaultParameters() == false) {
-            return builder;
-        }
-        builder.startObject(leafName());
-        mergeBuilder.toXContent(builder, params);
-        return builder.endObject();
     }
 
     @Override

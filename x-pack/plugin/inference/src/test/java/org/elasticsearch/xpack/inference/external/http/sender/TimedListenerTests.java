@@ -23,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -142,6 +143,105 @@ public class TimedListenerTests extends ESTestCase {
 
         onTimeout.get().run();
         verifyNoMoreInteractions(listener);
+    }
+
+    public void testAbortHandler_RunsWhenTimingOut() {
+        AtomicReference<Runnable> onTimeout = new AtomicReference<>();
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout, threadPool);
+
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var timedListener = new TimedListener<>(ONE_MILLISECOND, listener, mockThreadPool, INFERENCE_ID);
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+        assertThat(abortCount.get(), is(0));
+
+        onTimeout.get().run();
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(abortCount.get(), is(1));
+    }
+
+    public void testAbortHandler_RunsWhenFailing() {
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var timedListener = new TimedListener<>(null, listener, threadPool, INFERENCE_ID);
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+
+        timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
+
+        expectThrows(IllegalArgumentException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(abortCount.get(), is(2));
+    }
+
+    public void testAbortHandler_RunsImmediately_WhenRegisteredAfterFailure() {
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var timedListener = new TimedListener<>(null, listener, threadPool, INFERENCE_ID);
+
+        timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+        assertThat(abortCount.get(), is(1));
+    }
+
+    public void testAbortHandler_DoesNotRun_WhenSucceeding() {
+        AtomicReference<Runnable> onTimeout = new AtomicReference<>();
+        var mockThreadPool = mockThreadPoolForTimeout(onTimeout, threadPool);
+
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var timedListener = new TimedListener<>(ONE_MILLISECOND, listener, mockThreadPool, INFERENCE_ID);
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+
+        timedListener.getListener().onResponse(mock(InferenceServiceResults.class));
+        // a late timeout and a late failure must not abort the work backing the successful response, e.g. a streamed body
+        onTimeout.get().run();
+        timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+
+        assertThat(abortCount.get(), is(0));
+    }
+
+    public void testAbortHandler_Runs_WhenOnResponseThrows() {
+        @SuppressWarnings("unchecked")
+        ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
+        doAnswer(invocation -> { throw new IllegalStateException("cannot consume the response"); }).when(listener).onResponse(any());
+        var timedListener = new TimedListener<>(null, listener, threadPool, INFERENCE_ID);
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+
+        timedListener.getListener().onResponse(mock(InferenceServiceResults.class));
+
+        // nobody consumes the response, so the work backing it is abandoned
+        verify(listener, times(1)).onFailure(any(IllegalStateException.class));
+        assertThat(abortCount.get(), is(1));
+    }
+
+    public void testAbortHandler_FailureDoesNotPreventOtherAbortHandlers() {
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var timedListener = new TimedListener<>(null, listener, threadPool, INFERENCE_ID);
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(() -> { throw new IllegalStateException("abort failed"); });
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+
+        timedListener.getListener().onFailure(new IllegalArgumentException("failed"));
+
+        expectThrows(IllegalArgumentException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(abortCount.get(), is(1));
+    }
+
+    /**
+     * Creates a {@link TimedListener} without a timeout, for tests that only pass it through a request manager or sender.
+     * Without a timeout the thread pool is never used, so a mock is sufficient.
+     */
+    public static <T> TimedListener<T> createTimedListener(ActionListener<T> listener) {
+        return new TimedListener<>(null, listener, mock(ThreadPool.class), INFERENCE_ID);
     }
 
     public static ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable, ThreadPool threadPool) {

@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 161113
+summary: 'Fix PromQL selectors such as `{__name__="tx",host="a"}` and `{"tx",host="a"}` to filter like `tx{host="a"}`'
+type: bug

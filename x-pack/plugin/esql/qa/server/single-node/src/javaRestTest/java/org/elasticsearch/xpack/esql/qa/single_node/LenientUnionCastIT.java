@@ -158,7 +158,10 @@ public class LenientUnionCastIT extends ESRestTestCase {
             // [boolean] in [union_boolean]
             boolean allowed = reason.contains("no type can be converted")
                 // Mapped types [date_nanos, datetime] of [field] cannot be accepted in [TO_IP(field)]
-                || reason.contains("cannot be accepted");
+                || reason.contains("cannot be accepted")
+                // An object index doesn't map the field, so paired with an object the field has a single type:
+                // argument of [TO_IP(field)] must be [ip or string], found value [field] type [boolean]
+                || reason.contains("argument of [");
             if (status >= 500 || reason.contains("due to ambiguities") || allowed == false) {
                 failures.add(label + " status " + status + " " + abbreviate(reason));
             }

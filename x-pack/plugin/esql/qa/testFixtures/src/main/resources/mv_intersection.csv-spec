@@ -183,10 +183,12 @@ emp_no:integer | hire_date:datetime       | salary_change:double
 
 testMvIntersectionNullReturnedWhenFirstArgIsNull
 required_capability: fn_mv_intersection
+required_capability: warn_null_misuse
 
 ROW a = [1, 2, 3, 4]
 | EVAL finalValue = MV_INTERSECTION(null, a) 
 | KEEP finalValue;
+warning:Line 2:21: Expression [MV_INTERSECTION(null, a)] always evaluates to NULL.
 
 finalValue:integer
 null
@@ -194,10 +196,12 @@ null
 
 testMvIntersectionNullReturnedWhenSecondArgIsNull
 required_capability: fn_mv_intersection
+required_capability: warn_null_misuse
 
 ROW a = [1, 2, 3, 4]
 | EVAL finalValue = MV_INTERSECTION(a, null) 
 | KEEP finalValue;
+warning:Line 2:21: Expression [MV_INTERSECTION(a, null)] always evaluates to NULL.
 
 finalValue:integer
 null
@@ -205,10 +209,12 @@ null
 
 testMvIntersectionNullReturnedWhenBothArgsIsNull
 required_capability: fn_mv_intersection
+required_capability: warn_null_misuse
 
 ROW a = [1, 2, 3, 4]
 | EVAL finalValue = MV_INTERSECTION(null, null) 
 | KEEP finalValue;
+warning:Line 2:21: Expression [MV_INTERSECTION(null, null)] always evaluates to NULL.
 
 finalValue:null
 null

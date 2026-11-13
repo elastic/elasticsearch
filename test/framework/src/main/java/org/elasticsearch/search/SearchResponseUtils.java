@@ -90,6 +90,7 @@ public enum SearchResponseUtils {
         return response(hits).build();
     }
 
+    @Deprecated // Use List<ShardSearchFailure> instead
     public static SearchResponse emptyWithTotalHits(
         String scrollId,
         int totalShards,
@@ -97,6 +98,18 @@ public enum SearchResponseUtils {
         int skippedShards,
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
+        SearchResponse.Clusters clusters
+    ) {
+        return emptyWithTotalHits(scrollId, totalShards, successfulShards, skippedShards, tookInMillis, List.of(shardFailures), clusters);
+    }
+
+    public static SearchResponse emptyWithTotalHits(
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        List<ShardSearchFailure> shardFailures,
         SearchResponse.Clusters clusters
     ) {
         return new SearchResponse(
@@ -133,7 +146,7 @@ public enum SearchResponseUtils {
         private int successfulShards;
         private int skippedShards;
         private long tookInMillis;
-        private List<ShardSearchFailure> shardFailures;
+        private List<ShardSearchFailure> shardFailures = List.of();
         private Clusters clusters = Clusters.EMPTY;
         private BytesReference pointInTimeId;
 
@@ -225,7 +238,7 @@ public enum SearchResponseUtils {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+                shardFailures,
                 clusters,
                 pointInTimeId,
                 null,
@@ -423,7 +436,7 @@ public enum SearchResponseUtils {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                failures,
                 clusters,
                 searchContextId,
                 null,
@@ -621,6 +634,7 @@ public enum SearchResponseUtils {
         SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = null;
         List<QueryProfileShardResult> queryProfileResults = new ArrayList<>();
         AggregationProfileShardResult aggProfileShardResult = null;
+        List<ProfileResult> rescoreResults = new ArrayList<>();
         ProfileResult fetchResult = null;
         String id = null;
         String currentFieldName = null;
@@ -640,6 +654,10 @@ public enum SearchResponseUtils {
                     }
                 } else if (AggregationProfileShardResult.AGGREGATIONS.equals(currentFieldName)) {
                     aggProfileShardResult = readAggregationProfileShardResult(parser);
+                } else if (SearchProfileShardResult.RESCORE.equals(currentFieldName)) {
+                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        rescoreResults.add(parseProfileResult(parser));
+                    }
                 } else {
                     parser.skipChildren();
                 }
@@ -656,7 +674,7 @@ public enum SearchResponseUtils {
             }
         }
         SearchProfileShardResult result = new SearchProfileShardResult(
-            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult),
+            new SearchProfileQueryPhaseResult(queryProfileResults, aggProfileShardResult, rescoreResults),
             fetchResult
         );
         result.getQueryPhase().setSearchProfileDfsPhaseResult(searchProfileDfsPhaseResult);

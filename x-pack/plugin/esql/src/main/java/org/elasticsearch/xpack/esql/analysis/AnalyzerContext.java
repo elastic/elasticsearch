@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -25,6 +27,8 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -38,6 +42,9 @@ public class AnalyzerContext {
     private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final AnalysisRegistry analysisRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
+    // Merged field-caps retained for EQL source patterns (empty otherwise), so ResolveEqlRelation can hand them to the
+    // EQL delegate for reuse instead of a second _field_caps round trip.
+    private final Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps;
     private final Map<String, IndexResolution> lookupResolution;
     private final Map<LinkedIndexPattern, IndexResolution> linkedResolution; // CPS-specific resolution for remote indexes matching local
                                                                              // views
@@ -47,12 +54,16 @@ public class AnalyzerContext {
     private final TransportVersion minimumVersion;
     private final ProjectMetadata projectMetadata;
     private final UnmappedResolution unmappedResolution;
-    private final Set<String> deferredHeaderWarnings = new LinkedHashSet<>();
-    private final Set<String> subqueryNonLoadableNullFills = new LinkedHashSet<>();
+    private final Set<String> deferredHeaderWarnings;
+    private final Set<String> subqueryNonLoadableNullFills;
+    private final Set<ViewBoundaryNullFill> viewBoundaryNullFills;
     private final TimestampBounds timestampBounds;
     private final IpLocationResolution ipLocationResolution;
     private final boolean preserveViewBoundaries;
+    /** Per-view SET settings from each resolved view's definition, keyed by view name; see {@link ViewQuerySettings}. */
+    private final Map<String, ViewQuerySettings> viewSettings;
     private final EsqlFlags flags;
+    private final Set<String> fieldNames;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -71,14 +82,68 @@ public class AnalyzerContext {
         @Nullable TimestampBounds timestampBounds,
         IpLocationResolution ipLocationResolution,
         boolean preserveViewBoundaries,
-        EsqlFlags flags
+        Map<String, ViewQuerySettings> viewSettings,
+        EsqlFlags flags,
+        Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps
     ) {
+        this(
+            configuration,
+            functionRegistry,
+            promqlFunctionRegistry,
+            analysisRegistry,
+            projectMetadata,
+            indexResolution,
+            lookupResolution,
+            linkedResolution,
+            enrichResolution,
+            inferenceResolution,
+            externalSourceResolution,
+            minimumVersion,
+            unmappedResolution,
+            timestampBounds,
+            ipLocationResolution,
+            preserveViewBoundaries,
+            viewSettings,
+            flags,
+            eqlFieldCaps,
+            IndexResolver.ALL_FIELDS
+        );
+    }
+
+    /**
+     * @param fieldNames the field names the field caps requests ask for, as {@link IndexResolver#ALL_FIELDS} when every field is asked
+     *                   for. A field no request asks for is not in the mapping of a relation, whether or not the indices map it.
+     */
+    public AnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
+        AnalysisRegistry analysisRegistry,
+        ProjectMetadata projectMetadata,
+        Map<IndexPattern, IndexResolution> indexResolution,
+        Map<String, IndexResolution> lookupResolution,
+        Map<LinkedIndexPattern, IndexResolution> linkedResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        ExternalSourceResolution externalSourceResolution,
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds,
+        IpLocationResolution ipLocationResolution,
+        boolean preserveViewBoundaries,
+        Map<String, ViewQuerySettings> viewSettings,
+        EsqlFlags flags,
+        Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps,
+        Set<String> fieldNames
+    ) {
+        this.fieldNames = fieldNames;
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.analysisRegistry = analysisRegistry;
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
+        this.eqlFieldCaps = eqlFieldCaps;
         this.lookupResolution = lookupResolution;
         this.linkedResolution = linkedResolution;
         this.enrichResolution = enrichResolution;
@@ -86,15 +151,53 @@ public class AnalyzerContext {
         this.externalSourceResolution = externalSourceResolution;
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
+        this.deferredHeaderWarnings = new LinkedHashSet<>();
+        this.subqueryNonLoadableNullFills = new LinkedHashSet<>();
+        this.viewBoundaryNullFills = new LinkedHashSet<>();
         this.timestampBounds = timestampBounds;
         this.ipLocationResolution = ipLocationResolution;
         this.preserveViewBoundaries = preserveViewBoundaries;
+        this.viewSettings = viewSettings;
         this.flags = flags;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert flags != null : "AnalyzerContext must have flags";
         assert TransportVersion.current().supports(minimumVersion)
             : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
+    }
+
+    /**
+     * A context that resolves names with {@code unmappedResolution} and otherwise shares this one, including the warning sets.
+     * Warnings recorded while resolving a view branch stay visible on the context that started analysis.
+     */
+    AnalyzerContext withUnmappedResolution(UnmappedResolution unmappedResolution) {
+        return new AnalyzerContext(this, unmappedResolution);
+    }
+
+    private AnalyzerContext(AnalyzerContext other, UnmappedResolution unmappedResolution) {
+        this.configuration = other.configuration;
+        this.functionRegistry = other.functionRegistry;
+        this.promqlFunctionRegistry = other.promqlFunctionRegistry;
+        this.analysisRegistry = other.analysisRegistry;
+        this.indexResolution = other.indexResolution;
+        this.eqlFieldCaps = other.eqlFieldCaps;
+        this.lookupResolution = other.lookupResolution;
+        this.linkedResolution = other.linkedResolution;
+        this.enrichResolution = other.enrichResolution;
+        this.inferenceResolution = other.inferenceResolution;
+        this.externalSourceResolution = other.externalSourceResolution;
+        this.minimumVersion = other.minimumVersion;
+        this.projectMetadata = other.projectMetadata;
+        this.unmappedResolution = unmappedResolution;
+        this.deferredHeaderWarnings = other.deferredHeaderWarnings;
+        this.subqueryNonLoadableNullFills = other.subqueryNonLoadableNullFills;
+        this.viewBoundaryNullFills = other.viewBoundaryNullFills;
+        this.timestampBounds = other.timestampBounds;
+        this.ipLocationResolution = other.ipLocationResolution;
+        this.preserveViewBoundaries = other.preserveViewBoundaries;
+        this.viewSettings = other.viewSettings;
+        this.flags = other.flags;
+        this.fieldNames = other.fieldNames;
     }
 
     // for testing only
@@ -127,7 +230,9 @@ public class AnalyzerContext {
             null,
             IpLocationResolution.SERVICE_UNAVAILABLE,
             false,
-            EsqlFlags.DEFAULTS
+            Map.of(),
+            EsqlFlags.DEFAULTS,
+            Map.of()
         );
     }
 
@@ -152,6 +257,11 @@ public class AnalyzerContext {
 
     public Map<IndexPattern, IndexResolution> indexResolution() {
         return indexResolution;
+    }
+
+    /** Merged field-caps retained for EQL source patterns (empty for non-EQL queries). */
+    Map<IndexPattern, FieldCapabilitiesResponse> eqlFieldCaps() {
+        return eqlFieldCaps;
     }
 
     public Map<String, IndexResolution> lookupResolution() {
@@ -189,6 +299,11 @@ public class AnalyzerContext {
         return unmappedResolution;
     }
 
+    /** Per-view SET settings from each resolved view's definition, keyed by view name. */
+    public Map<String, ViewQuerySettings> viewSettings() {
+        return viewSettings;
+    }
+
     /**
      * Header warnings collected during analysis but emitted only once the {@code Verifier} has passed, so a query that fails
      * verification produces no warnings.
@@ -204,6 +319,33 @@ public class AnalyzerContext {
     public Set<String> subqueryNonLoadableNullFills() {
         return subqueryNonLoadableNullFills;
     }
+
+    /**
+     * Outer references null-filled at a view's output under a loading {@code unmapped_fields} mode that the view would have
+     * surfaced had the mode applied inside it. Warned about once analysis succeeds, since a user who knows the view's contents
+     * may expect the enclosing {@code SET} to reach them.
+     */
+    public Set<ViewBoundaryNullFill> viewBoundaryNullFills() {
+        return viewBoundaryNullFills;
+    }
+
+    /**
+     * Where a loading {@code unmapped_fields} mode stopped: {@code resolution} was set by the caller's query, or by the
+     * definition of {@code settingView} if not {@code null}, and does not apply inside view {@code viewName}.
+     * {@code enclosingView} names the view that reads {@code viewName} and whose output the null-fill was placed at, when
+     * {@code viewName} was merged into it. {@code viewLoadsUnmappedFields} says whether {@code viewName}'s own definition
+     * already SETs a loading mode, in which case it only has to reference the fields to load them.
+     */
+    public record ViewBoundary(
+        UnmappedResolution resolution,
+        @Nullable String settingView,
+        String viewName,
+        @Nullable String enclosingView,
+        boolean viewLoadsUnmappedFields
+    ) {}
+
+    /** {@code fieldName} was answered with null at the output of {@code boundary}'s view. */
+    public record ViewBoundaryNullFill(ViewBoundary boundary, String fieldName) {}
 
     /**
      * Returns the {@code @timestamp} bounds extracted from the query DSL filter, or {@code null} if not available.
@@ -254,6 +396,22 @@ public class AnalyzerContext {
     }
 
     /** Cluster flags for this request. Tests that omit them get {@link EsqlFlags#DEFAULTS}. */
+    /**
+     * Whether the field caps requests of this query ask for the field {@code name}. A relation that does not have a column of that name
+     * does not map it, or was not asked about it, and the query does not read the column if it was not asked about.
+     */
+    public boolean fieldCapsAsksFor(String name) {
+        if (IndexResolver.ALL_FIELDS.equals(fieldNames)) {
+            return true;
+        }
+        for (String pattern : fieldNames) {
+            if (Regex.simpleMatch(pattern, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public EsqlFlags flags() {
         return flags;
     }
@@ -290,6 +448,7 @@ public class AnalyzerContext {
         @Nullable TimestampBounds timestampBounds,
         IpLocationResolution ipLocationResolution,
         boolean preserveViewBoundaries,
+        Map<String, ViewQuerySettings> viewSettings,
         EsqlFlags flags
     ) {
         this(
@@ -309,7 +468,10 @@ public class AnalyzerContext {
             timestampBounds,
             ipLocationResolution,
             preserveViewBoundaries,
-            flags
+            viewSettings,
+            flags,
+            result.eqlFieldCaps(),
+            result.fieldNames()
         );
     }
 }

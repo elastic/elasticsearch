@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PredictLinear;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
@@ -85,12 +87,14 @@ public class PromqlFunctionRegistry {
         //
         Delta.PROMQL_DEFINITION,
         Idelta.PROMQL_DEFINITION,
+        Changes.PROMQL_DEFINITION,
         Increase.PROMQL_DEFINITION,
         Irate.PROMQL_DEFINITION,
         Rate.PROMQL_DEFINITION,
         FirstOverTime.PROMQL_DEFINITION,
         LastOverTime.PROMQL_DEFINITION,
         Deriv.PROMQL_DEFINITION,
+        PredictLinear.PROMQL_DEFINITION,
         //
         AvgOverTime.PROMQL_DEFINITION,
         CountOverTime.PROMQL_DEFINITION,
@@ -124,6 +128,8 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
         PromqlBuiltinFunctionDefinitions.SORT,
         PromqlBuiltinFunctionDefinitions.SORT_DESC,
+        PromqlBuiltinFunctionDefinitions.SORT_BY_LABEL,
+        PromqlBuiltinFunctionDefinitions.SORT_BY_LABEL_DESC,
         //
         ExtractHistogramComponent.PROMQL_HISTOGRAM_AVG,
         ExtractHistogramComponent.PROMQL_HISTOGRAM_COUNT,
@@ -184,7 +190,17 @@ public class PromqlFunctionRegistry {
         }
     }
 
-    public record PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {}
+    public record PromqlContext(
+        Expression timestamp,
+        Expression window,
+        Expression step,
+        Configuration configuration,
+        Expression originalTimestamp
+    ) {
+        public PromqlContext(Expression timestamp, Expression window, Expression step, Configuration configuration) {
+            this(timestamp, window, step, configuration, timestamp);
+        }
+    }
 
     // PromQL function names not yet implemented
     // https://github.com/elastic/metrics-program/issues/39
@@ -193,21 +209,16 @@ public class PromqlFunctionRegistry {
         "group",
         "count_values",
         // Range vector functions (not yet implemented)
-        "changes",
         // Prometheus 3.x replacement for holt_winters; requires smoothing factors applied over a range vector.
         "double_exponential_smoothing",
         "holt_winters",
         "mad_over_time",
-        "predict_linear",
         "resets",
 
         // Instant vector functions
         "absent",
         // Prometheus 3.x: joins metric-info labels onto a vector; requires cross-metric label lookup.
         "info",
-        // Prometheus 3.x: sort series by one or more label values; requires label-aware ordering.
-        "sort_by_label",
-        "sort_by_label_desc",
 
         // Histogram functions
         "histogram_stddev",

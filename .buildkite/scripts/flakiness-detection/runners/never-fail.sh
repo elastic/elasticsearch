@@ -18,8 +18,8 @@
 # behaviour but must not emit a batch outcome of its own.
 #
 # --hard-fail-rc is the one exception to the contract above, and the analyze step is the only step given
-# it: that step alone reaches a verdict (proven flakiness on a PR whose team opted into blocking, see
-# BLOCKING_LABELS in domain.ts) and has to report it to Buildkite. ONLY that one code is propagated - every
+# it: that step alone reaches a verdict (proven flakiness on a blocking build, see `shouldBlock` in
+# entrypoints/analyze.ts) and has to report it to Buildkite. ONLY that one code is propagated - every
 # other non-zero code still exits 0 - so a crash, a failed artifact download or an overrun of the analyze
 # step itself cannot redden a PR. Deciding *whether* to reach that code is analyze.ts's job, not this
 # script's; here the code arrives as this flag's argument, generated from FLAKINESS_PROVEN_EXIT_CODE, so

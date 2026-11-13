@@ -26,7 +26,7 @@ import Expression,
        Promql;
 
 statements
-    : setCommand* singleStatement EOF
+    : setCommand* letCommand* singleStatement EOF
     ;
 
 singleStatement
@@ -47,6 +47,7 @@ sourceCommand
     // in development
     | {this.isDevVersion()}? explainCommand
     | {EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled()}? externalCommand
+    | {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}? eqlCommand
     ;
 
 processingCommand
@@ -84,6 +85,7 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
+    | {this.isDevVersion()}? describeCommand
     ;
 
 whereCommand
@@ -118,6 +120,10 @@ externalCommand
     : DEV_EXTERNAL stringOrParameter commandNamedParameters
     ;
 
+eqlCommand
+    : DEV_EQL indexPattern (COMMA indexPattern)* stringOrParameter metadata? commandNamedParameters
+    ;
+
 indexPatternAndMetadataFields
     : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
     ;
@@ -135,6 +141,7 @@ subquerySourceCommand
     : fromCommand
     | rowCommand
     | timeSeriesCommand
+    | {EsqlCapabilities.Cap.EQL_COMMAND.isEnabled()}? eqlCommand
     ;
 
 indexPattern
@@ -393,6 +400,10 @@ tsCollapseCommand
     : TS_COLLAPSE
     ;
 
+describeCommand
+    : DEV_DESCRIBE
+    ;
+
 //
 // In development
 //
@@ -442,6 +453,14 @@ setCommand
 
 setField
     : identifier ASSIGN ( constant | mapExpression )
+    ;
+
+letCommand
+    : DEV_LET letBinding SEMICOLON
+    ;
+
+letBinding
+    : UNQUOTED_IDENTIFIER ASSIGN subquery
     ;
 
 mmrCommand

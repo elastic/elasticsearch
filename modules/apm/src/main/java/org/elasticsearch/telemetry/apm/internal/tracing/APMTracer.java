@@ -20,7 +20,6 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.ContextKey;
-import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 import io.opentelemetry.sdk.common.CompletableResultCode;
@@ -38,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
@@ -53,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -67,6 +66,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     /** Tracks per-span local depth in Context to enforce {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
     private static final ContextKey<Integer> SPAN_LOCAL_DEPTH_KEY = ContextKey.named("es.apm.span.local_depth");
+
+    /** Counter shared by all spans under the same local root to enforce {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_SPANS}. */
+    private static final ContextKey<AtomicInteger> SPAN_LOCAL_COUNT_KEY = ContextKey.named("es.apm.span.local_count");
 
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
@@ -87,6 +89,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     /** Maximum local span depth on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_DEPTH}. */
     private volatile int maxTraceDepth;
+
+    /** Maximum number of spans under a local root on the OTel SDK path; see {@link OtelSdkSettings#TELEMETRY_TRACING_MAX_SPANS}. */
+    private volatile int maxSpans;
 
     /** Whether to attach exception stack traces on the OTel SDK path;
      *  see {@link OtelSdkSettings#TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS}. */
@@ -125,6 +130,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
         this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
         this.maxTraceDepth = maxTraceDepth;
+        this.maxSpans = OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.get(settings);
         this.recordExceptionStacks = recordExceptionStacks;
     }
 
@@ -161,6 +167,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     public void setMaxTraceDepth(int maxTraceDepth) {
         this.maxTraceDepth = maxTraceDepth;
+    }
+
+    public void setMaxSpans(int maxSpans) {
+        this.maxSpans = maxSpans;
     }
 
     public void setRecordExceptionStacks(boolean recordExceptionStacks) {
@@ -242,17 +252,28 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             // Attempt to fetch a local parent context first, otherwise look for a remote parent
             final Context localParentContext = traceContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);
 
-            // Depth is parent's depth + 1, or 0 for a root span; remote traceparent doesn't count.
+            // max_depth and max_spans apply per local root: the first span of a request on this node, even if it continues a
+            // remote trace. A child gets its parent's depth + 1 and shares its parent's span counter, which excludes the root.
             final int localDepth;
+            final AtomicInteger localSpanCount;
             if (localParentContext != null) {
                 Integer parentDepth = localParentContext.get(SPAN_LOCAL_DEPTH_KEY);
                 localDepth = (parentDepth != null ? parentDepth : 0) + 1;
+
+                AtomicInteger parentSpanCount = localParentContext.get(SPAN_LOCAL_COUNT_KEY);
+                localSpanCount = parentSpanCount != null ? parentSpanCount : new AtomicInteger();
             } else {
                 localDepth = 0;
+                localSpanCount = new AtomicInteger();
             }
 
             if (localDepth > maxTraceDepth) {
                 logger.trace("Skipping span [{}] [{}] at local depth {} (maxTraceDepth={})", spanId, spanName, localDepth, maxTraceDepth);
+                return null;
+            }
+
+            if (localDepth > 0 && (localSpanCount.get() > maxSpans || localSpanCount.incrementAndGet() > maxSpans)) {
+                logger.trace("Skipping span [{}] [{}] as the local root reached maxSpans={}", spanId, spanName, maxSpans);
                 return null;
             }
 
@@ -278,7 +299,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 return null; // return null to discard and not record in map of spans
             }
 
-            final Context contextForNewSpan = Context.current().with(span).with(SPAN_LOCAL_DEPTH_KEY, localDepth);
+            final Context contextForNewSpan = Context.current()
+                .with(span)
+                .with(SPAN_LOCAL_DEPTH_KEY, localDepth)
+                .with(SPAN_LOCAL_COUNT_KEY, localSpanCount);
             if (span.isRecording()) {
                 logger.trace("Recording trace [{}] [{}]", spanId, spanName);
                 updateThreadContext(traceContext, services, contextForNewSpan);
@@ -286,25 +310,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
             return contextForNewSpan;
         });
-    }
-
-    /**
-     * Called when a span starts. This version of the method relies on context to assign the span a parent.
-     *
-     * @param name       the name of the span. Sent to the tracing system
-     * @param attributes
-     */
-    @Override
-    public void startTrace(String name, Map<String, Object> attributes) {
-        // If tracing has been disabled, return immediately
-        var services = this.services;
-        if (services == null) {
-            return;
-        }
-
-        SpanBuilder spanBuilder = services.tracer.spanBuilder(name);
-        setSpanAttributes(attributes, spanBuilder);
-        spanBuilder.startSpan();
     }
 
     private static void updateThreadContext(TraceContext traceContext, APMServices services, Context context) {
@@ -341,33 +346,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 .extract(Context.current(), traceContextMap, new MapKeyGetter());
         }
         return null;
-    }
-
-    /**
-     * Most of the examples of how to use the OTel API look something like this, where the span context
-     * is automatically propagated:
-     *
-     * <pre>{@code
-     * Span span = tracer.spanBuilder("parent").startSpan();
-     * try (Scope scope = parentSpan.makeCurrent()) {
-     *     // ...do some stuff, possibly creating further spans
-     * } finally {
-     *     span.end();
-     * }
-     * }</pre>
-     * This typically isn't useful in Elasticsearch, because a {@link Scope} can't be used across threads.
-     * This method exists to make it possible to use scopes in the few situation where it makes sense.
-     *
-     * @param traceable provides the ID of a currently-open span for which to open a scope.
-     * @return a method to close the scope when you are finished with it.
-     */
-    @Override
-    public Releasable withScope(Traceable traceable) {
-        final Context context = spans.get(traceable.getSpanId());
-        if (context != null && Span.fromContextOrNull(context).isRecording()) {
-            return context.makeCurrent()::close;
-        }
-        return () -> {};
     }
 
     private void setSpanAttributes(@Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
@@ -465,11 +443,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         getSpan(traceable).setAllAttributes(attributes);
     }
 
-    @Override
-    public void setStatusToError(Traceable traceable, String description) {
-        getSpan(traceable).setStatus(StatusCode.ERROR, description);
-    }
-
     public SpanStatusBuilder spanStatusBuilder(Traceable traceable) {
         return new APMSpanStatusBuilder(getSpan(traceable));
     }
@@ -491,19 +464,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             logger.trace("Finishing trace [{}]", spanId);
             Span.fromContext(context).end();
         }
-    }
-
-    /**
-     * Called when a span ends. This version of the method relies on context to select the span to stop.
-     */
-    @Override
-    public void stopTrace() {
-        Span.current().end();
-    }
-
-    @Override
-    public void addEvent(Traceable traceable, String eventName) {
-        getSpan(traceable).addEvent(eventName);
     }
 
     private static class MapKeyGetter implements TextMapGetter<Map<String, String>> {

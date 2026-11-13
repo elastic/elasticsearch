@@ -1,0 +1,5 @@
+SET unmapped_fields="nullify"; FROM employees
+| STATS m = MAX(does_not_exist) BY languages
+| EVAL x = COALESCE(m, m) * 2
+| SORT languages
+| LIMIT 20

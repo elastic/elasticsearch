@@ -216,6 +216,48 @@ no_mapping_sample_data | Connection error?
 no_mapping_sample_data | Connection error?
 ;
 
+typeConflictWithUnmappedKeywordAndMatchOnUnmappedValue
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: fn_match_unmapped_fields_pushdown_fix
+required_capability: match_function
+
+// The value only exists in the unmapped index, so a pushed-down Lucene query (which cannot see unmapped fields)
+// would wrongly return no rows at all
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| WHERE MATCH(message, "Connection error?")
+| KEEP _index, message
+;
+ignoreOrder:true
+
+_index:keyword         | message:keyword
+no_mapping_sample_data | Connection error?
+no_mapping_sample_data | Connection error?
+no_mapping_sample_data | Connection error?
+;
+
+typeConflictWithUnmappedKeywordAndMatchOperatorOnUnmappedValue
+required_capability: optional_fields_v5
+required_capability: optional_fields_unmapped_load_auto_cast_two_legged_punks
+required_capability: fn_match_unmapped_fields_pushdown_fix
+required_capability: match_operator_colon
+
+// The value only exists in the unmapped index, so a pushed-down Lucene query (which cannot see unmapped fields)
+// would wrongly return no rows at all
+SET unmapped_fields="load"\;
+FROM sample_data, no_mapping_sample_data METADATA _index
+| WHERE message:"Connection error?"
+| KEEP _index, message
+;
+ignoreOrder:true
+
+_index:keyword         | message:keyword
+no_mapping_sample_data | Connection error?
+no_mapping_sample_data | Connection error?
+no_mapping_sample_data | Connection error?
+;
+
 
 typeConflictWithUnmappedJustKeepWildcard
 required_capability: optional_fields_v5

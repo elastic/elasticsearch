@@ -13,6 +13,7 @@ import org.elasticsearch.foreign.CaptureSystemError;
 import org.elasticsearch.foreign.Critical;
 import org.elasticsearch.foreign.Function;
 import org.elasticsearch.foreign.Platform;
+import org.elasticsearch.foreign.RawAddress;
 import org.elasticsearch.foreign.StructFactory;
 import org.elasticsearch.foreign.Variadic;
 import org.elasticsearch.foreign.WideString;
@@ -74,6 +75,8 @@ import static org.elasticsearch.foreign.processor.model.StructSpecParser.ARRAY_F
  * @param wideStringParamIndices 0-based indices of {@code String} parameters annotated with {@code @WideString},
  *        marshaled as UTF-16LE rather than the implicit UTF-8 default; empty for {@code @StructFactory} methods
  *        and for {@code @Function} methods with no wide-string parameters
+ * @param rawAddressParamIndices 0-based indices of {@code MemorySegment} parameters annotated with
+ *        {@code @RawAddress}, marshaled as native {@code long} addresses rather than FFM address segments
  */
 public record MethodModel(
     String methodName,
@@ -91,7 +94,8 @@ public record MethodModel(
     boolean isProtected,
     List<BoundsCheckModel> boundsChecks,
     List<UpcallModel> upcalls,
-    Set<Integer> wideStringParamIndices
+    Set<Integer> wideStringParamIndices,
+    Set<Integer> rawAddressParamIndices
 ) {
 
     /**
@@ -195,6 +199,14 @@ public record MethodModel(
                     );
                     return null;
                 }
+                if (param.getAnnotation(RawAddress.class) != null) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "@StructFactory method '" + methodName + "' must not have @RawAddress on any parameter",
+                        method
+                    );
+                    return null;
+                }
             }
             return buildStructFactoryModel(method, methodName, enclosingStructNames, messager);
         }
@@ -219,6 +231,7 @@ public record MethodModel(
         List<NativeType> paramTypes = new ArrayList<>();
         List<String> paramStructSimpleNames = new ArrayList<>();
         Set<Integer> wideStringParamIndices = new LinkedHashSet<>();
+        Set<Integer> rawAddressParamIndices = new LinkedHashSet<>();
         int paramIndex = 0;
         for (var param : method.getParameters()) {
             NativeType paramType = ModelUtil.classifyType(param.asType());
@@ -255,6 +268,21 @@ public record MethodModel(
                 }
                 wideStringParamIndices.add(paramIndex);
             }
+            if (param.getAnnotation(RawAddress.class) != null) {
+                if (paramType != NativeType.ADDRESS) {
+                    messager.printMessage(
+                        Kind.ERROR,
+                        "@RawAddress may only be applied to MemorySegment parameters, got "
+                            + param.asType()
+                            + " on parameter '"
+                            + param.getSimpleName()
+                            + "'",
+                        param
+                    );
+                    return null;
+                }
+                rawAddressParamIndices.add(paramIndex);
+            }
             paramIndex++;
         }
 
@@ -276,6 +304,10 @@ public record MethodModel(
         }
 
         if (upcallIndices.isEmpty() == false) {
+            if (rawAddressParamIndices.isEmpty() == false) {
+                messager.printMessage(Kind.ERROR, "@RawAddress on '" + methodName + "' cannot be combined with @Upcall parameters", method);
+                return null;
+            }
             if (paramTypes.contains(NativeType.STRING)) {
                 messager.printMessage(
                     Kind.ERROR,
@@ -352,7 +384,8 @@ public record MethodModel(
             isProtected,
             boundsChecks,
             upcalls,
-            Collections.unmodifiableSet(wideStringParamIndices)
+            Collections.unmodifiableSet(wideStringParamIndices),
+            Collections.unmodifiableSet(rawAddressParamIndices)
         );
     }
 
@@ -479,7 +512,8 @@ public record MethodModel(
             isProtected,
             List.of(),
             List.of(),
-            Set.of() // @StructFactory params cannot carry @WideString (enforced above before this call)
+            Set.of(), // @StructFactory params cannot carry @WideString (enforced above before this call)
+            Set.of()
         );
     }
 

@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
+import static org.elasticsearch.xpack.inference.InferenceFeatures.DECISION_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.InferenceFeatures.EMBEDDING_TASK_TYPE;
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
@@ -118,6 +119,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         featureServiceMock = mock(FeatureService.class);
         when(featureServiceMock.clusterHasFeature(any(), eq(EMBEDDING_TASK_TYPE))).thenReturn(true);
+        when(featureServiceMock.clusterHasFeature(any(), eq(DECISION_TASK_TYPE))).thenReturn(true);
         when(featureServiceMock.clusterHasFeature(any(), eq(DOCUMENT_EXTRACTION_TASK_TYPE))).thenReturn(true);
         action = new TransportInferenceUsageAction(
             transportService,
@@ -148,17 +150,18 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(10));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(11));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 3, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 3, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 7, new ModelStats(huggingFaceElser, TaskType.SPARSE_EMBEDDING, 2, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 8, new ModelStats(OpenAiService.NAME, TaskType.SPARSE_EMBEDDING, 1, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 9, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 3, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 3, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 3, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 8, new ModelStats(huggingFaceElser, TaskType.SPARSE_EMBEDDING, 2, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 9, new ModelStats(OpenAiService.NAME, TaskType.SPARSE_EMBEDDING, 1, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 10, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 3, EMPTY_SEMANTIC_TEXT_STATS));
     }
 
     public void testGivenFieldRefersToMissingInferenceEndpoint() throws Exception {
@@ -169,14 +172,15 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(7));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(8));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
     }
 
     public void testGivenVariousServicesAndInferenceFields() throws Exception {
@@ -225,17 +229,18 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(10));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(11));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 5, new SemanticTextStats(9, 3, 4)));
-        assertStats(response, 7, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 3, new SemanticTextStats(3, 3, 2)));
-        assertStats(response, 8, new ModelStats(OpenAiService.NAME, TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
-        assertStats(response, 9, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 5, new SemanticTextStats(9, 3, 4)));
+        assertStats(response, 8, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 3, new SemanticTextStats(3, 3, 2)));
+        assertStats(response, 9, new ModelStats(OpenAiService.NAME, TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 10, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
     }
 
     public void testGivenServices_InferenceFieldsReferencingDefaultModels() throws Exception {
@@ -274,21 +279,22 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(14));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(15));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats(4, 2, 2)));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 3, new SemanticTextStats(6, 2, 2)));
-        assertStats(response, 7, new ModelStats(EIS_DEFAULT_MODEL_1_STATS_KEY, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
-        assertStats(response, 8, new ModelStats("_eis__model-id-002", TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
-        assertStats(response, 9, new ModelStats("_openai_model-id-004", TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(3, 2, 1)));
-        assertStats(response, 10, new ModelStats(EIS_SERVICE, TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
-        assertStats(response, 11, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
-        assertStats(response, 12, new ModelStats(OpenAiService.NAME, TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(3, 2, 1)));
-        assertStats(response, 13, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 1, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats(4, 2, 2)));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 3, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 8, new ModelStats(EIS_DEFAULT_MODEL_1_STATS_KEY, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 9, new ModelStats("_eis__model-id-002", TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 10, new ModelStats("_openai_model-id-004", TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(3, 2, 1)));
+        assertStats(response, 11, new ModelStats(EIS_SERVICE, TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 12, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 13, new ModelStats(OpenAiService.NAME, TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(3, 2, 1)));
+        assertStats(response, 14, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 1, EMPTY_SEMANTIC_TEXT_STATS));
     }
 
     /**
@@ -307,16 +313,17 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(9));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(10));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 2, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 7, new ModelStats("_eis__model-id-rerank", TaskType.RERANK, 2, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 8, new ModelStats(EIS_SERVICE, TaskType.RERANK, 2, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 2, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 8, new ModelStats("_eis__model-id-rerank", TaskType.RERANK, 2, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 9, new ModelStats(EIS_SERVICE, TaskType.RERANK, 2, EMPTY_SEMANTIC_TEXT_STATS));
     }
 
     public void testGivenDefaultModelWithLinuxSuffix() throws Exception {
@@ -356,16 +363,17 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(9));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(10));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
-        assertStats(response, 7, new ModelStats(EIS_DEFAULT_MODEL_1_STATS_KEY, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
-        assertStats(response, 8, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 8, new ModelStats(EIS_DEFAULT_MODEL_1_STATS_KEY, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 9, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
     }
 
     public void testGivenSameDefaultModelWithAndWithoutLinuxSuffix() throws Exception {
@@ -400,16 +408,17 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(9));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(10));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
-        assertStats(response, 7, new ModelStats(EIS_DEFAULT_MODEL_1_STATS_KEY, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
-        assertStats(response, 8, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 8, new ModelStats(EIS_DEFAULT_MODEL_1_STATS_KEY, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 9, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
     }
 
     public void testGivenExternalServiceModelIsNull() throws Exception {
@@ -420,15 +429,16 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(8));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(9));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
-        assertStats(response, 7, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 8, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
     }
 
     public void testGivenDuplicateServices() throws Exception {
@@ -454,15 +464,16 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(8));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(9));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(5, 2, 2)));
-        assertStats(response, 7, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(5, 2, 2)));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(5, 2, 2)));
+        assertStats(response, 8, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(5, 2, 2)));
     }
 
     public void testShouldExcludeSystemIndexFields() throws Exception {
@@ -490,16 +501,17 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(9));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(10));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(2, 1, 2)));
-        assertStats(response, 7, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
-        assertStats(response, 8, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(2, 1, 2)));
+        assertStats(response, 8, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 9, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
     }
 
     public void testShouldExcludeHiddenIndexFields() throws Exception {
@@ -527,16 +539,17 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(9));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(10));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(2, 1, 2)));
-        assertStats(response, 7, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
-        assertStats(response, 8, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(2, 1, 2)));
+        assertStats(response, 8, new ModelStats(EIS_SERVICE, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 9, new ModelStats(OpenAiService.NAME, TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
     }
 
     public void testFailureReturnsEmptyUsage() {
@@ -580,16 +593,17 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(9));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(10));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 1, new SemanticTextStats(2, 1, 1)));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 1, new SemanticTextStats(1, 1, 1)));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 7, new ModelStats(OpenAiService.NAME, TaskType.EMBEDDING, 1, new SemanticTextStats(2, 1, 1)));
-        assertStats(response, 8, new ModelStats(OpenAiService.NAME, TaskType.RERANK, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 1, new SemanticTextStats(2, 1, 1)));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.RERANK, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 7, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 8, new ModelStats(OpenAiService.NAME, TaskType.EMBEDDING, 1, new SemanticTextStats(2, 1, 1)));
+        assertStats(response, 9, new ModelStats(OpenAiService.NAME, TaskType.RERANK, 1, new SemanticTextStats(1, 1, 1)));
     }
 
     public void testEmbeddingTaskTypeNotReturned_whenClusterDoesNotSupportEmbedding() throws IOException {
@@ -598,13 +612,30 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(6));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(7));
+        assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+    }
+
+    public void testDecisionTaskTypeNotReturned_whenClusterDoesNotSupportDecision() throws IOException {
+        when(featureServiceMock.clusterHasFeature(any(), eq(DECISION_TASK_TYPE))).thenReturn(false);
+        givenInferenceEndpoints();
+
+        XContentSource response = executeAction();
+
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(7));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DOCUMENT_EXTRACTION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
     }
 
     public void testDocumentExtractionTaskTypeNotReturned_whenClusterDoesNotSupportDocumentExtraction() throws IOException {
@@ -613,13 +644,14 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentSource response = executeAction();
 
-        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(6));
+        assertThat(response.getValue(InferenceFeatureSetUsage.MODELS_FIELD), hasSize(7));
         assertStats(response, 0, new ModelStats(Metadata.ALL, TaskType.CHAT_COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
         assertStats(response, 1, new ModelStats(Metadata.ALL, TaskType.COMPLETION, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
-        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 2, new ModelStats(Metadata.ALL, TaskType.DECISION, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 3, new ModelStats(Metadata.ALL, TaskType.EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 4, new ModelStats(Metadata.ALL, TaskType.RERANK, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 5, new ModelStats(Metadata.ALL, TaskType.SPARSE_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
+        assertStats(response, 6, new ModelStats(Metadata.ALL, TaskType.TEXT_EMBEDDING, 0, EMPTY_SEMANTIC_TEXT_STATS));
     }
 
     private void givenClusterState(Map<String, IndexMetadata> indices) {

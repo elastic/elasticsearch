@@ -163,8 +163,6 @@ setup:
 ---
 "object and text cast to keyword returns the text and nulls the object":
   - do:
-      warnings:
-        - "Field [message] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
@@ -179,8 +177,6 @@ setup:
 ---
 "TO_STRING on object and text matches the cast operator":
   - do:
-      warnings:
-        - "Field [message] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
@@ -192,8 +188,6 @@ setup:
 ---
 "object and text cast used in WHERE, STATS and SORT":
   - do:
-      warnings:
-        - "Field [message] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
@@ -201,8 +195,6 @@ setup:
           query: 'FROM lenient_text,lenient_object | WHERE message::keyword IS NOT NULL | STATS c = COUNT(*)'
   - match: { values.0: [1] }
   - do:
-      warnings:
-        - "Field [message] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
@@ -214,8 +206,6 @@ setup:
 ---
 "three-way union nulls only the uncastable branch":
   - do:
-      warnings:
-        - "Field [f] of type [object] in [lenient_object] cannot be converted to [KEYWORD] and will be null in those indices."
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
@@ -267,20 +257,20 @@ setup:
 ---
 "no mapped type can convert to the target":
   - do:
-      catch: '/Cannot convert field \[f\] to \[IP\]: no type can be converted: \[boolean\] in \[lenient_bool\], \[object\] in \[lenient_object\]/'
+      catch: '/Cannot convert field \[f\] to \[IP\]: no type can be converted: \[boolean\] in \[lenient_bool\], \[long\] in \[lenient_long\]/'
       esql.query:
         body:
-          query: 'FROM lenient_object,lenient_bool | EVAL x = f::ip | KEEP x'
+          query: 'FROM lenient_long,lenient_bool | EVAL x = f::ip | KEEP x'
 
 ---
 "cast not wrapping the field directly stays an error":
   # Intentional scope: leniency only applies when the cast directly wraps the conflicted field (including chained casts).
   # TO_STRING(TRIM(f)) still fails with the generic ambiguities error.
   - do:
-      catch: '/Cannot use field \[message\] due to ambiguities being mapped as \[2\] incompatible types: \[object\] in \[lenient_object\], \[text\] in \[lenient_text\]/'
+      catch: '/Cannot use field \[f\] due to ambiguities being mapped as \[2\] incompatible types/'
       esql.query:
         body:
-          query: 'FROM lenient_text,lenient_object | EVAL m = TO_STRING(TRIM(message)) | KEEP m'
+          query: 'FROM lenient_keyword,lenient_long | EVAL m = TO_STRING(TRIM(f)) | KEEP m'
 
 ---
 "partially unmapped long cast to ip nulls the long and converts the unmapped keyword":

@@ -439,12 +439,19 @@ public class IndexBalanceTests extends ESAllocationTestCase {
     }
 
     /**
+     * Raising concurrent rebalance above the per-node incoming recovery limit used to make the balancer overshoot.
      * {@see https://github.com/elastic/elasticsearch/issues/87279}
      */
     public void testRebalanceShouldNotPerformUnnecessaryMovesWithMultipleConcurrentRebalances() {
+        final int incomingRecoveries = randomIntBetween(1, 8);
+        final int outgoingRecoveries = randomIntBetween(1, 8);
+
+        final int concurrentRebalance = randomIntBetween(incomingRecoveries + 1, incomingRecoveries + 5);
         final var settings = Settings.builder()
             .put("cluster.routing.allocation.type", "desired_balance")
-            .put("cluster.routing.allocation.cluster_concurrent_rebalance", randomIntBetween(3, 9))
+            .put("cluster.routing.allocation.cluster_concurrent_rebalance", concurrentRebalance)
+            .put("cluster.routing.allocation.node_concurrent_incoming_recoveries", incomingRecoveries)
+            .put("cluster.routing.allocation.node_concurrent_outgoing_recoveries", outgoingRecoveries)
             .build();
 
         final var allocationService = createAllocationService(settings);

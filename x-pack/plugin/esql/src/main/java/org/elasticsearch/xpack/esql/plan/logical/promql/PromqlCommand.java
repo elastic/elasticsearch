@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -39,7 +38,6 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
@@ -557,32 +555,11 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (binaryOperator instanceof VectorBinaryArithmetic || binaryOperator instanceof VectorBinaryComparison) {
                         boolean scalarOperand = PromqlPlan.returnsScalar(binaryOperator.left())
                             || PromqlPlan.returnsScalar(binaryOperator.right());
-                        // An unmatched operator over a vector-match result also translates as a join (default
-                        // matching on all shared labels), so it inherits the same operand requirements.
-                        boolean joinComposed = scalarOperand == false
-                            && (containsVectorMatch(binaryOperator.left()) || containsVectorMatch(binaryOperator.right()));
                         if (binaryOperator.match() != VectorMatch.NONE && scalarOperand) {
                             failures.add(fail(lp, "vector matching only allowed between instant vectors [{}]", lp.sourceText()));
-                        } else if (containerFunctions) {
-                            // Operands match on their label containers, opaque or not.
-                        } else if ((binaryOperator.match() != VectorMatch.NONE || joinComposed)
-                            && (hasConcreteLabels(binaryOperator.left()) == false || hasConcreteLabels(binaryOperator.right()) == false)) {
-                                // TODO: Materialize match keys from runtime-defined labels.
-                                // https://github.com/elastic/elasticsearch/issues/157669
-                                // Operand shapes that produce them: without aggregations (#157671), label functions (#157672).
-                                failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
-                            } else if (scalarOperand == false && pairsMetricsInSeparateSeries(binaryOperator)) {
-                                // Implicit ignoring(__name__) over opaque operands needs the same runtime-defined match keys.
-                                // https://github.com/elastic/elasticsearch/issues/157669
-                                failures.add(
-                                    fail(
-                                        lp,
-                                        "binary operations between different metrics require aggregating both operands by the "
-                                            + "labels to match on, such as sum by (instance) (a) / sum by (instance) (b) [{}]",
-                                        lp.sourceText()
-                                    )
-                                );
-                            }
+                        } else if (needsConcreteMatchKeys(binaryOperator)) {
+                            failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
+                        }
                     }
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
                         // With the label container functions a comparison filters in place or joins like any operator.
@@ -609,14 +586,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         // TODO: Match on __name__ once the metric name is a dimension value.
                         // https://github.com/elastic/elasticsearch/issues/146989
                         failures.add(fail(lp, "matching on __name__ is not supported at this time [{}]", lp.sourceText()));
-                    }
-                    boolean labelMatched = binaryOperator.match().filter() != VectorMatch.Filter.NONE;
-                    if (labelMatched == false
-                        && containerFunctions == false
-                        && (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right()))) {
-                        // TODO: Support WITHOUT-grouped operands in binary expressions.
-                        // https://github.com/elastic/elasticsearch/issues/145308
-                        failures.add(fail(lp, "binary expressions with WITHOUT are not supported at this time [{}]", lp.sourceText()));
                     }
                     if (hasSourceBackedExpression(binaryOperator.left()) && hasSourceBackedExpression(binaryOperator.right())) {
                         verifySourceBackedOperands(failures, binaryOperator, labelContainer);
@@ -884,10 +853,17 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return plan.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
     }
 
-    private static boolean containsVectorMatch(LogicalPlan plan) {
-        return plan.anyMatch(
-            p -> p instanceof VectorBinaryOperator op && (p instanceof VectorBinarySet) == false && op.match() != VectorMatch.NONE
-        );
+    /**
+     * Whether vector matching still needs every operand to name its labels up front: {@code group_left}/{@code group_right}
+     * without {@code on}/{@code ignoring} over a single opaque operand. {@code on(...)} and {@code ignoring(...)} read the listed
+     * labels out of an opaque operand's label container, default matching keys an opaque side by its label container without
+     * {@code __name__} and a side without one by the empty signature, and two opaque sides match by their label containers, as
+     * Prometheus signatures do.
+     */
+    private static boolean needsConcreteMatchKeys(VectorBinaryOperator op) {
+        return op.match() != VectorMatch.NONE
+            && op.match().filter() == VectorMatch.Filter.NONE
+            && hasConcreteLabels(op.left()) != hasConcreteLabels(op.right());
     }
 
     /**
@@ -930,36 +906,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     private static boolean hasConcreteLabels(LogicalPlan plan) {
         return plan.output().stream().noneMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
-    }
-
-    /**
-     * Whether an opaque operand pairs different metrics on a source mapping {@code __name__} as a dimension, as Prometheus
-     * remote write does. Every metric then has series of its own, so folding both into one shared frame yields no rows.
-     */
-    private boolean pairsMetricsInSeparateSeries(VectorBinaryOperator op) {
-        if (hasConcreteLabels(op.left()) && hasConcreteLabels(op.right())) {
-            return false;
-        }
-        Set<String> left = metricNames(op.left());
-        Set<String> right = metricNames(op.right());
-        return left.isEmpty() == false && right.isEmpty() == false && left.equals(right) == false && storesMetricName();
-    }
-
-    /** Whether the source stores the metric name as a {@code __name__} dimension, as Prometheus remote write does. */
-    public boolean storesMetricName() {
-        return child().output()
-            .stream()
-            .anyMatch(a -> a instanceof FieldAttribute f && f.isDimension() && LabelMatcher.NAME.equals(PromqlLabels.labelName(f)));
-    }
-
-    private static Set<String> metricNames(LogicalPlan plan) {
-        Set<String> names = new HashSet<>();
-        for (Selector selector : plan.collect(Selector.class)) {
-            if (selector instanceof LiteralSelector == false && selector.series() instanceof Attribute series) {
-                names.add(series.name());
-            }
-        }
-        return names;
     }
 
     /**

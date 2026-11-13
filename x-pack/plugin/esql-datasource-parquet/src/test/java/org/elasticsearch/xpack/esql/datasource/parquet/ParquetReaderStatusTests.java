@@ -26,7 +26,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
 
     @Override
     protected Writeable.Reader<ParquetReaderStatus> instanceReader() {
-        return ParquetReaderStatus::new;
+        return ParquetReaderStatus::readFrom;
     }
 
     @Override
@@ -34,6 +34,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
         return new ParquetReaderStatus(
             randomNonNegativeLong(),
             randomBoolean(),
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -85,6 +86,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             instance.rowGroupsInFile(),
             instance.rowGroupsTotal(),
             instance.rowGroupsKept(),
+            instance.rowGroupsDictionaryFilterSkipped(),
             instance.pageIndexUsed(),
             instance.rowsInKeptRowGroups(),
             instance.rowsAfterPageIndex(),
@@ -107,6 +109,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             3L,
             4L,
             2L,
+            1L,
             false,
             10L,
             8L,
@@ -121,6 +124,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
                 "{\"format\":\"parquet\",\"rows_emitted\":100,\"predicate_pushdown_used\":true,"
                     + "\"footer_read_nanos\":5,\"footer_size_bytes\":6,\"footer_cache_hits\":1,\"footer_cache_misses\":2,"
                     + "\"row_groups_in_file\":3,\"row_groups_total\":4,\"row_groups_kept\":2,"
+                    + "\"row_groups_dictionary_filter_skipped\":1,"
                     + "\"page_index_used\":false,\"rows_in_kept_row_groups\":10,\"rows_after_page_index\":8,"
                     + "\"late_materialization_enabled\":false,\"late_materialization_used\":false,"
                     + "\"predicate_columns\":[\"host\"],"

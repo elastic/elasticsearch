@@ -363,3 +363,30 @@ PROMQL index=prometheus-k8s time="2024-05-10T00:20:00.000Z" result=(sum(avg_over
 result:double | step:datetime
 98.39583333333334 | 2024-05-10T00:20:00.000Z
 ;
+
+instant_sort_desc_below_filter
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_below_top_level
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s time="2024-05-10T00:03:00.000Z" bytes=(sort_desc(avg by (cluster) (last_over_time(network.bytes_in[1m]))) > 400);
+
+bytes:double | step:datetime            | cluster:keyword
+749.0        | 2024-05-10T00:03:00.000Z | qa
+612.0        | 2024-05-10T00:03:00.000Z | prod
+;
+
+instant_sort_below_label_replace
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_below_top_level
+required_capability: fix_ts_block_loader_passthrough_aliasing
+
+PROMQL index=prometheus-k8s time="2024-05-10T00:03:00.000Z" bytes=(label_replace(sort(avg by (cluster) (last_over_time(network.bytes_in[1m]))), "dst", "c-$1", "cluster", "(.*)"));
+
+bytes:double | step:datetime            | cluster:keyword | dst:keyword
+382.5        | 2024-05-10T00:03:00.000Z | staging         | c-staging
+612.0        | 2024-05-10T00:03:00.000Z | prod            | c-prod
+749.0        | 2024-05-10T00:03:00.000Z | qa              | c-qa
+;

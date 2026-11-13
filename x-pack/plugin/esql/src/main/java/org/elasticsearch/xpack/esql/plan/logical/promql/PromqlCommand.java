@@ -502,7 +502,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     }
                 }
                 case PromqlFunctionCall functionCall -> {
-                    if (functionCall instanceof ResultOrderingFunction && root.get() == false) {
+                    // sort and sort_desc below the top level pass their input through; AddPromqlResultOrder orders the result
+                    // where the order they give survives. sort_by_label and sort_by_label_desc stay at the top level.
+                    if (functionCall instanceof SortByLabelFunction && root.get() == false) {
                         failures.add(
                             fail(
                                 lp,

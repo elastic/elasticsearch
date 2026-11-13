@@ -18,6 +18,9 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
+import org.apache.lucene.util.Attribute;
+import org.apache.lucene.util.AttributeFactory;
+import org.apache.lucene.util.AttributeImpl;
 
 import java.io.CharArrayReader;
 import java.io.IOException;
@@ -129,6 +132,19 @@ public final class AsciiStandardTokenizer extends Tokenizer {
         TRANSITIONS[(from << CLASS_SHIFT) | charClass] = to;
     }
 
+    /**
+     * Gives the interfaces that Lucene's default factory implements with one {@code PackedTokenAttributeImpl} to
+     * {@link AsciiTermAttributeImpl} instead, which is the same object with a faster {@code getBytesRef()} for ASCII terms.
+     */
+    private static final AttributeFactory ATTRIBUTE_FACTORY = new AttributeFactory() {
+        @Override
+        public AttributeImpl createAttributeInstance(Class<? extends Attribute> attClass) {
+            return attClass.isAssignableFrom(AsciiTermAttributeImpl.class)
+                ? new AsciiTermAttributeImpl()
+                : DEFAULT_ATTRIBUTE_FACTORY.createAttributeInstance(attClass);
+        }
+    };
+
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
     private final PositionIncrementAttribute posIncAtt = addAttribute(PositionIncrementAttribute.class);
@@ -155,6 +171,7 @@ public final class AsciiStandardTokenizer extends Tokenizer {
     }
 
     AsciiStandardTokenizer(int maxBufferedChars) {
+        super(ATTRIBUTE_FACTORY);
         this.maxBufferedChars = maxBufferedChars;
     }
 

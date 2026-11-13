@@ -16,9 +16,12 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.AttributeSource;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -46,9 +49,11 @@ public class AsciiStandardAnalyzerTests extends ESTestCase {
             OffsetAttribute offset = ts.addAttribute(OffsetAttribute.class);
             PositionIncrementAttribute posInc = ts.addAttribute(PositionIncrementAttribute.class);
             TypeAttribute type = ts.addAttribute(TypeAttribute.class);
+            TermToBytesRefAttribute termBytes = ts.addAttribute(TermToBytesRefAttribute.class);
             ts.reset();
             while (ts.incrementToken()) {
-                sb.append('[').append(term).append("] ");
+                // The indexing chain reads the UTF-8 bytes, so they are part of what must be the same.
+                sb.append('[').append(term).append("] ").append(termBytes.getBytesRef().toString()).append(' ');
                 sb.append(offset.startOffset()).append('-').append(offset.endOffset()).append(' ');
                 sb.append(type.type()).append(" +").append(posInc.getPositionIncrement()).append('\n');
             }
@@ -245,6 +250,24 @@ public class AsciiStandardAnalyzerTests extends ESTestCase {
             String ascii = sb.toString();
             assertSame(expected, actual, ascii);
             assertSame(expected, actual, ascii + "é" + ascii);
+        }
+    }
+
+    /** A cloned attribute source must keep its own term bytes, the indexing chain and other consumers can hold on to a clone. */
+    public void testClonedAttributesKeepTheirOwnBytes() throws IOException {
+        try (TokenStream ts = new AsciiStandardAnalyzer().tokenStream("field", "first second \u00e9clair third")) {
+            TermToBytesRefAttribute bytes = ts.addAttribute(TermToBytesRefAttribute.class);
+            ts.reset();
+            assertTrue(ts.incrementToken());
+            AttributeSource firstClone = ts.cloneAttributes();
+            BytesRef first = BytesRef.deepCopyOf(bytes.getBytesRef());
+            assertTrue(ts.incrementToken());
+            assertEquals(first, firstClone.addAttribute(TermToBytesRefAttribute.class).getBytesRef());
+            assertEquals("first", first.utf8ToString());
+            assertEquals("second", bytes.getBytesRef().utf8ToString());
+            assertTrue(ts.incrementToken());
+            assertEquals("\u00e9clair", bytes.getBytesRef().utf8ToString());
+            ts.end();
         }
     }
 

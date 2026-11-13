@@ -14,6 +14,8 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.analysis.AsciiStandardAnalyzer;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -51,6 +53,13 @@ public class StandardAnalyzerBenchmark {
     /** Share of messages that contain a non-ASCII char, in percent. These use the fallback in the ascii analyzer. */
     @Param({ "0", "2", "20" })
     public int nonAsciiPercent;
+
+    /**
+     * When true the benchmark reads the UTF-8 bytes of every term, like the indexing chain does through
+     * {@link TermToBytesRefAttribute}. When false it only reads the chars.
+     */
+    @Param({ "false", "true" })
+    public boolean readBytes;
 
     private static final int MESSAGES = 4096;
 
@@ -143,9 +152,17 @@ public class StandardAnalyzerBenchmark {
         for (String message : messages) {
             try (TokenStream ts = impl.tokenStream("message", message)) {
                 CharTermAttribute term = ts.addAttribute(CharTermAttribute.class);
+                TermToBytesRefAttribute termBytes = ts.addAttribute(TermToBytesRefAttribute.class);
                 ts.reset();
-                while (ts.incrementToken()) {
-                    checksum += term.length() + term.buffer()[0];
+                if (readBytes) {
+                    while (ts.incrementToken()) {
+                        BytesRef bytes = termBytes.getBytesRef();
+                        checksum += bytes.length + bytes.bytes[bytes.offset];
+                    }
+                } else {
+                    while (ts.incrementToken()) {
+                        checksum += term.length() + term.buffer()[0];
+                    }
                 }
                 ts.end();
             }

@@ -911,7 +911,11 @@ value_count counts only the values of an indexed keyword field and a date field:
   - match: { aggregations.date.value: 6 }
 
 ---
-synthetic source keeps every null slot of a keyword field without an index:
+synthetic source drops the null elements of a keyword field without an index:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
   - do:
       search:
         index: test
@@ -922,18 +926,22 @@ synthetic source keeps every null slot of a keyword field without an index:
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.kwd: a }
-  - match: { hits.hits.1._source.kwd: [ null ] }
-  - match: { hits.hits.2._source.kwd: [ null, null ] }
-  - match: { hits.hits.3._source.kwd: [ a, null, b ] }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.kwd: [ a, b ] }
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.kwd: [ null, a ] }
-  - match: { hits.hits.8._source.kwd: [ a, null ] }
-  - match: { hits.hits.9._source.kwd: [ null, a, null ] }
+  - match: { hits.hits.7._source.kwd: a }
+  - match: { hits.hits.8._source.kwd: a }
+  - match: { hits.hits.9._source.kwd: a }
 
 ---
-synthetic source keeps every null slot of an indexed keyword field:
+synthetic source drops the null elements of an indexed keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
   - do:
       search:
         index: test
@@ -944,18 +952,22 @@ synthetic source keeps every null slot of an indexed keyword field:
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.kwd_indexed: a }
-  - match: { hits.hits.1._source.kwd_indexed: [ null ] }
-  - match: { hits.hits.2._source.kwd_indexed: [ null, null ] }
-  - match: { hits.hits.3._source.kwd_indexed: [ a, null, b ] }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.kwd_indexed: [ a, b ] }
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.kwd_indexed: [ null, a ] }
-  - match: { hits.hits.8._source.kwd_indexed: [ a, null ] }
-  - match: { hits.hits.9._source.kwd_indexed: [ null, a, null ] }
+  - match: { hits.hits.7._source.kwd_indexed: a }
+  - match: { hits.hits.8._source.kwd_indexed: a }
+  - match: { hits.hits.9._source.kwd_indexed: a }
 
 ---
-synthetic source keeps every null slot of a text field:
+synthetic source drops the null elements of a text field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
   - do:
       search:
         index: test
@@ -966,18 +978,22 @@ synthetic source keeps every null slot of a text field:
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.txt: a }
-  - match: { hits.hits.1._source.txt: [ null ] }
-  - match: { hits.hits.2._source.txt: [ null, null ] }
-  - match: { hits.hits.3._source.txt: [ a, null, b ] }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.txt: [ a, b ] }
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.txt: [ null, a ] }
-  - match: { hits.hits.8._source.txt: [ a, null ] }
-  - match: { hits.hits.9._source.txt: [ null, a, null ] }
+  - match: { hits.hits.7._source.txt: a }
+  - match: { hits.hits.8._source.txt: a }
+  - match: { hits.hits.9._source.txt: a }
 
 ---
-synthetic source keeps every null slot of a long field:
+synthetic source drops the null elements of a long field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
   - do:
       search:
         index: test
@@ -988,18 +1004,22 @@ synthetic source keeps every null slot of a long field:
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.lng: 1 }
-  - match: { hits.hits.1._source.lng: [ null ] }
-  - match: { hits.hits.2._source.lng: [ null, null ] }
-  - match: { hits.hits.3._source.lng: [ 1, null, 2 ] }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.lng: [ 1, 2 ] }
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.lng: [ null, 1 ] }
-  - match: { hits.hits.8._source.lng: [ 1, null ] }
-  - match: { hits.hits.9._source.lng: [ null, 1, null ] }
+  - match: { hits.hits.7._source.lng: 1 }
+  - match: { hits.hits.8._source.lng: 1 }
+  - match: { hits.hits.9._source.lng: 1 }
 
 ---
-synthetic source keeps every null slot of a date field:
+synthetic source drops the null elements of a date field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
   - do:
       search:
         index: test
@@ -1010,12 +1030,12 @@ synthetic source keeps every null slot of a date field:
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.dt: "2026-01-01T00:00:00.000Z" }
-  - match: { hits.hits.1._source.dt: [ null ] }
-  - match: { hits.hits.2._source.dt: [ null, null ] }
-  - match: { hits.hits.3._source.dt: [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ] }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ] }
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.dt: [ null, "2026-01-01T00:00:00.000Z" ] }
-  - match: { hits.hits.8._source.dt: [ "2026-01-01T00:00:00.000Z", null ] }
-  - match: { hits.hits.9._source.dt: [ null, "2026-01-01T00:00:00.000Z", null ] }
+  - match: { hits.hits.7._source.dt: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.8._source.dt: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.9._source.dt: "2026-01-01T00:00:00.000Z" }

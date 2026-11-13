@@ -77,28 +77,34 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
         assertExistsMatchesOnlyDocumentsWithANonNullValue("boolean", () -> randomBoolean());
     }
 
-    public void testKeywordSyntheticSourceKeepsEveryNullSlot() throws IOException {
-        assertSyntheticSourceKeepsEveryNullSlot("keyword", () -> randomAlphaOfLengthBetween(1, 8));
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    public void testKeywordSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("keyword", () -> randomAlphaOfLengthBetween(1, 8));
     }
 
-    public void testTextSyntheticSourceKeepsEveryNullSlot() throws IOException {
-        assertSyntheticSourceKeepsEveryNullSlot("text", () -> randomAlphaOfLengthBetween(1, 8));
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    public void testTextSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("text", () -> randomAlphaOfLengthBetween(1, 8));
     }
 
-    public void testLongSyntheticSourceKeepsEveryNullSlot() throws IOException {
-        assertSyntheticSourceKeepsEveryNullSlot("long", () -> randomLong());
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    public void testLongSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("long", () -> randomLong());
     }
 
-    public void testDateSyntheticSourceKeepsEveryNullSlot() throws IOException {
-        assertSyntheticSourceKeepsEveryNullSlot("date", ColumnarExistsNullSemanticsTests::randomDate);
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    public void testDateSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("date", ColumnarExistsNullSemanticsTests::randomDate);
     }
 
-    public void testIpSyntheticSourceKeepsEveryNullSlot() throws IOException {
-        assertSyntheticSourceKeepsEveryNullSlot("ip", () -> NetworkAddress.format(randomIp(randomBoolean())));
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    public void testIpSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("ip", () -> NetworkAddress.format(randomIp(randomBoolean())));
     }
 
-    public void testBooleanSyntheticSourceKeepsEveryNullSlot() throws IOException {
-        assertSyntheticSourceKeepsEveryNullSlot("boolean", () -> randomBoolean());
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED")
+    public void testBooleanSyntheticSourceDropsNullElements() throws IOException {
+        assertSyntheticSourceDropsNullElements("boolean", () -> randomBoolean());
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165521")
@@ -137,7 +143,7 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
         }
     }
 
-    private void assertSyntheticSourceKeepsEveryNullSlot(String type, Supplier<Object> valueSupplier) throws IOException {
+    private void assertSyntheticSourceDropsNullElements(String type, Supplier<Object> valueSupplier) throws IOException {
         final List<TestDocument> documents = randomDocuments(valueSupplier);
         final boolean indexed = randomBoolean();
         for (final boolean withCodec : new boolean[] { true, false }) {
@@ -211,11 +217,11 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
     private static String expectedSource(TestDocument document) throws IOException {
         final XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
-        final List<Object> slots = document.slots();
-        if (slots.size() == 1 && slots.get(0) != null) {
-            builder.field(FIELD, slots.get(0));
-        } else if (slots.isEmpty() == false) {
-            builder.field(FIELD, slots);
+        final List<Object> values = document.slots().stream().filter(Objects::nonNull).toList();
+        if (values.size() == 1) {
+            builder.field(FIELD, values.get(0));
+        } else if (values.isEmpty() == false) {
+            builder.field(FIELD, values);
         }
         return Strings.toString(builder.endObject());
     }

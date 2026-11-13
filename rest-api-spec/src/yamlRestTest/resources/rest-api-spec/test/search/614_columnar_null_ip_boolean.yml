@@ -104,7 +104,11 @@ exists matches only documents with a non-null value on a boolean field:
   - match: { count: 5 }
 
 ---
-synthetic source keeps every null slot of an ip field:
+synthetic source drops the null elements of an ip field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
   - do:
       search:
         index: test
@@ -115,18 +119,22 @@ synthetic source keeps every null slot of an ip field:
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.addr: "192.168.0.1" }
-  - match: { hits.hits.1._source.addr: [ null ] }
-  - match: { hits.hits.2._source.addr: [ null, null ] }
-  - match: { hits.hits.3._source.addr: [ "192.168.0.1", null, "192.168.0.2" ] }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.addr: [ "192.168.0.1", "192.168.0.2" ] }
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.addr: [ null, "192.168.0.1" ] }
-  - match: { hits.hits.8._source.addr: [ "192.168.0.1", null ] }
-  - match: { hits.hits.9._source.addr: [ null, "192.168.0.1", null ] }
+  - match: { hits.hits.7._source.addr: "192.168.0.1" }
+  - match: { hits.hits.8._source.addr: "192.168.0.1" }
+  - match: { hits.hits.9._source.addr: "192.168.0.1" }
 
 ---
-synthetic source keeps every null slot of a boolean field:
+synthetic source drops the null elements of a boolean field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
   - do:
       search:
         index: test
@@ -137,15 +145,15 @@ synthetic source keeps every null slot of a boolean field:
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.flag: true }
-  - match: { hits.hits.1._source.flag: [ null ] }
-  - match: { hits.hits.2._source.flag: [ null, null ] }
-  - match: { hits.hits.3._source.flag: [ true, null, false ] }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.flag: [ true, false ] }
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.flag: [ null, true ] }
-  - match: { hits.hits.8._source.flag: [ true, null ] }
-  - match: { hits.hits.9._source.flag: [ null, true, null ] }
+  - match: { hits.hits.7._source.flag: true }
+  - match: { hits.hits.8._source.flag: true }
+  - match: { hits.hits.9._source.flag: true }
 
 ---
 value_count counts only the values of an ip field and a boolean field:

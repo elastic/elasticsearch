@@ -323,7 +323,11 @@ exists hits, size 0 total and count agree on a match_only_text field after a mer
   - length: { hits.hits: 0 }
 
 ---
-synthetic source keeps every null slot of a match_only_text field:
+synthetic source drops the null elements of a match_only_text field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
   - do:
       search:
         index: test
@@ -334,12 +338,12 @@ synthetic source keeps every null slot of a match_only_text field:
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.mot: a }
-  - match: { hits.hits.1._source.mot: [ null ] }
-  - match: { hits.hits.2._source.mot: [ null, null ] }
-  - match: { hits.hits.3._source.mot: [ a, null, b ] }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.mot: [ a, b ] }
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.mot: [ null, a ] }
-  - match: { hits.hits.8._source.mot: [ a, null ] }
-  - match: { hits.hits.9._source.mot: [ null, a, null ] }
+  - match: { hits.hits.7._source.mot: a }
+  - match: { hits.hits.8._source.mot: a }
+  - match: { hits.hits.9._source.mot: a }

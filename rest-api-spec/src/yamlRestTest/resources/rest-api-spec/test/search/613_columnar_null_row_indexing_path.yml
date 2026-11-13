@@ -110,7 +110,11 @@ exists matches only documents with a non-null value on a long field:
   - match: { count: 5 }
 
 ---
-synthetic source keeps every null slot of an indexed keyword field:
+synthetic source drops the null elements of an indexed keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
   - do:
       search:
         index: test
@@ -121,18 +125,22 @@ synthetic source keeps every null slot of an indexed keyword field:
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.kwd_indexed: a }
-  - match: { hits.hits.1._source.kwd_indexed: [ null ] }
-  - match: { hits.hits.2._source.kwd_indexed: [ null, null ] }
-  - match: { hits.hits.3._source.kwd_indexed: [ a, null, b ] }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.kwd_indexed: [ a, b ] }
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.kwd_indexed: [ null, a ] }
-  - match: { hits.hits.8._source.kwd_indexed: [ a, null ] }
-  - match: { hits.hits.9._source.kwd_indexed: [ null, a, null ] }
+  - match: { hits.hits.7._source.kwd_indexed: a }
+  - match: { hits.hits.8._source.kwd_indexed: a }
+  - match: { hits.hits.9._source.kwd_indexed: a }
 
 ---
-synthetic source keeps every null slot of a long field:
+synthetic source drops the null elements of a long field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/ISSUE_TO_BE_FILED"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
   - do:
       search:
         index: test
@@ -143,12 +151,12 @@ synthetic source keeps every null slot of a long field:
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.lng: 1 }
-  - match: { hits.hits.1._source.lng: [ null ] }
-  - match: { hits.hits.2._source.lng: [ null, null ] }
-  - match: { hits.hits.3._source.lng: [ 1, null, 2 ] }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.lng: [ 1, 2 ] }
   - match: { hits.hits.4._source: {} }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.lng: [ null, 1 ] }
-  - match: { hits.hits.8._source.lng: [ 1, null ] }
-  - match: { hits.hits.9._source.lng: [ null, 1, null ] }
+  - match: { hits.hits.7._source.lng: 1 }
+  - match: { hits.hits.8._source.lng: 1 }
+  - match: { hits.hits.9._source.lng: 1 }

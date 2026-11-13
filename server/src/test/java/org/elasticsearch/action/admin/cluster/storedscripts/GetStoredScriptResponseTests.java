@@ -67,7 +67,14 @@ public class GetStoredScriptResponseTests extends AbstractXContentSerializingTes
 
     @Override
     protected GetStoredScriptResponse mutateInstance(GetStoredScriptResponse instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String id = instance.getId();
+        StoredScriptSource source = instance.getSource();
+        switch (between(0, 1)) {
+            case 0 -> id = randomValueOtherThan(id, () -> randomAlphaOfLengthBetween(1, 10));
+            case 1 -> source = randomValueOtherThan(source, GetStoredScriptResponseTests::randomScriptSource);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new GetStoredScriptResponse(id, source);
     }
 
     @Override

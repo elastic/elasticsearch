@@ -131,7 +131,6 @@ public class MockNode extends Node {
             FetchPhase fetchPhase,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
-            Tracer tracer,
             OnlinePrewarmingService onlinePrewarmingService,
             TaskManager taskManager
         ) {
@@ -146,7 +145,6 @@ public class MockNode extends Node {
                     fetchPhase,
                     circuitBreakerService,
                     executorSelector,
-                    tracer,
                     onlinePrewarmingService,
                     taskManager
                 );
@@ -161,7 +159,6 @@ public class MockNode extends Node {
                 fetchPhase,
                 circuitBreakerService,
                 executorSelector,
-                tracer,
                 onlinePrewarmingService,
                 taskManager
             );

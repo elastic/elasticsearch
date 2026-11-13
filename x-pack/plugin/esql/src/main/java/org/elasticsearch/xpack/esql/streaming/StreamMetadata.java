@@ -14,6 +14,7 @@ import java.time.Instant;
 public record StreamMetadata(String streamId, Instant ttl, Status status, @Nullable Integer rows, @Nullable Integer pages) {
 
     enum Status {
+        RUNNING,
         COMPLETE,
         FAILED
     }

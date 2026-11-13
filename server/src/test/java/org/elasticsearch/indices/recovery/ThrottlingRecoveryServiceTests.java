@@ -1460,6 +1460,129 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ensureListenersWereNotified(listener1, listener2);
     }
 
+    /// If a queued recovery is directly cancelled and the data node then applies a cluster state which still assigns the shard (before the
+    /// master has failed it), the shard is recreated and enqueued again with the same allocation ID. That second enqueue is rejected
+    /// because of the recorded cancellation, but the cancellation must only be reported to the scheduling listener once.
+    public void testDirectCancellationOfQueuedRecoveryNotReportedAgainWhenReenqueued() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var cancelledWhileQueued = new AtomicInteger();
+        final var cancelledBeforeQueuing = new AtomicInteger();
+        final var schedulingListener = new RecoverySchedulingListener() {
+            @Override
+            public void onQueuedRecoveryCancelledOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
+                cancelledWhileQueued.incrementAndGet();
+            }
+
+            @Override
+            public void onRecoveryCancelledBeforeQueuingOnTarget(RecoverySource.Type type) {
+                cancelledBeforeQueuing.incrementAndGet();
+            }
+        };
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            newClusterService(1),
+            schedulingListener,
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+        );
+        service.start();
+
+        // The only slot is taken by a recovery that does not complete until the end of the test, so the next one stays in the queue.
+        final var blockingRecoveryState = newRecoveryState();
+        final var blockingListener = new AtomicReference<RecoveryListener>();
+        service.enqueue(
+            ProjectId.DEFAULT,
+            RecoveryListener.NOOP,
+            mockIndexShard(blockingRecoveryState, UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            blockingListener::set
+        );
+        taskQueue.runAllRunnableTasks();
+        assertNotNull(blockingListener.get());
+
+        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var allocationId = UUIDs.randomBase64UUID();
+        final var firstListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        service.enqueue(
+            ProjectId.DEFAULT,
+            firstListener,
+            mockIndexShard(newRecoveryState(shardId), allocationId, stats),
+            newIndexMetadata(),
+            ignored -> fail("task should have been cancelled")
+        );
+        assertThat(service.cancelRecoveries(Map.of(allocationId, shardId)), equalTo(Set.of(allocationId)));
+        taskQueue.runAllRunnableTasks();
+        assertThat(cancelledWhileQueued.get(), equalTo(1));
+
+        // The same allocation ID is enqueued again, and rejected because of the recorded cancellation.
+        final var secondListener = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+        service.enqueue(
+            ProjectId.DEFAULT,
+            secondListener,
+            mockIndexShard(newRecoveryState(shardId), allocationId, stats),
+            newIndexMetadata(),
+            ignored -> fail("re-enqueued task should have been rejected")
+        );
+        taskQueue.runAllRunnableTasks();
+
+        ensureListenersWereNotified(firstListener, secondListener);
+        assertThat("cancellation reported once, when it removed the recovery from the queue", cancelledWhileQueued.get(), equalTo(1));
+        assertThat("rejection at enqueue time must not report it again", cancelledBeforeQueuing.get(), equalTo(0));
+
+        blockingListener.get().onRecoveryDone(blockingRecoveryState, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllTasks();
+    }
+
+    /// As [#testDirectCancellationOfQueuedRecoveryNotReportedAgainWhenReenqueued], but the cancellation arrives before the recovery is
+    /// first enqueued, so it is the rejection at enqueue time that reports it. A second rejection must not report it again.
+    public void testDirectCancellationBeforeEnqueueReportedOnlyOnce() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var cancelledWhileQueued = new AtomicInteger();
+        final var cancelledBeforeQueuing = new AtomicInteger();
+        final var schedulingListener = new RecoverySchedulingListener() {
+            @Override
+            public void onQueuedRecoveryCancelledOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
+                cancelledWhileQueued.incrementAndGet();
+            }
+
+            @Override
+            public void onRecoveryCancelledBeforeQueuingOnTarget(RecoverySource.Type type) {
+                cancelledBeforeQueuing.incrementAndGet();
+            }
+        };
+        final var service = new ThrottlingRecoveryService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            newClusterService(10),
+            schedulingListener,
+            monitorWithNoGates(taskQueue.getThreadPool()),
+            ByteSizeValue.ofBytes(Long.MAX_VALUE)
+        );
+        service.start();
+
+        final var shardId = new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0);
+        final var allocationId = UUIDs.randomBase64UUID();
+        assertTrue(service.cancelRecoveries(Map.of(allocationId, shardId)).isEmpty());
+
+        final var listeners = new TestCaptureResultListener[between(2, 4)];
+        for (int i = 0; i < listeners.length; i++) {
+            listeners[i] = new TestCaptureResultListener(ExpectedRecoveryOutcome.CANCELLED_IN_QUEUE);
+            service.enqueue(
+                ProjectId.DEFAULT,
+                listeners[i],
+                mockIndexShard(newRecoveryState(shardId), allocationId, stats),
+                newIndexMetadata(),
+                ignored -> fail("task should have been rejected due to recorded cancellation")
+            );
+        }
+        taskQueue.runAllTasks();
+
+        ensureListenersWereNotified(listeners);
+        assertThat(cancelledWhileQueued.get(), equalTo(0));
+        assertThat("cancellation reported once, by the first rejected enqueue", cancelledBeforeQueuing.get(), equalTo(1));
+    }
+
     public void testCancellationAppliedWhenTaskInPendingQueue() {
         final var taskQueue = new DeterministicTaskQueue();
         final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, newClusterService(1));

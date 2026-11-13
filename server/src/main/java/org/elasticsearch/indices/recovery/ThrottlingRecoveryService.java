@@ -104,7 +104,17 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Records allocation IDs that have been directly cancelled by the master, including those for recoveries that have
     /// already started (i.e. are not in [#pendingRecoveries]).
     /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its allocationId changes.
-    private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
+    private final Map<String, RecordedCancellation> cancelledAllocationIds = new HashMap<>();
+
+    /// A direct cancellation remembered for an allocation ID.
+    ///
+    /// @param shardId the shard the cancellation applies to
+    /// @param reported whether the cancellation has already been reported to the [RecoverySchedulingListener] by
+    /// [RecoverySchedulingListener#onQueuedRecoveryCancelledOnTarget], which [#cancelRecoveries] calls when it removes a
+    /// recovery from the queue. If so, a later [#enqueue] of the same allocation ID (e.g. because the data node applied a
+    /// cluster state which still assigns the shard before the master has failed it) must not report it again via
+    /// [RecoverySchedulingListener#onRecoveryCancelledBeforeQueuingOnTarget].
+    private record RecordedCancellation(ShardId shardId, boolean reported) {}
 
     /// The node shutdowns from the last cluster state seen by [#clusterChanged].
     private NodesShutdownMetadata nodeShutdowns = NodesShutdownMetadata.EMPTY;
@@ -158,14 +168,25 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         final PendingRecovery pendingRecovery;
         final boolean serviceClosed;
+        final boolean needToReportCancellation;
         synchronized (this) {
             serviceClosed = isClosed();
-            if (serviceClosed || cancelledAllocationIds.containsKey(allocationId)) {
-                final ShardId cancelled = cancelledAllocationIds.get(allocationId);
-                assert serviceClosed || cancelled.equals(shardId)
+            if (serviceClosed) {
+                needToReportCancellation = false;
+                pendingRecovery = null;
+            } else if (cancelledAllocationIds.containsKey(allocationId)) {
+                final RecordedCancellation cancelled = cancelledAllocationIds.get(allocationId);
+                assert cancelled.shardId().equals(shardId)
                     : "mismatch between cached cancellation [" + cancelled + "] and enqueue recovery: [" + indexShard.recoveryState() + "]";
+                needToReportCancellation = !cancelled.reported();
+                if (needToReportCancellation) {
+                    // This enqueue will report the cancellation to the scheduling listener (below, once the lock is released), so
+                    // record that.
+                    cancelledAllocationIds.put(allocationId, new RecordedCancellation(cancelled.shardId(), true));
+                }
                 pendingRecovery = null;
             } else {
+                needToReportCancellation = false;
                 pendingRecovery = new PendingRecovery(
                     indexShard,
                     indexMetadata,
@@ -221,7 +242,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                             ),
                             FAIL_SEND
                         );
-                    schedulingListener.onRecoveryCancelledBeforeQueuingOnTarget(recoveryType);
+                    // Report the cancellation to the schedulingListener if necessary. We already recorded that in cancelledAllocationIds
+                    // inside the synchronized block above.
+                    if (needToReportCancellation) {
+                        schedulingListener.onRecoveryCancelledBeforeQueuingOnTarget(recoveryType);
+                    }
                 });
             }
             return;
@@ -244,19 +269,30 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             if (isClosed()) {
                 return Set.of();
             }
-            // Record every cancellation, even for recoveries that have already started (i.e. are not in the pending queue).
-            // Pruned by clusterChanged once the shard stops initializing or its allocation ID changes.
-            cancelledAllocationIds.putAll(cancellations);
             final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
             while (it.hasNext()) {
                 final PendingRecovery candidate = it.next();
                 if (cancellations.containsKey(candidate.allocationId())) {
                     assert cancellations.get(candidate.allocationId()).equals(candidate.recoveryState().getShardId());
+                    // This cancellation is reported to the scheduling listener by the call to
+                    // RecoverySchedulingListener#onQueuedRecoveryCancelledOnTarget after the lock is released, below. Record that, so
+                    // that enqueue does not call RecoverySchedulingListener#onRecoveryCancelledBeforeQueuingOnTarget for the same
+                    // recovery if the shard is enqueued again.
+                    cancelledAllocationIds.put(
+                        candidate.allocationId(),
+                        new RecordedCancellation(candidate.recoveryState().getShardId(), true)
+                    );
                     onDequeued(candidate);
                     it.remove();
                     recoveriesToCancel.add(candidate);
                     candidate.stats().targetQueuedRecoveryDiscarded(candidate.recoveryState().getRecoverySource().getType());
                 }
+            }
+            // Record every other cancellation too, even for recoveries that have already started (i.e. are not in the pending queue).
+            // Pruned by clusterChanged once the shard stops initializing or its allocation ID changes.
+            // Keep any existing entry so that a repeated request does not forget that a cancellation was already reported.
+            for (var cancellation : cancellations.entrySet()) {
+                cancelledAllocationIds.putIfAbsent(cancellation.getKey(), new RecordedCancellation(cancellation.getValue(), false));
             }
         }
         final Set<String> cancelledInQueue = new HashSet<>(recoveriesToCancel.size());
@@ -303,7 +339,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 return;
             }
             cancelledAllocationIds.entrySet()
-                .removeIf((cancellation) -> allocationIdIsOutdated(localNode, cancellation.getValue(), cancellation.getKey()));
+                .removeIf(cancellation -> allocationIdIsOutdated(localNode, cancellation.getValue().shardId(), cancellation.getKey()));
             // Recoveries whose priority is raised are removed and re-added, since the queue orders on that priority
             final List<PendingRecovery> reprioritized = new ArrayList<>();
             final Iterator<PendingRecovery> it = pendingRecoveries.iterator();

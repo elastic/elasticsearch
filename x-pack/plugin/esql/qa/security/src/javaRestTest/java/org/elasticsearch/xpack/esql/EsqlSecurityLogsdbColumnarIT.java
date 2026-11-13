@@ -56,7 +56,8 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
 
     /**
      * Columnar disables auto-text, so the dynamically-mapped {@code partial} string is a {@code keyword} rather than {@code text};
-     * the value is unchanged.
+     * the value is unchanged. Field level security always grants {@code @timestamp} on {@code logsdb_columnar} indices, so it is
+     * returned although {@code fls_user} does not grant it; the test documents have no timestamp, so it is null.
      */
     @Override
     public void testFieldLevelSecurityAllow() throws Exception {
@@ -68,17 +69,18 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
                 .entry(
                     "columns",
                     List.of(
+                        matchesMap().entry("name", "@timestamp").entry("type", "date"),
                         matchesMap().entry("name", "partial").entry("type", "keyword"),
                         matchesMap().entry("name", "value").entry("type", "double")
                     )
                 )
-                .entry("values", List.of(List.of("sales10.0", 10.0)))
+                .entry("values", List.of(Arrays.asList(null, "sales10.0", 10.0)))
         );
     }
 
     /**
      * Columnar disables auto-text, so {@code partial} is a {@code keyword}; the sort order and the winning row are the same as the
-     * base class.
+     * base class. As in {@link #testFieldLevelSecurityAllow}, field level security always grants the null {@code @timestamp}.
      */
     @Override
     public void testFieldLevelSecurityAllowPartial() throws Exception {
@@ -90,11 +92,12 @@ public class EsqlSecurityLogsdbColumnarIT extends EsqlSecurityIT {
                 .entry(
                     "columns",
                     List.of(
+                        matchesMap().entry("name", "@timestamp").entry("type", "date"),
                         matchesMap().entry("name", "partial").entry("type", "keyword"),
                         matchesMap().entry("name", "value").entry("type", "double")
                     )
                 )
-                .entry("values", List.of(List.of("engineering20.0", 20.0)))
+                .entry("values", List.of(Arrays.asList(null, "engineering20.0", 20.0)))
         );
     }
 

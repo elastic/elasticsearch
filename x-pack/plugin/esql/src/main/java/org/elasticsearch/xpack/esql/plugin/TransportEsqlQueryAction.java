@@ -506,6 +506,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (metricsCollector.equals(QueryMetricsListener.NOOP) == false) {
             try {
                 metricsCollector.onQueryCompleted(
+                    QueryMetricsListener.Outcome.SUCCESS,
                     Map.of(
                         QueryMetricsListener.PLANNING_NANOS,
                         qp.planning().timeSpan().durationInNanos(),

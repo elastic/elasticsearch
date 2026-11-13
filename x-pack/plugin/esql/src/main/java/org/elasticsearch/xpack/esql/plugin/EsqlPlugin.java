@@ -638,11 +638,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         allDataSourcePlugins.forEach(p -> secretNames.addAll(p.datasourceSecretSettingNames()));
         this.dataSourceSecretSettingNames = Set.copyOf(secretNames);
 
-        QueryMetricsListener collector = metricsCollectors.isEmpty() ? QueryMetricsListener.NOOP : metrics -> {
-            for (var c : metricsCollectors) {
-                c.onQueryCompleted(metrics);
-            }
-        };
+        QueryMetricsListener collector = QueryMetricsListener.composite(metricsCollectors);
         ViewService viewService = new ViewService(services.clusterService(), parser, (statement, viewName, listener) -> {
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
             services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -57,6 +58,17 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
      */
     public abstract Map<String, Set<String>> getTypesToIndices();
 
+    /**
+     * Types ES|QL doesn't support, keyed by their original Elasticsearch type name (e.g. {@code rank_feature}), with the indices that map
+     * them. They aren't in {@link #getTypesToIndices()} or {@link #types()}: no conversion function accepts them, so a cast loads them as
+     * {@code null}, and without a cast the field fails with the unsupported type error.
+     */
+    public abstract Map<String, Set<String>> getUnsupportedTypesToIndices();
+
+    public boolean hasUnsupportedTypes() {
+        return getUnsupportedTypesToIndices().isEmpty() == false;
+    }
+
     /** Whether the field is unmapped in at least one index, in which case it's treated as {@link DataType#KEYWORD} where it is unmapped. */
     public abstract boolean isPotentiallyUnmapped();
 
@@ -69,7 +81,7 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
      * where it is unmapped.
      */
     public boolean isSingleTypePotentiallyUnmapped() {
-        return isPotentiallyUnmapped() && types().size() == 1;
+        return isPotentiallyUnmapped() && types().size() == 1 && hasUnsupportedTypes() == false;
     }
 
     /**
@@ -92,9 +104,12 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
 
     abstract Map<String, Sample> samples();
 
+    /** Like {@link #samples()}, for {@link #getUnsupportedTypesToIndices()}. */
+    abstract Map<String, Sample> unsupportedSamples();
+
     /**
      * Renders {@code [type] in [indices]} clauses for the given source type names, with the same index truncation as
-     * {@link #errorMessage()}.
+     * {@link #errorMessage()}. The names can be ES|QL type names or the original names of unsupported types.
      * <p>
      * For {@code long} in {@code idx1} and {@code idx2}, and {@code keyword} in {@code idx3}, this returns
      * {@code [long] in [idx1, idx2], [keyword] in [idx3]}.
@@ -102,7 +117,7 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
     public String describeTypes(Set<String> typeNames) {
         StringBuilder sb = new StringBuilder();
         boolean first = true;
-        for (Map.Entry<String, Sample> entry : samples().entrySet()) {
+        for (Map.Entry<String, Sample> entry : allSamples().entrySet()) {
             if (typeNames.contains(entry.getKey()) == false) {
                 continue;
             }
@@ -123,9 +138,19 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
 
     record Sample(Collection<String> kept, int total) {}
 
+    private Map<String, Sample> allSamples() {
+        Map<String, Sample> unsupported = unsupportedSamples();
+        if (unsupported.isEmpty()) {
+            return samples();
+        }
+        Map<String, Sample> all = new LinkedHashMap<>(samples());
+        all.putAll(unsupported);
+        return all;
+    }
+
     private String makeErrorMessage() {
         StringBuilder sb = new StringBuilder();
-        var typesToSample = samples();
+        var typesToSample = allSamples();
         boolean includeUnmappedKeyword = isPotentiallyUnmapped();
         boolean prependUnmappedKeyword = includeUnmappedKeyword && samples().containsKey(DataType.KEYWORD.typeName()) == false;
         sb.append("mapped as [");

@@ -29,15 +29,29 @@ public final class InvalidMappedField extends TypeConflictedField {
     private static final int MAX_INDICES_TO_DISPLAY = 3;
 
     private final Map<String, Set<String>> typesToIndices;
+    private final Map<String, Set<String>> unsupportedTypesToIndices;
     private final boolean isPotentiallyUnmapped;
 
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
         // Use a mutable map: IndexResolver may add child fields into the properties of a conflicting parent field later.
-        this(name, new TreeMap<>(), typesToIndices, false, TimeSeriesFieldType.UNKNOWN);
+        this(name, new TreeMap<>(), typesToIndices, Map.of(), false, TimeSeriesFieldType.UNKNOWN);
     }
 
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices, Map<String, EsField> properties) {
-        this(name, properties, typesToIndices, false, TimeSeriesFieldType.UNKNOWN);
+        this(name, properties, typesToIndices, Map.of(), false, TimeSeriesFieldType.UNKNOWN);
+    }
+
+    /**
+     * A conflict where some indices map the field to types ES|QL doesn't support. See
+     * {@link TypeConflictedField#getUnsupportedTypesToIndices()}.
+     */
+    public static InvalidMappedField withUnsupportedTypes(
+        String name,
+        Map<String, Set<String>> typesToIndices,
+        Map<String, Set<String>> unsupportedTypesToIndices
+    ) {
+        // Use a mutable map: IndexResolver may add child fields into the properties of a conflicting parent field later.
+        return new InvalidMappedField(name, new TreeMap<>(), typesToIndices, unsupportedTypesToIndices, false, TimeSeriesFieldType.UNKNOWN);
     }
 
     /**
@@ -46,24 +60,43 @@ public final class InvalidMappedField extends TypeConflictedField {
      * unmapped fields as {@link DataType#KEYWORD}.
      */
     public static InvalidMappedField potentiallyUnmapped(String name, Map<String, Set<String>> typesToIndices) {
+        return potentiallyUnmapped(name, typesToIndices, Map.of());
+    }
+
+    public static InvalidMappedField potentiallyUnmapped(
+        String name,
+        Map<String, Set<String>> typesToIndices,
+        Map<String, Set<String>> unsupportedTypesToIndices
+    ) {
         // Use a mutable map: IndexResolver may add child fields into the properties of a conflicting parent field later.
-        return new InvalidMappedField(name, new TreeMap<>(), typesToIndices, true, TimeSeriesFieldType.UNKNOWN);
+        return new InvalidMappedField(name, new TreeMap<>(), typesToIndices, unsupportedTypesToIndices, true, TimeSeriesFieldType.UNKNOWN);
     }
 
     private InvalidMappedField(
         String name,
         Map<String, EsField> properties,
         Map<String, Set<String>> typesToIndices,
+        Map<String, Set<String>> unsupportedTypesToIndices,
         boolean isPotentiallyUnmapped,
         TimeSeriesFieldType type
     ) {
         super(name, DataType.UNSUPPORTED, properties, false, type);
         this.typesToIndices = typesToIndices;
+        this.unsupportedTypesToIndices = unsupportedTypesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
     }
 
     @Override
     Map<String, Sample> samples() {
+        return toSamples(typesToIndices);
+    }
+
+    @Override
+    Map<String, Sample> unsupportedSamples() {
+        return toSamples(unsupportedTypesToIndices);
+    }
+
+    private static Map<String, Sample> toSamples(Map<String, Set<String>> typesToIndices) {
         // Preserve typesToIndices' own iteration order so the rendered error lists types in the order they were discovered (which the
         // production resolver supplies as a TreeMap, but tests may supply in a deliberate insertion order).
         Map<String, Sample> samples = new LinkedHashMap<>();
@@ -81,14 +114,16 @@ public final class InvalidMappedField extends TypeConflictedField {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), typesToIndices, isPotentiallyUnmapped);
+        return Objects.hash(super.hashCode(), typesToIndices, unsupportedTypesToIndices, isPotentiallyUnmapped);
     }
 
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             InvalidMappedField other = (InvalidMappedField) obj;
-            return isPotentiallyUnmapped == other.isPotentiallyUnmapped && Objects.equals(typesToIndices, other.typesToIndices);
+            return isPotentiallyUnmapped == other.isPotentiallyUnmapped
+                && Objects.equals(typesToIndices, other.typesToIndices)
+                && Objects.equals(unsupportedTypesToIndices, other.unsupportedTypesToIndices);
         }
 
         return false;
@@ -97,6 +132,11 @@ public final class InvalidMappedField extends TypeConflictedField {
     @Override
     public Map<String, Set<String>> getTypesToIndices() {
         return typesToIndices;
+    }
+
+    @Override
+    public Map<String, Set<String>> getUnsupportedTypesToIndices() {
+        return unsupportedTypesToIndices;
     }
 
     @Override

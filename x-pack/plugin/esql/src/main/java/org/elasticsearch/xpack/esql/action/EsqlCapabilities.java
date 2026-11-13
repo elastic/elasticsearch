@@ -4505,6 +4505,13 @@ public class EsqlCapabilities {
          */
         UNION_TYPES_LENIENT_CAST,
 
+        /**
+         * Lenient casts ({@link #UNION_TYPES_LENIENT_CAST}) also cover indices that map the field to a type ES|QL doesn't support,
+         * such as {@code rank_feature}: those load as {@code null} with a warning naming the original type. Without a cast, the
+         * field still fails with the unsupported type error.
+         */
+        UNION_TYPES_LENIENT_CAST_UNSUPPORTED_TYPES,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

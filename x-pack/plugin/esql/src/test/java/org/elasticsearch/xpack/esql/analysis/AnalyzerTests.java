@@ -3982,6 +3982,100 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertWarnings("Field [value] of type [ip] in [foo] cannot be converted to [TEXT] and will be null in those indices.");
     }
 
+    /**
+     * An index that maps the field to a type ES|QL doesn't support doesn't block a cast: the other indices are converted, and the
+     * unsupported one loads as null, with a warning naming its original type.
+     */
+    public void testCastOnUnionWithUnsupportedTypeIsLenient() {
+        IndexResolution resolution = mergedResolution("foo,bar", rankFeatureAndKeywordCaps());
+        TypeConflictedField field = as(resolution.get().mapping().get("value"), TypeConflictedField.class);
+        assertThat(field.getTypesToIndices(), equalTo(Map.of("keyword", Set.of("bar"))));
+        assertThat(field.getUnsupportedTypesToIndices(), equalTo(Map.of("rank_feature", Set.of("foo"))));
+
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(resolution)
+            .query("FROM foo, bar | EVAL x = value::keyword");
+        assertWarnings("Field [value] of type [rank_feature] in [foo] cannot be converted to [KEYWORD] and will be null in those indices.");
+    }
+
+    public void testUnionWithUnsupportedTypeWithoutCastFails() {
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(mergedResolution("foo,bar", rankFeatureAndKeywordCaps()))
+            .error("FROM foo, bar | WHERE value == \"x\"", containsString("Cannot use field [value] with unsupported type [rank_feature]"));
+    }
+
+    /**
+     * Older nodes can't cast a union leniently, so a conflict with an unsupported type makes the whole field unsupported, as before.
+     */
+    public void testUnionWithUnsupportedTypeIsUnsupportedOnOlderNodes() {
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo,bar",
+            false,
+            new IndexResolver.FieldsInfo(
+                rankFeatureAndKeywordCaps(),
+                TransportVersion.minimumCompatible(),
+                false,
+                false,
+                false,
+                false,
+                true,
+                true
+            ),
+            false,
+            IndexResolver.DO_NOT_GROUP
+        );
+        UnsupportedEsField field = as(resolution.get().mapping().get("value"), UnsupportedEsField.class);
+        assertThat(field.getOriginalTypes(), equalTo(List.of("rank_feature")));
+    }
+
+    public void testConflictOfOnlyUnsupportedTypesStaysUnsupported() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "rank_feature")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "rank_features"))
+            ),
+            List.of()
+        );
+        UnsupportedEsField field = as(mergedResolution("foo,bar", caps).get().mapping().get("value"), UnsupportedEsField.class);
+        assertThat(field.getOriginalTypes(), equalTo(List.of("rank_feature")));
+    }
+
+    /**
+     * A field that is a {@code keyword} in one index, unsupported in another and unmapped in a third isn't a single mapped type
+     * loaded from {@code _source}: it needs a cast like any other conflict with an unsupported type.
+     */
+    public void testPartiallyUnmappedUnionWithUnsupportedTypeNeedsCast() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "rank_feature")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "keyword")),
+                fieldCapabilitiesIndexResponse("baz", fieldResponseMap("other", "keyword"))
+            ),
+            List.of()
+        );
+        IndexResolution resolution = mergedResolution("foo,bar,baz", caps, true);
+        TypeConflictedField field = as(resolution.get().mapping().get("value"), TypeConflictedField.class);
+        assertTrue(field.isPotentiallyUnmapped());
+        assertFalse(field.isSingleTypePotentiallyUnmapped());
+
+        analyzer().minimumTransportVersion(TransportVersion.current())
+            .addIndex(resolution)
+            .statementError(
+                AnalyzerUnmappedTestBase.setUnmappedLoad("FROM foo, bar, baz | WHERE value == \"x\""),
+                containsString("Cannot use field [value] with unsupported type [rank_feature]")
+            );
+    }
+
+    private static FieldCapabilitiesResponse rankFeatureAndKeywordCaps() {
+        return new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "rank_feature")),
+                fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", "keyword"))
+            ),
+            List.of()
+        );
+    }
+
     public void testValidFuse() {
         LogicalPlan plan = basic().query("""
              from test metadata _id, _index, _score

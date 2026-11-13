@@ -4051,7 +4051,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 });
 
                 boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
-                boolean allResolved = typeResolutions.size() == tcf.getTypesToIndices().size();
+                boolean allResolved = typeResolutions.size() == tcf.getTypesToIndices().size() && tcf.hasUnsupportedTypes() == false;
                 boolean unmappedKeywordSupported = tcf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD);
                 // Lenient casts succeed when at least one mapped type converts, or the unmapped keyword leg does.
                 // Unconvertible branches are omitted from the conversion map and load as null.
@@ -4260,6 +4260,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     dropped.add(type.typeName());
                 }
             }
+            dropped.addAll(tcf.getUnsupportedTypesToIndices().keySet());
             String target = castTargetName(convertExpression);
             if (dropped.isEmpty() == false) {
                 context.deferredHeaderWarnings().add(lenientNullWarning(fieldName, tcf.describeTypes(dropped), target));
@@ -4279,6 +4280,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (DataType type : tcf.types()) {
                 dropped.add(type.typeName());
             }
+            dropped.addAll(tcf.getUnsupportedTypesToIndices().keySet());
             String described = tcf.describeTypes(dropped);
             if (tcf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD) == false && dropped.contains(KEYWORD.typeName()) == false) {
                 String unmapped = "[keyword] due to loading from _source";
@@ -4497,7 +4499,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static EsField asTransportable(EsField field) {
             if (field instanceof TypeConflictedField tcf) {
-                return new UnsupportedEsField(tcf.getName(), tcf.getTypesToIndices().keySet().stream().toList());
+                Map<String, Set<String>> originalTypes = tcf.hasUnsupportedTypes()
+                    ? tcf.getUnsupportedTypesToIndices()
+                    : tcf.getTypesToIndices();
+                return new UnsupportedEsField(tcf.getName(), originalTypes.keySet().stream().toList());
             }
             if (field instanceof InvalidMappedTsField imtf) {
                 return new UnsupportedEsField(imtf.getName(), List.of());
@@ -4637,7 +4642,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean allDates(AnalyzerContext context, TypeConflictedField tcf) {
-            if (tcf.types().stream().allMatch(DataType::isDate) == false) {
+            // Unsupported types need an explicit cast, which loads them as null with a warning.
+            if (tcf.hasUnsupportedTypes() || tcf.types().stream().allMatch(DataType::isDate) == false) {
                 return false;
             }
             // If the field is potentially unmapped (i.e. not mapped in all indices), we treat it as a keyword (not all dates),
@@ -4857,7 +4863,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean canBeCast(TypeConflictedField tcf) {
-            return tcf.types().contains(AGGREGATE_METRIC_DOUBLE)
+            return tcf.hasUnsupportedTypes() == false
+                && tcf.types().contains(AGGREGATE_METRIC_DOUBLE)
                 && tcf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric());
         }
 
@@ -5788,6 +5795,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Attribute attr = out.get(columnIndex);
                 if (attr instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
                     dataTypes.addAll(tcf.types().stream().map(DataType::typeName).toList());
+                    dataTypes.addAll(tcf.getUnsupportedTypesToIndices().keySet());
                 } else {
                     dataTypes.add(attr.dataType().typeName());
                 }

@@ -298,13 +298,79 @@ setup:
   - match: { values.1: ["lenient_punk_unmapped", "10.0.0.1"] }
 
 ---
-"unsupported type branch still errors":
-  # Follow-up (RFC 1a): a truly unsupported type such as rank_feature collapses the field to UnsupportedEsField in
-  # IndexResolver.conflictingTypes, before union-type resolution. A cast therefore still fails with the unsupported-type
-  # error below. Lenient casts do not cover this until IndexResolver keeps an unsupported branch in the union.
-  # Do not change this test to expect nulls without that IndexResolver change.
+"unsupported type branch is null under a cast":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_lenient_cast_unsupported_types]
+      reason: "Lenient casts of union-typed fields with unsupported types"
+  - do:
+      warnings:
+        - "Field [f] of type [rank_feature] in [lenient_rank] cannot be converted to [KEYWORD] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_rank,lenient_rank_kw METADATA _index | EVAL x = f::keyword | KEEP _index, x | SORT _index'
+  - length: { values: 2 }
+  - match: { columns.1.type: "keyword" }
+  - match: { values.0: ["lenient_rank", null] }
+  - match: { values.1: ["lenient_rank_kw", "plain"] }
+
+---
+"TO_STRING on an unsupported type branch matches the cast operator":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_lenient_cast_unsupported_types]
+      reason: "Lenient casts of union-typed fields with unsupported types"
+  - do:
+      warnings:
+        - "Field [f] of type [rank_feature] in [lenient_rank] cannot be converted to [KEYWORD] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_rank,lenient_rank_kw METADATA _index | EVAL x = TO_STRING(f) | KEEP _index, x | SORT _index'
+  - match: { values.0: ["lenient_rank", null] }
+  - match: { values.1: ["lenient_rank_kw", "plain"] }
+
+---
+"unsupported type branch without a cast still errors":
   - do:
       catch: '/Cannot use field \[f\] with unsupported type \[rank_feature\]/'
       esql.query:
         body:
-          query: 'FROM lenient_rank,lenient_rank_kw | EVAL x = TO_STRING(f) | KEEP x'
+          query: 'FROM lenient_rank,lenient_rank_kw | WHERE f == "plain"'
+
+---
+"unsupported type branch without a cast is kept as unsupported":
+  - do:
+      allowed_warnings_regex:
+        - ".*"
+      esql.query:
+        body:
+          query: 'FROM lenient_rank,lenient_rank_kw | KEEP f'
+  - match: { columns.0.name: "f" }
+  - match: { columns.0.type: "unsupported" }
+  - match: { values.0: [null] }
+  - match: { values.1: [null] }
+
+---
+"no convertible type lists the unsupported type in the error":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [union_types_lenient_cast_unsupported_types]
+      reason: "Lenient casts of union-typed fields with unsupported types"
+  - do:
+      catch: '/Cannot convert field \[f\] to \[IP\]: no type can be converted: \[boolean\] in \[lenient_bool\], \[rank_feature\] in \[lenient_rank\]/'
+      esql.query:
+        body:
+          query: 'FROM lenient_rank,lenient_bool | EVAL x = f::ip | KEEP x'

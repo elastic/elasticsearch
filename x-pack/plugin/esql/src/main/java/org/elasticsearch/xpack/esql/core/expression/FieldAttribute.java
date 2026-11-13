@@ -260,6 +260,12 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
      */
     public Attribute flagTypeConflicts() {
         if (field instanceof TypeConflictedField tcf) {
+            if (tcf.hasUnsupportedTypes()) {
+                // Only a cast can use the indices with supported types, so without one this is the same error as for a field that is
+                // unsupported everywhere.
+                List<String> unsupportedTypes = tcf.getUnsupportedTypesToIndices().keySet().stream().toList();
+                return new UnsupportedAttribute(source(), name(), new UnsupportedEsField(tcf.getName(), unsupportedTypes), null, id());
+            }
             // Field has conflicting types across indices — build a user-facing error message.
             String unresolvedMessage = "Cannot use field [" + name() + "] due to ambiguities being " + tcf.errorMessage();
             List<String> types = tcf.getTypesToIndices().keySet().stream().toList();

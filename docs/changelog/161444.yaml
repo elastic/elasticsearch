@@ -1,0 +1,6 @@
+area: EQL
+issues:
+ - 160366
+pr: 161444
+summary: '`ConstraintFor` replaces a missing optional with a null literal'
+type: bug

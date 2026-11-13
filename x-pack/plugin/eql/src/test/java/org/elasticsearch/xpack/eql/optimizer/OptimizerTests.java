@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
@@ -656,6 +657,38 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(rule1, queries.get(0));
         assertEquals(keyCondition, filterCondition(queries.get(1).child()));
         assertEquals(filterCondition(rule2.child()), filterCondition(queries.get(1).child().children().get(0)));
+    }
+
+    /**
+     * A missing optional key is always null, so it is propagated as a null literal rather than as an attribute
+     * (which cannot be translated into a query).
+     *
+     * sequence
+     * 1. filter a != null by a
+     * 2. filter X by ?m (missing)
+     * ==
+     * sequence
+     * 1. filter a != null by a
+     * 2. filter null != null by ?m
+     *    \filter X
+     */
+    public void testKeyConstraintPropagatedToMissingOptionalKey() {
+        Attribute a = key("a");
+        Attribute missing = new OptionalMissingAttribute(EMPTY, "m", null);
+
+        Expression keyCondition = new IsNotNull(EMPTY, a);
+        Expression filter = equalsExpression();
+
+        KeyedFilter rule1 = keyedFilter(basicFilter(keyCondition), a);
+        KeyedFilter rule2 = keyedFilter(basicFilter(filter), missing);
+
+        AbstractJoin j = randomSequenceOrSample(rule1, rule2);
+
+        List<KeyedFilter> queries = j.queries();
+        assertEquals(rule1, queries.get(0));
+        assertEquals(new IsNotNull(EMPTY, new Literal(EMPTY, null, DataTypes.NULL)), filterCondition(queries.get(1).child()));
+        assertEquals(filter, filterCondition(queries.get(1).child().children().get(0)));
+        assertEquals(List.of(missing), queries.get(1).keys());
     }
 
     /**

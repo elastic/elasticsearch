@@ -40,7 +40,11 @@ import java.util.Map;
 /**
  * Encodes XContentType documents into {@link EscfBatch}es (Elasticsearch Column Format), accumulating one
  * column per leaf field. Numbers upcast aggressively (JSON int/long → {@code long}, float/double →
- * {@code double}); a type conflict or an explicit null promotes the column to
+ * {@code double});
+ * A floating-point value whose spelling is not the canonical {@code Double.toString}
+ * rendering keeps that spelling next to the double, so string consumers such as {@code keyword}
+ * sub-fields index what the client wrote.
+ * A type conflict or an explicit null promotes the column to
  * {@link EscfColumnKind#UNION}. Fixed primitive arrays are stored in a columnar list layout;
  * other arrays (heterogeneous, nested, object-bearing) are stored inline on a union column.
  *
@@ -305,7 +309,11 @@ public final class EscfEncoder implements SourceBatchEncoder {
                     XContentParser.NumberType numType = parser.numberType();
                     switch (numType) {
                         case INT, LONG -> backend.longField(fieldName, parser.longValue());
-                        case FLOAT, DOUBLE -> backend.doubleField(fieldName, parser.doubleValue());
+                        case FLOAT, DOUBLE -> {
+                            String text = parser.text();
+                            double val = parser.doubleValue();
+                            backend.doubleField(fieldName, val, SourceBatchEncodeHelper.lexicalForm(text, val));
+                        }
                         default -> backend.stringField(fieldName, parser.optimizedText().bytes());
                     }
                 }

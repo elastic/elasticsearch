@@ -13,6 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -146,8 +147,16 @@ public final class EscfBatchBuilder implements Releasable {
 
     /** Writes a double field. */
     public void doubleField(String name, double value) {
+        doubleField(name, value, null);
+    }
+
+    /**
+     * Writes a double field together with {@code lexicalForm}, the client's spelling when it is not the canonical
+     * {@code Double.toString} rendering of {@code value}; {@code null} writes a plain double.
+     */
+    public void doubleField(String name, double value, @Nullable XContentString.UTF8Bytes lexicalForm) {
         int colIdx = addLeaf(name);
-        ensureBuilder(colIdx).addDouble(value);
+        ensureBuilder(colIdx).addDouble(value, lexicalForm);
     }
 
     /** Writes a UTF-8 string value. */

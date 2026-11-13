@@ -17,6 +17,9 @@ export LUCENE_SHA
 LUCENE_SNAPSHOT_VERSION=$(buildkite-agent meta-data get --build "$LUCENE_BUILD_ID" lucene-snapshot-version)
 export LUCENE_SNAPSHOT_VERSION
 
+buildkite-agent meta-data set lucene-snapshot-sha "$LUCENE_SHA"
+buildkite-agent meta-data set lucene-snapshot-version "$LUCENE_SNAPSHOT_VERSION"
+
 echo --- Downloading lucene snapshot
 
 mkdir lucene-snapshot
@@ -38,6 +41,6 @@ for i in {1..3}; do
     aws s3 sync lucene-snapshot/ "s3://download.elasticsearch.org/lucenesnapshots/$LUCENE_SHA/" --acl public-read && break || sleep 5
 done
 
-if [[ "${UPDATE_ES_LUCENE_SNAPSHOT:-}" ]]; then
+if [[ "${UPDATE_ES_LUCENE_SNAPSHOT:-}" == "true" ]]; then
   .buildkite/scripts/lucene-snapshot/update-es-snapshot.sh
 fi

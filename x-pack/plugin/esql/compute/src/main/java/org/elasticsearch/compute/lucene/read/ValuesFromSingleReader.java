@@ -185,6 +185,7 @@ class ValuesFromSingleReader extends ValuesReader {
                 loadFromRowStrideReaders(jumboBytes, target, storedFieldsSpec, rowStrideReaders, ctx, docs, offset);
             }
             for (ColumnAtATimeWork r : columnAtATimeReaders) {
+                loaderBlockFactory.field(operator.fields[r.idx]);
                 target[r.idx] = r.convert(
                     (Block) r.reader.read(loaderBlockFactory, docs, offset, operator.fields[r.idx].info.nullsFiltered())
                 );

@@ -15,7 +15,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.DoubleSingleArrayPool;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntSingleArrayPool;
+import org.elasticsearch.compute.data.LongSingleArrayPool;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.ValueBytes;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
@@ -563,6 +566,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     protected class FieldWork implements Releasable {
         final FieldInfo info;
         private final int fieldIdx;
+        private Releasable pool;
 
         BlockLoader loader;
         // TODO rework this bit of mutable state into something harder to forget
@@ -638,7 +642,31 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         @Override
         public void close() {
-            closeReaders();
+            Releasables.close(this::closeReaders, pool);
+        }
+
+        LongSingleArrayPool longPool() {
+            if (pool instanceof LongSingleArrayPool == false) {
+                Releasables.close(pool);
+                pool = new LongSingleArrayPool(driverContext.breaker());
+            }
+            return (LongSingleArrayPool) pool;
+        }
+
+        IntSingleArrayPool intPool() {
+            if (pool instanceof IntSingleArrayPool == false) {
+                Releasables.close(pool);
+                pool = new IntSingleArrayPool(driverContext.breaker());
+            }
+            return (IntSingleArrayPool) pool;
+        }
+
+        DoubleSingleArrayPool doublePool() {
+            if (pool instanceof DoubleSingleArrayPool == false) {
+                Releasables.close(pool);
+                pool = new DoubleSingleArrayPool(driverContext.breaker());
+            }
+            return (DoubleSingleArrayPool) pool;
         }
 
         private void closeReaders() {

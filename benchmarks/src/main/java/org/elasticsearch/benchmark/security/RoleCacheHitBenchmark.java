@@ -51,6 +51,10 @@ import java.util.concurrent.TimeUnit;
  * still run under it. This measures moving hashing out of the critical section, including the hash computation in each
  * measured lookup; it does not assume a hash cached during setup or change the production {@link RoleKey}.
  * <p>
+ * The {@code interned} variant maps each key to a canonical token in a {@link ConcurrentHashMap}, read without the monitor,
+ * and keys the access-ordered map by that token, whose equality is identity. Hashing and equality of the role key then run
+ * outside the monitor, and only an identity lookup and the LRU promotion run under it.
+ * <p>
  * Each thread cycles through the cached roles from its own starting offset, so with more than one role the threads promote
  * different entries rather than hammering one. With a single role the LRU promotion is a no-op in both implementations and
  * hashing and equality are still measured. Lookup keys and their name sets are equal to, but distinct from, the cached keys,
@@ -90,9 +94,10 @@ public class RoleCacheHitBenchmark {
     /**
      * {@code cache}: the previous implementation, {@link Cache}. {@code monitor}: the current implementation, a synchronized
      * access-ordered {@link LinkedHashMap}. {@code prehashed}: the same map with hashing before the monitor.
-     * {@code concurrent}: a {@link ConcurrentHashMap} with no eviction, as a floor.
+     * {@code interned}: the same map keyed by interned tokens. {@code concurrent}: a {@link ConcurrentHashMap} with no
+     * eviction, as a floor.
      */
-    @Param({ "cache", "monitor", "prehashed", "concurrent" })
+    @Param({ "cache", "monitor", "prehashed", "interned", "concurrent" })
     private String impl;
 
     private RoleCache roleCache;
@@ -122,6 +127,7 @@ public class RoleCacheHitBenchmark {
             case "cache" -> new CacheRoleCache(roles);
             case "monitor" -> new MonitorRoleCache(roles);
             case "prehashed" -> new PrehashedRoleCache(roles);
+            case "interned" -> new InternedRoleCache(roles);
             case "concurrent" -> new ConcurrentRoleCache();
             default -> throw new IllegalArgumentException("unknown impl [" + impl + "]");
         };
@@ -290,6 +296,53 @@ public class RoleCacheHitBenchmark {
             synchronized (this) {
                 map.put(key, role);
             }
+        }
+    }
+
+    /** A canonical token for a cached key. Inherits identity equality and hashing from {@link Object}. */
+    private static final class InternedKey {
+        private final ProjectScoped<RoleKey> key;
+
+        private InternedKey(ProjectScoped<RoleKey> key) {
+            this.key = key;
+        }
+    }
+
+    /**
+     * Reproduces the interning in {@code GuardedRoleCaches}: the intern table is read without the monitor and only modified
+     * under it, alongside the access-ordered map, so the two hold the same keys.
+     */
+    private static final class InternedRoleCache implements RoleCache {
+        private final ConcurrentHashMap<ProjectScoped<RoleKey>, InternedKey> interned = new ConcurrentHashMap<>();
+        private final Map<InternedKey, Role> map;
+
+        InternedRoleCache(int maximumSize) {
+            map = new LinkedHashMap<>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<InternedKey, Role> eldest) {
+                    if (size() > maximumSize) {
+                        interned.remove(eldest.getKey().key, eldest.getKey());
+                        return true;
+                    }
+                    return false;
+                }
+            };
+        }
+
+        @Override
+        public Role get(ProjectId projectId, RoleKey roleKey) {
+            final InternedKey token = interned.get(new ProjectScoped<>(projectId, roleKey));
+            if (token == null) {
+                return null;
+            }
+            synchronized (this) {
+                return map.get(token);
+            }
+        }
+
+        @Override
+        public synchronized void put(ProjectId projectId, RoleKey roleKey, Role role) {
+            map.putIfAbsent(interned.computeIfAbsent(new ProjectScoped<>(projectId, roleKey), InternedKey::new), role);
         }
     }
 

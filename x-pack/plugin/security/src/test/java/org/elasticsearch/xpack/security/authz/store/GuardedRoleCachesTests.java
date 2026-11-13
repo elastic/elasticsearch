@@ -275,6 +275,43 @@ public class GuardedRoleCachesTests extends ESTestCase {
     }
 
     /**
+     * Role keys are interned outside the role cache, so every way an entry leaves the role cache must also drop its token, and
+     * a write that is rejected or immediately evicted must not leave one behind.
+     */
+    public void testInternedKeysTrackCachedRoles() {
+        final GuardedRoleCaches bounded = new GuardedRoleCaches(2, UNBOUNDED);
+        final ProjectId project = randomUniqueProjectId();
+        final ProjectId otherProject = randomUniqueProjectId();
+        for (String name : new String[] { "a", "b", "c" }) {
+            assertThat(bounded.putIfCurrent(bounded.generation(project), project, roleKey(name), role(name), Set.of()), is(true));
+        }
+        assertInternedKeysMatchCachedRoles(bounded, 2);
+
+        final GuardedRoleCaches caches = populatedCaches(project, otherProject);
+        assertInternedKeysMatchCachedRoles(caches, 4);
+        caches.invalidateRole(project, "r1");
+        assertInternedKeysMatchCachedRoles(caches, 2);
+        caches.invalidateClusterScopedRoles(Set.of("r1"));
+        assertInternedKeysMatchCachedRoles(caches, 1);
+        caches.invalidateProject(project);
+        assertInternedKeysMatchCachedRoles(caches, 0);
+
+        final GuardedRoleCaches.Generation stale = caches.generation(project);
+        caches.invalidateAll();
+        assertThat(caches.putIfCurrent(stale, project, R1, role("r1"), Set.of()), is(false));
+        assertInternedKeysMatchCachedRoles(caches, 0);
+
+        final GuardedRoleCaches retainsNothing = new GuardedRoleCaches(0, 0);
+        assertThat(retainsNothing.putIfCurrent(retainsNothing.generation(project), project, R1, role("r1"), Set.of()), is(true));
+        assertInternedKeysMatchCachedRoles(retainsNothing, 0);
+    }
+
+    private static void assertInternedKeysMatchCachedRoles(GuardedRoleCaches caches, int expected) {
+        assertThat(caches.cachedRoleKeys().size(), is(expected));
+        assertThat(caches.internedKeyCount(), is(expected));
+    }
+
+    /**
      * Every operation runs under the monitor, so a read that arrives while an invalidation is scanning the caches waits for
      * the invalidation to finish and observes its result. This rules out, by construction, a concurrent read disturbing the scan.
      * <p>

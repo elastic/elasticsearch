@@ -152,6 +152,8 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
 
     // Cached value for current leaf
     private byte currentType;
+    /** The column of the current scalar double, whose dense column may hold the client's spelling; -1 otherwise. */
+    private int scalarDoubleCol = -1;
     private int cachedInt;
     private long cachedLong;
     private float cachedFloat;
@@ -302,6 +304,7 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
             }
             case SourceValueType.DOUBLE -> {
                 cachedDouble = row.getDoubleValue(colIdx);
+                scalarDoubleCol = colIdx;
                 currentToken = Token.VALUE_NUMBER;
             }
             case SourceValueType.STRING -> {
@@ -367,6 +370,7 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
             case SourceValueType.DOUBLE -> {
                 currentType = SourceValueType.DOUBLE;
                 cachedDouble = reader.doubleValue();
+                scalarDoubleCol = -1;
                 currentToken = Token.VALUE_NUMBER;
             }
             case SourceValueType.STRING -> {
@@ -433,6 +437,7 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
             case SourceValueType.DOUBLE -> {
                 currentType = SourceValueType.DOUBLE;
                 cachedDouble = kv.doubleValue();
+                scalarDoubleCol = -1;
                 currentToken = Token.VALUE_NUMBER;
             }
             case SourceValueType.STRING -> {
@@ -527,7 +532,7 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
                 case SourceValueType.INT -> Integer.toString(cachedInt);
                 case SourceValueType.LONG -> Long.toString(cachedLong);
                 case SourceValueType.FLOAT -> Float.toString(cachedFloat);
-                case SourceValueType.DOUBLE -> Double.toString(cachedDouble);
+                case SourceValueType.DOUBLE -> doubleText();
                 default -> throw new IllegalStateException("Unexpected number type: " + currentType);
             };
             case VALUE_BOOLEAN -> Boolean.toString(currentType == SourceValueType.TRUE);
@@ -562,6 +567,15 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
             case VALUE_NULL -> null;
             default -> charBuffer();
         };
+    }
+
+    /**
+     * The text of the current double. A scalar sits in a column that renders it: a dense DOUBLE column returns the
+     * client's spelling when it stored one and the canonical rendering otherwise (see {@code EscfColumnData#lexicalForms()}).
+     * An array element or a key-value value renders canonically; they do not carry spellings yet.
+     */
+    private String doubleText() {
+        return scalarDoubleCol >= 0 ? row.getStringValue(scalarDoubleCol).string() : Double.toString(cachedDouble);
     }
 
     @Override

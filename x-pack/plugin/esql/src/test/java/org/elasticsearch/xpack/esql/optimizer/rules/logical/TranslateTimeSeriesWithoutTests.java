@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -77,5 +78,40 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
 
         EsRelation loweredRelation = as(lowered.child(), EsRelation.class);
         assertThat(loweredRelation.output(), hasItem(loweredGrouping));
+    }
+
+    /** A WITHOUT read through an expression, such as the typed label container cast from it, is lowered inside it. */
+    public void testLoweringReachesIntoTheGroupingExpression() {
+        FieldAttribute cluster = new FieldAttribute(
+            Source.EMPTY,
+            null,
+            null,
+            "cluster",
+            new EsField("cluster", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION)
+        );
+        EsRelation relation = EsqlTestUtils.relation(IndexMode.TIME_SERIES).withAttributes(List.of(cluster));
+        var fn = new TimeSeriesWithout(Source.EMPTY, new ArrayList<>(List.<Expression>of(cluster)));
+        var container = new Alias(Source.EMPTY, MetadataAttribute.TIMESERIES, new ToTimeSeriesMetadata(Source.EMPTY, fn));
+        TimeSeriesAggregate aggregate = new TimeSeriesAggregate(
+            Source.EMPTY,
+            relation,
+            List.of(container),
+            List.of(container.toAttribute()),
+            null,
+            null,
+            TimeSeriesAggregate.Origin.PROMQL_COMMAND,
+            false
+        );
+
+        TimeSeriesAggregate lowered = as(
+            new TranslateTimeSeriesWithout().apply(aggregate, metricsAnalyzer().buildContext()),
+            TimeSeriesAggregate.class
+        );
+
+        Alias grouping = as(lowered.groupings().getFirst(), Alias.class);
+        assertThat(grouping.id(), equalTo(container.id()));
+        var view = as(as(grouping.child(), ToTimeSeriesMetadata.class).field(), TimeSeriesMetadataAttribute.class);
+        assertThat(view.excludedFields(), equalTo(Set.of("cluster")));
+        assertThat(as(lowered.child(), EsRelation.class).output(), hasItem(view));
     }
 }

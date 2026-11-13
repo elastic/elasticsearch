@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -27,6 +28,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.FieldAttribute.timeSeriesField;
 
@@ -65,6 +67,19 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
         return TranslateTimeSeriesUtils.transformTimeSeriesSource(plan, relation -> addLoweredAttributes(relation, loweredAttributes));
     }
 
+    /** The names of the dimensions {@code fn} leaves out. */
+    private static Set<String> excludedFields(TimeSeriesWithout fn) {
+        var excludedFields = new LinkedHashSet<String>(fn.children().size());
+        for (var field : fn.children()) {
+            if (field instanceof FieldAttribute fa) {
+                excludedFields.add(fa.fieldName().string());
+            } else if (field instanceof Attribute attr) {
+                excludedFields.add(attr.name());
+            }
+        }
+        return excludedFields;
+    }
+
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate aggregate, AnalyzerContext context) {
         // Collect TimeSeriesWithout groupings and lower each into a TimeSeriesMetadataAttribute
@@ -79,14 +94,7 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
             if (Alias.unwrap(grouping) instanceof TimeSeriesWithout fn) {
                 // Replace the semantic WITHOUT node with the concrete _timeseries field attribute,
                 // collecting the excluded dimension names from the function's children.
-                var excludedFields = new LinkedHashSet<String>(fn.children().size());
-                for (var field : fn.children()) {
-                    if (field instanceof FieldAttribute fa) {
-                        excludedFields.add(fa.fieldName().string());
-                    } else if (field instanceof Attribute attr) {
-                        excludedFields.add(attr.name());
-                    }
-                }
+                Set<String> excludedFields = excludedFields(fn);
 
                 // The grouping is a named expression (Alias) wrapping the WITHOUT function; resolve its
                 // attribute so the lowered _timeseries attribute can preserve the original identity (name id).
@@ -123,6 +131,25 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                     replacements.put(lowered.id(), lowered);
                     newGroupings.add(lowered);
                 }
+            } else if (grouping instanceof Alias alias && alias.child().anyMatch(TimeSeriesWithout.class::isInstance)) {
+                // A WITHOUT read through an expression, such as the typed label container cast from it: the source loads the
+                // _timeseries it leaves out, which the expression then reads.
+                Expression child = alias.child().transformUp(TimeSeriesWithout.class, fn -> {
+                    var lowered = new TimeSeriesMetadataAttribute(
+                        fn.source(),
+                        null,
+                        null,
+                        MetadataAttribute.TIMESERIES,
+                        timeSeriesField(),
+                        Nullability.TRUE,
+                        new NameId(),
+                        false,
+                        excludedFields(fn)
+                    );
+                    aliasedLowered.add(lowered);
+                    return lowered;
+                });
+                newGroupings.add(alias.replaceChild(child));
             } else {
                 newGroupings.add(grouping);
             }

@@ -469,6 +469,93 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         assertEquals(List.of((int) 'n'), reader.peeked);
     }
 
+    public void testOperatorCloseClosesStandaloneReader() throws Exception {
+        CloseCountingFormatReader reader = runSingleFileOperator(null);
+        assertEquals(1, reader.closes.get());
+    }
+
+    public void testOperatorCloseSkipsRegistryPrototype() throws Exception {
+        CloseCountingFormatReader reader = new CloseCountingFormatReader();
+        runSingleFileOperator(reader, reader);
+        assertEquals(0, reader.closes.get());
+    }
+
+    public void testPerFileGzipWrapCloseDoesNotCloseInner() throws Exception {
+        byte[] plain = "n\n1\n".getBytes(StandardCharsets.UTF_8);
+        byte[] gzipped = gzipCompress(plain);
+        StoragePath path = StoragePath.of("s3://bucket/hits.csv.gz");
+        ByteArrayStorageProvider storage = new ByteArrayStorageProvider(Map.of(path.toString(), gzipped));
+        CloseCountingFormatReader reader = new CloseCountingFormatReader();
+        DecompressionCodecRegistry codecs = new DecompressionCodecRegistry();
+        codecs.register(new GzipDecompressionCodec());
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(codecs);
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(mock(BlockFactory.class));
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(Source.EMPTY, "n", new EsField("n", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storage,
+            reader,
+            path,
+            attributes,
+            100,
+            10,
+            Runnable::run
+        ).formatReaderRegistry(formatRegistry).registryPrototype(reader).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        }
+        operator.close();
+        assertEquals("gzip wrap must not close the query/prototype reader", 0, reader.closes.get());
+    }
+
+    private CloseCountingFormatReader runSingleFileOperator(FormatReader prototype) throws Exception {
+        CloseCountingFormatReader reader = new CloseCountingFormatReader();
+        runSingleFileOperator(reader, prototype);
+        return reader;
+    }
+
+    private void runSingleFileOperator(CloseCountingFormatReader reader, FormatReader prototype) throws Exception {
+        byte[] plain = "n\n1\n".getBytes(StandardCharsets.UTF_8);
+        StoragePath path = StoragePath.of("s3://bucket/hits.csv");
+        ByteArrayStorageProvider storage = new ByteArrayStorageProvider(Map.of(path.toString(), plain));
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(mock(BlockFactory.class));
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(Source.EMPTY, "n", new EsField("n", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storage,
+            reader,
+            path,
+            attributes,
+            100,
+            10,
+            Runnable::run
+        ).registryPrototype(prototype).build();
+        SourceOperator operator = factory.get(driverContext);
+        while (operator.isFinished() == false) {
+            Page page = operator.getOutput();
+            if (page != null) {
+                page.releaseBlocks();
+            }
+        }
+        operator.close();
+    }
+
     public void testProducerExecutorWiredDistinctFromReadExecutor() {
         StorageProvider storageProvider = mock(StorageProvider.class);
         FormatReader formatReader = mock(FormatReader.class);
@@ -7404,6 +7491,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    private static final class CloseCountingFormatReader extends StreamPeekingFormatReader {
+        final AtomicInteger closes = new AtomicInteger();
+
+        @Override
+        public void close() {
+            closes.incrementAndGet();
+        }
     }
 
     /**

@@ -3538,80 +3538,86 @@ public class FileSplitProvider implements SplitProvider {
             return false;
         }
 
+        FormatReader base;
         FormatReader reader;
         try {
-            reader = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry).withConfig(config);
+            base = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry);
+            reader = base.withConfig(config);
         } catch (Exception e) {
             return false;
         }
 
-        if (reader instanceof RangeAwareFormatReader == false) {
-            return false;
-        }
-        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
-
-        // One independently readable unit (one Parquet row group / ORC stripe): discovery would
-        // reopen the same footer only to emit a single range. The file-level harvest is that
-        // unit's extrema only when it carries column statistics. A slim record still reports
-        // readableUnitCount == 1 but has no per-column map; skipping would stamp an empty harvest
-        // and filtered MIN/MAX would scan. Those files fall through to discoverSplitRanges.
-        if (singleUnitHarvest(fileStatistics)) {
-            Map<String, Object> stats = normalizeSplitStats(
-                SourceStatisticsSerializer.embedStatistics(Map.of(), fileStatistics),
-                readSchema,
-                reconciledTypes,
-                declaredReadSpec,
-                inferredFileTypes,
-                foldedSourceMetadata,
-                implicitNullsFor(reader),
-                unknownNativeTypes
-            );
-            splits.add(
-                FileSplit.withStatisticsAndReadSchema(
-                    "file",
-                    filePath,
-                    0,
-                    fileLength,
-                    format,
-                    wholeFileSplitConfig(config),
-                    partitionValues,
-                    columnMapping,
-                    stats,
-                    readSchema
-                )
-            );
-            return true;
-        }
-
         try {
-            StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
-            StorageObject object = newObject(provider, filePath, fileLength, 0L, fileVersion(config));
-
-            List<SplitRange> ranges = rangeReader.discoverSplitRanges(object);
-            if (ranges.isEmpty()) {
+            if (reader instanceof RangeAwareFormatReader == false) {
                 return false;
             }
-            addRangeAwareSplits(
-                filePath,
-                fileLength,
-                format,
-                config,
-                partitionValues,
-                columnMapping,
-                readSchema,
-                reconciledTypes,
-                declaredReadSpec,
-                inferredFileTypes,
-                ranges,
-                splits,
-                foldedSourceMetadata,
-                implicitNullsFor(reader),
-                unknownNativeTypes
-            );
-            return true;
-        } catch (IOException e) {
-            LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
-            return false;
+            RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
+
+            // One independently readable unit (one Parquet row group / ORC stripe): discovery would
+            // reopen the same footer only to emit a single range. The file-level harvest is that
+            // unit's extrema only when it carries column statistics. A slim record still reports
+            // readableUnitCount == 1 but has no per-column map; skipping would stamp an empty harvest
+            // and filtered MIN/MAX would scan. Those files fall through to discoverSplitRanges.
+            if (singleUnitHarvest(fileStatistics)) {
+                Map<String, Object> stats = normalizeSplitStats(
+                    SourceStatisticsSerializer.embedStatistics(Map.of(), fileStatistics),
+                    readSchema,
+                    reconciledTypes,
+                    declaredReadSpec,
+                    inferredFileTypes,
+                    foldedSourceMetadata,
+                    implicitNullsFor(reader),
+                    unknownNativeTypes
+                );
+                splits.add(
+                    FileSplit.withStatisticsAndReadSchema(
+                        "file",
+                        filePath,
+                        0,
+                        fileLength,
+                        format,
+                        wholeFileSplitConfig(config),
+                        partitionValues,
+                        columnMapping,
+                        stats,
+                        readSchema
+                    )
+                );
+                return true;
+            }
+
+            try {
+                StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
+                StorageObject object = newObject(provider, filePath, fileLength, 0L, fileVersion(config));
+
+                List<SplitRange> ranges = rangeReader.discoverSplitRanges(object);
+                if (ranges.isEmpty()) {
+                    return false;
+                }
+                addRangeAwareSplits(
+                    filePath,
+                    fileLength,
+                    format,
+                    config,
+                    partitionValues,
+                    columnMapping,
+                    readSchema,
+                    reconciledTypes,
+                    declaredReadSpec,
+                    inferredFileTypes,
+                    ranges,
+                    splits,
+                    foldedSourceMetadata,
+                    implicitNullsFor(reader),
+                    unknownNativeTypes
+                );
+                return true;
+            } catch (IOException e) {
+                LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
+                return false;
+            }
+        } finally {
+            FormatReaders.closeDistinctFrom(reader, base);
         }
     }
 
@@ -3634,16 +3640,21 @@ public class FileSplitProvider implements SplitProvider {
             listener.onResponse(null);
             return;
         }
+        FormatReader base;
         FormatReader reader;
         try {
-            reader = FormatNameResolver.resolveReader(task.config(), task.filePath().objectName(), formatRegistry)
-                .withConfig(task.config());
+            base = FormatNameResolver.resolveReader(task.config(), task.filePath().objectName(), formatRegistry);
+            reader = base.withConfig(task.config());
         } catch (Exception e) {
             listener.onResponse(null);
             return;
         }
+        ActionListener<List<ExternalSplit>> closing = ActionListener.runAfter(
+            listener,
+            () -> FormatReaders.closeDistinctFrom(reader, base)
+        );
         if (reader instanceof RangeAwareFormatReader == false) {
-            listener.onResponse(null);
+            closing.onResponse(null);
             return;
         }
         RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
@@ -3653,7 +3664,7 @@ public class FileSplitProvider implements SplitProvider {
             rangeReader.discoverSplitRangesAsync(object, fanOut, ActionListener.wrap(ranges -> {
                 runRecordingDiscoveryCpu(() -> {
                     if (ranges == null || ranges.isEmpty()) {
-                        listener.onResponse(null);
+                        closing.onResponse(null);
                         return;
                     }
                     try {
@@ -3675,22 +3686,22 @@ public class FileSplitProvider implements SplitProvider {
                             implicitNullsFor(reader),
                             task.unknownNativeTypes()
                         );
-                        listener.onResponse(splits);
+                        closing.onResponse(splits);
                     } catch (Exception e) {
-                        listener.onFailure(e);
+                        closing.onFailure(e);
                     }
                 });
             }, e -> {
                 if (ExceptionsHelper.unwrap(e, IllegalArgumentException.class) == null
                     && ExceptionsHelper.unwrap(e, IOException.class) != null) {
                     LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", task.filePath(), e);
-                    listener.onResponse(null);
+                    closing.onResponse(null);
                 } else {
-                    listener.onFailure(e);
+                    closing.onFailure(e);
                 }
             }));
         } catch (Exception e) {
-            listener.onFailure(e);
+            closing.onFailure(e);
         }
     }
 

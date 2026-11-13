@@ -461,6 +461,15 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         expectThrows(QlIllegalArgumentException.class, () -> new CompressionDelegatingFormatReader(inner, null));
     }
 
+    public void testCloseDoesNotCloseInnerReader() throws Exception {
+        CountingCloseReader inner = new CountingCloseReader();
+        FormatReader delegating = new CompressionDelegatingFormatReader(inner, mockCodec());
+        delegating.close();
+        assertEquals(0, inner.closes);
+        delegating.close();
+        assertEquals(0, inner.closes);
+    }
+
     public void testUnwrapReturnsInnerReader() {
         FormatReader inner = new CapturingFormatReader();
         DecompressionCodec codec = mockCodec();
@@ -599,6 +608,15 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    private static final class CountingCloseReader extends CapturingFormatReader {
+        int closes;
+
+        @Override
+        public void close() {
+            closes++;
+        }
     }
 
     private static class BytesStorageObject extends AbstractTestStorageObject {

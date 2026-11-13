@@ -2560,6 +2560,7 @@ public final class StreamingParallelParsingCoordinator {
             for (GrowBuffer buf : growBuffers) {
                 buf.release();
             }
+            FormatReaders.closeDistinctFrom(reader, originalReader);
         }
 
         private void poisonCapturedStats(String path) {

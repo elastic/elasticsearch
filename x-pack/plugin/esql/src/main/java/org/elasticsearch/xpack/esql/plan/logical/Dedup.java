@@ -17,10 +17,15 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
  * Removes duplicate rows from the result set (similar in spirit to SQL {@code DISTINCT}).
@@ -78,13 +83,45 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        List<UnsupportedAttribute> unionTyped = new ArrayList<>();
         for (Attribute attr : child().output()) {
             // Synthetic attributes (e.g. union-type conversions pushed into UnionAll branches) are dropped before the final output,
             // so the user never groups by them.
-            if (attr.synthetic() == false) {
+            if (attr.synthetic()) {
+                continue;
+            }
+            if (attr instanceof UnsupportedAttribute ua && isUnionType(ua)) {
+                unionTyped.add(ua);
+            } else {
                 Aggregate.checkUnsupportedGroupingType(attr, failures);
             }
         }
+        if (unionTyped.isEmpty() == false) {
+            String columns = unionTyped.stream()
+                .map(ua -> "[" + ua.name() + "] with types " + new TreeSet<>(ua.originalTypes()))
+                .collect(Collectors.joining(", "));
+            // name() is unquoted. A field such as emp-no has to be quoted or the suggested EVAL does not parse.
+            String example = ParserUtils.quoteIdString(unionTyped.getFirst().name());
+            failures.add(
+                fail(
+                    this,
+                    "DEDUP cannot compare columns with conflicting types: {}; "
+                        + "convert each to a single type first, for example EVAL {} = {}::keyword, or DROP it",
+                    columns,
+                    example,
+                    example
+                )
+            );
+        }
+    }
+
+    /**
+     * {@code originalTypes()} has one entry per distinct type, not per index, so more than one entry is a type conflict.
+     * Types ES|QL already combines, such as {@code date} and {@code date_nanos}, are a single type before this check.
+     * Exactly one entry is a type ES|QL does not support.
+     */
+    private static boolean isUnionType(UnsupportedAttribute attr) {
+        return attr.originalTypes().size() > 1;
     }
 
     @Override

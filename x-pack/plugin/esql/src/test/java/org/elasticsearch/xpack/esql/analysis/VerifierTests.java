@@ -5268,6 +5268,141 @@ public class VerifierTests extends AnalyzerTestCase {
         k8sDownsampled().error("FROM k8s | DEDUP", containsString("cannot group by on [aggregate_metric_double] type for grouping"));
     }
 
+    public void testDedupRejectsUnionTypeColumn() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().error(
+            "FROM test* | KEEP multi_typed | DEDUP",
+            equalTo(
+                "1:33: DEDUP cannot compare columns with conflicting types: [multi_typed] with types [integer, long];"
+                    + " convert each to a single type first, for example EVAL `multi_typed` = `multi_typed`::keyword, or DROP it"
+            )
+        );
+    }
+
+    public void testDedupRejectsEveryUnionTypeColumnInOneError() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().error(
+            "FROM test* | DEDUP",
+            equalTo(
+                "1:14: DEDUP cannot compare columns with conflicting types: [multi_typed] with types [integer, long],"
+                    + " [other_multi_typed] with types [keyword, text];"
+                    + " convert each to a single type first, for example EVAL `multi_typed` = `multi_typed`::keyword, or DROP it"
+            )
+        );
+    }
+
+    public void testDedupQuotesUnionTypeFieldNameInConversionExample() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        assertQuotedUnionTypeExample("emp-no", "`emp-no`");
+        assertQuotedUnionTypeExample("emp`no", "`emp``no`");
+    }
+
+    private void assertQuotedUnionTypeExample(String name, String quoted) {
+        String query = "FROM test* | KEEP " + quoted + " | DEDUP";
+        TestAnalyzer analyzer = unionTypeColumnAnalyzer(name);
+        analyzer.error(
+            query,
+            equalTo(
+                "1:"
+                    + (query.indexOf("DEDUP") + 1)
+                    + ": DEDUP cannot compare columns with conflicting types: ["
+                    + name
+                    + "] with types [integer, long];"
+                    + " convert each to a single type first, for example EVAL "
+                    + quoted
+                    + " = "
+                    + quoted
+                    + "::keyword, or DROP it"
+            )
+        );
+        analyzer.query("FROM test* | EVAL " + quoted + " = " + quoted + "::long | DEDUP");
+    }
+
+    /** One union-type column, named so the conversion example has to quote it. */
+    private TestAnalyzer unionTypeColumnAnalyzer(String name) {
+        Map<String, EsField> mapping = Map.of(
+            name,
+            new InvalidMappedField(name, Map.of("integer", Set.of("test1"), "long", Set.of("test2")))
+        );
+        return analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping))).stripErrorPrefix(true);
+    }
+
+    public void testDedupRejectsUnionTypeColumnConvertedAfterDedup() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().error(
+            "FROM test* | KEEP multi_typed | DEDUP | EVAL x = multi_typed::long",
+            containsString("DEDUP cannot compare columns with conflicting types: [multi_typed] with types [integer, long];")
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnConvertedIntoAnotherColumn() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().error(
+            "FROM test* | KEEP multi_typed | EVAL x = multi_typed::long | DEDUP",
+            containsString("DEDUP cannot compare columns with conflicting types: [multi_typed] with types [integer, long];")
+        );
+    }
+
+    public void testDedupRejectsUnionTypeColumnFromSubqueries() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        analyzer().addEmployees()
+            .addIndex("employees_incompatible", "mapping-default-incompatible.json")
+            .error(
+                "FROM (FROM employees | KEEP emp_no), (FROM employees_incompatible | KEEP emp_no) | DEDUP",
+                containsString("DEDUP cannot compare columns with conflicting types: [emp_no] with types [integer, long];")
+            );
+    }
+
+    public void testDedupRejectsSubqueryColumnUnsupportedInOneBranch() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        IndexResolution unsupportedX = IndexResolution.valid(
+            EsIndexGenerator.esIndex("unsupported_x", Map.of("x", new UnsupportedEsField("x", List.of("ip_range"))))
+        );
+        IndexResolution keywordX = IndexResolution.valid(
+            EsIndexGenerator.esIndex("keyword_x", Map.of("x", new EsField("x", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)))
+        );
+        analyzer().addIndex("unsupported_x", unsupportedX)
+            .addIndex("keyword_x", keywordX)
+            .error(
+                "FROM (FROM unsupported_x | KEEP x), (FROM keyword_x | KEEP x) | DEDUP",
+                containsString("DEDUP cannot compare columns with conflicting types: [x] with types [keyword, unsupported];")
+            );
+    }
+
+    public void testDedupAcceptsUnionTypeColumnConvertedInPlace() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().query(
+            "FROM test* | EVAL multi_typed = multi_typed::long, other_multi_typed = other_multi_typed::keyword | DEDUP"
+        );
+    }
+
+    public void testDedupAcceptsUnionTypeColumnDropped() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().query("FROM test* | DROP multi_typed, other_multi_typed | DEDUP");
+    }
+
+    public void testDedupIgnoresUnsupportedColumn() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        dedupUnionTypesAnalyzer().query("FROM test* | KEEP unsupported, name | DEDUP");
+    }
+
+    /**
+     * An index pattern with two union-type columns, a column of an unsupported type and a regular one.
+     */
+    private TestAnalyzer dedupUnionTypesAnalyzer() {
+        Map<String, EsField> mapping = Map.of(
+            "multi_typed",
+            new InvalidMappedField("multi_typed", Map.of("integer", Set.of("test1"), "long", Set.of("test2"))),
+            "other_multi_typed",
+            new InvalidMappedField("other_multi_typed", Map.of("keyword", Set.of("test1"), "text", Set.of("test2"))),
+            "unsupported",
+            new UnsupportedEsField("unsupported", List.of("ip_range")),
+            "name",
+            new EsField("name", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        return analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping))).stripErrorPrefix(true);
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         fullText().query("from test | eval similarity = " + functionInvocation);
     }

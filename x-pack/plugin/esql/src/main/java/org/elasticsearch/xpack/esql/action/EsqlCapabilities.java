@@ -4739,6 +4739,12 @@ public class EsqlCapabilities {
         DEDUP_IGNORES_SYNTHETIC_UNION_CONVERSIONS,
 
         /**
+         * {@code DEDUP} rejects columns whose type differs between the indices or subqueries it reads, instead of leaving them out
+         * of the comparison. Older nodes silently collapsed rows that differed only in such a column.
+         */
+        DEDUP_REJECTS_UNION_TYPE_COLUMNS,
+
+        /**
          * Warning, emitted before optimization, when an explicit NULL literal is misused: either the
          * expression always evaluates to NULL, or a NULL in an IN list never matches.
          */

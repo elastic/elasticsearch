@@ -50,6 +50,11 @@ public class DedupGenerator implements CommandGenerator {
                     || dt.isCounter())) {
                 return EMPTY_DESCRIPTION;
             }
+            // DEDUP also rejects union-type columns, which come back as unsupported with all of their types.
+            // Must stay in sync with Dedup#isUnionType.
+            if (dt == DataType.UNSUPPORTED && c.originalTypes().size() > 1) {
+                return EMPTY_DESCRIPTION;
+            }
         }
         return new CommandDescription(DEDUP, this, " | DEDUP ", Map.of());
     }

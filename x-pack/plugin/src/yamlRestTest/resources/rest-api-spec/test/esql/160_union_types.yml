@@ -986,3 +986,42 @@ suggested_type:
   - match: { columns.3.suggested_cast: "keyword" }
   - length: { values: 2 }
 
+
+---
+DEDUP rejects a union type column:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [dedup_rejects_union_type_columns]
+      reason: "DEDUP rejects columns with conflicting types"
+
+  - do:
+      catch: '/DEDUP cannot compare columns with conflicting types: \[event_duration\] with types \[keyword, long\];/'
+      esql.query:
+        body:
+          query: 'FROM events_ip_* | KEEP event_duration | DEDUP'
+
+---
+DEDUP over a union type column converted in place:
+  - requires:
+      test_runner_features: [capabilities, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [dedup_command]
+      reason: "DEDUP command"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM events_ip_* | KEEP event_duration | EVAL event_duration = TO_LONG(event_duration) | DEDUP | STATS c = COUNT(*)'
+
+  - match: { columns.0.name: "c" }
+  - length: { values: 1 }
+  - match: { values.0.0: 7 }

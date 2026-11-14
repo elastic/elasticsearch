@@ -55,6 +55,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
 
@@ -423,6 +425,52 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertNotNull("both branches want only year=2025, so the rest may be skipped", hints);
         assertEquals(1, hints.size());
         assertEquals("year", hints.get(0).columnName());
+    }
+
+    /**
+     * A subquery, or the body of a view, hands the rows of its child on as they are. A filter on its output is a filter on
+     * the relation inside it.
+     */
+    public void testFilterAboveSubqueryNarrowsTheListing() {
+        LogicalPlan subquery = new Subquery(SRC, externalRelation(PATH));
+        LogicalPlan plan = new Filter(SRC, subquery, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull("a filter above a subquery guards the relation inside it", hints);
+        assertEquals(1, hints.size());
+        assertEquals("year", hints.get(0).columnName());
+    }
+
+    /** What sits between the filter and the relation counts inside a subquery as it does outside of one. */
+    public void testSubqueryDoesNotHideALimitOrARedefinition() {
+        Expression condition = new Equals(SRC, unresolved("year"), intLiteral(2025));
+
+        LogicalPlan limited = new Subquery(SRC, new Limit(SRC, intLiteral(4), externalRelation(PATH)));
+        assertTrue(PartitionFilterHintExtractor.extract(new Filter(SRC, limited, condition)).isEmpty());
+
+        LogicalPlan redefined = new Subquery(SRC, new Eval(SRC, externalRelation(PATH), List.of(new Alias(SRC, "year", intLiteral(9)))));
+        assertTrue(PartitionFilterHintExtractor.extract(new Filter(SRC, redefined, condition)).isEmpty());
+    }
+
+    /** A filter on the rows of a union filters the rows of each of its branches. */
+    public void testFilterAboveUnionNarrowsEveryBranch() {
+        String otherPath = "s3://bucket/other/*.parquet";
+        LogicalPlan union = new UnionAll(SRC, List.of(externalRelation(PATH), new Subquery(SRC, externalRelation(otherPath))), List.of());
+        LogicalPlan plan = new Filter(SRC, union, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+
+        Map<String, List<PartitionFilterHint>> hints = PartitionFilterHintExtractor.extract(plan);
+        assertEquals(Set.of(PATH, otherPath), hints.keySet());
+        assertEquals("year", hints.get(PATH).get(0).columnName());
+        assertEquals("year", hints.get(otherPath).get(0).columnName());
+    }
+
+    /** One listing serves every branch that reads a path, so a branch that the filter does not reach vetoes the rewrite. */
+    public void testUnionBranchBehindALimitVetoesTheRewrite() {
+        UnresolvedExternalRelation rel = externalRelation(PATH);
+        LogicalPlan union = new UnionAll(SRC, List.of(rel, new Subquery(SRC, new Limit(SRC, intLiteral(4), rel))), List.of());
+        LogicalPlan plan = new Filter(SRC, union, new Equals(SRC, unresolved("year"), intLiteral(2025)));
+
+        assertTrue(PartitionFilterHintExtractor.extract(plan).isEmpty());
     }
 
     /**

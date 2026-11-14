@@ -47,6 +47,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Walks filter predicates into {@link PartitionFilterHint}s for partition pruning during glob
@@ -114,7 +115,7 @@ public final class PartitionFilterHintExtractor {
 
     public static Map<String, List<PartitionFilterHint>> extract(LogicalPlan unresolvedPlan) {
         Map<String, List<List<PartitionFilterHint>>> perOccurrence = new LinkedHashMap<>();
-        collectHints(unresolvedPlan, List.of(), perOccurrence);
+        collectHints(unresolvedPlan, perOccurrence);
 
         // One listing serves every occurrence of a path, so a folder may be skipped only if EVERY occurrence excludes
         // it. `FROM ds | FORK (WHERE year == 2025) (WHERE ...)` reaches the same relation twice; letting one branch's
@@ -208,12 +209,9 @@ public final class PartitionFilterHintExtractor {
      * and in particular keeps the hint in {@code WHERE year == 2025 | EVAL year = 9}, where the filter reads the
      * partition column and the {@code EVAL} only affects what comes after it.
      */
-    private static void collectHints(
-        LogicalPlan node,
-        List<Expression> guardingConjuncts,
-        Map<String, List<List<PartitionFilterHint>>> result
-    ) {
-        if (node instanceof UnresolvedExternalRelation rel) {
+    private static void collectHints(LogicalPlan plan, Map<String, List<List<PartitionFilterHint>>> result) {
+        forEachGuardedRelation(plan, node -> node instanceof UnresolvedExternalRelation, (node, guardingConjuncts) -> {
+            UnresolvedExternalRelation rel = (UnresolvedExternalRelation) node;
             String path = extractPath(rel);
             if (path != null) {
                 Set<String> requestedMetadata = requestedMetadataNames(rel);
@@ -224,6 +222,31 @@ public final class PartitionFilterHintExtractor {
                 // Registered even when empty: an occurrence with no usable hint must veto the rewrite, not be ignored.
                 result.computeIfAbsent(path, k -> new ArrayList<>()).add(hints);
             }
+        });
+    }
+
+    /** Receives a relation of the plan together with the conjuncts that guard its rows. */
+    @FunctionalInterface
+    public interface GuardedRelationConsumer {
+        void accept(LogicalPlan relation, List<Expression> guardingConjuncts);
+    }
+
+    /**
+     * The walk of {@link #collectHints}, for any kind of relation: hands each node that {@code isRelation} accepts to
+     * {@code consumer} with the conjuncts that guard it, and does not look below it.
+     */
+    public static void forEachGuardedRelation(LogicalPlan plan, Predicate<LogicalPlan> isRelation, GuardedRelationConsumer consumer) {
+        walk(plan, List.of(), isRelation, consumer);
+    }
+
+    private static void walk(
+        LogicalPlan node,
+        List<Expression> guardingConjuncts,
+        Predicate<LogicalPlan> isRelation,
+        GuardedRelationConsumer consumer
+    ) {
+        if (isRelation.test(node)) {
+            consumer.accept(node, guardingConjuncts);
             return;
         }
 
@@ -241,7 +264,7 @@ public final class PartitionFilterHintExtractor {
         }
 
         for (LogicalPlan child : node.children()) {
-            collectHints(child, conjuncts, result);
+            walk(child, conjuncts, isRelation, consumer);
         }
     }
 

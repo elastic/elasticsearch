@@ -243,11 +243,11 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int docCount = between(0, 100);
         final int numShards = between(1, 3);
-        createTestIndex(indexName, docCount, numShards);
-
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, dataNodes.size() - 2)), indexName);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", String.join(",", dataNodes)), indexName);
-        ensureGreen(indexName);
+        final Settings mountSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, dataNodes.size() - 2))
+            .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+            .build();
+        createTestIndex(indexName, docCount, numShards, mountSettings);
 
         final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
@@ -308,6 +308,11 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
     }
 
     private void createTestIndex(String indexName, int docCount, int numShards) throws Exception {
+        final Settings mountSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 2)).build();
+        createTestIndex(indexName, docCount, numShards, mountSettings);
+    }
+
+    private void createTestIndex(String indexName, int docCount, int numShards, Settings mountSettings) throws Exception {
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build())
@@ -333,11 +338,9 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
-        final int numberOfReplicas = between(0, 2);
-        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
-        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
+        internalCluster().ensureAtLeastNumDataNodes(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(mountSettings) + 1);
 
-        mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, indexSettings);
+        mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, mountSettings);
         ensureGreen(indexName);
     }
 }

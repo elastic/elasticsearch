@@ -14,9 +14,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.MlConfigVersionUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -341,6 +343,21 @@ public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdat
         assertTrue(update.isAutodetectProcessUpdate());
         update = new JobUpdate.Builder("foo").setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, true)).build();
         assertTrue(update.isAutodetectProcessUpdate());
+    }
+
+    public void testParse_givenDetectorWithOnlyIndexAndDescription() throws IOException {
+        String json = """
+            { "detectors": [ { "detector_index": 0, "description": "new description" } ] }
+            """;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            JobUpdate update = JobUpdate.PARSER.apply(parser, null).setJobId("foo").build();
+
+            assertThat(update.getDetectorUpdates().size(), equalTo(1));
+            assertThat(update.getDetectorUpdates().get(0).getDescription(), equalTo("new description"));
+            // absent rules stay null, which means "leave the rules unchanged"; consumers must tolerate it
+            assertThat(update.getDetectorUpdates().get(0).getRules(), is(nullValue()));
+            assertTrue(update.isAutodetectProcessUpdate());
+        }
     }
 
     public void testUpdateAnalysisLimitWithValueGreaterThanMax() {

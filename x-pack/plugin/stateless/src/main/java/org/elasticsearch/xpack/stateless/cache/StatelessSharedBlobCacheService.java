@@ -33,7 +33,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
@@ -131,7 +131,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /// [#STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_ENABLED_SETTING] so each tier can be rolled out and disabled on its own.
     public static final Setting<Boolean> STATELESS_CACHE_EVICT_OBSOLETE_REGIONS_INDEXING_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cache.evict_obsolete_regions.indexing.enabled",
-        false,
+        true,
         Setting.Property.OperatorDynamic,
         Setting.Property.NodeScope
     );
@@ -225,7 +225,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             blobCacheMetrics,
             evictionPolicyFactory.create(settings, clusterService, indicesService, threadPool),
             System::nanoTime,
-            threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+            threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL),
             metricsHolder
         );
     }
@@ -352,8 +352,8 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             timestampMillis,
             awaitPendingFill,
             listener,
-            StatelessPlugin.PREWARM_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            StatelessThreadPools.PREWARM_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         );
     }
 

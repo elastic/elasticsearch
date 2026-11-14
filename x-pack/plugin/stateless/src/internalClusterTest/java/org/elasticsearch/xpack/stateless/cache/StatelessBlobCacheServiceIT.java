@@ -33,7 +33,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
@@ -64,7 +64,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.PREWARM_THREAD_POOL;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -180,7 +180,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                     blobReader,
                     () -> writeBuffer.get().clear(),
                     bytes -> {},
-                    StatelessPlugin.PREWARM_THREAD_POOL
+                    StatelessThreadPools.PREWARM_THREAD_POOL
                 ) {
                     @Override
                     public void fillCacheRange(
@@ -268,7 +268,7 @@ public class StatelessBlobCacheServiceIT extends AbstractStatelessPluginIntegTes
                 blobReader,
                 () -> writeBuffer.get().clear(),
                 bytes -> {},
-                StatelessPlugin.PREWARM_THREAD_POOL
+                StatelessThreadPools.PREWARM_THREAD_POOL
             ),
             threadPool.executor(PREWARM_THREAD_POOL),
             randomRegionTimestampMillis(),

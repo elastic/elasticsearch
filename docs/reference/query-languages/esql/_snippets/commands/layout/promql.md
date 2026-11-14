@@ -3,17 +3,17 @@ serverless: ga
 stack: preview 9.4, ga 9.5
 ```
 
-The `PROMQL` source command queries [time series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) using [**Prometheus Query Language (PromQL)**](https://prometheus.io/docs/prometheus/latest/querying/basics/).
-Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time series aggregation functions, but accepts PromQL syntax instead of ES|QL.
+The `PROMQL` source command queries [time series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) using [**{{prom}} Query Language ({{promql}})**](https://prometheus.io/docs/prometheus/latest/querying/basics/).
+Like [`TS`](/reference/query-languages/esql/commands/ts.md), it enables time series aggregation functions, but accepts {{promql}} syntax instead of {{esql}}.
 
 ::::{note}
-`PROMQL` supports most, but not all, of PromQL. Refer to [Limitations](#esql-promql-limitations) for unsupported constructs, to [PromQL limitations](/reference/query-languages/promql/promql-limitations.md) for behavioral differences from Prometheus, and to [PromQL functions](/reference/query-languages/promql/functions.md) for the supported functions and their restrictions.
+`PROMQL` supports most, but not all, of {{promql}}. Refer to [{{prom}} compatibility](#esql-prometheus-compatibility) for unsupported constructs and differences from {{prom}}, and to [{{promql}} functions](/reference/query-languages/promql/functions.md) for the supported functions and their restrictions.
 ::::
 
 
 ## Syntax
 
-The `PROMQL` command accepts zero or more space-separated `<option>=<value>` pairs, followed by a PromQL expression in parentheses that can be prefixed with a result name.
+The `PROMQL` command accepts zero or more space-separated `<option>=<value>` pairs, followed by a {{promql}} expression in parentheses that can be prefixed with a result name.
 
 ```esql
 PROMQL [ <option>=<value> ... ] [ <result_name>= ](<PromQL Expression>)
@@ -21,7 +21,7 @@ PROMQL [ <option>=<value> ... ] [ <result_name>= ](<PromQL Expression>)
 
 ## Options
 
-The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) with some additions specific to ES|QL.
+The options are inspired by the {{prom}} [HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) with some additions specific to {{esql}}.
 
 `index`
 :   A list of indices, data streams, or aliases. Supports wildcards and date math.
@@ -64,20 +64,20 @@ The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs
 
 `<result_name>=(<PromQL Expression>)`
 :   Name of the output column with the query result timeseries (optional).
-    By default, the name of the output column is the PromQL expression itself.
+    By default, the name of the output column is the {{promql}} expression itself.
     Example: `PROMQL http_rate=(sum by (instance) (rate(http_requests_total))) | SORT http_rate DESC`
 
 `start`, `end`, and `time` accept an RFC 3339 timestamp with a UTC offset, such as `"2026-04-01T00:00:00Z"`,
 or a Unix timestamp in seconds, which can be fractional, such as `1775001600`. Date math, such as `now-1h`,
 isn't supported. In Kibana, the `?_tstart` and `?_tend` parameters reference the time range of the date picker,
 such as `time=?_tend`.
-`step` and `scrape_interval` accept a PromQL duration, such as `30s` or `5m`, or a number of seconds.
+`step` and `scrape_interval` accept a {{promql}} duration, such as `30s` or `5m`, or a number of seconds.
 
 
 ## Description
 
-The `PROMQL` command takes standard PromQL parameters and a PromQL expression, runs the query, and returns the
-results as regular ES|QL columns. You can continue to process the columns with other ES|QL commands.
+The `PROMQL` command takes standard {{promql}} parameters and a {{promql}} expression, runs the query, and returns the
+results as regular {{esql}} columns. You can continue to process the columns with other {{esql}} commands.
 
 ### Time range [esql-promql-time-range]
 
@@ -91,12 +91,12 @@ The result contains the following columns:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| The PromQL expression (or `<result_name>` if specified) | `double` | The computed metric value |
+| The {{promql}} expression (or `<result_name>` if specified) | `double` | The computed metric value |
 | `step` | `date` | The timestamp for each evaluation step. For an instant query, the evaluation time |
 | Grouping labels (if any) | `keyword` | One column per grouping label from `by` clauses |
 | `_timeseries` (if any) | `keyword` | The labels of each series as a JSON string |
 
-The label columns depend on the outermost aggregation of the PromQL expression:
+The label columns depend on the outermost aggregation of the {{promql}} expression:
 
 - With a `by` grouping, such as `sum by (instance) (...)`, each grouping label gets its own output column.
 - With an aggregation without grouping, such as `sum(...)`, there are no label columns, and the result is a single series.
@@ -110,11 +110,11 @@ A range query returns one row per series and evaluation step. An instant query r
 The `index` parameter accepts the same patterns as `FROM` and `TS`, including wildcards and comma-separated lists.
 If omitted, it defaults to `metrics-*`, which queries matching indices configured with
 [`index.mode: time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md).
-The Prometheus-compatible `query` and `query_range` endpoints use the same default when the `{index}` path parameter is omitted.
+The {{prom}}-compatible `query` and `query_range` endpoints use the same default when the `{index}` path parameter is omitted.
 
 ### Implicit range selectors [esql-promql-implicit-range-selectors]
 
-In standard PromQL, functions like `rate` require a range selector: `rate(http_requests_total[5m])`.
+In standard {{promql}}, functions like `rate` require a range selector: `rate(http_requests_total[5m])`.
 The `PROMQL` command allows omitting the range selector entirely. When the range selector is absent, the window is
 determined automatically as `max(step, scrape_interval)`.
 For example: `PROMQL scrape_interval=15s http_rate=(sum(rate(http_requests_total)))`.
@@ -139,7 +139,7 @@ A duration, such as in a range selector, can be the difference of two RFC 3339 t
 % documented elsewhere on this page. Put those facts in the relevant reference section instead.
 
 - Set `index` explicitly instead of relying on the `metrics-*` default, to narrow the data scanned.
-- Omit range selectors, also when porting a Prometheus query: write `rate(http_requests_total)` instead of
+- Omit range selectors, also when porting a {{prom}} query: write `rate(http_requests_total)` instead of
   `rate(http_requests_total[5m])`, so the window adapts to the time range and step.
   Refer to [Implicit range selectors](#esql-promql-implicit-range-selectors).
   The exception is a value over the whole time range. Refer to [Single-value results](#esql-promql-single-value).
@@ -151,7 +151,7 @@ A duration, such as in a range selector, can be the difference of two RFC 3339 t
   `histogram_quantile(0.99, sum by (job) (increase(http_request_duration_seconds)))`.
 - In Kibana, omit `start` and `end` so the query follows the date picker. Elsewhere, set `start` and `end`
   explicitly, rather than only `step`, which covers all data in the index.
-- Filter by labels in the PromQL selector, such as `network.cost{cluster!="prod"}`, rather than with `WHERE`
+- Filter by labels in the {{promql}} selector, such as `network.cost{cluster!="prod"}`, rather than with `WHERE`
   after `PROMQL`. Selector filters reduce the data read, and a later `WHERE` doesn't.
 
 ### Single-value results [esql-promql-single-value]
@@ -179,13 +179,6 @@ expression at the end of the time range of the date picker
   `$__range_ms` variants: replace the range selector, such as `[$__range]` or `[${__range_s}s]`, with
   `[?_tend - ?_tstart]`, and set `time=?_tend`.
   Refer to [Time range durations](#esql-promql-time-range-durations).
-
-## Limitations [esql-promql-limitations]
-
-:::{include} ../../../../promql/_snippets/promql-unsupported-constructs.md
-:::
-
-For behavioral differences from Prometheus, refer to [PromQL limitations](/reference/query-languages/promql/promql-limitations.md).
 
 ## Examples
 
@@ -222,9 +215,9 @@ PROMQL index=metrics-generic.prometheus-*
 ::::{include} ../examples/k8s-timeseries-promql.csv-spec/not_equals_filter.md
 ::::
 
-### Post-processing with ES|QL
+### Post-processing with {{esql}}
 
-Pipe PromQL results into ES|QL commands for further aggregation:
+Pipe {{promql}} results into {{esql}} commands for further aggregation:
 
 ::::{include} ../examples/k8s-timeseries-promql.csv-spec/post_processing_stats_by_cluster.md
 ::::
@@ -243,10 +236,26 @@ PROMQL index=metrics-generic.prometheus-*
 
 ### Enrich with a lookup
 
-Join PromQL results with external data using ES|QL commands:
+Join {{promql}} results with external data using {{esql}} commands:
 
 ```esql
 PROMQL index=metrics-generic.prometheus-*
   http_rate=(sum by (instance) (rate(http_requests_total)))
 | LOOKUP JOIN instance_metadata ON instance
 ```
+
+## {{prom}} compatibility [esql-prometheus-compatibility]
+
+This section lists the differences from {{prom}} 3.x.
+
+:::{include} ../../../../promql/_snippets/compatibility/basics.md
+:::
+
+:::{include} ../../../../promql/_snippets/compatibility/operators.md
+:::
+
+### Functions [esql-prometheus-compatibility-functions]
+
+:::{include} ../../../../promql/_snippets/compatibility/functions.md
+:::
+

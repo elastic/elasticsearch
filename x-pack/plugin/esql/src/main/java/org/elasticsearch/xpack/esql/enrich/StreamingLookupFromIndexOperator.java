@@ -24,6 +24,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeBase;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -759,6 +760,29 @@ public class StreamingLookupFromIndexOperator implements Operator {
             StreamingLookupStatus::new
         );
 
+        private record LookupPlan(Set<String> workers, String plan) {
+            private static final ProfileSchema<LookupPlan> PROFILE_SCHEMA = ProfileSchema.of(LookupPlan.class, (builder, value, params) -> {
+                builder.startObject();
+                builder.array("workers", value.workers.toArray(String[]::new));
+                builder.field("plan", value.plan);
+                return builder.endObject();
+            }).required("workers", ProfileSchema.array(ProfileSchema.string())).required("plan", ProfileSchema.string()).build();
+        }
+
+        public static final ProfileSchema<StreamingLookupStatus> PROFILE_SCHEMA = ProfileSchema.of(
+            StreamingLookupStatus.class,
+            StreamingLookupStatus::toXContent
+        )
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("planning_nanos", ProfileSchema.integer())
+            .required("process_nanos", ProfileSchema.integer())
+            .required("bytes_read", ProfileSchema.integer())
+            .optional("lookup_plans", ProfileSchema.array(LookupPlan.PROFILE_SCHEMA.schema()))
+            .build();
+
         // Reuse the streaming session ID version since streaming is not in production yet
         private static final TransportVersion ESQL_LOOKUP_PLAN_STRING = TransportVersion.fromName("esql_streaming_lookup_join");
         private static final TransportVersion ESQL_LOOKUP_BYTES_READ = TransportVersion.fromName("esql_lookup_bytes_read");
@@ -831,21 +855,22 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private static XContentBuilder toXContent(XContentBuilder builder, StreamingLookupStatus status, Params params) throws IOException {
             builder.startObject();
-            builder.field("pages_received", pagesReceived);
-            builder.field("pages_emitted", pagesEmitted);
-            builder.field("rows_received", rowsReceived);
-            builder.field("rows_emitted", rowsEmitted);
-            builder.field("planning_nanos", planningNanos);
-            builder.field("process_nanos", processNanos);
-            builder.field("bytes_read", bytesRead);
-            if (planToWorkers.isEmpty() == false) {
+            builder.field("pages_received", status.pagesReceived);
+            builder.field("pages_emitted", status.pagesEmitted);
+            builder.field("rows_received", status.rowsReceived);
+            builder.field("rows_emitted", status.rowsEmitted);
+            builder.field("planning_nanos", status.planningNanos);
+            builder.field("process_nanos", status.processNanos);
+            builder.field("bytes_read", status.bytesRead);
+            if (status.planToWorkers.isEmpty() == false) {
                 builder.startArray("lookup_plans");
-                for (Map.Entry<String, Set<String>> entry : planToWorkers.entrySet()) {
-                    builder.startObject();
-                    builder.array("workers", entry.getValue().toArray(String[]::new));
-                    builder.field("plan", entry.getKey());
-                    builder.endObject();
+                for (Map.Entry<String, Set<String>> entry : status.planToWorkers.entrySet()) {
+                    LookupPlan.PROFILE_SCHEMA.write(builder, new LookupPlan(entry.getValue(), entry.getKey()), params);
                 }
                 builder.endArray();
             }

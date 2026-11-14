@@ -18,14 +18,17 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /// A [ShutdownPrepareService] that allows tests to listen for task timeouts
 public class ListenableShutdownPrepareService extends ShutdownPrepareService {
 
-    /// Notified when [#awaitTasksComplete(TimeValue, Sleeper, String, TaskManager, Consumer, Consumer)] times out
+    /// Notified when one of the `awaitTasksComplete` or `awaitTasksCancellation` variants times out
     public interface TaskTimeoutListener {
 
         /// @param taskName The type of task that failed
@@ -39,9 +42,10 @@ public class ListenableShutdownPrepareService extends ShutdownPrepareService {
         Settings settings,
         HttpServerTransport httpServerTransport,
         TransportService transportService,
-        TerminationHandler terminationHandler
+        TerminationHandler terminationHandler,
+        Collection<String> actionsToAwait
     ) {
-        super(settings, httpServerTransport, transportService, terminationHandler);
+        super(settings, httpServerTransport, transportService, terminationHandler, actionsToAwait);
     }
 
     /// Marker plugin to indicate we should use the listenable service
@@ -55,13 +59,14 @@ public class ListenableShutdownPrepareService extends ShutdownPrepareService {
     protected boolean awaitTasksComplete(
         TimeValue timeout,
         Sleeper sleeper,
-        String taskName,
+        Set<String> actionNames,
+        TaskScope scope,
         TaskManager taskManager,
         @Nullable Consumer<Task> taskNotifier,
         @Nullable Consumer<List<Task>> onTimeout
     ) {
-        return awaitTasksCompleteInternal(timeout, sleeper, taskName, "finish", taskManager, taskNotifier, tasks -> {
-            notifyTaskTimeout(taskName, tasks);
+        return awaitTasksCompleteInternal(timeout, sleeper, actionNames, scope, "finish", taskManager, taskNotifier, tasks -> {
+            notifyTaskTimeout(tasks);
             if (onTimeout != null) {
                 onTimeout.accept(tasks);
             }
@@ -69,21 +74,25 @@ public class ListenableShutdownPrepareService extends ShutdownPrepareService {
     }
 
     @Override
-    protected boolean awaitTasksCancellation(TimeValue timeout, Sleeper sleeper, String taskName, TaskManager taskManager) {
+    protected boolean awaitTasksCancellation(TimeValue timeout, Sleeper sleeper, Set<String> actionNames, TaskManager taskManager) {
         return awaitTasksCompleteInternal(
             timeout,
             sleeper,
-            taskName,
+            actionNames,
+            TaskScope.ALL,
             "cancel",
             taskManager,
             null,
-            tasks -> notifyTaskTimeout(taskName, tasks)
+            this::notifyTaskTimeout
         );
     }
 
-    private void notifyTaskTimeout(String taskName, List<Task> tasks) {
-        for (TaskTimeoutListener listener : taskTimeoutListeners) {
-            listener.onTimeout(taskName, tasks);
-        }
+    /// Notifies the listeners once per action name that still had tasks running at the timeout.
+    private void notifyTaskTimeout(List<Task> tasks) {
+        tasks.stream().collect(Collectors.groupingBy(Task::getAction)).forEach((taskName, tasksOfAction) -> {
+            for (TaskTimeoutListener listener : taskTimeoutListeners) {
+                listener.onTimeout(taskName, tasksOfAction);
+            }
+        });
     }
 }

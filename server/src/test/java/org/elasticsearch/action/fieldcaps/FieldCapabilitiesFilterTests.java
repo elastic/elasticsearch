@@ -10,10 +10,12 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.apache.lucene.index.FieldInfos;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -550,6 +552,30 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
             getMockIndexShard(),
             true
         ).get("body");
+    }
+
+    /**
+     * Two columnar indices can have the same mapping and still differ in whether a field is single-valued, when only the
+     * {@code index.mapping.doc_values.multi_value} default differs.
+     */
+    public void testMultiValueDefaultIsPartOfMappingDedupHash() throws IOException {
+        String mapping = """
+            { "_doc" : { "properties" : { "field" : { "type" : "keyword" } } } }
+            """;
+        Settings.Builder columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+        MapperService singleValued = createMapperService(
+            Settings.builder().put(columnar.build()).put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false).build(),
+            mapping
+        );
+        MapperService multiValued = createMapperService(columnar.build(), mapping);
+        MappingMetadata singleValuedMapping = new MappingMetadata(singleValued.documentMapper());
+        MappingMetadata multiValuedMapping = new MappingMetadata(multiValued.documentMapper());
+        assertEquals(singleValuedMapping.getSha256(), multiValuedMapping.getSha256());
+
+        assertNotEquals(
+            FieldCapabilitiesFetcher.mappingDedupHash(singleValuedMapping, IndexMode.COLUMNAR, createSearchExecutionContext(singleValued)),
+            FieldCapabilitiesFetcher.mappingDedupHash(multiValuedMapping, IndexMode.COLUMNAR, createSearchExecutionContext(multiValued))
+        );
     }
 
     public void testAnalyzerNamesDigest() {

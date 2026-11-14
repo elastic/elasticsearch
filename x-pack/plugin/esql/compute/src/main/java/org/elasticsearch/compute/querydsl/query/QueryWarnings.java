@@ -143,17 +143,18 @@ public class QueryWarnings {
      * driver's state is currently bound to the calling thread. If this is the first time this
      * {@code query} has fired on the current driver, a fresh {@link Warnings} is created via the
      * bound {@link DriverContext}.
+     * <p>
+     *     If nothing is bound on this thread the warning is dropped. Lucene may run the query on a thread
+     *     the caller never bound, for example when a kNN rewrite forks its per-leaf searches onto the
+     *     searcher's executor. Failing the query there would turn a warning into an error.
+     * </p>
      *
-     * @throws IllegalStateException if no state is bound on this thread, or the bound state has no
-     *                                {@link DriverContext} and no pre-built entry for {@code query}
-     *                                -- both indicate a caller failed to bind before running the query
+     * @throws IllegalStateException if the bound state has no {@link DriverContext} and no pre-built
+     *                                entry for {@code query}
      */
     void registerException(SingleValueMatchQuery query, Class<? extends Exception> exceptionClass, String message) {
         ThreadState state = perThreadWarnings.get();
-        if (state == null) {
-            throw new IllegalStateException("no warnings bound on thread [" + Thread.currentThread().getName() + "] for [" + query + "]");
-        }
-        if (state.discard()) {
+        if (state == null || state.discard()) {
             return;
         }
         Warnings w = state.map().computeIfAbsent(query, q -> {

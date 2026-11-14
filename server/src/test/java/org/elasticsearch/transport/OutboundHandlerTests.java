@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class OutboundHandlerTests extends ESTestCase {
 
@@ -881,6 +882,223 @@ public class OutboundHandlerTests extends ESTestCase {
         try (StreamInput input = message.get().v2().streamInput()) {
             assertThat(input.readException().getCause(), instanceOf(CircuitBreakingException.class));
         }
+        assertTrue(channel.isOpen());
+    }
+
+    public void testSendRequestChargesBreakerUntilWritten() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        String value = randomAlphaOfLength(randomIntBetween(1, 100_000));
+        long requestId = randomLongBetween(0, 300);
+        Compression.Scheme compress = randomFrom(compressionScheme, null);
+        sendRequestWithBreaker(requestId, new TestRequest(value), compress, breaker);
+
+        BytesReference reference = channel.getMessageCaptor().get();
+        // The pages stay charged while the message waits to be written, each one exactly once.
+        final long pages = (reference.length() + recycler.pageSize() - 1) / recycler.pageSize();
+        assertThat(breaker.getUsed(), equalTo(pages * recycler.pageSize()));
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+        } else {
+            sendListener.onFailure(new IOException("failed"));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        Header header = message.get().v1();
+        assertEquals(requestId, header.getRequestId());
+        assertTrue(header.isRequest());
+        assertEquals(compress != null, header.isCompressed());
+        assertEquals(value, new TestRequest(message.get().v2().streamInput()).value);
+    }
+
+    public void testSendBytesTransportRequestChargesOnlyHeader() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        BytesArray payload = new BytesArray(randomByteArrayOfLength(between(2 * recycler.pageSize(), 100_000)));
+        BytesTransportRequest request = new BytesTransportRequest(ReleasableBytesReference.wrap(payload), TransportVersion.current());
+        long requestId = randomLongBetween(0, 300);
+        handler.sendRequest(
+            node,
+            channel,
+            requestId,
+            randomAlphaOfLength(10),
+            request,
+            TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, breaker),
+            TransportVersion.current(),
+            null,
+            false
+        );
+
+        BytesReference reference = channel.getMessageCaptor().get();
+        // The payload is sent from the request's own buffer, so only the pages holding the header are charged.
+        final long headerPages = (reference.length() - payload.length() + recycler.pageSize() - 1) / recycler.pageSize();
+        assertThat(breaker.getUsed(), equalTo(headerPages * recycler.pageSize()));
+        assertThat(breaker.getUsed(), lessThan((long) payload.length()));
+        channel.getListenerCaptor().get().onResponse(null);
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        Header header = message.get().v1();
+        assertEquals(requestId, header.getRequestId());
+        assertTrue(header.isRequest());
+        assertThat(new BytesTransportRequest(message.get().v2().streamInput()).bytes(), equalBytes(payload));
+    }
+
+    public void testSendRequestThrowsOnFirstPageTrip() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ZERO);
+        assertRequestTripThrown(breaker, randomFrom(compressionScheme, null));
+        assertThat(breaker.getTrippedCount(), equalTo(1L));
+    }
+
+    public void testSendRequestThrowsOnTripDuringSerialization() throws IOException {
+        // The first page fits, the rest of the request does not, so the trip happens inside the compressing stream.
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(recycler.pageSize()));
+        assertRequestTripThrown(breaker, compressionScheme);
+        // Closing a compressed stream after the trip writes its trailer and can trip again.
+        assertThat(breaker.getTrippedCount(), greaterThanOrEqualTo(1L));
+
+        // The trip released the thread-local compression resources, so the next compressed request on this thread succeeds.
+        String value = randomAlphaOfLength(randomIntBetween(1, 100_000));
+        long requestId = randomLongBetween(0, 300);
+        sendRequestWithBreaker(requestId, new TestRequest(value), compressionScheme, null);
+        BytesReference reference = channel.getMessageCaptor().get();
+        channel.getListenerCaptor().get().onResponse(null);
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        Header header = message.get().v1();
+        assertEquals(requestId, header.getRequestId());
+        assertEquals(value, new TestRequest(message.get().v2().streamInput()).value);
+    }
+
+    public void testSendRequestReleasesBreakerWhenSendThrows() {
+        channel.close();
+        channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address()) {
+            @Override
+            public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+                throw new IllegalStateException("pipe broken");
+            }
+        };
+        closeListener = new PlainActionFuture<>();
+        channel.addCloseListener(closeListener);
+        final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+
+        expectThrows(
+            IllegalStateException.class,
+            () -> sendRequestWithBreaker(
+                randomLongBetween(0, 300),
+                new TestRequest(randomAlphaOfLength(randomIntBetween(1, 100_000))),
+                randomFrom(compressionScheme, null),
+                breaker
+            )
+        );
+
+        assertThat(breaker.getUsed(), equalTo(0L));
+        assertFalse(channel.isOpen());
+        assertTrue(closeListener.isDone());
+    }
+
+    public void testSendRequestSerializationFailureNotReplacedByTripOnClose() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(recycler.pageSize()));
+        IllegalStateException failure = new IllegalStateException("simulated");
+        // LZ4 buffers what was written until the stream is closed, so the close after the failure needs another page and trips.
+        TestRequest request = new TestRequest(randomAlphaOfLength(20_000)) {
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                super.writeTo(out);
+                throw failure;
+            }
+        };
+
+        Exception e = expectThrows(
+            Exception.class,
+            () -> sendRequestWithBreaker(randomLongBetween(0, 300), request, Compression.Scheme.LZ4, breaker)
+        );
+
+        assertSame(failure, e);
+        assertThat(e.getSuppressed().length, equalTo(1));
+        assertThat(e.getSuppressed()[0], instanceOf(CircuitBreakingException.class));
+        assertThat(breaker.getTrippedCount(), equalTo(1L));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testSendResponseSerializationFailureNotReplacedByTripOnClose() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(recycler.pageSize()));
+        IllegalStateException failure = new IllegalStateException("simulated");
+        // LZ4 buffers what was written until the stream is closed, so the close after the failure needs another page and trips.
+        TestResponse response = new TestResponse(randomAlphaOfLength(20_000)) {
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                super.writeTo(out);
+                throw failure;
+            }
+        };
+        long requestId = randomLongBetween(0, 300);
+        AtomicReference<Exception> errorRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
+                errorRef.set(error);
+            }
+        });
+
+        sendResponseWithBreaker(requestId, response, Compression.Scheme.LZ4, breaker);
+
+        assertThat(breaker.getTrippedCount(), equalTo(1L));
+        assertThat(breaker.getUsed(), equalTo(0L));
+        BytesReference reference = channel.getMessageCaptor().get();
+        channel.getListenerCaptor().get().onResponse(null);
+        assertSame(failure, errorRef.get());
+        assertThat(failure.getSuppressed().length, equalTo(1));
+        assertThat(failure.getSuppressed()[0], instanceOf(CircuitBreakingException.class));
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        Header header = message.get().v1();
+        assertEquals(requestId, header.getRequestId());
+        assertTrue(header.isError());
+        try (StreamInput input = message.get().v2().streamInput()) {
+            assertThat(input.readException().getCause(), instanceOf(IllegalStateException.class));
+        }
+    }
+
+    private void sendRequestWithBreaker(long requestId, TestRequest request, Compression.Scheme compress, CircuitBreaker breaker)
+        throws IOException {
+        handler.sendRequest(
+            node,
+            channel,
+            requestId,
+            randomAlphaOfLength(10),
+            request,
+            TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, breaker),
+            TransportVersionUtils.randomCompatibleVersion(),
+            compress,
+            false
+        );
+    }
+
+    private void assertRequestTripThrown(CircuitBreaker breaker, Compression.Scheme compress) {
+        TestRequest trippedRequest = new TestRequest(randomAlphaOfLength(100_000));
+        AtomicReference<Integer> networkMessageSizeRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onRequestSent(
+                DiscoveryNode node,
+                long requestId,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                int networkMessageSize
+            ) {
+                if (request == trippedRequest) {
+                    assertTrue("request reported more than once", networkMessageSizeRef.compareAndSet(null, networkMessageSize));
+                }
+            }
+        });
+        expectThrows(
+            CircuitBreakingException.class,
+            () -> sendRequestWithBreaker(randomLongBetween(0, 300), trippedRequest, compress, breaker)
+        );
+
+        assertThat(breaker.getUsed(), equalTo(0L));
+        assertNull("nothing is sent", channel.getMessageCaptor().get());
+        assertThat(networkMessageSizeRef.get(), equalTo(-1));
         assertTrue(channel.isOpen());
     }
 

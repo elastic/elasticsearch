@@ -38,8 +38,12 @@ public class Clusters {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("esql.query.allow_partial_results", "false")
-            // Allow setup to index 16MB source documents; tests lower the request breaker around the queries under test.
-            .setting("indexing_pressure.memory.primary.limit", "20%")
+            // Allow setup to index source documents of about 15MB of CBOR, which the tests of the values that a read of _source holds
+            // need: one that is large enough to exhaust the heap of a node if what it holds is not charged to the request breaker,
+            // which they then query at its default limit. Indexing pressure counts about 4 times the size of a document for a write,
+            // more than the default limit of this heap. This limit is for the coordinating, the primary and, 1.5 times as much, the
+            // replica.
+            .setting("indexing_pressure.memory.limit", "40%")
             .setting("logger.org.elasticsearch.compute.lucene.read", "DEBUG")
             .jvmArg("-Xmx" + HEAP_SIZE_IN_MB + "m");
         String javaVersion = JvmInfo.jvmInfo().version();

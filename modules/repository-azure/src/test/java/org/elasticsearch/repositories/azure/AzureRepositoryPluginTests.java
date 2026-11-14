@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,12 +25,15 @@ public class AzureRepositoryPluginTests extends ESTestCase {
 
     public void testDefaultNettyEventLoopThreadCount() {
         final int allocatedProcessors = EsExecutors.allocatedProcessors(Settings.EMPTY);
+        Settings settings = Settings.builder().put("node.name", getTestName()).build();
+
         ThreadPool threadPool = null;
         try {
             threadPool = new ThreadPool(
-                Settings.builder().put("node.name", getTestName()).build(),
+                new ThreadContext(settings),
+                settings,
                 MeterRegistry.NOOP,
-                (settings, ap) -> Map.of(),
+                (s, ap) -> Map.of(),
                 AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
             );
             assertThat(
@@ -48,6 +52,7 @@ public class AzureRepositoryPluginTests extends ESTestCase {
         ThreadPool threadPool = null;
         try {
             threadPool = new ThreadPool(
+                new ThreadContext(settings),
                 settings,
                 MeterRegistry.NOOP,
                 (settings1, allocatedProcessors) -> Map.of(),

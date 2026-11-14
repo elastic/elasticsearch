@@ -34,11 +34,13 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -53,7 +55,7 @@ import java.util.Objects;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
 
-public class NestedQueryBuilder extends LeafQueryBuilder<NestedQueryBuilder> {
+public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
     public static final String NAME = "nested";
     /**
      * The default value for ignore_unmapped.
@@ -267,8 +269,8 @@ public class NestedQueryBuilder extends LeafQueryBuilder<NestedQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return toQuery((this.query::toQuery), path, scoreMode, ignoreUnmapped, context);
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor visitor) throws IOException {
+        return toQuery(c -> query.toQuery(c, visitor), path, scoreMode, ignoreUnmapped, context, visitor);
     }
 
     /**
@@ -288,6 +290,21 @@ public class NestedQueryBuilder extends LeafQueryBuilder<NestedQueryBuilder> {
         boolean ignoreUnmapped,
         SearchExecutionContext context
     ) throws E {
+        return toQuery(queryProvider, path, scoreMode, ignoreUnmapped, context, null);
+    }
+
+    /**
+     * Like {@link #toQuery(CheckedFunction, String, ScoreMode, boolean, SearchExecutionContext)}, but when {@code visitor} is
+     * non-null it visits only the queries added here, expecting {@code queryProvider} to have visited the child.
+     */
+    private static <E extends Exception> Query toQuery(
+        CheckedFunction<SearchExecutionContext, Query, E> queryProvider,
+        String path,
+        ScoreMode scoreMode,
+        boolean ignoreUnmapped,
+        SearchExecutionContext context,
+        @Nullable MaxClauseCountQueryVisitor visitor
+    ) throws E {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "[joining] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
@@ -297,6 +314,9 @@ public class NestedQueryBuilder extends LeafQueryBuilder<NestedQueryBuilder> {
         NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(path);
         if (mapper == null) {
             if (ignoreUnmapped) {
+                if (visitor != null) {
+                    Queries.NO_DOCS_INSTANCE.visit(visitor);
+                }
                 return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "[" + NAME + "] failed to find nested object under path [" + path + "]");
@@ -322,7 +342,11 @@ public class NestedQueryBuilder extends LeafQueryBuilder<NestedQueryBuilder> {
         // ToParentBlockJoinQuery requires that the inner query only matches documents
         // in its child space
         if (NestedHelper.mightMatchNonNestedDocs(innerQuery, path, context)) {
-            innerQuery = Queries.filtered(innerQuery, mapper.nestedTypeFilter());
+            Query nestedTypeFilter = mapper.nestedTypeFilter();
+            innerQuery = Queries.filtered(innerQuery, nestedTypeFilter);
+            if (visitor != null) {
+                nestedTypeFilter.visit(visitor);
+            }
         }
 
         return new ESToParentBlockJoinQuery(innerQuery, parentFilter, scoreMode, objectMapper == null ? null : objectMapper.fullPath());

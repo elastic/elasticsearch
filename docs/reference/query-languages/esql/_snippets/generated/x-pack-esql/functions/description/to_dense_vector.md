@@ -4,3 +4,9 @@
 
 Converts a multi-valued input of numbers, or a hexadecimal string, to a dense_vector.
 
+When converting a [multivalued field](/reference/query-languages/esql/esql-multivalued-fields.md), the dimensions
+of the resulting vector follow the order in which the values are read from
+underlying storage, which might differ from the order in the source document.
+Only indices in [columnar mode](/reference/elasticsearch/columnar/index.md)
+preserve the original order of multivalued fields.
+

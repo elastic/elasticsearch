@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
@@ -150,6 +151,7 @@ public abstract class LuceneOperator extends SourceOperator {
         this.blockFactory = driverContext.blockFactory();
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
+        sliceQueue.addReader();
         this.singleValueQueryWarnings = singleValueQueryWarnings;
 
         this.shardProcessNanos = new long[sliceQueue.maxShardIndex() + 1];
@@ -276,6 +278,11 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final void close() {
+        if (currentSlice != null) {
+            sliceQueue.finished(currentSlice);
+            currentSlice = null;
+        }
+        sliceQueue.removeReader();
         releaseCurrentScorer();
         refCounteds.iterable().forEach(RefCounted::decRef);
         additionalClose();
@@ -562,6 +569,26 @@ public abstract class LuceneOperator extends SourceOperator {
             "lucene_source",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder, params)
+        )
+            .required("processed_slices", ProfileSchema.integer())
+            .required("processed_queries", ProfileSchema.array(ProfileSchema.string()))
+            .required("processed_shards", ProfileSchema.array(ProfileSchema.string()))
+            .required("process_nanos", ProfileSchema.integer())
+            .optional("process_time", ProfileSchema.string())
+            .required("slice_index", ProfileSchema.integer())
+            .required("total_slices", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("slice_min", ProfileSchema.integer())
+            .required("slice_max", ProfileSchema.integer())
+            .required("current", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("bytes_read", ProfileSchema.integer())
+            .required("partitioning_strategies", ProfileSchema.dynamicObject(ProfileSchema.string()))
+            .optional("min_competitive", MinCompetitiveQuery.Status.PROFILE_SCHEMA.schema())
+            .build();
 
         private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
         private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName(
@@ -791,6 +818,10 @@ public abstract class LuceneOperator extends SourceOperator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private XContentBuilder writeProfile(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             toXContentFields(builder, params);
             return builder.endObject();

@@ -183,6 +183,37 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 
 ;
 
+# Same as rate_with_window, with the time bucket named @timestamp. rate() must keep reading the @timestamp field.
+rate_with_window_time_bucket_named_timestamp
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation
+required_capability: time_series_window_v1
+required_capability: fix_time_series_window_backward
+required_capability: fix_implicit_timestamp_shadowed_by_grouping
+
+TS k8s
+| WHERE TRANGE("2024-05-10T00:05:00.000Z", "2024-05-10T00:10:00.000Z")
+| STATS rate_bytes_in=avg(rate(network.total_bytes_in, 5minute)) BY cluster, @timestamp = TBUCKET(1minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, @timestamp
+| SORT @timestamp, cluster | LIMIT 30;
+
+rate_bytes_in:double | cluster:keyword | @timestamp:datetime
+0.015                | prod            | 2024-05-10T00:05:00.000Z
+2.511924             | qa              | 2024-05-10T00:05:00.000Z
+0.9425               | prod            | 2024-05-10T00:06:00.000Z
+4.794301             | qa              | 2024-05-10T00:06:00.000Z
+3.105417             | staging         | 2024-05-10T00:06:00.000Z
+0.9425               | prod            | 2024-05-10T00:07:00.000Z
+7.306365             | qa              | 2024-05-10T00:07:00.000Z
+3.105417             | staging         | 2024-05-10T00:07:00.000Z
+2.427832             | prod            | 2024-05-10T00:08:00.000Z
+10.637878            | qa              | 2024-05-10T00:08:00.000Z
+4.734548             | staging         | 2024-05-10T00:08:00.000Z
+3.399375             | prod            | 2024-05-10T00:09:00.000Z
+13.638384            | qa              | 2024-05-10T00:09:00.000Z
+7.307225             | staging         | 2024-05-10T00:09:00.000Z
+;
+
 rate_of_double_no_grouping
 required_capability: rate_with_interpolation_v4
 required_capability: ts_command_v0

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyUploadedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
@@ -49,9 +51,11 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
@@ -62,6 +66,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -279,6 +284,173 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             assertThat("online prewarming should have stamped two regions", captured, hasSize(2));
             assertThat("every online-prewarmed region should carry the per-CC midpoint", captured, everyItem(equalTo(expected)));
         }
+    }
+
+    /**
+     * The first read of each region fails with a {@link ResourceAlreadyUploadedException}, as if the VBCC had been uploaded after the
+     * reader was created. Prewarming retries each region once, so it must succeed, read each region exactly twice, and release the
+     * store ref it took for every region.
+     */
+    public void testPrewarmingRetriesRegionsOnceAndReleasesStoreWhenAlreadyUploaded() throws Exception {
+        final var failures = new ScriptedReadFailures(1);
+        try (FakeStatelessNode fakeNode = createFakeNodeWithScriptedReadFailures(1L, failures)) {
+            final IndexShard searchShard = prepareTwoRegionBlobAndMockShard(fakeNode, 1L);
+
+            safeAwait((ActionListener<Void> l) -> fakeNode.onlinePrewarmingService.prewarm(searchShard, l));
+
+            assertThat("both regions should have been read", failures.readsPerPosition(), hasSize(2));
+            assertThat("every region should be read once and retried once", failures.readsPerPosition(), everyItem(equalTo(2)));
+            assertStoreFullyReleased(fakeNode);
+        }
+    }
+
+    /**
+     * If the retry also fails with a {@link ResourceAlreadyUploadedException} the failure must reach the caller instead of being retried
+     * again, and the store ref and listener slot of every region must still be released.
+     */
+    public void testPrewarmingDoesNotRetryTwiceAndReleasesStoreWhenRetryAlsoFails() throws Exception {
+        final var failures = new ScriptedReadFailures(2);
+        try (FakeStatelessNode fakeNode = createFakeNodeWithScriptedReadFailures(1L, failures)) {
+            final IndexShard searchShard = prepareTwoRegionBlobAndMockShard(fakeNode, 1L);
+
+            final Exception failure = safeAwaitFailure(Void.class, l -> fakeNode.onlinePrewarmingService.prewarm(searchShard, l));
+
+            assertThat(ExceptionsHelper.unwrap(failure, ResourceAlreadyUploadedException.class), is(notNullValue()));
+            assertThat("both regions should have been read", failures.readsPerPosition(), hasSize(2));
+            assertThat(
+                "every region should be read once and retried once, but not more",
+                failures.readsPerPosition(),
+                everyItem(equalTo(2))
+            );
+            assertStoreFullyReleased(fakeNode);
+        }
+    }
+
+    /**
+     * Fails the first {@code failuresPerPosition} reads of each position with a {@link ResourceAlreadyUploadedException} and counts all
+     * reads by position. This is needed since the real reader only throws that exception after racing with an upload on an indexing node,
+     * which a unit test cannot trigger deterministically.
+     */
+    private static final class ScriptedReadFailures {
+        private final int failuresPerPosition;
+        private final Map<Long, AtomicInteger> readsByPosition = new ConcurrentHashMap<>();
+
+        ScriptedReadFailures(int failuresPerPosition) {
+            this.failuresPerPosition = failuresPerPosition;
+        }
+
+        /** Counts a read of {@code position} and returns whether it should fail. */
+        boolean recordReadAndShouldFail(long position) {
+            return readsByPosition.computeIfAbsent(position, p -> new AtomicInteger()).incrementAndGet() <= failuresPerPosition;
+        }
+
+        /** The number of reads seen for each position. */
+        Collection<Integer> readsPerPosition() {
+            return readsByPosition.values().stream().map(AtomicInteger::get).toList();
+        }
+    }
+
+    /**
+     * Registers a blob whose segment info ends in its second region, so that online prewarming warms two regions, and marks it uploaded so
+     * that reads go through the (synthetic) object store container.
+     */
+    private static IndexShard prepareTwoRegionBlobAndMockShard(FakeStatelessNode fakeNode, long primaryTerm) {
+        final int regionSize = fakeNode.sharedCacheService.getRegionSize();
+        final var range = new StatelessCompoundCommit.TimestampFieldValueRange(1000L, 2000L);
+        final var siLocation = createBlobLocation(primaryTerm, 1L, 0L, regionSize * 2L);
+        BlobStoreCacheDirectoryTestUtils.mergeMetadata(fakeNode.searchDirectory, Map.of("_0.si", new BlobFileRanges(siLocation, range)));
+        fakeNode.searchDirectory.updateLatestUploadedBcc(new PrimaryTermAndGeneration(primaryTerm, 1L));
+        return mockSearchShard(fakeNode);
+    }
+
+    /**
+     * Prewarming takes a store ref per region and releases it after completing the region's listener, i.e. possibly after the shard
+     * listener has already completed. Closing the store drops the creator's ref, so the store only ends up without references if
+     * every ref taken by prewarming was released exactly once.
+     */
+    private static void assertStoreFullyReleased(FakeStatelessNode fakeNode) throws Exception {
+        fakeNode.searchStore.close();
+        assertBusy(() -> assertFalse("prewarming leaked a store reference", fakeNode.searchStore.hasReferences()));
+    }
+
+    /** A node whose cache blob readers fail and count reads as scripted by {@code failures}. */
+    private FakeStatelessNode createFakeNodeWithScriptedReadFailures(long primaryTerm, ScriptedReadFailures failures) throws IOException {
+        return new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(8))
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(128))
+                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(128))
+                    .build();
+            }
+
+            @Override
+            protected SearchDirectory createSearchDirectory(
+                StatelessSharedBlobCacheService sharedCacheService,
+                ShardId shardId,
+                CacheBlobReaderService cacheBlobReaderService,
+                MutableObjectStoreUploadTracker objectStoreUploadTracker
+            ) {
+                var failingCacheBlobReaderService = new CacheBlobReaderService(
+                    nodeSettings,
+                    sharedCacheService,
+                    client,
+                    threadPool,
+                    TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                ) {
+                    @Override
+                    public CacheBlobReader getCacheBlobReader(
+                        ShardId shardId,
+                        LongFunction<BlobContainer> blobContainer,
+                        BlobFile blobFile,
+                        MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                        LongConsumer bytesReadFromObjectStore,
+                        LongConsumer bytesReadFromIndexing,
+                        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                        Executor objectStoreFetchExecutor,
+                        String fileName,
+                        boolean speculativeFill
+                    ) {
+                        var delegate = cacheBlobReaderService.getCacheBlobReader(
+                            shardId,
+                            blobContainer,
+                            blobFile,
+                            objectStoreUploadTracker,
+                            bytesReadFromObjectStore,
+                            bytesReadFromIndexing,
+                            cachePopulationReason,
+                            objectStoreFetchExecutor,
+                            fileName,
+                            speculativeFill
+                        );
+                        return new CacheBlobReader() {
+                            @Override
+                            public ByteRange getRange(long position, int length, long remainingFileLength) {
+                                return delegate.getRange(position, length, remainingFileLength);
+                            }
+
+                            @Override
+                            public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
+                                if (failures.recordReadAndShouldFail(position)) {
+                                    listener.onFailure(new ResourceAlreadyUploadedException("VBCC already uploaded"));
+                                } else {
+                                    delegate.getRangeInputStream(position, length, listener);
+                                }
+                            }
+                        };
+                    }
+                };
+                return super.createSearchDirectory(sharedCacheService, shardId, failingCacheBlobReaderService, objectStoreUploadTracker);
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                // Return synthetic bytes for any range request so that reads that are not failed populate a cache region.
+                return syntheticBytesContainer(innerContainer);
+            }
+        };
     }
 
     private FakeStatelessNode createCapturingFakeNode(long primaryTerm, EvictionPolicy<FileCacheKey> capturingPolicy) throws IOException {

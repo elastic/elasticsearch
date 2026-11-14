@@ -250,7 +250,7 @@ public class EnrichShardMultiSearchActionTests extends ESSingleNodeTestCase {
         // a lookup failure reaches the consumer as a failed item, so it is recorded next to the breaker reading rather than lost
         record Observed(long used, List<Exception> failures) {}
         PlainActionFuture<Observed> observed = new PlainActionFuture<>();
-        EnrichCoordinatorProxyAction.Coordinator.lookupFunction(client())
+        EnrichCoordinatorProxyAction.Coordinator.lookupFunction(client(), breaker)
             .accept(
                 request,
                 (response, e) -> ActionListener.completeWith(

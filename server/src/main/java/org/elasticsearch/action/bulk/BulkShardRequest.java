@@ -136,12 +136,12 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         long totalSizeInBytes = 0;
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
-            if (request instanceof IndexRequest) {
-                totalSizeInBytes += ((IndexRequest) request).indexSource().byteLength();
-            } else if (request instanceof UpdateRequest) {
-                IndexRequest doc = ((UpdateRequest) request).doc();
+            if (request instanceof IndexRequest indexRequest) {
+                totalSizeInBytes += indexRequest.indexSource().byteLength();
+            } else if (request instanceof UpdateRequest updateRequest) {
+                IndexRequest doc = updateRequest.doc();
                 if (doc != null) {
-                    totalSizeInBytes += ((UpdateRequest) request).doc().indexSource().byteLength();
+                    totalSizeInBytes += doc.indexSource().byteLength();
                 }
             }
         }
@@ -249,10 +249,10 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     @Override
     public void onRetry(boolean possiblyExecuted) {
         for (BulkItemRequest item : items) {
-            if (item.request() instanceof ReplicationRequest) {
+            if (item.request() instanceof ReplicationRequest<?> replicationRequest) {
                 // all replication requests need to be notified here as well to ie. make sure that internal optimizations are
                 // disabled see IndexRequest#canHaveDuplicates()
-                ((ReplicationRequest<?>) item.request()).onRetry(possiblyExecuted);
+                replicationRequest.onRetry(possiblyExecuted);
             }
         }
     }

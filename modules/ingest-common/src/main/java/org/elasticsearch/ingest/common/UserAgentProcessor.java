@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.FieldPath;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.useragent.api.Details;
@@ -36,8 +37,8 @@ public class UserAgentProcessor extends AbstractProcessor {
 
     public static final String TYPE = "user_agent";
 
-    private final String field;
-    private final String targetField;
+    private final FieldPath field;
+    private final FieldPath targetField;
     private final Set<Property> properties;
     private final UserAgentParser parser;
     private final boolean extractDeviceType;
@@ -54,8 +55,8 @@ public class UserAgentProcessor extends AbstractProcessor {
         boolean ignoreMissing
     ) {
         super(tag, description);
-        this.field = field;
-        this.targetField = targetField;
+        this.field = FieldPath.of(field);
+        this.targetField = FieldPath.of(targetField);
         this.parser = parser;
         this.properties = properties;
         this.extractDeviceType = extractDeviceType;
@@ -143,11 +144,11 @@ public class UserAgentProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    String getField() {
+    FieldPath getField() {
         return field;
     }
 
-    String getTargetField() {
+    FieldPath getTargetField() {
         return targetField;
     }
 

@@ -9,10 +9,9 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.io.IOException;
 
@@ -45,22 +44,9 @@ public interface PartitionedDocValues {
     int prefixPartitionBits();
 
     /**
-     * Check if the given index searcher can be partitioned by tsid prefix.
-     * @param searcher the index searcher to check
-     * @return true if all non-empty segments support tsid prefix partitioning
+     * Whether an index with this version has the {@code _tsid} prefix partitions
      */
-    static boolean canPartitionByTsidPrefix(IndexSearcher searcher) throws IOException {
-        for (LeafReaderContext leafContext : searcher.getLeafContexts()) {
-            var sortedDV = leafContext.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
-            // empty segment
-            if (sortedDV == null) {
-                continue;
-            }
-            if (sortedDV instanceof PartitionedDocValues partition && partition.prefixPartitionBits() > 0) {
-                continue;
-            }
-            return false;
-        }
-        return true;
+    static boolean canPartitionByTsidPrefix(IndexVersion indexVersion) {
+        return indexVersion.onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION);
     }
 }

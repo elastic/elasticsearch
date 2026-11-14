@@ -210,12 +210,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     }
 
     public void testReduceSearchPhaseExceptionWithNoShardFailuresAndNoCause() throws IOException {
-        final ReduceSearchPhaseException ex = new ReduceSearchPhaseException(
-            "search",
-            "no shard failure",
-            null,
-            ShardSearchFailure.EMPTY_ARRAY
-        );
+        final ReduceSearchPhaseException ex = new ReduceSearchPhaseException("search", "no shard failure", null, List.of());
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -238,7 +233,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             "search",
             "no shard failure",
             new IllegalArgumentException("illegal argument"),
-            ShardSearchFailure.EMPTY_ARRAY
+            List.of()
         );
 
         XContentBuilder builder = XContentFactory.jsonBuilder();

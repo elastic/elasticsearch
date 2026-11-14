@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -43,6 +44,9 @@ public class RLike extends RegexMatch<RLikePattern> implements AnyNullIsNull {
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
         returnType = "boolean",
+        signatures = {
+            @Signature(params = { "STRING", "keyword" }, returnType = "boolean"),
+            @Signature(params = { "STRING", "keyword", "boolean" }, returnType = "boolean") },
         briefSummary = "Filters data based on string patterns using regular expressions.",
         description = """
             Use `RLIKE` to filter data based on string patterns using

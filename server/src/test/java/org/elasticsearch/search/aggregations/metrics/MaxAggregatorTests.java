@@ -36,6 +36,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.script.MockScriptEngine;
@@ -99,6 +100,12 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     /** Script to return the {@code _value} provided by aggs framework. */
     public static final String VALUE_SCRIPT = "_value";
 
+    /** Value script that returns {@code null} for odd {@code _value}s and {@code _value} otherwise. */
+    public static final String NULL_FOR_ODD_VALUE_SCRIPT = "_value % 2 == 1 ? null : _value";
+
+    /** Value script that always returns {@code null}. */
+    public static final String NULL_VALUE_SCRIPT = "null";
+
     /** Script to return a random double */
     public static final String RANDOM_SCRIPT = "Math.random()";
 
@@ -134,6 +141,11 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             int inc = getInc.apply(vars);
             return ((Number) vars.get("_value")).doubleValue() + inc;
         });
+        scripts.put(NULL_FOR_ODD_VALUE_SCRIPT, vars -> {
+            Number value = (Number) vars.get("_value");
+            return value.longValue() % 2 == 1 ? null : value;
+        });
+        scripts.put(NULL_VALUE_SCRIPT, vars -> null);
 
         Map<String, Function<Map<String, Object>, Object>> nonDeterministicScripts = new HashMap<>();
         nonDeterministicScripts.put(RANDOM_SCRIPT, vars -> MaxAggregatorTests.randomDouble());
@@ -550,6 +562,70 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             }
         }, max -> {
             assertEquals(13.0, max.value(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(max));
+        }, fieldType);
+    }
+
+    public void testMultiValuedFieldWithValueScriptReturningNull() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
+
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("values")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, NULL_FOR_ODD_VALUE_SCRIPT, Collections.emptyMap()));
+
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
+            final int numDocs = 10;
+            for (int i = 0; i < numDocs; i++) {
+                Document document = new Document();
+                document.add(new SortedNumericDocValuesField("values", i + 1));
+                document.add(new SortedNumericDocValuesField("values", i + 2));
+                iw.addDocument(document);
+            }
+            // every value of this doc maps to null, so it contributes nothing
+            iw.addDocument(singleton(new SortedNumericDocValuesField("values", 21)));
+        }, max -> {
+            // 11 and 21 are odd and skipped, so the largest remaining value is 10
+            assertEquals(10.0, max.value(), 0);
+            assertTrue(AggregationInspectionHelper.hasValue(max));
+        }, fieldType);
+    }
+
+    public void testValueScriptReturningNullForAllValues() throws IOException {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("values", NumberFieldMapper.NumberType.INTEGER);
+
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("values")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, NULL_VALUE_SCRIPT, Collections.emptyMap()));
+
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
+            final int numDocs = 10;
+            for (int i = 0; i < numDocs; i++) {
+                Document document = new Document();
+                document.add(new SortedNumericDocValuesField("values", i + 1));
+                document.add(new SortedNumericDocValuesField("values", i + 2));
+                iw.addDocument(document);
+            }
+        }, max -> {
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0);
+            assertFalse(AggregationInspectionHelper.hasValue(max));
+        }, fieldType);
+    }
+
+    public void testDateFieldWithValueScriptReturningNull() throws IOException {
+        MappedFieldType fieldType = new DateFieldMapper.DateFieldType("date");
+
+        MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max").field("date")
+            .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, NULL_FOR_ODD_VALUE_SCRIPT, Collections.emptyMap()));
+
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
+            final int numDocs = 10;
+            for (int i = 0; i < numDocs; i++) {
+                Document document = new Document();
+                document.add(new SortedNumericDocValuesField("date", i + 1));
+                document.add(new SortedNumericDocValuesField("date", i + 2));
+                iw.addDocument(document);
+            }
+        }, max -> {
+            // 11 is odd and skipped, so the latest remaining date is 10ms after the epoch
+            assertEquals(10.0, max.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
     }

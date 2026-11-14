@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -28,12 +29,12 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
@@ -85,6 +87,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
@@ -93,6 +96,7 @@ import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.PrewarmWaitOutcome;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -130,13 +134,18 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETT
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.PREWARM_WAIT_TIMEOUT_SETTING;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY;
+import static org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_SECONDS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1032,8 +1041,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
                 assert SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.get(nodeSettings)
-                    && ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, StatelessPlugin.PREWARM_THREAD_POOL)
-                    || ThreadPool.assertCurrentThreadPool(StatelessPlugin.PREWARM_THREAD_POOL);
+                    && ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, StatelessThreadPools.PREWARM_THREAD_POOL)
+                    || ThreadPool.assertCurrentThreadPool(StatelessThreadPools.PREWARM_THREAD_POOL);
                 if (flushed.compareAndExchange(false, true) == false) {
                     // Spawn a new thread to avoid using flush with the prewarm thread pool which could trigger a false assertion
                     final Thread thread = new Thread(() -> {
@@ -1426,124 +1435,15 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         }
     }
 
-    public void testBccIsPrewarmedForHollowShardRelocation() throws Exception {
-        startMasterOnlyNode();
-
-        var nodeSettings = Settings.builder()
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
-            .put(
-                StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(),
-                ByteSizeValue.ofBytes((long) (REGION_SIZE.getBytes() * 0.06d)).getStringRep()
-            )
-            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean())
-            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
-            .put(HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO)
-            .put(HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.ZERO)
-            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            .build();
-        var indexNodeA = startIndexNode(nodeSettings);
-
-        final String indexName = randomIdentifier();
-        assertAcked(
-            prepareCreate(
-                indexName,
-                Settings.builder()
-                    .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
-            )
-        );
-
-        indexDocs(indexName, randomIntBetween(100, 10000));
-        flush(indexName);
-
-        var indexNodeB = startIndexNode(nodeSettings);
-        ensureStableCluster(3);
-
-        // Assert that the shard on node A is hollowable (i.e. to-be-hollowed) and that prewarm is NOT sent for it
-        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
-        var indexShardOnA = findIndexShard(indexName);
-        assertBusy(() -> assertTrue(hollowShardsServiceA.isHollowableIndexShard(indexShardOnA)));
-
-        var prewarmSentDuringHollowableRelocation = new AtomicBoolean(false);
-        MockTransportService.getInstance(indexNodeA).addSendBehavior((connection, requestId, action, request, options) -> {
-            if (PREWARM_RELOCATION_ACTION_NAME.equals(action)) {
-                prewarmSentDuringHollowableRelocation.set(true);
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-
-        // Relocate from A to B: the shard is to-be-hollowed, so prewarm should be skipped
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        ensureGreen(indexName);
-        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
-        assertFalse("Prewarm should not be sent for to-be-hollowed shard relocation", prewarmSentDuringHollowableRelocation.get());
-
-        // Verify the shard is now hollow on node B
-        var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
-        hollowShardsServiceB.ensureHollowShard(findIndexShard(resolveIndex(indexName), 0).shardId(), true);
-
-        MockTransportService.getInstance(indexNodeA).clearAllRules();
-
-        // Start node C and block the primary context handoff so that we can assert cache writes from prewarm
-        // before recovery itself populates the cache
-        var indexNodeC = startIndexNode(nodeSettings);
-        ensureStableCluster(4);
-
-        final var prewarmCachePopulated = new CountDownLatch(1);
-        MockTransportService.getInstance(indexNodeC)
-            .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
-                safeAwait(prewarmCachePopulated);
-                handler.messageReceived(request, channel, task);
-            });
-
-        var plugin = getTelemetryPlugin(indexNodeC);
-        plugin.resetMeter();
-        // Relocate hollow shard from B to C: prewarm SHOULD be sent because the shard is hollow (not hollowable)
-        updateIndexSettings(
-            Settings.builder().putNull("index.routing.allocation.exclude._name").put("index.routing.allocation.require._name", indexNodeC),
-            indexName
-        );
-
-        // The prewarm's readIndexingShardState reads the BCC through the cache directory, populating the cache. Wait for those cache writes
-        // to appear before letting recovery proceed. The files of a hollow commit are not warmed, only region 0 of its root blob is
-        // prewarmed (see below).
-        assertBusy(() -> {
-            plugin.collect();
-            long warmingBytes = plugin.getLongCounterMeasurement("es.blob_cache.population.bytes.total")
-                .stream()
-                .filter(m -> BlobCacheMetrics.CachePopulationReason.Warming.name().equals(m.attributes().get("reason")))
-                .mapToLong(Measurement::getLong)
-                .sum();
-            assertThat(warmingBytes, greaterThan(0L));
-        });
-        prewarmCachePopulated.countDown();
-
-        ensureGreen(indexName);
-        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeC)));
-
-        // The hollow target prewarms region 0 of the root blob, the latest BCC blob of the shard, before reading the BCC header.
-        final var bccHeaderReadWarmedBlobs = getSharedBlobCacheWarmingService(indexNodeC).bccHeaderReadWarmedBlobs();
-        assertThat(bccHeaderReadWarmedBlobs, hasSize(1));
-        assertThat(bccHeaderReadWarmedBlobs.getFirst(), hasSize(1));
-        final BlobFile warmedBlob = bccHeaderReadWarmedBlobs.getFirst().iterator().next();
-        final var shardBlobs = getObjectStoreService(indexNodeC).getProjectBlobContainer(
-            findIndexShard(resolveIndex(indexName), 0).shardId(),
-            warmedBlob.primaryTerm()
-        ).listBlobs(OperationPurpose.INDICES).keySet();
-        final long latestBccGeneration = shardBlobs.stream()
-            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
-            .mapToLong(BatchedCompoundCommit::parseGenerationFromBlobName)
-            .max()
-            .orElseThrow();
-        assertThat(warmedBlob.blobName(), equalTo(BatchedCompoundCommit.blobNameFromGeneration(latestBccGeneration)));
+    public void testRelocateIndexingShardWithMultipleBlobsPrewarmsRegionZero() throws Exception {
+        relocateShardWithMultipleBlobs(false);
     }
 
-    public void testRelocateIndexingShardWithMultipleBlobsPrewarmsRegionZero() throws Exception {
-        final var hollowShardEnabled = randomBoolean();
+    public void testRelocateHollowShardWithMultipleBlobsSkipsRegionZero() throws Exception {
+        relocateShardWithMultipleBlobs(true);
+    }
+
+    private void relocateShardWithMultipleBlobs(boolean hollowShardEnabled) throws Exception {
         final Settings nodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE)
@@ -1551,9 +1451,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE)
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), hollowShardEnabled)
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), hollowShardEnabled ? TimeValue.ZERO : TimeValue.timeValueHours(1))
+            .put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), true)
             .build();
 
-        startMasterAndIndexNode(nodeSettings);
+        final var indexNodeA = startMasterAndIndexNode(nodeSettings);
         ensureStableCluster(1);
 
         final var indexName = randomIdentifier();
@@ -1568,6 +1469,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             }
             flush(indexName);
         }
+        if (hollowShardEnabled) {
+            // the source hollows the shard during relocation only if it's hollowable
+            final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+            assertBusy(() -> assertTrue(hollowShardsService.isHollowableIndexShard(findIndexShard(resolveIndex(indexName), 0))));
+        }
 
         final var indexNodeB = startIndexNode(nodeSettings);
         ensureStableCluster(2);
@@ -1577,18 +1483,242 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodeB), indexName);
         ensureGreen(indexName);
+        final var shard = findIndexShard(resolveIndex(indexName), 0);
+        assertThat(shard.getEngineOrNull() instanceof HollowIndexEngine, equalTo(hollowShardEnabled));
 
-        telemetryPlugin.collect();
-        assertBusy(
-            () -> assertThat(
+        final CheckedRunnable<Exception> assertBccHeaderPrewarms = () -> {
+            telemetryPlugin.collect();
+            assertThat(
                 telemetryPlugin.getLongCounterMeasurement(SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC)
                     .stream()
                     .filter(m -> Type.INDEXING_BCC_HEADER_PREWARM.name().equals(m.attributes().get("prewarming_type")))
                     .count(),
-                // When hollow shards are enabled and the shard is hollowed during relocations, only the root blob is prewarmed.
-                equalTo(1L)
+                // Transferred hollow metadata allows opening the engine without warming any blob regions.
+                equalTo(hollowShardEnabled ? 0L : 1L)
+            );
+        };
+        if (hollowShardEnabled) {
+            // the shard is started, so any warming or read by its recovery has happened by now
+            assertBccHeaderPrewarms.run();
+            assertEquals(0L, BlobStoreCacheDirectory.unwrapDirectory(shard.store().directory()).totalBytesReadFromObjectStore());
+            // we did not send a prewarm message because shard was hollowable
+            assertPrewarmWaitOutcome(indexNodeA, PrewarmWaitOutcome.NOT_SENT);
+        } else {
+            assertBusy(assertBccHeaderPrewarms);
+        }
+    }
+
+    // verify that during a primary relocation the target replies to the prewarm request only after completing its prewarming
+    // and that the source waits for that reply before sending the handoff (the prewarm wait timeout is set high enough so not to expire)
+    public void testRelocationSourceWaitsForEarlyPrewarmBeforeHandoff() {
+        startMasterOnlyNode();
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            // disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // set to be high enough so the source "never" stops waiting for the prewarm
+            .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))
+            .build();
+
+        final var sourceNode = startIndexNode(nodeSettings);
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(100, 1000));
+        flush(indexName);
+
+        final var targetNode = startIndexNode(nodeSettings);
+        ensureStableCluster(3);
+
+        // hold the early prewarming on the target before it starts
+        final var earlyPrewarmingBlocked = new CountDownLatch(1);
+        final var releaseEarlyPrewarming = new CountDownLatch(1);
+        getSharedBlobCacheWarmingService(targetNode).addBeforeWarmingStartsListener(type -> {
+            if (type == Type.INDEXING_EARLY) {
+                earlyPrewarmingBlocked.countDown();
+                safeAwait(releaseEarlyPrewarming);
+            }
+        });
+
+        // completed when the early prewarming has finished
+        final var earlyPrewarmingDone = new PlainActionFuture<CompletedWarmingDetails>();
+        runOnWarmingComplete(targetNode, Type.INDEXING_EARLY, earlyPrewarmingDone);
+
+        final var prewarmReplied = new AtomicBoolean();
+        final var earlyPrewarmingDoneAtPrewarmReply = new AtomicBoolean();
+        final var prewarmRepliedAtHandoff = new AtomicBoolean();
+        final var targetTransportService = MockTransportService.getInstance(targetNode);
+        targetTransportService.addRequestHandlingBehavior(
+            PREWARM_RELOCATION_ACTION_NAME,
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                new TestTransportChannel(new ChannelActionListener<>(channel).<TransportResponse>delegateFailure((l, response) -> {
+                    // corresponds when the target is about to reply to the `prewarm` request
+                    earlyPrewarmingDoneAtPrewarmReply.set(earlyPrewarmingDone.isDone());
+                    prewarmReplied.set(true);
+                    l.onResponse(response);
+                })),
+                task
             )
         );
+        targetTransportService.addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+            // corresponds to when the target is about to receive the `primary_context_handoff` request
+            prewarmRepliedAtHandoff.set(prewarmReplied.get());
+            handler.messageReceived(request, channel, task);
+        });
+
+        // trigger a relocation (note we only have 2 index nodes, so index has to move to `targetNode`)
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNode), indexName);
+
+        // the source is now waiting for the prewarm reply, which the target cannot send until the early prewarming is released
+        safeAwait(earlyPrewarmingBlocked);
+
+        // make the source node wait at least `minWaitInMillis` before we release the prewarming, so we can then verify prewarm metric
+        final var sourceThreadPool = internalCluster().getInstance(ThreadPool.class, sourceNode);
+        final long start = sourceThreadPool.relativeTimeInMillis();
+        final long minWaitInMillis = randomLongBetween(10, 100);
+        assertTrue(waitUntil(() -> sourceThreadPool.relativeTimeInMillis() - start >= minWaitInMillis));
+
+        releaseEarlyPrewarming.countDown();
+        ensureGreen(indexName);
+
+        assertTrue("target replies to the prewarm only once its early prewarming has completed", earlyPrewarmingDoneAtPrewarmReply.get());
+        assertTrue(
+            "source sends the handoff after the prewarm reply (due to the long `PREWARM_WAIT_TIMEOUT_SETTING`)",
+            prewarmRepliedAtHandoff.get()
+        );
+        final double recordedWaitInSeconds = assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.COMPLETED);
+        assertThat(
+            "recorded wait covers the time the prewarm was held",
+            recordedWaitInSeconds,
+            greaterThanOrEqualTo(minWaitInMillis / 1000.0)
+        );
+    }
+
+    // verify that the source stops waiting for the prewarm reply once the prewarm wait timeout expires and proceeds with the handoff
+    public void testRelocationSourceProceedsWithHandoffAfterPrewarmWaitTimeout() {
+        startMasterOnlyNode();
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            // disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // set to a small value so we do not wait too much in the test
+            .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(10))
+            .build();
+
+        final var sourceNode = startIndexNode(nodeSettings);
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(100, 1000));
+        flush(indexName);
+
+        final var targetNode = startIndexNode(nodeSettings);
+        ensureStableCluster(3);
+
+        // hold the early prewarming on the target, so that it cannot reply to the prewarm on time
+        final var releaseEarlyPrewarming = new CountDownLatch(1);
+        getSharedBlobCacheWarmingService(targetNode).addBeforeWarmingStartsListener(type -> {
+            if (type == Type.INDEXING_EARLY) {
+                safeAwait(releaseEarlyPrewarming);
+            }
+        });
+
+        final var prewarmReplied = new CountDownLatch(1);
+        final var prewarmRepliedAtHandoff = new AtomicBoolean();
+        final var handoffReceived = new CountDownLatch(1);
+        final var targetTransportService = MockTransportService.getInstance(targetNode);
+        targetTransportService.addRequestHandlingBehavior(
+            PREWARM_RELOCATION_ACTION_NAME,
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                // corresponds to when the target is about to reply to the `prewarm` request (with a response or a failure)
+                new TestTransportChannel(ActionListener.runBefore(new ChannelActionListener<>(channel), prewarmReplied::countDown)),
+                task
+            )
+        );
+        targetTransportService.addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+            // corresponds to when the target is about to receive the `primary_context_handoff` request
+            prewarmRepliedAtHandoff.set(prewarmReplied.getCount() == 0);
+            handoffReceived.countDown();
+            handler.messageReceived(request, channel, task);
+        });
+
+        // trigger a relocation (note we only have 2 index nodes, so index has to move to `targetNode`)
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNode), indexName);
+
+        // the early prewarming is still held, so the handoff can only arrive once the source has stopped waiting for the prewarm reply
+        safeAwait(handoffReceived);
+        assertFalse("source sends the handoff without the prewarm reply after the timeout", prewarmRepliedAtHandoff.get());
+        assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.TIMED_OUT);
+
+        releaseEarlyPrewarming.countDown();
+        ensureGreen(indexName);
+        // the late prewarm reply is ignored by the source, but wait for it so no request is in flight when the test ends
+        safeAwait(prewarmReplied);
+    }
+
+    // verify that the source stops waiting as soon as the prewarm fails (before the timeout) and proceeds with the handoff
+    public void testRelocationSourceProceedsWithHandoffWhenPrewarmFails() {
+        startMasterOnlyNode();
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            // disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // set to be high enough so the handoff can only arrive because the source stopped waiting upon the prewarm failure
+            .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))
+            .build();
+
+        final var sourceNode = startIndexNode(nodeSettings);
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(100, 1000));
+        flush(indexName);
+
+        final var targetNode = startIndexNode(nodeSettings);
+        ensureStableCluster(3);
+
+        final var prewarmFailed = new AtomicBoolean();
+        final var prewarmFailedAtHandoff = new AtomicBoolean();
+        final var handoffReceived = new CountDownLatch(1);
+        final var targetTransportService = MockTransportService.getInstance(targetNode);
+        targetTransportService.addRequestHandlingBehavior(PREWARM_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+            // the target responds to the `prewarm` request with a failure
+            prewarmFailed.set(true);
+            channel.sendResponse(new ElasticsearchException("simulated prewarm failure"));
+        });
+
+        targetTransportService.addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+            // corresponds to when the target is about to receive the `primary_context_handoff` request
+            prewarmFailedAtHandoff.set(prewarmFailed.get());
+            handoffReceived.countDown();
+            handler.messageReceived(request, channel, task);
+        });
+
+        // trigger a relocation (note we only have 2 index nodes, so index has to move to `targetNode`)
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNode), indexName);
+
+        safeAwait(handoffReceived);
+        assertTrue("source sends the handoff after the prewarm failure, without waiting for the timeout", prewarmFailedAtHandoff.get());
+        assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.FAILED);
+
+        ensureGreen(indexName);
+    }
+
+    private static double assertPrewarmWaitOutcome(String node, PrewarmWaitOutcome expectedOutcome) {
+        final var telemetry = getTelemetryPlugin(node);
+        telemetry.collect();
+        final var measurements = telemetry.getDoubleHistogramMeasurement(RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_SECONDS);
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).attributes(), equalTo(Map.of(PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY, expectedOutcome.attributeValue())));
+        return measurements.get(0).getDouble();
     }
 
     /**

@@ -240,10 +240,10 @@ public interface GroupingAggregatorFunction extends Releasable {
     int intermediateBlockCount();
 
     /**
-     * Whether this aggregation can safely emit partial results from its current state;
-     * {@code incomingPage} is the next raw page and has not been added yet.
+     * Prepares this aggregation for periodic emit and returns whether its current state can be emitted before
+     * {@code incomingPage} is processed.
      */
-    default boolean canEmitPartialResultsPeriodically(Page incomingPage) {
+    default boolean prepareForPeriodicEmit(Page incomingPage) {
         return true;
     }
 

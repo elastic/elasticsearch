@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.util.function.BooleanSupplier;
 
 /**
  * Wraps a {@link StreamInput} and delegates to it. To be used to add functionality to an existing stream by subclassing.
@@ -138,5 +139,10 @@ public abstract class FilterStreamInput extends StreamInput {
     @Override
     public NamedWriteableRegistry namedWriteableRegistry() {
         return delegate.namedWriteableRegistry();
+    }
+
+    @Override
+    public BooleanSupplier chargeDecodedBytes(long bytes, String label) {
+        return delegate.chargeDecodedBytes(bytes, label);
     }
 }

@@ -301,6 +301,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * A cancelled read fails before the strided walk's first stream. The supplier is the ambient
      * {@link StorageRetryCancellation} scope: installing a nested one would replace the read's live signal.
+     * The reason names the read phase, not split discovery: this walk segments a split the node is about to parse.
      */
     public void testComputeSegmentsAlreadyCancelledDispatchesNoStridedProbe() {
         byte[] payload = "line1\nline2\nline3\nline4\nline5\nline6\n".getBytes(StandardCharsets.UTF_8);
@@ -320,7 +321,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 () -> ParallelParsingCoordinator.computeSegments(new NewlineSegmentableReader(1), obj, payload.length, 3, 1)
             )
         );
-        assertEquals(RecordBoundaryProbe.CANCELLED_MESSAGE, thrown.getMessage());
+        assertEquals(RecordBoundaryProbe.READ_CANCELLED_MESSAGE, thrown.getMessage());
         assertEquals("a cancel already true must not open a strided probe", 0, opens.get());
     }
 
@@ -337,13 +338,14 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             }
         };
 
-        expectThrows(
+        TaskCancelledException thrown = expectThrows(
             TaskCancelledException.class,
             () -> StorageRetryCancellation.runWithCancellation(
                 cancelled::get,
                 () -> ParallelParsingCoordinator.computeSegments(new NewlineSegmentableReader(1), obj, payload.length, 3, 1)
             )
         );
+        assertEquals(RecordBoundaryProbe.READ_CANCELLED_MESSAGE, thrown.getMessage());
         assertEquals("probes after the first must not read", 1, opens.get());
     }
 
@@ -363,13 +365,14 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         };
         CsvFormatReader csvReader = (CsvFormatReader) new CsvFormatReader(blockFactory()).withConfig(Map.of("multiline_fields", true));
 
-        expectThrows(
+        TaskCancelledException thrown = expectThrows(
             TaskCancelledException.class,
             () -> StorageRetryCancellation.runWithCancellation(
                 () -> true,
                 () -> ParallelParsingCoordinator.computeSegments(csvReader, obj, payload.length, 4, 1)
             )
         );
+        assertEquals(RecordBoundaryProbe.READ_CANCELLED_MESSAGE, thrown.getMessage());
         assertEquals("the proven walk must stop after the step that sees cancel", 1, opens.get());
     }
 

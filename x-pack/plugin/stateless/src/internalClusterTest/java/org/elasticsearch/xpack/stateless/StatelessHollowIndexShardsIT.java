@@ -72,6 +72,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -114,6 +115,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT;
+import org.elasticsearch.xpack.stateless.engine.HollowCommitMetadata;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
@@ -182,8 +184,10 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STAT
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.engine.IndexEngineTestUtils.flushHollow;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -565,6 +569,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         var indexNodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), true)
             .put(nodeSettings)
             .build();
         String indexNodeA = startIndexNode(indexNodeSettings);
@@ -864,7 +869,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 Settings.builder().put("index.routing.allocation.exclude._name", clusterInfo.indexNodeB),
                 clusterInfo.indexName
             );
-            internalCluster().awaitNodeVacated(clusterInfo.indexName, clusterInfo.indexNodeB);
+            // The test plugin parks node B's shard closes (see closeShard in TestStatelessPluginCatchUnhollow) and releases them
+            // only in the finally block, so wait on the routing table alone.
+            internalCluster().awaitNodesInclude(clusterInfo.indexName, nodes -> nodes.contains(clusterInfo.indexNodeB) == false);
             ensureGreen(clusterInfo.indexName);
 
             // All shard closes on node B are held before removing their ingestion blockers
@@ -3508,10 +3515,9 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertTrue(Stream.of(nonRealTimeMultiGetResponse.getResponses()).map(e -> e.getResponse()).allMatch(GetResponse::isExists));
     }
 
-    public void testRelocationOfHollowReadsSingleRegion() throws Exception {
+    public void testRelocationOfHollowDoesNotReadBlobs() throws Exception {
 
-        // This test ensures that the source node of a hollow shard relocation does not perform extra read from the blob store during
-        // hollowing.
+        // This test ensures that relocating a shard that is hollowed during the relocation reads no blobs on the source nor the target
         final var regionSize = ByteSizeValue.ofMb(1);
         final var nodeSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
@@ -3554,13 +3560,62 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
         }
 
-        // TODO for ES-13400
-        // assert that node A's blob accesses were just the number of shards (1 region read per shard),
-        // since replicated .si files should be in the hollow commit blob
-        // assertThat(nodeABccAccesses.get(0), equalTo(clusterInfo.numberOfShards));
+        // The target opens its hollow engines from the transferred metadata, including after the caches were evicted.
+        assertThat(nodeABccAccesses.get(), equalTo(0));
 
-        // assert that node B's blob accesses are 0, since the .si files should be read from memory
+        // assert that node B's blob accesses are 0, since hollowing reads the segment info files from memory
         assertThat(nodeBBccAccesses.get(), equalTo(0));
+    }
+
+    public void testRelocationOfAlreadyHollowShardDoesNotReadBlobs() throws Exception {
+        // The hollow engines on node B were opened from the hollow commit metadata transferred by the relocation from node A
+        var clusterInfo = startNodesAndHollowShards(randomIntBetween(1, 4));
+        final Map<ShardId, HollowCommitMetadata> hollowCommits = new HashMap<>();
+        final Map<ShardId, CommitStats> commitStats = new HashMap<>();
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(clusterInfo.index, i);
+            hollowCommits.put(indexShard.shardId(), getShardEngine(indexShard, HollowIndexEngine.class).getHollowCommitMetadata());
+            commitStats.put(indexShard.shardId(), indexShard.commitStats());
+        }
+
+        final var indexNodeC = startIndexNode(clusterInfo.indexNodeSettings);
+        final var prewarmSent = new AtomicBoolean();
+        MockTransportService.getInstance(clusterInfo.indexNodeB).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (PREWARM_RELOCATION_ACTION_NAME.equals(action)) {
+                prewarmSent.set(true);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        final AtomicInteger nodeCBccAccesses = trackBccAccesses(indexNodeC);
+
+        logger.info("--> relocating hollow shards to node C");
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNodeC), clusterInfo.indexName);
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        assertFalse("relocating hollow shards should not prewarm the target", prewarmSent.get());
+        assertThat(nodeCBccAccesses.get(), equalTo(0));
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(clusterInfo.index, i);
+            assertThat(indexShard.routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeC)));
+            var engine = getShardEngine(indexShard, HollowIndexEngine.class);
+            assertEquals(hollowCommits.get(indexShard.shardId()), engine.getHollowCommitMetadata());
+            assertEquals(commitStats.get(indexShard.shardId()), indexShard.commitStats());
+            assertNull("the segment infos of the hollow engine are never needed", engine.getLastCommittedSegmentInfosIfLoaded());
+        }
+
+        // Ingestion unhollows the shards, which then commit and read their segments through the blob-backed directory
+        final int moreDocs = randomIntBetween(clusterInfo.numberOfShards() * 20, clusterInfo.numberOfShards() * 30);
+        indexDocs(clusterInfo.indexName, moreDocs);
+        refresh(clusterInfo.indexName);
+        long totalDocs = 0;
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(clusterInfo.index, i);
+            totalDocs += indexShard.docStats().getCount();
+            if (indexShard.getEngineOrNull() instanceof IndexEngine) {
+                assertBusy(() -> assertFalse(IndexEngine.isLastCommitHollow(indexShard.store().readLastCommittedSegmentsInfo())));
+            }
+        }
+        assertEquals(clusterInfo.numDocs() + moreDocs, totalDocs);
     }
 
     private AtomicInteger trackBccAccesses(String indexNode) {

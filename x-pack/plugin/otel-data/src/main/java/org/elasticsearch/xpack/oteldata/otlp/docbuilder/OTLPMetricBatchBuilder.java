@@ -18,6 +18,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
+import org.elasticsearch.sourcebatch.SourceValueType;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
@@ -31,11 +34,10 @@ import java.util.concurrent.TimeUnit;
  * an ESCF batch without going through an intermediate XContent representation.
  *
  * <p>{@link #buildMetricRow} writes each group <b>optimistically</b> and returns {@code false} the moment it
- * encounters something that can't be expressed as scalar ESCF columns — a non-scalar data point
- * (histogram/summary/exponential-histogram) or a non-scalar attribute value (ARRAY/KVLIST/BYTES) — rather than
- * scanning the group upfront. A {@code false} return leaves the builder with a
- * half-written row, so callers must discard the builder and fall back to the {@link MetricDocumentBuilder}
- * XContent path.
+ * encounters something that can't be expressed as ESCF columns — a non-scalar data point
+ * (histogram/summary/exponential-histogram) or unsupported attributes — rather than scanning the group
+ * upfront. A {@code false} return leaves the builder with a half-written row, so callers must discard the
+ * builder and fall back to the {@link MetricDocumentBuilder} XContent path.
  *
  * <p>The field layout emitted by this class is identical to that of {@link MetricDocumentBuilder}: same field
  * names, same nesting depth, same ordering. The {@code OTLPMetricsEscfComparisonRestIT} integration test
@@ -98,9 +100,8 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
      * @param dynamicTemplates      out-parameter: per-field dynamic-template names (same semantics as in
      *                              {@link MetricDocumentBuilder#buildMetricDocument})
      * @param dynamicTemplateParams out-parameter: per-field dynamic-template parameters
-     * @return {@code true} if the row was written and committed; {@code false} if the group contains
-     *         non-scalar values or an unsupported data point, in which case this builder must be discarded
-     *         and the caller should fall back to the XContent path
+     * @return {@code true} if the row was written and committed; {@code false} if the group contains data unsupported in batch mode,
+     * in which case this builder must be discarded and the caller should fall back to the XContent path
      */
     public boolean buildMetricRow(
         DataPointGroupingContext.DataPointGroup dataPointGroup,
@@ -242,27 +243,79 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
         for (int i = 0; i < attributes.size(); i++) {
             KeyValue kv = attributes.get(i);
             if (OTelDocumentBuilder.isIgnoredAttribute(kv.getKey()) == false) {
-                int col = leafField(kv.getKey(), parent);
-                // A repeated key can't be represented in a column; keep the first value and drop the rest.
-                if (hasValue(col) == false) {
-                    writeScalarAnyValue(col, kv.getValue());
-                }
+                writeAttributeValue(parent, kv.getKey(), kv.getValue());
             }
         }
     }
 
-    /**
-     * Writes a scalar {@link AnyValue} field at {@code colIdx}. Non-scalar types (ARRAY, KVLIST, BYTES,
-     * VALUE_NOT_SET) abort the row via {@link RowIneligibleException}.
-     */
-    private void writeScalarAnyValue(int colIdx, AnyValue value) {
-        switch (value.getValueCase()) {
-            case STRING_VALUE -> stringField(colIdx, value.getStringValueBytes());
-            case BOOL_VALUE -> booleanField(colIdx, value.getBoolValue());
-            case INT_VALUE -> longField(colIdx, value.getIntValue());
-            case DOUBLE_VALUE -> doubleField(colIdx, value.getDoubleValue());
-            case ARRAY_VALUE, KVLIST_VALUE, BYTES_VALUE, VALUE_NOT_SET -> throw RowIneligibleException.INSTANCE;
+    /** Writes attribute {@code key} into the object at {@code parentIdx} as a single leaf column. */
+    private void writeAttributeValue(int parentIdx, String key, AnyValue value) {
+        // An unset value is dropped rather than registering a column: it contributes nothing to the tsid, creates
+        // no mapping, and indexes no value, so the only trace it could leave is in a stored _source which we are not interested in
+        if (value.getValueCase() == AnyValue.ValueCase.VALUE_NOT_SET) {
+            return;
         }
+        int col = leafField(key, parentIdx);
+        // A repeated key can't be represented in a column; keep the first value and drop the rest.
+        // The OpenTelemetry specification by default does not allow duplicate keys,
+        // however it leaves the door open for SDKs to opt-in into allowing duplicate keys for e.g. performance reasons.
+        // Backends in this case are free to do what they want, we took the "drop" approach here
+        // See https://opentelemetry.io/docs/specs/otel/common/#attribute-collections
+        if (hasValue(col)) {
+            return;
+        }
+        switch (value.getValueCase()) {
+            case STRING_VALUE -> stringField(col, value.getStringValueBytes());
+            case BOOL_VALUE -> booleanField(col, value.getBoolValue());
+            case INT_VALUE -> longField(col, value.getIntValue());
+            case DOUBLE_VALUE -> doubleField(col, value.getDoubleValue());
+            case ARRAY_VALUE -> arrayField(col, packArray(value.getArrayValue().getValuesList()));
+            case BYTES_VALUE, KVLIST_VALUE -> throw RowIneligibleException.INSTANCE;
+            case VALUE_NOT_SET -> throw new AssertionError("an unset value is dropped before a column is resolved");
+        }
+    }
+
+    /**
+     * Packs an OTLP array attribute into inline array bytes. Element kinds mirror
+     * {@link OTelDocumentBuilder#buildAnyValue} so the array renders identically, and
+     * {@link SourceBatchEncodeHelper#packAccumulatedElements} picks the columnar {@code FIXED_ARRAY} encoding
+     * whenever every element shares one fixed-width kind.
+     *
+     * @throws RowIneligibleException if any element is a bytes value, a KVLIST, or an array; see the class
+     *                               Javadoc
+     */
+    private SourceBatchEncodeHelper.PackedArray packArray(List<AnyValue> values) {
+        int size = values.size();
+        byte[] elementTypes = new byte[size];
+        long[] elementNumerics = new long[size];
+        Object[] elementVars = new Object[size];
+        for (int i = 0; i < size; i++) {
+            AnyValue value = values.get(i);
+            switch (value.getValueCase()) {
+                case STRING_VALUE -> {
+                    elementTypes[i] = SourceValueType.STRING;
+                    elementVars[i] = utf8(value.getStringValueBytes());
+                }
+                case BOOL_VALUE -> elementTypes[i] = value.getBoolValue() ? SourceValueType.TRUE : SourceValueType.FALSE;
+                case INT_VALUE -> {
+                    elementTypes[i] = SourceValueType.LONG;
+                    elementNumerics[i] = value.getIntValue();
+                }
+                case DOUBLE_VALUE -> {
+                    elementTypes[i] = SourceValueType.DOUBLE;
+                    elementNumerics[i] = Double.doubleToRawLongBits(value.getDoubleValue());
+                }
+                case VALUE_NOT_SET -> elementTypes[i] = SourceValueType.NULL;
+                // TODO: Nested arrays are currently unsupported, they seem to cause trouble in the TSID computation
+                case ARRAY_VALUE, BYTES_VALUE, KVLIST_VALUE -> throw RowIneligibleException.INSTANCE;
+            }
+        }
+        return SourceBatchEncodeHelper.packAccumulatedElements(elementTypes, elementNumerics, elementVars, size, false);
+    }
+
+    private static XContentString.UTF8Bytes utf8(ByteString value) {
+        byte[] bytes = value.toByteArray();
+        return new XContentString.UTF8Bytes(bytes, 0, bytes.length);
     }
 
     // -------------------------------------------------------------------------

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -28,6 +29,16 @@ public record PerColumnStatus(String materialization) implements Writeable, ToXC
 
     public static final String MATERIALIZATION_EAGER = "eager";
     public static final String MATERIALIZATION_LATE = "late";
+    public static final ProfileSchema<PerColumnStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        PerColumnStatus.class,
+        (builder, status, params) -> {
+            builder.startObject();
+            if (status.materialization != null) {
+                builder.field("materialization", status.materialization);
+            }
+            return builder.endObject();
+        }
+    ).optional("materialization", ProfileSchema.enumeration(MATERIALIZATION_EAGER, MATERIALIZATION_LATE)).build();
 
     public PerColumnStatus(StreamInput in) throws IOException {
         this(in.readOptionalString());
@@ -40,11 +51,6 @@ public record PerColumnStatus(String materialization) implements Writeable, ToXC
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (materialization != null) {
-            builder.field("materialization", materialization);
-        }
-        builder.endObject();
-        return builder;
+        return PROFILE_SCHEMA.write(builder, this, params);
     }
 }

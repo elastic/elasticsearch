@@ -98,6 +98,7 @@ public class HistogramFraction extends EsqlScalarFunction implements OptionalArg
         )
         .example("histogram_fraction(0, 0.2, increase(http_request_duration_seconds[1h]))")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .stdDivergence(PromqlFunctionDefinition.HISTOGRAM_OVER_SELECTION_NOT_SUPPORTED_YET)
         .name("histogram_fraction");
 
     private final Expression histogram;

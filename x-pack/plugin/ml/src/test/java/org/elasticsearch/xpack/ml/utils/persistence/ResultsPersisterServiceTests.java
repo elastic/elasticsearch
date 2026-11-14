@@ -34,7 +34,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
@@ -42,6 +44,7 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
@@ -62,6 +65,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -429,6 +433,51 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         verify(client).execute(eq(TransportBulkAction.TYPE), any(), any());
         assertThat(ex.getMessage(), containsString("experienced failure that cannot be automatically retried."));
+    }
+
+    /**
+     * Only items whose content the index rejected (a document parsing failure) are reported as permanently rejected. Items failing
+     * irrecoverably for another reason, a missing index (404) or a closed index (a 400 that heals when the index is reopened), fail the
+     * bulk too but their documents stay eligible for resubmission by the caller.
+     */
+    public void testMixedIrrecoverableFailuresShouldReportOnlyDocumentParsingFailures() {
+        BulkItemResponse rejected = BulkItemResponse.failure(
+            0,
+            DocWriteRequest.OpType.INDEX,
+            new BulkItemResponse.Failure(
+                "my-index",
+                "rejected",
+                new DocumentParsingException(XContentLocation.UNKNOWN, "failed to parse field")
+            )
+        );
+        BulkItemResponse notFound = BulkItemResponse.failure(
+            1,
+            DocWriteRequest.OpType.INDEX,
+            new BulkItemResponse.Failure("my-index", "missing", new ElasticsearchStatusException("no index", RestStatus.NOT_FOUND))
+        );
+        BulkItemResponse closed = BulkItemResponse.failure(
+            2,
+            DocWriteRequest.OpType.INDEX,
+            new BulkItemResponse.Failure("my-index", "closed", new IndexClosedException(new Index("my-index", "uuid")))
+        );
+        doAnswerWithResponses(
+            new BulkResponse(new BulkItemResponse[] { notFound, closed, rejected, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
+            new BulkResponse(new BulkItemResponse[0], 0L)
+        ).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest("my-index").id("missing").source(Collections.singletonMap("data", "x")));
+        bulkRequest.add(new IndexRequest("my-index").id("closed").source(Collections.singletonMap("data", "x")));
+        bulkRequest.add(new IndexRequest("my-index").id("rejected").source(Collections.singletonMap("data", "x")));
+        bulkRequest.add(INDEX_REQUEST_SUCCESS);
+
+        ResultsPersisterService.IrrecoverableException ex = expectThrows(
+            ResultsPersisterService.IrrecoverableException.class,
+            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s) -> {})
+        );
+
+        verify(client).execute(eq(TransportBulkAction.TYPE), any(), any());
+        assertThat(ex.rejectedDocIds(), containsInAnyOrder("rejected"));
     }
 
     public void testBulkRequestDoesNotRetryWhenSupplierIsFalse() {

@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -80,6 +81,7 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
@@ -786,6 +788,52 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         }
     }
 
+    /**
+     * In the legacy format a document carries the inference results in the field, and each of them tells a field that has no model
+     * settings what its model settings are. They must agree before any of them is fixed in the mapping.
+     */
+    public void testConflictingModelSettingsInOneDocumentAreRejected() throws IOException {
+        assumeTrue("only the legacy format carries the inference results in the field", useLegacyFormat);
+        final String fieldName = "semantic";
+        final String inferenceId = "test_service";
+        MapperService mapperService = createSemanticMapperService(semanticMapping(fieldName, inferenceId));
+        EndpointClusterState threeDimensions = new EndpointClusterState(
+            "test_service",
+            TaskType.TEXT_EMBEDDING,
+            3,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        EndpointClusterState fourDimensions = new EndpointClusterState(
+            "test_service",
+            TaskType.TEXT_EMBEDDING,
+            4,
+            SimilarityMeasure.COSINE,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+        SemanticTextField first = randomSemanticText(
+            true,
+            fieldName,
+            modelFromSettings(inferenceId, threeDimensions),
+            null,
+            List.of("a"),
+            XContentType.JSON
+        );
+        SemanticTextField second = randomSemanticText(
+            true,
+            fieldName,
+            modelFromSettings(inferenceId, fourDimensions),
+            null,
+            List.of("b"),
+            XContentType.JSON
+        );
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startArray(fieldName).value(first).value(second).endArray();
+        SourceToParse source = new SourceToParse("test", BytesReference.bytes(builder.endObject()), XContentType.JSON);
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapperService.documentMapper().parse(source));
+        assertThat(e.getCause().getMessage(), containsString("Incompatible model settings for field [" + fieldName + "]"));
+    }
+
     public void testUpdateModelSettings() throws IOException {
         for (int depth = 1; depth < 5; depth++) {
             String fieldName = randomFieldName(depth);
@@ -927,6 +975,38 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             merge(mapperService, semanticMapping(fieldName, inferenceId));
             assertSemanticField(mapperService, fieldName, true, sparseSettings, null, null);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
+        }
+    }
+
+    /**
+     * A mapping update that omits {@code inference_id} keeps the existing one.
+     */
+    public void testUpdateWithoutInferenceIdKeepsExistingInferenceId() throws IOException {
+        for (int randomizedRun = 0; randomizedRun < 10; randomizedRun++) {
+            final String fieldName = randomAlphaOfLengthBetween(5, 15);
+            final String inferenceId = randomAlphaOfLengthBetween(5, 15);
+
+            // Randomly back the inference id with a registered endpoint
+            EndpointClusterState modelSettings = null;
+            if (randomBoolean()) {
+                modelSettings = createRandomModelSettings();
+                givenModelSettings(inferenceId, modelSettings);
+            }
+
+            final MapperService mapperService = createSemanticMapperService(semanticMapping(fieldName, inferenceId));
+
+            final boolean indexDocument = randomBoolean();
+            if (indexDocument) {
+                if (modelSettings == null) {
+                    modelSettings = createRandomModelSettings();
+                }
+                performDynamicUpdate(mapperService, fieldName, inferenceId, modelSettings);
+            }
+
+            merge(mapperService, semanticMapping(fieldName, null));
+
+            assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
+            assertSemanticField(mapperService, fieldName, indexDocument, modelSettings, null, null);
         }
     }
 
@@ -1955,5 +2035,12 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
         if (useLegacyFormat && indexVersion.onOrAfter(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)) {
             throw new AssertionError("Index version " + indexVersion + " does not support legacy semantic text format");
         }
+    }
+
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        // a semantic_text field can not be created without its inference configuration, so it can not stand in for an existing field in an
+        // update
+        return false;
     }
 }

@@ -53,6 +53,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED;
+import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -203,7 +204,9 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
     }
 
     public void testWarmingMetricsArePublishedOnIndexNode() {
-        var originalIndexNode = startMasterAndIndexNode();
+        // transferring the hollow commit metadata skips the cache warming on the target
+        final var indexNodeSettings = Settings.builder().put(TRANSFER_HOLLOW_COMMIT_METADATA_SETTING.getKey(), false).build();
+        var originalIndexNode = startMasterAndIndexNode(indexNodeSettings);
 
         // Create an index
         final String indexName = createIndexWithNoReplicas("index");
@@ -214,7 +217,7 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         flush(indexName);
 
         // Start a second index node
-        String otherIndexNode = startIndexNode();
+        String otherIndexNode = startIndexNode(indexNodeSettings);
         ensureStableCluster(2);
 
         // Trigger relocation, wait till it's complete

@@ -128,6 +128,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -161,8 +162,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -937,7 +940,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS.aggregationPartitioningCountThreshold(),
             PlannerSettings.DEFAULTS.aggregationPartitioningMemoryThreshold(),
             PlannerSettings.DEFAULTS.tsInfoSampleMinRows(),
-            PlannerSettings.DEFAULTS.tsInfoSampleLimitMultiplier()
+            PlannerSettings.DEFAULTS.tsInfoSampleLimitMultiplier(),
+            PlannerSettings.DEFAULTS.tsInfoPartialEmitThreshold()
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",
@@ -1054,7 +1058,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             estimatedRowSize,
             List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
         );
-        PageStreamPublisher pageStream = new PageStreamPublisher(randomIntBetween(1, 1000));
+        PageStreamPublisher pageStream = new PageStreamPublisher();
         StreamingOutputExec streamingOutput = new StreamingOutputExec(Source.EMPTY, esQueryExec, pageStream);
 
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
@@ -1169,11 +1173,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         };
     }
 
-    public void testPlanInnerJoinManyToOne() throws IOException {
+    public void testPlanHashJoinManyToOne() throws IOException {
         // LEFT hash-join emits the lookup ordinal and loads values; FilterExec drops misses (null ordinal);
         // the final Project drops the ordinal.
         assertThat(
-            planInnerJoinFactories(false),
+            planHashJoinFactories(false),
             contains(
                 RowInTableLookupOperator.Factory.class,
                 ColumnLoadOperator.Factory.class,
@@ -1183,11 +1187,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
-    public void testPlanInnerJoinOneToOneHasDistinctByGuard() throws IOException {
+    public void testPlanHashJoinOneToOneHasDistinctByGuard() throws IOException {
         // unique=true adds an OrdinalIntKeyFactory guard after the filter, keyed on the lookup ordinal
         // (unique per build row), independent of the join key types and count.
         assertThat(
-            planInnerJoinFactories(true),
+            planHashJoinFactories(true),
             contains(
                 RowInTableLookupOperator.Factory.class,
                 ColumnLoadOperator.Factory.class,
@@ -1198,100 +1202,100 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
     }
 
-    public void testInnerJoinUniqueDuplicateBuildKeyThrows() {
+    public void testHashJoinUniqueDuplicateBuildKeyThrows() {
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> runInnerJoin(innerJoinExec(true, new long[] { 10 }, new long[] { 10, 10, 20 }, new long[] { 100, 100, 200 }))
+            () -> runHashJoin(hashJoinExec(true, new long[] { 10 }, new long[] { 10, 10, 20 }, new long[] { 100, 100, 200 }))
         );
         assertThat(e.getMessage(), containsString("found a duplicate row"));
     }
 
-    public void testInnerJoinManyToOneGathersAndDropsMisses() throws IOException {
+    public void testHashJoinManyToOneGathersAndDropsMisses() throws IOException {
         // group_left: many probe rows per build row; the miss (99) is dropped by the inner-join filter.
-        // Final page order matches InnerJoin.output(): added build columns, then left join keys.
-        List<Page> results = runInnerJoin(
-            innerJoinExec(false, new long[] { 10, 20, 10, 99, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
+        // Final page order matches HashJoin.output(): added build columns, then left join keys.
+        List<Page> results = runHashJoin(
+            hashJoinExec(false, new long[] { 10, 20, 10, 99, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
         );
-        assertInnerJoinOutput(results, List.of(100L, 200L, 100L, 300L), List.of(10L, 20L, 10L, 30L));
+        assertHashJoinOutput(results, List.of(100L, 200L, 100L, 300L), List.of(10L, 20L, 10L, 30L));
     }
 
-    public void testInnerJoinOneToOneUniqueProbe() throws IOException {
-        List<Page> results = runInnerJoin(
-            innerJoinExec(true, new long[] { 10, 20, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
+    public void testHashJoinOneToOneUniqueProbe() throws IOException {
+        List<Page> results = runHashJoin(
+            hashJoinExec(true, new long[] { 10, 20, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
         );
-        assertInnerJoinOutput(results, List.of(100L, 200L, 300L), List.of(10L, 20L, 30L));
+        assertHashJoinOutput(results, List.of(100L, 200L, 300L), List.of(10L, 20L, 30L));
     }
 
-    public void testInnerJoinOneToOneProbeDuplicatesThrows() {
+    public void testHashJoinOneToOneProbeDuplicatesThrows() {
         // unique=true requires probe-side uniqueness; duplicate probe keys matching the same build row throw.
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> runInnerJoin(innerJoinExec(true, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 }))
+            () -> runHashJoin(hashJoinExec(true, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 }))
         );
         assertThat(e.getMessage(), equalTo("input must not have duplicates when [failOnDuplicate] set to [true]"));
     }
 
-    public void testInnerJoinDuplicateBuildKeyThrows() {
+    public void testHashJoinDuplicateBuildKeyThrows() {
         // A duplicate key on the build ("one") side is rejected when the lookup table is built.
         var e = expectThrows(
             IllegalArgumentException.class,
-            () -> runInnerJoin(innerJoinExec(false, new long[] { 10 }, new long[] { 10, 10, 20 }, new long[] { 100, 100, 200 }))
+            () -> runHashJoin(hashJoinExec(false, new long[] { 10 }, new long[] { 10, 10, 20 }, new long[] { 100, 100, 200 }))
         );
         assertThat(e.getMessage(), containsString("found a duplicate row"));
     }
 
-    public void testInnerJoinManyToOneFanOutAllowsProbeDuplicates() throws IOException {
+    public void testHashJoinManyToOneFanOutAllowsProbeDuplicates() throws IOException {
         // group_left: several probe rows share one build key. Unlike 1:1 there is no guard, so probe
         // duplicates are allowed and each row fans out carrying the same build value.
-        List<Page> results = runInnerJoin(
-            innerJoinExec(false, new long[] { 10, 10, 10, 20 }, new long[] { 10, 20 }, new long[] { 100, 200 })
+        List<Page> results = runHashJoin(
+            hashJoinExec(false, new long[] { 10, 10, 10, 20 }, new long[] { 10, 20 }, new long[] { 100, 200 })
         );
-        assertInnerJoinOutput(results, List.of(100L, 100L, 100L, 200L), List.of(10L, 10L, 10L, 20L));
+        assertHashJoinOutput(results, List.of(100L, 100L, 100L, 200L), List.of(10L, 10L, 10L, 20L));
     }
 
-    public void testInnerJoinMultiColumnKey() throws IOException {
+    public void testHashJoinMultiColumnKey() throws IOException {
         // The real join key spans (labels..., step): a match requires equality on BOTH key columns.
         // Probe (10, 2) matches only the first column of build (10, 1) -> miss, dropped.
-        // Output after Project: [v0, k0, k1] per InnerJoin.output().
-        PhysicalPlan innerJoin = innerJoinExec(
+        // Output after Project: [v0, k0, k1] per HashJoin.output().
+        PhysicalPlan hashJoin = hashJoinExec(
             false,
             List.of(new long[] { 10, 20, 10 }, new long[] { 1, 1, 2 }), // probe (k0, k1)
             List.of(new long[] { 10, 20, 30 }, new long[] { 1, 1, 1 }), // build (k0, k1)
             List.of(new long[] { 100, 200, 300 })                       // build v0
         );
-        assertInnerJoinRows(runInnerJoin(innerJoin), List.of(List.of(100L, 10L, 1L), List.of(200L, 20L, 1L)));
+        assertHashJoinRows(runHashJoin(hashJoin), List.of(List.of(100L, 10L, 1L), List.of(200L, 20L, 1L)));
     }
 
-    public void testInnerJoinCopiesMultipleBuildColumns() throws IOException {
+    public void testHashJoinCopiesMultipleBuildColumns() throws IOException {
         // group_left(l1, l2): more than one build column is gathered onto each surviving probe row.
-        // Output after Project: [v0, v1, k0] per InnerJoin.output().
-        PhysicalPlan innerJoin = innerJoinExec(
+        // Output after Project: [v0, v1, k0] per HashJoin.output().
+        PhysicalPlan hashJoin = hashJoinExec(
             false,
             List.of(new long[] { 10, 20, 10 }),                        // probe (k0)
             List.of(new long[] { 10, 20 }),                            // build (k0)
             List.of(new long[] { 100, 200 }, new long[] { 111, 222 })  // build (v0, v1)
         );
-        assertInnerJoinRows(runInnerJoin(innerJoin), List.of(List.of(100L, 111L, 10L), List.of(200L, 222L, 20L), List.of(100L, 111L, 10L)));
+        assertHashJoinRows(runHashJoin(hashJoin), List.of(List.of(100L, 111L, 10L), List.of(200L, 222L, 20L), List.of(100L, 111L, 10L)));
     }
 
-    public void testInnerJoinEmptyBuildProducesNoRows() throws IOException {
+    public void testHashJoinEmptyBuildProducesNoRows() throws IOException {
         // Empty "one" side -> every probe row misses -> the inner join drops everything.
-        List<Page> results = runInnerJoin(innerJoinExec(false, new long[] { 10, 20 }, new long[] {}, new long[] {}));
-        assertInnerJoinOutput(results, List.of(), List.of());
+        List<Page> results = runHashJoin(hashJoinExec(false, new long[] { 10, 20 }, new long[] {}, new long[] {}));
+        assertHashJoinOutput(results, List.of(), List.of());
     }
 
-    public void testInnerJoinEmptyProbeProducesNoRows() throws IOException {
-        List<Page> results = runInnerJoin(innerJoinExec(false, new long[] {}, new long[] { 10, 20 }, new long[] { 100, 200 }));
-        assertInnerJoinOutput(results, List.of(), List.of());
+    public void testHashJoinEmptyProbeProducesNoRows() throws IOException {
+        List<Page> results = runHashJoin(hashJoinExec(false, new long[] {}, new long[] { 10, 20 }, new long[] { 100, 200 }));
+        assertHashJoinOutput(results, List.of(), List.of());
     }
 
-    public void testInnerJoinAllProbeRowsMissProduceNoRows() throws IOException {
+    public void testHashJoinAllProbeRowsMissProduceNoRows() throws IOException {
         // Non-empty build, but no probe key exists on the build side -> empty inner-join result.
-        List<Page> results = runInnerJoin(innerJoinExec(false, new long[] { 1, 2, 3 }, new long[] { 10, 20 }, new long[] { 100, 200 }));
-        assertInnerJoinOutput(results, List.of(), List.of());
+        List<Page> results = runHashJoin(hashJoinExec(false, new long[] { 1, 2, 3 }, new long[] { 10, 20 }, new long[] { 100, 200 }));
+        assertHashJoinOutput(results, List.of(), List.of());
     }
 
-    public void testInnerJoinMultivaluedBuildKeyThrows() {
+    public void testHashJoinMultivaluedBuildKeyThrows() {
         // The lookup table only supports single-valued keys; a multivalued build key is rejected.
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
         ReferenceAttribute buildKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
@@ -1310,20 +1314,62 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             List.of(probeKey),
             LocalSupplier.of(new Page(blockFactory.newLongArrayVector(new long[] { 10 }, 1).asBlock()))
         );
-        PhysicalPlan innerJoin = innerJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
-        var e = expectThrows(IllegalArgumentException.class, () -> runInnerJoin(innerJoin));
+        PhysicalPlan hashJoin = hashJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
+        var e = expectThrows(IllegalArgumentException.class, () -> runHashJoin(hashJoin));
         assertThat(e.getMessage(), containsString("only single valued keys are supported"));
     }
 
-    /**
-     * Builds the physical plan shape Mapper produces for InnerJoin:
-     * LEFT HashJoin(lookup ordinal as added field) -> Filter(ordinal IS NOT NULL) -> [DistinctBy(ordinal) when unique] -> Project.
-     */
-    private PhysicalPlan innerJoinExec(boolean unique, long[] probeKeys, long[] buildKeys, long[] buildValues) {
-        return innerJoinExec(unique, List.of(probeKeys), List.of(buildKeys), List.of(buildValues));
+    public void testHashJoinReadsCopyingLocalSupplierWithoutCopying() throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        AtomicInteger gets = new AtomicInteger();
+        AtomicInteger peeks = new AtomicInteger();
+        Page buildPage = new Page(
+            blockFactory.newLongArrayVector(new long[] { 10, 20, 30 }, 3).asBlock(),
+            blockFactory.newLongArrayVector(new long[] { 100, 200, 300 }, 3).asBlock()
+        );
+        // The copy that get() makes uses a non-breaking block factory, so counting the calls is the only way to observe it
+        LocalSupplier counting = new CopyingLocalSupplier(buildPage) {
+            @Override
+            public Page get() {
+                gets.incrementAndGet();
+                return super.get();
+            }
+
+            @Override
+            public Page peek() {
+                peeks.incrementAndGet();
+                return super.peek();
+            }
+        };
+        ReferenceAttribute buildKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        ReferenceAttribute buildValue = new ReferenceAttribute(Source.EMPTY, "v0", DataType.LONG);
+        LocalSourceExec build = new LocalSourceExec(Source.EMPTY, List.of(buildKey, buildValue), counting);
+        ReferenceAttribute probeKey = new ReferenceAttribute(Source.EMPTY, "k0", DataType.LONG);
+        LocalSourceExec probe = new LocalSourceExec(
+            Source.EMPTY,
+            List.of(probeKey),
+            LocalSupplier.of(new Page(blockFactory.newLongArrayVector(new long[] { 10, 20, 10 }, 3).asBlock()))
+        );
+        PhysicalPlan hashJoin = hashJoinPhysical(false, probe, build, List.of(probeKey), List.of(buildKey), List.of(buildValue));
+
+        var plan = planHashJoin(hashJoin);
+        assertThat(gets.get(), equalTo(0));
+        assertThat(peeks.get(), equalTo(1));
+
+        List<Page> results = runPlanned(plan.driverFactories.get(0).driverSupplier().physicalOperation());
+        assertHashJoinOutput(results, List.of(100L, 200L, 100L), List.of(10L, 20L, 10L));
+        assertThat(gets.get(), equalTo(0));
     }
 
-    private PhysicalPlan innerJoinExec(boolean unique, List<long[]> probeKeyCols, List<long[]> buildKeyCols, List<long[]> buildValueCols) {
+    /**
+     * Builds the physical plan shape Mapper produces for HashJoin:
+     * LEFT HashJoin(lookup ordinal as added field) -> Filter(ordinal IS NOT NULL) -> [DistinctBy(ordinal) when unique] -> Project.
+     */
+    private PhysicalPlan hashJoinExec(boolean unique, long[] probeKeys, long[] buildKeys, long[] buildValues) {
+        return hashJoinExec(unique, List.of(probeKeys), List.of(buildKeys), List.of(buildValues));
+    }
+
+    private PhysicalPlan hashJoinExec(boolean unique, List<long[]> probeKeyCols, List<long[]> buildKeyCols, List<long[]> buildValueCols) {
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
 
         List<Attribute> buildKeyAttrs = new ArrayList<>();
@@ -1363,10 +1409,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             LocalSupplier.of(new Page(probeBlocks.toArray(new Block[0])))
         );
 
-        return innerJoinPhysical(unique, probe, build, probeKeyAttrs, buildKeyAttrs, buildValueAttrs);
+        return hashJoinPhysical(unique, probe, build, probeKeyAttrs, buildKeyAttrs, buildValueAttrs);
     }
 
-    private static PhysicalPlan innerJoinPhysical(
+    private static PhysicalPlan hashJoinPhysical(
         boolean unique,
         LocalSourceExec probe,
         LocalSourceExec build,
@@ -1392,24 +1438,24 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         return new ProjectExec(Source.EMPTY, join, output);
     }
 
-    private LocalExecutionPlanner.LocalExecutionPlan planInnerJoin(PhysicalPlan innerJoin) throws IOException {
+    private LocalExecutionPlanner.LocalExecutionPlan planHashJoin(PhysicalPlan hashJoin) throws IOException {
         return planner().plan(
             "test",
             FoldContext.small(),
             PlannerSettings.DEFAULTS,
-            innerJoin,
+            hashJoin,
             EmptyIndexedByShardId.instance(),
             randomBoolean()
         );
     }
 
     /**
-     * Classes of the intermediate operator factories for the Mapper-shaped InnerJoin physical plan.
+     * Classes of the intermediate operator factories for the Mapper-shaped HashJoin physical plan.
      */
-    private List<Class<?>> planInnerJoinFactories(boolean unique) throws IOException {
-        PhysicalPlan innerJoin = innerJoinExec(unique, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 });
+    private List<Class<?>> planHashJoinFactories(boolean unique) throws IOException {
+        PhysicalPlan hashJoin = hashJoinExec(unique, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 });
         List<Class<?>> factories = new ArrayList<>();
-        for (var factory : planInnerJoin(innerJoin).driverFactories.get(0)
+        for (var factory : planHashJoin(hashJoin).driverFactories.get(0)
             .driverSupplier()
             .physicalOperation().intermediateOperatorFactories) {
             factories.add(factory.getClass());
@@ -1418,14 +1464,14 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * Plans then runs a Mapper-shaped InnerJoin physical plan end to end.
+     * Plans then runs a Mapper-shaped HashJoin physical plan end to end.
      */
-    private List<Page> runInnerJoin(PhysicalPlan innerJoin) throws IOException {
-        return runPlanned(planInnerJoin(innerJoin).driverFactories.get(0).driverSupplier().physicalOperation());
+    private List<Page> runHashJoin(PhysicalPlan hashJoin) throws IOException {
+        return runPlanned(planHashJoin(hashJoin).driverFactories.get(0).driverSupplier().physicalOperation());
     }
 
-    /** Asserts single-key InnerJoin pages in InnerJoin.output() order: build value, then left key. */
-    private void assertInnerJoinOutput(List<Page> results, List<Long> expectedValues, List<Long> expectedKeys) {
+    /** Asserts single-key HashJoin pages in HashJoin.output() order: build value, then left key. */
+    private void assertHashJoinOutput(List<Page> results, List<Long> expectedValues, List<Long> expectedKeys) {
         List<Long> values = new ArrayList<>();
         List<Long> keys = new ArrayList<>();
         for (Page page : results) {
@@ -1441,10 +1487,10 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * Asserts the full output rows of a Mapper-shaped InnerJoin plan whose output is entirely {@code LONG}
-     * columns, in InnerJoin.output() order (added build columns, then left join keys).
+     * Asserts the full output rows of a Mapper-shaped HashJoin plan whose output is entirely {@code LONG}
+     * columns, in HashJoin.output() order (added build columns, then left join keys).
      */
-    private void assertInnerJoinRows(List<Page> results, List<List<Long>> expectedRows) {
+    private void assertHashJoinRows(List<Page> results, List<List<Long>> expectedRows) {
         assertThat(longRows(results), equalTo(expectedRows));
     }
 
@@ -1907,7 +1953,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null, // parallelWorkerExecutor - not needed for these tests
             0,    // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
-            TransportVersion.current()
+            TransportVersion.current(),
+            null  // client - not needed for these tests
         );
     }
 
@@ -1935,6 +1982,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
         return new EsPhysicalOperationProviders(
             FoldContext.small(),
+            TEST_CFG,
             new IndexedByShardIdFromList<>(shardContexts),
             null,
             PlannerSettings.DEFAULTS,

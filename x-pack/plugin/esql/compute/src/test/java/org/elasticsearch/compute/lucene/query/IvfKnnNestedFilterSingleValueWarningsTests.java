@@ -14,9 +14,12 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -27,21 +30,28 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestWarningsSource;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatVectorQuery;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
@@ -78,13 +88,56 @@ public class IvfKnnNestedFilterSingleValueWarningsTests extends ComputeTestCase 
     }
 
     public void testIvfKnnQueryWithNestedFilterDoesNotThrowAndStillWarnsWhenScanned() throws IOException {
+        runIvfKnnQueryWithNestedFilter(reader -> new LuceneSourceOperatorTests.MockShardContext(reader, 0));
+    }
+
+    /**
+     * The shard searcher ES|QL gets from {@code SearchService} carries the search pool, so an IVF rewrite
+     * runs its per-leaf searches, and therefore the nested filter, on threads that never bound
+     * {@link QueryWarnings}. Those warnings are dropped rather than failing the query.
+     */
+    public void testIvfKnnQueryWithNestedFilterDoesNotThrowWhenRewriteForksLeafSearches() throws IOException {
+        AtomicInteger forkedTasks = new AtomicInteger();
+        Executor forkingExecutor = task -> {
+            forkedTasks.incrementAndGet();
+            Thread thread = new Thread(task, "forked-leaf-search");
+            thread.start();
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(e);
+            }
+        };
+        runIvfKnnQueryWithNestedFilter(
+            reader -> new LuceneSourceOperatorTests.MockShardContext(
+                new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    TrivialQueryCachingPolicy.NEVER,
+                    true,
+                    forkingExecutor,
+                    10,
+                    1
+                ),
+                0
+            )
+        );
+        assertThat("the rewrite must fork at least one leaf search", forkedTasks.get(), greaterThan(0));
+    }
+
+    private void runIvfKnnQueryWithNestedFilter(CheckedFunction<IndexReader, ShardContext, IOException> shardContextFactory)
+        throws IOException {
         ES920DiskBBQVectorsFormat format = new ES920DiskBBQVectorsFormat(
             ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER,
             ES920DiskBBQVectorsFormat.MIN_CENTROIDS_PER_PARENT_CLUSTER
         );
 
         try (Directory dir = newDirectory()) {
-            try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format)))) {
+            IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format))
+                .setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
                 for (int group = 0; group < 5; group++) {
                     for (int child = 0; child < 3; child++) {
                         Document doc = new Document();
@@ -94,11 +147,13 @@ public class IvfKnnNestedFilterSingleValueWarningsTests extends ComputeTestCase 
                     Document parent = new Document();
                     parent.add(new StringField("docType", "_parent", Field.Store.NO));
                     writer.addDocument(parent);
+                    // One segment per parent block, so the IVF rewrite has several leaves to fork.
+                    writer.commit();
                 }
             }
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                LuceneSourceOperatorTests.MockShardContext shardContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+                ShardContext shardContext = shardContextFactory.apply(reader);
                 BitSetProducer parentFilter = new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")));
 
                 QueryWarnings warnings = QueryWarnings.EMIT;

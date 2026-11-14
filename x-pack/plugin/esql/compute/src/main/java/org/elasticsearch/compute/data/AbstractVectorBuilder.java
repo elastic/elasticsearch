@@ -91,7 +91,8 @@ public abstract class AbstractVectorBuilder implements Vector.Builder {
      */
     protected void extraClose() {}
 
-    public boolean isReleased() {
+    @Override
+    public final boolean isReleased() {
         return closed;
     }
 }

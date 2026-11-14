@@ -16,6 +16,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnData;
+import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.xcontent.XContentString;
 
@@ -175,6 +176,18 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
     public final void stringField(int colIdx, ByteString value) {
         byte[] bytes = value.toByteArray();
         stringField(colIdx, bytes, 0, bytes.length);
+    }
+
+    /**
+     * Writes a packed inline array at {@code colIdx}, as produced by
+     * {@link SourceBatchEncodeHelper#packAccumulatedElements}. An array whose elements share one fixed kind is
+     * decoded into a columnar child; anything heterogeneous or nested stays inline on a union column.
+     */
+    public final void arrayField(int colIdx, SourceBatchEncodeHelper.PackedArray array) {
+        // Packed rather than streamed through EscfColumnBuilder#beginArray/appendX/endArray: the streaming API
+        // cannot append a boolean or a null element, and OTLP arrays can contain both.
+        // TODO: we should probably extend COlumnBuilder.beginArray() / endArray() to properly work with bools and nulls
+        catchUp(colIdx, docCount).addArray(array.arrayType(), array.packed());
     }
 
     /**

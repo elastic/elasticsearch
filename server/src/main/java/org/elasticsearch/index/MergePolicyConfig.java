@@ -207,7 +207,8 @@ public final class MergePolicyConfig {
         "index.merge.policy.type",
         Type.UNSET,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
 
     public static final Setting<Double> INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING = Setting.doubleSetting(
@@ -253,14 +254,16 @@ public final class MergePolicyConfig {
         DEFAULT_SEGMENTS_PER_TIER,
         2.0d,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<Integer> INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING = Setting.intSetting(
         "index.merge.policy.merge_factor",
         DEFAULT_MERGE_FACTOR,
         2,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<Double> INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING = Setting.doubleSetting(
         "index.merge.policy.deletes_pct_allowed",

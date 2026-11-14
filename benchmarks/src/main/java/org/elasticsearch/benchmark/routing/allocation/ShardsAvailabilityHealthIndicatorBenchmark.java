@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailab
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.index.IndexVersion;
@@ -175,7 +176,12 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             .build();
 
         Settings settings = Settings.builder().put("node.name", ShardsAvailabilityHealthIndicatorBenchmark.class.getSimpleName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new ThreadPool(
+            new ThreadContext(settings),
+            settings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        );
 
         ClusterService clusterService = new ClusterService(
             Settings.EMPTY,

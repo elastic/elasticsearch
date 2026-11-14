@@ -15,10 +15,10 @@ import org.elasticsearch.index.ActionLoggingFields;
 import java.util.Map;
 import java.util.Optional;
 
-public class SqlLogProducer implements ActivityLogProducer<SqlLogContext> {
+public class SqlLogProducer implements ActivityLogProducer<SqlCaptureContext> {
 
     @Override
-    public Optional<ESLogMessage> produce(SqlLogContext context, ActionLoggingFields additionalFields) {
+    public Optional<ESLogMessage> produce(SqlCaptureContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
         context.getFilter().ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
         var params = context.params();

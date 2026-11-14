@@ -134,13 +134,21 @@ class FlattenedFieldParser {
 
     private void parseFieldValue(Context context, XContentParser.Token token, ContentPath path, String currentName) throws IOException {
         XContentParser parser = context.parser();
+        // Objects and arrays record themselves as the immediate parent, as DocumentParser#parseObject and #parseArray do, so that a mapped
+        // sub-field can tell an element of its own array from any other value (see FieldArrayContext#shouldRecordOffsets).
         if (token == XContentParser.Token.START_OBJECT) {
             path.add(currentName);
             validateDepthLimit(path);
+            var prev = context.documentParserContext().getImmediateXContentParent();
+            context.documentParserContext().setImmediateXContentParent(token);
             parseObject(context, path);
+            context.documentParserContext().setImmediateXContentParent(prev);
             path.remove();
         } else if (token == XContentParser.Token.START_ARRAY) {
+            var prev = context.documentParserContext().getImmediateXContentParent();
+            context.documentParserContext().setImmediateXContentParent(token);
             parseArray(context, path, currentName);
+            context.documentParserContext().setImmediateXContentParent(prev);
         } else if (token.isValue()) {
             String value = parser.text();
             addField(context, path, currentName, value);

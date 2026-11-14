@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -26,6 +27,23 @@ public class GroupedTopNOperatorStatus implements Operator.Status {
         "groupedtopn",
         GroupedTopNOperatorStatus::new
     );
+    public static final ProfileSchema<GroupedTopNOperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        GroupedTopNOperatorStatus.class,
+        (builder, status, params) -> status.writeProfile(builder)
+    )
+        .required("receive_nanos", ProfileSchema.integer())
+        .optional("receive_time", ProfileSchema.string())
+        .required("emit_nanos", ProfileSchema.integer())
+        .optional("emit_time", ProfileSchema.string())
+        .required("occupied_rows", ProfileSchema.integer())
+        .required("group_count", ProfileSchema.integer())
+        .required("ram_bytes_used", ProfileSchema.integer())
+        .required("ram_used", ProfileSchema.string())
+        .required("pages_received", ProfileSchema.integer())
+        .required("pages_emitted", ProfileSchema.integer())
+        .required("rows_received", ProfileSchema.integer())
+        .required("rows_emitted", ProfileSchema.integer())
+        .build();
 
     private final long receiveNanos;
     private final long emitNanos;
@@ -128,8 +146,7 @@ public class GroupedTopNOperatorStatus implements Operator.Status {
         return rowsEmitted;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("receive_nanos", receiveNanos);
         if (builder.humanReadable()) {
@@ -148,6 +165,11 @@ public class GroupedTopNOperatorStatus implements Operator.Status {
         builder.field("rows_received", rowsReceived);
         builder.field("rows_emitted", rowsEmitted);
         return builder.endObject();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return PROFILE_SCHEMA.write(builder, this, params);
     }
 
     @Override

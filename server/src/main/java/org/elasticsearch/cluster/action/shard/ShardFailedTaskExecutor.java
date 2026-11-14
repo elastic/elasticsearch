@@ -67,6 +67,10 @@ public class ShardFailedTaskExecutor implements ClusterStateTaskExecutor<ShardFa
                     entry.getShardId().getIndex()
                 );
                 taskContext.success(task::onSuccess);
+            } else if (entry.getShardId().id() >= indexMetadata.getNumberOfShards()) {
+                // A restore-over may have reduced numberOfShards after this failure was sent, removing this shard id.
+                logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", entry.getShardId(), entry);
+                taskContext.success(task::onSuccess);
             } else {
                 // The primary term is 0 if the shard failed itself. It is > 0 if a write was done on a primary but was failed to be
                 // replicated to the shard copy with the provided allocation id. In case where the shard failed itself, it's ok to just

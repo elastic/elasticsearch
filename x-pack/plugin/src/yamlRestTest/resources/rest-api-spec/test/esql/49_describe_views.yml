@@ -1,0 +1,141 @@
+---
+setup:
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ describe_command, column_metadata_field_semantics, column_metadata_merged_branches ]
+        - method: GET
+          path: /_query/view
+          capabilities: [ view_index_abstraction ]
+      reason: "DESCRIBE and column_metadata through views"
+
+  - do:
+      indices.create:
+        index: test_semantics
+        body:
+          mappings:
+            properties:
+              host:
+                type: keyword
+              latency:
+                type: double
+                meta:
+                  unit: ms
+                  description: Request latency
+              region:
+                type: keyword
+                meta:
+                  description: Deployment region
+
+  - do:
+      esql.put_view:
+        name: latencies
+        body:
+          query: 'FROM test_semantics | KEEP host, latency, region | RENAME latency AS lat | EVAL lat_s = lat / 1000'
+
+  - do:
+      indices.create:
+        index: test_semantics_seconds
+        body:
+          mappings:
+            properties:
+              latency:
+                type: double
+                meta:
+                  unit: s
+
+  - do:
+      esql.put_view:
+        name: latencies_in_seconds
+        body:
+          query: 'FROM test_semantics_seconds | RENAME latency AS lat'
+
+  - do:
+      esql.put_view:
+        name: latencies_by_region
+        body:
+          query: 'FROM latencies | STATS p50 = MEDIAN(lat), n = COUNT(*) BY region'
+
+---
+"DESCRIBE a view":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM latencies | DESCRIBE | KEEP name, role, field, origin, unit, description'
+
+  - match: { values.0: [ "host", "attribute", "host", "mapped", null, null ] }
+  - match: { values.1: [ "lat", "numeric", "latency", "renamed", "ms", "Request latency" ] }
+  - match: { values.2: [ "region", "attribute", "region", "mapped", null, "Deployment region" ] }
+  - match: { values.3: [ "lat_s", null, null, "computed", "s", null ] }
+
+---
+"DESCRIBE a view over a view":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM latencies_by_region | DESCRIBE | KEEP name, role, field, origin, unit, description'
+
+  - match: { values.0: [ "p50", null, null, "computed", "ms", null ] }
+  - match: { values.1: [ "n", null, null, "computed", "1", null ] }
+  - match: { values.2: [ "region", "attribute", "region", "mapped", null, "Deployment region" ] }
+
+---
+"DESCRIBE a view next to an index":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM latencies, test_semantics | KEEP host, lat, latency | DESCRIBE | KEEP name, field, origin, unit, description'
+
+  - match: { values.0: [ "host", "host", "mapped", null, null ] }
+  - match: { values.1: [ "lat", "latency", "renamed", "ms", "Request latency" ] }
+  - match: { values.2: [ "latency", "latency", "mapped", "ms", "Request latency" ] }
+
+---
+"Branches that disagree on a unit have none":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM latencies, latencies_in_seconds | KEEP lat | DESCRIBE | KEEP name, field, origin, unit, description'
+
+  - match: { values.0: [ "lat", null, "computed", null, null ] }
+
+---
+"DESCRIBE after FORK":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_semantics | FORK (WHERE region == "eu" | KEEP latency) (WHERE region == "us" | KEEP latency) | DROP _fork | DESCRIBE | KEEP name, field, origin, unit, description'
+
+  - match: { values.0: [ "latency", "latency", "mapped", "ms", "Request latency" ] }
+
+---
+"column_metadata through a view next to an index":
+  - do:
+      esql.query:
+        body:
+          query: 'SET column_metadata=true; FROM latencies, test_semantics | KEEP host, lat, lat_s, latency | LIMIT 0'
+
+  - match: { columns.0.name: host }
+  - match: { columns.0._meta.field.name: host }
+  - match: { columns.1.name: lat }
+  - match: { columns.1._meta.field.name: latency }
+  - match: { columns.1._meta.field.description: Request latency }
+  - match: { columns.1._meta.unit: ms }
+  - match: { columns.2.name: lat_s }
+  - match: { columns.2._meta.unit: s }
+  - match: { columns.3.name: latency }
+  - match: { columns.3._meta.field.name: latency }
+  - match: { columns.3._meta.unit: ms }

@@ -451,8 +451,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
      * When {@code aliasReplacedBy} is non-empty, alias resolution is applied before
      * the translatability check, but the original (unresolved) expressions are stored
      * so that non-pushable filters still reference the EvalExec output attributes.
-     */
-    /**
+     *
      * @param bestEffortPredicates the predicates to push a filter that some shards here cannot query to every shard anyway,
      *                             see {@link LucenePushdownPredicates#bestEffort()}; {@code null} to push only what every shard can query
      */

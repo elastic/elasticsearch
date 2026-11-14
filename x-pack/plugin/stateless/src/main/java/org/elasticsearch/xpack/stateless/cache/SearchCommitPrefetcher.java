@@ -22,7 +22,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.PREWARM_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.PREWARM_THREAD_POOL;
 
 /**
  * Prefetches segment files from {@link BatchedCompoundCommit}
@@ -374,10 +374,10 @@ public class SearchCommitPrefetcher {
                             prefetchedBytes::addAndGet,
                             // I/O for pre-warming uses DIRECT_EXECUTOR, meaning the pre-warm thread pool
                             // itself is responsible for fetching data from the blob store.
-                            StatelessPlugin.PREWARM_THREAD_POOL,
+                            StatelessThreadPools.PREWARM_THREAD_POOL,
                             // If the data is pre-fetched from the indexing node (for non-uploaded BCCs),
                             // these reads would be executed in the fill VBCC thread poll.
-                            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                         ),
                         executor,
                         forcePrefetch,
@@ -612,7 +612,7 @@ public class SearchCommitPrefetcher {
                 PrefetchExecutor.class.getCanonicalName(),
                 // Leave room for the recovery and online pre-warming to make progress
                 threadPool.info(PREWARM_THREAD_POOL).getMax() / 2 + 1,
-                threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL)
+                threadPool.executor(StatelessThreadPools.PREWARM_THREAD_POOL)
             );
         }
 

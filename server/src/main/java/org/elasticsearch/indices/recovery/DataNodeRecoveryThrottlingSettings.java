@@ -116,19 +116,6 @@ public final class DataNodeRecoveryThrottlingSettings {
         Setting.Property.NodeScope
     );
 
-    /// Former name of [#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING], which falls back to it.
-    ///
-    /// TODO: remove once the overrides have moved to the new setting. The setting is only registered by the stateless plugin, so
-    /// it can be removed without a formal deprecation.
-    public static final Setting<RatioValue> INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING = Setting.ratioSetting(
-        "indices.recovery.incoming_recoveries_max_relocation_proportion",
-        RatioValue.ONE_HUNDRED_PERCENT,
-        RatioValue.ofPercent(Double.MIN_NORMAL),
-        RatioValue.ONE_HUNDRED_PERCENT,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
     /// Controls the max proportion of the max allowed concurrent recoveries count that may be used for non-critical recoveries,
     /// i.e. relocations, restores and recoveries of unassigned shards which are only needed for performance. Slots above
     /// this limit are kept free for critical recoveries.
@@ -137,15 +124,14 @@ public final class DataNodeRecoveryThrottlingSettings {
     /// See [ThrottlingRecoveryService].
     ///
     /// Accepts values like `0.5` or `"50%"`. Must be strictly positive: 0 is disallowed (consistent with the minimum of
-    /// the other recovery throttle settings). Falls back to [#INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING]
-    /// if unset.
+    /// the other recovery throttle settings).
     ///
     /// Applies to: target side, stateful and stateless. Currently only registered by the stateless plugin, elsewhere disabled.
-    public static final Setting<RatioValue> INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING = new Setting<>(
+    public static final Setting<RatioValue> INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING = Setting.ratioSetting(
         "indices.recovery.max_non_critical_incoming_recoveries_proportion",
-        INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
-        s -> RatioValue.parseRatioValue(s, RatioValue.ofPercent(Double.MIN_NORMAL), RatioValue.ONE_HUNDRED_PERCENT),
-        v -> {},
+        RatioValue.ONE_HUNDRED_PERCENT,
+        RatioValue.ofPercent(Double.MIN_NORMAL),
+        RatioValue.ONE_HUNDRED_PERCENT,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -189,8 +175,7 @@ public final class DataNodeRecoveryThrottlingSettings {
     private static final List<Setting<?>> INCOMING_RECOVERY_LIMITS_SETTINGS = List.of(
         INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
         INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
-        INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING,
-        INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
+        INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
     );
 
     /// The source (outgoing) side settings that jointly determine the max outgoing recovery limit (See [#watchOutgoingRecoveryLimit]).
@@ -346,7 +331,6 @@ public final class DataNodeRecoveryThrottlingSettings {
         return List.of(
             INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
             INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING,
-            INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING,
             INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING,
             INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
             INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING

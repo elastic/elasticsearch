@@ -10,6 +10,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.KnnByteVectorField;
+import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.Column;
@@ -19,6 +21,7 @@ import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.LongValuesCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.document.column.TokenStreamColumn;
+import org.apache.lucene.document.column.VectorColumn;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
@@ -44,6 +47,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -453,6 +457,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                                 + "] that does not support columnar parse"
                         );
                     }
+                    if (owned.mapper().resolvesColumnGroup() == FieldMapper.ColumnGroup.SINGLE_OBJECT
+                        && ColumnGroupResolver.isDirectlyInOwnerObject(schema, c, path, owned.ownerPath()) == false) {
+                        causes.add(
+                            "leaf [" + path + "] is not directly in an object at the group mapper's path [" + owned.ownerPath() + "]"
+                        );
+                    }
                 } else {
                     causes.add("leaf [" + path + "] has no mapper");
                 }
@@ -523,6 +533,12 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 }
             } else if (column instanceof TokenStreamColumn) {
                 // inverted-index-only; no doc values to compare
+            } else if (column instanceof VectorColumn<?> vectorColumn) {
+                // Vectors are single-valued and have no dense bulk-fill cursor, so the tuple cursor is the only one to read.
+                final ObjectTupleCursor<?> cursor = vectorColumn.tuples();
+                for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+                    perDoc.get(doc).add(new FieldDescriptor(name, ft, null, vectorBytes(cursor.value())));
+                }
             } else {
                 throw new AssertionError("unsupported column type in test harness: " + column.getClass());
             }
@@ -595,6 +611,13 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             longValue = numeric != null ? numeric.longValue() : null;
         }
         BytesRef bytesValue = null;
+        if (field instanceof KnnFloatVectorField vectorField) {
+            // A vector field has neither a numeric nor a binary value; compare the vector itself.
+            return new FieldDescriptor(field.name(), ft, null, vectorBytes(vectorField.vectorValue()));
+        }
+        if (field instanceof KnnByteVectorField vectorField) {
+            return new FieldDescriptor(field.name(), ft, null, vectorBytes(vectorField.vectorValue()));
+        }
         if (longValue == null) {
             final BytesRef binary = field.binaryValue();
             if (binary != null) {
@@ -604,6 +627,24 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
             }
         }
         return new FieldDescriptor(field.name(), ft, longValue, bytesValue);
+    }
+
+    /**
+     * A comparable encoding of a {@code float[]} or {@code byte[]} vector value: the raw bits of every float element, or the bytes
+     * themselves, so that two vectors compare equal exactly when every element is bit-for-bit identical.
+     */
+    private static BytesRef vectorBytes(Object vector) {
+        if (vector instanceof float[] floats) {
+            final ByteBuffer buffer = ByteBuffer.allocate(floats.length * Float.BYTES);
+            for (float value : floats) {
+                buffer.putInt(Float.floatToRawIntBits(value));
+            }
+            return new BytesRef(buffer.array());
+        }
+        if (vector instanceof byte[] bytes) {
+            return new BytesRef(bytes.clone());
+        }
+        throw new AssertionError("unsupported vector value type in test harness: " + vector.getClass());
     }
 
     private static IndexRequest[] buildIndexRequests(List<Doc> docs, BytesReference[] sourceBytes) {

@@ -45,15 +45,12 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         "org.elasticsearch.index.mapper.GeoShapeFieldMapper"
     );
 
-    public static Parameter<Explicit<Boolean>> ignoreMalformedParam(
-        Function<FieldMapper, Explicit<Boolean>> initializer,
-        boolean ignoreMalformedByDefault
-    ) {
-        return Parameter.explicitBoolParam("ignore_malformed", true, initializer, ignoreMalformedByDefault);
+    public static Parameter<Explicit<Boolean>> ignoreMalformedParam(boolean ignoreMalformedByDefault) {
+        return Parameter.explicitBoolParam("ignore_malformed", true, ignoreMalformedByDefault);
     }
 
-    public static Parameter<Explicit<Boolean>> ignoreZValueParam(Function<FieldMapper, Explicit<Boolean>> initializer) {
-        return Parameter.explicitBoolParam("ignore_z_value", true, initializer, true);
+    public static Parameter<Explicit<Boolean>> ignoreZValueParam() {
+        return Parameter.explicitBoolParam("ignore_z_value", true, true);
     }
 
     /**

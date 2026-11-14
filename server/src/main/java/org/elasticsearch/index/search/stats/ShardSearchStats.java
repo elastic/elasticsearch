@@ -15,12 +15,16 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
@@ -30,6 +34,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     private final CounterMetric openContexts = new CounterMetric();
     private volatile Map<String, StatsHolder> groupsStats = emptyMap();
     private final SearchStatsSettings searchStatsSettings;
+    private final TaskLoadAttribution.Target searchLoadTarget = this::accumulateSearchLoad;
 
     public ShardSearchStats(SearchStatsSettings searchStatsSettings) {
         this.searchStatsSettings = searchStatsSettings;
@@ -83,12 +88,11 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
+        chargeTook(searchContext, TaskLoadAttribution.chargedByPool(), tookInNanos);
         computeStats(searchContext, searchContext.hasOnlySuggest() ? statsHolder -> {
-            statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime());
             statsHolder.suggestMetric.inc(tookInNanos);
             statsHolder.suggestCurrent.dec();
         } : statsHolder -> {
-            statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime());
             statsHolder.queryMetric.inc(tookInNanos);
             statsHolder.queryCurrent.dec();
         });
@@ -96,6 +100,8 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onPreFetchPhase(SearchContext searchContext) {
+        // the fetch can complete on a thread that is not a task of its pool
+        searchContext.fetchChargedByPool(TaskLoadAttribution.chargedByPool());
         computeStats(searchContext, statsHolder -> statsHolder.fetchCurrent.inc());
     }
 
@@ -109,8 +115,8 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
+        chargeTook(searchContext, searchContext.fetchChargedByPool(), tookInNanos);
         computeStats(searchContext, statsHolder -> {
-            statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime());
             statsHolder.fetchMetric.inc(tookInNanos);
             statsHolder.fetchCurrent.dec();
         });
@@ -118,11 +124,28 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
-        computeStats(searchContext, statsHolder -> { statsHolder.recentSearchLoad.addIncrement(tookInNanos, System.nanoTime()); });
+        chargeTook(searchContext, TaskLoadAttribution.chargedByPool(), tookInNanos);
+    }
+
+    /**
+     * Charges the took time of a phase to the search load of its groups, and to that of the shard when its pool does not charge
+     * the time of its tasks, like the pools of system indices.
+     */
+    private void chargeTook(SearchContext searchContext, boolean chargedByPool, long tookInNanos) {
+        long nowInNanos = System.nanoTime();
+        // the CPU time of the phase is not measured, so it counts as all of it
+        if (chargedByPool == false) {
+            totalStats.addSearchLoad(tookInNanos, tookInNanos, nowInNanos);
+        }
+        forEachGroup(searchContext, statsHolder -> statsHolder.addSearchLoad(tookInNanos, tookInNanos, nowInNanos));
     }
 
     private void computeStats(SearchContext searchContext, Consumer<StatsHolder> consumer) {
         consumer.accept(totalStats);
+        forEachGroup(searchContext, consumer);
+    }
+
+    private void forEachGroup(SearchContext searchContext, Consumer<StatsHolder> consumer) {
         var groupStats = searchContext.groupStats();
         if (groupStats != null) {
             for (String group : groupStats) {
@@ -168,14 +191,102 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     /**
-     * Accumulates the recent search load for this shard.
+     * Charges the time of tasks to the search load of this shard.
+     */
+    public TaskLoadAttribution.Target searchLoadTarget() {
+        return searchLoadTarget;
+    }
+
+    /**
+     * Charges the time of tasks equally to {@code shards}, or {@code null} when there are none.
+     */
+    @Nullable
+    public static TaskLoadAttribution.Target target(List<ShardSearchStats> shards) {
+        if (shards.isEmpty()) {
+            return null;
+        }
+        return (nanos, cpuNanos, finishNanos) -> charge(shards, nanos, cpuNanos, finishNanos);
+    }
+
+    /**
+     * Charges {@code nanos}, and the {@code cpuNanos} in it, equally to {@code shards}.
+     */
+    public static void charge(List<ShardSearchStats> shards, long nanos, long cpuNanos, long finishNanos) {
+        assert nanos >= 0 : nanos;
+        assert cpuNanos >= 0 && cpuNanos <= nanos : cpuNanos + " of " + nanos;
+        if (shards.isEmpty()) {
+            return;
+        }
+        long share = nanos / shards.size();
+        long remainder = nanos % shards.size();
+        long cpuShare = cpuNanos / shards.size();
+        long cpuRemainder = cpuNanos % shards.size();
+        for (ShardSearchStats shard : shards) {
+            shard.accumulateSearchLoad(remainder-- > 0 ? share + 1 : share, cpuRemainder-- > 0 ? cpuShare + 1 : cpuShare, finishNanos);
+        }
+    }
+
+    /**
+     * Charges {@code nanos}, and the {@code cpuNanos} in it, to {@code shards} in proportion to the first
+     * {@code shards.size()} {@code weights}, or equally when they are all 0.
+     */
+    public static void charge(List<ShardSearchStats> shards, long[] weights, long nanos, long cpuNanos, long finishNanos) {
+        assert nanos >= 0 : nanos;
+        assert cpuNanos >= 0 && cpuNanos <= nanos : cpuNanos + " of " + nanos;
+        assert weights.length >= shards.size() : weights.length + " < " + shards.size();
+        double totalWeight = 0.0;
+        for (int i = 0; i < shards.size(); i++) {
+            assert weights[i] >= 0 : weights[i];
+            totalWeight += weights[i];
+        }
+        if (totalWeight == 0.0) {
+            charge(shards, nanos, cpuNanos, finishNanos);
+            return;
+        }
+        // rounds the cumulative shares, so the shares add up to nanos and cpuNanos, but no shard gets more CPU time than time
+        double weightSoFar = 0.0;
+        long charged = 0;
+        long cpuCharged = 0;
+        for (int i = 0; i < shards.size(); i++) {
+            weightSoFar += weights[i];
+            double fraction = weightSoFar / totalWeight;
+            long upTo = Math.min(nanos, Math.round(nanos * fraction));
+            if (upTo > charged) {
+                long cpu = Math.min(Math.min(cpuNanos, Math.round(cpuNanos * fraction)) - cpuCharged, upTo - charged);
+                shards.get(i).accumulateSearchLoad(upTo - charged, cpu, finishNanos);
+                charged = upTo;
+                cpuCharged += cpu;
+            }
+        }
+    }
+
+    /**
+     * The total time charged to the search load of this shard, in nanoseconds.
+     */
+    public long totalSearchLoadNanos() {
+        return totalStats.searchLoadNanos.sum();
+    }
+
+    /**
+     * Accumulates the recent search load for this shard, and the part of it spent on CPU.
      *
      * @param tookInNanos the duration of the search work being accounted for, in nanoseconds
+     * @param cpuInNanos  the part of {@code tookInNanos} spent on CPU
      * @param nowInNanos  the current monotonic time, in nanoseconds, obtained from
      *                    {@link System#nanoTime()}, used as the timestamp for the load sample
      */
-    public void accumulateSearchLoad(long tookInNanos, long nowInNanos) {
-        totalStats.recentSearchLoad.addIncrement(tookInNanos, nowInNanos);
+    public void accumulateSearchLoad(long tookInNanos, long cpuInNanos, long nowInNanos) {
+        totalStats.addSearchLoad(tookInNanos, cpuInNanos, nowInNanos);
+    }
+
+    /**
+     * Accumulates the recent search waiting for this shard: the time a query waited with work for it queued on the node.
+     *
+     * @param waitedInNanos the time waited, in nanoseconds
+     * @param nowInNanos    the time the waiting was measured up to, from {@link System#nanoTime()}
+     */
+    public void accumulateSearchWaiting(long waitedInNanos, long nowInNanos) {
+        totalStats.recentSearchWaiting.addIncrement(waitedInNanos, nowInNanos);
     }
 
     static final class StatsHolder {
@@ -199,13 +310,29 @@ public final class ShardSearchStats implements SearchOperationListener {
         final CounterMetric fetchFailure = new CounterMetric();
 
         final ExponentiallyWeightedMovingRate recentSearchLoad;
+        final ExponentiallyWeightedMovingRate recentSearchCpu;
+        final ExponentiallyWeightedMovingRate recentSearchWaiting;
+        final LongAdder searchLoadNanos = new LongAdder();
 
         StatsHolder(SearchStatsSettings searchStatsSettings) {
             double lambdaInInverseNanos = Math.log(2.0) / searchStatsSettings.getRecentReadLoadHalfLifeForNewShards().nanos();
-            this.recentSearchLoad = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, System.nanoTime());
+            long now = System.nanoTime();
+            this.recentSearchLoad = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, now);
+            this.recentSearchCpu = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, now);
+            this.recentSearchWaiting = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, now);
+        }
+
+        void addSearchLoad(long nanos, long cpuNanos, long nowInNanos) {
+            recentSearchLoad.addIncrement(nanos, nowInNanos);
+            searchLoadNanos.add(nanos);
+            if (cpuNanos > 0) {
+                recentSearchCpu.addIncrement(cpuNanos, nowInNanos);
+            }
         }
 
         SearchStats.Stats stats() {
+            // one time for all the rates, so they are comparable
+            long now = System.nanoTime();
             return new SearchStats.Stats(
                 queryMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
@@ -221,7 +348,9 @@ public final class ShardSearchStats implements SearchOperationListener {
                 suggestMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
                 suggestCurrent.count(),
-                recentSearchLoad.getRate(System.nanoTime())
+                recentSearchLoad.getRate(now),
+                recentSearchWaiting.getRate(now),
+                recentSearchCpu.getRate(now)
             );
         }
     }

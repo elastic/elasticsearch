@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 165446
+summary: "[Blob cache] Guard asynchronous buffer writes with `ByteBufferReference`"
+type: bug

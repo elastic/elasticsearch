@@ -1,0 +1,5 @@
+area: SLM
+issues: []
+pr: 165528
+summary: Fix threading in SLM create-snapshot failure handling
+type: bug

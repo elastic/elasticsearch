@@ -66,6 +66,13 @@ public final class DocOriginTable implements Releasable {
     }
 
     /**
+     * The number of origins numbered so far. Their ordinals run from {@code 0} to one less than it.
+     */
+    public int size() {
+        return origins.size();
+    }
+
+    /**
      * The bytes the table holds on its breaker.
      */
     public long ramBytesUsed() {

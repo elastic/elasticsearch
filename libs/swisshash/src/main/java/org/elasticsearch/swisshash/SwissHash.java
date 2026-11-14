@@ -31,6 +31,12 @@ import java.util.Objects;
  */
 public abstract class SwissHash {
 
+    /**
+     * The largest number of slots a table may have: the largest power of two that is an {@code int},
+     * which also keeps {@code capacity + BYTE_VECTOR_LANES} within the control array's length.
+     */
+    static final int MAX_CAPACITY = 1 << 30;
+
     protected final PageCacheRecycler recycler;
     protected final CircuitBreaker breaker;
 
@@ -48,7 +54,19 @@ public abstract class SwissHash {
         this.mask = capacity - 1;
         this.nextGrowSize = (int) (capacity * smallCoreFillFactor);
 
-        assert initialCapacity == Integer.highestOneBit(initialCapacity) : "intial capacity is a power of two";
+        assert initialCapacity == Integer.highestOneBit(initialCapacity) : "initial capacity is a power of two";
+    }
+
+    static int nextCapacity(int capacity) {
+        if (capacity >= MAX_CAPACITY) {
+            throw new IllegalArgumentException("maximum hash capacity [" + MAX_CAPACITY + "] exceeded");
+        }
+        return capacity << 1;
+    }
+
+    static int pagesNeeded(long numElements, int elementSize) {
+        final long elementsPerPage = PageCacheRecycler.PAGE_SIZE_IN_BYTES / elementSize;
+        return Math.toIntExact((numElements + elementsPerPage - 1L) / elementsPerPage);
     }
 
     /**

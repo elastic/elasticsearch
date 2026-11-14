@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 165667
+summary: Account for memory used in query cache bitsets in circuit breakers
+type: enhancement

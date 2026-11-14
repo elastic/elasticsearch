@@ -32,6 +32,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -42,6 +43,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -59,10 +63,16 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -70,6 +80,8 @@ import org.junit.AfterClass;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigInteger;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -79,6 +91,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -129,7 +142,8 @@ public class ArrowResponseTests extends ESTestCase {
         "ulong",
         factory -> factory.newLongBlockBuilder(0),
         block -> block.appendLong(randomLong()),
-        (block, i, scratch) -> block.getLong(i),
+        // Blocks store unsigned longs with the sign bit flipped
+        (block, i, scratch) -> block.getLong(i) ^ NumericUtils.TWOS_COMPLEMENT_BITMASK,
         UInt8Vector::get
     );
 
@@ -209,6 +223,54 @@ public class ArrowResponseTests extends ESTestCase {
         (v, i) -> new BytesRef(v.get(i))
     );
 
+    /**
+     * Random points or shapes encoded as WKB, as found in ES|QL geo blocks. Values read back from Arrow are
+     * checked to be valid WKB, and the field is checked to be tagged with the {@code geoarrow.wkb} extension type.
+     *
+     * Geo types must declare a CRS, cartesian types must not. Point types get points, shape types get any kind of geometry.
+     */
+    static ValueType wkbValues(DataType type) {
+        boolean geographic = switch (type) {
+            case GEO_POINT, GEO_SHAPE -> true;
+            case CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+            default -> throw new IllegalArgumentException("Not a WKB geometry type: " + type);
+        };
+        boolean point = DataType.isSpatialPoint(type);
+        return new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarBinaryVector>(
+            "wkb",
+            factory -> factory.newBytesRefBlockBuilder(0),
+            block -> block.appendBytesRef(randomWkb(point)),
+            BytesRefBlock::getBytesRef,
+            (v, i) -> {
+                byte[] wkb = v.get(i);
+                // Fails if this isn't valid WKB
+                WellKnownBinary.fromWKB(StandardValidator.instance(true), false, wkb);
+                return new BytesRef(wkb);
+            },
+            metadata -> {
+                assertEquals("geoarrow.wkb", metadata.get("ARROW:extension:name"));
+                String extensionMetadata = metadata.get("ARROW:extension:metadata");
+                if (geographic) {
+                    assertEquals("{\"crs\":\"OGC:CRS84\",\"crs_type\":\"authority_code\"}", extensionMetadata);
+                } else {
+                    assertNull(extensionMetadata);
+                }
+            }
+        );
+    }
+
+    static final ValueType GEO_POINT_VALUES = wkbValues(DataType.GEO_POINT);
+    static final ValueType GEO_SHAPE_VALUES = wkbValues(DataType.GEO_SHAPE);
+    static final ValueType CARTESIAN_POINT_VALUES = wkbValues(DataType.CARTESIAN_POINT);
+    static final ValueType CARTESIAN_SHAPE_VALUES = wkbValues(DataType.CARTESIAN_SHAPE);
+
+    private static BytesRef randomWkb(boolean point) {
+        boolean hasAlt = randomBoolean();
+        // Circles are not supported by WKB.
+        Geometry geometry = point ? GeometryTestUtils.randomPoint(hasAlt) : GeometryTestUtils.randomGeometryWithoutCircle(hasAlt, 20);
+        return new BytesRef(WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN));
+    }
+
     static final ValueType VERSION_VALUES = new ValueTypeImpl<BytesRefBlock.Builder, BytesRefBlock, VarCharVector>(
         "version",
         factory -> factory.newBytesRefBlockBuilder(0),
@@ -253,6 +315,60 @@ public class ArrowResponseTests extends ESTestCase {
         )
     );
 
+    static final ValueType AGGREGATE_METRIC_DOUBLE_VALUES = new ValueType() {
+        @Override
+        public Block.Builder createBlockBuilder(BlockFactory factory) {
+            return factory.newAggregateMetricDoubleBlockBuilder(0);
+        }
+
+        @Override
+        public void addValue(Block.Builder builder, Density density) {
+            if (density.nextIsNull()) {
+                builder.appendNull();
+            } else {
+                int metrics = randomIntBetween(1, 15);
+                ((AggregateMetricDoubleBlockBuilder) builder).appendLiteral(
+                    new AggregateMetricDoubleLiteral(
+                        (metrics & 1) != 0 ? randomDouble() : null,
+                        (metrics & 2) != 0 ? randomDouble() : null,
+                        (metrics & 4) != 0 ? randomDouble() : null,
+                        (metrics & 8) != 0 ? randomIntBetween(0, Integer.MAX_VALUE) : null
+                    )
+                );
+            }
+        }
+
+        @Override
+        public Object valueAt(Block block, int position, BytesRef scratch) {
+            AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
+            DoubleBlock min = aggregate.minBlock();
+            DoubleBlock max = aggregate.maxBlock();
+            DoubleBlock sum = aggregate.sumBlock();
+            IntBlock count = aggregate.countBlock();
+            return new AggregateMetricDoubleLiteral(
+                min.isNull(position) ? null : min.getDouble(min.getFirstValueIndex(position)),
+                max.isNull(position) ? null : max.getDouble(max.getFirstValueIndex(position)),
+                sum.isNull(position) ? null : sum.getDouble(sum.getFirstValueIndex(position)),
+                count.isNull(position) ? null : count.getInt(count.getFirstValueIndex(position))
+            );
+        }
+
+        @Override
+        public Object valueAt(ValueVector arrowVec, int position) {
+            StructVector vector = (StructVector) arrowVec;
+            Float8Vector min = (Float8Vector) vector.getChild("min");
+            Float8Vector max = (Float8Vector) vector.getChild("max");
+            Float8Vector sum = (Float8Vector) vector.getChild("sum");
+            IntVector count = (IntVector) vector.getChild("value_count");
+            return new AggregateMetricDoubleLiteral(
+                min.isNull(position) ? null : min.get(position),
+                max.isNull(position) ? null : max.get(position),
+                sum.isNull(position) ? null : sum.get(position),
+                count.isNull(position) ? null : count.get(position)
+            );
+        }
+    };
+
     static final Map<DataType, ValueType> VALUE_TYPES = Map.ofEntries(
         Map.entry(DataType.INTEGER, INTEGER_VALUES),
         Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
@@ -270,21 +386,29 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.DATE_NANOS, DATE_NANOS_VALUES),
         Map.entry(DataType.IP, IP_VALUES),
         Map.entry(DataType.VERSION, VERSION_VALUES),
+        Map.entry(DataType.TSID_DATA_TYPE, BINARY_VALUES),
         Map.entry(DataType.SOURCE, SOURCE_VALUES),
         Map.entry(DataType.FLATTENED, FLATTENED_VALUES),
 
         Map.entry(DataType.NULL, NULL_VALUES),
         Map.entry(DataType.UNSUPPORTED, NULL_VALUES),
 
-        // All geo types just pass-through WKB, use random binary data
-        Map.entry(DataType.GEO_POINT, BINARY_VALUES),
-        Map.entry(DataType.GEO_SHAPE, BINARY_VALUES),
-        Map.entry(DataType.CARTESIAN_POINT, BINARY_VALUES),
-        Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES),
+        // Geo point/shape types just pass-through WKB
+        Map.entry(DataType.GEO_POINT, GEO_POINT_VALUES),
+        Map.entry(DataType.GEO_SHAPE, GEO_SHAPE_VALUES),
+        Map.entry(DataType.CARTESIAN_POINT, CARTESIAN_POINT_VALUES),
+        Map.entry(DataType.CARTESIAN_SHAPE, CARTESIAN_SHAPE_VALUES),
 
         Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES),
-        Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES)
+        Map.entry(DataType.DOUBLE_RANGE, DOUBLE_RANGE_VALUES),
+        Map.entry(DataType.AGGREGATE_METRIC_DOUBLE, AGGREGATE_METRIC_DOUBLE_VALUES)
     );
+
+    /**
+     * Types whose blocks are always single-valued, so tests can't build multivalued columns of them. Kept independent of
+     * the formatters so that a formatter that wrongly rejects multivalued columns fails the tests instead of skipping them.
+     */
+    static final Set<DataType> SINGLE_VALUED_TYPES = EnumSet.of(DataType.AGGREGATE_METRIC_DOUBLE);
 
     // ---------------------------------------------------------------------------------------------
     // Tests
@@ -423,6 +547,192 @@ public class ArrowResponseTests extends ESTestCase {
             TestCase testCase = new TestCase(List.of(testColumn), pages);
 
             compareEsqlAndArrow(testCase);
+        }
+    }
+
+    public void testTsidBinaryOutput() throws IOException {
+        BytesRef tsid = (BytesRef) EsqlTestUtils.randomLiteral(DataType.TSID_DATA_TYPE).value();
+        int padding = randomIntBetween(1, 8);
+        byte[] padded = randomByteArrayOfLength(tsid.length + padding + 1);
+        System.arraycopy(tsid.bytes, tsid.offset, padded, padding, tsid.length);
+
+        BytesRefBlock block;
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            block = builder.appendBytesRef(new BytesRef(padded, padding, tsid.length)).appendNull().appendBytesRef(tsid).build();
+        }
+        var column = TestColumn.create("_tsid", DataType.TSID_DATA_TYPE, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            VarBinaryVector vector = (VarBinaryVector) root.getVector("_tsid");
+            assertEquals(Types.MinorType.VARBINARY.getType(), vector.getField().getType());
+            assertEquals("_tsid", vector.getField().getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+            assertEquals(3, vector.getValueCount());
+            assertEquals(tsid, new BytesRef(vector.get(0)));
+            assertTrue(vector.isNull(1));
+            assertEquals(tsid, new BytesRef(vector.get(2)));
+        }
+    }
+
+    public void testUnsignedLongValues() throws IOException {
+        List<BigInteger> values = List.of(
+            BigInteger.ZERO,
+            BigInteger.ONE,
+            BigInteger.valueOf(Long.MAX_VALUE),
+            BigInteger.ONE.shiftLeft(63),
+            BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE)
+        );
+        LongBlock block;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(values.size())) {
+            for (BigInteger value : values) {
+                builder.appendLong(NumericUtils.asLongUnsigned(value));
+            }
+            block = builder.build();
+        }
+        var column = TestColumn.create("ul", DataType.UNSIGNED_LONG, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            UInt8Vector vector = (UInt8Vector) root.getVector("ul");
+            for (int i = 0; i < values.size(); i++) {
+                assertEquals(values.get(i), vector.getObjectNoOverflow(i));
+            }
+        }
+    }
+
+    public void testAggregateMetricDoubleOutput() throws IOException {
+        List<AggregateMetricDoubleLiteral> expected = List.of(
+            new AggregateMetricDoubleLiteral(10.0, 30.0, 60.0, 3),
+            new AggregateMetricDoubleLiteral(null, null, 45.0, 5),
+            new AggregateMetricDoubleLiteral(null, null, null, null),
+            new AggregateMetricDoubleLiteral(null, null, 0.0, 0),
+            new AggregateMetricDoubleLiteral(-Double.MAX_VALUE, null, null, null),
+            new AggregateMetricDoubleLiteral(null, Double.MAX_VALUE, null, null),
+            new AggregateMetricDoubleLiteral(null, null, null, Integer.MAX_VALUE)
+        );
+        AggregateMetricDoubleBlock block;
+        try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(expected.size())) {
+            expected.forEach(builder::appendLiteral);
+            block = builder.build();
+        }
+        var column = TestColumn.create("metric", DataType.AGGREGATE_METRIC_DOUBLE, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            StructVector vector = (StructVector) root.getVector("metric");
+            assertAggregateMetricDoubleSchema(vector);
+            assertEquals(expected.size(), vector.getValueCount());
+            for (int position = 0; position < expected.size(); position++) {
+                if (position == 2) {
+                    assertTrue(vector.isNull(position));
+                    for (FieldVector child : vector.getChildrenFromFields()) {
+                        assertTrue(child.isNull(position));
+                    }
+                } else {
+                    assertFalse(vector.isNull(position));
+                    assertEquals(expected.get(position), AGGREGATE_METRIC_DOUBLE_VALUES.valueAt(vector, position));
+                }
+            }
+        }
+    }
+
+    public void testAggregateMetricDoubleMissingMetrics() throws IOException {
+        AggregateMetricDoubleBlock block;
+        try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(3)) {
+            builder.appendLiteral(new AggregateMetricDoubleLiteral(null, null, 45.0, 5));
+            builder.appendNull();
+            builder.appendLiteral(new AggregateMetricDoubleLiteral(null, null, 0.0, 0));
+            block = builder.build();
+        }
+        assertTrue(block.minBlock().areAllValuesNull());
+        assertTrue(block.maxBlock().areAllValuesNull());
+        var column = TestColumn.create("metric", DataType.AGGREGATE_METRIC_DOUBLE, false);
+        compareEsqlAndArrow(new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block))))));
+    }
+
+    public void testAggregateMetricDoubleEmptyResponse() throws IOException {
+        var column = TestColumn.create("metric", DataType.AGGREGATE_METRIC_DOUBLE, false);
+        try (TestCase testCase = new TestCase(List.of(column), List.of()); VectorSchemaRoot root = toArrowVectors(testCase)) {
+            assertEquals(0, root.getRowCount());
+            assertAggregateMetricDoubleSchema((StructVector) root.getVector("metric"));
+        }
+    }
+
+    /**
+     * No production path builds an aggregate summary with a multivalued metric, so a hand-built block must be rejected
+     * before the schema is sent rather than producing a list schema with struct pages.
+     */
+    public void testAggregateMetricDoubleRejectsMultivaluedMetric() {
+        DoubleBlock min;
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(1)) {
+            builder.beginPositionEntry().appendDouble(1.0).appendDouble(2.0).endPositionEntry();
+            min = builder.build();
+        }
+        AggregateMetricDoubleBlock block = blockFactory.newAggregateMetricDoubleBlock(
+            min,
+            blockFactory.newConstantDoubleBlockWith(2.0, 1),
+            blockFactory.newConstantDoubleBlockWith(3.0, 1),
+            blockFactory.newConstantIntBlockWith(2, 1)
+        );
+        try (Page page = new Page(block)) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new ArrowResponse(List.of(new ArrowResponse.Column(DataType.AGGREGATE_METRIC_DOUBLE, "metric")), List.of(page))
+            );
+            assertEquals(
+                "Column [metric] of ES|QL type [aggregate_metric_double] has multivalued fields, "
+                    + "which the Arrow format does not support for this type",
+                e.getMessage()
+            );
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
+        }
+    }
+
+    /**
+     * A metric block with value indexes but one value per position reports {@code mayHaveMultivaluedFields()} without
+     * actually being multivalued. Such a summary must be written as a plain struct rather than rejected.
+     */
+    public void testAggregateMetricDoubleAcceptsSingleValuedMetricWithValueIndexes() throws IOException {
+        DoubleBlock min = blockFactory.newDoubleArrayBlock(
+            new double[] { 1.0, 2.0 },
+            2,
+            new int[] { 0, 1, 2 },
+            null,
+            randomFrom(Block.MvOrdering.values())
+        );
+        assertTrue(min.mayHaveMultivaluedFields());
+        assertFalse(min.doesHaveMultivaluedFields());
+        AggregateMetricDoubleBlock block = blockFactory.newAggregateMetricDoubleBlock(
+            min,
+            blockFactory.newConstantDoubleBlockWith(3.0, 2),
+            blockFactory.newConstantDoubleBlockWith(4.0, 2),
+            blockFactory.newConstantIntBlockWith(2, 2)
+        );
+        var column = TestColumn.create("metric", DataType.AGGREGATE_METRIC_DOUBLE, false);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            assertAggregateMetricDoubleSchema((StructVector) root.getVector("metric"));
+            compareEsqlAndArrow(testCase, root);
+        }
+    }
+
+    private static void assertAggregateMetricDoubleSchema(StructVector vector) {
+        Field field = vector.getField();
+        assertEquals(Types.MinorType.STRUCT.getType(), field.getType());
+        assertTrue(field.isNullable());
+        assertEquals("aggregate_metric_double", field.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+        assertEquals(List.of("min", "max", "sum", "value_count"), field.getChildren().stream().map(Field::getName).toList());
+        for (Field child : field.getChildren()) {
+            assertTrue(child.isNullable());
+            assertEquals(
+                child.getName().equals("value_count") ? Types.MinorType.INT.getType() : Types.MinorType.FLOAT8.getType(),
+                child.getType()
+            );
         }
     }
 
@@ -897,6 +1207,11 @@ public class ArrowResponseTests extends ESTestCase {
         var metadata = root.getSchema().getFields().get(arrowColumn).getMetadata();
         assertEquals(testCase.columns.get(esqlColumn).type.outputType(), metadata.get(BlockArrowFormatter.ESQL_TYPE_METADATA));
 
+        // Check type-specific metadata, that is on the child field for multivalued columns
+        var valueType = testCase.columns.get(esqlColumn).valueType;
+        var valueVector = root.getVector(arrowColumn) instanceof ListVector list ? list.getDataVector() : root.getVector(arrowColumn);
+        valueType.checkMetadata(valueVector.getField().getMetadata());
+
         // Check values
         var esqlValuesIterator = new EsqlValuesIterator(testCase, esqlColumn);
         var arrowValuesIterator = new ArrowValuesIterator(root.getVector(arrowColumn), testCase.columns.get(esqlColumn).valueType);
@@ -1051,10 +1366,13 @@ public class ArrowResponseTests extends ESTestCase {
 
     record TestColumn(String name, DataType type, ValueType valueType, boolean multivalue) {
         static TestColumn create(String name, DataType type) {
-            return create(name, type, randomBoolean());
+            return create(name, type, SINGLE_VALUED_TYPES.contains(type) == false && randomBoolean());
         }
 
         static TestColumn create(String name, DataType type, boolean multivalue) {
+            if (multivalue && SINGLE_VALUED_TYPES.contains(type)) {
+                throw new IllegalArgumentException("[" + type.outputType() + "] columns are always single-valued");
+            }
             return new TestColumn(name, type, VALUE_TYPES.get(type), multivalue);
         }
     }
@@ -1160,6 +1478,12 @@ public class ArrowResponseTests extends ESTestCase {
         Object valueAt(Block block, int position, BytesRef scratch);
 
         Object valueAt(ValueVector arrowVec, int position);
+
+        /**
+         * Check the metadata of the Arrow field that holds the values (the child field for multivalued columns).
+         * Does nothing by default.
+         */
+        default void checkMetadata(Map<String, String> metadata) {}
     }
 
     public static class ValueTypeImpl<BlockBT extends Block.Builder, BlockT extends Block, VectorT extends ValueVector>
@@ -1170,6 +1494,7 @@ public class ArrowResponseTests extends ESTestCase {
         private final Consumer<BlockBT> valueAdder;
         private final TriFunction<BlockT, Integer, BytesRef, Object> blockGetter;
         private final BiFunction<VectorT, Integer, Object> vectorGetter;
+        private final Consumer<Map<String, String>> metadataChecker;
 
         public ValueTypeImpl(
             String name,
@@ -1178,16 +1503,33 @@ public class ArrowResponseTests extends ESTestCase {
             TriFunction<BlockT, Integer, BytesRef, Object> blockGetter,
             BiFunction<VectorT, Integer, Object> vectorGetter
         ) {
+            this(name, builderCreator, valueAdder, blockGetter, vectorGetter, metadata -> {});
+        }
+
+        public ValueTypeImpl(
+            String name,
+            Function<BlockFactory, BlockBT> builderCreator,
+            Consumer<BlockBT> valueAdder,
+            TriFunction<BlockT, Integer, BytesRef, Object> blockGetter,
+            BiFunction<VectorT, Integer, Object> vectorGetter,
+            Consumer<Map<String, String>> metadataChecker
+        ) {
             this.name = name;
             this.builderCreator = builderCreator;
             this.valueAdder = valueAdder;
             this.blockGetter = blockGetter;
             this.vectorGetter = vectorGetter;
+            this.metadataChecker = metadataChecker;
         }
 
         @Override
         public Block.Builder createBlockBuilder(BlockFactory factory) {
             return builderCreator.apply(factory);
+        }
+
+        @Override
+        public void checkMetadata(Map<String, String> metadata) {
+            metadataChecker.accept(metadata);
         }
 
         @Override

@@ -11,6 +11,8 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -26,6 +28,7 @@ import static java.util.Map.entry;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class CefProcessorTests extends ESTestCase {
 
@@ -1008,5 +1011,26 @@ public class CefProcessorTests extends ESTestCase {
         // as a last check, make sure they're actually equal -- the above checks are intended to be friendly (and accurate), but this
         // last check makes sure nothing ever sneaks through
         assertThat(actual, equalTo(expected));
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testCreateWithMalformedField() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "a..b");
+        CefProcessor processor = new CefProcessor.Factory(TestTemplateService.instance()).create(
+            null,
+            randomAlphaOfLength(10),
+            null,
+            config,
+            null
+        );
+        assertThat(processor.field, hasToString("a..b"));
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 }

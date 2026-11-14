@@ -119,8 +119,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                             dataStreamName,
                             false,
                             Strings.hasText(e.getMessage()) ? e.getMessage() : e.toString(),
-                            Mapping.EMPTY.toCompressedXContent(),
-                            Mapping.EMPTY.toCompressedXContent()
+                            Mapping.emptyCompressed(),
+                            Mapping.emptyCompressed()
                         )
                     );
                     countDownListener.onResponse(null);
@@ -145,8 +145,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                     dataStreamName,
                     false,
                     "Cannot update a system data stream",
-                    Mapping.EMPTY.toCompressedXContent(),
-                    Mapping.EMPTY.toCompressedXContent()
+                    Mapping.emptyCompressed(),
+                    Mapping.emptyCompressed()
                 )
             );
             return;
@@ -176,8 +176,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                                 dataStreamName,
                                 false,
                                 e.getMessage(),
-                                Mapping.EMPTY.toCompressedXContent(),
-                                Mapping.EMPTY.toCompressedXContent()
+                                Mapping.emptyCompressed(),
+                                Mapping.emptyCompressed()
                             )
                         );
                     }
@@ -187,8 +187,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                             dataStreamName,
                             false,
                             "Updating mappings not accepted for unknown reasons",
-                            Mapping.EMPTY.toCompressedXContent(),
-                            Mapping.EMPTY.toCompressedXContent()
+                            Mapping.emptyCompressed(),
+                            Mapping.emptyCompressed()
                         )
                     );
                 }

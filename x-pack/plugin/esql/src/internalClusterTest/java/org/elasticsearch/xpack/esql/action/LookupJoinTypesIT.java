@@ -84,6 +84,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_SERIES_METADATA_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNDER_CONSTRUCTION;
 import static org.hamcrest.Matchers.anyOf;
@@ -255,6 +256,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     if (type == NULL
                         || type == DOC_DATA_TYPE
                         || type == TSID_DATA_TYPE
+                        || type == TIME_SERIES_METADATA_DATA_TYPE
                         || type == AGGREGATE_METRIC_DOUBLE  // need special handling for loads at the moment
                         || type == DENSE_VECTOR  // need special handling for loads at the moment
                         || type == EXPONENTIAL_HISTOGRAM

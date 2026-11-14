@@ -8,11 +8,11 @@ products:
   - id: elasticsearch
 ---
 
-# PromQL HTTP API [promql-http-api]
+# {{promql}} HTTP API [promql-http-api]
 
 These endpoints run under the `/_prometheus/` prefix.
-They are intended for Prometheus-compatible tooling such as Grafana data sources, autocompletion, variable queries, and similar clients.
-To connect Grafana to {{es}}, see [Use {{es}} as a Prometheus data source in Grafana](promql-grafana.md).
+They are intended for {{prom}}-compatible tooling such as Grafana data sources, autocompletion, variable queries, and similar clients.
+To connect Grafana to {{es}}, refer to [Use {{es}} as a {{prom}} data source in Grafana](promql-grafana.md).
 
 These APIs only consider metric data stored in indices with `index.mode: time_series`, such as [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS).
 
@@ -31,7 +31,7 @@ When you omit `{index}` in the path, qualifying indices are identified through t
 
 ## Query endpoints [promql-http-api-query-endpoints]
 
-These endpoints mirror the Prometheus [range query](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) and [instant query](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries) APIs.
+These endpoints mirror the {{prom}} [range query](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries) and [instant query](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries) APIs.
 
 ### Range query [promql-http-api-query-range]
 
@@ -40,18 +40,18 @@ These endpoints mirror the Prometheus [range query](https://prometheus.io/docs/p
 `GET  /_prometheus/{index}/api/v1/query_range`\
 `POST /_prometheus/{index}/api/v1/query_range`
 
-This endpoint evaluates a PromQL expression over a time window and returns matrix data (`resultType: "matrix"`).
+This endpoint evaluates a {{promql}} expression over a time window and returns matrix data (`resultType: "matrix"`).
 
 | Parameter | Required | Description |
 | --- | --- | --- |
-| `query` | Yes | PromQL expression |
+| `query` | Yes | {{promql}} expression |
 | `start` | Yes | Range start, [Timestamp](#promql-http-api-param-timestamp) |
 | `end` | Yes | Range end, [Timestamp](#promql-http-api-param-timestamp) |
 | `step` | Yes | Resolution between samples, [Step width](#promql-http-api-param-step) |
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
 | `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
-The `lookback_delta` and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md#promql-limitations-unsupported-query-params)).
+The `lookback_delta` and `stats` parameters are not supported yet (refer to [Differences from {{prom}}](#promql-http-api-differences)).
 
 ### Instant query [promql-http-api-query-instant]
 
@@ -64,16 +64,16 @@ This endpoint evaluates at a single instant and returns vector data (`resultType
 
 | Parameter | Required | Description |
 | --- | --- | --- |
-| `query` | Yes | PromQL expression |
-| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). The handler still uses an internal five-minute range ending at this time (see [Limitations](promql-limitations.md)) |
+| `query` | Yes | {{promql}} expression |
+| `time` | No (default: now) | Evaluation instant, [Timestamp](#promql-http-api-param-timestamp). Selectors look back five minutes for the latest sample (refer to [Staleness](prometheus-compatibility.md#prometheus-compatibility-staleness)) |
 | `limit` | No (default: `0`) | Maximum number of series returned, [`limit`](#promql-http-api-limit) |
 | `timeout` | No (default: [`xpack.prometheus.query.timeout`](#promql-http-api-timeout)) | Evaluation timeout, [Duration](#promql-http-api-timeout). Capped by `xpack.prometheus.query.timeout` |
 
-The `lookback_delta` and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md#promql-limitations-unsupported-query-params)).
+The `lookback_delta` and `stats` parameters are not supported yet (refer to [Differences from {{prom}}](#promql-http-api-differences)).
 
 ## Metadata and discovery endpoints [promql-http-api-metadata]
 
-These entrypoints mirror the Prometheus [metric metadata](https://prometheus.io/docs/prometheus/latest/querying/api/#querying-metric-metadata), [label-name discovery](https://prometheus.io/docs/prometheus/latest/querying/api/#getting-label-names), [label-value queries](https://prometheus.io/docs/prometheus/latest/querying/api/#querying-label-values), and [series discovery by matchers](https://prometheus.io/docs/prometheus/latest/querying/api/#finding-series-by-label-matchers) APIs so UIs can browse metrics, build [time series selectors](https://prometheus.io/docs/prometheus/latest/querying/basics/#time-series-selectors), and populate template variables.
+These entrypoints mirror the {{prom}} [metric metadata](https://prometheus.io/docs/prometheus/latest/querying/api/#querying-metric-metadata), [label-name discovery](https://prometheus.io/docs/prometheus/latest/querying/api/#getting-label-names), [label-value queries](https://prometheus.io/docs/prometheus/latest/querying/api/#querying-label-values), and [series discovery by matchers](https://prometheus.io/docs/prometheus/latest/querying/api/#finding-series-by-label-matchers) APIs so UIs can browse metrics, build [time series selectors](https://prometheus.io/docs/prometheus/latest/querying/basics/#time-series-selectors), and populate template variables.
 
 ### Label names [promql-http-api-labels]
 
@@ -99,7 +99,7 @@ This endpoint returns sorted label names present on matching series.
 
 This endpoint returns sorted, deduplicated values for one label.
 `match[]` is not required. If you omit every `match[]`, results are still limited to the `start` and `end` time range.
-Label names can use OpenMetrics `U__` encoding for characters that are not valid in Prometheus label names. The server decodes them before matching series.
+Label names can use OpenMetrics `U__` encoding for characters that are not valid in {{prom}} label names. The server decodes them before matching series.
 
 | Parameter | Required | Description |
 | --- | --- | --- |
@@ -108,7 +108,7 @@ Label names can use OpenMetrics `U__` encoding for characters that are not valid
 | `end` | No (default: now) | End of time range, [Timestamp](#promql-http-api-param-timestamp) |
 | `limit` | No (default: `0`) | Maximum number of values returned for this label, [`limit`](#promql-http-api-limit) |
 
-Unknown label names are returned as an empty successful result (`data: []`), matching typical Prometheus client expectations.
+Unknown label names are returned as an empty successful result (`data: []`), matching typical {{prom}} client expectations.
 
 ### Series [promql-http-api-series]
 
@@ -134,9 +134,9 @@ At least one `match[]` parameter is required.
 `GET /_prometheus/api/v1/metadata`\
 `GET /_prometheus/{index}/api/v1/metadata`
 
-This endpoint returns metric-level information such as type, help, and unit, analogous to Prometheus `TYPE`, `HELP`, and `UNIT` lines.
+This endpoint returns metric-level information such as type, help, and unit, analogous to {{prom}} `TYPE`, `HELP`, and `UNIT` lines.
 
-The `help` field is always an empty string for now (see [Limitations](promql-limitations.md#promql-limitations-metadata-help)).
+The `help` field is always an empty string (refer to [Differences from {{prom}}](#promql-http-api-differences)).
 
 | Parameter | Required | Description |
 | --- | --- | --- |
@@ -156,7 +156,7 @@ The `metadata` route does not support `match[]`, `start`, or `end`.
 `GET /_prometheus/api/v1/status/buildinfo`\
 `GET /_prometheus/{index}/api/v1/status/buildinfo`
 
-Returns build information about the {{es}} instance in the standard Prometheus buildinfo format.
+Returns build information about the {{es}} instance in the standard {{prom}} buildinfo format.
 Grafana queries this endpoint to identify the backend type and determine available features.
 The `{index}` segment is accepted for datasource configurations that use a scoped base URL, but it does not affect the response.
 
@@ -176,7 +176,7 @@ Example response:
 
 ## Request parameter formats [promql-http-api-parameters]
 
-Parameter encodings match the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/). See the upstream [format overview](https://prometheus.io/docs/prometheus/latest/querying/api/#format-overview).
+Parameter encodings match the [{{prom}} HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/). See the upstream [format overview](https://prometheus.io/docs/prometheus/latest/querying/api/#format-overview).
 
 For `GET` requests, send parameters in the query string.
 For endpoints that support `POST`, send parameters in an `application/x-www-form-urlencoded` request body.
@@ -188,32 +188,32 @@ Form-encoded `POST` requests are accepted only when [security](/reference/elasti
 
 ### Timestamps [promql-http-api-param-timestamp]
 
-Values may be an [RFC 3339](https://www.ietf.org/rfc/rfc3339.txt) timestamp or Unix time in seconds as a numeric string, with optional fractional digits for sub-second precision. This matches Prometheus request parsing. Sample timestamps inside JSON results use Unix seconds, as in Prometheus.
+Values may be an [RFC 3339](https://www.ietf.org/rfc/rfc3339.txt) timestamp or Unix time in seconds as a numeric string, with optional fractional digits for sub-second precision. This matches {{prom}} request parsing. Sample timestamps inside JSON results use Unix seconds, as in {{prom}}.
 
 ### Selectors (`match[]`) [promql-http-api-param-match]
 
-Each value must be URL-encoded. Syntax is the same as Prometheus [time series selectors](https://prometheus.io/docs/prometheus/latest/querying/basics/#time-series-selectors) (for example, `up` or `http_requests_total{job="api"}`).
+Each value must be URL-encoded. Syntax is the same as {{prom}} [time series selectors](https://prometheus.io/docs/prometheus/latest/querying/basics/#time-series-selectors) (for example, `up` or `http_requests_total{job="api"}`).
 
-Repeatable query parameters use a `[]` suffix, matching Prometheus. Whether any `match[]` must be present is defined in each endpoint’s parameter table.
+Repeatable query parameters use a `[]` suffix, matching {{prom}}. Whether any `match[]` must be present is defined in each endpoint’s parameter table.
 
 ### Step [promql-http-api-param-step]
 
 The `step` query parameter accepts:
 
 - A non-negative decimal integer string: seconds between samples (for example, `15` for 15s resolution).
-- Or Prometheus-style duration literals such as `30s`, `5m`, or `1h30m`: a non-negative integer plus a unit suffix (`ms`, `s`, `m`, `h`, `d`, `w`, or `y`), repeated and concatenated when needed (for example, `1h30m`). See Prometheus [float literals and time durations](https://prometheus.io/docs/prometheus/latest/querying/basics/#float-literals-and-time-durations).
+- Or {{prom}}-style duration literals such as `30s`, `5m`, or `1h30m`: a non-negative integer plus a unit suffix (`ms`, `s`, `m`, `h`, `d`, `w`, or `y`), repeated and concatenated when needed (for example, `1h30m`). See {{prom}} [float literals and time durations](https://prometheus.io/docs/prometheus/latest/querying/basics/#float-literals-and-time-durations).
 
 ### `timeout` [promql-http-api-timeout]
 
-The `timeout` parameter of the [range](#promql-http-api-query-range) and [instant](#promql-http-api-query-instant) query endpoints accepts the same formats as [`step`](#promql-http-api-param-step): a decimal integer number of seconds, or a Prometheus-style duration literal such as `30s` or `1m30s`. The timeout must be positive.
+The `timeout` parameter of the [range](#promql-http-api-query-range) and [instant](#promql-http-api-query-instant) query endpoints accepts the same formats as [`step`](#promql-http-api-param-step): a decimal integer number of seconds, or a {{prom}}-style duration literal such as `30s` or `1m30s`. The timeout must be positive.
 
-The dynamic cluster setting `xpack.prometheus.query.timeout` (default: `2m`) is both the default and the maximum timeout, like the Prometheus `-query.timeout` flag. A `timeout` parameter can only lower it. Set `xpack.prometheus.query.timeout` to `-1` to remove the default and the maximum. Unlike in Prometheus, where a timeout of `0` makes every query time out immediately, `0` is rejected.
+The dynamic cluster setting `xpack.prometheus.query.timeout` (default: `2m`) is both the default and the maximum timeout, like the {{prom}} `-query.timeout` flag. A `timeout` parameter can only lower it. Set `xpack.prometheus.query.timeout` to `-1` to remove the default and the maximum. Unlike in {{prom}}, where a timeout of `0` makes every query time out immediately, `0` is rejected.
 
 When the timeout elapses, {{es}} cancels the query and, once the cancelled query has stopped, returns HTTP `503 Service Unavailable` with `errorType: timeout`. Queries are also cancelled when the client closes the connection before receiving the response.
 
 ### `limit` [promql-http-api-limit]
 
-`limit` defaults to `0`, which means no cap from the request (Prometheus-style unlimited) on routes that accept it. {{es}} may still truncate very large responses when enforcing [`esql.query.timeseries_result_truncation_max_size`](/reference/query-languages/esql/limitations.md#esql-max-rows).
+`limit` defaults to `0`, which means no cap from the request ({{prom}}-style unlimited) on routes that accept it. {{es}} may still truncate very large responses when enforcing [`esql.query.timeseries_result_truncation_max_size`](/reference/query-languages/esql/limitations.md#esql-max-rows).
 
 The [metadata](#promql-http-api-metadata-endpoint) route also takes `limit_per_metric` with the same `0` default (no per-metric cap from the request).
 
@@ -232,7 +232,7 @@ The `data` object shape depends on the route (for example, `resultType` and `res
 
 When the `limit` is reached and the server detects truncation, the response might include a top-level `warnings` array (strings). The preview uses a fixed message such as `results truncated due to limit`.
 
-Numeric sample values in query results are JSON strings (including `NaN`, `+Inf`, and `-Inf`), matching common Prometheus JSON encoding.
+Numeric sample values in query results are JSON strings (including `NaN`, `+Inf`, and `-Inf`), matching common {{prom}} JSON encoding.
 
 Errors return a non-2xx HTTP status and a JSON body of the form:
 
@@ -244,14 +244,21 @@ Errors return a non-2xx HTTP status and a JSON body of the form:
 }
 ```
 
-Client errors (HTTP 4xx) mean the request or expression is not valid for this implementation, for example, malformed parameters, parameters not supported yet on a route, invalid selectors, or PromQL that {{es}} does not evaluate yet (see [Limitations](promql-limitations.md)). Those failures usually return `errorType: bad_data`.
+Client errors (HTTP 4xx) mean the request or expression is not valid for this implementation, for example, malformed parameters, parameters not supported yet on a route, invalid selectors, or {{promql}} that {{es}} does not evaluate yet (refer to [{{prom}} compatibility](prometheus-compatibility.md)). Those failures usually return `errorType: bad_data`.
 
 Server errors (HTTP 5xx) and timeout responses reflect operational failures inside {{es}}. Those responses typically use `errorType: timeout` or `execution` depending on the situation.
 
+## Differences from {{prom}} [promql-http-api-differences]
+
+These rows are part of [{{prom}} compatibility](prometheus-compatibility.md), which also covers the differences in query evaluation.
+
+:::{include} _snippets/compatibility/http-api.md
+:::
+
 ## Further reading
 
-- [Prometheus query API](https://prometheus.io/docs/prometheus/latest/querying/api/)
-- [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md)
+- [{{prom}} query API](https://prometheus.io/docs/prometheus/latest/querying/api/)
+- [{{prom}} remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md)
 - [`PROMQL` command ({{esql}})](/reference/query-languages/esql/commands/promql.md)
-- [Use {{es}} as a Prometheus data source in Grafana](promql-grafana.md)
-- [Limitations](promql-limitations.md)
+- [Use {{es}} as a {{prom}} data source in Grafana](promql-grafana.md)
+- [{{prom}} compatibility](prometheus-compatibility.md)

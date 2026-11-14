@@ -231,6 +231,18 @@ public class GroupedLimitOperator implements Operator, Accountable {
             "grouped_limit",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("limit_per_group", ProfileSchema.integer())
+            .required("group_count", ProfileSchema.integer())
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("ram_bytes_used", ProfileSchema.integer())
+            .required("ram_used", ProfileSchema.string())
+            .build();
 
         private final int limitPerGroup;
         private final int groupCount;
@@ -296,8 +308,7 @@ public class GroupedLimitOperator implements Operator, Accountable {
             return ramBytesUsed;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("limit_per_group", limitPerGroup);
             builder.field("group_count", groupCount);
@@ -307,6 +318,11 @@ public class GroupedLimitOperator implements Operator, Accountable {
             builder.field("ram_bytes_used", ramBytesUsed);
             builder.field("ram_used", ByteSizeValue.ofBytes(ramBytesUsed));
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

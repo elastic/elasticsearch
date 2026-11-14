@@ -11,6 +11,7 @@ package org.elasticsearch.snapshots;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
@@ -55,9 +56,11 @@ import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
+import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
+import org.elasticsearch.cluster.coordination.StartJoinRequest;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
@@ -85,6 +88,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -96,6 +100,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
@@ -166,12 +171,13 @@ import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.DisruptableMockTransport;
 import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
@@ -453,6 +459,42 @@ public class SnapshotResiliencyTestHelper {
 
         private static boolean isProcessPendingDeletes(Runnable task) {
             return task.toString().contains("processPendingDeletes[");
+        }
+
+        /// Whether [#usurpCurrentMaster] may safely broadcast a `StartJoinRequest`. Stateless masters may not: they must exclusively
+        /// acquire the term before sending one.
+        public boolean canUsurpCurrentMaster() {
+            return true;
+        }
+
+        /// Trigger an election of `newMaster` immediately by broadcasting a new `StartJoinRequest` to all nodes, bypassing pre-voting and
+        /// election-scheduling and so on. The resulting election will complete without needing to advance time. This does not guarantee
+        /// that `newMaster` will win the election: if it has stale state then it may not get enough votes, and the old master may also
+        /// trigger a competing election if it hears of the new term before receiving the `StartJoinRequest` broadcast.
+        ///
+        /// It definitely causes some kind of disturbance to the old master, exercising master-failover paths which restarting or
+        /// disconnecting the master miss.
+        public void usurpCurrentMaster(TestClusterNode newMaster) {
+            ESTestCase.assertTrue(canUsurpCurrentMaster());
+            final var masterNodes = nodes.values().stream().filter(n -> n.node().isMasterNode()).toList();
+            final var startJoinRequest = new StartJoinRequest(
+                newMaster.node(),
+                1 + masterNodes.stream()
+                    .mapToLong(n -> n.coordinator().getClusterFormationState().clusterFormationClusterStateView().currentTerm())
+                    .max()
+                    .orElseThrow()
+            );
+
+            logger.info("--> usurping current master with [{}]", startJoinRequest);
+            for (final var masterNode : masterNodes) {
+                newMaster.transportService()
+                    .sendRequest(
+                        masterNode.node(),
+                        JoinHelper.START_JOIN_ACTION_NAME,
+                        startJoinRequest,
+                        TransportResponseHandler.empty(EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop())
+                    );
+            }
         }
 
         public class TestClusterNode {
@@ -758,7 +800,6 @@ public class SnapshotResiliencyTestHelper {
                     new FetchPhase(Collections.emptyList()),
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                    Tracer.NOOP,
                     OnlinePrewarmingService.NOOP,
                     transportService.getTaskManager()
                 );
@@ -1029,6 +1070,7 @@ public class SnapshotResiliencyTestHelper {
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
                         usageService,
+                        new QuerySinkRegistry(List.of()),
                         new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
                         ActivityLogWriterProvider.NOOP,
                         CrossProjectModeDecider.NOOP

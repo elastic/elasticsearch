@@ -10,5 +10,3 @@
 * `info`
 * `mad_over_time`
 * `resets`
-* `sort_by_label`
-* `sort_by_label_desc`

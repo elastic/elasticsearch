@@ -195,6 +195,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             requestHandlers,
             responseHandlers,
             networkService.getHandlingTimeTracker(),
+            () -> circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
             ignoreDeserializationErrors
         );
     }

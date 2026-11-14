@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.versionfield;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.DocValueFormat;
@@ -17,7 +18,11 @@ import org.elasticsearch.search.DocValueFormat;
 import java.util.List;
 import java.util.Map;
 
-public class VersionFieldPlugin extends Plugin implements MapperPlugin {
+// Implements ExtensiblePlugin (a no-op marker here, using the default loadExtensions) so other modules may
+// declare mapper-version in their extendedPlugins and share its single class identity (e.g. x-pack-esql-core
+// and x-pack-ql, which use the Version type). Without this, extending mapper-version fails at node startup
+// with "cannot extend non-extensible plugin".
+public class VersionFieldPlugin extends Plugin implements MapperPlugin, ExtensiblePlugin {
 
     public VersionFieldPlugin(Settings settings) {}
 

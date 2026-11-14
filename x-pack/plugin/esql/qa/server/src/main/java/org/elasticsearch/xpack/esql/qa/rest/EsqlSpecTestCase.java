@@ -57,7 +57,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertDataWithValueConverter;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
-import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.TestResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.csvFileTemplateResolver;
@@ -571,6 +571,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.PARTITIONING_AGGREGATIONS.capabilityName()))) {
             pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(50_000, 100_000));
         }
+        if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TIME_SERIES_SINGLE_PASS.capabilityName()))) {
+            pragma.put(QueryPragmas.TIME_SERIES_SINGLE_PASS.getKey(), randomBoolean());
+        }
     }
 
     protected MappedFieldType.FieldExtractPreference fieldExtractPreference() {
@@ -641,7 +644,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void assertResults(
-        ExpectedResults expected,
+        TestResults expected,
         List<Map<String, String>> actualColumns,
         List<List<Object>> actualValues,
         Logger logger

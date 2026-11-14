@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.plugins.internal.ShardGenerationListener;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -101,7 +102,8 @@ public class RepositoriesModuleTests extends ESTestCase {
             MockBigArrays.NON_RECYCLING_INSTANCE,
             contentRegistry,
             recoverySettings,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            ShardGenerationListener.NOOP
         );
     }
 
@@ -140,7 +142,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                ShardGenerationListener.NOOP
             )
         );
 
@@ -166,7 +169,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                ShardGenerationListener.NOOP
             )
         );
 
@@ -200,7 +204,8 @@ public class RepositoriesModuleTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 contentRegistry,
                 recoverySettings,
-                TelemetryProvider.NOOP
+                TelemetryProvider.NOOP,
+                ShardGenerationListener.NOOP
             )
         );
 

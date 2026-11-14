@@ -30,6 +30,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
@@ -71,6 +73,9 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlProbePlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,6 +88,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -104,10 +111,33 @@ public class JobConfigProvider {
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final Supplier<CloudCredentialManager> credentialManagerSupplier;
+    private final CrossProjectModeDecider crossProjectModeDecider;
+    private final EsqlDatafeedQueryValidator esqlQueryValidator;
 
+    /** For callers that never validate datafeeds: no cloud credentials, cross-project search off. */
     public JobConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
+        this(
+            client,
+            xContentRegistry,
+            CloudCredentialManager.Noop::new,
+            new CrossProjectModeDecider(Settings.EMPTY),
+            new EsqlDatafeedQueryValidator()
+        );
+    }
+
+    public JobConfigProvider(
+        Client client,
+        NamedXContentRegistry xContentRegistry,
+        Supplier<CloudCredentialManager> credentialManagerSupplier,
+        CrossProjectModeDecider crossProjectModeDecider,
+        EsqlDatafeedQueryValidator esqlQueryValidator
+    ) {
         this.client = client;
         this.xContentRegistry = xContentRegistry;
+        this.credentialManagerSupplier = credentialManagerSupplier;
+        this.crossProjectModeDecider = crossProjectModeDecider;
+        this.esqlQueryValidator = esqlQueryValidator;
     }
 
     /**
@@ -738,20 +768,99 @@ public class JobConfigProvider {
         );
     }
 
-    /**
-     * Get the job reference by the datafeed and validate the datafeed config against it
-     * @param config  Datafeed config
-     * @param listener Validation listener
-     */
+    /** Validates {@code config} against its job; ES|QL query probes are not run. */
     public void validateDatafeedJob(DatafeedConfig config, ActionListener<Boolean> listener) {
         getJob(config.getJobId(), null, ActionListener.wrap(jobBuilder -> {
             try {
-                DatafeedJobValidator.validate(config, jobBuilder.build(), xContentRegistry);
+                Job job = jobBuilder.build();
+                DatafeedJobValidator.validate(config, job, xContentRegistry);
                 listener.onResponse(Boolean.TRUE);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         }, listener::onFailure));
+    }
+
+    /**
+     * Validates against the job and runs ES|QL {@code LIMIT 0} probes as {@code headers} under the config's cloud credential.
+     */
+    public void validateDatafeedJobAndEsqlQuery(DatafeedConfig config, Map<String, String> headers, ActionListener<Boolean> listener) {
+        validateDatafeedJobAndProbes(config, headers, job -> EsqlProbePlan.ALL, listener);
+    }
+
+    /** Validates {@code updated} against its job and runs only the ES|QL probes whose inputs differ from {@code current}. */
+    public void validateDatafeedUpdate(
+        DatafeedConfig current,
+        DatafeedConfig updated,
+        Map<String, String> headers,
+        ActionListener<Boolean> listener
+    ) {
+        validateDatafeedJobAndProbes(updated, headers, job -> EsqlProbePlan.forUpdate(current, updated, job), listener);
+    }
+
+    private void validateDatafeedJobAndProbes(
+        DatafeedConfig config,
+        Map<String, String> headers,
+        Function<Job, EsqlProbePlan> planner,
+        ActionListener<Boolean> listener
+    ) {
+        getJob(config.getJobId(), null, ActionListener.wrap(jobBuilder -> {
+            try {
+                Job job = jobBuilder.build();
+                DatafeedJobValidator.validate(config, job, xContentRegistry);
+                validateEsqlProbes(config, job, headers, planner.apply(job), listener);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        }, listener::onFailure));
+    }
+
+    /** ES|QL probes only; DSL configs complete without searching. */
+    private void validateEsqlProbes(
+        DatafeedConfig config,
+        Job job,
+        Map<String, String> headers,
+        EsqlProbePlan plan,
+        ActionListener<Boolean> listener
+    ) {
+        if (config.getEsqlQuery() == null || (plan.columns() == false && plan.sourceTimeField() == false)) {
+            listener.onResponse(Boolean.TRUE);
+            return;
+        }
+        DatafeedConfig effectiveConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
+            config,
+            crossProjectModeDecider,
+            config.getCloudInternalCredential() != null
+        );
+        Client probeClient = credentialManagerSupplier.get().wrapClient(client, effectiveConfig.getCloudInternalCredential());
+        ActionListener<Boolean> sourceTimeFieldProbe = plan.sourceTimeField()
+            ? ActionListener.wrap(
+                ok -> esqlQueryValidator.validateSourceTimeField(
+                    probeClient,
+                    headers,
+                    effectiveConfig.getEsqlQuery(),
+                    effectiveConfig.getProjectRouting(),
+                    effectiveConfig.getSourceTimeField(),
+                    listener,
+                    effectiveConfig.getId()
+                ),
+                listener::onFailure
+            )
+            : listener;
+        if (plan.columns() == false) {
+            sourceTimeFieldProbe.onResponse(Boolean.TRUE);
+            return;
+        }
+        esqlQueryValidator.validateQuery(
+            probeClient,
+            headers,
+            effectiveConfig.getEsqlQuery(),
+            effectiveConfig.getProjectRouting(),
+            job.getDataDescription().getTimeField(),
+            EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveConfig, job),
+            sourceTimeFieldProbe,
+            effectiveConfig.getId()
+        );
     }
 
     static Collection<String> matchingJobIdsWithTasks(String[] jobIdPatterns, PersistentTasksCustomMetadata tasksMetadata) {

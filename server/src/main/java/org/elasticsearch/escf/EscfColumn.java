@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.SliceableColumn;
@@ -76,7 +77,12 @@ public abstract class EscfColumn implements SliceableColumn {
         FixedBitSet validity = windowValidity(col.validity(), 0, docCount);
         return switch (col.kind()) {
             case EscfColumnKind.LONG -> new EscfLongColumn(docCount, validity, col.data());
-            case EscfColumnKind.DOUBLE -> new EscfDoubleColumn(docCount, validity, col.data());
+            case EscfColumnKind.DOUBLE -> new EscfDoubleColumn(
+                docCount,
+                validity,
+                col.data(),
+                col.lexicalForms() == null ? null : (EscfStringColumn) from(col.lexicalForms())
+            );
             case EscfColumnKind.BOOL -> new EscfBoolColumn(docCount, validity, windowBitSet(col.values(), 0, docCount));
             case EscfColumnKind.STRING -> new EscfStringColumn(docCount, validity, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
             case EscfColumnKind.BINARY -> new EscfBinaryColumn(docCount, validity, col.data(), new IntsRef(col.offsets(), 0, docCount + 1));
@@ -188,6 +194,12 @@ public abstract class EscfColumn implements SliceableColumn {
      */
     public abstract void addSizesInBytes(int[] sizes);
 
+    /**
+     * Adds the size {@code model} charges for every present document's value to {@code sizes[row]}, in one sweep over this
+     * column.
+     */
+    public abstract void addMeteredSizes(long[] sizes, MeteringModel model);
+
     /** Returns {@code true} if document {@code row} holds an explicit JSON {@code null}. */
     public final boolean isNull(int row) {
         return getTypeByte(row) == SourceValueType.NULL;
@@ -226,9 +238,18 @@ public abstract class EscfColumn implements SliceableColumn {
         return (float) getDoubleValue(row);
     }
 
-    /** Returns the string value at {@code row}. The column kind must be {@link EscfColumnKind#STRING}. */
+    /**
+     * Returns the string value at {@code row}. The column kind must be {@link EscfColumnKind#STRING} or
+     * {@link EscfColumnKind#DOUBLE}; a DOUBLE column answers with the value's stored spelling when it has one and
+     * with its canonical {@code Double.toString} rendering otherwise.
+     */
     public Text getStringValue(int row) {
         throw notA("string");
+    }
+
+    /** The payload length in bytes of document {@code row}'s value; only a string or binary column has one. */
+    public int getValueLength(int row) {
+        throw notA("variable-length");
     }
 
     /** Returns the binary value at {@code row}. The column kind must be {@link EscfColumnKind#BINARY}. */

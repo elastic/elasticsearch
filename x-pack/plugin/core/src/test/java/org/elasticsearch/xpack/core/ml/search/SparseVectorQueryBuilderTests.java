@@ -75,6 +75,22 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         return createTestQueryBuilder(false, tokenPruningConfig);
     }
 
+    /**
+     * The query needs a non-null {@link IndexReader}.
+     * Token pruning reads token document frequencies from the reader.
+     */
+    @Override
+    protected IndexReaderManager getIndexReaderManager() {
+        return new IndexReaderManager() {
+            @Override
+            protected void initIndexWriter(RandomIndexWriter indexWriter) throws IOException {
+                Document document = new Document();
+                document.add(new FloatDocValuesField(SPARSE_VECTOR_FIELD, 1.0f));
+                indexWriter.addDocument(document);
+            }
+        };
+    }
+
     private SparseVectorQueryBuilder createTestQueryBuilder(boolean forceQueryVector, @Nullable TokenPruningConfig tokenPruningConfig) {
         SparseVectorQueryBuilder builder;
         if (forceQueryVector || randomBoolean()) {

@@ -1739,14 +1739,16 @@ public class VerifierTests extends AnalyzerTestCase {
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
+    }
 
-        tsdb().error(
-            "FROM test | STATS count(network.bytes_out)",
-            equalTo(
-                "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types or histogram],"
-                    + " found value [network.bytes_out] type [counter_long]"
-            )
+    /**
+     * Counting and presence functions only look at whether a value exists, so they accept counters like any other field.
+     */
+    public void testCountPresentAbsentOnCounter() {
+        tsdb().query("FROM test | STATS count(network.bytes_out), present(network.bytes_out), absent(network.bytes_out)");
+        tsdb().query(
+            "TS test | STATS sum(count_over_time(network.bytes_out)), max(present_over_time(network.bytes_out)),"
+                + " max(absent_over_time(network.bytes_out))"
         );
     }
 
@@ -4581,15 +4583,21 @@ public class VerifierTests extends AnalyzerTestCase {
             .query("TS exp_histo_sample | STATS occurrences = COUNT(responseTime, b) BY b = BUCKET(responseTime, 20)");
     }
 
-    public void testNoDimensionsInAggsOnlyInByClause() {
-        tsdb().error(
-            "TS test | STATS count(bool_field) BY bucket(@timestamp, 1 minute)",
+    public void testImplicitTimeSeriesAggregationOfUnsupportedType() {
+        k8s().error(
+            "TS k8s | STATS count(network.eth0.firmware_version) BY bucket(@timestamp, 1 minute)",
             equalTo(
-                "1:23: argument of [implicit time-series aggregation function (LastOverTime) for bool_field] must be "
-                    + "[numeric except unsigned_long], found value [bool_field] type [boolean]; "
-                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
+                "1:22: argument of [implicit time-series aggregation function (LastOverTime) for network.eth0.firmware_version] "
+                    + "must be [_tsid, boolean, date, date_nanos, exponential_histogram, flattened, ip, string, tdigest "
+                    + "or numeric except unsigned_long], found value [network.eth0.firmware_version] type [version]; "
+                    + "to aggregate fields of other types, use the FROM command instead of the TS command"
             )
         );
+    }
+
+    public void testImplicitTimeSeriesAggregationOfBoolean() {
+        tsdb().query("TS test | STATS count(bool_field) BY bucket(@timestamp, 1 minute)");
+        tsdb().query("TS test | STATS last(bool_field, @timestamp) BY bucket(@timestamp, 1 minute)");
     }
 
     public void testSortInTimeSeries() {

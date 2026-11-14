@@ -19,6 +19,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.CandidateValues;
 import org.elasticsearch.index.mapper.TokenStreamMatching;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -35,6 +36,8 @@ public final class RuntimeSearchTextEvaluator implements ExpressionEvaluator {
 
   private final TokenStreamMatching.Matcher matcher;
 
+  private final CandidateValues candidates;
+
   private final Analyzer analyzer;
 
   private final BytesRef scratch;
@@ -44,11 +47,12 @@ public final class RuntimeSearchTextEvaluator implements ExpressionEvaluator {
   private Warnings warnings;
 
   public RuntimeSearchTextEvaluator(Source source, ExpressionEvaluator fieldBlock,
-      TokenStreamMatching.Matcher matcher, Analyzer analyzer, BytesRef scratch,
-      DriverContext driverContext) {
+      TokenStreamMatching.Matcher matcher, CandidateValues candidates, Analyzer analyzer,
+      BytesRef scratch, DriverContext driverContext) {
     this.source = source;
     this.fieldBlock = fieldBlock;
     this.matcher = matcher;
+    this.candidates = candidates;
     this.analyzer = analyzer;
     this.scratch = scratch;
     this.driverContext = driverContext;
@@ -72,7 +76,7 @@ public final class RuntimeSearchTextEvaluator implements ExpressionEvaluator {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBoolean(RuntimeSearch.processText(p, fieldBlockBlock, this.matcher, this.analyzer, this.scratch));
+          result.appendBoolean(RuntimeSearch.processText(p, fieldBlockBlock, this.matcher, this.candidates, this.analyzer, this.scratch));
         } catch (IOException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -84,7 +88,7 @@ public final class RuntimeSearchTextEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RuntimeSearchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", matcher=" + matcher + ", analyzer=" + analyzer + "]";
+    return "RuntimeSearchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", matcher=" + matcher + ", candidates=" + candidates + ", analyzer=" + analyzer + "]";
   }
 
   @Override
@@ -106,28 +110,31 @@ public final class RuntimeSearchTextEvaluator implements ExpressionEvaluator {
 
     private final TokenStreamMatching.Matcher matcher;
 
+    private final CandidateValues candidates;
+
     private final Analyzer analyzer;
 
     private final Function<DriverContext, BytesRef> scratch;
 
     public Factory(Source source, ExpressionEvaluator.Factory fieldBlock,
-        TokenStreamMatching.Matcher matcher, Analyzer analyzer,
+        TokenStreamMatching.Matcher matcher, CandidateValues candidates, Analyzer analyzer,
         Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.fieldBlock = fieldBlock;
       this.matcher = matcher;
+      this.candidates = candidates;
       this.analyzer = analyzer;
       this.scratch = scratch;
     }
 
     @Override
     public RuntimeSearchTextEvaluator get(DriverContext context) {
-      return new RuntimeSearchTextEvaluator(source, fieldBlock.get(context), matcher, analyzer, scratch.apply(context), context);
+      return new RuntimeSearchTextEvaluator(source, fieldBlock.get(context), matcher, candidates, analyzer, scratch.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "RuntimeSearchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", matcher=" + matcher + ", analyzer=" + analyzer + "]";
+      return "RuntimeSearchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", matcher=" + matcher + ", candidates=" + candidates + ", analyzer=" + analyzer + "]";
     }
   }
 }

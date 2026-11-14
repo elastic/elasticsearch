@@ -219,6 +219,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
         assertEquals(1, guarded.size());
         assertEquals("a filtered limit leaves the relation with no demand at all", FormatReader.NO_LIMIT, guarded.get(0).rowLimit());
+        assertTrue("and marks the source so discovery can footer-plan a first wave", guarded.get(0).filteredLimit());
     }
 
     /**
@@ -283,6 +284,10 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
             FormatReader.NO_LIMIT,
             SplitDiscoveryPhase.guardedRelations(sorted).get(0).rowLimit()
         );
+        assertFalse(
+            "a sort is not a filtered LIMIT, so discovery still plans every file",
+            SplitDiscoveryPhase.guardedRelations(sorted).get(0).filteredLimit()
+        );
 
         LogicalPlan aggregated = new Limit(
             SRC,
@@ -294,6 +299,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
             FormatReader.NO_LIMIT,
             SplitDiscoveryPhase.guardedRelations(aggregated).get(0).rowLimit()
         );
+        assertFalse("an aggregate is not a filtered LIMIT", SplitDiscoveryPhase.guardedRelations(aggregated).get(0).filteredLimit());
     }
 
     /** Nested limits: the outer one cannot ask for more than the inner one produced, so the smaller wins. */
@@ -322,6 +328,7 @@ public class SplitDiscoveryPhaseTests extends ESTestCase {
 
         assertEquals(1, guarded.size());
         assertEquals("an unfiltered limit is the case the budget exists for", 5, guarded.get(0).rowLimit());
+        assertFalse("an unfiltered limit is not a filtered LIMIT", guarded.get(0).filteredLimit());
     }
 
     /** The complement: with the filter <em>below</em> the limit, WHERE genuinely runs first and pruning is sound. */

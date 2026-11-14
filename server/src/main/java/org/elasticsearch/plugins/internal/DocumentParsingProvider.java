@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -43,5 +44,14 @@ public interface DocumentParsingProvider {
      */
     default XContentMeteringParserDecorator newMeteringParserDecorator() {
         return XContentMeteringParserDecorator.NOOP;
+    }
+
+    /**
+     * @return the metering applied to the values of a document, which the columnar batch path uses in place of
+     * {@link #newMeteringParserDecorator()} since its rows are never parsed; {@code null} when documents are not metered.
+     */
+    @Nullable
+    default MeteringModel newMeteringModel() {
+        return null;
     }
 }

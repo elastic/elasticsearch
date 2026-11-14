@@ -388,6 +388,10 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
       noCache = buildParams.ci
+      if (buildParams.ci) {
+        // Without the build cache, unchanged layers would get new digests on every build because of their timestamps
+        sourceDateEpoch.set(0L)
+      }
       tags = variant.tags(VersionProperties.elasticsearch, Architecture.current())
       platforms.add(architecture.dockerPlatform)
 
@@ -486,6 +490,10 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
       noCache = buildParams.ci
+      if (buildParams.ci) {
+        // Without the build cache, unchanged layers would get new digests on every build because of their timestamps
+        sourceDateEpoch.set(0L)
+      }
       baseImages = []
       tags = variant.tags(VersionProperties.elasticsearch, Architecture.current())
       platforms.add(architecture.dockerPlatform)

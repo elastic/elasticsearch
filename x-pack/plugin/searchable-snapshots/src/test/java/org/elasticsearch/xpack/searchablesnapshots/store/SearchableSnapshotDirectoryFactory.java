@@ -51,6 +51,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
@@ -726,6 +727,7 @@ public class SearchableSnapshotDirectoryFactory {
 
         SimpleThreadPool(String name, Settings settings, ExecutorBuilder<?>... customBuilders) {
             super(
+                new ThreadContext(settings),
                 Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(),
                 MeterRegistry.NOOP,
                 new DefaultBuiltInExecutorBuilders(),

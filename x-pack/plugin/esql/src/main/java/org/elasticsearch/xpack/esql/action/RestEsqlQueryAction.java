@@ -33,16 +33,13 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlQueryAction.class);
 
     static final String STREAMING_OPTION = "streaming";
-    static final String BATCH_SIZE_OPTION = "batch_size";
     static final String NDJSON_FORMAT_VALUE = "ndjson";
-    static final int DEFAULT_BATCH_SIZE = 100;
-    static final int MAX_BATCH_SIZE = 1000;
 
     /**
      * Streaming is unreleased, so it is available on snapshot builds only. When this is false the
-     * {@code streaming} and {@code batch_size} parameters are never consumed and are omitted from
-     * {@link #responseParams()}, so {@link BaseRestHandler} rejects them as unrecognized parameters —
-     * making the feature indistinguishable from one that was never added.
+     * {@code streaming} parameter is never consumed and is omitted from {@link #responseParams()},
+     * so {@link BaseRestHandler} rejects it as an unrecognized parameter — making the feature
+     * indistinguishable from one that was never added.
      */
     static final boolean STREAMING_ENABLED = Build.current().isSnapshot();
 
@@ -76,12 +73,8 @@ public class RestEsqlQueryAction extends BaseRestHandler {
 
         if (STREAMING_ENABLED) {
             boolean streaming = request.paramAsBoolean(STREAMING_OPTION, false);
-            String batchSizeParam = request.param(BATCH_SIZE_OPTION);
             String format = request.param(URL_PARAM_FORMAT);
 
-            if (batchSizeParam != null && streaming == false) {
-                throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] requires [" + STREAMING_OPTION + "=true]");
-            }
             if (NDJSON_FORMAT_VALUE.equals(format) && streaming == false) {
                 throw new IllegalArgumentException("[format=ndjson] requires [" + STREAMING_OPTION + "=true]");
             }
@@ -90,18 +83,13 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             }
 
             if (streaming) {
-                return streamingChannelConsumer(esqlRequest, request, client, batchSizeParam);
+                return streamingChannelConsumer(esqlRequest, request, client);
             }
         }
         return restChannelConsumer(esqlRequest, request, client);
     }
 
-    static RestChannelConsumer streamingChannelConsumer(
-        EsqlQueryRequest esqlRequest,
-        RestRequest request,
-        NodeClient client,
-        String batchSizeParam
-    ) {
+    static RestChannelConsumer streamingChannelConsumer(EsqlQueryRequest esqlRequest, RestRequest request, NodeClient client) {
         if (esqlRequest.columnar()) {
             throw incompatibleWithStreaming("columnar");
         }
@@ -110,26 +98,10 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         }
         request.param(URL_PARAM_HEADER);
 
-        int batchSize = DEFAULT_BATCH_SIZE;
-        if (batchSizeParam != null) {
-            try {
-                batchSize = Integer.parseInt(batchSizeParam);
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] must be an integer, got [" + batchSizeParam + "]");
-            }
-            if (batchSize < 1) {
-                throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] must be at least 1, got [" + batchSize + "]");
-            }
-            if (batchSize > MAX_BATCH_SIZE) {
-                throw new IllegalArgumentException("[" + BATCH_SIZE_OPTION + "] must be at most 1000, got [" + batchSize + "]");
-            }
-        }
-
         final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
         }
-        final int resolvedBatchSize = batchSize;
         LOGGER.debug("Beginning streaming execution of ESQL query.\nQuery string: [{}]", esqlRequest.queryDescription());
 
         return channel -> {
@@ -138,7 +110,6 @@ public class RestEsqlQueryAction extends BaseRestHandler {
                 esqlRequest,
                 restListener.resultStreamListener(),
                 request.paramAsBoolean(EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, false),
-                resolvedBatchSize,
                 restListener::setPreHeaderFailureFooter
             );
             new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
@@ -173,7 +144,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     @Override
     protected Set<String> responseParams() {
         if (STREAMING_ENABLED) {
-            return Set.of(URL_PARAM_DELIMITER, EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, STREAMING_OPTION, BATCH_SIZE_OPTION);
+            return Set.of(URL_PARAM_DELIMITER, EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION, STREAMING_OPTION);
         }
         return Set.of(URL_PARAM_DELIMITER, EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION);
     }

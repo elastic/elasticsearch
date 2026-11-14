@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -30,7 +31,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
@@ -136,15 +136,19 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         return r.getCompletionInfo();
                     });
                     ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     transportService.sendChildRequest(
                         cluster.connection,
                         ComputeService.CLUSTER_ACTION_NAME,
                         clusterRequest,
                         groupTask,
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(clusterListener, in -> new ComputeResponse(in, threadContext), searchExecutor)
+                        computeService.planRequestOptions(),
+                        new ActionListenerResponseHandler<>(
+                            ComputeService.finishRemoteSinkIfNotSent(remoteSink, clusterListener),
+                            in -> new ComputeResponse(in, threadContext),
+                            searchExecutor
+                        )
                     );
-                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     exchangeSource.addRemoteSink(
                         remoteSink,
                         failFast,
@@ -211,7 +215,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
 
     List<RemoteCluster> getRemoteClusters(
         Map<String, OriginalIndices> clusterToConcreteIndices,
-        Map<String, OriginalIndices> clusterToOriginalIndices
+        Map<String, OriginalIndices> clusterToOriginalIndices,
+        EsqlExecutionInfo executionInfo
     ) {
         List<RemoteCluster> remoteClusters = new ArrayList<>(clusterToConcreteIndices.size());
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
@@ -224,8 +229,16 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 throw new IllegalStateException("can't find original indices for cluster " + clusterAlias);
             }
             if (concreteIndices.indices().length > 0) {
-                Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
-                remoteClusters.add(new RemoteCluster(clusterAlias, connection, concreteIndices.indices(), originalIndices));
+                try {
+                    Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
+                    remoteClusters.add(new RemoteCluster(clusterAlias, connection, concreteIndices.indices(), originalIndices));
+                } catch (RuntimeException ex) {
+                    if (ExceptionsHelper.isRemoteUnavailableException(ex) && executionInfo.shouldSkipOnFailure(clusterAlias)) {
+                        ComputeService.markClusterAfterRuntimeBranchFailure(executionInfo, clusterAlias, false, ex);
+                    } else {
+                        throw ex;
+                    }
+                }
             }
         }
         return remoteClusters;
@@ -341,6 +354,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     parentTask,
                     new ComputeContext(
                         localSessionId,
+                        computeService.queryId(parentTask),
                         "remote_reduce",
                         clusterAlias,
                         flags,

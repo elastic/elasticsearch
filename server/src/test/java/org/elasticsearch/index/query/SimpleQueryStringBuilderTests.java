@@ -9,6 +9,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
@@ -504,6 +508,63 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 .build();
             assertThat(query, equalTo(expectedQuery));
         }
+    }
+
+    public void testAnalyzeWildcardOnFieldAlias() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        Query expectedPrefix = new PrefixQuery(new Term(TEXT_FIELD_NAME, "foo"));
+        for (boolean analyzeWildcard : new boolean[] { true, false }) {
+            Query query = new SimpleQueryStringBuilder("foo*").field(TEXT_ALIAS_FIELD_NAME)
+                .analyzeWildcard(analyzeWildcard)
+                .toQuery(context);
+            assertThat(query, equalTo(expectedPrefix));
+        }
+
+        Query query = new SimpleQueryStringBuilder("foo-bar*").field(TEXT_ALIAS_FIELD_NAME)
+            .analyzeWildcard(true)
+            .defaultOperator(Operator.AND)
+            .toQuery(context);
+        Query expected = new BooleanQuery.Builder().add(new TermQuery(new Term(TEXT_FIELD_NAME, "foo")), BooleanClause.Occur.MUST)
+            .add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "bar")), BooleanClause.Occur.MUST)
+            .build();
+        assertThat(query, equalTo(expected));
+    }
+
+    public void testAnalyzedPrefixQueryIsNormalizedWhenTokenStreamFails() throws IOException {
+        Analyzer failingAnalyzer = new Analyzer() {
+            @Override
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = new Tokenizer() {
+                    @Override
+                    public boolean incrementToken() {
+                        return false;
+                    }
+
+                    @Override
+                    public void reset() throws IOException {
+                        super.reset();
+                        throw new IOException("boom");
+                    }
+                };
+                return new TokenStreamComponents(tokenizer);
+            }
+
+            @Override
+            protected TokenStream normalize(String fieldName, TokenStream in) {
+                return new LowerCaseFilter(in);
+            }
+        };
+        SimpleQueryStringQueryParser.Settings settings = new SimpleQueryStringQueryParser.Settings();
+        settings.analyzeWildcard(true);
+        SimpleQueryStringQueryParser parser = new SimpleQueryStringQueryParser(
+            failingAnalyzer,
+            Collections.singletonMap(TEXT_FIELD_NAME, 1.0f),
+            -1,
+            settings,
+            createSearchExecutionContext()
+        );
+        Query query = parser.parse("FOO*");
+        assertThat(query, equalTo(new PrefixQuery(new Term(TEXT_FIELD_NAME, "foo"))));
     }
 
     public void testAnalyzerWildcardWithSynonyms() throws IOException {

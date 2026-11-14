@@ -16,6 +16,7 @@ import com.google.cloud.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.core.Nullable;
@@ -100,14 +101,10 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
             } catch (StorageException storageException) {
                 if (storageException.getCode() == RestStatus.NOT_FOUND.getStatus()) {
                     if (lastGeneration != null) {
-                        throw new NoSuchFileException(
-                            "Blob object ["
-                                + blobId.getName()
-                                + "] generation ["
-                                + lastGeneration
-                                + "] unavailable on resume (contents changed, or object deleted): "
-                                + storageException.getMessage()
-                        );
+                        // Because `lastGeneration` is set and GCS returns `NOT_FOUND`, this means that the object was modified (and
+                        // potentially got a new generation) or deleted. Even in case of deletion, we deliberately do not throw
+                        // `NoSuchFileException`, so that callers do not mistake a file partially read with one that was not there.
+                        throw new BlobVersionMismatchException(blobId.getName(), String.valueOf(lastGeneration), storageException);
                     } else {
                         throw new NoSuchFileException("Blob object [" + blobId.getName() + "] not found: " + storageException.getMessage());
                     }

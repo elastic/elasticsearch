@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
@@ -324,7 +323,7 @@ public class CircuitBreakerTests extends ESTestCase {
                     0,
                     0,
                     0,
-                    ShardSearchFailure.EMPTY_ARRAY,
+                    List.of(),
                     Clusters.EMPTY,
                     searchRequest.pointInTimeBuilder().getEncodedId(),
                     null,

@@ -96,7 +96,7 @@ public enum SearchResponseUtils {
         int successfulShards,
         int skippedShards,
         long tookInMillis,
-        ShardSearchFailure[] shardFailures,
+        List<ShardSearchFailure> shardFailures,
         SearchResponse.Clusters clusters
     ) {
         return new SearchResponse(
@@ -133,7 +133,7 @@ public enum SearchResponseUtils {
         private int successfulShards;
         private int skippedShards;
         private long tookInMillis;
-        private List<ShardSearchFailure> shardFailures;
+        private List<ShardSearchFailure> shardFailures = List.of();
         private Clusters clusters = Clusters.EMPTY;
         private BytesReference pointInTimeId;
 
@@ -225,7 +225,7 @@ public enum SearchResponseUtils {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+                shardFailures,
                 clusters,
                 pointInTimeId,
                 null,
@@ -423,7 +423,7 @@ public enum SearchResponseUtils {
                 successfulShards,
                 skippedShards,
                 tookInMillis,
-                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                failures,
                 clusters,
                 searchContextId,
                 null,

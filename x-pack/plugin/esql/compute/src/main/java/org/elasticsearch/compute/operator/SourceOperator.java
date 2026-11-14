@@ -7,10 +7,13 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -87,6 +90,9 @@ public abstract class SourceOperator implements Operator {
      * autoscaling signal, not billing. That time is attributed to shards according to the
      * load snapshot returned by {@link #shardLoadDelta(long)} for the same interval.</p>
      *
+     * <p>It also adds the rows each shard emitted to its {@link ShardContext#addRowsEmitted(long)}, which splits the time of the
+     * node reduce between the shards.</p>
+     *
      * <p>Attribution rules:
      * <ul>
      *   <li>If exactly one shard contributed load, the full {@code extraDriverNanos} is
@@ -95,38 +101,46 @@ public abstract class SourceOperator implements Operator {
      *       process time it directly reported.</li>
      *   <li>Any remaining time is then distributed proportionally based on the
      *       number of rows emitted by each shard.</li>
+     *   <li>The CPU time of the driver's thread is split like the time.</li>
      * </ul>
      *
      * <p>This method assumes that {@link #shardLoadDelta(long)} returns a delta and
      * resets its internal counters on each invocation.</p>
      *
      * @param extraDriverNanos time the driver held a thread, in nanoseconds, since the previous call
+     * @return whether the time was attributed to shards
      */
-    final void reportSearchLoad(long extraDriverNanos, long now) {
+    final boolean reportSearchLoad(long extraDriverNanos, long now) {
         final List<ShardLoad> delta = shardLoadDelta(now);
         final int size = delta.size();
         if (size == 0) {
-            return;
+            return false;
         }
 
         if (size == 1) {
             // Single shard: attribute all processing to it
-            delta.getFirst().context().stats().accumulateSearchLoad(extraDriverNanos, now);
-            return;
+            ShardLoad load = delta.getFirst();
+            load.context().addRowsEmitted(load.rowsEmitted());
+            TaskLoadAttribution.charge(load.context().stats().searchLoadTarget(), extraDriverNanos, now);
+            return true;
         }
 
         long totalProcess = 0L;
         long totalRows = 0L;
         for (var load : delta) {
+            load.context().addRowsEmitted(load.rowsEmitted());
             totalProcess += load.processTimeNanos();
             totalRows += load.rowsEmitted();
         }
         if (totalRows == 0L && totalProcess == 0L && extraDriverNanos == 0L) {
-            return;
+            return true;
         }
 
         final long rest = Math.max(0L, extraDriverNanos - totalProcess);
 
+        final List<ShardSearchStats> shards = new ArrayList<>(size);
+        final long[] nanos = new long[size];
+        long totalNanos = 0L;
         for (var load : delta) {
             long weightedExtra = load.processTimeNanos();
             if (rest > 0L && load.rowsEmitted() > 0L) {
@@ -134,8 +148,14 @@ public abstract class SourceOperator implements Operator {
                 weightedExtra += Math.round((double) rest * ((double) load.rowsEmitted() / (double) totalRows));
             }
             if (weightedExtra > 0L) {
-                load.context().stats().accumulateSearchLoad(weightedExtra, now);
+                nanos[shards.size()] = weightedExtra;
+                shards.add(load.context().stats());
+                totalNanos += weightedExtra;
             }
         }
+        if (totalNanos > 0L) {
+            TaskLoadAttribution.charge((n, cpu, finish) -> ShardSearchStats.charge(shards, nanos, n, cpu, finish), totalNanos, now);
+        }
+        return true;
     }
 }

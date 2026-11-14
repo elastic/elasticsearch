@@ -87,6 +87,11 @@ public final class SearchCapabilities {
     private static final String KNN_REQUIRES_SLICE_SELECTION = "knn_requires_slice_selection";
     /** A composite aggregation with a non-positive {@code size} is rejected with a 400 instead of failing with an NPE. */
     private static final String COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE = "composite_agg_rejects_non_positive_size";
+    /** A numeric value script that returns {@code null} treats that value as missing. */
+    private static final String NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING = "numeric_value_script_null_is_missing";
+
+    /** Scripts that enumerate or return the {@code doc} or {@code _fields} lookup are rejected with a 400. */
+    private static final String DOC_LOOKUP_ENUMERATION_ILLEGAL_ARGUMENT = "doc_lookup_enumeration_illegal_argument";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -132,6 +137,8 @@ public final class SearchCapabilities {
         capabilities.add(RANGE_FIELD_DV_QUERY_DESCRIPTION_HAS_FIELD);
         capabilities.add(KNN_REQUIRES_SLICE_SELECTION);
         capabilities.add(COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE);
+        capabilities.add(NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING);
+        capabilities.add(DOC_LOOKUP_ENUMERATION_ILLEGAL_ARGUMENT);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

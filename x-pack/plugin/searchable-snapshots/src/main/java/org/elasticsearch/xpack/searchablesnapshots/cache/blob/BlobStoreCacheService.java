@@ -29,7 +29,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
@@ -231,13 +231,14 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         final ByteRange range,
         final BytesReference bytes,
         final long timeInEpochMillis,
-        final ActionListener<Void> listener
+        final Releasable onComplete
     ) {
         if (closed.get()) {
-            listener.onFailure(new IllegalStateException("Blob cache service is closed"));
+            onComplete.close();
             return;
         }
         final String id = generateId(repository, snapshotId, indexId, shardId, name, range);
+        final IndexRequest request;
         try {
             final CachedBlob cachedBlob = new CachedBlob(
                 Instant.ofEpochMilli(timeInEpochMillis),
@@ -247,44 +248,43 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 bytes,
                 range.start()
             );
-            final IndexRequest request = new IndexRequest(index).id(id);
+            request = new IndexRequest(index).id(id);
             try (XContentBuilder builder = jsonBuilder()) {
                 request.source(cachedBlob.toXContent(builder, ToXContent.EMPTY_PARAMS));
             }
 
-            final RunOnce release = new RunOnce(() -> {
-                final int availablePermits = inFlightCacheFills.availablePermits();
-                assert availablePermits > 0 : "in-flight available permits should be greater than 0 but got: " + availablePermits;
-                inFlightCacheFills.release();
-            });
-
-            boolean submitted = false;
             inFlightCacheFills.acquire();
-            try {
-                final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
-                innerPut(request, new ActionListener<>() {
-                    @Override
-                    public void onResponse(DocWriteResponse indexResponse) {
-                        logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
-                        wrappedListener.onResponse(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.debug(() -> "failure in cache fill: [" + request.id() + "]", e);
-                        wrappedListener.onFailure(e);
-                    }
-                });
-                submitted = true;
-            } finally {
-                if (submitted == false) {
-                    release.run();
-                }
-            }
         } catch (Exception e) {
             logger.warn(() -> "cache fill failure: [" + id + "]", e);
-            listener.onFailure(e);
+            onComplete.close();
+            return;
         }
+
+        // Preparation owns completion until the permit is acquired; from here the listener owns both resources.
+        ActionListener.run(ActionListener.releaseAfter(new ActionListener<DocWriteResponse>() {
+            @Override
+            public void onResponse(DocWriteResponse indexResponse) {
+                logger.trace("cache fill ({}): [{}]", indexResponse.status(), request.id());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(() -> "failure in cache fill: [" + request.id() + "]", e);
+            }
+        }, () -> {
+            try {
+                onComplete.close();
+            } finally {
+                assert assertAvailablePermits();
+                inFlightCacheFills.release();
+            }
+        }), listener -> innerPut(request, listener));
+    }
+
+    private boolean assertAvailablePermits() {
+        final int availablePermits = inFlightCacheFills.availablePermits();
+        assert availablePermits > 0 : "in-flight available permits should be greater than 0 but got: " + availablePermits;
+        return true;
     }
 
     protected void innerPut(final IndexRequest request, final ActionListener<DocWriteResponse> listener) {

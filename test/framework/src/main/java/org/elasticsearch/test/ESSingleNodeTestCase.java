@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -275,8 +276,12 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
-            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
-            .put(nodeSettings());// allow test cases to provide their own settings or override these
+            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName);
+        // covers the non-batch path for indices that opt into batch indexing by default, such as columnar ones
+        if (randomBoolean()) {
+            settingBuilder.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false);
+        }
+        settingBuilder.put(nodeSettings());// allow test cases to provide their own settings or override these
 
         boolean enableConcurrentSearch = enableConcurrentSearch();
         if (enableConcurrentSearch) {

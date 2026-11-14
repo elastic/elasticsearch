@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164881
+summary: Use METRICS_INFO instead TS_INFO when possible
+type: enhancement

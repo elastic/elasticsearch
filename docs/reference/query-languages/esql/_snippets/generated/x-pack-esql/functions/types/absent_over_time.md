@@ -8,6 +8,9 @@
 | boolean | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 | cartesian_point | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 | cartesian_shape | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| counter_double {applies_to}`stack: ga 9.7.0` | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| counter_integer {applies_to}`stack: ga 9.7.0` | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| counter_long {applies_to}`stack: ga 9.7.0` | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 | date | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 | date_nanos | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 | dense_vector {applies_to}`stack: ga 9.7.0` | time_duration {applies_to}`stack: preview 9.3.0` | boolean |

@@ -292,7 +292,7 @@ public class SubPlansExecutorTests extends ESTestCase {
         var injected = new RuntimeException("injected synchronous executePlan failure");
         stubRunComputeSuccess();
         doThrow(injected).when(computeService)
-            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         var future = new PlainActionFuture<Result>();
         buildAndExecute(oneMergeNLeaves(2), future);
@@ -323,7 +323,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             }
             throw injected;
         }).when(computeService)
-            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         var future = new PlainActionFuture<Result>();
         buildAndExecute(oneMergeNLeaves(2), new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build()), future);
@@ -354,7 +354,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             });
             return null;
         }).when(computeService)
-            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         var future = new PlainActionFuture<Result>();
         buildAndExecute(oneMergeNLeaves(3), new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build()), future);
@@ -461,6 +461,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             any(),
             any(),
             any(),
+            any(),
             any()
         );
         assertBusy(() -> assertTrue("all exchanges must be deregistered after pre-dispatch STOP", exchangeFullyEmpty()));
@@ -508,7 +509,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             }
             return null;
         }).when(computeService)
-            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         var future = new PlainActionFuture<Result>();
         buildAndExecute(twoMergesThreeLeaves(), new QueryPragmas(Settings.builder().put("branch_parallel_degree", 2).build()), future);
@@ -585,7 +586,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             listener.onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null));
             return null;
         }).when(computeService)
-            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         StartedQuery started = startQuery(
             twoMergesThreeLeaves(),
@@ -642,7 +643,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             listener.onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null));
             return null;
         }).when(computeService)
-            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         StartedQuery started = startQuery(
             threeMergesSixLeaves(),
@@ -759,7 +760,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             listener.onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null));
             return null;
         }).when(computeService)
-            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
 
         var future1 = new PlainActionFuture<Result>();
         buildAndExecute(oneMergeNLeaves(2), future1);
@@ -844,7 +845,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             listener.onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null));
             return null;
         }).when(computeService)
-            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     /**
@@ -865,7 +866,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             }
             return null;
         }).when(computeService)
-            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     /**
@@ -956,7 +957,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             parked.countDown();
             return null;
         }).when(computeService)
-            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     private void completeWhenSourceFinished(ExchangeSource source, Runnable onDone) {
@@ -1027,6 +1028,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             () -> {},
             planTimeProfile,
             topology,
+            null,
             future
         ).executePlan();
         return new StartedQuery(future, sessionId, rootTask, execInfo);
@@ -1084,6 +1086,7 @@ public class SubPlansExecutorTests extends ESTestCase {
             () -> {},
             planTimeProfile,
             topology,
+            null,
             listener
         ).executePlan();
     }

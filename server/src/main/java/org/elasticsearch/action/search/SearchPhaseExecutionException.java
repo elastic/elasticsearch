@@ -28,10 +28,20 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     private final ShardSearchFailure[] shardFailures;
     private final ElasticsearchException guessedCause; // log4j requires a stable cause!
 
+    @Deprecated // Use List<ShardSearchFailure> instead
     public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
         this(phaseName, msg, null, shardFailures);
     }
 
+    public SearchPhaseExecutionException(String phaseName, String msg, List<ShardSearchFailure> shardFailures) {
+        this(phaseName, msg, null, shardFailures);
+    }
+
+    public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, List<ShardSearchFailure> shardFailures) {
+        this(phaseName, msg, cause, shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY));
+    }
+
+    @Deprecated // Use List<ShardSearchFailure> instead
     @SuppressWarnings("this-escape")
     public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
         super(msg, deduplicateCause(cause, shardFailures));

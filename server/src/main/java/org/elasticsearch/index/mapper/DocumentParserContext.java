@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -37,6 +38,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
@@ -213,6 +215,7 @@ public abstract class DocumentParserContext {
 
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
+    private final ParseFieldLimits parseFieldLimits;
     private final SourceToParse sourceToParse;
 
     private final Set<String> ignoredFields;
@@ -224,10 +227,10 @@ public abstract class DocumentParserContext {
 
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
-    private final NewFieldsBudget dynamicFieldBudget;
     private final Map<String, ObjectMapper.Builder> dynamicObjectMappers;
     private final Map<String, Mapper> builtDynamicMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
+    private final StoredMapping storedMapping;
     private final RoutingFields routingFields;
     private final ObjectMapper parent;
     private final ObjectMapper.Dynamic dynamic;
@@ -266,6 +269,7 @@ public abstract class DocumentParserContext {
         Map<String, ObjectMapper.Builder> dynamicObjectMappers,
         Map<String, Mapper> builtDynamicMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
+        StoredMapping storedMapping,
         String id,
         Field version,
         SeqNoFieldMapper.SequenceIDFields seqID,
@@ -280,8 +284,9 @@ public abstract class DocumentParserContext {
         boolean recordedSource,
         Set<String> singleValuedFields,
         Map<String, BytesRef> pendingMultiValueViolations,
-        NewFieldsBudget dynamicFieldBudget
+        ParseFieldLimits parseFieldLimits
     ) {
+        this.parseFieldLimits = parseFieldLimits;
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
@@ -295,6 +300,7 @@ public abstract class DocumentParserContext {
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.builtDynamicMappers = builtDynamicMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
+        this.storedMapping = storedMapping;
         this.id = id;
         this.version = version;
         this.seqID = seqID;
@@ -306,7 +312,6 @@ public abstract class DocumentParserContext {
         assert this.mappingCopyToFields == Set.copyOf(this.mappingCopyToFields); // ensure that we've been passed an ImmutableSet(12|N)
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
-        this.dynamicFieldBudget = dynamicFieldBudget;
         this.objectArrayElementCounter = objectArrayElementCounter;
         this.recordedSource = recordedSource;
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
@@ -324,6 +329,7 @@ public abstract class DocumentParserContext {
             in.dynamicObjectMappers,
             in.builtDynamicMappers,
             in.dynamicRuntimeFields,
+            in.storedMapping,
             in.id,
             in.version,
             in.seqID,
@@ -338,16 +344,8 @@ public abstract class DocumentParserContext {
             in.recordedSource,
             in.singleValuedFields,
             in.pendingMultiValueViolations,
-            in.dynamicFieldBudget
+            in.parseFieldLimits
         );
-    }
-
-    private static NewFieldsBudget createDynamicFieldBudget(MappingLookup mappingLookup, IndexSettings indexSettings) {
-        long totalFieldsLimit = indexSettings.getMappingTotalFieldsLimit();
-        long remaining = mappingLookup.remainingFieldsUntilLimit(totalFieldsLimit);
-        return indexSettings.isIgnoreDynamicFieldsBeyondLimit()
-            ? NewFieldsBudget.dropping(remaining)
-            : NewFieldsBudget.throwing(remaining, totalFieldsLimit);
     }
 
     protected DocumentParserContext(
@@ -368,6 +366,7 @@ public abstract class DocumentParserContext {
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
+            new StoredMapping(),
             null,
             null,
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(mappingParserContext.getIndexSettings().seqNoIndexOptions()),
@@ -382,7 +381,7 @@ public abstract class DocumentParserContext {
             false,
             new HashSet<>(),
             new HashMap<>(),
-            createDynamicFieldBudget(mappingLookup, mappingParserContext.getIndexSettings())
+            ParseFieldLimits.forDocument(mappingLookup, mappingParserContext.getIndexSettings())
         );
     }
 
@@ -415,7 +414,7 @@ public abstract class DocumentParserContext {
     }
 
     public final MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
-        return mappingParserContext.createDynamicTemplateContext(dateFormatter);
+        return mappingParserContext.createDynamicTemplateContext(dateFormatter, parseFieldLimits);
     }
 
     public final SourceToParse sourceToParse() {
@@ -542,7 +541,7 @@ public abstract class DocumentParserContext {
     }
 
     public final boolean fieldBudgetExhausted() {
-        return dynamicFieldBudget.hasCapacityFor(1) == false;
+        return parseFieldLimits.hasCapacityForTotalFields(1) == false;
     }
 
     /**
@@ -829,7 +828,7 @@ public abstract class DocumentParserContext {
     public boolean addDynamicMapper(Mapper.Builder builder, String fullPath) {
         // eagerly check object depth limit here to avoid stack overflow errors
         if (builder instanceof ObjectMapper.Builder) {
-            mappingParserContext.checkObjectDepthLimit(fullPath);
+            parseFieldLimits.checkObjectDepth(fullPath);
         }
 
         // eagerly check field name limit here to avoid OOM errors
@@ -839,7 +838,7 @@ public abstract class DocumentParserContext {
             && mappingLookup.objectMappers().containsKey(fullPath) == false
             && dynamicMappers.containsKey(fullPath) == false) {
             int mapperSize = builder.getTotalFieldsCount();
-            if (dynamicFieldBudget.decrementIfPossible(mapperSize) == false) {
+            if (parseFieldLimits.decrementTotalFieldsIfPossible(mapperSize) == false) {
                 try {
                     FallbackPostMapper.capture(this, fullPath, FallbackPostMapper.Reason.FIELD_LIMIT_EXCEEDED);
                 } catch (IOException e) {
@@ -882,6 +881,90 @@ public abstract class DocumentParserContext {
         // 2) they can be the result of applying a dynamic template which may define sub-fields or set dynamic, enabled or subobjects.
         dynamicMappers.computeIfAbsent(fullPath, k -> new ArrayList<>()).add(builder);
         return true;
+    }
+
+    /**
+     * Updates the mapping of a field that already exists, and registers the change as a dynamic update
+     * <p>
+     * If the field is a multi-field, then the dynamic update also contains the parent.
+     *
+     * @param fullPath the full dotted path of the existing field
+     * @param update   lambda to make changes to the mapper's Builder
+     * @return the updated Builder
+     * @throws IllegalArgumentException if there is no field mapped at {@code fullPath}
+     */
+    public Mapper.Builder updateMapping(String fullPath, Consumer<Mapper.Builder> update) {
+        // First check to see if the Builder has already been added dynamically during
+        // the current parse context, for example if it was added by a dynamic template
+        Mapper.Builder pending = findPendingFieldBuilder(fullPath);
+        if (pending != null) {
+            update.accept(pending);
+            return pending;
+        }
+        Map<String, Mapper.Builder> stored = storedMapping.fieldBuilders(mappingParserContext, mappingLookup);
+        Mapper.Builder builder = stored.get(fullPath);
+        if (builder == null) {
+            throw new IllegalArgumentException("cannot update the mapping of [" + fullPath + "], which is not a mapped field");
+        }
+        // run the update before registering - updates may throw exceptions on bad data, for
+        // example documents with multiple dense_vector fields of different lengths.
+        update.accept(builder);
+        String registeredPath = mappingLookup.isMultiField(fullPath) ? mappingLookup.parentField(fullPath) : fullPath;
+        addDynamicMapper(stored.get(registeredPath), registeredPath);
+        return builder;
+    }
+
+    /**
+     * If a field {@code fullPath} has already been dynamically added while parsing this document,
+     * locate and return its Builder, otherwise return {@code null}
+     */
+    private Mapper.Builder findPendingFieldBuilder(String fullPath) {
+        int lastDot = fullPath.lastIndexOf('.');
+        // the field itself, or the parent that has it as a multi-field
+        for (String registeredPath : lastDot < 0 ? List.of(fullPath) : List.of(fullPath, fullPath.substring(0, lastDot))) {
+            List<Mapper.Builder> registered = dynamicMappers.get(registeredPath);
+            if (registered == null) {
+                continue;
+            }
+            for (int i = registered.size() - 1; i >= 0; i--) {
+                if (registered.get(i) instanceof FieldMapper.Builder fieldBuilder) {
+                    String parentPath = registeredPath.length() == fieldBuilder.leafName().length()
+                        ? null
+                        : registeredPath.substring(0, registeredPath.length() - fieldBuilder.leafName().length() - 1);
+                    Mapper.Builder[] found = new Mapper.Builder[1];
+                    fieldBuilder.collectFieldBuilders(parentPath, (path, builder) -> {
+                        if (path.equals(fullPath)) {
+                            found[0] = builder;
+                        }
+                    });
+                    if (found[0] != null) {
+                        return found[0];
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Lazily computed Builders for the current set of Mappings, used by {@link #updateMapping(String, Consumer)}
+     */
+    private static final class StoredMapping {
+        private Map<String, Mapper.Builder> fieldBuilders;
+
+        // TODO add a filter so that we don't re-parse the entire Mapping just to update a single field
+        Map<String, Mapper.Builder> fieldBuilders(MappingParserContext parserContext, MappingLookup mappingLookup) {
+            if (fieldBuilders == null) {
+                CompressedXContent source = mappingLookup.mappingSource();
+                if (source == null) {
+                    throw new IllegalStateException("the source of the mapping is not available to update a field of it");
+                }
+                Map<String, Mapper.Builder> collected = new HashMap<>();
+                parserContext.parseStoredMapping(source).collectFieldBuilders(MergeReason.MAPPING_RECOVERY, collected::put);
+                fieldBuilders = collected;
+            }
+            return fieldBuilders;
+        }
     }
 
     /*
@@ -1032,7 +1115,7 @@ public abstract class DocumentParserContext {
      */
     final boolean addDynamicRuntimeField(RuntimeField runtimeField) {
         if (dynamicRuntimeFields.containsKey(runtimeField.name()) == false) {
-            if (dynamicFieldBudget.decrementIfPossible(1) == false) {
+            if (parseFieldLimits.decrementTotalFieldsIfPossible(1) == false) {
                 addIgnoredField(runtimeField.name());
                 return false;
             }

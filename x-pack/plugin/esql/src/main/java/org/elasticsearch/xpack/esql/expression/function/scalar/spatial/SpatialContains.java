@@ -231,10 +231,10 @@ public class SpatialContains extends SpatialRelatesFunction {
 
     /**
      * Contains needs to evaluate each component of the right geometry separately,
-     * so we override the fold method from the parent SpatialRelatesFunction.
+     * so we override the doFold method from the parent SpatialRelatesFunction.
      */
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         try {
             GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
             Geometry rightGeom = makeGeometryFromLiteral(ctx, right());

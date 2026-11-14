@@ -39,7 +39,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -82,7 +82,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheServiceTestUtils.randomRegionTimestampMillis;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.SHARD_READ_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.SHARD_READ_THREAD_POOL;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -204,7 +204,7 @@ public class CacheBlobReaderTests extends ESTestCase {
         public synchronized BatchedCompoundCommit uploadVirtualBatchedCompoundCommit() throws IOException {
             PlainActionFuture<BatchedCompoundCommit> future = new PlainActionFuture<>();
             // move to a thread pool that allows reading data from vbcc.
-            threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).execute(ActionRunnable.supply(future, () -> {
+            threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).execute(ActionRunnable.supply(future, () -> {
                 if (virtualBatchedCompoundCommit.freeze() == false) {
                     return null;
                 }
@@ -303,7 +303,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             assertEquals(virtualBatchedCompoundCommit.getPrimaryTermAndGeneration(), virtualBccTermAndGen);
             int finalLength = Math.min(length, Math.toIntExact(virtualBatchedCompoundCommit.getTotalSizeInBytes() - offset));
             var bytesStreamOutput = new BytesStreamOutput(finalLength);
-            threadPool.executor(StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL).execute(() -> {
+            threadPool.executor(StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL).execute(() -> {
                 ActionListener.run(listener, l -> {
                     virtualBatchedCompoundCommit.getBytesByRange(offset, finalLength, bytesStreamOutput);
                     l.onResponse(new ReleasableBytesReference(bytesStreamOutput.bytes(), bytesStreamOutput::close));
@@ -394,7 +394,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     blobReads.incrementAndGet();
                     if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
-                        assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
+                        assert ThreadPool.assertCurrentThreadPool(StatelessThreadPools.SHARD_READ_THREAD_POOL);
                     }
                     logger.debug("reading {} from blob store", blobName);
                     return super.readBlob(purpose, blobName);
@@ -404,7 +404,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
                     blobReads.incrementAndGet();
                     if (blobName.contains(BatchedCompoundCommit.PREFIX)) {
-                        assert ThreadPool.assertCurrentThreadPool(StatelessPlugin.SHARD_READ_THREAD_POOL);
+                        assert ThreadPool.assertCurrentThreadPool(StatelessThreadPools.SHARD_READ_THREAD_POOL);
                     }
                     logger.debug("reading {} from blob store, position: {} length: {}", blobName, position, length);
                     return super.readBlob(purpose, blobName, position, length);

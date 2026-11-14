@@ -66,7 +66,7 @@ public class ClampMax extends EsqlScalarFunction implements AnyNullIsNull {
         @Param(
             name = "field",
             type = { "double", "integer", "long", "unsigned_long", "double", "keyword", "ip", "boolean", "date", "version" },
-            description = "field to clamp."
+            description = "Expression to clamp. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "max",

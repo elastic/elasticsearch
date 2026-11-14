@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 165610
+summary: Return 400 for `significant_terms` on floating point values
+type: bug

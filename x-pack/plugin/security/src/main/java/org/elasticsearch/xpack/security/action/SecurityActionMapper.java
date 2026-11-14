@@ -39,7 +39,7 @@ public class SecurityActionMapper {
             case AnalyzeAction.NAME, AnalyzeAction.NAME + "[s]" -> {
                 assert request instanceof AnalyzeAction.Request;
                 String[] indices = ((AnalyzeAction.Request) request).indices();
-                if (indices == null || (indices.length == 1 && indices[0] == null)) {
+                if (indices == null || indices.length == 0 || (indices.length == 1 && indices[0] == null)) {
                     return CLUSTER_PERMISSION_ANALYZE;
                 }
             }

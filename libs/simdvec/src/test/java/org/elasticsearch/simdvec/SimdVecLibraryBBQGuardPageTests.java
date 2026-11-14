@@ -51,7 +51,10 @@ public class SimdVecLibraryBBQGuardPageTests extends ESTestCase {
     /**
      * Dimension counts under test. All striped BBQ layouts hold {@code dims/8} bytes per bit plane, so
      * {@code 8..320} in steps of 8 leaves 1 to 40 bytes per plane after a whole-chunk loop of 16 bytes
-     * (NEON/SSE) or 32 bytes (AVX2); the larger entries do the same for the 64 byte chunks of AVX-512.
+     * (NEON/SSE, SVE with a 128-bit vector length) or 32 bytes (AVX2, SVE with a 256-bit vector length);
+     * the larger entries do the same for the 64 byte chunks of AVX-512. SVE reads its tail with a
+     * predicated load at either vector length. The vector length is the register size the loops step by,
+     * not the execution width: Neoverse V1, for example, has 256-bit SVE registers on 128-bit pipes.
      */
     private static final int[] DIMS = IntStream.concat(
         IntStream.rangeClosed(1, 40).map(i -> i * 8),

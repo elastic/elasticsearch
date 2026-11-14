@@ -1,0 +1,7 @@
+TS k8s
+| TS_INFO
+| WHERE metric_name LIKE "network.*"
+| RENAME metric_name AS name
+| WHERE metric_type == "counter"
+| KEEP name, dimension_fields, dimensions
+| STATS dims = VALUES(dimension_fields), series = MAX(dimensions) BY name

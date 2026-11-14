@@ -19,6 +19,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -45,6 +46,26 @@ public class ParseIpTests extends ESTestCase {
             new TestCase("255.255.1", false, false, false),
             new TestCase("255.255.0", false, false, false),
             new TestCase("a.a.a.a", false, false, false),
+
+            new TestCase("256.0.0.1", false, false, false),
+            new TestCase("0.0.0.256", false, false, false),
+            new TestCase("0377.0.0.1", false, false, true),
+            new TestCase("0400.0.0.1", false, false, false),
+
+            // Octets that overflow an int must not wrap around into the 0-255 range
+            new TestCase("4294967297.0.0.1", false, false, false),
+            new TestCase("4294967295.0.0.1", false, false, false),
+            new TestCase("1.0.0.4294967297", false, false, false),
+            new TestCase("040000000001.0.0.1", false, false, false),
+
+            // Nothing may follow the fourth octet
+            new TestCase("1.2.3.4.5", false, false, false),
+            new TestCase("1.2.3.4.", false, false, false),
+            new TestCase("1.2.3.0.5", false, false, false),
+            new TestCase("1.2.3.04.5", false, false, false),
+
+            new TestCase("::ffff:1.2.3.4", true, true, true),
+            new TestCase("fe80::1%eth0", true, true, true),
             new TestCase(
                 /*
                  * At some point the ip parsing code parsed this as a valid ipv4 address. Use git-blame if you
@@ -81,6 +102,32 @@ public class ParseIpTests extends ESTestCase {
                 @Override
                 public String toString() {
                     return "long v6-shaped";
+                }
+            }, false, false, false),
+            /*
+             * Longer in UTF-8 than the bytes ParseIp decodes for its error message, so the decode cuts a
+             * code point in half. The message must still match truncating the fully decoded string.
+             */
+            new TestCase(new Supplier<>() {
+                @Override
+                public String get() {
+                    return "€".repeat(2 * Strings.MAX_INPUT_LENGTH_IN_ERROR);
+                }
+
+                @Override
+                public String toString() {
+                    return "long 3 byte chars";
+                }
+            }, false, false, false),
+            new TestCase(new Supplier<>() {
+                @Override
+                public String get() {
+                    return "😀".repeat(2 * Strings.MAX_INPUT_LENGTH_IN_ERROR);
+                }
+
+                @Override
+                public String toString() {
+                    return "long surrogate pairs";
                 }
             }, false, false, false),
             new TestCase(new Supplier<>() {
@@ -170,15 +217,34 @@ public class ParseIpTests extends ESTestCase {
 
     private void success(BiFunction<BytesRef, BreakingBytesRefBuilder, BytesRef> fn, BytesRef expected) {
         try (BreakingBytesRefBuilder scratch = ParseIp.buildScratch(NoopCircuitBreaker.INSTANCE)) {
-            assertThat(fn.apply(new BytesRef(str), scratch), equalTo(expected));
+            assertThat(fn.apply(embedded(str), scratch), equalTo(expected));
         }
     }
 
     private void failure(BiFunction<BytesRef, BreakingBytesRefBuilder, BytesRef> fn) {
         try (BreakingBytesRefBuilder scratch = ParseIp.buildScratch(NoopCircuitBreaker.INSTANCE)) {
-            Exception thrown = expectThrows(IllegalArgumentException.class, () -> fn.apply(new BytesRef(str), scratch));
+            Exception thrown = expectThrows(IllegalArgumentException.class, () -> fn.apply(embedded(str), scratch));
             assertThat(thrown.getMessage(), equalTo("'" + Strings.truncateForError(str) + "' is not an IP string literal."));
         }
+    }
+
+    /**
+     * Slices {@code str} out of a larger array, the way values read from a block share one array. The padding
+     * is made of ip characters, so reading past either end of the slice changes the result.
+     */
+    private static BytesRef embedded(String str) {
+        String prefix = randomPadding();
+        byte[] utf8 = (prefix + str + randomPadding()).getBytes(StandardCharsets.UTF_8);
+        return new BytesRef(utf8, prefix.length(), str.getBytes(StandardCharsets.UTF_8).length);
+    }
+
+    private static String randomPadding() {
+        StringBuilder padding = new StringBuilder();
+        int length = between(1, 5);
+        for (int i = 0; i < length; i++) {
+            padding.append(randomFrom('1', '.', ':'));
+        }
+        return padding.toString();
     }
 
     public static String leadingZerosAreDecimalToIp(String ip) {

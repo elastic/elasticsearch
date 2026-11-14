@@ -67,7 +67,7 @@ public final class FloatVectorFixedBuilder implements FloatVector.FixedBuilder {
         closed = true;
         FloatVector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstantFloatBlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = blockFactory.newConstantFloatVector(values[0], 1, preAdjustedBytes);
         } else {
             vector = blockFactory.newFloatArrayVector(values, values.length, preAdjustedBytes);
         }
@@ -84,6 +84,7 @@ public final class FloatVectorFixedBuilder implements FloatVector.FixedBuilder {
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

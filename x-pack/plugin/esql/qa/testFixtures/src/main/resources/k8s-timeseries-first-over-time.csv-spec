@@ -383,3 +383,37 @@ two       | prod            | 2024-05-10T00:20:00.000Z
 two       | qa              | 2024-05-10T00:20:00.000Z
 two       | staging         | 2024-05-10T00:20:00.000Z
 ;
+
+first_over_time_of_boolean
+required_capability: ts_command_v0
+required_capability: fn_first_over_time_boolean
+TS k8s | WHERE cluster == "prod" | STATS up = max(first_over_time(network.eth0.up)) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod;
+
+up:boolean | pod:keyword | time_bucket:datetime
+true       | one         | 2024-05-10T00:00:00.000Z
+false      | three       | 2024-05-10T00:00:00.000Z
+true       | two         | 2024-05-10T00:00:00.000Z
+false      | one         | 2024-05-10T00:10:00.000Z
+true       | three       | 2024-05-10T00:10:00.000Z
+true       | two         | 2024-05-10T00:10:00.000Z
+false      | one         | 2024-05-10T00:20:00.000Z
+false      | three       | 2024-05-10T00:20:00.000Z
+true       | two         | 2024-05-10T00:20:00.000Z
+;
+
+implicit_first_over_time_of_boolean_in_first
+required_capability: ts_command_v0
+required_capability: fn_first_over_time_boolean
+TS k8s | WHERE cluster == "prod" | STATS up = first(network.eth0.up, @timestamp) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod;
+
+up:boolean | pod:keyword | time_bucket:datetime
+true       | one         | 2024-05-10T00:00:00.000Z
+false      | three       | 2024-05-10T00:00:00.000Z
+true       | two         | 2024-05-10T00:00:00.000Z
+false      | one         | 2024-05-10T00:10:00.000Z
+true       | three       | 2024-05-10T00:10:00.000Z
+true       | two         | 2024-05-10T00:10:00.000Z
+false      | one         | 2024-05-10T00:20:00.000Z
+false      | three       | 2024-05-10T00:20:00.000Z
+true       | two         | 2024-05-10T00:20:00.000Z
+;

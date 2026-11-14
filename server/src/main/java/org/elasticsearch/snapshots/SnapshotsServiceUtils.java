@@ -40,7 +40,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
@@ -627,28 +626,21 @@ public class SnapshotsServiceUtils {
 
     /**
      * Finds snapshot delete operations that are ready to execute in the given {@link ClusterState} and computes a new cluster state that
-     * has all executable deletes marked as executing. Returns a {@link Tuple} of the updated cluster state and all executable deletes.
-     * This can either be {@link SnapshotDeletionsInProgress.Entry} that were already in state
-     * {@link SnapshotDeletionsInProgress.State#STARTED} or waiting entries in state {@link SnapshotDeletionsInProgress.State#WAITING}
-     * that were moved to {@link SnapshotDeletionsInProgress.State#STARTED} in the returned updated cluster state.
+     * has all executable deletes marked as executing.
      *
      * @param projectId the project for repositories where deletions should be prepared. {@code null} means all projects
      * @param currentState current cluster state
-     * @return tuple of an updated cluster state and currently executable snapshot delete operations
+     * @return the updated cluster state
      */
-    public static Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> readyDeletions(
-        ClusterState currentState,
-        @Nullable ProjectId projectId
-    ) {
+    public static ClusterState startReadyDeletions(ClusterState currentState, @Nullable ProjectId projectId) {
         final SnapshotDeletionsInProgress deletions = SnapshotDeletionsInProgress.get(currentState);
         if (deletions.hasDeletionsInProgress() == false || (projectId != null && deletions.hasDeletionsInProgress(projectId) == false)) {
-            return Tuple.tuple(currentState, List.of());
+            return currentState;
         }
         final SnapshotsInProgress snapshotsInProgress = currentState.custom(SnapshotsInProgress.TYPE);
         assert snapshotsInProgress != null;
         final Set<ProjectRepo> repositoriesSeen = new HashSet<>();
         boolean changed = false;
-        final ArrayList<SnapshotDeletionsInProgress.Entry> readyDeletions = new ArrayList<>();
         final List<SnapshotDeletionsInProgress.Entry> newDeletes = new ArrayList<>();
         for (SnapshotDeletionsInProgress.Entry entry : deletions.getEntries()) {
             if (projectId != null && projectId.equals(entry.projectId()) == false) {
@@ -660,22 +652,31 @@ public class SnapshotsServiceUtils {
             if (repositoriesSeen.add(projectRepo)
                 && entry.state() == SnapshotDeletionsInProgress.State.WAITING
                 && snapshotsInProgress.forRepo(projectRepo).stream().noneMatch(SnapshotsServiceUtils::isWritingToRepository)) {
+                // If we just completed an earlier deletion then we already called `SnapshotsService#updatedSnapshotsInProgress` to start
+                // any snapshot-creation tasks in `SnapshotsInProgress` which were added while the deletion was running. This means that
+                // the above `isWritingToRepository` check is enough to know that there are no higher-priority snapshot creations to run.
+                //
+                // Likewise if we got here by completing a snapshot creation then again the `isWritingToRepository` check ensures that there
+                // are no other higher-priority snapshot creations to run: any such creation tasks would either have active shards or would
+                // be awaiting finalization.
+                //
+                // Otherwise, we got here from `SnapshotExternalChangesBatcher` via a BwC path that removed an ancient ABORTED snapshot
+                // from the queue. Running a deletion despite this ongoing work should be ok, but this path should be impossible today
+                // anyway so it doesn't really matter.
+                //
+                // Note that an initializing clone does not count as a "higher-priority snapshot creation": it's ok for a delete to proceed
+                // while the clone is initializing.
                 changed = true;
-                final SnapshotDeletionsInProgress.Entry newEntry = entry.started();
-                readyDeletions.add(newEntry);
-                newDeletes.add(newEntry);
+                newDeletes.add(entry.started());
             } else {
                 newDeletes.add(entry);
             }
         }
-        return Tuple.tuple(
-            changed
-                ? ClusterState.builder(currentState)
-                    .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(newDeletes))
-                    .build()
-                : currentState,
-            readyDeletions
-        );
+        return changed
+            ? ClusterState.builder(currentState)
+                .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(newDeletes))
+                .build()
+            : currentState;
     }
 
     /**
@@ -805,7 +806,7 @@ public class SnapshotsServiceUtils {
             );
             result = updateWithSnapshots(state, updatedSnapshots, null);
         }
-        return readyDeletions(result, projectId).v1();
+        return startReadyDeletions(result, projectId);
     }
 
     public static void addSnapshotEntry(

@@ -55,6 +55,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -574,6 +575,13 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
          */
         private final long decodedBytesOverWire;
 
+        /**
+         * Whether the stream the values were read from still holds the charge for {@link #decodedBytesOverWire}, or {@code null} if it
+         * charged nothing. Once released, such as for a scroll after its request responded, a search context charges the values instead.
+         */
+        @Nullable
+        private final BooleanSupplier chargedByStream;
+
         // guarded by this
         private int decodedBytesHolders;
         @Nullable
@@ -588,12 +596,16 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
             List<Object> decoded = in.readCollectionAsImmutableList(StreamInput::readGenericValue);
             values = decoded;
             decodedBytesOverWire = Math.max(0L, ramBytesUsed(decoded) - serializedBytes);
+            chargedByStream = decodedBytesOverWire > 0L
+                ? in.chargeDecodedBytes(decodedBytesOverWire, ChildMemoryCircuitBreaker.CATEGORY_TERMS)
+                : null;
         }
 
         private BinaryValues(Collection<?> values, boolean convert) {
             this.convert = convert;
             this.values = values;
             this.decodedBytesOverWire = 0L;
+            this.chargedByStream = null;
         }
 
         private static long ramBytesUsed(List<Object> values) {
@@ -612,12 +624,14 @@ public class TermsQueryBuilder extends LeafQueryBuilder<TermsQueryBuilder> {
 
         /**
          * Charges {@link #decodedBytesOverWire} to the request breaker once per deserialized copy, held while at least one search
-         * context that built a query from it is open. With the batched query phase every shard search of a node shares one copy,
-         * so a per-context charge would count the same memory once per shard.
+         * context that built a query from it is open, unless the stream it was read from still holds the charge. That covers copies read
+         * from other streams, such as stored percolator queries, and copies kept after their request responded, such as for a scroll.
+         * With the batched query phase every shard search of a node shares one copy, so a per-context charge would count the same memory
+         * once per shard.
          */
         private void chargeDecodedBytes(SearchExecutionContext context) {
             CircuitBreaker breaker = context.getCircuitBreaker();
-            if (decodedBytesOverWire == 0L || breaker == null) {
+            if (decodedBytesOverWire == 0L || breaker == null || (chargedByStream != null && chargedByStream.getAsBoolean())) {
                 return;
             }
             synchronized (this) {

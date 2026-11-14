@@ -67,6 +67,7 @@ public final class ServiceUtils {
      * @param <T> The expected type
      */
     @SuppressWarnings("unchecked")
+    @Nullable
     public static <T> T removeAsType(Map<String, Object> sourceMap, String key, Class<T> type) {
         Object o = sourceMap.remove(key);
         if (o == null) {
@@ -155,22 +156,21 @@ public final class ServiceUtils {
     }
 
     @SuppressWarnings("unchecked")
+    @Nullable
     public static Map<String, Object> removeFromMap(Map<String, Object> sourceMap, String fieldName) {
-        return (Map<String, Object>) sourceMap.remove(fieldName);
+        return removeAsType(sourceMap, fieldName, Map.class);
     }
 
-    @SuppressWarnings("unchecked")
     public static Map<String, Object> removeFromMapOrThrowIfNull(Map<String, Object> sourceMap, String fieldName) {
-        Map<String, Object> value = (Map<String, Object>) sourceMap.remove(fieldName);
+        Map<String, Object> value = removeFromMap(sourceMap, fieldName);
         if (value == null) {
             throw new ElasticsearchStatusException("Missing required field [{}]", RestStatus.BAD_REQUEST, fieldName);
         }
         return value;
     }
 
-    @SuppressWarnings("unchecked")
     public static Map<String, Object> removeFromMapOrDefaultEmpty(Map<String, Object> sourceMap, String fieldName) {
-        Map<String, Object> value = (Map<String, Object>) sourceMap.remove(fieldName);
+        Map<String, Object> value = removeFromMap(sourceMap, fieldName);
         if (value == null) {
             return new HashMap<>();
         }

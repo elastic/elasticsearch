@@ -14,6 +14,7 @@ import com.azure.core.http.policy.RetryStrategy;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
 import org.elasticsearch.core.Nullable;
@@ -55,6 +56,12 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
                     }
                     if (httpStatusCode == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
                         throw new RequestedRangeNotSatisfiedException(blob, start, end == Long.MAX_VALUE - 1 ? -1 : end - start, e);
+                    }
+                    if (version != null && httpStatusCode == RestStatus.PRECONDITION_FAILED.getStatus()) {
+                        // Because `version` is set and Azure returns `PRECONDITION_FAILED`, this means that the object was modified.
+                        // We deliberately do not throw `NoSuchFileException`, so that callers do not mistake a file partially read with
+                        // one that was not there.
+                        throw new BlobVersionMismatchException(blob, version, e);
                     }
                 }
                 throw e;

@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -30,12 +31,10 @@ import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KEYE
 import static org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KEYED_IGNORED_VALUES_FIELD_SUFFIX;
 
 /**
- * Block loader for {@link FlattenedFieldMapper.RootFlattenedFieldType} that loads values from doc values, falling back to stored fields
- * when necessary to load ignored values.
+ * Block loader for {@link FlattenedFieldMapper.RootFlattenedFieldType} that loads values from doc values. Like a keyword field, the root
+ * has no value that {@code ignore_above} left out of doc values.
  */
 final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
-    private final Mapper.IgnoreAbove ignoreAbove;
-
     private final BlockFlattenedDocValuesSyntheticFieldLoader fieldLoader;
     private final List<Map.Entry<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader>> storedFieldLoaders;
 
@@ -48,17 +47,22 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
         boolean storeIgnoredFieldsInBinaryDocValues,
         FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
     ) {
-        this.ignoreAbove = ignoreAbove;
+        // The offsets sidecar indexes into the sorted-unique values of a key including those ignore_above left out of doc values, so
+        // the ignored values must be read back to decode it. They are then dropped from the output.
+        boolean offsetsCountIgnoredValues = ignoreAbove.valuesPotentiallyIgnored()
+            && preserveLeafArrays == FlattenedFieldMapper.PreserveLeafArrays.EXACT
+            && usesArrayOrderBinaryDocValues == false;
         this.fieldLoader = new BlockFlattenedDocValuesSyntheticFieldLoader(
             name,
             name + KEYED_FIELD_SUFFIX,
-            ignoreAbove.valuesPotentiallyIgnored() ? name + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+            offsetsCountIgnoredValues ? name + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
             null,
             usesBinaryDocValues,
             usesArrayOrderBinaryDocValues,
             mappedSubFieldLoaders,
-            storeIgnoredFieldsInBinaryDocValues,
-            preserveLeafArrays
+            offsetsCountIgnoredValues && storeIgnoredFieldsInBinaryDocValues,
+            preserveLeafArrays,
+            ignoreAbove
         );
         this.storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
     }
@@ -185,6 +189,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
      * instead of to the "_source" field.
      */
     private static class BlockFlattenedDocValuesSyntheticFieldLoader extends FlattenedDocValuesSyntheticFieldLoader {
+        private final Mapper.IgnoreAbove ignoreAbove;
+
         BlockFlattenedDocValuesSyntheticFieldLoader(
             String fieldFullPath,
             String keyedFieldFullPath,
@@ -194,7 +200,8 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             boolean usesArrayOrderBinaryDocValues,
             List<SourceLoader.SyntheticFieldLoader> mappedSubFieldLoaders,
             boolean storeIgnoredFieldsInBinaryDocValues,
-            FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays
+            FlattenedFieldMapper.PreserveLeafArrays preserveLeafArrays,
+            Mapper.IgnoreAbove ignoreAbove
         ) {
             super(
                 fieldFullPath,
@@ -207,6 +214,30 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
                 preserveLeafArrays,
                 usesArrayOrderBinaryDocValues
             );
+            this.ignoreAbove = ignoreAbove;
+        }
+
+        /**
+         * Drops the values {@code ignore_above} left out of doc values, and a key left with no value, from what the super class
+         * reconstructs.
+         */
+        @Override
+        FlattenedFieldSyntheticWriterHelper.KeyedValueProducer getKeyedValueProducer() throws IOException {
+            var producer = super.getKeyedValueProducer();
+            if (ignoreAbove.valuesPotentiallyIgnored() == false) {
+                return producer;
+            }
+            return () -> {
+                FlattenedFieldSyntheticWriterHelper.OrderedField field;
+                while ((field = producer.next()) != null) {
+                    List<String> values = new ArrayList<>(field.values());
+                    values.removeIf(v -> v != null && ignoreAbove.isIgnored(v));
+                    if (values.isEmpty() == false) {
+                        return new FlattenedFieldSyntheticWriterHelper.OrderedField(field.key(), values);
+                    }
+                }
+                return null;
+            };
         }
 
         public void writeToBlock(BlockLoader.BytesRefBuilder builder) throws IOException {

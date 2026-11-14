@@ -44,6 +44,8 @@ public interface ArrayReader {
 
     Text textValue();
 
+    int valueLength();
+
     /** A reader over the current element's payload; the element must be a {@code UNION_ARRAY} or {@code FIXED_ARRAY}. */
     ArrayReader nestedArray();
 

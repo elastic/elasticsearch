@@ -95,7 +95,11 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SEARCH,
                 searchOrGetThreadPoolSize,
                 searchOrGetThreadPoolSize * 1000,
-                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(searchAutoscalingEWMA).build()
+                EsExecutors.TaskTrackingConfig.builder()
+                    .trackOngoingTasks()
+                    .trackExecutionTime(searchAutoscalingEWMA)
+                    .attributeTaskLoad()
+                    .build()
             )
         );
         result.put(

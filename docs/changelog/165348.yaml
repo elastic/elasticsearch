@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 165348
+summary: Charge node merges and reduces to shards by their results
+type: enhancement

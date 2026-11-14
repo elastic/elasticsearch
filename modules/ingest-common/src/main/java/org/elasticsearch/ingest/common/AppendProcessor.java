@@ -11,8 +11,10 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.FieldPath;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.ValueSource;
@@ -33,9 +35,10 @@ public final class AppendProcessor extends AbstractProcessor {
 
     public static final String TYPE = "append";
 
-    private final TemplateScript.Factory field;
+    private final FieldPath field;
     private final ValueSource value;
-    private final String copyFrom;
+    @Nullable
+    private final FieldPath copyFrom;
     private final boolean allowDuplicates;
     private final boolean ignoreEmptyValues;
 
@@ -49,14 +52,14 @@ public final class AppendProcessor extends AbstractProcessor {
         boolean ignoreEmptyValues
     ) {
         super(tag, description);
-        this.field = field;
+        this.field = FieldPath.of(field);
         this.value = value;
-        this.copyFrom = copyFrom;
+        this.copyFrom = FieldPath.ofNullable(copyFrom);
         this.allowDuplicates = allowDuplicates;
         this.ignoreEmptyValues = ignoreEmptyValues;
     }
 
-    public TemplateScript.Factory getField() {
+    public FieldPath getField() {
         return field;
     }
 
@@ -64,18 +67,18 @@ public final class AppendProcessor extends AbstractProcessor {
         return value;
     }
 
-    public String getCopyFrom() {
+    @Nullable
+    public FieldPath getCopyFrom() {
         return copyFrom;
     }
 
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
-        String path = document.renderTemplate(field);
         if (copyFrom != null) {
             Object fieldValue = document.getFieldValue(copyFrom, Object.class, ignoreEmptyValues);
-            document.appendFieldValue(path, CollectionUtils.deepCopy(fieldValue), allowDuplicates, ignoreEmptyValues);
+            document.appendFieldValue(field, CollectionUtils.deepCopy(fieldValue), allowDuplicates, ignoreEmptyValues);
         } else {
-            document.appendFieldValue(path, value, allowDuplicates, ignoreEmptyValues);
+            document.appendFieldValue(field, value, allowDuplicates, ignoreEmptyValues);
         }
         return document;
     }

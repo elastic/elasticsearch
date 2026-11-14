@@ -712,6 +712,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 RecoveryState::new,
                 localNode,
                 sourceNode,
+                0,
                 indexSettings,
                 shardPath,
                 store,

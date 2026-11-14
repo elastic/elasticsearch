@@ -122,8 +122,9 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
     public void testOnLabelAbsentFromOneOperandMatchesNothing() throws IOException {
         // The probe side groups only by cluster, so its pod is PromQL's empty string; every build series carries a
         // concrete pod. Nothing matches - the query degrades gracefully to an empty result instead of failing to plan.
+        // The group copy list is empty because matching labels cannot also appear in it.
         assertRows(
-            "PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) / on (cluster, pod) group_left (pod) "
+            "PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) / on (cluster, pod) group_left () "
                 + "sum by (cluster, pod) (network.eth0.rx)) "
                 + "| KEEP result, cluster, pod, step",
             List.of()

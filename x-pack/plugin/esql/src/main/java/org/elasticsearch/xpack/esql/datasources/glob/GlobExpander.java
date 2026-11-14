@@ -783,7 +783,8 @@ public final class GlobExpander {
         }
         // An untruncated empty drain is conclusive: it saw every key under the prefix, so the dataset has none.
         // A rewrite listed a different prefix and cannot say that, and a truncated empty result was cut short by
-        // matches the partition-value filter dropped - matches past the bound may survive it. Both still retry.
+        // matches a partition-value or _file.* filter dropped - matches past the bound may survive it. Both still
+        // retry.
         if (failure == null && rewritten == false && narrowed.isTruncated() == false) {
             return narrowed;
         }
@@ -1440,7 +1441,11 @@ public final class GlobExpander {
                 }
             }
 
-        if (matched.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
+        // Same truncated guard as the partition-value branch above. A bound that filled with
+        // _file.* rejects has not seen the rest of the pattern; a match may sit past it.
+        // expandGlobWithRewriteFallback then re-lists unbounded, where a genuine all-miss
+        // still promotes.
+        if (matched.isEmpty() && fileHintAnchor != null && truncated == false && maxDiscoveredFiles > 0) {
             matched.add(fileHintAnchor);
         }
 
@@ -2408,8 +2413,9 @@ public final class GlobExpander {
      * set, else this reject, as the schema-inference stash. The discovered-files cap fires only on a kept file, so a
      * {@code _file.*} filter can hold the kept set under the cap while listing continues. An all-pruned result is
      * genuinely zero rows, but the resolver needs one file to infer schema; the caller promotes a stashed anchor when
-     * {@code matched} is empty. That also keeps a genuine {@code _file.*} miss out of
-     * {@link #expandGlobWithRewriteFallback}'s rewrite-only retry.
+     * {@code matched} is empty and the listing is untruncated. A truncated empty keep retries unbounded instead:
+     * the rejects seen are only those ahead of the bound, so the stash is not a property of the dataset. That also
+     * keeps a genuine {@code _file.*} miss out of {@link #expandGlobWithRewriteFallback}'s rewrite-only retry.
      * <p>
      * One stashed file is intentional. The previous post-filter path returned every pre-filter match when
      * {@code _file.*} emptied the list, which would put those files back under {@code max_discovered_files} and

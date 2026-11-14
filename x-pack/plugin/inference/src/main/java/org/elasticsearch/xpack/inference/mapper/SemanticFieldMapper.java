@@ -200,17 +200,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             this.meta = configureMetaParam();
         }
 
-        public Builder(SemanticFieldMapper mapper) {
-            this(
-                mapper.leafName(),
-                mapper.fieldType().getChunksField().bitsetProducer(),
-                mapper.fieldType().getChunksField().indexSettings(),
-                mapper.modelRegistry,
-                mapper.vectorsFormatProviders
-            );
-            init(mapper);
-        }
-
         public Builder setInferenceId(String id) {
             this.inferenceId.setValue(id);
             return this;
@@ -221,18 +210,27 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             return this;
         }
 
+        /**
+         * Set model configuration inferred from a document.
+         *
+         * @throws IllegalArgumentException if the settings conflict with those already set
+         */
+        public void inferModelSettings(EndpointClusterState value) {
+            if (modelSettings.isSet()) {
+                Conflicts conflicts = new Conflicts(leafName());
+                canMergeModelSettings(modelSettings.getValue(), value, conflicts);
+                conflicts.check();
+            }
+            setModelSettings(value);
+        }
+
         public Builder setChunkingSettings(ChunkingSettings value) {
             this.chunkingSettings.setValue(value);
             return this;
         }
 
         protected Parameter<String> configureInferenceIdParam() {
-            return Parameter.stringParam(
-                INFERENCE_ID_FIELD,
-                true,
-                mapper -> ((SemanticFieldType) mapper.fieldType()).inferenceId,
-                getDefaultInferenceId()
-            ).addValidator(v -> {
+            return Parameter.stringParam(INFERENCE_ID_FIELD, true, getDefaultInferenceId()).addValidator(v -> {
                 if (Strings.isEmpty(v)) {
                     throw new IllegalArgumentException(
                         "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + contentType() + "] must not be empty"
@@ -246,12 +244,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         protected Parameter<String> configureSearchInferenceIdParam() {
-            return Parameter.stringParam(
-                SEARCH_INFERENCE_ID_FIELD,
-                true,
-                mapper -> ((SemanticFieldType) mapper.fieldType()).searchInferenceId,
-                null
-            ).acceptsNull().addValidator(v -> {
+            return Parameter.stringParam(SEARCH_INFERENCE_ID_FIELD, true, null).acceptsNull().addValidator(v -> {
                 if (v != null && Strings.isEmpty(v)) {
                     throw new IllegalArgumentException(
                         "["
@@ -272,7 +265,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 true,
                 () -> null,
                 (n, c, o) -> SemanticTextField.parseModelSettingsFromMap(o),
-                mapper -> ((SemanticFieldType) mapper.fieldType()).modelSettings,
                 (b, n, v) -> {
                     if (v != null) {
                         b.field(MODEL_SETTINGS_FIELD, v, EndpointClusterState.withoutEndpointMetadata());
@@ -302,7 +294,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 true,
                 () -> null,
                 (n, c, o) -> parseIndexOptionsFromMap(n, o, c, experimentalFeaturesEnabled),
-                mapper -> ((SemanticFieldType) mapper.fieldType()).indexOptions,
                 (b, n, v) -> {
                     throw new IllegalStateException("Serializer for [" + INDEX_OPTIONS_FIELD + "] should not be called");
                 },
@@ -347,7 +338,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 true,
                 () -> null,
                 (n, c, o) -> SemanticTextField.parseChunkingSettingsFromMap(o),
-                mapper -> ((SemanticFieldType) mapper.fieldType()).chunkingSettings,
                 XContentBuilder::field,
                 Objects::toString
             ).acceptsNull();
@@ -444,6 +434,10 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
             Builder semanticIncoming = (Builder) incoming;
 
+            // Keep the existing inference_id when omitted: the default may now resolve to a different endpoint
+            if (semanticIncoming.inferenceId.isSet() == false) {
+                semanticIncoming.setInferenceId(inferenceId.get());
+            }
             final boolean isInferenceIdUpdate = semanticIncoming.inferenceId.get().equals(inferenceId.get()) == false;
             final boolean hasExplicitModelSettings = modelSettings.get() != null;
 
@@ -615,8 +609,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 builderParams,
                 indexVersionCreated,
                 indexSettings.getMode(),
-                modelRegistry,
-                vectorsFormatProviders,
                 sourceColumnarStored
             );
         }
@@ -645,8 +637,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
     }
 
-    protected final ModelRegistry modelRegistry;
-    protected final List<VectorsFormatProvider> vectorsFormatProviders;
     protected final IndexVersion indexCreatedVersion;
     protected final IndexMode indexMode;
     /** Whether the original input is left out of the {@code columnar_stored} {@code _source} and patched back from doc values. */
@@ -658,16 +648,12 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         BuilderParams builderParams,
         IndexVersion indexCreatedVersion,
         IndexMode indexMode,
-        ModelRegistry modelRegistry,
-        List<VectorsFormatProvider> vectorsFormatProviders,
         boolean sourceColumnarStored
     ) {
         super(simpleName, mappedFieldType, builderParams);
         ensureMultiFields(builderParams.multiFields().iterator());
         this.indexCreatedVersion = indexCreatedVersion;
         this.indexMode = indexMode;
-        this.modelRegistry = modelRegistry;
-        this.vectorsFormatProviders = vectorsFormatProviders;
         this.patchedIntoSource = sourceColumnarStored && mappedFieldType.storesOriginalValuesInDocValues;
     }
 
@@ -695,11 +681,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
         mappers.add(fieldType().getInferenceField());
         return mappers.iterator();
-    }
-
-    @Override
-    public SemanticFieldMapper.Builder getMergeBuilder() {
-        return new Builder(this);
     }
 
     @Override
@@ -926,15 +907,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             try {
                 conflicts.check();
             } catch (Exception exc) {
-                throw new DocumentParsingException(
-                    xContentLocation,
-                    "Incompatible model settings for field ["
-                        + fullPath()
-                        + "]. Check that the "
-                        + INFERENCE_ID_FIELD
-                        + " is not using different model settings",
-                    exc
-                );
+                throw incompatibleModelSettings(xContentLocation, exc);
             }
             mapper = this;
         }
@@ -1006,25 +979,40 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
     }
 
+    private DocumentParsingException incompatibleModelSettings(XContentLocation location, Exception cause) {
+        return new DocumentParsingException(
+            location,
+            "Incompatible model settings for field ["
+                + fullPath()
+                + "]. Check that the "
+                + INFERENCE_ID_FIELD
+                + " is not using different model settings",
+            cause
+        );
+    }
+
     protected SemanticFieldMapper addDynamicUpdate(DocumentParserContext context, SemanticTextField field) {
-        Builder builder = getMergeBuilder();
         context.path().remove();
         try {
-            builder.setModelSettings(field.inference().modelSettings()).setInferenceId(field.inference().inferenceId());
+            Builder update;
+            try {
+                update = (Builder) context.updateMapping(
+                    fullPath(),
+                    builder -> ((Builder) builder).setInferenceId(field.inference().inferenceId())
+                        .inferModelSettings(field.inference().modelSettings())
+                );
+            } catch (IllegalArgumentException exc) {
+                throw incompatibleModelSettings(context.parser().getTokenLocation(), exc);
+            }
             if (context.mappingLookup().isMultiField(fullPath())) {
-                // The field is part of a multi-field, so the parent field must also be updated accordingly.
                 var fieldName = context.path().remove();
                 try {
-                    var parentMapper = ((FieldMapper) context.mappingLookup().getMapper(context.mappingLookup().parentField(fullPath())))
-                        .getMergeBuilder();
-                    String parentFullPath = context.mappingLookup().parentField(fullPath());
-                    context.addDynamicMapper(parentMapper.addMultiField(builder), parentFullPath);
-                    return builder.build(context.createDynamicMapperBuilderContext());
+                    return update.build(context.createDynamicMapperBuilderContext());
                 } finally {
                     context.path().add(fieldName);
                 }
             } else {
-                return (SemanticFieldMapper) context.getDynamicMapper(builder);
+                return update.build(context.createDynamicMapperBuilderContext());
             }
         } finally {
             context.path().add(leafName());

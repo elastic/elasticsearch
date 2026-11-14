@@ -40,6 +40,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
@@ -125,8 +126,14 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     }
 
     @Override
+    protected List<QueryBuilder> subQueriesHiddenFromVisit(QueryBuilder builder) {
+        // the inner query is built when the query is built, but LateParsingQuery is a leaf that hides it from the visitor
+        return builder instanceof HasParentQueryBuilder q ? List.of(q.query()) : List.of();
+    }
+
+    @Override
     protected HasParentQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        return new HasParentQueryBuilder("type", queryBuilder, randomBoolean());
+        return new HasParentQueryBuilder(PARENT_DOC, queryBuilder, randomBoolean());
     }
 
     @Override

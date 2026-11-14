@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 164841
+summary: "[Inference API] Disable automatic retries in the outbound http client"
+type: bug

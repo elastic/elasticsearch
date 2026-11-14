@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -57,6 +58,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SourceFieldMapperTests extends MetadataMapperTestCase {
@@ -232,6 +234,15 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertThat(e.getMessage(), containsString("Cannot set both [mode] and [enabled] parameters"));
     }
 
+    public void testSerializingDoesNotHideInvalidSourceParameters() throws IOException {
+        MappingBuilder mappingBuilder = createMapperService(mapping(b -> {})).parseMappings(new CompressedXContent("""
+            { "_doc": { "_source": { "enabled": false, "mode": "synthetic" } } }
+            """));
+        mappingBuilder.toCompressedXContent();
+        Exception e = expectThrows(MapperParsingException.class, () -> mappingBuilder.build(MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("Cannot set both [mode] and [enabled] parameters"));
+    }
+
     public void testSyntheticUpdates() throws Exception {
         MapperService mapperService = createMapperService("""
             { "_doc" : { "_source" : { "mode" : "synthetic" } } }
@@ -294,28 +305,28 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         });
         DocumentMapper mapper = createTimeSeriesModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSyntheticSourceWithLogsIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createLogsModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSyntheticSourceWithColumnarIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createColumnarModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSyntheticSourceWithColumnarLogsdbIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createColumnarLogsdbModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{}", mapper.sourceMapper().toString());
+        assertThat(mapper.mappingSource().string(), not(containsString("_source")));
     }
 
     public void testSupportsNonDefaultParameterValues() throws IOException {
@@ -734,7 +745,8 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
             .build();
-        MapperService mapperService = createMapperService(settings, mapping(b -> {
+        // Pinned before doc_values became a no-op in columnar: the test needs text fields that really have no doc values.
+        MapperService mapperService = createMapperService(randomVersionBeforeDocValuesNoOp(), settings, mapping(b -> {
             b.startObject("lng").field("type", "long").endObject();
             b.startObject("kwd").field("type", "keyword").endObject();
             b.startObject("txt").field("type", "text").field("doc_values", false).endObject();

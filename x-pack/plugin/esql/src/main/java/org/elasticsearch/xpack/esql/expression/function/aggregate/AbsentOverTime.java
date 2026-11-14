@@ -47,9 +47,9 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
         .description("Returns `1` if the range vector has no elements, and nothing otherwise.")
         .example("absent_over_time(nonexistent_metric[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(
+        .stdDivergence(
             "Evaluated per series: returns `1` for a series that has documents in the range but no value of the field. "
-                + "Prometheus instead reports a selector without any sample by synthesizing a single `1` from the "
+                + "{{prom}} instead reports a selector without any sample by synthesizing a single `1` from the "
                 + "selector labels. {{es}} evaluates only series that already exist in the data, so it cannot flag a "
                 + "metric that is entirely absent, nor a gap in a field mapped as a time series metric, because only "
                 + "documents with a value of such a field are read."
@@ -75,6 +75,9 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction implements Aggre
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
+                "counter_double",
+                "counter_integer",
+                "counter_long",
                 "date",
                 "date_nanos",
                 "dense_vector",

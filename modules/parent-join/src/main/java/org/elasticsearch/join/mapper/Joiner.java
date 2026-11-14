@@ -9,17 +9,18 @@
 
 package org.elasticsearch.join.mapper;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper.JoinFieldType;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,13 +60,13 @@ public final class Joiner {
     private final Map<String, Set<String>> parentsToChildren = new HashMap<>();
     private final Map<String, String> childrenToParents = new HashMap<>();
 
-    private final String joinField;
+    private final JoinFieldType joinFieldType;
 
     /**
      * Constructs a Joiner based on a join field and a set of relations
      */
-    Joiner(String joinField, List<Relations> relations) {
-        this.joinField = joinField;
+    Joiner(JoinFieldType joinFieldType, List<Relations> relations) {
+        this.joinFieldType = joinFieldType;
         for (Relations r : relations) {
             for (String child : r.children()) {
                 parentsToChildren.put(r.parent(), r.children());
@@ -81,31 +82,56 @@ public final class Joiner {
      * @return the join field for the index
      */
     public String getJoinField() {
-        return joinField;
+        return joinFieldType.name();
     }
 
     /**
      * @return a filter for documents of a specific join type
      */
-    public Query filter(String relationType) {
-        return new TermQuery(new Term(joinField, relationType));
+    public Query filter(String relationType, SearchExecutionContext context) {
+        return joinFieldType.termQuery(relationType, context);
+    }
+
+    /**
+     * @return a filter for documents of a specific join type
+     */
+    public Query filter(String relationType, AggregationContext context) throws IOException {
+        return context.buildQuery(new TermQueryBuilder(getJoinField(), relationType));
     }
 
     /**
      * @return a filter for parent documents of a specific child type
      */
-    public Query parentFilter(String childType) {
-        return new TermQuery(new Term(joinField, childrenToParents.get(childType)));
+    public Query parentFilter(String childType, SearchExecutionContext context) {
+        return filter(childrenToParents.get(childType), context);
+    }
+
+    /**
+     * @return a filter for parent documents of a specific child type
+     */
+    public Query parentFilter(String childType, AggregationContext context) throws IOException {
+        return filter(childrenToParents.get(childType), context);
+    }
+
+    /**
+     * @return a filter for child documents of a specific child type whose parent has the given id
+     */
+    public Query parentIdFilter(String childType, String parentId, SearchExecutionContext context) {
+        String field = parentJoinField(childType);
+        if (context.isFieldMapped(field) == false) {
+            return MatchNoDocsQuery.INSTANCE;
+        }
+        return context.getFieldType(field).termQuery(parentId, context);
     }
 
     /**
      * @return a filter for child documents of a specific parent type
      */
-    public Query childrenFilter(String parentType) {
+    public Query childrenFilter(String parentType, SearchExecutionContext context) {
         assert parentTypeExists(parentType);
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (String child : parentsToChildren.get(parentType)) {
-            builder.add(filter(child), BooleanClause.Occur.SHOULD);
+            builder.add(filter(child, context), BooleanClause.Occur.SHOULD);
         }
         return new ConstantScoreQuery(builder.build());
     }
@@ -136,14 +162,14 @@ public final class Joiner {
      * @return the name of the linked join field for documents of a specific child type
      */
     public String parentJoinField(String childType) {
-        return joinField + "#" + childrenToParents.get(childType);
+        return getJoinField() + "#" + childrenToParents.get(childType);
     }
 
     /**
      * @return the name of the linked join field for documents of a specific parent type
      */
     public String childJoinField(String parentType) {
-        return joinField + "#" + parentType;
+        return getJoinField() + "#" + parentType;
     }
 
     boolean canMerge(Joiner other, Consumer<String> conflicts) {

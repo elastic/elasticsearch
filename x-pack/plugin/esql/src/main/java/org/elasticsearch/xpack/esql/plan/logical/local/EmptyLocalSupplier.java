@@ -33,6 +33,11 @@ public class EmptyLocalSupplier implements LocalSupplier {
     }
 
     @Override
+    public Page peek() {
+        return get();
+    }
+
+    @Override
     public String toString() {
         return "EMPTY";
     }

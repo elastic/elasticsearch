@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165776
+summary: "ES|QL|DS: complete a dataset scan when a worker leaves before streaming"
+type: bug

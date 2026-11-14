@@ -79,28 +79,18 @@ public class RangeFieldMapper extends FieldMapper {
     // this is private since it has a different default
     static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", true, Setting.Property.IndexScope);
 
-    private static RangeFieldMapper toType(FieldMapper in) {
-        return (RangeFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
+        private final Parameter<Boolean> index = Parameter.indexParam(true);
+        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(true);
+        private final Parameter<Boolean> store = Parameter.storeParam(false);
         private final Parameter<Explicit<Boolean>> coerce;
-        private final Parameter<String> format = Parameter.stringParam(
-            "format",
-            false,
-            m -> toType(m).format,
-            Defaults.DATE_FORMATTER.pattern()
-        );
+        private final Parameter<String> format = Parameter.stringParam("format", false, Defaults.DATE_FORMATTER.pattern());
         private final Parameter<Locale> locale = new Parameter<>(
             "locale",
             false,
             () -> Defaults.LOCALE,
             (n, c, o) -> LocaleUtils.parse(o.toString()),
-            m -> toType(m).locale,
             (xContentBuilder, n, v) -> xContentBuilder.field(n, v.toString()),
             Objects::toString
         );
@@ -115,7 +105,7 @@ public class RangeFieldMapper extends FieldMapper {
         public Builder(String name, RangeType type, boolean coerceByDefault) {
             super(name);
             this.type = type;
-            this.coerce = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
+            this.coerce = Parameter.explicitBoolParam("coerce", true, coerceByDefault);
             if (this.type != RangeType.DATE) {
                 format.neverSerialize();
                 locale.neverSerialize();
@@ -388,10 +378,6 @@ public class RangeFieldMapper extends FieldMapper {
     private final boolean hasDocValues;
     private final boolean store;
     private final Explicit<Boolean> coerce;
-    private final String format;
-    private final Locale locale;
-
-    private final boolean coerceByDefault;
 
     private RangeFieldMapper(
         String simpleName,
@@ -406,18 +392,10 @@ public class RangeFieldMapper extends FieldMapper {
         this.hasDocValues = builder.hasDocValues.getValue();
         this.store = builder.store.getValue();
         this.coerce = builder.coerce.getValue();
-        this.format = builder.format.getValue();
-        this.locale = builder.locale.getValue();
-        this.coerceByDefault = builder.coerce.getDefaultValue().value();
     }
 
     boolean coerce() {
         return coerce.value();
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), type, coerceByDefault).init(this);
     }
 
     @Override

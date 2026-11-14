@@ -242,10 +242,6 @@ public interface RuntimeField extends ToXContentFragment {
         }));
     }
 
-    static <T> Function<FieldMapper, T> initializerNotSupported() {
-        return mapper -> { throw new UnsupportedOperationException(); };
-    }
-
     static Script parseScript(String name, MappingParserContext parserContext, Object scriptObject) {
         Script script = Script.parse(scriptObject);
         if (script.getType() == ScriptType.STORED) {

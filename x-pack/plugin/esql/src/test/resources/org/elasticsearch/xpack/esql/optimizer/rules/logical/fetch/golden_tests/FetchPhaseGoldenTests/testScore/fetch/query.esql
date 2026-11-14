@@ -1,0 +1,5 @@
+FROM employees METADATA _score
+| WHERE first_name == "Georgi"
+| SORT _score DESC
+| LIMIT 10
+| KEEP first_name, last_name, _score

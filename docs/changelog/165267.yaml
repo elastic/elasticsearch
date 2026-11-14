@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 165265
+pr: 165267
+summary: Reject index sort fields without an `IndexSorter`
+type: bug

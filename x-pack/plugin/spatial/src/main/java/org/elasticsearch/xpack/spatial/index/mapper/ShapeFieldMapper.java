@@ -73,29 +73,25 @@ import java.util.function.Function;
 public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry> {
     public static final String CONTENT_TYPE = "shape";
 
-    private static Builder builder(FieldMapper in) {
-        return ((ShapeFieldMapper) in).builder;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+        final Parameter<Boolean> indexed = Parameter.indexParam(true);
         final Parameter<Boolean> hasDocValues;
 
         private final IndexVersion version;
         final Parameter<Explicit<Boolean>> ignoreMalformed;
-        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
+        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam();
         final Parameter<Explicit<Boolean>> coerce;
-        final Parameter<Explicit<Orientation>> orientation = orientationParam(m -> builder(m).orientation.get());
+        final Parameter<Explicit<Orientation>> orientation = orientationParam();
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name, IndexVersion version, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
             super(name);
             this.version = version;
-            this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
-            this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
-            this.hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), IndexVersions.V_8_4_0.onOrBefore(version));
+            this.ignoreMalformed = ignoreMalformedParam(ignoreMalformedByDefault);
+            this.coerce = coerceParam(coerceByDefault);
+            this.hasDocValues = Parameter.docValuesParam(IndexVersions.V_8_4_0.onOrBefore(version));
         }
 
         @Override
@@ -286,7 +282,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
     }
 
-    private final Builder builder;
     private final CartesianShapeIndexer indexer;
 
     public ShapeFieldMapper(
@@ -306,7 +301,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             builder.orientation.get(),
             parser
         );
-        this.builder = builder;
         this.indexer = new CartesianShapeIndexer(mappedFieldType.name());
     }
 
@@ -365,16 +359,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            builder.version,
-            builder.ignoreMalformed.getDefaultValue().value(),
-            builder.coerce.getDefaultValue().value()
-        ).init(this);
     }
 
     @Override

@@ -341,9 +341,9 @@ public class ViewServiceTests extends ESTestCase {
     public void testValidateViewWarnsWhenQueryIsNotValid() {
         var service = viewServiceFailingAnalysisWith(new VerificationException("Found 1 problem\nline 1:6: Unknown index [missing]"));
 
-        validateView(service, new View("v", "FROM missing", null, false));
+        var warning = validateView(service, new View("v", "FROM missing", null, false));
 
-        assertWarnings("view [v] query is not valid: Found 1 problem line 1:6: Unknown index [missing]");
+        assertThat(warning, equalTo("view [v] query is not valid: Found 1 problem line 1:6: Unknown index [missing]"));
         assertThat(service.get(ProjectId.DEFAULT, "v"), nullValue());
     }
 
@@ -358,14 +358,12 @@ public class ViewServiceTests extends ESTestCase {
             new ElasticsearchSecurityException("not allowed", RestStatus.FORBIDDEN),
             new ElasticsearchStatusException("something broke", RestStatus.INTERNAL_SERVER_ERROR)
         )) {
-            validateView(viewServiceFailingAnalysisWith(failure), new View("v", "FROM missing", null, false));
-            ensureNoWarnings();
+            assertThat(validateView(viewServiceFailingAnalysisWith(failure), new View("v", "FROM missing", null, false)), nullValue());
         }
     }
 
     public void testValidateViewDoesNotWarnWhenQueryIsValid() {
-        validateView(viewService, new View("v", "FROM some-index", null, false));
-        ensureNoWarnings();
+        assertThat(validateView(viewService, new View("v", "FROM some-index", null, false)), nullValue());
     }
 
     public void testPutViewDoesNotAnalyze() {
@@ -380,10 +378,10 @@ public class ViewServiceTests extends ESTestCase {
         return new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onFailure(failure));
     }
 
-    private void validateView(ViewService service, View view) {
-        var future = new PlainActionFuture<Void>();
+    private String validateView(ViewService service, View view) {
+        var future = new PlainActionFuture<String>();
         service.validateView(ProjectId.DEFAULT, view, future);
-        future.actionGet(10, TimeUnit.SECONDS);
+        return future.actionGet(10, TimeUnit.SECONDS);
     }
 
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {

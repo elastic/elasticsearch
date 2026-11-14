@@ -32,7 +32,7 @@ The default and maximum limits can be changed using these dynamic cluster settin
 * `esql.query.result_truncation_default_size`
 * `esql.query.result_truncation_max_size`
 
-For time-series queries that use the [`TS`](/reference/query-languages/esql/commands/ts.md) or [`PROMQL`](/reference/query-languages/esql/commands/promql.md) source commands (including requests to the [PromQL HTTP API](/reference/query-languages/promql/promql-http-api.md)), the default and maximum limits are higher and can be changed using these cluster settings:
+For time-series queries that use the [`TS`](/reference/query-languages/esql/commands/ts.md) or [`PROMQL`](/reference/query-languages/esql/commands/promql.md) source commands (including requests to the [{{promql}} HTTP API](/reference/query-languages/promql/promql-http-api.md)), the default and maximum limits are higher and can be changed using these cluster settings:
 
 * `esql.query.timeseries_result_truncation_default_size`
 * `esql.query.timeseries_result_truncation_max_size`

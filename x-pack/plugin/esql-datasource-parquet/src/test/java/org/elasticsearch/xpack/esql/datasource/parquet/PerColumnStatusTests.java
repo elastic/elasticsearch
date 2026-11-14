@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -60,5 +63,12 @@ public class PerColumnStatusTests extends ESTestCase {
     public void testMaterializationConstants() {
         assertEquals("eager", PerColumnStatus.MATERIALIZATION_EAGER);
         assertEquals("late", PerColumnStatus.MATERIALIZATION_LATE);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileSchema() {
+        Map<String, Object> properties = (Map<String, Object>) PerColumnStatus.PROFILE_SCHEMA.schema().get("properties");
+        assertEquals(ProfileSchema.enumeration("eager", "late"), properties.get("materialization"));
+        assertEquals(0, ((java.util.List<?>) PerColumnStatus.PROFILE_SCHEMA.schema().get("required")).size());
     }
 }

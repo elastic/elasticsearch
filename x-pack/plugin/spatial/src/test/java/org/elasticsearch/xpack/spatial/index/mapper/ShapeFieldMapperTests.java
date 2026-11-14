@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -23,11 +22,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.xcontent.ToXContent;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -282,19 +279,19 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     public void testSerializeDefaults() throws Exception {
-        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        String serialized = toXContentString((ShapeFieldMapper) defaultMapper.mappers().getMapper(FIELD_NAME));
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        String serialized = toXContentString(mapperService);
         assertTrue(serialized, serialized.contains("\"orientation\":\"" + Orientation.RIGHT + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":true"));
     }
 
     public void testSerializeDocValues() throws IOException {
         boolean docValues = randomBoolean();
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", getFieldName());
             b.field("doc_values", docValues);
         }));
-        String serialized = toXContentString((ShapeFieldMapper) mapper.mappers().getMapper(FIELD_NAME));
+        String serialized = toXContentString(mapperService);
         assertTrue(serialized, serialized.contains("\"orientation\":\"" + Orientation.RIGHT + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
     }
@@ -347,17 +344,8 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         assertThat(ex.getCause().getMessage(), containsString("Polygon self-intersection at lat=0.5 lon=0.5"));
     }
 
-    public String toXContentString(AbstractShapeGeometryFieldMapper<?> mapper, boolean includeDefaults) {
-        if (includeDefaults) {
-            ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"));
-            return Strings.toString(mapper, params);
-        } else {
-            return Strings.toString(mapper);
-        }
-    }
-
-    public String toXContentString(AbstractShapeGeometryFieldMapper<?> mapper) {
-        return toXContentString(mapper, true);
+    public String toXContentString(MapperService mapperService) throws IOException {
+        return fieldMappingToString(mapperService, FIELD_NAME, INCLUDE_DEFAULTS);
     }
 
     @Override
@@ -379,5 +367,11 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();
+    }
+
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        // multi-fields have no effect on a shape field, and adding one is only warned about
+        return false;
     }
 }

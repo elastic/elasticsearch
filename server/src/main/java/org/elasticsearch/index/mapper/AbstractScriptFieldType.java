@@ -304,15 +304,11 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
             true,
             () -> null,
             RuntimeField::parseScript,
-            RuntimeField.initializerNotSupported(),
             XContentBuilder::field,
             Objects::toString
         ).setSerializerCheck((id, ic, v) -> ic);
 
-        private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(
-            m -> m.builderParams.onScriptError(),
-            script
-        );
+        private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(script);
 
         protected Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);

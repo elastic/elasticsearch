@@ -241,6 +241,75 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
     }
 
+    /**
+     * Each shard counts its slices until they are read: a slice is read once the next one is asked for after it, or
+     * once it is given back unfinished.
+     */
+    public void testUnfinishedSlicesPerShard() {
+        var first = new LuceneSourceOperatorTests.MockShardContext(null);
+        var second = new LuceneSourceOperatorTests.MockShardContext(null);
+        LeafReaderContext leaf = new MockLeafReader(100).getContext();
+        List<LuceneSlice> sliceList = new ArrayList<>();
+        for (var shard : List.of(first, first, second)) {
+            sliceList.add(
+                new LuceneSlice(
+                    sliceList.size(),
+                    false,
+                    shard,
+                    List.of(new PartialLeafReaderContext(leaf, 0, 100)),
+                    null,
+                    null,
+                    LuceneSlice.NEVER_BLOCKED
+                )
+            );
+        }
+        LuceneSliceQueue queue = new LuceneSliceQueue(i -> first, sliceList, Map.of());
+        assertThat(first.unfinishedSlices(), equalTo(2));
+        assertThat(second.unfinishedSlices(), equalTo(1));
+
+        LuceneSlice slice = queue.nextSlice(null);
+        assertThat(first.unfinishedSlices() + second.unfinishedSlices(), equalTo(3));
+        int read = 0;
+        LuceneSlice next;
+        while ((next = queue.nextSlice(slice)) != null) {
+            read++;
+            assertThat(first.unfinishedSlices() + second.unfinishedSlices(), equalTo(3 - read));
+            slice = next;
+        }
+        assertThat(first.unfinishedSlices() + second.unfinishedSlices(), equalTo(0));
+
+        LuceneSliceQueue abandoned = new LuceneSliceQueue(i -> first, List.of(sliceList.get(0)), Map.of());
+        assertThat(first.unfinishedSlices(), equalTo(1));
+        abandoned.finished(abandoned.nextSlice(null));
+        assertThat(first.unfinishedSlices(), equalTo(0));
+    }
+
+    /**
+     * Once the last operator reading a queue stops, for example on reaching a limit, the slices nobody took count as read.
+     */
+    public void testSlicesLeftWhenTheLastReaderStopsCountAsRead() {
+        var shard = new LuceneSourceOperatorTests.MockShardContext(null);
+        LeafReaderContext leaf = new MockLeafReader(100).getContext();
+        List<LuceneSlice> sliceList = new ArrayList<>();
+        int numSlices = between(2, 10);
+        for (int i = 0; i < numSlices; i++) {
+            sliceList.add(
+                new LuceneSlice(i, false, shard, List.of(new PartialLeafReaderContext(leaf, 0, 100)), null, null, LuceneSlice.NEVER_BLOCKED)
+            );
+        }
+        LuceneSliceQueue queue = new LuceneSliceQueue(i -> shard, sliceList, Map.of());
+        queue.addReader();
+        queue.addReader();
+        LuceneSlice read = queue.nextSlice(null);
+        queue.finished(read);
+        assertThat(shard.unfinishedSlices(), equalTo(numSlices - 1));
+        queue.removeReader();
+        assertThat(shard.unfinishedSlices(), equalTo(numSlices - 1));
+        queue.removeReader();
+        assertThat(shard.unfinishedSlices(), equalTo(0));
+        assertNull(queue.nextSlice(null));
+    }
+
     public void testRandom() throws Exception {
         List<LuceneSlice> sliceList = new ArrayList<>();
         int numShards = randomIntBetween(1, 10);

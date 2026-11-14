@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -18,14 +17,15 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
@@ -62,28 +62,83 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         throw new UnsupportedOperationException("not serialized");
     }
 
+    /**
+     * A merge is resolved once its branches are and its output has a column for every column a branch produces. The branches do not
+     * have to line up with the output: a branch lacking a column contributes nulls to it, and the optimizer materializes that
+     * alignment (see {@link MergeBranchAlignment}). Until then, the output is what the rest of the plan reads.
+     * <p>
+     * A branch column that is never a merge column does not count: the no-fields marker and IN-subquery marks. Neither does a
+     * synthetic attribute that appears in a branch once the merge has columns; it only becomes a merge column if a rule that owns it
+     * puts it in the output explicitly (e.g. a union-type conversion pushed into the branches).
+     */
     @Override
     public boolean expressionsResolved() {
         if (children().stream().allMatch(LogicalPlan::resolved) == false) {
             return false;
         }
+        Set<String> outputNames = new HashSet<>(output.size());
+        for (Attribute attr : output) {
+            outputNames.add(attr.name());
+        }
+        for (LogicalPlan child : children()) {
+            for (Attribute attr : child.output()) {
+                if (outputNames.contains(attr.name()) == false && isMergeColumnCandidate(attr, output)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 
-        if (children().stream()
-            .anyMatch(p -> p.outputSet().names().contains(Analyzer.NO_FIELDS_NAME) || output.size() != p.output().size())) {
+    /**
+     * Whether a branch column {@code attr} that is not in the merge's {@code output} has to become one of its columns; see
+     * {@link #expressionsResolved()}.
+     */
+    public static boolean isMergeColumnCandidate(Attribute attr, List<Attribute> output) {
+        if (attr == NO_FIELDS.getFirst() || InSubqueryResolver.isInSubquerySynthetic(attr)) {
             return false;
         }
+        return output.isEmpty() || attr.synthetic() == false;
+    }
 
-        // All branches must output the same column names; otherwise the merge is not resolved.
-        List<String> firstOutputNames = children().getFirst().output().stream().map(Attribute::name).toList();
-        Holder<Boolean> resolved = new Holder<>(true);
-        children().stream().skip(1).forEach(subPlan -> {
-            List<String> names = subPlan.output().stream().map(Attribute::name).toList();
-            if (names.equals(firstOutputNames) == false) {
-                resolved.set(false);
+    /**
+     * The columns a merge with branches {@code subplans} and output {@code previous} has once its output is brought up to date with
+     * the branches: {@link #outputUnion} of the branches, without the branch columns that {@link #isMergeColumnCandidate} rules
+     * out, in the order of {@link #inOrderOf}.
+     */
+    public static List<Attribute> mergeColumns(List<LogicalPlan> subplans, List<Attribute> previous) {
+        Set<String> previousNames = new HashSet<>(previous.size());
+        for (Attribute attr : previous) {
+            previousNames.add(attr.name());
+        }
+        List<Attribute> union = new ArrayList<>(outputUnion(subplans));
+        union.removeIf(attr -> previousNames.contains(attr.name()) == false && isMergeColumnCandidate(attr, previous) == false);
+        return inOrderOf(union, previous);
+    }
+
+    /**
+     * {@code union}, a merge's new columns (as from {@link #outputUnion}), ordered like the merge's {@code previous} output: the
+     * columns it already had keep their position, and new ones come after them, in {@code union}'s order. Once a merge's columns
+     * are first determined, later changes to its branches (which can reorder a branch's own output, e.g. an {@code Eval} shadowing
+     * one of its columns) must not reorder the columns the query returns.
+     */
+    public static List<Attribute> inOrderOf(List<Attribute> union, List<Attribute> previous) {
+        if (previous.isEmpty()) {
+            return union;
+        }
+        Map<String, Attribute> byName = new LinkedHashMap<>();
+        for (Attribute attr : union) {
+            byName.putIfAbsent(attr.name(), attr);
+        }
+        List<Attribute> ordered = new ArrayList<>(union.size());
+        for (Attribute attr : previous) {
+            Attribute column = byName.remove(attr.name());
+            if (column != null) {
+                ordered.add(column);
             }
-        });
-
-        return resolved.get();
+        }
+        ordered.addAll(byName.values());
+        return ordered;
     }
 
     public abstract MergePlan replaceSubPlans(List<LogicalPlan> subPlans);
@@ -138,9 +193,14 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
         return replaceChildren(kept);
     }
 
+    /**
+     * The output re-derived from the branches, see {@link #mergeColumns}. Once the optimizer has aligned the branches, that is also
+     * their columns, in their order.
+     */
     protected List<Attribute> refreshedOutput() {
-        List<Attribute> converted = toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
-        // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that alignment Eval-null'd in children.
+        List<Attribute> converted = toReferenceAttributesPreservingIds(mergeColumns(children(), output()), this.output());
+        // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that union-type resolution Eval-null'd in
+        // children.
         if (unmappedFieldsAttributeFromChildren() != null) {
             converted = keepExistingUnsupportedAttributes(converted, this.output());
         }
@@ -206,7 +266,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                 }
 
                 // Keep union-type cast synthetics ($$field$converted_to$type): a conversion above the merge still references them. Drop
-                // only IN-subquery marks/consts, which are local to the rewrite and leak if FORK alignment null-fills them.
+                // only IN-subquery marks/consts, which are local to the rewrite and leak if they become merge columns.
                 if (names.contains(attr.name()) == false
                     && attr != NO_FIELDS.getFirst()
                     && InSubqueryResolver.isInSubquerySynthetic(attr) == false) {

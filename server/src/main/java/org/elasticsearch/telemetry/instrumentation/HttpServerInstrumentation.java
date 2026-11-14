@@ -9,7 +9,6 @@
 
 package org.elasticsearch.telemetry.instrumentation;
 
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestRequest;
@@ -23,16 +22,15 @@ public interface HttpServerInstrumentation {
     /**
      * Marks the start of HTTP request processing and starts a span. Called once at the beginning of the request processing.
      *
-     * @param threadContext the active thread context, used to propagate state
      * @param request       the incoming REST request
      * @param matchedRoute  the path template matched by the router (e.g. {@code /{index}/_search}),
      *                      or {@code null} if no handler was found for this request
      */
-    void start(ThreadContext threadContext, RestRequest request, @Nullable String matchedRoute);
+    void start(RestRequest request, @Nullable String matchedRoute);
 
     /**
      * Records an exception that occurred during request dispatch. May be called multiple times before
-     * {@link #prepareEnd(ThreadContext, RestRequest, RestResponse)}, does not mark the HTTP request handling as finished on its own.
+     * {@link #prepareEnd(RestRequest, RestResponse)}, does not mark the HTTP request handling as finished on its own.
      *
      * @param request the incoming REST request
      * @param t       the exception to record
@@ -45,22 +43,21 @@ public interface HttpServerInstrumentation {
      *
      * <p>The returned {@link Releasable} <b>MUST</b> be closed for the instrumented operation to end.
      *
-     * @param threadContext the active thread context, used to propagate state
      * @param request       the incoming REST request
      * @param response      the REST response that was sent to the client
      */
-    Releasable prepareEnd(ThreadContext threadContext, RestRequest request, RestResponse response);
+    Releasable prepareEnd(RestRequest request, RestResponse response);
 
     /** A no-op implementation of {@link HttpServerInstrumentation}. */
     HttpServerInstrumentation NOOP = new HttpServerInstrumentation() {
         @Override
-        public void start(ThreadContext threadContext, RestRequest request, @Nullable String matchedRoute) {}
+        public void start(RestRequest request, @Nullable String matchedRoute) {}
 
         @Override
         public void recordException(RestRequest request, Throwable t) {}
 
         @Override
-        public Releasable prepareEnd(ThreadContext threadContext, RestRequest request, RestResponse response) {
+        public Releasable prepareEnd(RestRequest request, RestResponse response) {
             return () -> {};
         }
     };

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ import static java.util.Arrays.asList;
  */
 // TODO: This class should implement SurrogateExpression but it doesn't due to its use on folding aggregates
 // see https://github.com/elastic/elasticsearch/issues/100634#issuecomment-2400665066
-public class FilteredExpression extends Expression {
+public class FilteredExpression extends Expression implements UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FilteredExpression",
@@ -98,5 +99,10 @@ public class FilteredExpression extends Expression {
             return this;
         }
         return new FilteredExpression(source(), newDelegate, filter());
+    }
+
+    @Override
+    public Expression unitSource() {
+        return delegate();
     }
 }

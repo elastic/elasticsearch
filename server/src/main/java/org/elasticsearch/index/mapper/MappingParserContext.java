@@ -13,8 +13,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -46,16 +48,18 @@ public class MappingParserContext {
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     private final Function<Query, BitSetProducer> bitSetProducer;
-    private final long mappingObjectDepthLimit;
     // Start at 1 to account for the root object, so the limit semantics match the post-build
-    // checkObjectDepthLimit formula (path depth = dots + 2, where root = 1).
+    // ParseFieldLimits#checkObjectDepth formula (path depth = dots + 2, where root = 1).
     private long mappingObjectDepth = 1;
     private final List<VectorsFormatProvider> vectorsFormatProviders;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
     private final Supplier<ProjectMetadata> projectMetadataSupplier;
     private final ParseFieldLimits parseFieldLimits;
+    // How the source of a mapping that is already stored is parsed into builders, for updating one of its fields
+    @Nullable
+    private final Function<CompressedXContent, MappingBuilder> storedMappingParser;
 
-    // Package-private: used by MapperService (to pass ParseFieldLimits directly) and by inner subcontexts.
+    // Package-private: used by MapperService (to pass ParseFieldLimits and the stored mapping parser directly) and by inner subcontexts.
     MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
         Function<String, Mapper.TypeParser> typeParsers,
@@ -71,7 +75,8 @@ public class MappingParserContext {
         List<VectorsFormatProvider> vectorsFormatProviders,
         RootObjectMapperNamespaceValidator namespaceValidator,
         Supplier<ProjectMetadata> projectMetadataSupplier,
-        ParseFieldLimits parseFieldLimits
+        ParseFieldLimits parseFieldLimits,
+        @Nullable Function<CompressedXContent, MappingBuilder> storedMappingParser
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -83,12 +88,12 @@ public class MappingParserContext {
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
-        this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
         this.bitSetProducer = bitSetProducer;
         this.vectorsFormatProviders = vectorsFormatProviders;
         this.namespaceValidator = namespaceValidator;
         this.projectMetadataSupplier = projectMetadataSupplier;
         this.parseFieldLimits = parseFieldLimits;
+        this.storedMappingParser = storedMappingParser;
     }
 
     public MappingParserContext(
@@ -123,11 +128,13 @@ public class MappingParserContext {
             namespaceValidator,
             projectMetadataSupplier,
             new ParseFieldLimits(
+                indexSettings.getMappingDepthLimit(),
                 indexSettings.getMappingFieldNameLengthLimit(),
                 indexSettings.getMappingNestedFieldsLimit(),
                 NewFieldsBudget.unlimited(),
                 0
-            )
+            ),
+            null
         );
     }
 
@@ -206,6 +213,17 @@ public class MappingParserContext {
         return clusterSupportsFeature.test(feature);
     }
 
+    /**
+     * Parses the source of a mapping that is already stored into builders, without enforcing limits: the mapping was
+     * validated when it was written.
+     */
+    MappingBuilder parseStoredMapping(CompressedXContent source) {
+        if (storedMappingParser == null) {
+            throw new IllegalStateException("this context has no parser for stored mappings");
+        }
+        return storedMappingParser.apply(source);
+    }
+
     public Supplier<SearchExecutionContext> searchExecutionContext() {
         return searchExecutionContextSupplier;
     }
@@ -247,33 +265,13 @@ public class MappingParserContext {
 
     void incrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth++;
-        if (mappingObjectDepth > mappingObjectDepthLimit) {
-            throw new MapperParsingException("Limit of mapping depth [" + mappingObjectDepthLimit + "] has been exceeded");
+        if (mappingObjectDepth > parseFieldLimits.mappingDepthLimit()) {
+            throw new MapperParsingException("Limit of mapping depth [" + parseFieldLimits.mappingDepthLimit() + "] has been exceeded");
         }
     }
 
     void decrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth--;
-    }
-
-    /**
-     * Checks that adding a dynamic object at {@code fullPath} would not exceed the object depth limit.
-     * Depth is computed by counting dots in the path (each dot represents one nesting level).
-     * Called eagerly during document parsing to avoid stack-overflow errors from deeply nested objects.
-     */
-    public void checkObjectDepthLimit(String fullPath) {
-        int numDots = 0;
-        for (int i = 0; i < fullPath.length(); i++) {
-            if (fullPath.charAt(i) == '.') {
-                numDots++;
-            }
-        }
-        int depth = numDots + 2;
-        if (depth > mappingObjectDepthLimit) {
-            throw new MapperParsingException(
-                "Limit of mapping depth [" + mappingObjectDepthLimit + "] has been exceeded due to object field [" + fullPath + "]"
-            );
-        }
     }
 
     /**
@@ -328,7 +326,8 @@ public class MappingParserContext {
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
                 null,
-                in.parseFieldLimits
+                in.parseFieldLimits,
+                in.storedMappingParser
             );
         }
 
@@ -338,15 +337,26 @@ public class MappingParserContext {
         }
     }
 
+    /**
+     * Create a MappingParserContext to be used when creating dynamic fields from templates
+     */
     public MappingParserContext createDynamicTemplateContext(DateFormatter dateFormatter) {
-        return new DynamicTemplateParserContext(this, dateFormatter);
+        return createDynamicTemplateContext(dateFormatter, parseFieldLimits);
+    }
+
+    /**
+     * Create a MappingParserContext to be used when creating dynamic fields from templates, with
+     * specific field limits.
+     */
+    public MappingParserContext createDynamicTemplateContext(DateFormatter dateFormatter, ParseFieldLimits limits) {
+        return new DynamicTemplateParserContext(this, dateFormatter, limits);
     }
 
     private static class DynamicTemplateParserContext extends MappingParserContext {
 
         private final DateFormatter dateFormatter;
 
-        DynamicTemplateParserContext(MappingParserContext in, DateFormatter dateFormatter) {
+        DynamicTemplateParserContext(MappingParserContext in, DateFormatter dateFormatter, ParseFieldLimits limits) {
             super(
                 in.similarityLookupService,
                 in.typeParsers,
@@ -362,8 +372,9 @@ public class MappingParserContext {
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
                 null,
-                // Use UNLIMITED so that parsing a dynamic template definition does not count against field limits.
-                ParseFieldLimits.UNLIMITED
+                // Dynamic templates should not count towards the total field budget
+                limits.withoutTotalFieldsBudget(),
+                in.storedMappingParser
             );
             this.dateFormatter = dateFormatter;
         }

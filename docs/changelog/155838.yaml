@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 155827
 pr: 155838
-summary: Fix ES|QL `match_phrase` NPE with load unmapped fields
+summary: Fix ES|QL `match_phrase` `NullPointerException` with load unmapped fields
 type: bug

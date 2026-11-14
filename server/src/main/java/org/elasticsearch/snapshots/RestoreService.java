@@ -78,13 +78,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
 import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
@@ -130,7 +130,10 @@ import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_ID_SETTING_KEY;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 
@@ -525,6 +528,7 @@ public final class RestoreService implements ClusterStateApplier {
         Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
 
         validateDataStreamTemplatesExistAndWarnIfMissing(dataStreamsToRestore, snapshotInfo, globalMetadata);
+        ensureNoDataStreamMatchesSystemIndexPattern(dataStreamsToRestore.values(), request, systemIndices, snapshot);
 
         // Remove the data streams from the list of requested indices
         requestIndices.removeAll(dataStreamsToRestore.keySet());
@@ -1302,11 +1306,34 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     // visible for testing
-    static DataStream updateDataStream(DataStream dataStream, ProjectMetadata.Builder projectMetadata, RestoreSnapshotRequest request) {
-        String dataStreamName = dataStream.getName();
-        if (request.renamePattern() != null && request.renameReplacement() != null) {
-            dataStreamName = dataStreamName.replaceAll(request.renamePattern(), request.renameReplacement());
+    static void ensureNoDataStreamMatchesSystemIndexPattern(
+        Collection<DataStream> dataStreams,
+        RestoreSnapshotRequest request,
+        SystemIndices systemIndices,
+        Snapshot snapshot
+    ) {
+        final List<String> conflicts = new ArrayList<>();
+        for (DataStream dataStream : dataStreams) {
+            final String restoredName = renameDataStream(dataStream.getName(), request);
+            final SystemIndexDescriptor matchingDescriptor = systemIndices.findMatchingDescriptor(restoredName);
+            if (matchingDescriptor != null) {
+                final String target = restoredName.equals(dataStream.getName())
+                    ? "[" + restoredName + "]"
+                    : "[" + dataStream.getName() + "] as [" + restoredName + "]";
+                conflicts.add(target + " matches [" + matchingDescriptor.getIndexPattern() + "]");
+            }
         }
+        if (conflicts.isEmpty() == false) {
+            throw new SnapshotRestoreException(
+                snapshot,
+                "cannot restore data streams matching system index patterns: " + String.join(", ", conflicts) + "; rename or exclude them"
+            );
+        }
+    }
+
+    // visible for testing
+    static DataStream updateDataStream(DataStream dataStream, ProjectMetadata.Builder projectMetadata, RestoreSnapshotRequest request) {
+        String dataStreamName = renameDataStream(dataStream.getName(), request);
         List<Index> updatedIndices = dataStream.getIndices()
             .stream()
             .map(i -> projectMetadata.get(renameIndex(i.getName(), request, true, false)).getIndex())
@@ -1321,6 +1348,13 @@ public final class RestoreService implements ClusterStateApplier {
             .setBackingIndices(dataStream.getDataComponent().copy().setIndices(updatedIndices).build())
             .setFailureIndices(dataStream.getFailureComponent().copy().setIndices(updatedFailureIndices).build())
             .build();
+    }
+
+    private static String renameDataStream(String dataStreamName, RestoreSnapshotRequest request) {
+        if (request.renamePattern() != null && request.renameReplacement() != null) {
+            return dataStreamName.replaceAll(request.renamePattern(), request.renameReplacement());
+        }
+        return dataStreamName;
     }
 
     /**
@@ -2102,6 +2136,28 @@ public final class RestoreService implements ClusterStateApplier {
                 return true;
             }
         }));
+        if (indexMetadata.isSearchableSnapshot()) {
+            // Preserve the backing snapshot identity, including missing UUIDs for old-format repositories.
+            for (String key : List.of(
+                SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY,
+                SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY,
+                SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY,
+                SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY,
+                SEARCHABLE_SNAPSHOT_INDEX_ID_SETTING_KEY,
+                SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY
+            )) {
+                if (Objects.equals(settings.get(key), settingsBuilder.get(key)) == false) {
+                    throw new SnapshotRestoreException(
+                        snapshot,
+                        format(
+                            "cannot change or remove setting [%s] when restoring searchable snapshot index %s",
+                            key,
+                            indexMetadata.getIndex()
+                        )
+                    );
+                }
+            }
+        }
         settingsBuilder.remove(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey());
         return builder.settings(settingsBuilder).build();
     }
@@ -2812,16 +2868,16 @@ public final class RestoreService implements ClusterStateApplier {
             IndexMetadata convertedIndexMetadata = convertedIndexMetadataBuilder.build();
 
             try {
-                Mapping mapping;
+                CompressedXContent mappingSource;
                 try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(convertedIndexMetadata)) {
                     // create and validate in-memory mapping
                     mapperService.merge(convertedIndexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
-                    mapping = mapperService.documentMapper().mapping();
+                    mappingSource = mapperService.documentMapper().mappingSource();
                 }
-                if (mapping != null) {
+                if (mappingSource != null) {
                     convertedIndexMetadataBuilder = IndexMetadata.builder(convertedIndexMetadata);
                     // using the recomputed mapping allows stripping some fields that we no longer support (e.g. include_in_all)
-                    convertedIndexMetadataBuilder.putMapping(new MappingMetadata(mapping.toCompressedXContent()));
+                    convertedIndexMetadataBuilder.putMapping(new MappingMetadata(mappingSource));
                     return convertedIndexMetadataBuilder.build();
                 }
             } catch (Exception e) {

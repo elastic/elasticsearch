@@ -51,7 +51,7 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
@@ -469,15 +469,15 @@ public class SharedBlobCacheWarmingService {
     ) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
-        this.fetchExecutor = threadPool.executor(StatelessPlugin.PREWARM_THREAD_POOL);
-        this.uploadPrewarmFetchExecutor = threadPool.executor(StatelessPlugin.UPLOAD_PREWARM_THREAD_POOL);
+        this.fetchExecutor = threadPool.executor(StatelessThreadPools.PREWARM_THREAD_POOL);
+        this.uploadPrewarmFetchExecutor = threadPool.executor(StatelessThreadPools.UPLOAD_PREWARM_THREAD_POOL);
 
         // the PREWARM_THREAD_POOL does the actual work but we want to limit the number of prewarming tasks in flight at once so that each
         // one completes sooner, so we use a ThrottledTaskRunner. The throttle limit is a little more than the threadpool size just to avoid
         // having the PREWARM_THREAD_POOL stall while the next task is being queued up
         this.warmingTaskRunner = new PrioritizedThrottledAsyncTaskRunner<>(
             "prewarming_cache",
-            1 + threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax(),
+            1 + threadPool.info(StatelessThreadPools.PREWARM_THREAD_POOL).getMax(),
             threadPool.generic(), // TODO should be DIRECT, forks to the fetch pool pretty much straight away, but see ES-8448
             telemetryProvider.getMeterRegistry(),
             threadPool::relativeTimeInNanos
@@ -505,7 +505,7 @@ public class SharedBlobCacheWarmingService {
         // We have to throttle it, so we do not potentially overload the generic pool with I/O tasks.
         this.cfeThrottledTaskRunner = new ThrottledTaskRunner("cfe-prewarming-cache", 2, threadPool.generic());
         // Throttle byte-range warming fetches so they don't saturate the PREWARM_THREAD_POOL and starve other prewarming work.
-        final int prewarmMax = threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax();
+        final int prewarmMax = threadPool.info(StatelessThreadPools.PREWARM_THREAD_POOL).getMax();
         final int warmByteRangeThrottleLimit = Math.max(
             1,
             (int) (prewarmMax * clusterSettings.get(WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING))
@@ -1374,9 +1374,9 @@ public class SharedBlobCacheWarmingService {
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> {
         assert ThreadPool.assertCurrentThreadPool(
-            StatelessPlugin.PREWARM_THREAD_POOL,
-            StatelessPlugin.UPLOAD_PREWARM_THREAD_POOL,
-            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            StatelessThreadPools.PREWARM_THREAD_POOL,
+            StatelessThreadPools.UPLOAD_PREWARM_THREAD_POOL,
+            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
         );
         return ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE);
     });
@@ -1917,7 +1917,7 @@ public class SharedBlobCacheWarmingService {
                             directory.getCacheBlobReaderForWarming(blobFile),
                             () -> writeBuffer.get().clear(),
                             totalBytesCopied::addAndGet,
-                            StatelessPlugin.PREWARM_THREAD_POOL
+                            StatelessThreadPools.PREWARM_THREAD_POOL
                         )
                     ),
                     fetchExecutor,
@@ -2029,8 +2029,8 @@ public class SharedBlobCacheWarmingService {
                             cacheBlobReader,
                             () -> writeBuffer.get().clear(),
                             totalBytesCopied::addAndGet,
-                            StatelessPlugin.PREWARM_THREAD_POOL,
-                            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                            StatelessThreadPools.PREWARM_THREAD_POOL,
+                            StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                         ),
                         fetchExecutor,
                         item.timestampMillis(),

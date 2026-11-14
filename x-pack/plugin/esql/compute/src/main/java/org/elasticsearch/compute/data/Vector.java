@@ -158,6 +158,11 @@ public interface Vector extends Accountable, RefCounted, Releasable {
          * Builds the block. This method can be called multiple times.
          */
         Vector build();
+
+        /**
+         * Whether this build was released
+         */
+        boolean isReleased();
     }
 
     /**

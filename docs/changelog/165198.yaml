@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 165198
+summary: Treat an empty field as missing in the 'remove' ingest processor
+type: bug

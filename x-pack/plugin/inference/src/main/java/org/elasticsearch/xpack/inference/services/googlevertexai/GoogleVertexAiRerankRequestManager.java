@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -17,12 +16,12 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.TimedListener;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiRerankRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiRerankResponseEntity;
 
 import java.util.Objects;
-import java.util.function.Supplier;
 
 public class GoogleVertexAiRerankRequestManager extends GoogleVertexAiRequestManager {
 
@@ -60,8 +59,7 @@ public class GoogleVertexAiRerankRequestManager extends GoogleVertexAiRequestMan
     public void execute(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         var rerankInput = inferenceInputs.castTo(QueryAndDocsInputs.class);
         GoogleVertexAiRerankRequest request = new GoogleVertexAiRerankRequest(
@@ -72,6 +70,6 @@ public class GoogleVertexAiRerankRequestManager extends GoogleVertexAiRequestMan
             model
         );
 
-        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, timedListener));
     }
 }

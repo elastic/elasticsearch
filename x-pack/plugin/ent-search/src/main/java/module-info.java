@@ -10,6 +10,10 @@ module org.elasticsearch.application {
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires json.schema.validator;
+    // Not used directly. json.schema.validator is an automatic module that uses commons-lang3 but cannot
+    // declare it, and commons-lang3 is an explicit module, so it is only resolved into the plugin layer
+    // if something requires it. Without this, json.schema.validator fails with NoClassDefFoundError.
+    requires org.apache.commons.lang3;
     requires org.apache.lucene.core;
 
     requires org.elasticsearch.base;

@@ -353,7 +353,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 cause
             );
         }
-        if (cause instanceof NoSuchKeyException) {
+        if (isMissingObject(cause)) {
             return new ExternalClientException(ExternalClientException.Condition.OBJECT_NOT_FOUND, path, "", "", cause);
         }
         if (isClosedClient(cause)) {
@@ -383,6 +383,25 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         }
         logger.debug("Unrecognized read failure for [{}]", path.objectName(), cause);
         return new IOException(context + ": " + S3FailureDetail.of(cause), cause);
+    }
+
+    /**
+     * A missing object, not a missing bucket. {@link NoSuchKeyException}, a 404 whose error code is
+     * {@code NoSuchKey}, or a bodyless 404 (fixtures and gateways that omit the XML error) are a gone key.
+     * {@code NoSuchBucket} is a different 404 and must not start stale-listing recovery.
+     */
+    private static boolean isMissingObject(Throwable cause) {
+        if (cause instanceof NoSuchKeyException) {
+            return true;
+        }
+        if (cause instanceof S3Exception missing && missing.statusCode() == 404) {
+            if (missing.awsErrorDetails() == null) {
+                return true;
+            }
+            String code = missing.awsErrorDetails().errorCode();
+            return code == null || code.isEmpty() || "NoSuchKey".equals(code);
+        }
+        return false;
     }
 
     /**

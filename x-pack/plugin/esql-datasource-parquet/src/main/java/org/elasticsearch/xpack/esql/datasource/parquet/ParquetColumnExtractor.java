@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -443,10 +442,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 int bucketIdx = waitForNextCompleted(futures);
                 ColumnChunkPrefetcher.PrefetchedChunks prefetchedResult;
                 try {
-                    prefetchedResult = futures[bucketIdx].get();
-                } catch (ExecutionException e) {
-                    // Unwrap the CompletableFuture wrapper; the underlying cause is what callers
-                    // expect (e.g. an IOException from S3) and what existing tests assert against.
+                    // waitForNextCompleted's fast path returns a completed slot without reading
+                    // the ambient cancel signal. Taking the value through the helper still
+                    // observes cancel, so look-ahead buckets that landed during decode of an
+                    // earlier group do not keep the worker thread in materialize.
+                    prefetchedResult = StorageRetryCancellation.getWithCancellationChecks(futures[bucketIdx]);
+                } catch (CompletionException e) {
+                    // Unwrap the helper's wrapper; the underlying cause is what callers expect
+                    // (e.g. an IOException from S3) and what existing tests assert against.
                     Throwable cause = e.getCause();
                     if (cause instanceof IOException io) {
                         throw io;
@@ -455,9 +458,6 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                         throw re;
                     }
                     throw new IOException("prefetch failed for row group " + buckets.get(bucketIdx).rowGroupIndex, cause);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("interrupted while awaiting row group prefetch", e);
                 }
                 futures[bucketIdx] = null;
                 pending--;
@@ -802,9 +802,10 @@ final class ParquetColumnExtractor implements ColumnExtractor {
 
     /**
      * Polls the futures array for any completed slot, returning its index. Blocks on
-     * {@link CompletableFuture#anyOf} until at least one new future completes; subsequent
-     * scans are O(N) in the per-call array length, which is bounded by the number of
-     * surviving row groups (typically &lt; 32).
+     * {@link CompletableFuture#anyOf} until at least one new future completes, remaining
+     * responsive to {@link StorageRetryCancellation}; subsequent scans are O(N) in the
+     * per-call array length, which is bounded by the number of surviving row groups
+     * (typically &lt; 32).
      */
     private static int waitForNextCompleted(CompletableFuture<?>[] futures) {
         // Fast path: a future from a previous round may already be done. Scan first.
@@ -824,12 +825,14 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         }
         // anyOf blocks until any future completes (success or failure). We don't use anyOf's
         // result; we re-scan for the now-completed slot to recover the bucket index. That keeps
-        // the index ↔ bucket binding without a parallel HashMap lookup.
+        // the index ↔ bucket binding without a parallel HashMap lookup. Cancelling the anyOf
+        // composite does not cancel the prefetch futures; the caller's catch (Throwable) does.
         try {
-            CompletableFuture.anyOf(pendingList.toArray(CompletableFuture[]::new)).join();
+            StorageRetryCancellation.getWithCancellationChecks(CompletableFuture.anyOf(pendingList.toArray(CompletableFuture[]::new)));
         } catch (CompletionException ignored) {
-            // anyOf surfaces the first failure; ignore here — the caller's get() on the failed
-            // future will rethrow the underlying cause with proper unwrapping.
+            // anyOf surfaces the first failure; ignore here — the caller's
+            // getWithCancellationChecks on the failed future will rethrow the underlying
+            // cause with proper unwrapping.
         }
         idx = findCompleted(futures);
         if (idx < 0) {

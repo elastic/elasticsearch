@@ -55,6 +55,16 @@ public class AllocationMetricsTests extends AllocationTestCase {
         return bucketCount(registry, AllocationMetrics.bucketIndex(totalBytes));
     }
 
+    /** The limit-exceeded count for the test context. */
+    private static long limitExceededCount(RecordingMeterRegistry registry) {
+        registry.getRecorder().collect();
+
+        List<Measurement> measurements = registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_ASYNC_COUNTER, AllocationMetrics.limitExceededMetricName(PainlessTestScript.CONTEXT.name));
+
+        return measurements.isEmpty() ? 0L : measurements.get(measurements.size() - 1).getLong();
+    }
+
     /** Counts reported across every bucket for the test context. */
     private static long totalCount(RecordingMeterRegistry registry) {
         registry.getRecorder().collect();
@@ -143,6 +153,47 @@ public class AllocationMetricsTests extends AllocationTestCase {
         assertEquals(0, totalCount(registry));
     }
 
+    public void testLimitTripIsCountedOnItsOwnCounter() {
+        // A trip counts once on its own counter and never in a bucket.
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        AllocationMetrics metrics = recordingMetrics(registry);
+        compileWithMetricsAndLimit(LARGE, "1mb", metrics).execute();
+
+        assertEquals(1, totalCount(registry));
+        assertEquals(0, limitExceededCount(registry));
+
+        PainlessTestScript tripping = compileWithMetricsAndLimit("int[] a = new int[100000]; return 1;", "1b", metrics);
+        expectThrows(ScriptException.class, tripping::execute);
+        expectThrows(ScriptException.class, tripping::execute);
+
+        assertEquals(1, totalCount(registry));
+        assertEquals(2, limitExceededCount(registry));
+    }
+
+    public void testLimitTripWarnsWithTheContextName() {
+        // The log line names the context.
+        PainlessTestScript tripping = compile("int[] a = new int[100000]; return 1;", "1b");
+
+        MockLog.assertThatLogger(
+            () -> expectThrows(ScriptException.class, tripping::execute),
+            AllocationGuard.class,
+            new MockLog.SeenEventExpectation(
+                "trip names the context",
+                AllocationGuard.class.getCanonicalName(),
+                Level.WARN,
+                "Painless script allocation limit exceeded in context [" + PainlessTestScript.CONTEXT.name + "]: *"
+            )
+        );
+    }
+
+    public void testLimitTripWithoutMetricsStillFails() {
+        // No metrics: still throws, records nothing.
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        expectThrows(ScriptException.class, () -> compile("int[] a = new int[100000]; return 1;", "1b").execute());
+
+        assertEquals(0, limitExceededCount(registry));
+    }
+
     /**
      * A script compiled before telemetry exists records nothing, and goes on recording nothing until it is recompiled,
      * because its recorder is baked into the generated class. Nothing in the tree compiles that early, but a plugin
@@ -207,6 +258,10 @@ public class AllocationMetricsTests extends AllocationTestCase {
         assertEquals(
             "es.script.painless.allocation.execution.painless_test.from_16gb.total",
             AllocationMetrics.metricName("painless_test", AllocationMetrics.BUCKET_COUNT - 1)
+        );
+        assertEquals(
+            "es.script.painless.allocation.limit_exceeded.painless_test.total",
+            AllocationMetrics.limitExceededMetricName("painless_test")
         );
     }
 }

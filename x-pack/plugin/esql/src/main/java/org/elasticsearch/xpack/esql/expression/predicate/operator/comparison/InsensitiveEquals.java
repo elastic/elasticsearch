@@ -94,11 +94,13 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison implements Ev
 
     @Override
     public Boolean fold(FoldContext ctx) {
+        return (Boolean) EvaluatorMapper.super.fold(source(), ctx);
+    }
+
+    @Override
+    public Object doFold(Source source, FoldContext ctx) {
         BytesRef leftVal = BytesRefs.toBytesRef(left().fold(ctx));
         BytesRef rightVal = BytesRefs.toBytesRef(right().fold(ctx));
-        if (leftVal == null || rightVal == null) {
-            return null;
-        }
         return process(leftVal, rightVal);
     }
 

@@ -64,6 +64,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
@@ -76,7 +77,10 @@ import org.junit.rules.TestRule;
 import org.junit.runners.model.Statement;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -85,6 +89,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -548,6 +553,131 @@ public class BatchBulkIT extends ESIntegTestCase {
         // Spot-check a specific doc by id.
         var getResponse = client().get(new org.elasticsearch.action.get.GetRequest(index).id("doc-0")).actionGet();
         assertTrue(getResponse.isExists());
+    }
+
+    /**
+     * A {@code vectordb_columnar} index with a {@code dense_vector} field is indexed through the batch path, not only accepted by it
+     * and then sent down the row path, and the vectors it indexes are searchable, whether they are sent as arrays of numbers, as
+     * base64-encoded strings or as a mix of both.
+     */
+    public void testVectordbColumnarDenseVectorBatchMode() throws IOException {
+        final String index = "test-vectordb-columnar";
+        final int dims = 8;
+
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("title").field("type", "text").endObject();
+                    mapping.startObject("vector").field("type", "dense_vector").field("dims", dims);
+                    // cosine, the default similarity, also writes the ._magnitude doc values of normalized vectors
+                    String similarity = randomFrom("l2_norm", "cosine", null);
+                    if (similarity != null) {
+                        mapping.field("similarity", similarity);
+                    }
+                    mapping.field("element_type", randomFrom("float", "bfloat16"));
+                    mapping.endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.VECTORDB_COLUMNAR.getName())
+                        .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+
+        // Vectors are sent as arrays of numbers, as base64-encoded strings (a documented input format of dense_vector), or as a mix
+        // of both, which makes the batch's source column a union.
+        final int encoding = randomIntBetween(0, 2);
+        int numDocs = randomIntBetween(20, 100);
+        float[][] vectors = new float[numDocs][];
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            vectors[i] = randomFloatVector(dims);
+            final boolean base64 = encoding == 1 || (encoding == 2 && randomBoolean());
+            final Object vector;
+            if (base64) {
+                // The base64 format holds the float elements in big-endian order, which is the default order of a ByteBuffer.
+                ByteBuffer encoded = ByteBuffer.allocate(dims * Float.BYTES);
+                for (float value : vectors[i]) {
+                    encoded.putFloat(value);
+                }
+                vector = Base64.getEncoder().encodeToString(encoded.array());
+            } else {
+                vector = vectors[i];
+            }
+            bulkRequest.add(
+                new IndexRequest(index).id("doc-" + i)
+                    .source(XContentType.JSON, "title", "title " + i, "vector", vector)
+                    .opType(DocWriteRequest.OpType.CREATE)
+            );
+        }
+
+        final Logger batchLogger = LogManager.getLogger(ShardBatchIndexer.class);
+        final Level origLevel = batchLogger.getLevel();
+        Loggers.setLevel(batchLogger, Level.TRACE);
+        try (var mockLog = MockLog.capture(ShardBatchIndexer.class, ShardBatchMapper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "batch indexed on primary",
+                    ShardBatchIndexer.class.getName(),
+                    Level.TRACE,
+                    "batch indexed * operations on primary shard *"
+                )
+            );
+            // A chunk the mappers refuse is logged and re-indexed by the row path, which would hide a broken batch path.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no batch mapping fallback",
+                    ShardBatchMapper.class.getName(),
+                    Level.WARN,
+                    "columnar batch mapping failed*"
+                )
+            );
+
+            BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+            assertNoFailures(bulkResponse);
+            assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(batchLogger, origLevel);
+        }
+
+        refresh(index);
+
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+
+        // Every document must be its own nearest neighbour: its vector was indexed by the batch path.
+        int target = randomIntBetween(0, numDocs - 1);
+        assertResponse(
+            prepareSearch(index).setQuery(new KnnVectorQueryBuilder("vector", vectors[target], 1, numDocs, null, null, null)).setSize(1),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+                assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("doc-" + target));
+            }
+        );
     }
 
     public void testBulkIndexingViaBatchMode() throws IOException {
@@ -2468,8 +2598,8 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
-     * The implicit {@code _unmapped} sink absorbs the unmapped leaves of a batch through its column group, and what it writes must read
-     * back exactly as the same documents indexed one at a time.
+     * Under root {@code dynamic: flattened}, the {@code _unmapped} sink absorbs the unmapped leaves of a batch through its column group,
+     * and what it writes must read back exactly as the same documents indexed one at a time.
      */
     public void testUnmappedSinkBatchMatchesRowPath() {
         assumeTrue("flattened_unmapped_fields feature flag must be enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
@@ -2561,11 +2691,9 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
                         .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
                 )
-                // No root dynamic, so it resolves to flattened and unmapped leaves are absorbed by the sink.
-                .setMapping("host", "type=keyword")
+                .setMapping("{\"dynamic\":\"flattened\",\"properties\":{\"host\":{\"type\":\"keyword\"}}}")
         );
         ensureGreen(index);
     }
@@ -3540,6 +3668,191 @@ public class BatchBulkIT extends ESIntegTestCase {
         var getResponse = client().get(new GetRequest(index).id("doc-0")).actionGet();
         assertTrue(getResponse.isExists());
         assertThat(getResponse.getSourceAsMap().get("n"), equalTo(List.of(3, 1, 3, 2, 0)));
+    }
+
+    /**
+     * Fields with {@code ignore_malformed} are outside what the columnar batch path indexes, so the batch falls back to the row path,
+     * which parses each document in place from its row with {@code SourceRowXContentParser}. That parser must treat a value a mapper
+     * cannot use the way the JSON parser does: the mapper ignores it when it is a scalar, and the document is rejected when it is not.
+     * The wrong answer was to hand the mapper a value left over from an earlier token, or a number wrapped around by a narrowing cast.
+     * Every document is checked through the real bulk API with batch indexing on: what is ignored and indexed, and what {@code _source}
+     * gives back for it.
+     */
+    public void testMalformedValuesOnTheRowPathAreIgnoredAsFromJson() throws IOException {
+        final String index = "test-row-path-malformed";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
+                .setMapping("""
+                    {
+                      "dynamic": "strict",
+                      "properties": {
+                        "name": { "type": "keyword" },
+                        "int_field": { "type": "integer", "ignore_malformed": true },
+                        "short_field": { "type": "short", "ignore_malformed": true },
+                        "double_field": { "type": "double", "ignore_malformed": true },
+                        "bool_field": { "type": "boolean", "ignore_malformed": true }
+                      }
+                    }
+                    """)
+        );
+        ensureGreen(index);
+
+        final Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("valid", """
+            {"name":"a","int_field":5,"short_field":7,"double_field":1.5,"bool_field":true}""");
+        // A boolean where a number is expected.
+        sources.put("bool_for_numbers", """
+            {"name":"b","int_field":false,"double_field":true}""");
+        // Numbers too big for the field, which a plain cast would have wrapped around into a value that is indexed.
+        sources.put("too_big", """
+            {"name":"c","int_field":3000000000,"short_field":70000}""");
+        sources.put("text", """
+            {"name":"d","int_field":"int garbage","bool_field":"bool garbage"}""");
+        sources.put("number_for_bool", """
+            {"name":"e","bool_field":5}""");
+        // An object cannot be ignored. The second element is read while the parser has just left a number.
+        sources.put("object", """
+            {"name":"f","int_field":[7,{"x":1}]}""");
+
+        final BulkResponse response = client(findCoordinatingNode()).bulk(bulkOf(index, sources)).actionGet();
+        final Map<String, BulkItemResponse> items = new LinkedHashMap<>();
+        for (BulkItemResponse item : response.getItems()) {
+            items.put(item.getId(), item);
+        }
+        for (String id : List.of("valid", "bool_for_numbers", "too_big", "text", "number_for_bool")) {
+            assertFalse("[" + id + "] failed: " + items.get(id).getFailureMessage(), items.get(id).isFailed());
+        }
+        assertTrue("an object where a number is expected is rejected", items.get("object").isFailed());
+        assertThat(items.get("object").getFailureMessage(), containsString("failed to parse field [int_field] of type [integer]"));
+
+        refresh(index);
+        // Synthetic source gives back what was ignored as it was sent.
+        assertThat(
+            sourceOf(index, "valid"),
+            equalTo(Map.of("name", "a", "int_field", 5, "short_field", 7, "double_field", 1.5, "bool_field", true))
+        );
+        assertThat(sourceOf(index, "bool_for_numbers"), equalTo(Map.of("name", "b", "int_field", false, "double_field", true)));
+        assertThat(sourceOf(index, "too_big"), equalTo(Map.of("name", "c", "int_field", 3000000000L, "short_field", 70000)));
+        assertThat(sourceOf(index, "text"), equalTo(Map.of("name", "d", "int_field", "int garbage", "bool_field", "bool garbage")));
+        assertThat(sourceOf(index, "number_for_bool"), equalTo(Map.of("name", "e", "bool_field", 5)));
+
+        // The valid document is indexed under its values, and none of the others are indexed under a value they did not have.
+        assertHitIds(index, QueryBuilders.termQuery("int_field", 5), "valid");
+        assertHitIds(index, QueryBuilders.termQuery("short_field", 7), "valid");
+        assertHitIds(index, QueryBuilders.termQuery("bool_field", true), "valid");
+        assertHitIds(index, QueryBuilders.rangeQuery("int_field").gte(Integer.MIN_VALUE).lte(Integer.MAX_VALUE), "valid");
+        assertHitIds(index, QueryBuilders.rangeQuery("double_field").gte(-1e300).lte(1e300), "valid");
+        assertHitIds(index, QueryBuilders.existsQuery("_ignored"), "bool_for_numbers", "too_big", "text", "number_for_bool");
+    }
+
+    /**
+     * Without {@code ignore_malformed}, a value a numeric or boolean field cannot hold must reject the document with a parse error
+     * (a 400), as it does from JSON. A field that is not mapped for columnar parsing, as every field of an index that is not in a
+     * columnar or time series mode is not, is parsed from its row by {@code SourceRowXContentParser}, which used to narrow with a plain
+     * cast: {@code 70000} became the short {@code 4464}, and the document was indexed under a value it never had. A boolean field given
+     * an object did not consume it, so the document was rejected for the wrong reason (the object was taken for an unmapped field).
+     * The valid document in the same bulk request is indexed.
+     */
+    public void testValuesThatDoNotFitAreRejectedOnTheRowPathNotWrappedAround() throws IOException {
+        final String index = "test-row-path-no-wraparound";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
+                .setMapping("""
+                    {
+                      "dynamic": "strict",
+                      "properties": {
+                        "name": { "type": "keyword" },
+                        "int_field": { "type": "integer" },
+                        "short_field": { "type": "short" },
+                        "long_field": { "type": "long" },
+                        "bool_field": { "type": "boolean" }
+                      }
+                    }
+                    """)
+        );
+        ensureGreen(index);
+
+        final Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("valid", """
+            {"name":"a","int_field":2147483647,"short_field":-32768,"long_field":9223372036854775807,"bool_field":true}""");
+        // Each of these used to be indexed, as 4464, -1294967296 and Long.MAX_VALUE.
+        sources.put("short_too_big", """
+            {"name":"b","short_field":70000}""");
+        sources.put("int_too_big", """
+            {"name":"c","int_field":3000000000}""");
+        sources.put("long_too_big", """
+            {"name":"d","long_field":1.0E19}""");
+        // A control: this was rejected correctly before, and must stay so.
+        sources.put("bool_for_int", """
+            {"name":"e","int_field":false}""");
+        // Used to be rejected for the wrong reason: the object was not consumed, and was read as an unmapped field.
+        sources.put("object_for_bool", """
+            {"name":"f","bool_field":{"object":"wow"}}""");
+
+        final BulkResponse response = client(findCoordinatingNode()).bulk(bulkOf(index, sources)).actionGet();
+        final Map<String, BulkItemResponse> items = new LinkedHashMap<>();
+        for (BulkItemResponse item : response.getItems()) {
+            items.put(item.getId(), item);
+        }
+        assertFalse("[valid] failed: " + items.get("valid").getFailureMessage(), items.get("valid").isFailed());
+        final Map<String, String> rejected = Map.of(
+            "short_too_big",
+            "failed to parse field [short_field] of type [short]",
+            "int_too_big",
+            "failed to parse field [int_field] of type [integer]",
+            "long_too_big",
+            "failed to parse field [long_field] of type [long]",
+            "bool_for_int",
+            "failed to parse field [int_field] of type [integer]",
+            "object_for_bool",
+            "failed to parse field [bool_field] of type [boolean]"
+        );
+        // Collect every difference, so that a failure shows which documents were handled wrongly.
+        final List<String> problems = new ArrayList<>();
+        rejected.forEach((id, expectedMessage) -> {
+            final BulkItemResponse item = items.get(id);
+            if (item.isFailed() == false) {
+                problems.add("[" + id + "] was indexed, not rejected");
+            } else if (item.getFailureMessage().contains(expectedMessage) == false
+                || item.getFailure().getStatus() != RestStatus.BAD_REQUEST) {
+                    problems.add("[" + id + "] failed with " + item.getFailure().getStatus() + ": " + item.getFailureMessage());
+                }
+        });
+        assertThat(problems, equalTo(List.of()));
+
+        refresh(index);
+        assertHitIds(index, QueryBuilders.matchAllQuery(), "valid");
+        // Nothing was indexed under the value a cast would have wrapped it to.
+        assertHitIds(index, QueryBuilders.termQuery("short_field", 4464));
+        assertHitIds(index, QueryBuilders.termQuery("int_field", -1294967296));
+        assertHitIds(index, QueryBuilders.termQuery("long_field", Long.MAX_VALUE), "valid");
+    }
+
+    private Map<String, Object> sourceOf(String index, String id) {
+        return client().prepareGet(index, id).get().getSourceAsMap();
+    }
+
+    private void assertHitIds(String index, QueryBuilder query, String... expectedIds) {
+        assertResponse(prepareSearch(index).setQuery(query).setSize(10), response -> {
+            final Set<String> ids = new LinkedHashSet<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                ids.add(hit.getId());
+            }
+            assertThat(query.toString(), ids, equalTo(Set.of(expectedIds)));
+        });
     }
 
     private static BulkRequest bulkOf(String index, Map<String, String> sources) {

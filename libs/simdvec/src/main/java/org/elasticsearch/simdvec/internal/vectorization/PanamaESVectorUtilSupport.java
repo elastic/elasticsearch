@@ -2542,13 +2542,34 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor) {
-        multiply(a, k, b, result, m, k, n, false, executor);
+    public void matrixMultiply(
+        float[] a,
+        int aOffset,
+        float[] b,
+        int bOffset,
+        int m,
+        int k,
+        int n,
+        float[] result,
+        int resultOffset,
+        TaskExecutor executor
+    ) {
+        multiply(a, aOffset, k, b, bOffset, result, resultOffset, m, k, n, false, executor);
     }
 
     @Override
-    public void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
-        multiply(a, k, b, result, n, k, n, true, executor);
+    public void matrixMultiplySymmetric(
+        float[] a,
+        int aOffset,
+        float[] b,
+        int bOffset,
+        int n,
+        int k,
+        float[] result,
+        int resultOffset,
+        TaskExecutor executor
+    ) {
+        multiply(a, aOffset, k, b, bOffset, result, resultOffset, n, k, n, true, executor);
     }
 
     /*
@@ -2580,9 +2601,12 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
      */
     private static void multiply(
         float[] a,
+        int aOff,
         int aRowStride,
         float[] b,
+        int bOff,
         float[] c,
+        int cOff,
         int cRows,
         int inner,
         int n,
@@ -2600,19 +2624,19 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                 float[] panel = new float[inner * MATRIX_TILE_COLS];
                 for (int p = 0; p < panelLimit; p += MATRIX_TILE_COLS) {
                     // get all the b column data for this panel packed into a single array for cacheability in the row loop
-                    packPanel(b, n, inner, p, panel);
+                    packPanel(b, bOff, n, inner, p, panel);
 
                     // the rows of an upper triangle that has columns [p, p + MATRIX_TILE_COLS) end at the last of those columns
                     int panelRowLimit = upperOnly ? Math.min(rowLimit, p + MATRIX_TILE_COLS) : rowLimit;
                     for (int i = 0; i < panelRowLimit; i += MATRIX_TILE_ROWS) {
                         switch (VECTOR_BITSIZE) {
-                            case 128 -> multiplyPanel4x4(a, aRowStride, panel, c, i, p, inner, n);
-                            case 512 -> multiplyPanel8x2(a, aRowStride, panel, c, i, p, inner, n);
-                            default -> multiplyPanel4x2(a, aRowStride, panel, c, i, p, inner, n);
+                            case 128 -> multiplyPanel4x4(a, aOff, aRowStride, panel, c, cOff, i, p, inner, n);
+                            case 512 -> multiplyPanel8x2(a, aOff, aRowStride, panel, c, cOff, i, p, inner, n);
+                            default -> multiplyPanel4x2(a, aOff, aRowStride, panel, c, cOff, i, p, inner, n);
                         }
                     }
                     if (upperOnly) {
-                        mirrorColumns(c, n, p, p + MATRIX_TILE_COLS, rowLimit);
+                        mirrorColumns(c, cOff, n, p, p + MATRIX_TILE_COLS, rowLimit);
                     }
                 }
             } else {
@@ -2635,17 +2659,17 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                         float[] panel = buffers.poll(); // acquire panel buffer if available
                         if (panel == null) panel = new float[inner * MATRIX_TILE_COLS];
 
-                        packPanel(b, n, inner, panelStart, panel);
+                        packPanel(b, bOff, n, inner, panelStart, panel);
 
                         for (int i = 0; i < panelRowLimit; i += MATRIX_TILE_ROWS) {
                             switch (VECTOR_BITSIZE) {
-                                case 128 -> multiplyPanel4x4(a, aRowStride, panel, c, i, panelStart, inner, n);
-                                case 512 -> multiplyPanel8x2(a, aRowStride, panel, c, i, panelStart, inner, n);
-                                default -> multiplyPanel4x2(a, aRowStride, panel, c, i, panelStart, inner, n);
+                                case 128 -> multiplyPanel4x4(a, aOff, aRowStride, panel, c, cOff, i, panelStart, inner, n);
+                                case 512 -> multiplyPanel8x2(a, aOff, aRowStride, panel, c, cOff, i, panelStart, inner, n);
+                                default -> multiplyPanel4x2(a, aOff, aRowStride, panel, c, cOff, i, panelStart, inner, n);
                             }
                         }
                         if (upperOnly) {
-                            mirrorColumns(c, n, panelStart, panelStart + MATRIX_TILE_COLS, rowLimit);
+                            mirrorColumns(c, cOff, n, panelStart, panelStart + MATRIX_TILE_COLS, rowLimit);
                         }
                         buffers.add(panel); // release panel buffer
                         return null;
@@ -2670,9 +2694,9 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             if (executor == null || numRequiredTasks < MIN_PARALLEL_TASKS) {
                 for (int r = 0; r < rowLimit; r += MATRIX_TILE_ROWS) {
                     if (VECTOR_BITSIZE == 512) {
-                        multiplyTile8Tail(a, aRowStride, b, c, r, inner, n, panelLimit);
+                        multiplyTile8Tail(a, aOff, aRowStride, b, bOff, c, cOff, r, inner, n, panelLimit);
                     } else {
-                        multiplyTile4Tail(a, aRowStride, b, c, r, inner, n, panelLimit);
+                        multiplyTile4Tail(a, aOff, aRowStride, b, bOff, c, cOff, r, inner, n, panelLimit);
                     }
                 }
             } else {
@@ -2683,9 +2707,9 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
                     tasks.add(() -> {
                         for (int i = taskRow; i < taskLimit; i += MATRIX_TILE_ROWS) {
                             if (VECTOR_BITSIZE == 512) {
-                                multiplyTile8Tail(a, aRowStride, b, c, i, inner, n, panelLimit);
+                                multiplyTile8Tail(a, aOff, aRowStride, b, bOff, c, cOff, i, inner, n, panelLimit);
                             } else {
-                                multiplyTile4Tail(a, aRowStride, b, c, i, inner, n, panelLimit);
+                                multiplyTile4Tail(a, aOff, aRowStride, b, bOff, c, cOff, i, inner, n, panelLimit);
                             }
                         }
                         return null;
@@ -2703,12 +2727,12 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
 
         if (upperOnly) {
             // the columns left over by the panels. The rows of the row tail below are computed in full, so need no copy
-            mirrorColumns(c, n, panelLimit, n, rowLimit);
+            mirrorColumns(c, cOff, n, panelLimit, n, rowLimit);
         }
 
         // row tail, max MATRIX_TILE_ROWS - 1 rows
         for (int i = rowLimit; i < cRows; i++) {
-            multiplyTile1(a, aRowStride, b, c, i, inner, n);
+            multiplyTile1(a, aOff, aRowStride, b, bOff, c, cOff, i, inner, n);
         }
     }
 
@@ -2717,12 +2741,12 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
      * row of the same number, below it, for the rows before {@code rowLimit}. The rows from {@code rowLimit} are
      * computed in full by the caller.
      */
-    private static void mirrorColumns(float[] c, int n, int colStart, int colEnd, int rowLimit) {
+    private static void mirrorColumns(float[] c, int cOff, int n, int colStart, int colEnd, int rowLimit) {
         for (int j = colStart; j < colEnd; j++) {
             int end = Math.min(j, rowLimit);
-            int rowBase = j * n;
+            int rowBase = cOff + j * n;
             for (int i = 0; i < end; i++) {
-                c[rowBase + i] = c[i * n + j];
+                c[rowBase + i] = c[cOff + i * n + j];
             }
         }
     }
@@ -2730,16 +2754,28 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     /**
      * Copies columns {@code [j, j + MATRIX_TILE_COLS)} of B into {@code panel}, row by row.
      */
-    private static void packPanel(float[] b, int n, int inner, int j, float[] panel) {
+    private static void packPanel(float[] b, int bOff, int n, int inner, int j, float[] panel) {
         for (int l = 0; l < inner; l++) {
-            System.arraycopy(b, l * n + j, panel, l * MATRIX_TILE_COLS, MATRIX_TILE_COLS);
+            System.arraycopy(b, bOff + l * n + j, panel, l * MATRIX_TILE_COLS, MATRIX_TILE_COLS);
         }
     }
 
-    private static void multiplyTile8Tail(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n, int j) {
+    private static void multiplyTile8Tail(
+        float[] a,
+        int aOff,
+        int aRowStride,
+        float[] b,
+        int bOff,
+        float[] c,
+        int cOff,
+        int i,
+        int inner,
+        int n,
+        int j
+    ) {
         // columns left over by the panel loop, 8x rows at a time
         // 512 is SVE or AVX512, so we can use masked SIMD for the tail
-        final int a0 = i * aRowStride;
+        final int a0 = aOff + i * aRowStride;
         final int a1 = a0 + aRowStride;
         final int a2 = a0 + aRowStride * 2;
         final int a3 = a0 + aRowStride * 3;
@@ -2747,7 +2783,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         final int a5 = a0 + aRowStride * 5;
         final int a6 = a0 + aRowStride * 6;
         final int a7 = a0 + aRowStride * 7;
-        final int c0 = i * n;
+        final int c0 = cOff + i * n;
         final int c1 = c0 + n;
         final int c2 = c0 + n * 2;
         final int c3 = c0 + n * 3;
@@ -2768,7 +2804,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector acc7 = FloatVector.zero(FLOAT_SPECIES);
             for (int l = 0; l < inner; l++) {
                 // masked-off lanes are zero, and are not stored
-                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j, mask);
+                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, bOff + l * n + j, mask);
                 acc0 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]), bv, acc0);
                 acc1 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a1 + l]), bv, acc1);
                 acc2 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a2 + l]), bv, acc2);
@@ -2789,14 +2825,26 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
     }
 
-    private static void multiplyTile4Tail(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n, int j) {
+    private static void multiplyTile4Tail(
+        float[] a,
+        int aOff,
+        int aRowStride,
+        float[] b,
+        int bOff,
+        float[] c,
+        int cOff,
+        int i,
+        int inner,
+        int n,
+        int j
+    ) {
         // single-vector columns left over by the panel loop
         // 4x rows a time
-        final int a0 = i * aRowStride;
+        final int a0 = aOff + i * aRowStride;
         final int a1 = a0 + aRowStride;
         final int a2 = a0 + aRowStride * 2;
         final int a3 = a0 + aRowStride * 3;
-        final int c0 = i * n;
+        final int c0 = cOff + i * n;
         final int c1 = c0 + n;
         final int c2 = c0 + n * 2;
         final int c3 = c0 + n * 3;
@@ -2808,7 +2856,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
             FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES);
             for (int l = 0; l < inner; l++) {
-                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j);
+                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, bOff + l * n + j);
                 acc0 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]), bv, acc0);
                 acc1 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a1 + l]), bv, acc1);
                 acc2 = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a2 + l]), bv, acc2);
@@ -2827,7 +2875,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
             float s2 = 0;
             float s3 = 0;
             for (int l = 0; l < inner; l++) {
-                float bv = b[l * n + j];
+                float bv = b[bOff + l * n + j];
                 s0 = fma(a[a0 + l], bv, s0);
                 s1 = fma(a[a1 + l], bv, s1);
                 s2 = fma(a[a2 + l], bv, s2);
@@ -2840,15 +2888,26 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         }
     }
 
-    private static void multiplyPanel4x4(float[] a, int aRowStride, float[] panel, float[] c, int i, int j, int inner, int n) {
+    private static void multiplyPanel4x4(
+        float[] a,
+        int aOff,
+        int aRowStride,
+        float[] panel,
+        float[] c,
+        int cOff,
+        int i,
+        int j,
+        int inner,
+        int n
+    ) {
         /*
          * This uses 24 of the 32 vector registers on NEON and SVE
          */
-        final int a0 = i * aRowStride;
+        final int a0 = aOff + i * aRowStride;
         final int a1 = a0 + aRowStride;
         final int a2 = a0 + aRowStride * 2;
         final int a3 = a0 + aRowStride * 3;
-        final int c0 = i * n;
+        final int c0 = cOff + i * n;
         final int c1 = c0 + n;
         final int c2 = c0 + n * 2;
         final int c3 = c0 + n * 3;
@@ -2921,15 +2980,26 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         acc33.intoArray(c, c3 + j + len * 3);
     }
 
-    private static void multiplyPanel4x2(float[] a, int aRowStride, float[] panel, float[] c, int i, int j, int inner, int n) {
+    private static void multiplyPanel4x2(
+        float[] a,
+        int aOff,
+        int aRowStride,
+        float[] panel,
+        float[] c,
+        int cOff,
+        int i,
+        int j,
+        int inner,
+        int n
+    ) {
         /*
          * This uses 14 of the 16 vector registers on AVX2
          */
-        final int a0 = i * aRowStride;
+        final int a0 = aOff + i * aRowStride;
         final int a1 = a0 + aRowStride;
         final int a2 = a0 + aRowStride * 2;
         final int a3 = a0 + aRowStride * 3;
-        final int c0 = i * n;
+        final int c0 = cOff + i * n;
         final int c1 = c0 + n;
         final int c2 = c0 + n * 2;
         final int c3 = c0 + n * 3;
@@ -2976,11 +3046,22 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         acc31.intoArray(c, c3 + j + len);
     }
 
-    private static void multiplyPanel8x2(float[] a, int aRowStride, float[] panel, float[] c, int i, int j, int inner, int n) {
+    private static void multiplyPanel8x2(
+        float[] a,
+        int aOff,
+        int aRowStride,
+        float[] panel,
+        float[] c,
+        int cOff,
+        int i,
+        int j,
+        int inner,
+        int n
+    ) {
         /*
          * This uses 19 of the 32 vector registers on AVX512 and SVE
          */
-        final int a0 = i * aRowStride;
+        final int a0 = aOff + i * aRowStride;
         final int a1 = a0 + aRowStride;
         final int a2 = a0 + aRowStride * 2;
         final int a3 = a0 + aRowStride * 3;
@@ -2988,7 +3069,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         final int a5 = a0 + aRowStride * 5;
         final int a6 = a0 + aRowStride * 6;
         final int a7 = a0 + aRowStride * 7;
-        final int c0 = i * n;
+        final int c0 = cOff + i * n;
         final int c1 = c0 + n;
         final int c2 = c0 + n * 2;
         final int c3 = c0 + n * 3;
@@ -3071,16 +3152,27 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         acc71.intoArray(c, c7 + j + len);
     }
 
-    private static void multiplyTile1(float[] a, int aRowStride, float[] b, float[] c, int i, int inner, int n) {
-        final int a0 = i * aRowStride;
-        final int c0 = i * n;
+    private static void multiplyTile1(
+        float[] a,
+        int aOff,
+        int aRowStride,
+        float[] b,
+        int bOff,
+        float[] c,
+        int cOff,
+        int i,
+        int inner,
+        int n
+    ) {
+        final int a0 = aOff + i * aRowStride;
+        final int c0 = cOff + i * n;
 
         final int limit = FLOAT_SPECIES.loopBound(n);
         int j = 0;
         for (; j < limit; j += FLOAT_SPECIES.length()) {
             FloatVector acc = FloatVector.zero(FLOAT_SPECIES);
             for (int l = 0; l < inner; l++) {
-                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, l * n + j);
+                FloatVector bv = FloatVector.fromArray(FLOAT_SPECIES, b, bOff + l * n + j);
                 acc = fma(FloatVector.broadcast(FLOAT_SPECIES, a[a0 + l]), bv, acc);
             }
             acc.intoArray(c, c0 + j);
@@ -3090,7 +3182,7 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
         for (; j < n; j++) {
             float s = 0;
             for (int l = 0; l < inner; l++) {
-                s = fma(a[a0 + l], b[l * n + j], s);
+                s = fma(a[a0 + l], b[bOff + l * n + j], s);
             }
             c[c0 + j] = s;
         }

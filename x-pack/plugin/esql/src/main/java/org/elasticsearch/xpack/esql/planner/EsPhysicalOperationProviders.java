@@ -31,6 +31,7 @@ import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ReadDimsOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -41,6 +42,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -76,6 +78,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
@@ -101,7 +104,9 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
@@ -110,6 +115,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -125,6 +133,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
      * {@link RefCounted}.
      */
     public abstract static class ShardContext implements org.elasticsearch.compute.lucene.ShardContext, Releasable {
+        private final AtomicInteger unfinishedSlices = new AtomicInteger();
         private final AbstractRefCounted refCounted = new AbstractRefCounted() {
             @Override
             protected void closeInternal() {
@@ -150,6 +159,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public boolean hasReferences() {
             return refCounted.hasReferences();
+        }
+
+        @Override
+        public void addUnfinishedSlices(int delta) {
+            unfinishedSlices.addAndGet(delta);
+        }
+
+        /**
+         * Whether a slice of this shard is not read yet. The supplier does not keep this context reachable.
+         */
+        public BooleanSupplier hasUnfinishedSlices() {
+            AtomicInteger unfinished = unfinishedSlices;
+            return () -> unfinished.get() > 0;
         }
 
         /**
@@ -207,6 +229,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
     }
 
+    private final Configuration configuration;
+
     private final IndexedByShardId<? extends ShardContext> shardContexts;
 
     private final PlannerSettings plannerSettings;
@@ -217,6 +241,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
+        Configuration configuration,
         IndexedByShardId<? extends ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         PlannerSettings plannerSettings,
@@ -224,6 +249,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         QueryWarnings singleValueQueryWarnings
     ) {
         super(foldContext, analysisRegistry);
+        this.configuration = configuration;
         this.shardContexts = shardContexts;
         this.plannerSettings = plannerSettings;
         this.directoryBytesRead = directoryBytesRead;
@@ -333,6 +359,26 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         UnionTypeEsField unionTypes = findUnionTypes(attr);
+        if ((unionTypes != null || DataType.isString(attr.dataType()) == false) && shardContext.readsKey(fieldName)) {
+            // A key is a keyword: a column of another type reads it through a cast, and where indices map the name with different
+            // types, through the cast the query settles them with
+            BlockLoader keys = shardContext.blockLoader(
+                fieldName,
+                false,
+                fieldExtractPreference,
+                null,
+                warnings,
+                plannerSettings.blockLoaderSizeOrdinals(),
+                plannerSettings.blockLoaderSizeScript()
+            );
+            ReferenceAttribute keyword = new ReferenceAttribute(attr.source(), fieldName, DataType.KEYWORD);
+            AbstractConvertFunction cast = unionTypes == null
+                ? EsqlDataTypeConverter.castFromKeyword(attr.dataType(), keyword, configuration)
+                : keywordConversion(unionTypes, keyword);
+            return cast == null
+                ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+                : ValuesSourceReaderOperator.loadAndConvert(keys, new TypeConverter((EsqlScalarFunction) cast));
+        }
         if (unionTypes == null && attr.dataType() != DataType.KEYWORD && shardContext.readsFromSource(fieldName)) {
             // A field read from _source is read as a keyword: a column of another type reads it only through a conversion
             return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
@@ -460,6 +506,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return null;
     }
 
+    /**
+     * The cast that {@code unionTypes} applies to each mapped type, applied to {@code keyword}, or {@code null} if it takes no
+     * keyword.
+     */
+    private static @Nullable AbstractConvertFunction keywordConversion(UnionTypeEsField unionTypes, Expression keyword) {
+        for (Expression conversion : unionTypes.getConversionExpressions()) {
+            if (conversion instanceof AbstractConvertFunction convert && convert.supportedTypes().contains(DataType.KEYWORD)) {
+                List<Expression> children = new ArrayList<>(convert.children());
+                children.set(0, keyword);
+                return (AbstractConvertFunction) convert.replaceChildren(children);
+            }
+        }
+        return null;
+    }
+
     public Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> querySupplier(
         QueryBuilder builder
     ) {
@@ -551,7 +612,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 estimatedPerRowSortSize,
                 scoring,
                 directoryBytesRead,
-                singleValueQueryWarnings
+                singleValueQueryWarnings,
+                context.sortBound()
             );
         } else if (esQueryExec.indexMode().isTsdb()) {
             luceneFactory = new TimeSeriesSourceOperator.Factory(
@@ -606,12 +668,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(attributes.size());
         Set<String> nullsFilteredFields = new HashSet<>();
-        planForNullsFilter.forEachDown(EsQueryExec.class, queryExec -> {
-            QueryBuilder q = queryExec.queryBuilderAndTags().get(0).query();
-            if (q != null) {
-                nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQuery(q));
-            }
-        });
+        planForNullsFilter.forEachDown(
+            EsQueryExec.class,
+            queryExec -> nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQueries(queryExec.queryBuilderAndTags()))
+        );
         UnmappedFields.Walk unmappedFieldsWalk = unmappedFieldsWalk(attributes);
         for (Attribute attr : attributes) {
             DataType dataType = attr.dataType();
@@ -662,12 +722,38 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             EsMinCompetitiveQueries minCompetitiveQueries = new EsMinCompetitiveQueries(
                 pilot.supplier(),
                 pilot.sortFieldName(),
+                pilot.sortFieldType(),
                 executionContext
             );
             Query q = minCompetitiveQueries.buildMinCompetitiveQuery(page);
             return q.rewrite(executionContext.searcher());
         };
         return new MinCompetitiveQuery.Factory(pilot.supplier(), buildMinCompetitiveQuery);
+    }
+
+    /**
+     * Returns the set of fields that are guaranteed to be dense after every query of an {@link EsQueryExec}.
+     *
+     * <p>An {@link EsQueryExec} can run several queries over the same shard, each one tagging the documents it matches
+     * (for example {@code ROUND_TO} pushdown). The source operator emits the documents of all of them, so a field is only
+     * dense if it is dense after <em>each</em> query. A single slice such as {@code exists(f)} says nothing about a sibling
+     * slice like {@code must_not(exists(f))}, which matches exactly the documents that have no value for {@code f}.
+     */
+    static Set<String> nullsFilteredFieldsAfterSourceQueries(List<EsQueryExec.QueryBuilderAndTags> queries) {
+        Set<String> denseInAll = null;
+        for (EsQueryExec.QueryBuilderAndTags queryAndTags : queries) {
+            // A missing query matches every document, so no field is known to be dense.
+            Set<String> dense = queryAndTags.query() == null ? Set.of() : nullsFilteredFieldsAfterSourceQuery(queryAndTags.query());
+            if (denseInAll == null) {
+                denseInAll = new HashSet<>(dense);
+            } else {
+                denseInAll.retainAll(dense);
+            }
+            if (denseInAll.isEmpty()) {
+                break;
+            }
+        }
+        return denseInAll == null ? Set.of() : denseInAll;
     }
 
     /**
@@ -725,7 +811,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
         LocalExecutionPlannerContext context,
-        int maxPageSize
+        int maxPageSize,
+        HashAggregationOperator.ParallelConfig parallelConfig
     ) {
         var pragmas = context.queryPragmas();
         int targetChunkRows = pragmas.timeSeriesTargetChunkRows(plannerSettings.timeSeriesTargetChunkRows());
@@ -737,7 +824,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             aggregatorFactories,
             context.pageSize(ts, ts.estimatedRowSize()),
             targetChunkRows,
-            pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold())
+            pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold()),
+            parallelConfig
         );
     }
 
@@ -756,8 +844,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         /** The walk of {@code _source} that the fields one extraction reads from it share, or {@code null} for a walk each. */
         @Nullable
         private final UnmappedFields.Walk sourceWalk;
+        private final LongAdder rowsEmitted;
 
         public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+            this(index, releasable, ctx, aliasFilter, new LongAdder());
+        }
+
+        public DefaultShardContext(
+            int index,
+            Releasable releasable,
+            SearchExecutionContext ctx,
+            AliasFilter aliasFilter,
+            LongAdder rowsEmitted
+        ) {
             this.index = index;
             this.releasable = releasable;
             this.ctx = ctx;
@@ -766,6 +865,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             this.shardIdentifier = this.ctx.getFullyQualifiedIndex().getName() + ":" + this.ctx.getShardId();
             this.shardSearchStats = ctx.stats();
             this.sourceWalk = null;
+            this.rowsEmitted = rowsEmitted;
         }
 
         private DefaultShardContext(DefaultShardContext context, UnmappedFields.Walk sourceWalk) {
@@ -776,6 +876,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             this.shardIdentifier = context.shardIdentifier;
             this.shardSearchStats = context.shardSearchStats;
             this.sourceWalk = sourceWalk;
+            this.rowsEmitted = context.rowsEmitted;
         }
 
         /** This context, reading the fields it reads from {@code _source} through {@code sourceWalk} when it reads them. */
@@ -793,6 +894,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return ctx instanceof EsqlSearchExecutionContext esql && esql.readsFromSource(name);
         }
 
+        /** Whether this shard reads the field {@code name} as the key of a {@code flattened} field, a {@code keyword}. */
+        boolean readsKey(String name) {
+            return ctx instanceof EsqlSearchExecutionContext esql && esql.readsKey(name);
+        }
+
         @Override
         public int index() {
             return index;
@@ -801,6 +907,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public IndexSearcher searcher() {
             return ctx.searcher();
+        }
+
+        @Override
+        public boolean canPartitionByTsidPrefix() {
+            return PartitionedDocValues.canPartitionByTsidPrefix(ctx.getIndexSettings().getIndexVersionCreated());
         }
 
         @Override
@@ -934,6 +1045,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public ShardSearchStats stats() {
             return shardSearchStats;
+        }
+
+        @Override
+        public void addRowsEmitted(long rows) {
+            rowsEmitted.add(rows);
         }
 
         @Override

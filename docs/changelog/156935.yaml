@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 156935
-summary: Implement BUCKET for histograms
+summary: Implement `BUCKET` for histograms
 type: enhancement

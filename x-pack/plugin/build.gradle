@@ -216,6 +216,7 @@ tasks.named("yamlRestCompatTestTransform").configure(
     )
     task.skipTest("esql/180_match_operator/match on eval column", "Match works now with non-mapped columns")
     task.skipTest("esql/180_match_operator/match on overwritten column", "Match works now with non-mapped columns")
+    task.skipTest("esql/100_bug_fix/unsupported and invalid mapped fields", "An object is not a leaf")
     task.skipTest("deprecation/10_basic/Test Deprecations", "node_settings depends on the JVM version, see NodeSettingsDeprecationIT")
     task.skipTest(
       "data_streams/10_data_stream_resolvability/Verify data stream resolvability in migrations API",

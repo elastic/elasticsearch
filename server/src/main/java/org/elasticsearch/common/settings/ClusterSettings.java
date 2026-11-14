@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -395,6 +396,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
         ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME,
         ClusterService.USER_DEFINED_METADATA,
+        MetadataMappingService.PUT_MAPPING_DYNAMIC_MAPPINGS_BATCHING_ENABLED_SETTING,
         MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
         MasterService.MASTER_SERVICE_STARVATION_LOGGING_THRESHOLD_SETTING,
         MasterService.MASTER_SERVICE_EXECUTION_HISTORY_SIZE_SETTING,

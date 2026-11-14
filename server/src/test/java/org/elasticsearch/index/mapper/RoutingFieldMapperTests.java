@@ -193,7 +193,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                         assertSame(desc + " (two builds should return the same singleton)", first, second);
                         assertSame(
                             desc + " (build must match InstancesLookup)",
-                            RoutingFieldMapper.InstancesLookup.lookup(requiredByDefault, required, docValuesEnabledByDefault, docValues),
+                            RoutingFieldMapper.InstancesLookup.lookup(required, docValues),
                             first
                         );
                     }

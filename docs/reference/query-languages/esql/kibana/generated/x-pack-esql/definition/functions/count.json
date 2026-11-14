@@ -56,6 +56,42 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "counter_double",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "counter_integer",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "counter_long",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "date",
           "optional" : true,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."

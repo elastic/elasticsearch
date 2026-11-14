@@ -140,17 +140,13 @@ public class RangeWithin extends EsqlScalarFunction implements TranslationAware,
     }
 
     @Override
-    public Object fold(FoldContext foldContext) {
+    public Object doFold(Source source, FoldContext foldContext) {
         if (foldable() == false) {
             return this;
         }
 
         Object leftValue = left.fold(foldContext);
         Object rightValue = right.fold(foldContext);
-
-        if (leftValue == null || rightValue == null) {
-            return null;
-        }
 
         if (right.dataType() == DOUBLE_RANGE) {
             if (left.dataType() == DOUBLE_RANGE) {

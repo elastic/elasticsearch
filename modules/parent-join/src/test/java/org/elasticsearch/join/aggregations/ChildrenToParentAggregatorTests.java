@@ -23,6 +23,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -30,7 +31,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.join.ParentJoinPlugin;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -300,10 +300,12 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         System.arraycopy(fieldTypes, 0, result, 0, fieldTypes.length);
 
         int i = fieldTypes.length;
-        result[i++] = new ParentJoinFieldMapper.Builder("join_field").addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
-            .build(MapperBuilderContext.root(false, false))
-            .fieldType();
-        result[i++] = new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false);
+        ParentJoinFieldMapper joinFieldMapper = new ParentJoinFieldMapper.Builder("join_field").addRelation(
+            PARENT_TYPE,
+            Collections.singleton(CHILD_TYPE)
+        ).build(MapperBuilderContext.root(false, false));
+        result[i++] = joinFieldMapper.fieldType();
+        result[i++] = ((FieldMapper) joinFieldMapper.iterator().next()).fieldType();
         assert i == result.length;
         return result;
     }

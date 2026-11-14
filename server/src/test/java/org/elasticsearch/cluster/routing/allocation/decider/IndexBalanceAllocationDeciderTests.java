@@ -9,10 +9,14 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -24,6 +28,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -31,10 +36,12 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
@@ -44,6 +51,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
@@ -55,6 +63,11 @@ import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocat
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
@@ -535,6 +548,206 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
                     + "] shards of the index."
             );
         }
+    }
+
+    public void testCanRemainReturnsYesForSplitSourcesWhenIndexIsBeingResharded() {
+        setup(Settings.EMPTY, () -> Settings.EMPTY, 1);
+
+        // Both index node 2 and search node 2 will be over the threshold
+        moveAShard(indexNodeOne, indexNodeTwo);
+        moveAShard(searchNodeOne, searchNodeTwo);
+
+        // The test reads the current index as the result of a 2x split
+        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(numberOfPrimaryShards / 2, 2);
+        final var reshardingIndexMetadata = IndexMetadata.builder(indexMetadata).reshardingMetadata(reshardingMetadata).build();
+        final var projectMetadata = clusterState.metadata().projectFor(indexMetadata.getIndex());
+        clusterState = ClusterState.builder(clusterState)
+            .putProjectMetadata(ProjectMetadata.builder(projectMetadata).put(reshardingIndexMetadata, true))
+            .build();
+        refreshDerivedState();
+
+        final var overThresholdExplanation = "There are [2] eligible nodes in the [*] tier for assignment of [*] shards in index *";
+        int splitSources = 0;
+        int splitTargets = 0;
+        for (ShardRouting shardRouting : clusterState.getRoutingNodes().node(indexNodeTwo.getId()).copyShards()) {
+            final var decision = indexBalanceAllocationDecider.canRemain(
+                reshardingIndexMetadata,
+                shardRouting,
+                routingIndexNodeTwo,
+                routingAllocation
+            );
+            if (IndexReshardingMetadata.isSplitSource(shardRouting.shardId(), reshardingMetadata)) {
+                splitSources++;
+                assertDecisionMatches(
+                    "Split sources are allowed to remain on an index node over the threshold",
+                    decision,
+                    Decision.Type.YES,
+                    "Decider is disabled for split sources whose targets have not reached HANDOFF yet."
+                );
+            } else {
+                splitTargets++;
+                assertDecisionMatches(
+                    "Split targets are not preferred to remain on an index node over the threshold",
+                    decision,
+                    Decision.Type.NOT_PREFERRED,
+                    overThresholdExplanation
+                );
+            }
+        }
+        assertThat(splitSources, greaterThan(0));
+        assertThat(splitTargets, greaterThan(0));
+
+        // Once their targets have reached HANDOFF, split sources are no longer allowed to remain over the threshold
+        final var handoffIndexMetadata = IndexMetadata.builder(indexMetadata)
+            .reshardingMetadata(
+                transitionSplitTargets(
+                    reshardingMetadata,
+                    indexMetadata.getIndex(),
+                    randomFrom(
+                        IndexReshardingState.Split.TargetShardState.HANDOFF,
+                        IndexReshardingState.Split.TargetShardState.SPLIT,
+                        IndexReshardingState.Split.TargetShardState.DONE
+                    )
+                )
+            )
+            .build();
+        for (ShardRouting shardRouting : clusterState.getRoutingNodes().node(indexNodeTwo.getId()).copyShards()) {
+            assertDecisionMatches(
+                "Shards of an index whose split targets have reached HANDOFF are not preferred to remain over the threshold",
+                indexBalanceAllocationDecider.canRemain(handoffIndexMetadata, shardRouting, routingIndexNodeTwo, routingAllocation),
+                Decision.Type.NOT_PREFERRED,
+                overThresholdExplanation
+            );
+        }
+
+        for (ShardRouting shardRouting : clusterState.getRoutingNodes().node(searchNodeTwo.getId()).copyShards()) {
+            assertDecisionMatches(
+                "Search shards of an index being resharded are not preferred to remain on a search node over the threshold",
+                indexBalanceAllocationDecider.canRemain(reshardingIndexMetadata, shardRouting, routingSearchNodeTwo, routingAllocation),
+                Decision.Type.NOT_PREFERRED,
+                overThresholdExplanation
+            );
+        }
+
+        // canAllocate still accounts for the resharding index, so that split targets are spread across nodes
+        assertDecisionMatches(
+            "Assigning an additional primary shard to an index node over the threshold should fail",
+            indexBalanceAllocationDecider.canAllocate(indexTierShardRouting, routingIndexNodeTwo, routingAllocation),
+            Decision.Type.NOT_PREFERRED,
+            "There are [2] eligible nodes in the [index] tier for assignment of [" + numberOfPrimaryShards + "] shards in index *"
+        );
+    }
+
+    public void testRerouteDoesNotMoveSplitSourcesForIndexBalance() {
+        final var settings = Settings.builder()
+            .put("stateless.enabled", "true")
+            .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), "true")
+            // Stateless disables index tier rebalancing in the desired balance simulation
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            .build();
+        final var allocationService = createAllocationService(settings);
+        final var projectId = ProjectId.DEFAULT;
+        final int sourceShardCount = 4;
+
+        // Start a 4-shard index on two index nodes, two shards on each
+        final var initialIndexMetadata = IndexMetadata.builder("index")
+            .settings(indexSettings(IndexVersion.current(), sourceShardCount, 0))
+            // Leave room in the routing shards for the split
+            .setRoutingNumShards(sourceShardCount * 2)
+            .build();
+        final var index = initialIndexMetadata.getIndex();
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(newNode("index-node-1", Set.of(DiscoveryNodeRole.INDEX_ROLE)))
+                    .add(newNode("index-node-2", Set.of(DiscoveryNodeRole.INDEX_ROLE)))
+            )
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(initialIndexMetadata, false)))
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(projectId, RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(initialIndexMetadata))
+                    .build()
+            )
+            .build();
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocationService);
+        assertThat(clusterState.getRoutingNodes().node("index-node-1").numberOfOwningShardsForIndex(index), equalTo(2));
+        assertThat(clusterState.getRoutingNodes().node("index-node-2").numberOfOwningShardsForIndex(index), equalTo(2));
+
+        // Split the index to 8 shards
+        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceShardCount, 2);
+        final var split = reshardingMetadata.getSplit();
+        final var splitIndexMetadata = IndexMetadata.builder(clusterState.metadata().getProject(projectId).index(index))
+            .reshardingMetadata(reshardingMetadata)
+            .reshardAddShards(reshardingMetadata.shardCountAfter())
+            .build();
+        final var indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        final var sourceIndexRoutingTable = clusterState.routingTable(projectId).index(index);
+        for (int shard = 0; shard < sourceShardCount; shard++) {
+            indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(sourceIndexRoutingTable.shard(shard)));
+        }
+        for (int shard = sourceShardCount; shard < reshardingMetadata.shardCountAfter(); shard++) {
+            indexRoutingTableBuilder.addShard(
+                ShardRouting.newUnassigned(
+                    new ShardId(index, shard),
+                    true,
+                    new RecoverySource.ReshardSplitRecoverySource(new ShardId(index, split.sourceShard(shard))),
+                    new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, null),
+                    ShardRouting.Role.DEFAULT,
+                    RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+                )
+            );
+        }
+        clusterState = ClusterState.builder(clusterState)
+            .putProjectMetadata(ProjectMetadata.builder(clusterState.metadata().getProject(projectId)).put(splitIndexMetadata, true))
+            .putRoutingTable(projectId, RoutingTable.builder(clusterState.routingTable(projectId)).add(indexRoutingTableBuilder).build())
+            .build();
+
+        // The targets are spread across both nodes, which brings each of them to the threshold of 4 shards
+        clusterState = allocationService.reroute(clusterState, "split", ActionListener.noop());
+        assertThat(RoutingNodesHelper.shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), hasSize(4));
+        assertThat(clusterState.getRoutingNodes().node("index-node-1").numberOfOwningShardsForIndex(index), equalTo(4));
+        assertThat(clusterState.getRoutingNodes().node("index-node-2").numberOfOwningShardsForIndex(index), equalTo(4));
+
+        // A third index node joins while the targets are still recovering, so the threshold drops to 3 shards per node
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("index-node-3", Set.of(DiscoveryNodeRole.INDEX_ROLE))))
+            .build();
+        clusterState = allocationService.reroute(clusterState, "node joined", ActionListener.noop());
+        assertThat(
+            "split sources must not be moved for index balance while the split is in progress",
+            RoutingNodesHelper.shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.RELOCATING),
+            empty()
+        );
+
+        // The targets reach HANDOFF before they are started, and the reroute that follows their start rebalances the
+        // index across the three nodes, while the index is still being resharded
+        final var handoffIndexMetadata = IndexMetadata.builder(clusterState.metadata().getProject(projectId).index(index))
+            .reshardingMetadata(transitionSplitTargets(reshardingMetadata, index, IndexReshardingState.Split.TargetShardState.HANDOFF))
+            .build();
+        clusterState = ClusterState.builder(clusterState)
+            .putProjectMetadata(ProjectMetadata.builder(clusterState.metadata().getProject(projectId)).put(handoffIndexMetadata, true))
+            .build();
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocationService);
+        assertNotNull(clusterState.metadata().getProject(projectId).index(index).getReshardingMetadata());
+        for (String nodeId : List.of("index-node-1", "index-node-2", "index-node-3")) {
+            assertThat(clusterState.getRoutingNodes().node(nodeId).numberOfOwningShardsForIndex(index), lessThanOrEqualTo(3));
+        }
+    }
+
+    private static IndexReshardingMetadata transitionSplitTargets(
+        IndexReshardingMetadata reshardingMetadata,
+        Index index,
+        IndexReshardingState.Split.TargetShardState targetShardState
+    ) {
+        var transitioned = reshardingMetadata;
+        for (var state : IndexReshardingState.Split.TargetShardState.values()) {
+            if (state != IndexReshardingState.Split.TargetShardState.CLONE && state.compareTo(targetShardState) <= 0) {
+                for (int shard = reshardingMetadata.shardCountBefore(); shard < reshardingMetadata.shardCountAfter(); shard++) {
+                    transitioned = transitioned.transitionSplitTargetToNewState(new ShardId(index, shard), state);
+                }
+            }
+        }
+        return transitioned;
     }
 
     /**

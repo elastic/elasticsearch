@@ -18,6 +18,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,7 +56,13 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RankFeaturePhaseTests extends ESTestCase {
 
@@ -106,6 +113,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -215,6 +223,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -336,6 +345,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -399,6 +409,72 @@ public class RankFeaturePhaseTests extends ESTestCase {
         }
     }
 
+    public void testShardResponseTripFailsSearch() {
+        AtomicBoolean phaseDone = new AtomicBoolean(false);
+        final ScoreDoc[][] finalResults = new ScoreDoc[1][1];
+        SearchSourceBuilder searchSourceBuilder = searchSourceWithRankBuilder(DEFAULT_RANK_BUILDER);
+        SearchPhaseController controller = searchPhaseController();
+        SearchShardTarget shard1Target = new SearchShardTarget("node0", new ShardId("test", "na", 0), null);
+        SearchShardTarget shard2Target = new SearchShardTarget("node1", new ShardId("test", "na", 1), null);
+
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(
+            2,
+            newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT)
+        );
+        mockSearchPhaseContext.getRequest().source(searchSourceBuilder);
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        try (SearchPhaseResults<SearchPhaseResult> results = searchPhaseResults(controller, mockSearchPhaseContext)) {
+            final ShardSearchContextId ctxShard1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
+            final ShardSearchContextId ctxShard2 = new ShardSearchContextId(UUIDs.base64UUID(), 456);
+            QuerySearchResult queryResultShard1 = new QuerySearchResult(ctxShard1, shard1Target, null);
+            QuerySearchResult queryResultShard2 = new QuerySearchResult(ctxShard2, shard2Target, null);
+            try {
+                queryResultShard1.setShardIndex(shard1Target.getShardId().getId());
+                queryResultShard2.setShardIndex(shard2Target.getShardId().getId());
+                populateQuerySearchResult(queryResultShard1, 1, new ScoreDoc[] { new ScoreDoc(1, 10.0F) });
+                populateQuerySearchResult(queryResultShard2, 1, new ScoreDoc[] { new ScoreDoc(2, 9.0F) });
+                results.consumeResult(queryResultShard2, () -> {});
+                results.consumeResult(queryResultShard1, () -> {});
+
+                mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
+                    @Override
+                    public void sendExecuteRankFeature(
+                        Transport.Connection connection,
+                        final RankFeatureShardRequest request,
+                        SearchTask task,
+                        ShardResponseReservation reservation,
+                        final ActionListener<RankFeatureResult> listener,
+                        LongConsumer bytesConsumer,
+                        LongConsumer requestBytesConsumer
+                    ) {
+                        if (request.contextId().getId() == 123) {
+                            trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener));
+                        } else {
+                            assertThat("the tripped shard is asked first", trip.get(), notNullValue());
+                            listener.onFailure(new IllegalArgumentException("simulated failure"));
+                        }
+                    }
+                };
+            } finally {
+                queryResultShard1.decRef();
+                queryResultShard2.decRef();
+            }
+            RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
+            try {
+                rankFeaturePhase.run();
+                assertThat(mockSearchPhaseContext.phaseFailure.get(), sameInstance(trip.get()));
+                assertThat(mockSearchPhaseContext.phaseFailures.get(), equalTo(1));
+                // The shard that failed after the trip is not counted down, so the phase does not move on
+                assertThat(mockSearchPhaseContext.failures, empty());
+                assertFalse("the phase must not finish after a trip", phaseDone.get());
+            } finally {
+                rankFeaturePhase.rankPhaseResults.close();
+            }
+        } finally {
+            mockSearchPhaseContext.results.close();
+        }
+    }
+
     public void testRankFeaturePhaseExceptionThrownOnPhase() {
         AtomicBoolean phaseDone = new AtomicBoolean(false);
         final ScoreDoc[][] finalResults = new ScoreDoc[1][1];
@@ -431,6 +507,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -565,6 +642,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer
@@ -709,6 +787,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         Transport.Connection connection,
                         final RankFeatureShardRequest request,
                         SearchTask task,
+                        ShardResponseReservation reservation,
                         final ActionListener<RankFeatureResult> listener,
                         LongConsumer bytesConsumer,
                         LongConsumer requestBytesConsumer

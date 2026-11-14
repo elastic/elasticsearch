@@ -7,6 +7,10 @@
 :::{include} brief-summary/label_join.md
 :::
 
+The destination can be a new label or an existing stored label (a dimension or `__name__`).
+
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under `topk`, `bottomk`, `limitk`, or `limit_ratio`, is supported when the destination is a new label, such as `label_replace(sum by (job) (x), "dst", "$1", "job", "(.*)")`.
+
 **Return type**
 
 `instant_vector`
@@ -31,6 +35,14 @@
 sum by (endpoint) (label_join(http_requests_total, "endpoint", "/", "job", "instance"))
 ```
 
-**Differences from Prometheus**
+:::{note}
+**Differences from {{prom}}**
 
-Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` aggregation. The destination may be a new label or may overwrite a stored label (a dimension or `__name__`). It is also supported over the result of an enclosed `by(...)` aggregation (optionally under `topk`, `bottomk`, `limitk` or `limit_ratio`), as long as the destination is a new label {applies_to}`stack: ga 9.7+`. A `without` grouping, a binary operator, or a bare (non-aggregated) call over raw series is rejected. Reading or overwriting `__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here.
+A call that isn't aggregated or is under `without(...)`, and a destination label named `step`, which is an output column of the `PROMQL` command, aren't supported yet.
+
+{applies_to}`stack: ga =9.6` A call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, isn't supported yet.
+
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over anything other than a `by(...)` aggregation, such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, and a call that overwrites a grouping label, such as `label_replace(sum by (job) (x), "job", "$1", "job", "(.*)")`, aren't supported yet. Write a new label instead.
+
+Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here.
+:::

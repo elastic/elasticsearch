@@ -51,7 +51,7 @@ public final class PromqlFunctionDefinition {
     private final List<String> examples;
     private final CounterSupport counterSupport;
     private final ClassicHistogramHandler classicHistogramHandler;
-    private final String differenceFromPrometheus;
+    private final String stdDivergence;
     private final List<StackAvailability> stack;
 
     @FunctionalInterface
@@ -176,7 +176,7 @@ public final class PromqlFunctionDefinition {
         List<String> examples,
         CounterSupport counterSupport,
         ClassicHistogramHandler classicHistogramHandler,
-        String differenceFromPrometheus,
+        String stdDivergence,
         List<StackAvailability> stack
     ) {
         Objects.requireNonNull(name, "name cannot be null");
@@ -218,8 +218,8 @@ public final class PromqlFunctionDefinition {
         this.examples = examples;
         this.counterSupport = counterSupport;
         this.classicHistogramHandler = classicHistogramHandler;
-        // Optional: only set for functions whose Elasticsearch behavior diverges from the Prometheus reference.
-        this.differenceFromPrometheus = differenceFromPrometheus;
+        // Optional: only set for functions that reject some uses Prometheus accepts, or whose results differ from it.
+        this.stdDivergence = stdDivergence;
         // Stack availability rendered into the docs applies_to badge. Empty until declared; the docs generator rejects
         // any registered function that leaves this unset.
         this.stack = stack;
@@ -288,11 +288,12 @@ public final class PromqlFunctionDefinition {
     }
 
     /**
-     * The "Differences from Prometheus" note rendered in the generated function docs, or {@code null} when the
+     * The "Differences from Prometheus" note rendered in the generated function docs: the uses of this function that
+     * Prometheus accepts and Elasticsearch rejects, and the uses that return a different result. {@code null} when the
      * function matches the Prometheus reference behavior.
      */
-    public String differenceFromPrometheus() {
-        return differenceFromPrometheus;
+    public String stdDivergence() {
+        return stdDivergence;
     }
 
     /**
@@ -351,8 +352,8 @@ public final class PromqlFunctionDefinition {
      */
     public static final String RATE_INCREASE_NOTE =
         "{{es}} computes the value over fixed time buckets and, at bucket boundaries, interpolates the counter value "
-            + "from the adjacent buckets' samples, falling back to Prometheus-style extrapolation wherever an adjacent "
-            + "bucket has no samples (the series edges and any gaps). Prometheus instead extrapolates within each range "
+            + "from the adjacent buckets' samples, falling back to {{prom}}-style extrapolation wherever an adjacent "
+            + "bucket has no samples (the series edges and any gaps). {{prom}} instead extrapolates within each range "
             + "window, so results can differ slightly.";
     /**
      * Shared extended-description fragment for the gauge family ({@code delta}, {@code idelta}, {@code deriv}), set as
@@ -367,17 +368,32 @@ public final class PromqlFunctionDefinition {
     public static final String FIRST_LAST_NOTE =
         "Accepts additional {{es}} field types (for example `keyword`, `ip`, and `date`) and returns counter inputs "
             + "unchanged rather than rejecting or converting them.";
+    /**
+     * Shared "Differences from Prometheus" fragment for the histogram functions that estimate from buckets
+     * ({@code histogram_quantile}, {@code histogram_fraction}).
+     */
+    public static final String HISTOGRAM_OVER_SELECTION_NOT_SUPPORTED_YET =
+        "{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` An argument computed by `topk`, `bottomk`, `limitk`, "
+            + "`limit_ratio`, or `without(...)`, such as `histogram_quantile(0.9, topk(5, a))`, isn't supported yet. Aggregate with "
+            + "`by(...)` first, such as `histogram_quantile(0.9, topk(5, sum by (job, le) (a)))`.";
+    /**
+     * Shared "Differences from Prometheus" note for the native-histogram component functions ({@code histogram_count},
+     * {@code histogram_sum}, {@code histogram_avg}).
+     */
+    public static final String NATIVE_HISTOGRAM_ONLY_NOTE =
+        "Accepts only native histograms. Classic histogram buckets, such as `rate(x_bucket[5m])`, return an error, where "
+            + "{{prom}} returns no results.";
     public static final String COUNT_NOTE = "Returns a `long` integer count rather than a floating-point value.";
     public static final String QUANTILE_APPROXIMATION_NOTE =
         "Computed using the {{es}} t-digest percentile aggregation, so results are approximate and may differ slightly "
-            + "from Prometheus's exact linear interpolation, particularly for small sample sets.";
+            + "from {{prom}}'s exact linear interpolation, particularly for small sample sets.";
     /**
      * Extends {@link #QUANTILE_APPROXIMATION_NOTE} for the quantiles that rank non-finite samples rather than
      * discarding them. Only accurate for a quantile backed by the non-finite-preserving aggregator.
      */
     public static final String QUANTILE_NOTE = QUANTILE_APPROXIMATION_NOTE
-        + " Non-finite values are ranked as `NaN` < `-Inf` < finite < `+Inf`, the same order Prometheus sorts by. A "
-        + "rank landing exactly on a sample returns that sample, whereas Prometheus still averages in the neighbouring "
+        + " Non-finite values are ranked as `NaN` < `-Inf` < finite < `+Inf`, the same order {{prom}} sorts by. A "
+        + "rank landing exactly on a sample returns that sample, whereas {{prom}} still averages in the neighbouring "
         + "sample weighted by zero, so it returns `NaN` wherever that neighbour is an infinity.";
 
     /**
@@ -449,6 +465,11 @@ public final class PromqlFunctionDefinition {
     public static final List<StackAvailability> STACK_GA_9_6 = List.of(ga(PromqlDocsVersion.V_9_6));
 
     /**
+     * Stack availability for PromQL functions that ship as a preview in 9.7.
+     */
+    public static final List<StackAvailability> STACK_PREVIEW_9_7 = List.of(preview(PromqlDocsVersion.V_9_7));
+
+    /**
      * Stack availability for PromQL functions that ship as generally available in 9.7.
      */
     public static final List<StackAvailability> STACK_GA_9_7 = List.of(ga(PromqlDocsVersion.V_9_7));
@@ -484,7 +505,7 @@ public final class PromqlFunctionDefinition {
         private List<PromqlParamInfo> params;
         private CounterSupport counterSupport = CounterSupport.UNSUPPORTED;
         private ClassicHistogramHandler classicHistogramHandler;
-        private String differenceFromPrometheus;
+        private String stdDivergence;
         private List<StackAvailability> stack = List.of();
 
         public PromqlFunctionDefinition.Builder counterSupport(CounterSupport counterSupport) {
@@ -508,20 +529,21 @@ public final class PromqlFunctionDefinition {
         }
 
         /**
-         * Documents how this function's Elasticsearch behavior diverges from the Prometheus reference. Rendered as a
-         * "Differences from Prometheus" section in the generated docs. Omit for functions that match Prometheus.
+         * Documents how this function's Elasticsearch behavior diverges from the Prometheus reference: the uses it
+         * rejects, and the uses that return a different result. Rendered as a "Differences from Prometheus" section in
+         * the generated docs. Omit for functions that match Prometheus.
          */
-        public PromqlFunctionDefinition.Builder differenceFromPrometheus(String differenceFromPrometheus) {
-            this.differenceFromPrometheus = differenceFromPrometheus;
+        public PromqlFunctionDefinition.Builder stdDivergence(String stdDivergence) {
+            this.stdDivergence = stdDivergence;
             return this;
         }
 
         /**
          * Declares the {@code stack} availability rendered into the function's docs {@code applies_to} badge. Use the
          * {@link PromqlFunctionDefinition#STACK_PREVIEW_9_4_GA_9_5} / {@link PromqlFunctionDefinition#STACK_GA_9_5}
-         * presets for the common cases. Serverless availability is intentionally not declared here: implemented PromQL
-         * functions are generally available in serverless, which is stated once at the docs page level rather than
-         * repeated per function. (When a function first ships as a serverless preview, add a serverless entry here.)
+         * presets for the common cases. Serverless availability is not declared separately. A list that includes
+         * {@code ga} leaves serverless to the docs page frontmatter. A preview-only list is also preview on serverless,
+         * and the generated badge says so.
          */
         public PromqlFunctionDefinition.Builder stack(List<StackAvailability> stack) {
             this.stack = stack;
@@ -879,12 +901,33 @@ public final class PromqlFunctionDefinition {
             this.functionType = FunctionType.RESULT_ORDERING;
             this.arity = PromqlFunctionArity.ONE;
             this.params = List.of(INSTANT_VECTOR);
-            this.builder = (source, target, ctx, extraParams) -> {
+            this.builder = throwingResultOrderingBuilder();
+            return this;
+        }
+
+        /**
+         * Configures a label-based result-ordering function ({@code sort_by_label}, {@code sort_by_label_desc}).
+         * Variadic in the label-name arguments after the instant vector. Like {@link #resultOrdering()}, these are not
+         * lowered through the generic {@link FunctionBuilder}.
+         */
+        public PromqlFunctionDefinition.Builder resultOrderingByLabel() {
+            this.functionType = FunctionType.RESULT_ORDERING;
+            this.arity = new PromqlFunctionArity(1, Integer.MAX_VALUE);
+            this.variadic = true;
+            this.params = List.of(
+                INSTANT_VECTOR,
+                PromqlParamInfo.of("label", PromqlDataType.SCALAR, "Name of a label to sort by (repeatable).")
+            );
+            this.builder = throwingResultOrderingBuilder();
+            return this;
+        }
+
+        private static FunctionBuilder throwingResultOrderingBuilder() {
+            return (source, target, ctx, extraParams) -> {
                 throw new UnsupportedOperationException(
                     "result-ordering functions are translated directly, not built via the generic function builder"
                 );
             };
-            return this;
         }
 
         /**
@@ -903,7 +946,7 @@ public final class PromqlFunctionDefinition {
                 examples,
                 counterSupport,
                 classicHistogramHandler,
-                differenceFromPrometheus,
+                stdDivergence,
                 stack
             );
         }

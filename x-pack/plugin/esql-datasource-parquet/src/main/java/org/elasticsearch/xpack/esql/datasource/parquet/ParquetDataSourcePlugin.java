@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 
@@ -80,6 +82,13 @@ public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin 
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(ParquetReaderStatus.ENTRY);
+        return formatReaderProfileVariants().stream().map(ProfileSchema.Variant::namedWriteableEntry).toList();
+    }
+
+    @Override
+    public List<ProfileSchema.Variant<FormatReaderStatus>> formatReaderProfileVariants() {
+        return List.of(
+            ProfileSchema.Variant.fromEntry(FormatReaderStatus.class, ParquetReaderStatus.ENTRY, ParquetReaderStatus.PROFILE_SCHEMA)
+        );
     }
 }

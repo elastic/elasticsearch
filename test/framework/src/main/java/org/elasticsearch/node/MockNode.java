@@ -131,7 +131,6 @@ public class MockNode extends Node {
             FetchPhase fetchPhase,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
-            Tracer tracer,
             OnlinePrewarmingService onlinePrewarmingService,
             TaskManager taskManager
         ) {
@@ -146,7 +145,6 @@ public class MockNode extends Node {
                     fetchPhase,
                     circuitBreakerService,
                     executorSelector,
-                    tracer,
                     onlinePrewarmingService,
                     taskManager
                 );
@@ -161,7 +159,6 @@ public class MockNode extends Node {
                 fetchPhase,
                 circuitBreakerService,
                 executorSelector,
-                tracer,
                 onlinePrewarmingService,
                 taskManager
             );
@@ -295,7 +292,13 @@ public class MockNode extends Node {
             TerminationHandler terminationHandler
         ) {
             if (pluginsService.filterPlugins(ListenableShutdownPrepareService.TestPlugin.class).findAny().isPresent()) {
-                return new ListenableShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
+                return new ListenableShutdownPrepareService(
+                    settings,
+                    httpServerTransport,
+                    transportService,
+                    terminationHandler,
+                    actionsToAwaitOnShutdown(pluginsService)
+                );
             }
             return super.newShutdownPrepareService(pluginsService, settings, httpServerTransport, transportService, terminationHandler);
         }

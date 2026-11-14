@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
@@ -17,22 +18,27 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper;
 import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -43,6 +49,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Parse-time tests for the batch-mapping fast path: drives {@link ShardBatchMapper} directly and
@@ -102,7 +110,17 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
             return null;
         }
         return releaseAfterTest(
-            ShardBatchMapper.mapColumnBatch(items, batch, shard, 0, items.length, resolution, Engine.Operation.Origin.PRIMARY, recycler)
+            ShardBatchMapper.mapColumnBatch(
+                items,
+                batch,
+                shard,
+                0,
+                items.length,
+                resolution,
+                Engine.Operation.Origin.PRIMARY,
+                recycler,
+                DocumentParsingProvider.EMPTY_INSTANCE
+            )
         );
     }
 
@@ -478,7 +496,17 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
 
                 // First chunk [0, 2).
                 EngineBatch chunk1 = releaseAfterTest(
-                    ShardBatchMapper.mapColumnBatch(items, fullBatch, shard, 0, 2, resolution, Engine.Operation.Origin.PRIMARY, recycler)
+                    ShardBatchMapper.mapColumnBatch(
+                        items,
+                        fullBatch,
+                        shard,
+                        0,
+                        2,
+                        resolution,
+                        Engine.Operation.Origin.PRIMARY,
+                        recycler,
+                        DocumentParsingProvider.EMPTY_INSTANCE
+                    )
                 );
                 assertNotNull("chunk1 mapping should succeed", chunk1);
                 chunk1.columns().fillPrimaryTerm(1L);
@@ -494,7 +522,17 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
 
                 // Second chunk [2, 4).
                 EngineBatch chunk2 = releaseAfterTest(
-                    ShardBatchMapper.mapColumnBatch(items, fullBatch, shard, 2, 4, resolution, Engine.Operation.Origin.PRIMARY, recycler)
+                    ShardBatchMapper.mapColumnBatch(
+                        items,
+                        fullBatch,
+                        shard,
+                        2,
+                        4,
+                        resolution,
+                        Engine.Operation.Origin.PRIMARY,
+                        recycler,
+                        DocumentParsingProvider.EMPTY_INSTANCE
+                    )
                 );
                 assertNotNull("chunk2 mapping should succeed", chunk2);
                 chunk2.columns().fillPrimaryTerm(1L);
@@ -796,6 +834,96 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
         }
     }
 
+    /**
+     * A multi-field of a {@code nullability=false} field is required as well, but has no source column of its own: it is mapped from its
+     * parent's column. So it counts as present whenever the parent does, and the batch neither lists it in {@code _ignored} nor, under
+     * {@code on_failure=FAIL}, falls back to the row path. When the parent is absent, the multi-field is missing too, as on the row path,
+     * including when the parent itself is {@code nullability=true} and only the multi-field inherits the index-level {@code false}.
+     */
+    public void testRequiredMultiFieldIsPresentWhenItsParentIs() throws IOException {
+        final boolean parentNullable = randomBoolean();
+        final String mapping = Strings.format("""
+            {
+              "dynamic": "strict",
+              "properties": {
+                "f": { "type": "keyword", %s"fields": { "raw": { "type": "keyword" } } },
+                "other": { "type": "keyword", "nullability": true }
+              }
+            }""", parentNullable ? "\"nullability\": true, " : "");
+        final FieldMapper.DocValuesParameter.Values.OnFailure onFailure = randomFrom(
+            FieldMapper.DocValuesParameter.Values.OnFailure.values()
+        );
+        final Settings settings = Settings.builder()
+            .put(COLUMNAR_SETTINGS)
+            .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
+            .put(FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.getKey(), onFailure)
+            .build();
+
+        IndexShard shard = newShardWithMapping(mapping, settings);
+        try {
+            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("f", randomAlphanumericOfLength(5))), XContentType.JSON)) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("a required multi-field must count as present when its parent is", result);
+                assertEquals(List.of(Set.of()), ignoredFieldsPerDoc(result));
+            }
+            try (SourceBatch batch = EscfEncoder.encode(List.of(doc("other", randomAlphanumericOfLength(5))), XContentType.JSON)) {
+                EngineBatch result = mapBatch(shard, items, batch);
+                if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+                    assertNotNull("on_failure=IGNORE must not cause columnar fallback", result);
+                    assertEquals(List.of(parentNullable ? Set.of("f.raw") : Set.of("f", "f.raw")), ignoredFieldsPerDoc(result));
+                } else {
+                    assertNull("a required field absent from the ESCF schema must cause columnar fallback", result);
+                }
+            }
+            // The parent's column exists but one document lacks it: the multi-field's own per-document check must catch that. Only checked
+            // with a nullable parent, since a required parent fails its own check first and the fallback would hide which check fired.
+            if (parentNullable) {
+                final BulkItemRequest[] twoItems = {
+                    new BulkItemRequest(0, indexRequest("doc1")),
+                    new BulkItemRequest(1, indexRequest("doc2")) };
+                final List<BytesReference> docs = List.of(
+                    doc("f", randomAlphanumericOfLength(5)),
+                    doc("other", randomAlphanumericOfLength(5))
+                );
+                try (SourceBatch batch = EscfEncoder.encode(docs, XContentType.JSON)) {
+                    EngineBatch result = mapBatch(shard, twoItems, batch);
+                    if (onFailure == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+                        assertNotNull("on_failure=IGNORE must not cause columnar fallback", result);
+                        assertEquals(List.of(Set.of(), Set.of("f.raw")), ignoredFieldsPerDoc(result));
+                    } else {
+                        assertNull("a document without a required multi-field's parent must cause columnar fallback", result);
+                    }
+                }
+            }
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    /** The field names each document of {@code result} lists in {@code _ignored}, in document order. */
+    private static List<Set<String>> ignoredFieldsPerDoc(EngineBatch result) {
+        final MappedColumns mc = result.columns();
+        mc.fillPrimaryTerm(1L);
+        for (int doc = 0; doc < mc.docCount(); doc++) {
+            mc.setSeqNo(doc, doc);
+            mc.setVersion(doc, 1L);
+        }
+        final MappedColumns.RowCursor cursor = mc.rowCursor();
+        final List<Set<String>> ignored = new ArrayList<>();
+        for (int doc = 0; doc < mc.docCount(); doc++) {
+            cursor.advance();
+            ignored.add(
+                cursor.fields()
+                    .stream()
+                    .filter(fld -> "_ignored".equals(fld.name()))
+                    .map(fld -> fld.binaryValue().utf8ToString())
+                    .collect(Collectors.toSet())
+            );
+        }
+        return ignored;
+    }
+
     public void testSingleValuedColumnarKeywordBatchWritesTheBareValue() throws IOException {
         final String mapping = """
             {
@@ -836,184 +964,122 @@ public class ShardBatchMapperParseTests extends IndexShardTestCase {
     }
 
     /**
-     * When a {@code nullability=false, on_failure=IGNORE} field has an explicit null value
-     * ({@code f: null}), the columnar path must detect the violation. Since the column is present
-     * in the ESCF schema (with NULL type), {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch}
-     * throws via its {@code hasNullOrAbsentDoc()} check, triggering sequential fallback, which adds to
-     * {@code _ignored} via {@code enforceRequiredFields()}. This test verifies the fallback happens
-     * correctly.
-     *
-     * <p>Note: because the columnar path falls back to sequential for scalar nulls, {@code mapBatch}
-     * returns {@code null} here. The document is later processed by the sequential path.
+     * A {@code nullability=false} field that is missing, null, or an array with no non-null value has no value, as on the sequential path.
+     * Whatever the field's type, {@code FieldMapper.mapColumnBatch} records it in {@code _ignored} for that document only under
+     * {@code on_failure=ignore}, keeping the batch columnar, as {@code testRequiredFieldAbsentFromSchemaAppearsInIgnoredOnIgnoreFailure}
+     * does for a field no document has.
      */
-    public void testScalarNullCausesColumnarFallbackForNullabilityFalse() throws IOException {
-        final String mapping = """
+    public void testRequiredFieldWithoutValueAppearsInIgnoredOnIgnoreFailure() throws IOException {
+        assertRequiredFieldWithoutValue(true);
+    }
+
+    /** Under {@code on_failure=fail} the same document makes the batch fall back, so that the sequential path rejects it. */
+    public void testRequiredFieldWithoutValueCausesColumnarFallback() throws IOException {
+        assertRequiredFieldWithoutValue(false);
+    }
+
+    private void assertRequiredFieldWithoutValue(boolean ignore) throws IOException {
+        final String type = randomFrom("keyword", "text", "ip", "long", "double");
+        final boolean singleValued = type.equals("keyword") && randomBoolean();
+        final String mapping = Strings.format("""
             {
               "dynamic": "strict",
               "properties": {
-                "f": {
-                  "type": "keyword",
-                  "nullability": false, "on_failure": "ignore"
-                }
+                "f": { "type": "%s", "nullability": false, "on_failure": "%s", "multi_value": %s }
               }
-            }""";
+            }""", type, ignore ? "ignore" : "fail", singleValued == false);
+        // A number field refuses a column holding a null outright, as the encoder packs it as a UNION column, so only an empty array and a
+        // missing field reach its check. "{}" is a document without the field.
+        final boolean number = type.equals("long") || type.equals("double");
+        final List<String> valuelessShapes = number
+            ? List.of("{\"f\":[]}", "{}")
+            : List.of("{\"f\":[]}", "{\"f\":[[]]}", "{\"f\":[null]}", "{\"f\":[null,null]}", "{\"f\":null}", "{}");
+        // At least one document with values, so the column has the field's type, and at least one without.
+        final int docCount = randomIntBetween(2, 6);
+        final int valueDoc = randomIntBetween(0, docCount - 1);
+        final boolean[] valueless = new boolean[docCount];
+        final BytesReference[] sources = new BytesReference[docCount];
+        final BulkItemRequest[] items = new BulkItemRequest[docCount];
+        for (int doc = 0; doc < docCount; doc++) {
+            valueless[doc] = doc == (valueDoc + 1) % docCount || (doc != valueDoc && randomBoolean());
+            sources[doc] = valueless[doc] ? new BytesArray(randomFrom(valuelessShapes)) : arrayDoc(type, singleValued ? 1 : 2);
+            items[doc] = new BulkItemRequest(doc, indexRequest("doc" + doc));
+        }
 
         IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
         try {
-            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
-            try (SourceBatch batch = EscfEncoder.encode(List.of(new BytesArray("{\"f\":null}")), XContentType.JSON)) {
-                assertNull(
-                    "a nullability=false field with scalar null must cause columnar fallback (hasNullOrAbsentDoc check)",
-                    mapBatch(shard, items, batch)
-                );
+            try (SourceBatch batch = EscfEncoder.encode(List.of(sources), XContentType.JSON)) {
+                if (ignore == false) {
+                    // Any refusal makes the batch fall back the same way, so check that it is the nullability check that refused it: the
+                    // one for a missing or null document if there is one, otherwise the one for the first document without a value.
+                    String reason = null;
+                    for (int doc = 0; doc < docCount && reason == null; doc++) {
+                        final String source = sources[doc].utf8ToString();
+                        if (source.equals("{}") || source.equals("{\"f\":null}")) {
+                            reason = "has a null or absent value";
+                        }
+                    }
+                    for (int doc = 0; doc < docCount && reason == null; doc++) {
+                        if (valueless[doc]) {
+                            reason = "has no value in document [" + doc + "]";
+                        }
+                    }
+                    MockLog.assertThatLogger(
+                        () -> assertNull(
+                            "a nullability=false field without a value must cause columnar fallback under on_failure=fail",
+                            mapBatch(shard, items, batch)
+                        ),
+                        ShardBatchMapper.class,
+                        new MockLog.PatternAndExceptionSeenEventExpectation(
+                            "nullability fallback",
+                            ShardBatchMapper.class.getCanonicalName(),
+                            Level.WARN,
+                            "columnar batch mapping failed on .*",
+                            UnsupportedOperationException.class,
+                            "mapColumnBatch: nullability=false field [f] " + reason
+                        )
+                    );
+                    return;
+                }
+                final EngineBatch result = mapBatch(shard, items, batch);
+                assertNotNull("a nullability=false field without a value must not cause columnar fallback under on_failure=ignore", result);
+                final MappedColumns mc = result.columns();
+                mc.fillPrimaryTerm(1L);
+                for (int doc = 0; doc < items.length; doc++) {
+                    mc.setSeqNo(doc, doc);
+                    mc.setVersion(doc, 1L);
+                }
+                final MappedColumns.RowCursor cursor = mc.rowCursor();
+                for (int doc = 0; doc < items.length; doc++) {
+                    cursor.advance();
+                    assertEquals(
+                        "_ignored for doc [" + doc + "] holding " + sources[doc].utf8ToString(),
+                        valueless[doc],
+                        cursor.fields().stream().anyMatch(fld -> "_ignored".equals(fld.name()))
+                    );
+                }
             }
         } finally {
             closeShards(shard);
         }
     }
 
-    /**
-     * When a {@code nullability=false, on_failure=IGNORE} field receives an empty array
-     * ({@code f: []}), the columnar path must add the field to {@code _ignored}. ESCF encodes an
-     * empty array as a {@code UNION_ARRAY} column with 0 elements, so the cursor never visits the
-     * document and the per-doc flush block never fires. The post-loop {@code docVisited} scan is the
-     * only mechanism that catches this shape; without it, the document would be silently accepted with
-     * no entry in {@code _ignored}.
-     *
-     * <p>Unlike scalar nulls (which cause columnar fallback via {@code hasNullOrAbsentDoc}), an empty
-     * array is present and non-null in the ESCF column, so the columnar path stays active and
-     * {@code mapBatch} returns non-null here.
-     */
-    public void testEmptyArrayAppearsInIgnoredOnIgnoreFailure() throws IOException {
-        final String mapping = """
-            {
-              "dynamic": "strict",
-              "properties": {
-                "f": {
-                  "type": "keyword",
-                  "nullability": false, "on_failure": "ignore"
+    /** A document whose {@code f} is an array of {@code count} random values of {@code type}. */
+    private static BytesReference arrayDoc(String type, int count) throws IOException {
+        try (XContentBuilder b = XContentFactory.jsonBuilder()) {
+            b.startObject().startArray("f");
+            for (int i = 0; i < count; i++) {
+                switch (type) {
+                    case "keyword", "text" -> b.value(randomAlphanumericOfLength(5));
+                    case "ip" -> b.value(NetworkAddress.format(randomIp(randomBoolean())));
+                    // Elements of one width class (int, float), so the encoder packs them as an ARRAY column rather than a UNION.
+                    case "long" -> b.value(randomInt());
+                    case "double" -> b.value(randomIntBetween(-1000, 1000) + 0.5);
+                    default -> throw new AssertionError("unexpected type [" + type + "]");
                 }
-              }
-            }""";
-
-        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
-        try {
-            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
-            try (SourceBatch batch = EscfEncoder.encode(List.of(new BytesArray("{\"f\":[]}")), XContentType.JSON)) {
-                EngineBatch result = mapBatch(shard, items, batch);
-                assertNotNull("on_failure=IGNORE empty array must not cause columnar fallback", result);
-
-                final MappedColumns mc = result.columns();
-                mc.fillPrimaryTerm(1L);
-                mc.setSeqNo(0, 1L);
-                mc.setVersion(0, 1L);
-
-                final MappedColumns.RowCursor cursor = mc.rowCursor();
-                cursor.advance();
-                final List<IndexableField> fields = cursor.fields();
-
-                assertTrue(
-                    "_ignored must be present when nullability=false on_failure=ignore and f has an empty array",
-                    fields.stream().anyMatch(fld -> "_ignored".equals(fld.name()))
-                );
             }
-        } finally {
-            closeShards(shard);
-        }
-    }
-
-    /**
-     * When a {@code nullability=false, on_failure=IGNORE} field has an all-null array value
-     * ({@code f: [null, null]}), the columnar path must add the field to {@code _ignored} for each
-     * affected document. Unlike scalar nulls (handled by {@code hasNullOrAbsentDoc} in
-     * {@code FieldMapper.mapColumnBatch}), all-null arrays are detected inside the keyword mapper's
-     * own columnar implementation, which writes to {@code _ignored} without falling back.
-     */
-    public void testAllNullArrayAppearsInIgnoredOnIgnoreFailure() throws IOException {
-        final String mapping = """
-            {
-              "dynamic": "strict",
-              "properties": {
-                "f": {
-                  "type": "keyword",
-                  "nullability": false, "on_failure": "ignore"
-                }
-              }
-            }""";
-
-        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
-        try {
-            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
-            try (SourceBatch batch = EscfEncoder.encode(List.of(new BytesArray("{\"f\":[null,null]}")), XContentType.JSON)) {
-                EngineBatch result = mapBatch(shard, items, batch);
-                assertNotNull("on_failure=IGNORE all-null array must not cause columnar fallback", result);
-
-                final MappedColumns mc = result.columns();
-                mc.fillPrimaryTerm(1L);
-                mc.setSeqNo(0, 1L);
-                mc.setVersion(0, 1L);
-
-                final MappedColumns.RowCursor cursor = mc.rowCursor();
-                cursor.advance();
-                final List<IndexableField> fields = cursor.fields();
-
-                assertTrue(
-                    "_ignored must be present when nullability=false on_failure=ignore and f has all-null array",
-                    fields.stream().anyMatch(fld -> "_ignored".equals(fld.name()))
-                );
-            }
-        } finally {
-            closeShards(shard);
-        }
-    }
-
-    /**
-     * Verifies all-null array nullability enforcement in {@code mapColumnBatchUnordered}, the code path
-     * taken when {@code storesArrayOrderInline()==false}. That happens when {@code multi_value=false}
-     * (no offsets sidecar needed, so {@code arrayOrderBinaryDocValues} is never set). Unlike scalar nulls
-     * (which cause columnar fallback via {@code hasNullOrAbsentDoc}), all-null arrays are a distinct ESCF
-     * column type; the unordered path enforces them at the doc boundary with the
-     * {@code nullElementSeenThisDoc} flag, which is the only mechanism that covers this shape there.
-     *
-     * <p>Unlike {@link #testAllNullArrayAppearsInIgnoredOnIgnoreFailure}, the columnar path stays active
-     * here: {@code mapBatch} returns non-null, and the violation is recorded in {@code _ignored} without
-     * falling back to the sequential path.
-     */
-    public void testAllNullArrayAppearsInIgnoredOnIgnoreFailureUnorderedPath() throws IOException {
-        final String mapping = """
-            {
-              "dynamic": "strict",
-              "properties": {
-                "f": {
-                  "type": "keyword",
-                  "nullability": false, "on_failure": "ignore", "multi_value": false
-                }
-              }
-            }""";
-
-        IndexShard shard = newShardWithMapping(mapping, COLUMNAR_SETTINGS);
-        try {
-            final BulkItemRequest[] items = { new BulkItemRequest(0, indexRequest("doc1")) };
-            try (SourceBatch batch = EscfEncoder.encode(List.of(new BytesArray("{\"f\":[null,null]}")), XContentType.JSON)) {
-                EngineBatch result = mapBatch(shard, items, batch);
-                assertNotNull("on_failure=IGNORE all-null array must not cause columnar fallback (unordered path)", result);
-
-                final MappedColumns mc = result.columns();
-                mc.fillPrimaryTerm(1L);
-                mc.setSeqNo(0, 1L);
-                mc.setVersion(0, 1L);
-
-                final MappedColumns.RowCursor cursor = mc.rowCursor();
-                cursor.advance();
-                final List<IndexableField> fields = cursor.fields();
-
-                assertTrue(
-                    "_ignored must be present when nullability=false on_failure=ignore and f has all-null array (unordered path)",
-                    fields.stream().anyMatch(fld -> "_ignored".equals(fld.name()))
-                );
-            }
-        } finally {
-            closeShards(shard);
+            b.endArray().endObject();
+            return BytesReference.bytes(b);
         }
     }
 }

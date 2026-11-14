@@ -9,17 +9,20 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
@@ -206,6 +209,133 @@ public class RenameProcessorTests extends ESTestCase {
         Processor processor1 = createRenameProcessor("message", "event.original", false, true);
         processor1.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("event.original", String.class), equalTo("new_message"));
+    }
+
+    /**
+     * An empty field is treated as one that is missing rather than as an invalid path. That matters for a template that renders as
+     * nothing when the document doesn't have something that it refers to, combined with ignore_missing: the processor does nothing if
+     * ignore_missing is set, and otherwise it fails because the field doesn't exist. A field that is empty for every document is
+     * treated the same way. This is the same for the kv, rename and remove processors.
+     */
+    public void testEmptyFieldIsTreatedAsMissing() throws Exception {
+        TemplateScript.Factory constantEmpty = ConfigurationUtils.compileTemplate(
+            RenameProcessor.TYPE,
+            "tag",
+            "field",
+            "",
+            TestTemplateService.instance()
+        );
+        // a constant template, which is empty for every document, and one that really is rendered for every document
+        for (TemplateScript.Factory emptyField : List.of(constantEmpty, new TestTemplateService.MockTemplateScript.Factory(""))) {
+            TemplateScript.Factory target = new TestTemplateService.MockTemplateScript.Factory("target");
+
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            ingestDocument.setFieldValue("foo", "bar");
+            new RenameProcessor("tag", null, emptyField, target, true, false).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of("foo", "bar")));
+
+            RenameProcessor notIgnoringMissing = new RenameProcessor("tag", null, emptyField, target, false, false);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> notIgnoringMissing.execute(ingestDocument));
+            assertThat(e.getMessage(), equalTo("field [] doesn't exist"));
+        }
+    }
+
+    /**
+     * Unlike an empty field, an empty target field is not treated as a missing one, so it is an error whether or not ignore_missing is
+     * set (which is only about the field that is being renamed). It is reported before the field that is being renamed is removed, so
+     * that the document is left as it was.
+     */
+    public void testEmptyTargetFieldIsInvalid() throws Exception {
+        TemplateScript.Factory constantEmpty = ConfigurationUtils.compileTemplate(
+            RenameProcessor.TYPE,
+            "tag",
+            "target_field",
+            "",
+            TestTemplateService.instance()
+        );
+        // a constant template, which is empty for every document, and one that really is rendered for every document
+        for (TemplateScript.Factory emptyTarget : List.of(constantEmpty, new TestTemplateService.MockTemplateScript.Factory(""))) {
+            for (boolean ignoreMissing : new boolean[] { true, false }) {
+                IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+                ingestDocument.setFieldValue("foo", "bar");
+                RenameProcessor processor = new RenameProcessor(
+                    "tag",
+                    null,
+                    new TestTemplateService.MockTemplateScript.Factory("foo"),
+                    emptyTarget,
+                    ignoreMissing,
+                    randomBoolean()
+                );
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+                assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
+                assertThat(ingestDocument.getSource(), equalTo(Map.of("foo", "bar")));
+            }
+        }
+    }
+
+    /**
+     * A target field that can't be used is reported before the field that is being renamed is removed, so that field is not lost. That
+     * matters most for an element of an array: removing it shifts the elements after it down, so (unlike for a field of an object)
+     * putting the value back where it came from is not the same as never having removed it.
+     */
+    public void testMalformedTargetFieldDoesNotLoseTheField() throws Exception {
+        // a field of an object
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("foo", "bar");
+        Processor processor = createRenameProcessor("foo", "a..b", false, randomBoolean());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+        assertThat(ingestDocument.getSource(), equalTo(Map.of("foo", "bar")));
+
+        // an element of an array
+        IngestDocument arrayDocument = TestIngestDocument.emptyIngestDocument();
+        arrayDocument.setFieldValue("list", new ArrayList<>(List.of("item1", "item2", "item3")));
+        Processor arrayProcessor = createRenameProcessor("list.0", "a..b", false, randomBoolean());
+        e = expectThrows(IllegalArgumentException.class, () -> arrayProcessor.execute(arrayDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+        assertThat(arrayDocument.getFieldValue("list", List.class), equalTo(List.of("item1", "item2", "item3")));
+    }
+
+    /**
+     * The field and the target field are templates, which are rendered as often as they have to be and no more: once each for every
+     * document (however many times the processor looks at them), and the target not at all if there is nothing to rename.
+     */
+    public void testTemplatedFieldsAreRenderedOncePerExecute() throws Exception {
+        AtomicInteger fieldRenders = new AtomicInteger();
+        AtomicInteger targetRenders = new AtomicInteger();
+        TemplateScript.Factory field = countingTemplate("source", fieldRenders);
+        TemplateScript.Factory target = countingTemplate("target", targetRenders);
+
+        for (boolean overrideEnabled : new boolean[] { true, false }) {
+            // something to rename
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            ingestDocument.setFieldValue("source", "value");
+            fieldRenders.set(0);
+            targetRenders.set(0);
+            new RenameProcessor("tag", null, field, target, false, overrideEnabled).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of("target", "value")));
+            assertThat("override " + overrideEnabled, fieldRenders.get(), equalTo(1));
+            assertThat("override " + overrideEnabled, targetRenders.get(), equalTo(1));
+
+            // nothing to rename
+            ingestDocument = TestIngestDocument.emptyIngestDocument();
+            fieldRenders.set(0);
+            targetRenders.set(0);
+            new RenameProcessor("tag", null, field, target, true, overrideEnabled).execute(ingestDocument);
+            assertThat(ingestDocument.getSource(), equalTo(Map.of()));
+            assertThat("override " + overrideEnabled, fieldRenders.get(), equalTo(1));
+            assertThat("override " + overrideEnabled, targetRenders.get(), equalTo(0));
+        }
+    }
+
+    private static TemplateScript.Factory countingTemplate(String rendersAs, AtomicInteger renders) {
+        return params -> new TemplateScript(params) {
+            @Override
+            public String execute() {
+                renders.incrementAndGet();
+                return rendersAs;
+            }
+        };
     }
 
     private RenameProcessor createRenameProcessor(String field, String targetField, boolean ignoreMissing, boolean overrideEnabled) {

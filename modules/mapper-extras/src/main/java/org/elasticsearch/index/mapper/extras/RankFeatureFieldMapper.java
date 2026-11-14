@@ -49,19 +49,13 @@ public class RankFeatureFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> positiveScoreImpact = Parameter.boolParam(
-            "positive_score_impact",
-            false,
-            m -> ft(m).positiveScoreImpact,
-            true
-        );
+        private final Parameter<Boolean> positiveScoreImpact = Parameter.boolParam("positive_score_impact", false, true);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Float> nullValue = new Parameter<>(
             "null_value",
             false,
             () -> null,
             (n, c, o) -> o == null ? null : objectToFloat(o),
-            m -> ft(m).nullValue,
             XContentBuilder::field,
             Objects::toString
         ).addValidator(value -> {
@@ -236,8 +230,4 @@ public class RankFeatureFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
 }

@@ -82,6 +82,12 @@ public class DefaultSettingsProvider implements SettingsProvider {
 
         settings.put("action.destructive_requires_name", "false");
 
+        // The batch indexing kill switch is on by default when the feature flag is enabled. Randomly turning it off covers the non-batch
+        // path for indices that opt into batch indexing by default, such as columnar ones.
+        if (nodeSpec.getCluster().isBatchIndexingDisabled()) {
+            settings.put("indices.batch_indexing", "false");
+        }
+
         // Setup cluster discovery
         String masterEligibleNodes = nodeSpec.getCluster()
             .getNodes()

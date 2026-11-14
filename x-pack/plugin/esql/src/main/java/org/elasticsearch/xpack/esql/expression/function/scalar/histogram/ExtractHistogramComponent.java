@@ -64,6 +64,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction implements Any
         .description("Returns the count of observations stored in a native histogram.")
         .example("histogram_count(increase(http_request_duration_seconds[5m]))")
         .stack(PromqlFunctionDefinition.STACK_GA_9_5)
+        .stdDivergence(PromqlFunctionDefinition.NATIVE_HISTOGRAM_ONLY_NOTE)
         .name("histogram_count");
 
     public static final PromqlFunctionDefinition PROMQL_HISTOGRAM_SUM = PromqlFunctionDefinition.def()
@@ -71,6 +72,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction implements Any
         .description("Returns the sum of observations stored in a native histogram.")
         .example("histogram_sum(increase(http_request_duration_seconds[5m]))")
         .stack(PromqlFunctionDefinition.STACK_GA_9_5)
+        .stdDivergence(PromqlFunctionDefinition.NATIVE_HISTOGRAM_ONLY_NOTE)
         .name("histogram_sum");
 
     public static final PromqlFunctionDefinition PROMQL_HISTOGRAM_AVG = PromqlFunctionDefinition.def()
@@ -88,6 +90,7 @@ public class ExtractHistogramComponent extends EsqlScalarFunction implements Any
         .description("Returns the arithmetic average of observations stored in a native histogram.")
         .example("histogram_avg(increase(http_request_duration_seconds[5m]))")
         .stack(PromqlFunctionDefinition.STACK_GA_9_5)
+        .stdDivergence(PromqlFunctionDefinition.NATIVE_HISTOGRAM_ONLY_NOTE)
         .name("histogram_avg");
 
     private final Expression field;

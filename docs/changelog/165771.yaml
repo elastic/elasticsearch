@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165771
+summary: "Fail a streaming text read that is interrupted mid-parse instead of returning a silent prefix"
+type: bug

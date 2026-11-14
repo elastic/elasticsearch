@@ -2,6 +2,6 @@
 
 ### Supported function named parameters
 
-`analyzer`
+`analyzer` {applies_to}`{"serverless": "ga", "stack": "ga 9.6.0"}`
 :   (keyword) The analyzer applied to the values of the resulting text column, playing the role the mapping's `analyzer` plays for an indexed text field. Defaults to `standard`. Must name a registered (prebuilt or plugin-provided) analyzer, and is only accepted on expressions that are not backed by an index-mapped field.
 

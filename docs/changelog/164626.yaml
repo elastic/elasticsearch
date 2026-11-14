@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 164624
+pr: 164626
+summary: Fix NPE when updating a detector description without rules on an open anomaly detection job
+type: bug

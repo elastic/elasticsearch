@@ -34,9 +34,9 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  * <p>Partition pruning skips whole files and is covered by {@code ExternalHivePartitionPruningIT}. A time filter cannot
  * reach it: a partition column is path-derived and never typed as a date, so a range on an ordinary timestamp column
- * prunes nothing at the file layer. What it can do is skip row groups inside the file on their statistics, and that is
- * what these tests assert, by reading {@code row_groups_kept} against {@code row_groups_total} from the source
- * operator's {@code format_reader} status.
+ * prunes nothing at the file layer. Footer min/max drops MISS row-group splits before the reader opens, so these tests
+ * pin {@code splits_scanned} against an unfiltered control. Reader {@code row_groups_kept}/{@code row_groups_total}
+ * only still apply to shapes that push no statistics predicate.
  *
  * <p>Every query drains fully — no {@code LIMIT} — because the producer commits its format-reader snapshot on the
  * terminal EOF callback, and a short-circuited scan can leave the consumer reading an empty status.
@@ -64,11 +64,12 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
 
     public void testRequestFilterTimeRangeSkipsRowGroups() throws Exception {
         String dataset = registerSortedDataset("rg_range");
+        Pruning all = runAndReadStatus(dataset, null, allIds());
         // ts in [0, 100] selects rows 0..10 out of 500 — a slice narrow enough that most row groups cannot hold a match.
         Pruning status = runAndReadStatus(dataset, QueryBuilders.rangeQuery("ts").gte(0).lte(100), idsWithTsBetween(0, 100));
-        assertTrue("the range must be pushed to the reader", status.pushdownUsed());
-        assertThat("the fixture must have more than one row group or there is nothing to skip", status.total(), greaterThan(1L));
-        assertThat("a selective time range must skip row groups", status.kept(), lessThan(status.total()));
+        assertThat("the fixture must have more than one split or there is nothing to skip", all.splitsScanned(), greaterThan(1));
+        assertThat("a selective time range must drop MISS splits before scan", status.splitsScanned(), lessThan(all.splitsScanned()));
+        assertThat("at least the matching row groups are scheduled", status.splitsScanned(), greaterThan(0));
     }
 
     public void testWhereAndRequestFilterPruneIdentically() throws Exception {
@@ -77,7 +78,11 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
         Pruning viaFilter = runAndReadStatus(dataset, QueryBuilders.rangeQuery("ts").gte(0).lte(100), expected);
         // The bounds are cast: ts is LONG and a bare ES|QL integer literal is INTEGER, which mv_in_range rejects.
         Pruning viaWhere = runAndReadStatus(dataset, "WHERE mv_in_range(ts, 0::long, 100::long) | ", null, expected);
-        assertThat("the request filter and the equivalent WHERE must skip the same row groups", viaFilter.kept(), equalTo(viaWhere.kept()));
+        assertThat(
+            "the request filter and the equivalent WHERE must schedule the same splits",
+            viaFilter.splitsScanned(),
+            equalTo(viaWhere.splitsScanned())
+        );
     }
 
     public void testUnfilteredScanKeepsEveryRowGroup() throws Exception {
@@ -134,7 +139,8 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
                 .filter(QueryBuilders.termQuery("region", "EU")),
             expected
         );
-        assertThat("the range arm must still skip row groups", status.kept(), lessThan(status.total()));
+        Pruning all = runAndReadStatus(dataset, null, allIds());
+        assertThat("the range arm must still drop MISS splits", status.splitsScanned(), lessThan(all.splitsScanned()));
     }
 
     /**
@@ -154,8 +160,8 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
         assertThat("no row group may be skipped", status.kept(), equalTo(status.total()));
     }
 
-    /** Row-group accounting for one query, summed over every external source operator that ran. */
-    private record Pruning(long kept, long total, boolean pushdownUsed) {}
+    /** Reader row-group counters plus coordinator {@code splits_scanned}. */
+    private record Pruning(long kept, long total, boolean pushdownUsed, int splitsScanned) {}
 
     private Pruning runAndReadStatus(String dataset, QueryBuilder requestFilter, List<Long> expectedIds) {
         return runAndReadStatus(dataset, "", requestFilter, expectedIds);
@@ -197,7 +203,9 @@ public class ExternalRequestFilterRowGroupPruningIT extends AbstractExternalData
                 }
             }
             assertThat("expected a Parquet reader status in the driver profiles", readers, greaterThan(0));
-            return new Pruning(kept, total, pushdownUsed);
+            assertThat(response.getExecutionInfo(), notNullValue());
+            assertThat(response.getExecutionInfo().queryProfile(), notNullValue());
+            return new Pruning(kept, total, pushdownUsed, response.getExecutionInfo().queryProfile().splitsScanned());
         }
     }
 

@@ -43,6 +43,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -200,6 +201,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
         readMultiLineFormat(
             xContent,
             parserConfig,
+            UnaryOperator.identity(),
             data,
             consumer,
             indices,
@@ -218,6 +220,7 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
     public static void readMultiLineFormat(
         XContent xContent,
         XContentParserConfiguration parserConfig,
+        UnaryOperator<XContentParser> trackParser,
         BytesReference data,
         CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
         String[] indices,
@@ -270,10 +273,8 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
             // now parse the action
             if (nextMarker - from > 0) {
                 try (
-                    XContentParser parser = XContentHelper.createParserNotCompressed(
-                        parserConfig,
-                        data.slice(from, nextMarker - from),
-                        xContent.type()
+                    XContentParser parser = trackParser.apply(
+                        XContentHelper.createParserNotCompressed(parserConfig, data.slice(from, nextMarker - from), xContent.type())
                     )
                 ) {
                     Map<String, Object> source = parser.map();
@@ -370,10 +371,8 @@ public class MultiSearchRequest extends UntypedActionRequest implements Composit
                 break;
             }
             try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(
-                    parserConfig,
-                    data.slice(from, nextMarker - from),
-                    xContent.type()
+                XContentParser parser = trackParser.apply(
+                    XContentHelper.createParserNotCompressed(parserConfig, data.slice(from, nextMarker - from), xContent.type())
                 )
             ) {
                 consumer.accept(searchRequest, parser);

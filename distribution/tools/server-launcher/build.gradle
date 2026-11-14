@@ -49,7 +49,9 @@ def nativeImageLinuxX64 = tasks.register('nativeImageLinuxX64', NativeImageBuild
   platform = 'linux/amd64'
   mainClass = launcherMainClass
   // Use the AMD64 baseline so the binary runs on any x86_64 CPU; GraalVM 25 defaults to v3 which requires AVX2.
-  extraArgs = ['-march=compatibility']
+  // Disable the GraalVM deadlock watchdog: on slow/emulated CI agents (notably aarch64 under QEMU) class loading
+  // can stall long enough to trip the watchdog's default inactivity interval, which aborts the build with exit 30.
+  extraArgs = ['-march=compatibility', '-H:DeadlockWatchdogInterval=0']
   outputFile = layout.buildDirectory.file('native/linux-x86_64/server-launcher')
 }
 
@@ -61,7 +63,9 @@ def nativeImageLinuxAarch64 = tasks.register('nativeImageLinuxAarch64', NativeIm
   platform = 'linux/arm64'
   mainClass = launcherMainClass
   // Use the ARMv8.0-A baseline so the binary runs on any aarch64 CPU; GraalVM 25's default requires LSE atomics (ARMv8.1).
-  extraArgs = ['-march=compatibility']
+  // Disable the GraalVM deadlock watchdog: when this task runs under QEMU emulation on an amd64 agent, class loading
+  // can stall long enough to trip the watchdog's default inactivity interval, which aborts the build with exit 30.
+  extraArgs = ['-march=compatibility', '-H:DeadlockWatchdogInterval=0']
   outputFile = layout.buildDirectory.file('native/linux-aarch64/server-launcher')
 }
 

@@ -35,9 +35,6 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.NoSeedNodeLeftException;
-import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
@@ -620,7 +617,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     static boolean shouldRetry(final Exception e) {
         if (NetworkExceptionHelper.isConnectException(e)
-            || NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, false) != Level.OFF) {
+            || NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, false) != Level.OFF
+            || ExceptionsHelper.isRemoteUnavailableException(e)) {
             return true;
         }
 
@@ -634,10 +632,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             || actual instanceof ElasticsearchSecurityException // If user does not have sufficient privileges
             || actual instanceof ClusterBlockException // If leader index is closed or no elected master
             || actual instanceof IndexClosedException // If follow index is closed
-            || actual instanceof ConnectTransportException
             || actual instanceof NodeClosedException
-            || actual instanceof NoSuchRemoteClusterException
-            || actual instanceof NoSeedNodeLeftException
             || actual instanceof EsRejectedExecutionException
             || actual instanceof CircuitBreakingException;
     }

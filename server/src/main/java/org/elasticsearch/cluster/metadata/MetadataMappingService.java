@@ -44,8 +44,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 /**
  * Service responsible for submitting mapping changes
@@ -68,6 +72,17 @@ public class MetadataMappingService {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Whether dynamic mapping updates for the same index that are queued together are applied with a single merge. When disabled,
+     * every update is merged on its own, which is the default.
+     */
+    public static final Setting<Boolean> PUT_MAPPING_DYNAMIC_MAPPINGS_BATCHING_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.service.put_mapping.dynamic_mappings.batching.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final Logger logger = LogManager.getLogger(MetadataMappingService.class);
 
     private final ClusterService clusterService;
@@ -75,6 +90,7 @@ public class MetadataMappingService {
 
     private final MasterServiceTaskQueue<PutMappingClusterStateUpdateTask> taskQueue;
     private volatile TimeValue maxMasterNodeTimeout;
+    private volatile boolean batchingEnabled = PUT_MAPPING_DYNAMIC_MAPPINGS_BATCHING_ENABLED_SETTING.getDefault(Settings.EMPTY);
 
     @Inject
     public MetadataMappingService(
@@ -87,8 +103,10 @@ public class MetadataMappingService {
         this.taskQueue = clusterService.createTaskQueue(
             "put-mapping",
             PUT_MAPPING_PRIORITY_SETTING.get(clusterService.getSettings()),
-            new PutMappingExecutor(indexSettingProviders)
+            new PutMappingExecutor(indexSettingProviders, () -> batchingEnabled)
         );
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(PUT_MAPPING_DYNAMIC_MAPPINGS_BATCHING_ENABLED_SETTING, v -> batchingEnabled = v);
 
         // setting only registered in some tests today
         clusterService.getClusterSettings().initializeAndWatchIfRegistered(PUT_MAPPING_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
@@ -152,15 +170,18 @@ public class MetadataMappingService {
         }
     }
 
+    /** Applies mapping updates using validation services scoped to the current index metadata. */
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateTask> {
         private final IndexSettingProviders indexSettingProviders;
+        private final BooleanSupplier batchingEnabled;
 
         PutMappingExecutor() {
-            this(IndexSettingProviders.EMPTY);
+            this(IndexSettingProviders.EMPTY, () -> false);
         }
 
-        PutMappingExecutor(IndexSettingProviders indexSettingProviders) {
+        PutMappingExecutor(IndexSettingProviders indexSettingProviders, BooleanSupplier batchingEnabled) {
             this.indexSettingProviders = indexSettingProviders;
+            this.batchingEnabled = batchingEnabled;
         }
 
         @Override
@@ -169,39 +190,24 @@ public class MetadataMappingService {
             // Each task gets its own private taskServices map; on success it is promoted here so that
             // subsequent tasks in the same batch see the accumulated merged state.
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
+            final boolean batching = batchingEnabled.getAsBoolean();
             try {
                 var currentState = batchExecutionContext.initialState();
+                final Map<Index, List<TaskContext<PutMappingClusterStateUpdateTask>>> pendingGroups = new LinkedHashMap<>();
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
-                    final var task = taskContext.getTask();
-                    final PutMappingClusterStateUpdateRequest request = task.request;
-                    Map<Index, MapperService> taskServices = new HashMap<>();
-                    // activeEntries holds the pre-update mapping source for indices served from the
-                    // pre-flight cache, so applyRequest can skip the merge call for those indices.
-                    Map<Index, CompressedXContent> activeEntries = new HashMap<>();
-                    try (var ignored = taskContext.captureResponseHeaders()) {
-                        for (Index index : request.indices()) {
-                            currentState.projectState(currentState.metadata().projectFor(index).id()).ensureProjectNotUnderDeletion();
-                            final IndexMetadata indexMetadata = currentState.metadata().indexMetadata(index);
-                            if (indexMetadata == null) {
-                                throw new IllegalStateException("index [" + index.getName() + "] not found in cluster state");
-                            }
-                            if (indexMapperServices.containsKey(index)) {
-                                taskServices.put(index, indexMapperServices.get(index));
-                            } else {
-                                taskServices.put(index, loadService(task, index, indexMetadata, activeEntries));
-                            }
+                    final PutMappingClusterStateUpdateRequest request = taskContext.getTask().request;
+                    if (batching && request.autoUpdate() && request.indices().length == 1) {
+                        pendingGroups.computeIfAbsent(request.indices()[0], k -> new ArrayList<>()).add(taskContext);
+                    } else {
+                        for (var group : pendingGroups.values()) {
+                            currentState = executeGroup(group, currentState, indexMapperServices);
                         }
-                        currentState = applyRequest(currentState, request, taskServices, activeEntries);
-                        taskContext.success(task);
-                        indexMapperServices.putAll(taskServices);
-                    } catch (Exception e) {
-                        for (var entry : taskServices.entrySet()) {
-                            if (indexMapperServices.containsKey(entry.getKey()) == false) {
-                                IOUtils.closeWhileHandlingException(entry.getValue());
-                            }
-                        }
-                        taskContext.onFailure(e);
+                        pendingGroups.clear();
+                        currentState = executeSingleTask(taskContext, currentState, indexMapperServices);
                     }
+                }
+                for (var group : pendingGroups.values()) {
+                    currentState = executeGroup(group, currentState, indexMapperServices);
                 }
                 return currentState;
             } finally {
@@ -213,6 +219,125 @@ public class MetadataMappingService {
                     task.preflightCache.clear();
                 }
             }
+        }
+
+        private ClusterState executeSingleTask(
+            TaskContext<PutMappingClusterStateUpdateTask> taskContext,
+            ClusterState currentState,
+            Map<Index, MapperService> indexMapperServices
+        ) {
+            final var task = taskContext.getTask();
+            final PutMappingClusterStateUpdateRequest request = task.request;
+            Map<Index, MapperService> taskServices = new HashMap<>();
+            // activeEntries holds the pre-update mapping source for indices served from the
+            // pre-flight cache, so applyRequest can skip the merge call for those indices.
+            Map<Index, CompressedXContent> activeEntries = new HashMap<>();
+            try (var ignored = taskContext.captureResponseHeaders()) {
+                for (Index index : request.indices()) {
+                    final IndexMetadata indexMetadata = requireIndexMetadata(currentState, index);
+                    if (indexMapperServices.containsKey(index)) {
+                        taskServices.put(index, indexMapperServices.get(index));
+                    } else {
+                        taskServices.put(index, loadService(task, index, indexMetadata, activeEntries));
+                    }
+                }
+                currentState = applyRequest(currentState, request, taskServices, activeEntries);
+                taskContext.success(task);
+                indexMapperServices.putAll(taskServices);
+            } catch (Exception e) {
+                for (var entry : taskServices.entrySet()) {
+                    // A merge may have succeeded before a later index or settings provider rejected the task.
+                    indexMapperServices.remove(entry.getKey(), entry.getValue());
+                    IOUtils.closeWhileHandlingException(entry.getValue());
+                }
+                taskContext.onFailure(e);
+            }
+            return currentState;
+        }
+
+        /**
+         * Applies dynamic mapping update tasks that all target the same index with a single merge; if that fails for any reason,
+         * applies the tasks one by one so that each task gets exactly the outcome it would have had on its own.
+         */
+        private ClusterState executeGroup(
+            List<TaskContext<PutMappingClusterStateUpdateTask>> group,
+            ClusterState currentState,
+            Map<Index, MapperService> indexMapperServices
+        ) {
+            if (group.size() == 1) {
+                return executeSingleTask(group.get(0), currentState, indexMapperServices);
+            }
+            final Index index = group.get(0).getTask().request.indices()[0];
+            ClusterState newState = null;
+            boolean discardService = false;
+            // Only the first task captures response headers, so warnings from the other tasks' sources are dropped.
+            try (var ignored = group.get(0).captureResponseHeaders()) {
+                final IndexMetadata indexMetadata = requireIndexMetadata(currentState, index);
+                final Map<Index, CompressedXContent> activeEntries = new HashMap<>();
+                MapperService mapperService = indexMapperServices.get(index);
+                if (mapperService == null) {
+                    mapperService = loadService(group.get(0).getTask(), index, indexMetadata, activeEntries);
+                    indexMapperServices.put(index, mapperService);
+                }
+                final boolean cacheHit = activeEntries.containsKey(index);
+                discardService = cacheHit;
+                final CompressedXContent existingSource = cacheHit ? activeEntries.get(index)
+                    : mapperService.documentMapper() != null ? mapperService.documentMapper().mappingSource()
+                    : null;
+                final List<CompressedXContent> sources = new ArrayList<>(group.size());
+                for (var taskContext : group.subList(cacheHit ? 1 : 0, group.size())) {
+                    sources.add(taskContext.getTask().request.source());
+                }
+                final DocumentMapper mergedMapper = mapperService.mergeDynamicMappingUpdates(sources);
+                discardService = true;
+                final Metadata.Builder builder = Metadata.builder(currentState.metadata());
+                final ProjectMetadata projectMetadata = currentState.metadata().projectFor(index);
+                if (updateIndexMetadata(builder, projectMetadata, projectMetadata.index(index), existingSource, mergedMapper)) {
+                    newState = ClusterState.builder(currentState).metadata(builder).build();
+                } else {
+                    newState = currentState;
+                }
+            } catch (Exception e) {
+                logger.debug(
+                    () -> Strings.format("batched put-mapping of [%d] tasks for %s failed, applying them one by one", group.size(), index),
+                    e
+                );
+                // A failed merge leaves the service unchanged, but a cached service already holds the first task, and after a
+                // successful merge the service no longer matches the cluster state. Either way the fallback must start from a new one.
+                if (discardService) {
+                    IOUtils.closeWhileHandlingException(indexMapperServices.remove(index));
+                }
+            }
+            if (newState == null) {
+                for (var taskContext : group) {
+                    currentState = executeSingleTask(taskContext, currentState, indexMapperServices);
+                }
+                return currentState;
+            }
+            for (var taskContext : group) {
+                taskContext.success(taskContext.getTask());
+            }
+            return newState;
+        }
+
+        private static IndexMetadata requireIndexMetadata(ClusterState currentState, Index index) {
+            currentState.projectState(currentState.metadata().projectFor(index).id()).ensureProjectNotUnderDeletion();
+            final IndexMetadata indexMetadata = currentState.metadata().indexMetadata(index);
+            if (indexMetadata == null) {
+                throw new IllegalStateException("index [" + index.getName() + "] not found in cluster state");
+            }
+            return indexMetadata;
+        }
+
+        private MapperService createService(IndexMetadata indexMetadata) throws IOException {
+            MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
+            try {
+                mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
+            } catch (Exception e) {
+                IOUtils.closeWhileHandlingException(mapperService);
+                throw e;
+            }
+            return mapperService;
         }
 
         /**
@@ -234,14 +359,7 @@ public class MetadataMappingService {
                 return cached.mergedService();
             }
             IOUtils.closeWhileHandlingException(cached);
-            MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
-            try {
-                mapperService.merge(indexMetadata, MergeReason.MAPPING_RECOVERY);
-            } catch (Exception e) {
-                IOUtils.closeWhileHandlingException(mapperService);
-                throw e;
-            }
-            return mapperService;
+            return createService(indexMetadata);
         }
 
         private ClusterState applyRequest(
@@ -271,59 +389,70 @@ public class MetadataMappingService {
                     mergedMapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, request.source(), reason);
                 }
 
-                CompressedXContent updatedSource = mergedMapper.mappingSource();
-                // If the mapping source is the same after merging, then we have no real update, so we skip modifying this index.
-                if (updatedSource.equals(existingSource)) {
-                    continue;
+                if (updateIndexMetadata(builder, projectMetadata, indexMetadata, existingSource, mergedMapper)) {
+                    updated = true;
                 }
-                logMappingResult(index, existingSource, updatedSource, mergedMapper.type());
-
-                IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
-                // Mapping updates on a single type may have side-effects on other types so we need to
-                // update mapping metadata on all types
-                indexMetadataBuilder.putMapping(new MappingMetadata(mergedMapper));
-                indexMetadataBuilder.putInferenceFields(mergedMapper.mappers().inferenceFields());
-                boolean updatedSettings = false;
-                final Settings.Builder additionalIndexSettings = Settings.builder();
-                indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion())
-                    .mappingsUpdatedVersion(IndexVersion.current());
-                // Never cleared: the documents indexed under this mapping stay.
-                if (indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION)
-                    && IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.get(indexMetadata.getSettings()) == false
-                    && mergedMapper.mapping().getRoot().canRetainUnmappedFields()) {
-                    additionalIndexSettings.put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), true);
-                    updatedSettings = true;
-                }
-                for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
-                    Settings.Builder newAdditionalSettingsBuilder = Settings.builder();
-                    provider.onUpdateMappings(indexMetadata, mergedMapper, newAdditionalSettingsBuilder);
-                    if (newAdditionalSettingsBuilder.keys().isEmpty() == false) {
-                        Settings newAdditionalSettings = newAdditionalSettingsBuilder.build();
-                        MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
-                        additionalIndexSettings.put(newAdditionalSettings);
-                        updatedSettings = true;
-                    }
-                }
-                if (updatedSettings) {
-                    final Settings.Builder indexSettingsBuilder = Settings.builder();
-                    indexSettingsBuilder.put(indexMetadata.getSettings());
-                    indexSettingsBuilder.put(additionalIndexSettings.build());
-                    indexMetadataBuilder.settings(indexSettingsBuilder.build());
-                    indexMetadataBuilder.settingsVersion(1 + indexMetadata.getSettingsVersion());
-                }
-                /*
-                 * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have
-                 * already incremented the mapping version if necessary. Therefore, the mapping version increment must remain before this
-                 * statement.
-                 */
-                builder.getProject(projectMetadata.id()).put(indexMetadataBuilder);
-                updated = true;
             }
             if (updated) {
                 return ClusterState.builder(currentState).metadata(builder).build();
             } else {
                 return currentState;
             }
+        }
+
+        private boolean updateIndexMetadata(
+            Metadata.Builder builder,
+            ProjectMetadata projectMetadata,
+            IndexMetadata indexMetadata,
+            CompressedXContent existingSource,
+            DocumentMapper mergedMapper
+        ) {
+            CompressedXContent updatedSource = mergedMapper.mappingSource();
+            // If the mapping source is the same after merging, then we have no real update, so we skip modifying this index.
+            if (updatedSource.equals(existingSource)) {
+                return false;
+            }
+            logMappingResult(indexMetadata.getIndex(), existingSource, updatedSource, mergedMapper.type());
+
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
+            // Mapping updates on a single type may have side-effects on other types so we need to
+            // update mapping metadata on all types
+            indexMetadataBuilder.putMapping(new MappingMetadata(mergedMapper));
+            indexMetadataBuilder.putInferenceFields(mergedMapper.mappers().inferenceFields());
+            boolean updatedSettings = false;
+            final Settings.Builder additionalIndexSettings = Settings.builder();
+            indexMetadataBuilder.mappingVersion(1 + indexMetadataBuilder.mappingVersion()).mappingsUpdatedVersion(IndexVersion.current());
+            // Never cleared: the documents indexed under this mapping stay.
+            if (indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TRACKS_UNMAPPED_FIELD_RETENTION)
+                && IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.get(indexMetadata.getSettings()) == false
+                && mergedMapper.mapping().getRoot().canRetainUnmappedFields()) {
+                additionalIndexSettings.put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), true);
+                updatedSettings = true;
+            }
+            for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
+                Settings.Builder newAdditionalSettingsBuilder = Settings.builder();
+                provider.onUpdateMappings(indexMetadata, mergedMapper, newAdditionalSettingsBuilder);
+                if (newAdditionalSettingsBuilder.keys().isEmpty() == false) {
+                    Settings newAdditionalSettings = newAdditionalSettingsBuilder.build();
+                    MetadataCreateIndexService.validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
+                    additionalIndexSettings.put(newAdditionalSettings);
+                    updatedSettings = true;
+                }
+            }
+            if (updatedSettings) {
+                final Settings.Builder indexSettingsBuilder = Settings.builder();
+                indexSettingsBuilder.put(indexMetadata.getSettings());
+                indexSettingsBuilder.put(additionalIndexSettings.build());
+                indexMetadataBuilder.settings(indexSettingsBuilder.build());
+                indexMetadataBuilder.settingsVersion(1 + indexMetadata.getSettingsVersion());
+            }
+            /*
+             * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have
+             * already incremented the mapping version if necessary. Therefore, the mapping version increment must remain before this
+             * statement.
+             */
+            builder.getProject(projectMetadata.id()).put(indexMetadataBuilder);
+            return true;
         }
 
         private void logMappingResult(Index index, CompressedXContent existingSource, CompressedXContent updatedSource, String type) {

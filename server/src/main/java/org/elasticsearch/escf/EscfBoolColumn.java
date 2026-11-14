@@ -9,7 +9,9 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.SourceValueType;
 
 /**
@@ -56,6 +58,21 @@ final class EscfBoolColumn extends EscfColumn {
 
     @Override
     public void addSizesInBytes(int[] sizes) {}
+
+    @Override
+    public void addMeteredSizes(long[] sizes, MeteringModel model) {
+        final long booleanBytes = model.booleanBytes();
+        if (validity == null) {
+            for (int d = 0; d < docCount; d++) {
+                sizes[d] += booleanBytes;
+            }
+            return;
+        }
+        PresentDocIterator present = presentDocs();
+        for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
+            sizes[d] += booleanBytes;
+        }
+    }
 
     @Override
     EscfColumn sliceInternal(int from, int count) {

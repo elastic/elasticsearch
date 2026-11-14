@@ -33,7 +33,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -42,14 +41,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.SnapshotMetrics;
@@ -57,9 +53,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -68,7 +61,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -93,8 +85,6 @@ import java.util.stream.StreamSupport;
 
 import static fixture.aws.AwsCredentialsUtils.isValidAwsV4SignedAuthorizationHeader;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
-import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
-import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -105,7 +95,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -114,7 +103,6 @@ import static org.hamcrest.Matchers.startsWith;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
-    private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
     private static final long MAX_COPY_SIZE_BEFORE_MULTIPART_MB = 5;
 
     private final String region = randomBoolean() ? "test-region" : null;
@@ -398,69 +386,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 assertThat(newStats.get(k), equalTo(initialStats.get(k)));
             }
         });
-    }
-
-    public void testEnforcedCooldownPeriod() throws IOException {
-        final String repoName = randomRepositoryName();
-        createRepository(
-            repoName,
-            Settings.builder().put(repositorySettings(repoName)).put(S3Repository.COOLDOWN_PERIOD.getKey(), TEST_COOLDOWN_PERIOD).build(),
-            true
-        );
-
-        final SnapshotId fakeOldSnapshot = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snapshot-old")
-            .setWaitForCompletion(true)
-            .setIndices()
-            .get()
-            .getSnapshotInfo()
-            .snapshotId();
-        final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
-        final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
-        final RepositoryData repositoryData = getRepositoryData(repository);
-        final RepositoryData modifiedRepositoryData = repositoryData.withoutUUIDs()
-            .withExtraDetails(
-                Collections.singletonMap(
-                    fakeOldSnapshot,
-                    new RepositoryData.SnapshotDetails(
-                        SnapshotState.SUCCESS,
-                        IndexVersion.fromId(6080099),   // minimum node version compatible with 7.6.0
-                        0L, // -1 would refresh RepositoryData and find the real version
-                        0L, // -1 would refresh RepositoryData and find the real version,
-                        "" // null would refresh RepositoryData and find the real version
-                    )
-                )
-            );
-        final BytesReference serialized = BytesReference.bytes(
-            modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), SnapshotsService.OLD_SNAPSHOT_FORMAT)
-        );
-        if (randomBoolean()) {
-            repository.blobStore()
-                .blobContainer(repository.basePath())
-                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, false);
-        } else {
-            repository.blobStore()
-                .blobContainer(repository.basePath())
-                .writeBlobAtomic(
-                    randomNonDataPurpose(),
-                    getRepositoryDataBlobName(modifiedRepositoryData.getGenId()),
-                    serialized.streamInput(),
-                    serialized.length(),
-                    false
-                );
-        }
-
-        final String newSnapshotName = "snapshot-new";
-        final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();
-        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, newSnapshotName).setWaitForCompletion(true).setIndices().get();
-        assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledSnapshot, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
-
-        final long beforeThrottledDelete = repository.threadPool().relativeTimeInNanos();
-        clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, newSnapshotName).get();
-        assertThat(repository.threadPool().relativeTimeInNanos() - beforeThrottledDelete, greaterThan(TEST_COOLDOWN_PERIOD.getNanos()));
-
-        final long beforeFastDelete = repository.threadPool().relativeTimeInNanos();
-        clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, fakeOldSnapshot.getName()).get();
-        assertThat(repository.threadPool().relativeTimeInNanos() - beforeFastDelete, lessThan(TEST_COOLDOWN_PERIOD.getNanos()));
     }
 
     private Map<S3BlobStore.StatsKey, Long> getServerMetrics() {

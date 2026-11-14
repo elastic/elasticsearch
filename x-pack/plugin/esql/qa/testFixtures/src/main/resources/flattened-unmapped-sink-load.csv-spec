@@ -3,7 +3,7 @@
 // is loaded from the sink's doc values reads the same way whatever the source, so only the tests that read _source query both.
 
 loadTopLevelDottedAndMissingFields
-required_capability: flattened_unmapped_sink_load
+required_capability: flattened_unmapped_sink_load_v2
 required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
@@ -19,7 +19,7 @@ FROM unmapped_sink
 ;
 
 multiValuesAreSortedAndDeduplicated
-required_capability: flattened_unmapped_sink_load
+required_capability: flattened_unmapped_sink_load_v2
 required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
@@ -35,7 +35,7 @@ FROM unmapped_sink
 ;
 
 fieldBelowNestedObjectReadsFromSource
-required_capability: flattened_unmapped_sink_load
+required_capability: flattened_unmapped_sink_load_v2
 required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
@@ -54,7 +54,7 @@ unmapped_sink_columnar_stored | 2025-01-01T00:02:00.000Z | null
 ;
 
 filterOnAbsorbedField
-required_capability: flattened_unmapped_sink_load
+required_capability: flattened_unmapped_sink_load_v2
 required_capability: optional_fields_v5
 
 SET unmapped_fields="load"\;
@@ -69,7 +69,7 @@ FROM unmapped_sink
 
 // LOAD_ALL reads the whole of _source, so unlike LOAD it keeps the order and duplicates of a field's values.
 loadAll
-required_capability: flattened_unmapped_sink_load
+required_capability: flattened_unmapped_sink_load_v2
 required_capability: optional_fields_load_all_single_source_column
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -89,7 +89,7 @@ FROM unmapped_sink* METADATA _index
 // A field the query names under LOAD_ALL is loaded as a column of its own, as under LOAD, so its values are sorted and deduplicated, and
 // it is no longer in _unmapped_fields.
 loadAllWithNamedField
-required_capability: flattened_unmapped_sink_load
+required_capability: flattened_unmapped_sink_load_v2
 required_capability: optional_fields_load_all_single_source_column
 
 SET unmapped_fields="LOAD_ALL"\;

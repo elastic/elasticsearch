@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164618
+summary: Skip shards that can't make a timestamp top N
+type: enhancement

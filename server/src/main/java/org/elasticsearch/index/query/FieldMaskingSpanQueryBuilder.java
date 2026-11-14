@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,7 +28,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
-public class FieldMaskingSpanQueryBuilder extends LeafQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
+public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
     public static final ParseField NAME = new ParseField("span_field_masking", "field_masking_span");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
@@ -150,13 +151,13 @@ public class FieldMaskingSpanQueryBuilder extends LeafQueryBuilder<FieldMaskingS
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         String fieldInQuery = fieldName;
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType != null) {
             fieldInQuery = fieldType.name();
         }
-        Query innerQuery = queryBuilder.toQuery(context);
+        Query innerQuery = queryBuilder.toQuery(context, queryVisitor);
         assert innerQuery instanceof SpanQuery;
         return new FieldMaskingSpanQuery((SpanQuery) innerQuery, fieldInQuery);
     }

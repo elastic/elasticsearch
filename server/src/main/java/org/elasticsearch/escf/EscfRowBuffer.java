@@ -12,6 +12,7 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
@@ -44,6 +45,14 @@ public final class EscfRowBuffer {
     private int parentDepth;
 
     /**
+     * The schema index each next field is predicted to have: right after the previous one, since rows of the same shape
+     * add their fields in the same order. Saves looking the field up by name. Starts from the first leaf and the first
+     * non-leaf after the root at every row.
+     */
+    private int predictedLeaf;
+    private int predictedNonLeaf;
+
+    /**
      * Whether {@link #finishRow()} has been called but {@link EscfBatchBuilder#commit} has not.
      * Package-private so {@link EscfBatchBuilder#commit} can reset it after draining.
      */
@@ -66,6 +75,8 @@ public final class EscfRowBuffer {
         Arrays.fill(scratchVar, 0, Math.min(columnCountBefore, scratchVar.length), null);
         columnsSet.clear();
         parentDepth = 0;
+        predictedLeaf = 0;
+        predictedNonLeaf = 1;
         rowStarted = false;
     }
 
@@ -80,7 +91,8 @@ public final class EscfRowBuffer {
 
     /** Descends into a named nested object, pushing the parent context. Pair with {@link #endObject()}. */
     public void startObject(String name) {
-        int nonLeafIdx = schema.appendNonLeaf(name, parentStack[parentDepth]);
+        int nonLeafIdx = schema.appendNonLeaf(name, parentStack[parentDepth], predictedNonLeaf);
+        predictedNonLeaf = nonLeafIdx + 1;
         parentDepth++;
         ensureParentStackCapacity();
         parentStack[parentDepth] = nonLeafIdx;
@@ -110,10 +122,24 @@ public final class EscfRowBuffer {
 
     /** Stages a double; uses {@code FLOAT} encoding if it round-trips exactly through float. Returns the leaf column index. */
     public int doubleField(String name, double value) {
+        return doubleField(name, value, null);
+    }
+
+    /**
+     * Stages a double together with {@code lexicalForm}, the client's spelling when it is not the canonical
+     * {@code Double.toString} rendering of {@code value}; {@code null} stages a plain double as
+     * {@link #doubleField(String, double)} does. Returns the leaf column index.
+     */
+    public int doubleField(String name, double value, @Nullable XContentString.UTF8Bytes lexicalForm) {
         int colIdx = addLeaf(name);
         float fval = (float) value;
         scratchType[colIdx] = ((double) fval == value) ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
         scratchNumeric[colIdx] = Double.doubleToRawLongBits(value);
+        if (lexicalForm != null) {
+            // A spelled value stays a DOUBLE so that it lands in a DOUBLE column, where the spellings sidecar lives.
+            scratchType[colIdx] = SourceValueType.DOUBLE;
+            scratchVar[colIdx] = lexicalForm;
+        }
         return colIdx;
     }
 
@@ -172,18 +198,27 @@ public final class EscfRowBuffer {
     }
 
     private int addLeaf(String name) {
-        int colIdx = schema.appendLeaf(name, parentStack[parentDepth]);
+        int colIdx = schema.appendLeaf(name, parentStack[parentDepth], predictedLeaf);
+        predictedLeaf = colIdx + 1;
         ensureScratchCapacity(colIdx + 1);
         if (columnsSet.getAndSet(colIdx)) {
-            throw new IllegalArgumentException("Duplicate field [" + name + "]");
+            throw duplicateField(name);
         }
         return colIdx;
+    }
+
+    private static IllegalArgumentException duplicateField(String name) {
+        return new IllegalArgumentException("Duplicate field [" + name + "]");
     }
 
     private void ensureScratchCapacity(int size) {
         if (size <= scratchType.length) {
             return;
         }
+        growScratch(size);
+    }
+
+    private void growScratch(int size) {
         int cap = ArrayUtil.oversize(size, Byte.BYTES);
         scratchType = Arrays.copyOf(scratchType, cap);
         scratchNumeric = Arrays.copyOf(scratchNumeric, cap);

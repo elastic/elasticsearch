@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.formatter.arrow;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.types.Types;
+import org.apache.arrow.vector.types.pojo.ArrowType.ExtensionType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -24,9 +26,11 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.io.IOException;
 import java.util.BitSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -38,14 +42,33 @@ public abstract class BlockArrowFormatter {
     private final FieldType fieldType;
 
     protected BlockArrowFormatter(DataType esqlType, Types.MinorType minorType) {
+        this(esqlType, minorType, Map.of());
+    }
+
+    protected BlockArrowFormatter(DataType esqlType, Types.MinorType minorType, Map<String, String> extraMetadata) {
         // Add the exact ESQL type as field metadata
-        var outputType = esqlType.outputType();
-        var meta = Map.of(ESQL_TYPE_METADATA, outputType);
+        var meta = new HashMap<>(extraMetadata);
+        meta.put(ESQL_TYPE_METADATA, esqlType.outputType());
         this.fieldType = new FieldType(true, minorType.getType(), null, meta);
     }
 
     public Field arrowField(String name) {
         return new Field(name, fieldType, null);
+    }
+
+    /**
+     * Whether this block requires its column to be encoded as an Arrow list. The column is a list if any of its blocks
+     * returns {@code true}, and the remaining blocks may then not be checked. This is decided before the schema is sent,
+     * since the schema can't change once streaming has started.
+     * <p>
+     * Formatters that can't encode lists must override this to return {@code false}, rejecting blocks that actually
+     * contain multivalued positions.
+     *
+     * @param columnName the column name, for error messages
+     * @param block a block of that column
+     */
+    public boolean isMultivalued(String columnName, Block block) {
+        return block.mayHaveMultivaluedFields();
     }
 
     // Block.nullValuesCount was more efficient but was removed in https://github.com/elastic/elasticsearch/pull/108916
@@ -226,15 +249,34 @@ public abstract class BlockArrowFormatter {
                     int start = block.getFirstValueIndex(position);
                     int end = start + block.getValueCount(position);
                     for (int valueIndex = start; valueIndex < end; valueIndex++) {
-                        out.writeLongLE(block.getLong(valueIndex));
+                        out.writeLongLE(arrowValue(block.getLong(valueIndex)));
                     }
                 }
                 return (long) count * Long.BYTES;
             });
         }
 
+        protected long arrowValue(long blockValue) {
+            return blockValue;
+        }
+
         private static int vectorByteSize(LongBlock b, boolean multivalued) {
             return Long.BYTES * arrowValueCount(b, multivalued);
+        }
+    }
+
+    /**
+     * Conversion of {@code unsigned_long} blocks, which store values with the sign bit flipped so that they sort as signed
+     * longs. Arrow's {@code UInt64} expects the plain unsigned bits.
+     */
+    public static class AsUnsignedLong extends AsInt64 {
+        public AsUnsignedLong(DataType esqlType) {
+            super(esqlType, Types.MinorType.UINT8);
+        }
+
+        @Override
+        protected long arrowValue(long blockValue) {
+            return blockValue ^ NumericUtils.TWOS_COMPLEMENT_BITMASK;
         }
     }
 
@@ -296,6 +338,10 @@ public abstract class BlockArrowFormatter {
 
         public BytesReFormatter(DataType esqlType, Types.MinorType minorType) {
             super(esqlType, minorType);
+        }
+
+        protected BytesReFormatter(DataType esqlType, Types.MinorType minorType, Map<String, String> extraMetadata) {
+            super(esqlType, minorType, extraMetadata);
         }
 
         @Override
@@ -450,6 +496,42 @@ public abstract class BlockArrowFormatter {
     public static class AsVarBinary extends BytesReFormatter {
         public AsVarBinary(DataType esqlType) {
             super(esqlType, Types.MinorType.VARBINARY);
+        }
+    }
+
+    /**
+     * Geometries stored as WKB in a {@code BytesRefBlock}, exposed as a variable-size binary vector tagged with the
+     * <a href="https://geoarrow.org/extension-types.html#wkb">{@code geoarrow.wkb}</a> Arrow extension type.
+     */
+    public static class AsGeoArrowWkb extends BytesReFormatter {
+        public static final String GEOARROW_WKB = "geoarrow.wkb";
+
+        /**
+         * GeoArrow extension metadata for geographic types: the CRS is {@code OGC:CRS84} (WGS 84, longitude/latitude order),
+         * given as an authority code.
+         */
+        private static final String GEO_CRS_METADATA = "{\"crs\":\"OGC:CRS84\",\"crs_type\":\"authority_code\"}";
+
+        public AsGeoArrowWkb(DataType esqlType) {
+            super(esqlType, Types.MinorType.VARBINARY, extensionMetadata(esqlType));
+        }
+
+        /**
+         * Geo types declare the CRS as lon/lat. Cartesian types omit the {@code crs}, which GeoArrow defines as "the
+         * producer does not have any information about the CRS".
+         */
+        private static Map<String, String> extensionMetadata(DataType esqlType) {
+            boolean geographic = switch (esqlType) {
+                case GEO_POINT, GEO_SHAPE -> true;
+                case CARTESIAN_POINT, CARTESIAN_SHAPE -> false;
+                default -> throw new IllegalArgumentException("Not a WKB geometry type: " + esqlType);
+            };
+            var metadata = new HashMap<String, String>();
+            metadata.put(ExtensionType.EXTENSION_METADATA_KEY_NAME, GEOARROW_WKB);
+            if (geographic) {
+                metadata.put(ExtensionType.EXTENSION_METADATA_KEY_METADATA, GEO_CRS_METADATA);
+            }
+            return metadata;
         }
     }
 
@@ -674,6 +756,124 @@ public abstract class BlockArrowFormatter {
                     out.writeDoubleLE(block.getDouble(valueIndex));
                 }
             }
+        }
+    }
+
+    /**
+     * Keeps aggregate summaries columnar while preserving independently absent metrics as nullable struct children.
+     * <p>
+     * A row is a null struct only when all four metrics are absent: {@link AggregateMetricDoubleBlock} has no separate
+     * validity, so it can't distinguish a missing summary from a summary where every metric is missing. Rows with at
+     * least one metric are valid structs whose absent metrics are null children.
+     * <p>
+     * Summaries are always single-valued, so columns of this type are never encoded as Arrow lists.
+     */
+    public static class AsAggregateMetricDouble extends BlockArrowFormatter {
+        private static final AsFloat64 DOUBLE_FORMATTER = new AsFloat64(DataType.DOUBLE);
+        private static final AsInt32 COUNT_FORMATTER = new AsInt32(DataType.INTEGER);
+
+        private final DataType esqlType;
+
+        public AsAggregateMetricDouble(DataType esqlType) {
+            super(esqlType, Types.MinorType.STRUCT);
+            this.esqlType = esqlType;
+        }
+
+        @Override
+        public Field arrowField(String name) {
+            var doubleType = FieldType.nullable(Types.MinorType.FLOAT8.getType());
+            var countType = FieldType.nullable(Types.MinorType.INT.getType());
+            return new Field(
+                name,
+                super.arrowField(name).getFieldType(),
+                List.of(
+                    new Field("min", doubleType, null),
+                    new Field("max", doubleType, null),
+                    new Field("sum", doubleType, null),
+                    new Field("value_count", countType, null)
+                )
+            );
+        }
+
+        @Override
+        public boolean isMultivalued(String columnName, Block block) {
+            // mayHaveMultivaluedFields() can report false positives, which must not reject valid summaries.
+            if (block.doesHaveMultivaluedFields()) {
+                throw new IllegalArgumentException(
+                    "Column ["
+                        + columnName
+                        + "] of ES|QL type ["
+                        + esqlType.outputType()
+                        + "] has multivalued fields, which the Arrow format does not support for this type"
+                );
+            }
+            return false;
+        }
+
+        @Override
+        public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
+            AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
+            DoubleBlock min = aggregate.minBlock();
+            DoubleBlock max = aggregate.maxBlock();
+            DoubleBlock sum = aggregate.sumBlock();
+            IntBlock count = aggregate.countBlock();
+            int positions = block.getPositionCount();
+            int minNulls = 0;
+            int maxNulls = 0;
+            int sumNulls = 0;
+            int countNulls = 0;
+            int summaryNulls = 0;
+            if (block.mayHaveNulls()) {
+                for (int position = 0; position < positions; position++) {
+                    boolean minNull = min.isNull(position);
+                    boolean maxNull = max.isNull(position);
+                    boolean sumNull = sum.isNull(position);
+                    boolean countNull = count.isNull(position);
+                    minNulls += minNull ? 1 : 0;
+                    maxNulls += maxNull ? 1 : 0;
+                    sumNulls += sumNull ? 1 : 0;
+                    countNulls += countNull ? 1 : 0;
+                    if (minNull && maxNull && sumNull && countNull) {
+                        summaryNulls++;
+                    }
+                }
+            }
+            // The struct and each of its children have one slot per row.
+            nodes.add(new ArrowFieldNode(positions, summaryNulls));
+            nodes.add(new ArrowFieldNode(positions, minNulls));
+            nodes.add(new ArrowFieldNode(positions, maxNulls));
+            nodes.add(new ArrowFieldNode(positions, sumNulls));
+            nodes.add(new ArrowFieldNode(positions, countNulls));
+        }
+
+        @Override
+        public void convert(
+            Block block,
+            boolean multivalued,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
+            AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
+            if (summaryMayBeNull(aggregate)) {
+                accumulateVectorValidity(bufs, bufWriters, block, false);
+            } else {
+                // The block reports nulls if any metric may be null, but a summary is only null when all four are.
+                bufs.add(dummyArrowBuf(0));
+                bufWriters.add(out -> 0);
+            }
+            // Child accessors on ConstantNullBlock return the null block itself, which primitive formatters also accept.
+            DOUBLE_FORMATTER.convert(aggregate.minBlock(), false, bufs, bufWriters, releasables);
+            DOUBLE_FORMATTER.convert(aggregate.maxBlock(), false, bufs, bufWriters, releasables);
+            DOUBLE_FORMATTER.convert(aggregate.sumBlock(), false, bufs, bufWriters, releasables);
+            COUNT_FORMATTER.convert(aggregate.countBlock(), false, bufs, bufWriters, releasables);
+        }
+
+        private static boolean summaryMayBeNull(AggregateMetricDoubleBlock aggregate) {
+            return aggregate.minBlock().mayHaveNulls()
+                && aggregate.maxBlock().mayHaveNulls()
+                && aggregate.sumBlock().mayHaveNulls()
+                && aggregate.countBlock().mayHaveNulls();
         }
     }
 

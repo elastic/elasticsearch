@@ -260,6 +260,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             if (randomBoolean()) {
                 settings.put("node_level_reduction", randomBoolean());
             }
+            if (randomBoolean()) {
+                settings.put("time_series_single_pass", randomBoolean());
+            }
         }
         return new QueryPragmas(settings.build());
     }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,6 +37,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -96,15 +96,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("ctx.payload.hits.total.value > 1"), scriptService);
-        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(
-            "",
-            3,
-            3,
-            0,
-            500L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits("", 3, 3, 0, 500L, List.of(), SearchResponse.Clusters.EMPTY);
         try {
             WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
             assertFalse(condition.execute(ctx).met());
@@ -121,15 +113,7 @@ public class ScriptConditionTests extends ESTestCase {
             singletonMap("threshold", 1)
         );
         ScriptCondition executable = new ScriptCondition(script, scriptService);
-        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(
-            "",
-            3,
-            3,
-            0,
-            500L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits("", 3, 3, 0, 500L, List.of(), SearchResponse.Clusters.EMPTY);
         try {
             WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
             assertFalse(executable.execute(ctx).met());
@@ -146,15 +130,7 @@ public class ScriptConditionTests extends ESTestCase {
         parser.nextToken();
         ExecutableCondition executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
-        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(
-            "",
-            3,
-            3,
-            0,
-            500L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits("", 3, 3, 0, 500L, List.of(), SearchResponse.Clusters.EMPTY);
         try {
             WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, Settings.EMPTY_PARAMS));
 
@@ -221,15 +197,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testScriptConditionThrowException() throws Exception {
         ScriptCondition condition = new ScriptCondition(mockScript("null.foo"), scriptService);
-        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(
-            "",
-            3,
-            3,
-            0,
-            500L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits("", 3, 3, 0, 500L, List.of(), SearchResponse.Clusters.EMPTY);
         try {
             WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
             ScriptException exception = expectThrows(ScriptException.class, () -> condition.execute(ctx));
@@ -244,15 +212,7 @@ public class ScriptConditionTests extends ESTestCase {
             mockScript("ctx.trigger.scheduled_time.toInstant().toEpochMill() < new Date().time"),
             scriptService
         );
-        SearchResponse response = SearchResponseUtils.emptyWithTotalHits(
-            "",
-            3,
-            3,
-            0,
-            500L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse response = SearchResponseUtils.emptyWithTotalHits("", 3, 3, 0, 500L, List.of(), SearchResponse.Clusters.EMPTY);
         try {
             WatchExecutionContext ctx = mockExecutionContext(
                 "_name",

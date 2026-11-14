@@ -353,6 +353,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * {@code computeSurvivingRowGroups()}: the caller batches dictionary/bloom byte ranges via
      * {@link CoalescedRangeReader} and installs the result here, so parquet-mr's per-row-group
      * dictionary and bloom reads are served from memory instead of issuing N synchronous GETs.
+     * Dictionary pages that are absent from this map are not read synchronously either: the caller
+     * drops parquet-mr's DICTIONARY filter level for the affected row groups.
      *
      * <p>Already-open streams observe the new map immediately on their next cache-miss fetch
      * because they re-read the {@code volatile} field through a supplier. Pass {@code null} or

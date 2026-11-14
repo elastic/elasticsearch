@@ -104,8 +104,7 @@ public class EsqlListQueriesActionIT extends AbstractPausableIntegTestCase {
             ActionListener.wrap(resultStream -> resultStream.publisher().subscribe(subscriber), e -> {
                 throw new AssertionError("stream-start failed", e);
             }),
-            false,
-            between(1, 10)
+            false
         );
         ActionFuture<ActionResponse.Empty> future = client().execute(EsqlStreamQueryAction.INSTANCE, streamRequest);
         try {

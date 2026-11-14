@@ -1,0 +1,3 @@
+TS k8s
+| TS_INFO
+| STATS series = COUNT(*) BY metric_name

@@ -329,6 +329,24 @@ final class ParquetPushedExpressions {
         return false;
     }
 
+    /**
+     * True when {@code expr} is a leaf comparison / {@code IN} / range against a DOUBLE column.
+     * Those invert unsafely under {@code FilterApi.not}: Parquet min/max omit NaN, so
+     * {@code NOT (d > 5)} rewritten as {@code d <= 5} can drop a {@code {6.0, NaN}} group.
+     */
+    private static boolean isDoubleColumnPredicate(Expression expr) {
+        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne) {
+            return ne.dataType() == DataType.DOUBLE;
+        }
+        if (expr instanceof In in && in.value() instanceof NamedExpression ne) {
+            return ne.dataType() == DataType.DOUBLE;
+        }
+        if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
+            return ne.dataType() == DataType.DOUBLE;
+        }
+        return false;
+    }
+
     private FilterPredicate translateExpression(Expression expr, MessageType schema, Map<String, String> formats) {
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             String name = ne.name();
@@ -459,6 +477,13 @@ final class ParquetPushedExpressions {
             if (isExactlyTranslatable(not.field()) == false) {
                 return null;
             }
+            // parquet-java inverts FilterApi.not via LogicalInverseRewriter. For DOUBLE,
+            // inversion of eq/gt/range/in becomes notEq/lte/... which can drop a
+            // {finite, NaN} group because Parquet min/max omit NaN. IEEE NaN
+            // comparisons are all false, so NOT (d > 5) must keep NaN rows.
+            if (isDoubleColumnPredicate(not.field())) {
+                return null;
+            }
             FilterPredicate inner = translateExpression(not.field(), schema, formats);
             return inner != null ? FilterApi.not(inner) : null;
         }
@@ -526,10 +551,19 @@ final class ParquetPushedExpressions {
             case LONG -> buildLongPredicate(columnName, value, op, schema);
             case UNSIGNED_LONG -> buildUnsignedLongPredicate(columnName, value, op, schema);
             case DOUBLE -> {
-                if (isPhysicalDouble(schema, columnName)) {
-                    yield orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
+                if (isPhysicalDouble(schema, columnName) == false) {
+                    yield null;
                 }
-                yield null;
+                Double boxed = value != null ? ((Number) value).doubleValue() : null;
+                // parquet-java statistics/dictionary/bloom filters order doubles with Double.compare
+                // (signed zeros unequal, NaN greatest). ES|QL uses IEEE operators. A ±0.0 or NaN
+                // literal can drop a matching row group. NotEq of a finite literal can drop a
+                // {literal, NaN} group because Parquet min/max omit NaN. Leave those to late-mat.
+                // IS NOT NULL (boxed == null && NOT_EQ) is still pushed: null_count is IEEE-safe.
+                if (boxed != null && (op == PredicateOp.NOT_EQ || parquetDoubleStatsDisagreeWithIeee(boxed))) {
+                    yield null;
+                }
+                yield orderedPredicate(FilterApi.doubleColumn(columnName), boxed, op);
             }
             case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
                 ? orderedPredicate(FilterApi.binaryColumn(columnName), value != null ? toBinary(value) : null, op)
@@ -1139,10 +1173,15 @@ final class ParquetPushedExpressions {
             case LONG -> translateLongIn(columnName, rawValues, schema);
             case UNSIGNED_LONG -> translateUnsignedLongIn(columnName, rawValues, schema);
             case DOUBLE -> {
-                if (isPhysicalDouble(schema, columnName)) {
-                    yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
+                if (isPhysicalDouble(schema, columnName) == false) {
+                    yield null;
                 }
-                yield null;
+                for (Object v : rawValues) {
+                    if (parquetDoubleStatsDisagreeWithIeee(((Number) v).doubleValue())) {
+                        yield null;
+                    }
+                }
+                yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
             }
             case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
                 ? inPredicate(FilterApi.binaryColumn(columnName), rawValues, ParquetPushedExpressions::toBinary)
@@ -1903,9 +1942,9 @@ final class ParquetPushedExpressions {
      * declines a repeated column on the statistics path only, while canPush tests the ES|QL type and the reader maps a
      * LIST column to its element type, so a genuinely multivalued block does arrive here.
      *
-     * <p>A double block declines too. The scalar arms order doubles with {@code Double.compare}, which separates
-     * {@code -0.0} from {@code 0.0} and ranks NaN above everything, while the mv_ functions compare with primitive
-     * operators, which do neither; the mask would drop a row the function keeps.
+     * <p>A double block declines too. Scalar comparisons now use IEEE operators, matching the mv_ functions, but
+     * the mv_ path has not been proven against signed zero and NaN together with FilterExec; it stays conservative
+     * (all rows survive) rather than answering.
      */
     private static Block singleValuedBlock(Expression field, Map<String, Block> blocks) {
         if (field instanceof NamedExpression ne) {
@@ -2057,13 +2096,13 @@ final class ParquetPushedExpressions {
             double val = ((Number) literal).doubleValue();
             if (block.mayHaveMultivaluedFields()) {
                 for (int i = 0; i < rowCount; i++) {
-                    if (block.getValueCount(i) == 1 && compareResult(Double.compare(db.getDouble(block.getFirstValueIndex(i)), val), bc)) {
+                    if (block.getValueCount(i) == 1 && ieeeCompare(db.getDouble(block.getFirstValueIndex(i)), val, bc)) {
                         mask.set(i);
                     }
                 }
             } else {
                 for (int i = 0; i < rowCount; i++) {
-                    if (block.isNull(i) == false && compareResult(Double.compare(db.getDouble(i), val), bc)) {
+                    if (block.isNull(i) == false && ieeeCompare(db.getDouble(i), val, bc)) {
                         mask.set(i);
                     }
                 }
@@ -2152,6 +2191,44 @@ final class ParquetPushedExpressions {
             return cmp >= 0;
         }
         return true;
+    }
+
+    /**
+     * ES|QL double comparisons are IEEE-754 ({@code ==}, {@code <}, …), not {@link Double#compare}.
+     * {@code Double.compare} separates {@code -0.0} from {@code 0.0} and ranks NaN above every
+     * finite value; under {@code NOT} that too-loose ranking becomes a too-tight mask and drops
+     * rows FilterExec never sees.
+     */
+    private static boolean ieeeCompare(double cell, double val, EsqlBinaryComparison bc) {
+        if (bc instanceof Equals) {
+            return cell == val;
+        }
+        if (bc instanceof NotEquals) {
+            return cell != val;
+        }
+        if (bc instanceof LessThan) {
+            return cell < val;
+        }
+        if (bc instanceof LessThanOrEqual) {
+            return cell <= val;
+        }
+        if (bc instanceof GreaterThan) {
+            return cell > val;
+        }
+        if (bc instanceof GreaterThanOrEqual) {
+            return cell >= val;
+        }
+        throw new AssertionError("unexpected comparison " + bc.getClass().getName());
+    }
+
+    /**
+     * parquet-java row-group filters order doubles with {@code Double.compare}. A predicate whose
+     * literal is {@code ±0.0} or NaN can drop a matching group. NotEq / inverted ordered
+     * predicates are declined separately: Parquet min/max omit NaN, so those can drop a
+     * {finite, NaN} group the IEEE operator would keep. Late-mat still evaluates the filter.
+     */
+    private static boolean parquetDoubleStatsDisagreeWithIeee(double value) {
+        return value == 0.0 || Double.isNaN(value);
     }
 
     private static Long toLongValue(Object literal) {
@@ -2372,6 +2449,10 @@ final class ParquetPushedExpressions {
                 for (int i = 0; i < rowCount; i++) {
                     if (block.getValueCount(i) == 1) {
                         double val = db.getDouble(block.getFirstValueIndex(i));
+                        // NaN fails every IEEE bound test, so both continues are skipped and the
+                        // row would be kept. MvInRange / FilterExec reject NaN; keeping it here
+                        // makes NOT(range) drop the NaN row.
+                        if (Double.isNaN(val)) continue;
                         if (hasLo && (incLo ? val < lo : val <= lo)) continue;
                         if (hasHi && (incHi ? val > hi : val >= hi)) continue;
                         mask.set(i);
@@ -2381,6 +2462,7 @@ final class ParquetPushedExpressions {
                 for (int i = 0; i < rowCount; i++) {
                     if (block.isNull(i) == false) {
                         double val = db.getDouble(i);
+                        if (Double.isNaN(val)) continue;
                         if (hasLo && (incLo ? val < lo : val <= lo)) continue;
                         if (hasHi && (incHi ? val > hi : val >= hi)) continue;
                         mask.set(i);

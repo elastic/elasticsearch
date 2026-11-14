@@ -35,9 +35,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.store.StoreMetricsDirectory;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
@@ -224,12 +222,7 @@ public final class StatelessDirectoryFactory {
                 .put(extraNodeSettings)
                 .build();
             var nodeEnvironment = new NodeEnvironment(nodeSettings, new Environment(nodeSettings, null));
-            var threadPool = new ThreadPool(
-                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "stateless-directory").build(),
-                MeterRegistry.NOOP,
-                new DefaultBuiltInExecutorBuilders(),
-                StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, false)
-            );
+            var threadPool = new TestThreadPool("stateless-directory", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, false));
             return new Infra(
                 nodeSettings,
                 nodeEnvironment,

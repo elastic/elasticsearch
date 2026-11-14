@@ -17,21 +17,30 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -45,7 +54,9 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -76,12 +87,15 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -261,8 +275,16 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      */
     private void withUnmergedIndex(CheckedConsumer<IndexWriter, IOException> indexer, CheckedConsumer<IndexReader, IOException> test)
         throws IOException {
+        withUnmergedIndex(newIndexWriterConfig(), indexer, test);
+    }
+
+    private void withUnmergedIndex(
+        IndexWriterConfig config,
+        CheckedConsumer<IndexWriter, IOException> indexer,
+        CheckedConsumer<IndexReader, IOException> test
+    ) throws IOException {
         try (Directory directory = newDirectory()) {
-            try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+            try (IndexWriter iw = new IndexWriter(directory, config.setMergePolicy(NoMergePolicy.INSTANCE))) {
                 indexer.accept(iw);
             }
             try (DirectoryReader reader = wrapDirectoryReader(DirectoryReader.open(directory))) {
@@ -835,13 +857,23 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
 
     /**
      * Collects every document and returns how many bytes the request breaker holds once collection, and optionally building the
-     * results, is done. Everything is released afterwards.
+     * results, is done. Everything is released afterwards, which it asserts.
      */
     private long breakerBytesAfterCollecting(
         IndexReader reader,
         AggregationBuilder builder,
         HierarchyCircuitBreakerService breakers,
         boolean buildResults
+    ) throws IOException {
+        return breakerBytesAfterCollecting(reader, builder, breakers, buildResults, null);
+    }
+
+    private long breakerBytesAfterCollecting(
+        IndexReader reader,
+        AggregationBuilder builder,
+        HierarchyCircuitBreakerService breakers,
+        boolean buildResults,
+        @Nullable Boolean expectBucketedSort
     ) throws IOException {
         long baseline = breakers.getBreaker(CircuitBreaker.REQUEST).getUsed();
         long[] held = new long[1];
@@ -851,11 +883,12 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             builder,
             breakers,
             buildResults,
-            null,
+            expectBucketedSort,
             built -> held[0] = breakers.getBreaker(CircuitBreaker.REQUEST).getUsed() - baseline,
             STRING_FIELD_TYPE,
             numberFieldType(NumberFieldMapper.NumberType.LONG)
         );
+        assertEquals("the breaker is back to its baseline", baseline, breakers.getBreaker(CircuitBreaker.REQUEST).getUsed());
         return held[0];
     }
 
@@ -888,17 +921,15 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
      * keeps one double per bucket. A {@code terms} costs more per bucket as soon as it has any sub-aggregation, so comparing with
      * a {@code terms} on its own would charge that to the top hits.
      */
-    private static AggregationBuilder termsWithMax(int buckets) {
+    private static TermsAggregationBuilder termsWithMax(int buckets) {
         return terms("term").field("string").size(buckets).subAggregation(AggregationBuilders.max("max").field(NUMBER_FIELD));
     }
 
     /**
-     * What the top hits of a bucket cost the request breaker. A {@code BucketedSort} reserves {@code from + size} slots, 12 bytes
-     * each, the first time it sees a bucket, whether the bucket ends up with that many documents or not, and charges all of it to
-     * the request breaker, where the Lucene collectors held several kilobytes per bucket and charged none of it. So the cost grows
-     * with the size, which is also why a large size over many buckets can now trip the breaker. Every bucket here has a single
-     * document, so what is charged is the slots and not the documents. The cost of a {@code max} sub-aggregation, which is 8 bytes
-     * a bucket, is taken off.
+     * What the top hits of a bucket cost the request breaker. A {@code BucketedSort} reserves {@code from + size} slots of 12 bytes
+     * for every bucket it sees, whether the bucket fills them or not, and charges them to the request breaker. So a large size over
+     * many buckets can trip it. Every bucket here has a single document, so what is charged is the slots and not the documents. The
+     * cost of a {@code max} sub-aggregation, which is 8 bytes a bucket, is taken off.
      */
     public void testBucketedSortChargesTheSlotsOfEveryBucketAndReleasesThem() throws Exception {
         int buckets = 2_000;
@@ -1007,6 +1038,382 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
             }
             assertThat("the breaker was expected to fail in some of the runs", failures, greaterThan(0));
         });
+    }
+
+    /** What the {@code max} sub-aggregation of the control costs a bucket, with room for its array to grow. */
+    private static final long MAX_BYTES_PER_BUCKET = 16;
+    /** What the two hash maps of a {@code top_hits} that holds Lucene collectors cost a bucket, with room for them to grow. */
+    private static final long MAPS_BYTES_PER_BUCKET = 64;
+
+    /** A {@code terms} that keeps {@code buckets} buckets, each with {@code topHits}. */
+    private static TermsAggregationBuilder termsOver(int buckets, TopHitsAggregationBuilder topHits) {
+        return terms("term").field("string").size(buckets).subAggregation(topHits);
+    }
+
+    /** A {@code top_hits} of size 1 sorted by a keyword field, which a {@code BucketedSort} cannot collect. */
+    private static TopHitsAggregationBuilder keywordTopHits() {
+        return topHits("top").size(1).sort("string", SortOrder.ASC);
+    }
+
+    /**
+     * A {@code top_hits} that a {@code BucketedSort} cannot collect, with the estimate of what its Lucene collector holds per bucket.
+     */
+    private record LuceneTopHits(String description, TopHitsAggregationBuilder topHits, long collectorBytes) {
+        TermsAggregationBuilder inTerms(int buckets) {
+            return termsOver(buckets, topHits);
+        }
+    }
+
+    /** Sorted by score, which reads no doc values. */
+    private static LuceneTopHits byScore() {
+        return new LuceneTopHits(
+            "by score",
+            topHits("top").size(1),
+            TopHitsAggregator.SCORE_COLLECTOR_BYTES + TopHitsAggregator.SCORE_SLOT_BYTES
+        );
+    }
+
+    /** Sorted by a keyword field, whose leaf comparators each open a doc values reader. */
+    private static LuceneTopHits byKeyword() {
+        return new LuceneTopHits(
+            "by keyword",
+            keywordTopHits(),
+            TopHitsAggregator.FIELD_COLLECTOR_BYTES + TopHitsAggregator.FIELD_COMPARATOR_BYTES + TopHitsAggregator.FIELD_QUEUE_SLOT_BYTES
+                + TopHitsAggregator.FIELD_COMPARATOR_SLOT_BYTES
+        );
+    }
+
+    private static void assertChargedBetween(String description, long charged, long lower, long upper) {
+        assertThat(description, charged, greaterThanOrEqualTo(lower));
+        assertThat(description, charged, lessThanOrEqualTo(upper));
+    }
+
+    /**
+     * The Lucene collectors charge an estimate for every bucket's collector, and for the leaf collectors of the segment being
+     * collected, and release all of it when the aggregation is released. Once collection is done, every bucket still holds its
+     * collector, and the leaf collectors are released. The {@code max} sub-aggregation of the control is taken off the lower bound
+     * ({@link #MAX_BYTES_PER_BUCKET}), and the hash maps that hold the collectors are allowed for in the upper bound. Up to a batch can
+     * still be pending. It runs in both collect modes. Only the keyword sort can tell whether the leaf collectors are released, since
+     * a score order leaf collector is within the slack of the maps.
+     */
+    public void testLuceneCollectorsChargeEveryBucketAndReleaseIt() throws Exception {
+        int buckets = 2_000;
+        withIndex(uniqueBuckets(buckets), reader -> {
+            HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
+            for (Aggregator.SubAggCollectionMode mode : Aggregator.SubAggCollectionMode.values()) {
+                // Breadth first only collects the top hits when the results are built, by replaying the documents of every bucket.
+                boolean build = mode == Aggregator.SubAggCollectionMode.BREADTH_FIRST;
+                long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets).collectMode(mode), breakers, build);
+                for (LuceneTopHits luceneTopHits : List.of(byScore(), byKeyword())) {
+                    long withTopHits = breakerBytesAfterCollecting(
+                        reader,
+                        luceneTopHits.inTerms(buckets).collectMode(mode),
+                        breakers,
+                        build,
+                        false
+                    );
+                    assertChargedBetween(
+                        luceneTopHits.description() + " " + mode,
+                        withTopHits - withMax,
+                        buckets * (luceneTopHits.collectorBytes() - MAX_BYTES_PER_BUCKET) - TopHitsAggregator.CHARGE_BATCH_BYTES,
+                        buckets * (luceneTopHits.collectorBytes() + MAPS_BYTES_PER_BUCKET)
+                    );
+                }
+            }
+        });
+    }
+
+    /**
+     * A bucket's collector holds {@code from + size} hits, so a top hits of {@code from(5).size(10)} charges 14 more slots a bucket
+     * than one of size 1. Each run can leave up to a batch pending.
+     */
+    public void testLuceneCollectorsChargeFromPlusSize() throws Exception {
+        int buckets = 2_000;
+        withIndex(uniqueBuckets(buckets), reader -> {
+            HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
+            long sizeOne = breakerBytesAfterCollecting(reader, termsOver(buckets, keywordTopHits()), breakers, false, false);
+            long fromFiveSizeTen = breakerBytesAfterCollecting(
+                reader,
+                termsOver(buckets, keywordTopHits().from(5).size(10)),
+                breakers,
+                false,
+                false
+            );
+            long expected = buckets * 14 * (TopHitsAggregator.FIELD_QUEUE_SLOT_BYTES + TopHitsAggregator.FIELD_COMPARATOR_SLOT_BYTES);
+            assertChargedBetween(
+                "from 5 size 10",
+                fromFiveSizeTen - sizeOne,
+                expected - TopHitsAggregator.CHARGE_BATCH_BYTES,
+                expected + TopHitsAggregator.CHARGE_BATCH_BYTES
+            );
+        });
+    }
+
+    /**
+     * With {@code track_scores}, every bucket's collector also holds a {@code MaxScoreCollector}. Each run can leave up to a batch
+     * pending.
+     */
+    public void testLuceneCollectorsChargeTrackScores() throws Exception {
+        int buckets = 2_000;
+        withIndex(uniqueBuckets(buckets), reader -> {
+            HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
+            long without = breakerBytesAfterCollecting(reader, termsOver(buckets, keywordTopHits()), breakers, false, false);
+            long with = breakerBytesAfterCollecting(reader, termsOver(buckets, keywordTopHits().trackScores(true)), breakers, false, false);
+            long expected = buckets * TopHitsAggregator.TRACK_SCORES_COLLECTOR_BYTES;
+            assertChargedBetween(
+                "track_scores",
+                with - without,
+                expected - TopHitsAggregator.CHARGE_BATCH_BYTES,
+                expected + TopHitsAggregator.CHARGE_BATCH_BYTES
+            );
+        });
+    }
+
+    /**
+     * The leaf collectors of a segment are released when the next segment starts, so collecting a bucket in several segments does
+     * not add up their charges, and those of the last segment are released when collection is done, before the hits are fetched.
+     * Every bucket has a document in each segment, and only the collectors are still charged once collection is done. The bytes left
+     * at the end cannot show what the leaf collectors charged during collection, so two breakers pin it. One with room for the
+     * collectors and one segment of leaf collectors, but not two, does not trip, so their charges do not add up. One with room for the
+     * collectors only trips, so the leaf collectors are charged.
+     */
+    public void testLuceneCollectorsReleaseTheLeafCollectorsOfEachSegment() throws Exception {
+        // Enough terms that the terms collects normally instead of rewriting to filters, which would ask for a segment's leaf
+        // collectors once per filter.
+        int buckets = 1_200;
+        int segments = 4;
+        // Not a randomized config, which could flush more segments than the ones committed here.
+        withUnmergedIndex(new IndexWriterConfig(), iw -> {
+            for (int segment = 0; segment < segments; segment++) {
+                for (int i = 0; i < buckets; i++) {
+                    iw.addDocument(
+                        numberDocument(
+                            segment + "-" + i,
+                            String.format(Locale.ROOT, "term%06d", i),
+                            NumberFieldMapper.NumberType.LONG,
+                            segment * buckets + i
+                        )
+                    );
+                }
+                iw.commit();
+            }
+        }, reader -> {
+            assertEquals(segments, reader.leaves().size());
+            HierarchyCircuitBreakerService breakers = requestBreakers("1gb");
+            long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets), breakers, false);
+            long withTopHits = breakerBytesAfterCollecting(reader, byKeyword().inTerms(buckets), breakers, false);
+            assertChargedBetween(
+                "collectors and no leaf collectors",
+                withTopHits - withMax,
+                buckets * (byKeyword().collectorBytes() - MAX_BYTES_PER_BUCKET) - TopHitsAggregator.CHARGE_BATCH_BYTES,
+                buckets * (byKeyword().collectorBytes() + MAPS_BYTES_PER_BUCKET)
+            );
+            long collectorsLimit = withMax + buckets * (byKeyword().collectorBytes() + MAPS_BYTES_PER_BUCKET);
+            long leafCollectorBytes = TopHitsAggregator.LEAF_COLLECTOR_BYTES + TopHitsAggregator.LEAF_DOC_VALUES_BYTES;
+            // Room for one segment of leaf collectors, so it trips if the leaf collectors of each segment add up.
+            HierarchyCircuitBreakerService roomForOneSegment = requestBreakers((collectorsLimit + buckets * leafCollectorBytes) + "b");
+            breakerBytesAfterCollecting(reader, byKeyword().inTerms(buckets), roomForOneSegment, false);
+            // Room for the collectors but not for one segment of leaf collectors, so the leaf charge trips it.
+            HierarchyCircuitBreakerService noRoomForLeaves = requestBreakers(collectorsLimit + "b");
+            expectThrows(
+                CircuitBreakingException.class,
+                () -> breakerBytesAfterCollecting(reader, byKeyword().inTerms(buckets), noRoomForLeaves, false)
+            );
+            assertEquals("the breaker is back to its baseline", 0L, noRoomForLeaves.getBreaker(CircuitBreaker.REQUEST).getUsed());
+        });
+    }
+
+    /**
+     * A breaker that has room for the {@code terms}, a cheap sub-aggregation, and the hash maps of the top hits, but not for their
+     * Lucene collectors, throws instead of the node running out of heap, and everything is released.
+     */
+    public void testLuceneCollectorsTripTheBreakerAndReleaseEverything() throws Exception {
+        int buckets = 2_000;
+        withIndex(uniqueBuckets(buckets), reader -> {
+            HierarchyCircuitBreakerService generous = requestBreakers("1gb");
+            long withMax = breakerBytesAfterCollecting(reader, termsWithMax(buckets), generous, false);
+            HierarchyCircuitBreakerService tight = requestBreakers((withMax + buckets * MAPS_BYTES_PER_BUCKET) + "b");
+            breakerBytesAfterCollecting(reader, termsWithMax(buckets), tight, false);
+            expectThrows(
+                CircuitBreakingException.class,
+                () -> breakerBytesAfterCollecting(reader, byKeyword().inTerms(buckets), tight, false)
+            );
+            assertEquals("the breaker is back to its baseline", 0L, tight.getBreaker(CircuitBreaker.REQUEST).getUsed());
+        });
+    }
+
+    /**
+     * A breaker that fails at random, wherever an aggregation with Lucene collectors allocates: creating it, collecting, and building
+     * the results. Each failure has to release the arrays, which the test infrastructure checks for leaks when the test ends.
+     */
+    public void testLuceneCollectorsReleaseArraysWhenTheBreakerFailsAtRandom() throws Exception {
+        int buckets = 300;
+        withIndex(uniqueBuckets(buckets), reader -> {
+            int failures = 0;
+            for (int i = 0; i < 40; i++) {
+                try {
+                    collect(
+                        reader,
+                        Queries.ALL_DOCS_INSTANCE,
+                        (randomBoolean() ? byScore() : byKeyword()).inTerms(buckets),
+                        new CrankyCircuitBreakerService(),
+                        true,
+                        false,
+                        built -> {},
+                        STRING_FIELD_TYPE,
+                        numberFieldType(NumberFieldMapper.NumberType.LONG)
+                    );
+                } catch (CircuitBreakingException e) {
+                    failures++;
+                    assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+                }
+            }
+            assertThat("the breaker was expected to fail in some of the runs", failures, greaterThan(0));
+        });
+    }
+
+    /** The leaf collector estimate counts a doc values reader for each field sorted on, and none for the score or the doc id. */
+    public void testLeafCollectorEstimatesCountTheFieldsThatReadDocValues() throws Exception {
+        withIndex(uniqueBuckets(10), reader -> withSortContext(reader, context -> {
+            record Case(List<SortBuilder<?>> sort, int readers) {}
+            for (Case testCase : List.of(
+                new Case(List.of(SortBuilders.fieldSort("string")), 1),
+                new Case(List.of(SortBuilders.fieldSort("string"), SortBuilders.fieldSort(NUMBER_FIELD)), 2),
+                new Case(List.of(SortBuilders.fieldSort("string"), SortBuilders.scoreSort()), 1),
+                new Case(List.of(SortBuilders.fieldSort("_doc")), 0)
+            )) {
+                SortAndFormats sort = context.buildSort(testCase.sort).orElseThrow();
+                assertEquals(
+                    testCase.sort.toString(),
+                    TopHitsAggregator.LEAF_COLLECTOR_BYTES + testCase.readers * TopHitsAggregator.LEAF_DOC_VALUES_BYTES,
+                    TopHitsAggregator.leafCollectorBytes(sort, false)
+                );
+            }
+        }, STRING_FIELD_TYPE, numberFieldType(NumberFieldMapper.NumberType.LONG)));
+    }
+
+    /**
+     * Compares the collector estimates with what full Lucene collectors hold, for sizes and sort shapes the heap dumps did not cover.
+     * Each estimate has to be at least 0.9x and at most 4x of the measured size, since numeric sorts are charged as keyword ones.
+     * A Lucene upgrade that makes the collectors hold more than the estimates fails here. The terms are 10 bytes, so the bounds say
+     * nothing about long terms, which a keyword comparator copies.
+     */
+    public void testCollectorEstimatesStayWithinBoundsOfFullLuceneCollectors() throws Exception {
+        assumeTrue("the estimates are measured with compressed object pointers", RamUsageEstimator.COMPRESSED_REFS_ENABLED);
+        withIndex(uniqueBuckets(200), reader -> withSortContext(reader, context -> {
+            Map<String, List<SortBuilder<?>>> sorts = new LinkedHashMap<>();
+            sorts.put("score", null);
+            sorts.put("keyword", List.of(SortBuilders.fieldSort("string")));
+            sorts.put("long", List.of(SortBuilders.fieldSort(NUMBER_FIELD)));
+            sorts.put("keyword and long", List.of(SortBuilders.fieldSort("string"), SortBuilders.fieldSort(NUMBER_FIELD)));
+            sorts.put("geo distance", List.of(SortBuilders.geoDistanceSort("location", 0, 0)));
+            for (Map.Entry<String, List<SortBuilder<?>>> entry : sorts.entrySet()) {
+                SortAndFormats sort = entry.getValue() == null ? null : context.buildSort(entry.getValue()).orElseThrow();
+                // track_scores only adds a collector to a field sort.
+                for (boolean trackScores : sort == null ? new boolean[] { false } : new boolean[] { false, true }) {
+                    for (int topN : new int[] { 1, 10, 100 }) {
+                        TopHitsAggregator.Collectors collectors = TopHitsAggregator.newCollectors(sort, topN, trackScores);
+                        fill(collectors.collector, reader);
+                        long measured = RamUsageTester.ramUsed(collectors, WITHOUT_SHARED_SORT_STATE);
+                        long estimate = TopHitsAggregator.collectorBytes(sort, topN, trackScores);
+                        String description = entry.getKey() + (trackScores ? " with track_scores" : "") + " at size " + topN;
+                        // Never much less than measured. Numeric sorts are charged as keyword ones, about 3x over at size 100.
+                        assertThat(description, estimate, greaterThanOrEqualTo(measured * 9 / 10));
+                        assertThat(description, estimate, lessThanOrEqualTo(measured * 4));
+                    }
+                }
+            }
+        }, STRING_FIELD_TYPE, numberFieldType(NumberFieldMapper.NumberType.LONG), new GeoPointFieldMapper.GeoPointFieldType("location")));
+    }
+
+    /**
+     * Compares what {@code track_scores} adds to the leaf collector estimate with what it adds to a leaf collector: the leaf collector of
+     * the {@code MultiCollector}, without the leaf collectors it wraps. The estimate has to be at least 0.9x and at most 4x of that.
+     */
+    public void testTrackScoresLeafCollectorEstimateStaysWithinBounds() throws Exception {
+        assumeTrue("the estimates are measured with compressed object pointers", RamUsageEstimator.COMPRESSED_REFS_ENABLED);
+        withIndex(uniqueBuckets(10), reader -> withSortContext(reader, context -> {
+            SortAndFormats sort = context.buildSort(List.of(SortBuilders.fieldSort("string"))).orElseThrow();
+            LeafCollector leafCollector = TopHitsAggregator.newCollectors(sort, 1, true).collector.getLeafCollector(reader.leaves().get(0));
+            long measured = RamUsageTester.ramUsed(leafCollector, onlyTheRoot(leafCollector));
+            long estimate = TopHitsAggregator.leafCollectorBytes(sort, true) - TopHitsAggregator.leafCollectorBytes(sort, false);
+            assertThat(estimate, greaterThanOrEqualTo(measured * 9 / 10));
+            assertThat(estimate, lessThanOrEqualTo(measured * 4));
+        }, STRING_FIELD_TYPE));
+    }
+
+    /** Runs {@code test} with an aggregation context to build sorts with, set up the way {@link #collect} sets up its own. */
+    private void withSortContext(IndexReader reader, CheckedConsumer<AggregationContext, IOException> test, MappedFieldType... fieldTypes)
+        throws IOException {
+        AggregationContext context = createAggregationContext(
+            reader,
+            createIndexSettings(),
+            Queries.ALL_DOCS_INSTANCE,
+            requestBreakers("1gb"),
+            0,
+            Integer.MAX_VALUE,
+            false,
+            false,
+            fieldTypes
+        );
+        try {
+            test.accept(context);
+        } finally {
+            Releasables.close(context);
+        }
+    }
+
+    /**
+     * Leaves out the sort and the field data its comparators read, which every bucket of a {@code top_hits} shares, and the scorer
+     * {@link #fill} sets.
+     */
+    private static final RamUsageTester.Accumulator WITHOUT_SHARED_SORT_STATE = new RamUsageTester.Accumulator() {
+        @Override
+        public long accumulateObject(
+            Object o,
+            long shallowSize,
+            Map<java.lang.reflect.Field, Object> fieldValues,
+            Collection<Object> queue
+        ) {
+            if (o instanceof SortField || o instanceof FieldComparatorSource || o instanceof IndexFieldData<?> || o instanceof Scorable) {
+                return 0;
+            }
+            return super.accumulateObject(o, shallowSize, fieldValues, queue);
+        }
+    };
+
+    /** Counts {@code root}, and leaves out the collectors, leaf collectors and scorers it references. */
+    private static RamUsageTester.Accumulator onlyTheRoot(Object root) {
+        return new RamUsageTester.Accumulator() {
+            @Override
+            public long accumulateObject(
+                Object o,
+                long shallowSize,
+                Map<java.lang.reflect.Field, Object> fieldValues,
+                Collection<Object> queue
+            ) {
+                if (o != root && (o instanceof LeafCollector || o instanceof Collector || o instanceof Scorable)) {
+                    return 0;
+                }
+                return super.accumulateObject(o, shallowSize, fieldValues, queue);
+            }
+        };
+    }
+
+    /** Collects every document of the index into {@code collector}, so its queue is full. */
+    private static void fill(Collector collector, IndexReader reader) throws IOException {
+        for (LeafReaderContext leaf : reader.leaves()) {
+            LeafCollector leafCollector = collector.getLeafCollector(leaf);
+            leafCollector.setScorer(new Scorable() {
+                @Override
+                public float score() {
+                    return 1f;
+                }
+            });
+            for (int doc = 0; doc < leaf.reader().maxDoc(); doc++) {
+                leafCollector.collect(doc);
+            }
+        }
     }
 
     private IndexVersion indexVersionCreated = IndexVersion.current();

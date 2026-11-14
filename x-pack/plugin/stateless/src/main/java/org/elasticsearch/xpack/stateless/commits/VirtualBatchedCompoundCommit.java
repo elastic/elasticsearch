@@ -39,7 +39,7 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -959,10 +959,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         assert length >= 0 : "invalid length " + length;
         assert offset + length <= currentOffset.get() : "range [" + offset + ", " + length + "] more than " + currentOffset.get();
         assert ThreadPool.assertCurrentThreadPool(
-            StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
-            StatelessPlugin.SHARD_WRITE_THREAD_POOL,
-            StatelessPlugin.PREWARM_THREAD_POOL,
-            StatelessPlugin.UPLOAD_PREWARM_THREAD_POOL
+            StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL,
+            StatelessThreadPools.SHARD_WRITE_THREAD_POOL,
+            StatelessThreadPools.PREWARM_THREAD_POOL,
+            StatelessThreadPools.UPLOAD_PREWARM_THREAD_POOL
         );
 
         if (tryIncRef()) {

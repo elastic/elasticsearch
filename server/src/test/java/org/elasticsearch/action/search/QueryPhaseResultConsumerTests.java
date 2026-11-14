@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -394,16 +395,61 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         return new QueryPhaseResultConsumer.MergeResult(List.of(), null, reducedAggs, 0L);
     }
 
+    /**
+     * The docs each shard matched weigh the merge, until a shard runs with hit counting disabled, as later shards of a sorted
+     * search do once enough hits are counted: from then on every consumed shard counts as one result.
+     */
+    public void testDocsMatchedAreUnknownOnceAShardDoesNotCountHits() {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        int shards = between(2, 5);
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                newLimitedBreaker(ByteSizeValue.ofMb(64)),
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                shards + 1,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            consumer.mergeLoad((nanos, cpuNanos, finishNanos) -> {});
+            long[] counts = new long[shards];
+            for (int i = 0; i < shards; i++) {
+                counts[i] = randomLongBetween(0, 1000);
+                QuerySearchResult result = queryResultWithAggs(i, new TotalHits(counts[i], TotalHits.Relation.EQUAL_TO));
+                consumer.consumeResult(result, () -> {});
+                result.decRef();
+            }
+            for (int i = 0; i < shards; i++) {
+                assertThat(consumer.docsMatched(new ShardId("index", "uuid", i)), equalTo(counts[i]));
+            }
+
+            QuerySearchResult uncounted = queryResultWithAggs(shards, Lucene.TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO);
+            consumer.consumeResult(uncounted, () -> {});
+            uncounted.decRef();
+            for (int i = 0; i <= shards; i++) {
+                assertThat(consumer.docsMatched(new ShardId("index", "uuid", i)), equalTo(1L));
+            }
+            assertThat("not consumed yet", consumer.docsMatched(new ShardId("index", "uuid", shards + 1)), equalTo(0L));
+        }
+    }
+
     private static QuerySearchResult queryResultWithAggs(int shardIndex) {
+        return queryResultWithAggs(shardIndex, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
+    }
+
+    private static QuerySearchResult queryResultWithAggs(int shardIndex, TotalHits totalHits) {
         QuerySearchResult result = new QuerySearchResult(
             new ShardSearchContextId("", shardIndex),
             new SearchShardTarget("node", new ShardId("index", "uuid", shardIndex), null),
             null
         );
-        result.topDocs(
-            new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-            new DocValueFormat[0]
-        );
+        result.topDocs(new TopDocsAndMaxScore(new TopDocs(totalHits, new ScoreDoc[0]), Float.NaN), new DocValueFormat[0]);
         result.aggregations(InternalAggregations.from(List.of(new Sum("test", 1.0D, DocValueFormat.RAW, Map.of()))));
         result.setShardIndex(shardIndex);
         return result;
@@ -728,7 +774,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 numShards,
                 0,
                 0,
-                null,
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,

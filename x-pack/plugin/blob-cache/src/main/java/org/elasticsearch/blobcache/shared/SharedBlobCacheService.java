@@ -1747,7 +1747,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     continue;
                 }
                 final var chunk = fileRegion.chunk;
-                if (chunk.tracker.checkAvailable(subRangeToRead.length()) == false) {
+                if (chunk.tracker.checkAvailable(subRangeToRead.end()) == false) {
                     continue;
                 }
                 if (chunk.tryPrefetch(subRangeToRead.start(), subRangeToRead.length())) {

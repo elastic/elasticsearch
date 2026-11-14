@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -102,6 +103,10 @@ public class ExchangeSinkOperator extends SinkOperator {
             "exchange_sink",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        ).required("pages_received", ProfileSchema.integer()).required("rows_received", ProfileSchema.integer()).build();
 
         private final int pagesReceived;
         private final long rowsReceived;
@@ -135,12 +140,16 @@ public class ExchangeSinkOperator extends SinkOperator {
             return rowsReceived;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("pages_received", pagesReceived);
             builder.field("rows_received", rowsReceived);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

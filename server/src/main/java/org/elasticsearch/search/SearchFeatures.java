@@ -84,6 +84,16 @@ public final class SearchFeatures implements FeatureSpecification {
      */
     public static final NodeFeature PROFILE_RESCORE = new NodeFeature("search.profile.rescore");
     /**
+     * Test-only gate for REST tests asserting {@code recent_search_waiting} in search stats; it depends on
+     * {@code TransportVersion} {@code search_query_waiting}, so nodes that do not have it report no value.
+     */
+    public static final NodeFeature RECENT_SEARCH_WAITING = new NodeFeature("search.stats.recent_search_waiting");
+    /**
+     * Test-only gate for REST tests asserting {@code recent_search_cpu} in search stats; it depends on
+     * {@code TransportVersion} {@code search_query_cpu}, so nodes that do not have it report no value.
+     */
+    public static final NodeFeature RECENT_SEARCH_CPU = new NodeFeature("search.stats.recent_search_cpu");
+    /**
      * Scroll requests whose scroll id encodes zero shard contexts (empty index pattern, all shards skipped by
      * can_match) now return an empty 200 response instead of a 503 {@code SearchPhaseExecutionException}.
      */
@@ -125,6 +135,13 @@ public final class SearchFeatures implements FeatureSpecification {
      * mixed BWC clusters that still contain pre-9.6 nodes.
      */
     public static final NodeFeature OPEN_POINT_IN_TIME_SLICE = new NodeFeature("search.point_in_time_slice");
+
+    /**
+     * Test-only gate for REST tests asserting that a malformed point-in-time id is rejected with a 400. Older nodes
+     * returned a 500 when the id started with a known transport version but could not be decoded after that.
+     */
+    public static final NodeFeature INVALID_PIT_ID_BAD_REQUEST = new NodeFeature("search.pit.invalid_id_bad_request");
+
     /**
      * Test-only gate for REST tests asserting that a kNN query inside a {@code nested} query applies a filtered alias
      * to root documents. Older nodes built the alias filter in the kNN query's nested scope, so it failed to match if the alias filter
@@ -137,6 +154,13 @@ public final class SearchFeatures implements FeatureSpecification {
      * Test-only gate for REST tests asserting that kNN filters are evaluated at the nested level of the fields they read.
      */
     public static final NodeFeature KNN_FILTER_NESTED_LEVELS = new NodeFeature("search.vectors.knn_filter_nested_levels");
+
+    /**
+     * Test-only gate for REST tests sorting on a field that is mapped in some of the searched indices only, with an
+     * {@code unmapped_type} that differs from the mapped type. Older nodes fail the search with an incompatible sort types error
+     * even though no doc of the indices that don't map the field can have a value for it.
+     */
+    public static final NodeFeature SORT_UNMAPPED_TYPE_PLACEHOLDER_MERGE = new NodeFeature("search.sort.unmapped_type_placeholder_merge");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -177,9 +201,13 @@ public final class SearchFeatures implements FeatureSpecification {
                 NESTED_EXTRACT_SOURCE_EMPTY_LIST_FIX,
                 COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
                 COLUMNAR_DEFAULT_FIELD_LENIENCY,
+                INVALID_PIT_ID_BAD_REQUEST,
                 KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE,
                 KNN_FILTER_NESTED_LEVELS,
-                PROFILE_RESCORE
+                PROFILE_RESCORE,
+                SORT_UNMAPPED_TYPE_PLACEHOLDER_MERGE,
+                RECENT_SEARCH_WAITING,
+                RECENT_SEARCH_CPU
             )
         );
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {

@@ -4,7 +4,7 @@
 config:
   auto-retry: false
   any-included-regions:
-    - ^benchmarks/.*
+    - ^benchmarks/src/main/java/org/elasticsearch/benchmark/_nightly/.*
 steps:
   - label: micro-benchmarks
     command: .ci/scripts/run-gradle.sh :benchmarks:run --args 'org.elasticsearch.benchmark._nightly'

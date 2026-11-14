@@ -19,6 +19,8 @@ import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.script.field.DoubleDocValuesField;
@@ -33,6 +35,7 @@ import org.elasticsearch.script.field.vectors.KnnDenseVector;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -367,17 +370,21 @@ public class AllocationEsFieldTests extends AllocationTestCase {
         assertEquals(point, allocatedBytes("double d = params.field.geohashDistance('u0'); return null;", params));
     }
 
-    public void testContextWhitelistsWithConstantAnnotationsParse() {
-        // StatsSummary (score) and sha1/256/512 (ingest/reindex/update/update_by_query) live in context whitelists that the
-        // base test context does not load, so parse them directly to validate their new @allocates annotations.
-        WhitelistLoader.loadFromResourceFiles(
-            PainlessPlugin.class,
+    public void testContextWhitelistsWithAnnotationsLoad() {
+        // These context whitelists are not loaded by the base test context. Build each one into a lookup, as the engine does
+        // per context, so every @allocates annotation in them resolves its estimator.
+        for (String resource : List.of(
             "org.elasticsearch.script.score.txt",
             "org.elasticsearch.script.ingest.txt",
             "org.elasticsearch.script.reindex.txt",
             "org.elasticsearch.script.update.txt",
-            "org.elasticsearch.script.update_by_query.txt"
-        );
+            "org.elasticsearch.script.update_by_query.txt",
+            "org.elasticsearch.script.processor_conditional.txt"
+        )) {
+            List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
+            whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, resource));
+            PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>());
+        }
     }
 
     /** A keyword field with {@code terms} in one document, already on that document. */

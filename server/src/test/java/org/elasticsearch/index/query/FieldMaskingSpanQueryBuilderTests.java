@@ -39,10 +39,13 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
 
     @Override
     protected FieldMaskingSpanQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        if (queryBuilder instanceof FieldMaskingSpanQueryBuilder) {
-            return new FieldMaskingSpanQueryBuilder((FieldMaskingSpanQueryBuilder) queryBuilder, "field");
-        }
-        return new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("field", "value"), "field");
+        assertThat(queryBuilder, instanceOf(SpanQueryBuilder.class));
+        return new FieldMaskingSpanQueryBuilder((SpanQueryBuilder) queryBuilder, "field");
+    }
+
+    @Override
+    protected QueryBuilder createInnerQuery() {
+        return new SpanTermQueryBuilder("field", "value");
     }
 
     @Override

@@ -46,6 +46,6 @@ public class IndexResolverPassthroughTests extends ESTestCase {
 
     private static FieldCapabilitiesIndexResponse index(String index, Boolean isPassthrough) {
         var attributes = new IndexFieldCapabilitiesBuilder("attributes", "object").isPassthrough(isPassthrough).build();
-        return new FieldCapabilitiesIndexResponse(index, index, Map.of("attributes", attributes), true, IndexMode.STANDARD, 1, 1L, 1L);
+        return new FieldCapabilitiesIndexResponse(index, index, Map.of("attributes", attributes), true, IndexMode.STANDARD, 1, 0, 1L, 1L);
     }
 }

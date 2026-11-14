@@ -10,14 +10,18 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.plugins.internal.ShardGenerationListener;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
 import org.elasticsearch.snapshots.Snapshot;
@@ -32,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * Sets up classes for Snapshot/Restore.
@@ -50,7 +55,8 @@ public final class RepositoriesModule {
         BigArrays bigArrays,
         NamedXContentRegistry namedXContentRegistry,
         RecoverySettings recoverySettings,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        ShardGenerationListener shardGenerationListener
     ) {
         this.snapshotMetrics = new SnapshotMetrics(
             telemetryProvider.getMeterRegistry(),
@@ -109,6 +115,11 @@ public final class RepositoriesModule {
             }
         }
 
+        if (shardGenerationListener != ShardGenerationListener.NOOP) {
+            factories.replaceAll((type, factory) -> withShardGenerationListener(factory, shardGenerationListener));
+            internalFactories.replaceAll((type, factory) -> withShardGenerationListener(factory, shardGenerationListener));
+        }
+
         List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks = new ArrayList<>();
         for (RepositoryPlugin repoPlugin : repoPlugins) {
             BiConsumer<Snapshot, IndexVersion> preRestoreCheck = repoPlugin.addPreRestoreVersionCheck();
@@ -145,6 +156,29 @@ public final class RepositoriesModule {
             client,
             preRestoreChecks
         );
+    }
+
+    private static Repository.Factory withShardGenerationListener(Repository.Factory factory, ShardGenerationListener listener) {
+        return new Repository.Factory() {
+            @Override
+            public Repository create(@Nullable ProjectId projectId, RepositoryMetadata metadata) throws Exception {
+                return register(factory.create(projectId, metadata));
+            }
+
+            @Override
+            public Repository create(
+                @Nullable ProjectId projectId,
+                RepositoryMetadata metadata,
+                Function<String, Repository.Factory> typeLookup
+            ) throws Exception {
+                return register(factory.create(projectId, metadata, typeLookup));
+            }
+
+            private Repository register(Repository repository) {
+                repository.setShardGenerationListener(listener);
+                return repository;
+            }
+        };
     }
 
     public RepositoriesService getRepositoryService() {

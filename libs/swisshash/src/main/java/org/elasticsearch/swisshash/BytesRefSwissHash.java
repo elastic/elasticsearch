@@ -84,6 +84,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     // PAGE_SIZE / ID_AND_HASH_SIZE = 16384 / 8 = 2048.
     static final int INITIAL_CAPACITY = PageCacheRecycler.PAGE_SIZE_IN_BYTES / ID_AND_HASH_SIZE;
 
+    static final int MAX_SIZE = (int) (MAX_CAPACITY * BigCore.FILL_FACTOR);
+
     public static final int DEFAULT_PREFETCH_THRESHOLD = (int) ((1 << 17) * BytesRefSwissHash.BigCore.FILL_FACTOR); // ~114k entries
     public static int PREFETCH_THRESHOLD = DEFAULT_PREFETCH_THRESHOLD;
 
@@ -310,12 +312,9 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
     private int growTracking() {
         // Juggle constants for the new page size
-        growCount++;
         int oldCapacity = capacity;
-        capacity <<= 1;
-        if (capacity < 0) {
-            throw new IllegalArgumentException("overflow: oldCapacity=" + oldCapacity + ", new capacity=" + capacity);
-        }
+        capacity = nextCapacity(capacity);
+        growCount++;
         mask = capacity - 1;
         nextGrowSize = (int) (capacity * BigCore.FILL_FACTOR);
         return oldCapacity;
@@ -549,13 +548,12 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
             boolean success = false;
             try {
-                int pagesNeeded = (capacity * ID_AND_HASH_SIZE - 1) >> PAGE_SHIFT;
-                pagesNeeded++;
+                int pagesNeeded = pagesNeeded(capacity, ID_AND_HASH_SIZE);
                 idAndHashPages = new byte[pagesNeeded][];
                 for (int i = 0; i < pagesNeeded; i++) {
                     idAndHashPages[i] = grabPage();
                 }
-                assert idAndHashPages[idAndHashOffset(mask) >> PAGE_SHIFT] != null;
+                assert idAndHashPages[(int) (idAndHashOffset(mask) >> PAGE_SHIFT)] != null;
                 success = true;
             } finally {
                 if (false == success) {
@@ -626,8 +624,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         int prefetch(long hash64) {
             final int group = hash(hash64) & mask;
-            final int idOff = idAndHashOffset(group);
-            return controlData[group] ^ idAndHashPages[idOff >> PAGE_SHIFT][idOff & PAGE_MASK];
+            final long idOff = idAndHashOffset(group);
+            return controlData[group] ^ idAndHashPages[(int) (idOff >> PAGE_SHIFT)][(int) (idOff & PAGE_MASK)];
         }
 
         private int addWithHash(final BytesRef key, final long hash) {
@@ -710,8 +708,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
         private void insertAtSlot(final int insertSlot, final int hash, final byte control, final int id) {
             final long value = ((long) id << 32) | Integer.toUnsignedLong(hash);
-            final int offset = idAndHashOffset(insertSlot);
-            LONG_HANDLE.set(idAndHashPages[offset >> PAGE_SHIFT], offset & PAGE_MASK, value);
+            final long offset = idAndHashOffset(insertSlot);
+            LONG_HANDLE.set(idAndHashPages[(int) (offset >> PAGE_SHIFT)], (int) (offset & PAGE_MASK), value);
             controlData[insertSlot] = control;
             // mirror only if slot is within the first group size, to handle wraparound loads
             if (insertSlot < BYTE_VECTOR_LANES) {
@@ -893,8 +891,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         }
 
         private long idAndHash(final int slot) {
-            final int offset = idAndHashOffset(slot);
-            return (long) LONG_HANDLE.get(idAndHashPages[offset >> PAGE_SHIFT], offset & PAGE_MASK);
+            final long offset = idAndHashOffset(slot);
+            return (long) LONG_HANDLE.get(idAndHashPages[(int) (offset >> PAGE_SHIFT)], (int) (offset & PAGE_MASK));
         }
     }
 
@@ -916,8 +914,8 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         return bytesRefs;
     }
 
-    int idAndHashOffset(int slot) {
-        return slot * ID_AND_HASH_SIZE;
+    static long idAndHashOffset(int slot) {
+        return (long) slot * ID_AND_HASH_SIZE;
     }
 
     int id(long value) {
@@ -956,6 +954,9 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
      * Grows this table so it can hold at least {@code minSize} entries without future resizing.
      */
     public void ensureCapacity(int minSize) {
+        if (minSize > MAX_SIZE) {
+            throw new IllegalArgumentException("maximum hash size [" + MAX_SIZE + "] exceeded: requested [" + minSize + "]");
+        }
         if (nextGrowSize < minSize) {
             if (smallCore != null) {
                 smallCore.transitionToBigCore();

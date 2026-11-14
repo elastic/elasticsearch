@@ -16,10 +16,13 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.TsInfoOperator;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -33,6 +36,7 @@ import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_F
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.not;
 
 public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
@@ -272,6 +276,37 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
                 client().prepareIndex(index).setSource("@timestamp", timestamp, "host", host, "cpu", 1.0).get();
             }
             client().admin().indices().prepareRefresh(index).get();
+        }
+    }
+
+    /**
+     * With the smallest threshold every data node page with rows is emitted early. The coordinator must still merge
+     * each series into one row that lists both indices.
+     */
+    public void testTsInfoMergesRowsEmittedEarly() {
+        createIndicesWithTheSameSeries();
+        ByteSizeValue threshold = ByteSizeValue.ofBytes(1);
+        updateClusterSettings(Settings.builder().put(PlannerSettings.TS_INFO_PARTIAL_EMIT_THRESHOLD.getKey(), threshold));
+        try {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.profile(true);
+            request.query(
+                "TS same-series-1,same-series-2 | TS_INFO | EVAL indices = MV_COUNT(data_stream) | STATS series = COUNT(*) BY indices"
+            );
+            try (var response = run(request)) {
+                assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(List.of(3L, 2))));
+                List<String> initialOperators = response.profile()
+                    .drivers()
+                    .stream()
+                    .flatMap(driver -> driver.operators().stream())
+                    .filter(op -> op.status() instanceof TsInfoOperator.Status status && status.mode() == TsInfoOperator.Mode.INITIAL)
+                    .map(OperatorStatus::operator)
+                    .toList();
+                assertThat(initialOperators, not(empty()));
+                assertThat(initialOperators, everyItem(equalTo("TsInfoOperator[mode=INITIAL, partialEmitThreshold=" + threshold + "]")));
+            }
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(PlannerSettings.TS_INFO_PARTIAL_EMIT_THRESHOLD.getKey()));
         }
     }
 

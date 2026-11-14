@@ -698,7 +698,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testDocValuesSerialized() throws IOException {
         // doc_values = true should be serialized
-        DocumentMapper mapperWithTrue = createDocumentMapper(fieldMapping(b -> {
+        MapperService mapperWithTrue = createMapperService(fieldMapping(b -> {
             b.field("type", "text");
             b.field("index", false);
             b.field("doc_values", true);
@@ -706,18 +706,18 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        mapperWithTrue.mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(mapperWithTrue, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         String mappingString = Strings.toString(builder);
 
         assertTrue(mappingString.contains("doc_values"));
 
         // when doc_values is not specified (default), it should not be serialized
-        DocumentMapper mapperWithDefault = createDocumentMapper(fieldMapping(b -> { b.field("type", "text"); }));
+        MapperService mapperWithDefault = createMapperService(fieldMapping(b -> { b.field("type", "text"); }));
 
         builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        mapperWithDefault.mapping().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        mappingToXContent(mapperWithDefault, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         mappingString = Strings.toString(builder);
 
@@ -1284,6 +1284,32 @@ public class TextFieldMapperTests extends MapperTestCase {
         FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
     }
 
+    /**
+     * Before {@code KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED} the default of {@code store} depends on whether a keyword
+     * multi-field can hold the original value. A normalized keyword that skips storing it can, so the builder serialization
+     * has to agree with the mapper serialization about it.
+     */
+    public void testNormalizedKeywordMultiFieldSkippingOriginalValueOnOldIndex() throws IOException {
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("normalizer", "lowercase");
+            b.field("normalizer_skip_store_original_value", true);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+        DocumentMapper mapper = createMapperService(IndexVersions.IGNORED_SOURCE_COALESCED_ENTRIES, indexSettings, () -> true, mapping)
+            .documentMapper();
+        assertFalse(((TextFieldMapper) mapper.mappers().getMapper("name")).fieldType().isStored());
+        // mappings persisted before this keyword counted as compatible have an explicit store, and keep it
+        assertThat(mapper.mappingSource().string(), containsString("\"store\":false"));
+    }
+
     public void testDoesNotDelegateSyntheticSourceForNormalizedKeywordMultiFieldWhenStoreOriginalValue() throws IOException {
         var mapping = mapping(b -> {
             b.startObject("name");
@@ -1401,7 +1427,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         assertEquals("""
             {"_doc":{"properties":{"field":{"type":"text","fields":{"subfield":{"type":"long"}},\
-            "fielddata":true}}}}""", Strings.toString(mapperService.documentMapper().mapping()));
+            "fielddata":true}}}}""", mapperService.documentMapper().mappingSource().string());
     }
 
     public void testEnableStore() throws IOException {
@@ -1437,7 +1463,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         mapping.endObject().endObject().endObject();
 
         DocumentMapper mapper = createDocumentMapper(mapping);
-        String serialized = Strings.toString(mapper.mapping());
+        String serialized = mapper.mappingSource().string();
         assertThat(serialized, containsString("""
             "offsets":{"type":"text","index_options":"offsets"}"""));
         assertThat(serialized, containsString("""
@@ -1562,8 +1588,11 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        createDocumentMapper(fieldMapping(this::minimalMapping)).mapping()
-            .toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")));
+        mappingToXContent(
+            createMapperService(fieldMapping(this::minimalMapping)),
+            builder,
+            new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"))
+        );
         builder.endObject();
         String mappingString = Strings.toString(builder);
         assertTrue(mappingString.contains("analyzer"));
@@ -2817,6 +2846,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertTextKeepsOwnDocValues(b -> b.field("null_value", "NULL"));
         assertTextKeepsOwnDocValues(b -> b.field("ignore_above", 10));
         assertTextKeepsOwnDocValues(b -> b.field("doc_values", false));
+        assertWarnings(
+            "The [doc_values] parameter of field [keyword] is ignored in columnar index modes, because doc values are always enabled. "
+                + "Remove the parameter."
+        );
     }
 
     private void assertTextKeepsOwnDocValues(CheckedConsumer<XContentBuilder, IOException> keywordConfig) throws IOException {

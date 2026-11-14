@@ -127,7 +127,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     @Override
     protected NestedQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        return new NestedQueryBuilder("path", queryBuilder, ScoreMode.None);
+        return new NestedQueryBuilder("nested1", queryBuilder, ScoreMode.None);
     }
 
     @Override

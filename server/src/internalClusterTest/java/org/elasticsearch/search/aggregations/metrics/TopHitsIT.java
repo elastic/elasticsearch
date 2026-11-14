@@ -371,6 +371,29 @@ public class TopHitsIT extends ESIntegTestCase {
         );
     }
 
+    public void testSortOnFieldMappedInOneIndexWithIncompatibleUnmappedType() {
+        assertAcked(
+            prepareCreate("top_hits_sort_mapped").setMapping("sort_field", "type=double"),
+            prepareCreate("top_hits_sort_unmapped").setMapping("other", "type=keyword")
+        );
+        prepareIndex("top_hits_sort_mapped").setId("mapped").setSource("sort_field", 3.14).get();
+        prepareIndex("top_hits_sort_unmapped").setId("unmapped").setSource("other", "foo").get();
+        refresh("top_hits_sort_mapped", "top_hits_sort_unmapped");
+
+        assertNoFailuresAndResponse(
+            prepareSearch("top_hits_sort_mapped", "top_hits_sort_unmapped").setSize(0)
+                .addAggregation(topHits("hits").sort(SortBuilders.fieldSort("sort_field").unmappedType("keyword")).size(2)),
+            response -> {
+                TopHits topHits = response.getAggregations().get("hits");
+                assertThat(topHits.getHits().getTotalHits().value(), equalTo(2L));
+                assertThat(topHits.getHits().getHits().length, equalTo(2));
+                // the doc that has no value for the field is sorted last
+                assertThat(topHits.getHits().getAt(0).getId(), equalTo("mapped"));
+                assertThat(topHits.getHits().getAt(1).getId(), equalTo("unmapped"));
+            }
+        );
+    }
+
     public void testIssue11119() throws Exception {
         // Test that top_hits aggregation is fed scores if query results size=0
         assertNoFailuresAndResponse(

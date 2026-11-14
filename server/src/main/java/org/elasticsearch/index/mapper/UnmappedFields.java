@@ -13,13 +13,16 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -63,23 +66,27 @@ public final class UnmappedFields {
     }
 
     /**
-     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. It
-     * returns {@code false} when the index mode is strict columnar and unmapped fields are not routed to the flattened
-     * {@code _unmapped} field, when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
+     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. When the
+     * index mode is strict columnar, only fields absorbed by the flattened {@code _unmapped} sink are read, so it
+     * returns {@code false} when the index has no sink, when no mapping the index has or had can keep an unmapped field (the
+     * sink absorbs only under a root {@code dynamic: flattened}, which can), or when no segment has the sink's keyed field. Otherwise,
+     * it returns {@code false} when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
      * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
      * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
      * has an {@code _ignored} field. When the segments cannot be inspected it returns {@code true} unless the index mode
      * decides. An {@code _ignored_source} field also holds values of mapped fields, so a shard that has one may still hold
-     * no unmapped field. It returns {@code true} when a segment has the keyed field of the {@code _unmapped} sink, whatever the source.
+     * no unmapped field.
      */
     public boolean mayExist() {
-        if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
-            return false;
+        if (indexSettings.getMode().isStrictColumnar()) {
+            // The mapping checks come first: a sink whose root's dynamic was never flattened absorbed nothing, and inspecting the segments
+            // collects the name of every field in every segment. With dynamic: flattened, the segments still tell whether it absorbed.
+            return UnmappedSinkFieldMapper.isEnabled(indexSettings)
+                && (indexSettings.retainsUnmappedFields() || mappingLookup.getMapping().getRoot().canRetainUnmappedFields())
+                && (existsInSegments == null
+                    || existsInSegments.test(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX));
         }
         if (existsInSegments == null) {
-            return true;
-        }
-        if (existsInSegments.test(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX)) {
             return true;
         }
         if (mappingLookup.isSourceSynthetic()) {
@@ -92,10 +99,15 @@ public final class UnmappedFields {
 
     /**
      * Whether {@code name}, which this shard does not map, may be an unmapped field of one of its documents. It decides as
-     * {@link #extract} does, so that a field is found by name exactly where it is found in {@code _source}.
+     * {@link #extract} does, so that a field is found by name exactly where it is found in {@code _source}, except at an
+     * object the mapping parses: a document with a value there is rejected, so the mapping alone rules it out.
      */
     public boolean mayExist(String name) {
-        return skipped("", name) == false && mayExist();
+        return isParsedObject(name) == false && skipped("", name) == false && mayExist();
+    }
+
+    private boolean isParsedObject(String name) {
+        return mappingLookup.objectMappers().get(name) instanceof ObjectMapper object && object.isEnabled();
     }
 
     /**
@@ -115,23 +127,24 @@ public final class UnmappedFields {
      * object is walked like any array of objects.
      */
     @Nullable
-    BytesRef extract(BytesReference source, XContentType sourceType) throws IOException {
-        return extract(source, sourceType, Filter.ALL);
+    BytesRef extract(BytesReference source, XContentType sourceType, CircuitBreaker breaker) throws IOException {
+        return extract(source, sourceType, Filter.ALL, breaker);
     }
 
     /**
      * Returns the unmapped fields of the document {@code source} that {@code filter} includes, as {@link #extract(BytesReference,
-     * XContentType)} writes them, or {@code null} if it has none. An object or an array below which {@code filter} includes
-     * nothing is skipped without being parsed.
+     * XContentType, CircuitBreaker)} writes them, or {@code null} if it has none. An object or an array below which {@code filter}
+     * includes nothing is skipped without being parsed. The values that the walk holds are charged to {@code breaker}, with no
+     * reservation made for them: see {@link HeldValues}.
      */
     @Nullable
-    BytesRef extract(BytesReference source, XContentType sourceType, Filter filter) throws IOException {
-        return walk(source, sourceType, new Walk(Set.of(), filter, 0)).written();
+    BytesRef extract(BytesReference source, XContentType sourceType, Filter filter, CircuitBreaker breaker) throws IOException {
+        return walk(source, sourceType, new Walk(Set.of(), filter, 0), breaker, 0).written();
     }
 
     @Nullable
-    BytesRef extract(BytesReference source, XContentType sourceType, boolean holdAll) throws IOException {
-        return extract(source, sourceType, Filter.ALL, holdAll);
+    BytesRef extract(BytesReference source, XContentType sourceType, boolean holdAll, CircuitBreaker breaker) throws IOException {
+        return extract(source, sourceType, Filter.ALL, holdAll, breaker);
     }
 
     /**
@@ -140,12 +153,16 @@ public final class UnmappedFields {
      * @return {@link #SPELLED_IN_TWO_WAYS} if {@code holdAll} is {@code false} and the document may spell a field in two ways
      */
     @Nullable
-    BytesRef extract(BytesReference source, XContentType sourceType, Filter filter, boolean holdAll) throws IOException {
-        Found found = walk(source, sourceType, new Walk(Set.of(), filter, 0), holdAll);
+    BytesRef extract(BytesReference source, XContentType sourceType, Filter filter, boolean holdAll, CircuitBreaker breaker)
+        throws IOException {
+        Found found = walk(source, sourceType, new Walk(Set.of(), filter, 0), holdAll, breaker, 0);
         return found == null ? SPELLED_IN_TWO_WAYS : found.written();
     }
 
-    /** What {@link #extract(BytesReference, XContentType, Filter, boolean)} returns for a document it has to hold the values of. */
+    /**
+     * What {@link #extract(BytesReference, XContentType, Filter, boolean, CircuitBreaker)} returns for a document it has to hold the
+     * values of.
+     */
     static final BytesRef SPELLED_IN_TWO_WAYS = new BytesRef();
 
     /**
@@ -189,7 +206,7 @@ public final class UnmappedFields {
 
     /**
      * What a walk found in a document: the unmapped fields its filter includes, as {@link #extract(BytesReference,
-     * XContentType)} writes them, and the values of each of its names, as text. The values of a name are in the order a
+     * XContentType, CircuitBreaker)} writes them, and the values of each of its names, as text. The values of a name are in the order a
      * lookup in {@code _source} parsed into a map finds them: where an object has several keys that lead to the name, those
      * of the keys with fewer dots come first, and the values of one key are in the order they are found.
      */
@@ -201,9 +218,17 @@ public final class UnmappedFields {
         }
     }
 
-    Found walk(BytesReference source, XContentType sourceType, Walk walk) throws IOException {
-        Found found = walk(source, sourceType, walk, false);
-        return found == null ? walk(source, sourceType, walk, true) : found;
+    /**
+     * Walks {@code source}, charging the values that it holds to {@code breaker} as it holds them. See {@link HeldValues}. There is
+     * deliberately no walk without a breaker: what a walk holds is a multiple of the size of {@code _source}, so one that did not
+     * charge it could exhaust the heap. A test that has no breaker to charge passes a
+     * {@link org.elasticsearch.common.breaker.NoopCircuitBreaker}.
+     *
+     * @param allowance how many bytes of held values the reservation that the caller made already stands for
+     */
+    Found walk(BytesReference source, XContentType sourceType, Walk walk, CircuitBreaker breaker, long allowance) throws IOException {
+        Found found = walk(source, sourceType, walk, false, breaker, allowance);
+        return found == null ? walk(source, sourceType, walk, true, breaker, allowance) : found;
     }
 
     /**
@@ -212,15 +237,17 @@ public final class UnmappedFields {
      * @return {@code null} if {@code holdAll} is {@code false} and the document may spell a field in two ways
      */
     @Nullable
-    private Found walk(BytesReference source, XContentType sourceType, Walk walk, boolean holdAll) throws IOException {
+    private Found walk(BytesReference source, XContentType sourceType, Walk walk, boolean holdAll, CircuitBreaker breaker, long allowance)
+        throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, sourceType);
-            XContentBuilder out = walk.filter == null ? null : XContentFactory.jsonBuilder()
+            XContentBuilder out = walk.filter == null ? null : XContentFactory.jsonBuilder();
+            HeldValues heldValues = new HeldValues(breaker, allowance)
         ) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalStateException("expected an object but was [" + parser.currentToken() + "]");
             }
-            Extraction extraction = new Extraction(parser, out, walk);
+            Extraction extraction = new Extraction(parser, out, walk, heldValues);
             if (holdAll && out != null) {
                 extraction.held = new LinkedHashMap<>();
             }
@@ -302,6 +329,7 @@ public final class UnmappedFields {
         @Nullable
         private final XContentBuilder out;
         private final Walk walk;
+        private final HeldValues heldValues;
         /** The values found of each name of the walk. */
         private Map<String, NamedValues> named = Map.of();
         /**
@@ -318,10 +346,11 @@ public final class UnmappedFields {
         private Map<String, Object> held;
         private boolean wrote;
 
-        Extraction(XContentParser parser, @Nullable XContentBuilder out, Walk walk) {
+        Extraction(XContentParser parser, @Nullable XContentBuilder out, Walk walk, HeldValues heldValues) {
             this.parser = parser;
             this.out = out;
             this.walk = walk;
+            this.heldValues = heldValues;
             this.spelling = walk.names.isEmpty() ? null : new int[8];
         }
 
@@ -471,9 +500,13 @@ public final class UnmappedFields {
                             if (named.isEmpty()) {
                                 named = new HashMap<>();
                             }
-                            named.computeIfAbsent(path, k -> new NamedValues())
-                                .add(new BytesRef(value.toString()), Arrays.copyOf(spelling, depth));
+                            BytesRef bytes = utf8Exactly(value.toString());
+                            heldValues.add(namedValueBytes(bytes, depth));
+                            named.computeIfAbsent(path, k -> new NamedValues()).add(bytes, Arrays.copyOf(spelling, depth));
                         }
+                        // A value that is both named and written while a filter holds values is not charged twice: NamedValues keeps
+                        // its own copy of the bytes above, and `held` keeps the parsed value below, so the two charges are for
+                        // different objects.
                         if (written) {
                             if (held == null) {
                                 field(path);
@@ -501,6 +534,7 @@ public final class UnmappedFields {
         }
 
         private void hold(String path, Object value) {
+            heldValues.add(heldValueBytes(value));
             Object existing = held.putIfAbsent(path, value);
             if (existing instanceof Values values) {
                 values.add(value);
@@ -594,6 +628,89 @@ public final class UnmappedFields {
     private static final class Values extends ArrayList<Object> {}
 
     /**
+     * Charges the values that a walk holds to a circuit breaker as it holds them, and gives them back when the walk ends.
+     * <p>
+     * A walk holds the values of an array until the array ends, and the values of a name until the document is read, as an object
+     * for each of them. That costs many times what they take in {@code _source}: an element of 4 bytes, a one character string, takes
+     * about 50. What a walk reserves up front, a multiple of the size of {@code _source}, is too little for a document with many short
+     * values, and a walk that reserves nothing, the one for the values of a name, is not covered at all.
+     * <p>
+     * The {@code allowance} is how much of the reservation stands for held values. What is held up to it is paid for already, so only
+     * what is held beyond it is charged. The charge is made in steps of {@link #STEP} bytes, so that holding a value usually costs no
+     * more than an addition. The breaker is asked, and may trip, when a step is made.
+     */
+    private static final class HeldValues implements Releasable {
+        private static final long STEP = 64 * 1024;
+        private static final String LABEL = "unmapped fields held values";
+
+        private final CircuitBreaker breaker;
+        private final long allowance;
+        private long held;
+        private long charged;
+
+        HeldValues(CircuitBreaker breaker, long allowance) {
+            this.breaker = breaker;
+            this.allowance = allowance;
+        }
+
+        void add(long bytes) {
+            held += bytes;
+            long uncharged = held - allowance - charged;
+            if (uncharged >= STEP) {
+                breaker.addEstimateBytesAndMaybeBreak(uncharged, LABEL);
+                charged += uncharged;
+            }
+        }
+
+        @Override
+        public void close() {
+            if (charged > 0) {
+                breaker.addWithoutBreaking(-charged);
+            }
+        }
+    }
+
+    /**
+     * What holding {@code value} in the list of the values of an array costs: the value, what it points to, and its slot in the list,
+     * counting generously.
+     */
+    private static long heldValueBytes(Object value) {
+        long slot = 8;
+        if (value instanceof String string) {
+            // The string and its array, of two bytes for each character in case the string is not Latin-1.
+            return slot + 24 + aligned(16 + 2L * string.length());
+        }
+        if (value instanceof byte[] bytes) {
+            return slot + aligned(16 + bytes.length);
+        }
+        // A number or a boolean.
+        return slot + 24;
+    }
+
+    /**
+     * {@code text} as UTF-8 in an array of exactly its length. {@code new BytesRef(CharSequence)} allocates the worst case of 3 bytes for
+     * each character, for every string, ASCII included, which holds up to three times what the value needs for as long as the
+     * document is read and which {@link #namedValueBytes} would then have to count.
+     */
+    private static BytesRef utf8Exactly(String text) {
+        byte[] bytes = new byte[UnicodeUtil.calcUTF16toUTF8Length(text, 0, text.length())];
+        UnicodeUtil.UTF16toUTF8(text, 0, text.length(), bytes);
+        return new BytesRef(bytes);
+    }
+
+    /**
+     * What a value of a name costs in {@link NamedValues}: its {@link BytesRef}, the bytes of that, its spelling, and a slot in each
+     * list.
+     */
+    private static long namedValueBytes(BytesRef value, int depth) {
+        return 24 + aligned(16L + value.bytes.length) + aligned(16L + 4L * depth) + 2 * 8;
+    }
+
+    private static long aligned(long bytes) {
+        return (bytes + 7) & ~7L;
+    }
+
+    /**
      * Loads the unmapped field {@code name} as keywords, with a walk of its own. Loads nothing where {@link #mayExist(String)}
      * rules it out.
      */
@@ -635,17 +752,25 @@ public final class UnmappedFields {
         return new AllFieldsBlockLoader(this, walk);
     }
 
+    /** How many times the serialized size of {@code _source} the JSON that a walk builds takes, with the buffers that it grows through. */
+    private static final long JSON_SIZE_FACTOR = 4;
+
     /** What {@code walk} finds in the current document of {@code storedFields}, walked once for all the loaders of {@code walk}. */
     private Found walk(BlockLoader.StoredFields storedFields, Walk walk, CircuitBreaker breaker) throws IOException {
         return storedFields.shared(walk, fields -> {
             Source source = fields.source();
             BytesReference sourceBytes = source.internalSourceRef();
-            // Covers the JSON that is built and the values held to build it, which are at most proportional to the serialized size.
-            // It is released before a loader appends to its builder, which accounts for what it holds.
+            // Covers the JSON that is built and, up to the allowance below, the values held to build it. Held values are not bounded by
+            // the serialized size: a short value costs many times what it takes there, so what is held beyond the allowance is charged
+            // as it is held (see HeldValues). The reservation is released before a loader appends to its builder, which accounts for
+            // what it holds.
             long reservation = walk.filter == null ? 0 : (long) (sourceBytes.length() * walk.sourceReservationFactor);
+            // The JSON that is built, and the buffers that it grows through, take a few times the serialized size: the rest of the
+            // reservation is for the held values, which are charged beyond that as they are held.
+            long allowance = Math.max(0L, reservation - JSON_SIZE_FACTOR * sourceBytes.length());
             breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields source");
             try {
-                return walk(sourceBytes, source.sourceContentType(), walk);
+                return walk(sourceBytes, source.sourceContentType(), walk, breaker, allowance);
             } finally {
                 breaker.addWithoutBreaking(-reservation);
             }

@@ -185,6 +185,19 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         handler.blobs().put("/" + bucket + "/" + key, new BlobEntry(new BytesArray(content), storageClass));
     }
 
+    /**
+     * Removes a blob from the fixture's in-memory store, the way a delete at the object store does: the key stops
+     * appearing in listings and every request for it answers 404 NoSuchKey. Like {@link #seedBlob(String, byte[])}
+     * it writes directly into the blob map rather than over HTTP, so it bypasses auth, and it may be called at any
+     * point after the fixture has started.
+     */
+    public void removeBlob(String key) {
+        if (handler == null) {
+            throw new IllegalStateException("S3 fixture has not been started yet; there is nothing to remove");
+        }
+        handler.blobs().remove("/" + bucket + "/" + key);
+    }
+
     /** S3's refusal of a GET on an unrestored archived object; unlike {@code sendError}'s, its body carries the storage class. */
     private static void sendArchived(HttpExchange exchange, String storageClass) throws IOException {
         byte[] body = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error>"

@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
-import org.elasticsearch.action.search.SearchLogContext;
+import org.elasticsearch.action.search.SearchCaptureContext;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
@@ -78,7 +78,7 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
     private List<LogEvent> getNonSystemEvents() {
         return appender.events.stream().filter(event -> {
             Map<String, String> message = getMessageData(event);
-            return message.get(QueryLogging.ES_QUERY_FIELDS_PREFIX + "type").equals(SearchLogContext.TYPE) == false
+            return message.get(QueryLogging.ES_QUERY_FIELDS_PREFIX + "type").equals(SearchCaptureContext.TYPE) == false
                 || Objects.equals(message.get(QUERY_FIELD_INDICES), ".async-search") == false;
         }).toList();
     }
@@ -101,7 +101,7 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
         var events = getNonSystemEvents();
         assertThat(events, hasSize(1));
         Map<String, String> message = getMessageData(events.getFirst());
-        assertMessageSuccess(message, SearchLogContext.TYPE, "quick");
+        assertMessageSuccess(message, SearchCaptureContext.TYPE, "quick");
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("3"));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
     }
@@ -124,7 +124,7 @@ public class AsyncSearchLoggingIT extends AsyncSearchIntegTestCase {
         var events = getNonSystemEvents();
         assertThat(events, hasSize(1));
         Map<String, String> message = getMessageData(events.getFirst());
-        assertMessageFailure(message, SearchLogContext.TYPE, "throw", SearchPhaseExecutionException.class, "all shards failed");
+        assertMessageFailure(message, SearchCaptureContext.TYPE, "throw", SearchPhaseExecutionException.class, "all shards failed");
         assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("0"));
         assertThat(message.get(QUERY_FIELD_INDICES), equalTo(INDEX_NAME));
     }

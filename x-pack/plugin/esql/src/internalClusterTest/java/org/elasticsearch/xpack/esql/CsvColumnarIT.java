@@ -576,7 +576,7 @@ public class CsvColumnarIT extends CsvIT {
     private static final String STANDARD_INDEX_MODE = "standard";
 
     /**
-     * Installs the columnar index-load strategy.
+     * Installs the columnar differential test strategy.
      *
      * <p>Runs after {@link CsvIT#setupCluster()} (JUnit guarantees the superclass
      * {@code @BeforeClass} runs first) and replaces the identity strategy with one that creates
@@ -589,7 +589,7 @@ public class CsvColumnarIT extends CsvIT {
      */
     @BeforeClass
     public static void installColumnarStrategy() {
-        indexLoadStrategy = new ColumnarStrategy(modeSettings());
+        differentialTestStrategy = new ColumnarStrategy(modeSettings());
     }
 
     @AfterClass
@@ -632,7 +632,7 @@ public class CsvColumnarIT extends CsvIT {
     // -----------------------------------------------------------------------------------------
 
     /**
-     * {@link CsvIT.IndexLoadStrategy} that creates each dataset in columnar index mode.
+     * {@link CsvIT.DifferentialTestStrategy} that creates each dataset in columnar index mode.
      *
      * <p>The strategy:
      * <ul>
@@ -648,7 +648,7 @@ public class CsvColumnarIT extends CsvIT {
      *   <li>Honours the {@code skip_columnar:} preamble directive to silence individual tests.</li>
      * </ul>
      */
-    static final class ColumnarStrategy implements IndexLoadStrategy {
+    static final class ColumnarStrategy implements DifferentialTestStrategy {
 
         private final Settings extraSettings;
 
@@ -728,11 +728,7 @@ public class CsvColumnarIT extends CsvIT {
          * rather than being masked.
          */
         @Override
-        public CsvTestUtils.ExpectedResults transformExpectedResults(
-            String testId,
-            CsvTestCase testCase,
-            CsvTestUtils.ExpectedResults expected
-        ) {
+        public CsvTestUtils.TestResults transformExpectedResults(String testId, CsvTestCase testCase, CsvTestUtils.TestResults expected) {
             int modeIdx = expected.columnNames().indexOf(INDEX_MODE_COLUMN);
             if (modeIdx < 0) {
                 return expected;
@@ -757,7 +753,7 @@ public class CsvColumnarIT extends CsvIT {
             if (anyChanged == false) {
                 return expected;
             }
-            return new CsvTestUtils.ExpectedResults(expected.columnNames(), expected.columnTypes(), newValues);
+            return new CsvTestUtils.TestResults(expected.columnNames(), expected.columnTypes(), newValues);
         }
 
         /**

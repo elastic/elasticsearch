@@ -387,6 +387,8 @@ public class EsExecutors {
     public static class EsThread extends Thread {
         private final String executorName;
         private final boolean isSystem;
+        /** The pool task running on this thread, as {@link TaskLoadAttribution} tracks it. */
+        final TaskLoadAttribution.Task loadTask = new TaskLoadAttribution.Task();
 
         EsThread(ThreadGroup group, Runnable target, String name, long stackSize, String executorName, boolean isSystem) {
             super(group, target, name, stackSize);
@@ -583,20 +585,23 @@ public class EsExecutors {
         private final boolean trackMaxQueueLatency;
         private final double executionTimeEwmaAlpha;
         private final double threadUtilizationEwmrLambda;
+        private final boolean attributeTaskLoad;
 
         public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
             false,
             false,
             false,
             DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
-            DISABLE_UTILIZATION_EWMR
+            DISABLE_UTILIZATION_EWMR,
+            false
         );
         public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(
             true,
             false,
             false,
             DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST,
-            DISABLE_UTILIZATION_EWMR
+            DISABLE_UTILIZATION_EWMR,
+            false
         );
 
         /**
@@ -605,19 +610,22 @@ public class EsExecutors {
          * @param trackMaxQueueLatency Whether to track max queue latency.
          * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
          * @param threadUtilizationEwmrLambda The lambda for the thread utilization EWMR, in inverse nanoseconds, or zero for no tracking.
+         * @param attributeTaskLoad Whether to charge the execution time of tasks to the work they do, see {@link TaskLoadAttribution}
          */
         private TaskTrackingConfig(
             boolean trackExecutionTime,
             boolean trackOngoingTasks,
             boolean trackMaxQueueLatency,
             double executionTimeEWMAAlpha,
-            double threadUtilizationEwmrLambda
+            double threadUtilizationEwmrLambda,
+            boolean attributeTaskLoad
         ) {
             this.trackExecutionTime = trackExecutionTime;
             this.trackOngoingTasks = trackOngoingTasks;
             this.trackMaxQueueLatency = trackMaxQueueLatency;
             this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
             this.threadUtilizationEwmrLambda = threadUtilizationEwmrLambda;
+            this.attributeTaskLoad = attributeTaskLoad;
         }
 
         public boolean trackExecutionTime() {
@@ -640,6 +648,10 @@ public class EsExecutors {
             return threadUtilizationEwmrLambda;
         }
 
+        public boolean attributeTaskLoad() {
+            return attributeTaskLoad;
+        }
+
         public static Builder builder() {
             return new Builder();
         }
@@ -650,6 +662,7 @@ public class EsExecutors {
             private boolean trackMaxQueueLatency = false;
             private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
             private double threadUtilizationEwmrLambda = DISABLE_UTILIZATION_EWMR;
+            private boolean attributeTaskLoad = false;
 
             public Builder() {}
 
@@ -666,6 +679,14 @@ public class EsExecutors {
 
             public Builder trackMaxQueueLatency() {
                 trackMaxQueueLatency = true;
+                return this;
+            }
+
+            /**
+             * Charges the execution time of tasks to the work they do. Needs {@link #trackExecutionTime}.
+             */
+            public Builder attributeTaskLoad() {
+                attributeTaskLoad = true;
                 return this;
             }
 
@@ -688,7 +709,8 @@ public class EsExecutors {
                     trackOngoingTasks,
                     trackMaxQueueLatency,
                     ewmaAlpha,
-                    threadUtilizationEwmrLambda
+                    threadUtilizationEwmrLambda,
+                    attributeTaskLoad
                 );
             }
         }

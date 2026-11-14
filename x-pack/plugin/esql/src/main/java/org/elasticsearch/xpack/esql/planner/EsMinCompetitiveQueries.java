@@ -16,18 +16,28 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 public class EsMinCompetitiveQueries {
     private final SharedMinCompetitive.Supplier minCompetitive;
     private final String fieldName;
+    private final DataType dataType;
     private final SearchExecutionContext ctx;
     private final MappedFieldType ft;
 
-    public EsMinCompetitiveQueries(SharedMinCompetitive.Supplier minCompetitive, String fieldName, SearchExecutionContext ctx) {
+    public EsMinCompetitiveQueries(
+        SharedMinCompetitive.Supplier minCompetitive,
+        String fieldName,
+        DataType dataType,
+        SearchExecutionContext ctx
+    ) {
         this.minCompetitive = minCompetitive;
         this.fieldName = fieldName;
+        this.dataType = dataType;
         this.ctx = ctx;
         this.ft = ctx.getFieldType(fieldName);
     }
@@ -69,10 +79,19 @@ public class EsMinCompetitiveQueries {
         long minCompetitiveValue = ((LongBlock) minBlock).getLong(0);
 
         boolean includeMinCompetitive = minCompetitive.keyConfigs().size() > 1;
-        if (minCompetitive.keyConfigs().getFirst().asc()) {
-            return ft.rangeQuery(null, minCompetitiveValue, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx);
+        boolean asc = minCompetitive.keyConfigs().getFirst().asc();
+        if (ft instanceof DateFieldMapper.DateFieldType date) {
+            // The bound is in the resolution of the field, which the generic range query would parse as millis
+            return asc
+                ? date.rangeQuery(null, minCompetitiveValue, includeMinCompetitive, includeMinCompetitive, ctx)
+                : date.rangeQuery(minCompetitiveValue, null, includeMinCompetitive, includeMinCompetitive, ctx);
         }
-        return ft.rangeQuery(minCompetitiveValue, null, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx);
+        // ES|QL flips the sign bit of unsigned longs, which the field parses from their unsigned value
+        Object bound = dataType == DataType.UNSIGNED_LONG ? NumericUtils.unsignedLongAsNumber(minCompetitiveValue) : minCompetitiveValue;
+        if (asc) {
+            return ft.rangeQuery(null, bound, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx);
+        }
+        return ft.rangeQuery(bound, null, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx);
     }
 
     private Query exists() {

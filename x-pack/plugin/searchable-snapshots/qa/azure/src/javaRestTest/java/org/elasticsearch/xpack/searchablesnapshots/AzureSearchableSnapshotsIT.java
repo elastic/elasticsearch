@@ -82,8 +82,20 @@ public class AzureSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestT
             // increase the timeout here to 90 seconds
             // this ensures that we don't retry the test requests when azure is misbehaving
             // (the azure sdk timeout is 60s) see #87389
-            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+            // Further increase this to 120 seconds since Azure seems to be very slow at times.
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "120s")
             .build();
+    }
+
+    @Override
+    public void testSearchResults() throws Exception {
+        try {
+            super.testSearchResults();
+        } catch (Exception e) {
+            // This may fail if azure is too slow to respond. Log hot threads so that we can be sure it is not an ES side issue.
+            logger.warn("testSearchResults failed, hot threads:\n{}", getHotThreads());
+            throw e;
+        }
     }
 
     @Override

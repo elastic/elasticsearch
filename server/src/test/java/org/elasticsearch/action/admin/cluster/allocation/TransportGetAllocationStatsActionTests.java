@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsTests;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
@@ -319,6 +320,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
         ControlledRelativeTimeThreadPool(String name, long startTimeMillis) {
             super(
+                new ThreadContext(Settings.EMPTY),
                 Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).build(),
                 MeterRegistry.NOOP,
                 new DefaultBuiltInExecutorBuilders()

@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_ACTION_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_DURATION_FIELD;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
 import static org.elasticsearch.common.logging.activity.QueryLogger.QUERY_LOGGER_ENABLED;
@@ -76,6 +77,7 @@ public class ActivityLoggingUtils {
     public static void assertMessageSuccess(Map<String, String> message, String type, String query) {
         assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("success"));
         assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "type"), equalTo(type));
+        assertThat(message.get(EVENT_ACTION_FIELD), equalTo(type + "-query"));
         assertThat(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took")), greaterThan(0L));
         assertThat(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
         assertThat(message.get(QUERY_FIELD_QUERY), containsString(query));
@@ -91,6 +93,7 @@ public class ActivityLoggingUtils {
     ) {
         assertThat(message.get(EVENT_OUTCOME_FIELD), equalTo("failure"));
         assertThat(message.get(ES_QUERY_FIELDS_PREFIX + "type"), equalTo(type));
+        assertThat(message.get(EVENT_ACTION_FIELD), equalTo(type + "-query"));
         assertThat(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took")), greaterThan(0L));
         assertThat(Long.valueOf(message.get(ES_QUERY_FIELDS_PREFIX + "took_millis")), greaterThanOrEqualTo(0L));
         assertThat(message.get(QUERY_FIELD_QUERY), containsString(query));

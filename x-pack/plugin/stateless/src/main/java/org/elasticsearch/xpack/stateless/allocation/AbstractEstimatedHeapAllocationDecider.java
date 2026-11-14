@@ -176,18 +176,7 @@ public abstract class AbstractEstimatedHeapAllocationDecider extends AllocationD
             }
         }
 
-        final var shardAndIndexHeapUsage = allocation.clusterInfo().getEstimatedShardHeapUsages().get(shardRouting.shardId());
-        if (shardAndIndexHeapUsage == null) {
-            return allocation.decision(
-                Decision.YES,
-                name,
-                "sufficient %s available on node [%s]: usage percentage [%.2f] is below low watermark [%.2f]",
-                deciderDescription,
-                node.getShortNodeDescription(),
-                currentUsagePercent,
-                lowWatermarkPercent
-            );
-        }
+        final var shardAndIndexHeapUsage = allocation.clusterInfo().getEstimatedShardHeapUsage(shardRouting.shardId());
 
         // Include index overhead only when the node does not already host the index, to avoid double-counting.
         final long additionalBytes = (node.hasIndex(shardRouting.index()) ? 0L : shardAndIndexHeapUsage.indexHeapUsageBytes())

@@ -39,9 +39,13 @@ dependencies {
   api project('sql-action')
   api project(':modules:aggregations')
   compileOnly project(path: xpackModule('ql'))
+  // ql no longer re-exports mapper-version (it extends it instead), so declare it directly. Runtime access
+  // comes via the extendedPlugins chain (x-pack-sql -> x-pack-ql -> mapper-version).
+  compileOnly project(path: xpackModule('mapper-version'))
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('ql'))))
+  testImplementation project(path: xpackModule('mapper-version'))
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')

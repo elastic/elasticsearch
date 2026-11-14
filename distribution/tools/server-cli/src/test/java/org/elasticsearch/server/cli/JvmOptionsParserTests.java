@@ -392,6 +392,17 @@ public class JvmOptionsParserTests extends ESTestCase {
         }
     }
 
+    public void testJitCompilerOptions() {
+        var expected = List.of(
+            "-XX:CompileCommand=quiet",
+            "-XX:CompileCommand=dontinline,java.nio.*::putArray",
+            "-XX:CompileCommand=dontinline,java.nio.*::putBuffer",
+            "-XX:CompileCommand=dontinline,java.nio.*::getArray"
+        );
+        assertThat(SystemJvmOptions.maybeAddJitCompilerOptions(true).toList(), equalTo(expected));
+        assertThat(SystemJvmOptions.maybeAddJitCompilerOptions(false).toList(), empty());
+    }
+
     public void testCommandLineDistributionType() {
         var sysprops = new HashMap<>(testSysprops);
         sysprops.put("es.distribution.type", "testdistro");

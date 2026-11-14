@@ -41,6 +41,9 @@ import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
+import static org.elasticsearch.test.ESTestCase.asInstanceOf;
+import static org.elasticsearch.test.ESTestCase.assertEquals;
+import static org.elasticsearch.test.ESTestCase.assertNull;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 public final class XContentTestUtils {
@@ -76,6 +79,21 @@ public final class XContentTestUtils {
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
             builder.map(map);
             return BytesReference.bytes(builder);
+        }
+    }
+
+    /**
+     * Asserts that a value read from {@link XContentParser#map()} or {@link #convertToMap} equals {@code expected}.
+     * <p>
+     * Those maps box a JSON number that fits in 32 bits as an {@link Integer} and a larger number as a {@link Long}, so the parsed
+     * value cannot be compared to a {@code long} with {@code assertEquals}. A null {@code expected} value requires {@code actual}
+     * to be null.
+     */
+    public static void assertLongValueEquals(Object actual, Long expected) {
+        if (expected == null) {
+            assertNull(actual);
+        } else {
+            assertEquals(expected.longValue(), asInstanceOf(Number.class, actual).longValue());
         }
     }
 

@@ -32,10 +32,13 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
 
     @Override
     protected SpanFirstQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        if (queryBuilder instanceof SpanFirstQueryBuilder) {
-            return new SpanFirstQueryBuilder((SpanFirstQueryBuilder) queryBuilder, 1);
-        }
-        return new SpanFirstQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
+        assertThat(queryBuilder, instanceOf(SpanQueryBuilder.class));
+        return new SpanFirstQueryBuilder((SpanQueryBuilder) queryBuilder, 1);
+    }
+
+    @Override
+    protected QueryBuilder createInnerQuery() {
+        return new SpanTermQueryBuilder("field", "value");
     }
 
     @Override

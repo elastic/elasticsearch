@@ -2006,6 +2006,55 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("score"));
     }
 
+    public void testDoublePredicateWithSignedZeroOrNanIsNotPushed() {
+        MessageType schema = Types.buildMessage().required(DOUBLE).named("score").named("test");
+        Attribute score = attr("score", DataType.DOUBLE);
+        assertNull("eq(0.0) must not reach parquet-java stats", predicateFor(schema, eq("score", DataType.DOUBLE, 0.0)));
+        assertNull("eq(-0.0) must not reach parquet-java stats", predicateFor(schema, eq("score", DataType.DOUBLE, -0.0)));
+        assertNull("eq(NaN) must not reach parquet-java stats", predicateFor(schema, eq("score", DataType.DOUBLE, Double.NaN)));
+        assertNull(
+            "gte(0.0) must not reach parquet-java stats",
+            predicateFor(schema, new GreaterThanOrEqual(Source.EMPTY, score, lit(0.0, DataType.DOUBLE), null))
+        );
+        assertNull(
+            "lte(-0.0) must not reach parquet-java stats",
+            predicateFor(schema, new LessThanOrEqual(Source.EMPTY, score, lit(-0.0, DataType.DOUBLE), null))
+        );
+        assertNull(
+            "IN containing 0.0 must not reach parquet-java stats",
+            predicateFor(schema, new In(Source.EMPTY, score, List.of(lit(0.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE))))
+        );
+        assertNull(
+            "NOT(eq(0.0)) declines because the inner does",
+            predicateFor(schema, new Not(Source.EMPTY, eq("score", DataType.DOUBLE, 0.0)))
+        );
+        assertNull(
+            "notEq(5.0) can drop a {5.0, NaN} group",
+            predicateFor(schema, new NotEquals(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null))
+        );
+        assertNull(
+            "NOT(gt(5.0)) inverts to lte and can drop {6.0, NaN}",
+            predicateFor(schema, new Not(Source.EMPTY, new GreaterThan(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null)))
+        );
+        assertNull("NOT(eq(5.0)) inverts to notEq", predicateFor(schema, new Not(Source.EMPTY, eq("score", DataType.DOUBLE, 5.0))));
+        assertNull(
+            "NOT(IN(5.0, 6.0)) inverts to notIn",
+            predicateFor(
+                schema,
+                new Not(Source.EMPTY, new In(Source.EMPTY, score, List.of(lit(5.0, DataType.DOUBLE), lit(6.0, DataType.DOUBLE))))
+            )
+        );
+        assertNotNull("eq(0.5) stays pushed", predicateFor(schema, eq("score", DataType.DOUBLE, 0.5)));
+        assertNotNull(
+            "gt(5.0) of a finite non-zero stays pushed",
+            predicateFor(schema, new GreaterThan(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null))
+        );
+        assertNotNull(
+            "IN of non-zero finites stays pushed",
+            predicateFor(schema, new In(Source.EMPTY, score, List.of(lit(1.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE))))
+        );
+    }
+
     // A DECIMAL(scale>0) column reached via a *declared* long/integer/keyword pushed the literal
     // against the column's *unscaled* on-disk stats (e.g. `price = 123` against stats stored as
     // 12300 for scale=2).

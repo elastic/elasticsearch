@@ -49,26 +49,20 @@ public class TokenCountFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).index, true);
+        private final Parameter<Boolean> index = Parameter.indexParam(true);
         private final FieldMapper.DocValuesParameter docValuesParameters;
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> toType(m).store, false);
+        private final Parameter<Boolean> store = Parameter.storeParam(false);
 
-        private final Parameter<NamedAnalyzer> analyzer = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, () -> null);
+        private final Parameter<NamedAnalyzer> analyzer = Parameter.analyzerParam("analyzer", true, () -> null);
         private final Parameter<Integer> nullValue = new Parameter<>(
             "null_value",
             false,
             () -> null,
             (n, c, o) -> o == null ? null : nodeIntegerValue(o),
-            m -> toType(m).nullValue,
             XContentBuilder::field,
             Objects::toString
         ).acceptsNull();
-        private final Parameter<Boolean> enablePositionIncrements = Parameter.boolParam(
-            "enable_position_increments",
-            false,
-            m -> toType(m).enablePositionIncrements,
-            true
-        );
+        private final Parameter<Boolean> enablePositionIncrements = Parameter.boolParam("enable_position_increments", false, true);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -84,7 +78,6 @@ public class TokenCountFieldMapper extends FieldMapper {
                     FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
-                m -> toType(m).docValuesParameters(),
                 indexSettings
             );
         }
@@ -152,6 +145,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                 null,
                 isSyntheticSource,
                 false,
+                false,
                 false
             );
         }
@@ -174,7 +168,6 @@ public class TokenCountFieldMapper extends FieldMapper {
     private final boolean enablePositionIncrements;
     private final Integer nullValue;
     private final DocValuesFieldFactory dvFactory;
-    private final IndexSettings indexSettings;
 
     protected TokenCountFieldMapper(String simpleName, MappedFieldType defaultFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, defaultFieldType, builderParams);
@@ -186,7 +179,6 @@ public class TokenCountFieldMapper extends FieldMapper {
         this.store = builder.store.getValue();
         // in parseCreateField(), we call IndexType.points(), which defaults skippers to false
         this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, IndexVersion.current());
-        this.indexSettings = builder.indexSettings;
     }
 
     @Override
@@ -275,8 +267,4 @@ public class TokenCountFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexSettings).init(this);
-    }
 }

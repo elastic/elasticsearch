@@ -44,10 +44,15 @@ public interface NodeEligibilityStrategy {
     NodeEligibilityStrategy EXTERNAL_WORKER_NODES = allNodes -> {
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (DiscoveryNode node : allNodes) {
-            if (node.canContainData() && node.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) == false) {
+            if (isExternalWorker(node)) {
                 nodes.add(node);
             }
         }
         return nodes;
     };
+
+    /** The predicate of {@link #EXTERNAL_WORKER_NODES} for one node. */
+    static boolean isExternalWorker(DiscoveryNode node) {
+        return node.canContainData() && node.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName()) == false;
+    }
 }

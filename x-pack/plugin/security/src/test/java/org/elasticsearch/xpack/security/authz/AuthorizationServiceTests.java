@@ -72,7 +72,6 @@ import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
@@ -4230,7 +4229,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         List<SearchPhaseResult> results = new ArrayList<>();
         results.add(testSearchPhaseResult1);
-        return SearchContextId.encode(results, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY);
+        return SearchContextId.encode(results, Collections.emptyMap(), TransportVersion.current(), List.of());
     }
 
     private static ProjectRoutingInfo createRandomProjectWithAlias(String alias) {

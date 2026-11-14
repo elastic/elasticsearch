@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -31,7 +32,7 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
       new IntermediateStateDesc("unusedDeltas", ElementType.DOUBLE),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
-  private final LossySumDoubleAggregator.GroupingSumState state;
+  private final DoubleArrayState state;
 
   private final List<Integer> channels;
 
@@ -39,7 +40,7 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
 
   LossySumDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = LossySumDoubleAggregator.initGrouping(driverContext.bigArrays());
+    this.state = new DoubleArrayState(driverContext.bigArrays(), driverContext.breaker(), LossySumDoubleAggregator.initGrouping());
     this.driverContext = driverContext;
   }
 
@@ -206,7 +207,9 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        LossySumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), unusedDeltas.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
+        if (seen.getBoolean(valuesPosition)) {
+          LossySumDoubleAggregator.combine(state, groupId, value.getDouble(valuesPosition));
+        }
       }
     }
   }
@@ -305,7 +308,9 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        LossySumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), unusedDeltas.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
+        if (seen.getBoolean(valuesPosition)) {
+          LossySumDoubleAggregator.combine(state, groupId, value.getDouble(valuesPosition));
+        }
       }
     }
   }
@@ -384,7 +389,9 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      LossySumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), unusedDeltas.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
+      if (seen.getBoolean(valuesPosition)) {
+        LossySumDoubleAggregator.combine(state, groupId, value.getDouble(valuesPosition));
+      }
     }
   }
 
@@ -417,11 +424,7 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
       IntVector selected, GroupingAggregatorEvaluationContext ctx) {
-    return this::evaluateIntermediate;
-  }
-
-  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
-    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
+    return LossySumDoubleAggregator.prepareEvaluateIntermediate(state, selected, ctx);
   }
 
   @Override
@@ -432,7 +435,48 @@ public final class LossySumDoubleGroupingAggregatorFunction implements GroupingA
 
   private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = LossySumDoubleAggregator.evaluateFinal(state, selectedInPage, ctx);
+    blocks[offset] = state.toValuesBlock(selectedInPage, driverContext);
+  }
+
+  @Override
+  public void maybeEnsureCapacity(int size) {
+    state.ensureCapacity(size);
+  }
+
+  @Override
+  public boolean supportPartitioning() {
+    return true;
+  }
+
+  @Override
+  public GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(
+      CircuitBreaker breaker) {
+    return state.createPartitioningSplitter(breaker);
+  }
+
+  @Override
+  public void combinePartition(GroupingAggregatorFunction.PartitionedState source, int partition,
+      boolean appendOnly, int[] dstIds, int length) {
+    if (length == 0) {
+      return;
+    }
+    double[] values = state.partitionValues(source, partition);
+    boolean[] seen = state.partitionSeen(source, partition);
+    if (seen == null) {
+      if (appendOnly) {
+        state.appendPartition(values, dstIds[0], length);
+      } else {
+        for (int i = 0; i < length; i++) {
+          LossySumDoubleAggregator.combine(state, dstIds[i], values[i]);
+        }
+      }
+      return;
+    }
+    for (int i = 0; i < length; i++) {
+      if (seen[i]) {
+        LossySumDoubleAggregator.combine(state, dstIds[i], values[i]);
+      }
+    }
   }
 
   @Override

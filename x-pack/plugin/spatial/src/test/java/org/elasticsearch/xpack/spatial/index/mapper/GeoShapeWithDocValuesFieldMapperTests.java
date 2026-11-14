@@ -12,7 +12,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -43,12 +42,9 @@ import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper.GeoShapeFiel
 import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.xcontent.ToXContent.MapParams;
-import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xpack.spatial.index.mapper.GeometricShapeSyntheticSourceSupport.FieldType;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -452,8 +448,8 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     }
 
     public void testSerializeDefaults() throws Exception {
-        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) defaultMapper.mappers().getMapper(FIELD_NAME));
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        String serialized = toXContentString(mapperService);
         assertTrue(serialized, serialized.contains("\"orientation\":\"" + Orientation.RIGHT + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":true"));
         assertTrue(serialized, serialized.contains("\"store\":false"));
@@ -465,14 +461,14 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         boolean store = randomBoolean();
         boolean index = randomBoolean();
         Orientation orientation = randomBoolean() ? Orientation.LEFT : Orientation.RIGHT;
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", getFieldName());
             b.field("doc_values", docValues);
             b.field("store", store);
             b.field("index", index);
             b.field("orientation", orientation);
         }));
-        String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) mapper.mappers().getMapper(FIELD_NAME));
+        String serialized = toXContentString(mapperService);
         assertTrue(serialized, serialized.contains("\"orientation\":\"" + orientation + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
         assertTrue(serialized, serialized.contains("\"store\":" + store));
@@ -481,11 +477,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
 
     public void testSerializeDocValues() throws IOException {
         boolean docValues = randomBoolean();
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", getFieldName());
             b.field("doc_values", docValues);
         }));
-        String serialized = toXContentString((GeoShapeWithDocValuesFieldMapper) mapper.mappers().getMapper(FIELD_NAME));
+        String serialized = toXContentString(mapperService);
         assertTrue(serialized, serialized.contains("\"orientation\":\"" + Orientation.RIGHT + "\""));
         assertTrue(serialized, serialized.contains("\"doc_values\":" + docValues));
         assertTrue(serialized, serialized.contains("\"store\":false"));
@@ -544,17 +540,8 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         assertThat(ex.getCause().getMessage(), containsString("Polygon self-intersection at lat=0.5 lon=0.5"));
     }
 
-    public String toXContentString(AbstractShapeGeometryFieldMapper<?> mapper, boolean includeDefaults) {
-        if (includeDefaults) {
-            Params params = new MapParams(Collections.singletonMap("include_defaults", "true"));
-            return Strings.toString(mapper, params);
-        } else {
-            return Strings.toString(mapper);
-        }
-    }
-
-    public String toXContentString(AbstractShapeGeometryFieldMapper<?> mapper) {
-        return toXContentString(mapper, true);
+    public String toXContentString(MapperService mapperService) throws IOException {
+        return fieldMappingToString(mapperService, FIELD_NAME, INCLUDE_DEFAULTS);
     }
 
     @Override
@@ -597,5 +584,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();
+    }
+
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        // multi-fields have no effect on a geo_shape field, and adding one is only warned about
+        return false;
     }
 }

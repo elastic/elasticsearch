@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.sourcebatch.SourceRowToXContent;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -231,6 +232,28 @@ public class EscfEncoderTests extends ESTestCase {
         assertRoundTrip(docs.toArray(new String[0]));
     }
 
+    /**
+     * A floating-point value whose spelling is not the canonical {@code Double.toString} rendering keeps that
+     * spelling next to the double without changing the column kind (#163555). The source still round-trips: the
+     * reconstructed map carries the double.
+     */
+    public void testFloatingPointSpellingsRideAlongWithTheDouble() throws IOException {
+        String doc0 = "{\"d\":-1.90}";
+        String doc1 = "{\"d\":3.14}";
+        try (EscfBatch batch = encode(List.of(new BytesArray(doc0), new BytesArray(doc1)))) {
+            assertRoundTripBatch(batch, doc0, doc1);
+
+            EscfColumn d = column(batch, "d");
+            assertEquals(EscfColumnKind.DOUBLE, d.kind());
+            assertEquals(SourceValueType.DOUBLE, d.getTypeByte(0));
+            assertEquals(-1.9, d.getDoubleValue(0), 0.0);
+            assertEquals("-1.90", d.getStringValue(0).string());
+            assertEquals(SourceValueType.DOUBLE, d.getTypeByte(1));
+            assertEquals(3.14, d.getDoubleValue(1), 0.0);
+            assertEquals("3.14", d.getStringValue(1).string());
+        }
+    }
+
     private static void assertRoundTrip(String... jsonDocs) throws IOException {
         List<BytesReference> sources = new ArrayList<>(jsonDocs.length);
         for (String doc : jsonDocs) {
@@ -252,9 +275,13 @@ public class EscfEncoderTests extends ESTestCase {
 
     /** Returns the column kind for the leaf at {@code path} (e.g. {@code "f"} or {@code "a.b"}). */
     private static byte columnKind(EscfBatch batch, String path) {
+        return column(batch, path).kind();
+    }
+
+    private static EscfColumn column(EscfBatch batch, String path) {
         for (int i = 0; i < batch.schema().leafCount(); i++) {
             if (path.equals(batch.schema().getFullPath(i))) {
-                return batch.column(i).kind();
+                return batch.column(i);
             }
         }
         throw new AssertionError("Column '" + path + "' not found in batch schema");

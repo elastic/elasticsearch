@@ -178,7 +178,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
      * @param data the GeoIP data to write
      */
     private void writeGeoIpData(IngestDocument document, String targetField, Map<String, Object> data) {
-        if (document.getCurrentAccessPatternSafe() == FLEXIBLE) {
+        if (document.getAccessPattern() == FLEXIBLE) {
             // In flexible mode, write each property as a separate dotted field
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 String key = entry.getKey();
@@ -201,7 +201,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
      * @param dataList the list of GeoIP data to write
      */
     private void writeGeoIpDataList(IngestDocument document, String targetField, List<Map<String, Object>> dataList) {
-        if (document.getCurrentAccessPatternSafe() == FLEXIBLE) {
+        if (document.getAccessPattern() == FLEXIBLE) {
             // In flexible mode, transpose the list of maps into separate lists per property
             // Collect all unique keys across all maps
             Set<String> allKeys = new java.util.HashSet<>();

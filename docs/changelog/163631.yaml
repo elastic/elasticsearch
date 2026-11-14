@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 163612
+pr: 163631
+summary: Fix incorrect error related to LIMIT for runtime KNN
+type: bug

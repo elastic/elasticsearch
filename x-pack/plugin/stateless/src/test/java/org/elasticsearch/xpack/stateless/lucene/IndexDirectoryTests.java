@@ -176,7 +176,7 @@ public class IndexDirectoryTests extends ESTestCase {
                             2L,
                             length,
                             Set.of(fileName),
-                            Map.of(fileName, createBlobFileRanges(1L, fileName.hashCode(), 0L, length))
+                            Map.of(fileName, createBlobFileRanges(1L, blobGeneration(fileName), 0L, length))
                         );
                         var fileLength = filesSizes.remove(fileName);
                         assertThat(directory.estimateSizeInBytes(), equalTo(totalSize - fileLength));
@@ -215,7 +215,7 @@ public class IndexDirectoryTests extends ESTestCase {
                                 .collect(
                                     Collectors.toMap(
                                         Map.Entry::getKey,
-                                        o -> createBlobFileRanges(1L, o.getKey().hashCode(), 0L, o.getValue())
+                                        o -> createBlobFileRanges(1L, blobGeneration(o.getKey()), 0L, o.getValue())
                                     )
                                 )
                         );
@@ -526,7 +526,7 @@ public class IndexDirectoryTests extends ESTestCase {
                     1L,
                     content.length,
                     Set.of(filename),
-                    Map.of(filename, createBlobFileRanges(1L, filename.hashCode(), 0L, content.length))
+                    Map.of(filename, createBlobFileRanges(1L, blobGeneration(filename), 0L, content.length))
                 );
 
                 // With PreferLocalHint the read goes to local disk and returns the correct content,
@@ -545,9 +545,14 @@ public class IndexDirectoryTests extends ESTestCase {
         return new TestThreadPool(name, StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
     }
 
+    /// A positive generation derived from the file name, so that different files point to different blobs.
+    private static long blobGeneration(String fileName) {
+        return (fileName.hashCode() & Integer.MAX_VALUE) + 1L;
+    }
+
     private static StatelessCompoundCommit createCommit(IndexDirectory directory, Set<String> files, long generation) {
         Map<String, BlobLocation> commitFiles = files.stream()
-            .collect(Collectors.toMap(Function.identity(), o -> createBlobLocation(1L, o.hashCode(), 0L, between(1, 100))));
+            .collect(Collectors.toMap(Function.identity(), o -> createBlobLocation(1L, blobGeneration(o), 0L, between(1, 100))));
         return new StatelessCompoundCommit(
             directory.getBlobStoreCacheDirectory().getShardId(),
             new PrimaryTermAndGeneration(1L, generation),

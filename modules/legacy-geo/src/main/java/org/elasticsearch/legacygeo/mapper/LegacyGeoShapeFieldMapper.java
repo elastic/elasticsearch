@@ -133,35 +133,29 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public static final String GEOHASH = "geohash";
     }
 
-    private static Builder builder(FieldMapper in) {
-        return ((LegacyGeoShapeFieldMapper) in).builder;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
-        Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
+        Parameter<Boolean> indexed = Parameter.indexParam(true);
 
         final Parameter<Explicit<Boolean>> ignoreMalformed;
-        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
+        final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam();
         final Parameter<Explicit<Boolean>> coerce;
-        Parameter<Explicit<Orientation>> orientation = orientationParam(m -> builder(m).orientation.get());
+        Parameter<Explicit<Orientation>> orientation = orientationParam();
 
         Parameter<SpatialStrategy> strategy = new Parameter<>(
             "strategy",
             false,
             () -> SpatialStrategy.RECURSIVE,
             (n, c, o) -> SpatialStrategy.fromString(o.toString()),
-            m -> builder(m).strategy.get(),
             (b, f, v) -> b.field(f, v.getStrategyName()),
             SpatialStrategy::getStrategyName
         ).deprecated();
-        Parameter<String> tree = Parameter.stringParam("tree", false, m -> builder(m).tree.get(), Defaults.TREE).deprecated();
+        Parameter<String> tree = Parameter.stringParam("tree", false, Defaults.TREE).deprecated();
         Parameter<Integer> treeLevels = new Parameter<>(
             "tree_levels",
             false,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeIntegerValue(o),
-            m -> builder(m).treeLevels.get(),
             (b, f, v) -> {
                 if (v != null && v != 0) {
                     b.field(f, v);
@@ -176,7 +170,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             false,
             () -> null,
             (n, c, o) -> o == null ? null : DistanceUnit.Distance.parseDistance(o.toString()),
-            m -> builder(m).precision.get(),
             (b, f, v) -> {
                 if (v == null) {
                     b.field(f, "50.0m");
@@ -191,7 +184,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             true,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
-            m -> builder(m).distanceErrorPct.get(),
             XContentBuilder::field,
             Objects::toString
         ).deprecated().acceptsNull();
@@ -200,7 +192,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             false,
             () -> null,
             (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
-            m -> builder(m).pointsOnly.get(),
             (b, f, v) -> {
                 if (v == null) {
                     b.field(f, strategy.get() == SpatialStrategy.TERM);
@@ -223,8 +214,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
 
             this.indexCreatedVersion = version;
-            this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
-            this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
+            this.ignoreMalformed = ignoreMalformedParam(ignoreMalformedByDefault);
+            this.coerce = coerceParam(coerceByDefault);
 
             this.pointsOnly.addValidator(v -> {
                 if (v == null) {
@@ -560,9 +551,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
-    private final IndexVersion indexCreatedVersion;
-    private final Builder builder;
-
     public LegacyGeoShapeFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -580,8 +568,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             builder.orientation.get(),
             parser
         );
-        this.indexCreatedVersion = builder.indexCreatedVersion;
-        this.builder = builder;
     }
 
     @Override
@@ -634,13 +620,4 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         return CONTENT_TYPE;
     }
 
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            builder.ignoreMalformed.getDefaultValue().value(),
-            builder.coerce.getDefaultValue().value()
-        ).init(this);
-    }
 }

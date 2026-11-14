@@ -14,15 +14,22 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 
+import java.util.Arrays;
+
+import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
  * Utility class to keep track of the bottom doc's sort values in a distributed search.
  */
 class BottomSortValuesCollector {
+    private static final Logger logger = LogManager.getLogger(BottomSortValuesCollector.class);
+
     private final int topNSize;
     private final SortField[] sortFields;
     private final FieldComparator<?>[] comparators;
@@ -64,7 +71,19 @@ class BottomSortValuesCollector {
             return;
         }
         if (bottomSortValues == null || compareValues(shardBottomDoc.fields, bottomSortValues.getRawSortValues()) < 0) {
-            bottomSortValues = new SearchSortValuesAndFormats(shardBottomDoc.fields, sortValuesFormat);
+            try {
+                bottomSortValues = new SearchSortValuesAndFormats(shardBottomDoc.fields, sortValuesFormat);
+            } catch (Exception e) {
+                // The bottom is only a hint to skip docs, so keep the previous one (a looser bound) rather than fail the shard.
+                logger.debug(
+                    () -> format(
+                        "failed to format bottom sort values %s for sort fields %s",
+                        Arrays.toString(shardBottomDoc.fields),
+                        Arrays.toString(topDocs.fields)
+                    ),
+                    e
+                );
+            }
         }
     }
 

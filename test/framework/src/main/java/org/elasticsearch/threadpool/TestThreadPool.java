@@ -10,9 +10,11 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.util.concurrent.TimeUnit;
 
@@ -23,7 +25,13 @@ public class TestThreadPool extends ThreadPool implements Releasable {
     }
 
     public TestThreadPool(String name, Settings settings, ExecutorBuilder<?>... customBuilders) {
+        this(name, new ThreadContext(settings), settings, customBuilders);
+    }
+
+    /** Use this constructor if you need to share the {@link ThreadContext} with some other component, e.g. {@link Tracer}. */
+    public TestThreadPool(String name, ThreadContext threadContext, Settings settings, ExecutorBuilder<?>... customBuilders) {
         super(
+            threadContext,
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).put(settings).build(),
             MeterRegistry.NOOP,
             new DefaultBuiltInExecutorBuilders(),

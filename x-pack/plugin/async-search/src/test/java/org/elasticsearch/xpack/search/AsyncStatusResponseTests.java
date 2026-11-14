@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
 
@@ -337,7 +338,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             successfulShards,
             skippedShards,
             tookInMillis,
-            new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("foo")) },
+            List.of(new ShardSearchFailure(new RuntimeException("foo"))),
             clusters
         );
         AsyncSearchResponse asyncSearchResponse;
@@ -370,7 +371,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             successfulShards,
             skippedShards,
             tookInMillis,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY
         );
         AsyncSearchResponse asyncSearchResponse;
@@ -421,7 +422,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             successfulShards,
             skippedShards,
             tookInMillis,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             clusters
         );
         AsyncSearchResponse asyncSearchResponse;
@@ -474,7 +475,7 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
             successfulShards,
             skippedShards,
             tookInMillis,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             clusters
         );
         boolean isRunning = true;

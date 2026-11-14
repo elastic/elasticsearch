@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -100,6 +101,21 @@ public final class PackDimsGroupingAggregatorFunction implements GroupingAggrega
     @Override
     public PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
         return delegate.prepareEvaluateFinal(selected, ctx);
+    }
+
+    @Override
+    public boolean supportPartitioning() {
+        return delegate.supportPartitioning();
+    }
+
+    @Override
+    public PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
+        return delegate.createPartitioningSplitter(breaker);
+    }
+
+    @Override
+    public void combinePartition(PartitionedState source, int partition, boolean appendOnly, int[] dstIds, int length) {
+        delegate.combinePartition(source, partition, appendOnly, dstIds, length);
     }
 
     @Override

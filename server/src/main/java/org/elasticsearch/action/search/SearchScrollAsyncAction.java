@@ -89,7 +89,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     public final void run() {
         final SearchContextIdForNode[] context = scrollId.getContext();
         if (context.length == 0) {
-            listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", ShardSearchFailure.EMPTY_ARRAY));
+            listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", List.of()));
         } else {
             collectNodesAndRun(
                 Arrays.asList(context),
@@ -190,9 +190,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                             // we need to fail the entire request here - the entire phase just blew up
                             // don't call onShardFailure or onFailure here since otherwise we'd countDown the counter
                             // again which would result in an exception
-                            listener.onFailure(
-                                new SearchPhaseExecutionException(phase.getName(), "Phase failed", e, ShardSearchFailure.EMPTY_ARRAY)
-                            );
+                            listener.onFailure(new SearchPhaseExecutionException(phase.getName(), "Phase failed", e, List.of()));
                         }
                     }
                 }
@@ -213,11 +211,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         }
     }
 
-    synchronized ShardSearchFailure[] buildShardFailures() { // pkg private for testing
-        if (shardFailures.isEmpty()) {
-            return ShardSearchFailure.EMPTY_ARRAY;
-        }
-        return shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+    synchronized List<ShardSearchFailure> buildShardFailures() { // pkg private for testing
+        return List.copyOf(shardFailures);
     }
 
     // we do our best to return the shard failures, but its ok if its not fully concurrently safe
@@ -301,7 +296,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         assert successfulOperations >= 0 : "successfulOperations must be >= 0 but was: " + successfulOperations;
         if (counter.countDown()) {
             if (successfulOps.get() == 0) {
-                ShardSearchFailure[] failures = buildShardFailures();
+                List<ShardSearchFailure> failures = buildShardFailures();
                 Set<String> missingNodeIds = new HashSet<>();
                 for (ShardSearchFailure f : failures) {
                     if (f.getCause() instanceof SearchContextMissingNodesException scmne) {
@@ -321,9 +316,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                     phase.run();
                 } catch (Exception e) {
                     e.addSuppressed(failure);
-                    listener.onFailure(
-                        new SearchPhaseExecutionException(phase.getName(), "Phase failed", e, ShardSearchFailure.EMPTY_ARRAY)
-                    );
+                    listener.onFailure(new SearchPhaseExecutionException(phase.getName(), "Phase failed", e, List.of()));
                 }
             }
         }

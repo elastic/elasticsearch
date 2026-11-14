@@ -1,7 +1,14 @@
 DELAY
 required_capability: delay_debug_fn
-row a = 1 | where delay(1ms);
 
+// tag::docsDelay[]
+ROW a = 1
+| WHERE DELAY(1ms)
+// end::docsDelay[]
+;
+
+// tag::docsDelay-result[]
 a:integer
 1
+// end::docsDelay-result[]
 ;

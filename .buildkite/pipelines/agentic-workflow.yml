@@ -35,11 +35,18 @@
 
 # Surface trigger vars at pipeline level so env() in step `if` conditions can
 # see them on API-triggered builds.
+#
+# The CI agent configuration the archimedes step runs on is overridable via the
+# ARCHIMEDES_AGENT_* trigger vars (image/machine type/disk type), defaulting to
+# the standard elasticsearch-ubuntu-2404 / n4-standard-4 orchestrator shape.
 env:
-  WORKFLOW:                "${WORKFLOW:-}"
-  ISSUE_URL:               "${ISSUE_URL:-}"
-  PR_URL:                  "${PR_URL:-}"
-  ARCHIMEDES_TRIAGE_MODE:  "${ARCHIMEDES_TRIAGE_MODE:-}"
+  WORKFLOW:                 "${WORKFLOW:-}"
+  ISSUE_URL:                "${ISSUE_URL:-}"
+  PR_URL:                   "${PR_URL:-}"
+  ARCHIMEDES_TRIAGE_MODE:   "${ARCHIMEDES_TRIAGE_MODE:-}"
+  ARCHIMEDES_AGENT_IMAGE:        "${ARCHIMEDES_AGENT_IMAGE:-family/elasticsearch-ubuntu-2404}"
+  ARCHIMEDES_AGENT_MACHINE_TYPE: "${ARCHIMEDES_AGENT_MACHINE_TYPE:-n4-standard-4}"
+  ARCHIMEDES_AGENT_DISK_TYPE:    "${ARCHIMEDES_AGENT_DISK_TYPE:-hyperdisk-balanced}"
 
 steps:
   # ── Run archimedes ───────────────────────────────────────────────────────────
@@ -51,12 +58,14 @@ steps:
       ARCHIMEDES_SESSION_DIR: "/tmp/archimedes-sessions"
     agents:
       provider:       gcp
-      image:          family/elasticsearch-ubuntu-2404
-      # The archimedes-run agent is an I/O-bound orchestrator (LLM/gh/git calls); it does
-      # NOT build Elasticsearch — reproduction runs on its own n4-standard-64 job.
-      # 4 vCPU is plenty; the full-history mirror checkout is the only heavy step.
-      machineType:    n4-standard-4
-      diskType:       hyperdisk-balanced
+      # Agent config is overridable via the ARCHIMEDES_AGENT_* trigger vars (see
+      # the pipeline-level env block). Defaults: the archimedes-run agent is an
+      # I/O-bound orchestrator (LLM/gh/git calls); it does NOT build Elasticsearch
+      # — reproduction runs on its own n4-standard-64 job. 4 vCPU is plenty; the
+      # full-history mirror checkout is the only heavy step.
+      image:          "${ARCHIMEDES_AGENT_IMAGE}"
+      machineType:    "${ARCHIMEDES_AGENT_MACHINE_TYPE}"
+      diskType:       "${ARCHIMEDES_AGENT_DISK_TYPE}"
       buildDirectory: /dev/shm/bk
     retry:
       automatic:

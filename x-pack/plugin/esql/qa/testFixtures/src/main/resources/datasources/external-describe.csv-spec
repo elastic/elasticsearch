@@ -1,0 +1,36 @@
+// DESCRIBE over a dataset. The columns come from the dataset schema, which has no mapping,
+// so only what the schema says is reported.
+
+describeDataset
+required_capability: dataset_in_from_command
+required_capability: describe_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv
+| KEEP emp_no, first_name, salary
+| RENAME salary AS pay
+| EVAL double_pay = pay * 2
+| DESCRIBE
+| KEEP name, type, field, origin, role;
+
+name:keyword | type:keyword | field:keyword | origin:keyword | role:keyword
+emp_no       | integer      | emp_no        | dataset        | null
+first_name   | keyword      | first_name    | dataset        | null
+pay          | integer      | salary        | renamed        | null
+double_pay   | integer      | null          | computed       | null
+;
+
+describeDatasetFileMetadata
+required_capability: dataset_in_from_command
+required_capability: describe_command
+dataset: employees_no_mv: "{{employees_no_mv}}"
+
+FROM employees_no_mv METADATA _file.path
+| KEEP emp_no, _file.path
+| DESCRIBE
+| KEEP name, field, origin, role;
+
+name:keyword | field:keyword | origin:keyword | role:keyword
+emp_no       | emp_no        | dataset        | null
+_file.path   | _file.path    | metadata       | metadata
+;

@@ -215,9 +215,9 @@ public record IvfSegmentConfig(
         return new IvfSegmentConfig(raw.centroidIndexFormat(), raw.quantConfig(), raw.usePrecondition(), effective);
     }
 
-    /** Per-leaf IVF collector size (includes 2x factor for overspill duplicates). */
+    /** Per-leaf IVF collector size: twice {@link #shardMergeBudget} to absorb overspill duplicates. */
     public static int leafCollectorBudget(int resultK, float segmentOversample) {
-        return Math.round(2f * resultK * Math.max(1, segmentOversample));
+        return 2 * shardMergeBudget(resultK, segmentOversample);
     }
 
     /** Shard-level merge cap across segments after approximate search. */

@@ -36,7 +36,7 @@ The second argument is the dotted path within the flattened field.
 - [Keys are always in the collapsed dotted form](#esql-flattened-fields-dotted-keys): nested objects are stored as dotted keys, and `FIELD_EXTRACT` resolves a key the same way regardless of how the document was written.
 - [Extracting an object returns null](#esql-flattened-fields-object-null): pointing `FIELD_EXTRACT` at an object instead of a leaf returns `null`.
 - Missing keys and JSON `null` return `null`: `FIELD_EXTRACT` returns `null` if the key does not exist, if the stored value is JSON `null`, or if either argument is `null`.
-- [Some full-text functions need a mapped field](#esql-flattened-fields-fulltext): `KQL`, `QSTR`, and `KNN` don't accept a `FIELD_EXTRACT` expression as their argument, though `MATCH`, `MATCH_PHRASE`, and the `:` operator do.
+- [Some full-text functions need a mapped field](#esql-flattened-fields-fulltext): `KQL` and `QSTR` don't accept a `FIELD_EXTRACT` expression as their argument, though `MATCH`, `MATCH_PHRASE`, and the `:` operator do.
 
 ## Flattened fields only contain keywords [esql-flattened-fields-keywords]
 
@@ -207,13 +207,24 @@ This query returns the following, with `a` set to `null` because `a` is an objec
 
 ## Some full-text functions need a mapped field [esql-flattened-fields-fulltext]
 
-`MATCH`, `MATCH_PHRASE`, and the `:` operator accept a `FIELD_EXTRACT` expression. There is no indexed field
-behind the extracted value, so the match is evaluated at runtime, row by row, rather than pushed to the index.
-
-`KQL`, `QSTR`, and `KNN` require a field that is directly mapped in the index, so they don't accept a
+`KQL` and `QSTR` require a field that is directly mapped in the index, so they don't accept a
 `FIELD_EXTRACT` expression as their argument. Copying the extracted value into a new column with `EVAL` does not
 help, because the result is still not an index-mapped field. To filter on an extracted value with those, use
 `==`, `LIKE`, `RLIKE`, or `WILDCARD` instead.
+
+`MATCH`, `MATCH_PHRASE`, and the `:` operator accept a `FIELD_EXTRACT` expression. There is no indexed field
+behind the extracted value, so the match is a [runtime search](esql-runtime-search.md), evaluated row by row
+rather than pushed to the index.
+
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+`KNN` also works on values extracted with `FIELD_EXTRACT` after you convert them to a `dense_vector`. Use
+[`TO_DENSE_VECTOR`](functions-operators/type-conversion-functions/to_dense_vector.md) to cast a hex-encoded byte vector,
+or the [`DENSE_VECTOR`](commands/dense-vector.md) command to generate embeddings from the extracted text.
+
+In 9.6.0, passing an inline `TO_DENSE_VECTOR` conversion as the `KNN` field argument returns no rows or fails
+([#163402](https://github.com/elastic/elasticsearch/issues/163402)). As a workaround, use `EVAL` to create the
+`dense_vector` column first and pass that column to `KNN`.
+For details, refer to [known issues](/release-notes/known-issues.md#elasticsearch-9.6.0-known-issues).
 
 ## Related resources [esql-flattened-fields-related]
 

@@ -247,7 +247,8 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                 routingNodes.failShard(
                     shardRouting,
                     new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "test"),
-                    RoutingChangesObserver.NOOP
+                    RoutingChangesObserver.NOOP,
+                    clusterState.metadata()
                 );
             }
         }

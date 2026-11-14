@@ -13,6 +13,7 @@ import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
+import org.apache.parquet.example.data.simple.NanoTime;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -22,11 +23,14 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -37,6 +41,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -64,9 +69,12 @@ import java.util.function.BiConsumer;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BOOLEAN;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Compares the optimized {@link PageColumnReader} path against the baseline row-at-a-time
@@ -807,6 +815,187 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     }
 
     // --- Parquet file writing ---
+
+    /**
+     * At least one cell for every decode arm, because each writes its kept values differently and so leaves the
+     * position it skips differently. Not a bijection: the long and double arms each serve two cells, since an
+     * unsigned long and a float reach them by a different route.
+     */
+    private static final MessageType NULLABLE_TYPES_SCHEMA = Types.buildMessage()
+        .optional(BOOLEAN)
+        .named("opt_bool")
+        .optional(INT32)
+        .named("opt_int")
+        .optional(INT64)
+        .named("opt_long")
+        .optional(DOUBLE)
+        .named("opt_double")
+        // An unsigned column sign-flip-encodes or widens each value it keeps, so its write loop is not the one
+        // the signed cells above exercise; the slot it leaves for a null is the same slot.
+        .optional(INT64)
+        .as(LogicalTypeAnnotation.intType(64, false))
+        .named("opt_ulong")
+        .optional(INT32)
+        .as(LogicalTypeAnnotation.intType(32, false))
+        .named("opt_uint")
+        .optional(FLOAT)
+        .named("opt_float")
+        .optional(INT64)
+        .as(LogicalTypeAnnotation.decimalType(4, 18))
+        .named("opt_decimal")
+        .optional(INT64)
+        .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+        .named("opt_datetime")
+        .optional(INT64)
+        .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+        .named("opt_datenanos")
+        .optional(BINARY)
+        .as(LogicalTypeAnnotation.stringType())
+        .named("opt_str")
+        .optional(FIXED_LEN_BYTE_ARRAY)
+        .length(2)
+        .as(LogicalTypeAnnotation.float16Type())
+        .named("opt_f16")
+        .optional(INT96)
+        .named("opt_i96")
+        .named("nullable_types_test");
+
+    private static final int DETERMINISM_ROWS = 1024;
+    private static final int DETERMINISM_READS = 400;
+
+    /**
+     * Reading the same nullable column twice must produce identical bytes. A value array filled only at the
+     * positions carrying a value leaves masked positions holding prior memory, which is serialized even though
+     * every consumer honours the mask and the results are correct. Asserting on bytes catches that for every
+     * element type, not just boolean, where deserialization happens to reject a non-canonical byte. Repeated
+     * because any single pair of reads can coincide.
+     */
+    public void testNullableColumnSerializesDeterministically() throws IOException {
+        UninitializedArrays.ensureUnsafeEnabled();
+        byte[] data = writeTestFile(
+            ParquetProperties.WriterVersion.PARQUET_1_0,
+            CompressionCodecName.UNCOMPRESSED,
+            NULLABLE_TYPES_SCHEMA,
+            DETERMINISM_ROWS,
+            (g, r) -> {
+                if (r % 5 != 0) {
+                    g.append("opt_bool", r % 4 == 0);
+                    g.append("opt_int", r);
+                    g.append("opt_long", (long) r);
+                    g.append("opt_double", r * 1.5);
+                    // Values above the signed maxima, so a dropped sign-flip or a sign-extension is visible too.
+                    g.append("opt_ulong", Long.MIN_VALUE + r);
+                    g.append("opt_uint", Integer.MIN_VALUE + r);
+                    g.append("opt_float", r * 0.25f);
+                    g.append("opt_decimal", (long) r * 101);
+                    g.append("opt_datetime", 1_700_000_000_000L + r);
+                    g.append("opt_datenanos", 1_700_000_000_000_000L + r);
+                    // Few enough distinct entries that the keyword arm takes its dictionary/ordinals path.
+                    g.append("opt_str", "v" + (r % 16));
+                    g.append("opt_f16", Binary.fromConstantByteArray(toFloat16Bytes(r * 0.25f)));
+                    g.append("opt_i96", new NanoTime(2_451_545, 43_200_000_000_000L + r));
+                }
+            }
+        );
+        assertColumnSerializesDeterministically(data, "opt_bool", DataType.BOOLEAN);
+        assertColumnSerializesDeterministically(data, "opt_int", DataType.INTEGER);
+        assertColumnSerializesDeterministically(data, "opt_long", DataType.LONG);
+        assertColumnSerializesDeterministically(data, "opt_double", DataType.DOUBLE);
+        assertColumnSerializesDeterministically(data, "opt_ulong", DataType.UNSIGNED_LONG);
+        assertColumnSerializesDeterministically(data, "opt_uint", DataType.LONG);
+        assertColumnSerializesDeterministically(data, "opt_float", DataType.DOUBLE);
+        assertColumnSerializesDeterministically(data, "opt_decimal", DataType.DOUBLE);
+        assertColumnSerializesDeterministically(data, "opt_datetime", DataType.DATETIME);
+        assertColumnSerializesDeterministically(data, "opt_datenanos", DataType.DATE_NANOS);
+        assertColumnSerializesDeterministically(data, "opt_str", DataType.KEYWORD);
+        assertColumnSerializesDeterministically(data, "opt_f16", DataType.DOUBLE);
+        assertColumnSerializesDeterministically(data, "opt_i96", DataType.DATETIME);
+    }
+
+    private void assertColumnSerializesDeterministically(byte[] data, String column, DataType dataType) throws IOException {
+        byte[] expected = null;
+        for (int read = 0; read < DETERMINISM_READS; read++) {
+            try (Block block = fullRead(data, column, dataType)) {
+                // One batch is one data page, not the row group; a fresh reader starts at row 0, so position p is row p.
+                int positions = block.getPositionCount();
+                assertThat(column + " read nothing", positions, greaterThan(0));
+                for (int p = 0; p < positions; p++) {
+                    boolean isNull = p % 5 == 0;
+                    assertEquals(column + " null at " + p, isNull, block.isNull(p));
+                    if (isNull) {
+                        // Comparing reads can only false-pass: memory that happens to be reproducible agrees
+                        // with itself. Read the masked element itself, which is deterministic when zeroed.
+                        assertMaskedPositionIsDefined(column, dataType, block, p);
+                    }
+                }
+                byte[] actual = serializedBytes(block);
+                if (expected == null) {
+                    expected = actual;
+                } else {
+                    assertArrayEquals(column + " serialized form changed on read " + read, expected, actual);
+                }
+            }
+        }
+    }
+
+    /**
+     * The backing element at a masked position, read directly. Single-valued here, so the position indexes the
+     * array. A bytes column keeps its values in a {@link org.apache.lucene.util.BytesRef} array rather than a
+     * primitive one, so there is no slot to read and the byte comparison is the only oracle for it.
+     */
+    private static void assertMaskedPositionIsDefined(String column, DataType dataType, Block block, int p) {
+        String where = column + " masked position " + p;
+        assertEquals(where + " must index the array directly", p, block.getFirstValueIndex(p));
+        if (block instanceof BooleanBlock b) {
+            assertFalse(where, b.getBoolean(p));
+        } else if (block instanceof IntBlock b) {
+            assertEquals(where, 0, b.getInt(p));
+        } else if (block instanceof LongBlock b) {
+            // An unsigned column sign-flip-encodes its whole batch after decoding, masked positions included,
+            // so a defined zero arrives here as the encoding of zero rather than as zero.
+            long expected = dataType == DataType.UNSIGNED_LONG ? ParquetColumnDecoding.encodeUnsignedLong(0L) : 0L;
+            assertEquals(where, expected, b.getLong(p));
+        } else if (block instanceof DoubleBlock b) {
+            assertEquals(where, 0.0, b.getDouble(p), 0.0);
+        }
+    }
+
+    /** Little-endian IEEE half, the layout a Parquet FLOAT16 column stores. */
+    private static byte[] toFloat16Bytes(float value) {
+        short half = Float.floatToFloat16(value);
+        return new byte[] { (byte) (half & 0xFF), (byte) ((half >> 8) & 0xFF) };
+    }
+
+    /** Serialized bytes, copied out before close returns the stream's pages to the recycler. */
+    private static byte[] serializedBytes(Block block) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Block.writeTypedBlock(block, out);
+            return BytesReference.toBytes(out.bytes());
+        }
+    }
+
+    /** Reads {@code column} as a single full batch through a fresh reader. The caller owns the block. */
+    private Block fullRead(byte[] data, String column, DataType dataType) throws IOException {
+        try (ParquetFileReader reader = openReader(data)) {
+            BlockMetaData block = reader.getRowGroups().getFirst();
+            MessageType schema = reader.getFileMetaData().getSchema();
+            ColumnDescriptor desc = schema.getColumnDescription(new String[] { column });
+            ColumnInfo info = new ColumnInfo(
+                desc,
+                desc.getPrimitiveType().getPrimitiveTypeName(),
+                dataType,
+                desc.getMaxDefinitionLevel(),
+                desc.getMaxRepetitionLevel(),
+                desc.getPrimitiveType().getLogicalTypeAnnotation()
+            );
+            PageReadStore store = reader.readNextRowGroup();
+            assertNotNull(store);
+            int rgRows = Math.toIntExact(block.getRowCount());
+            try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, RowRanges.all(rgRows))) {
+                return pcr.readBatch(rgRows, blockFactory);
+            }
+        }
+    }
 
     private byte[] writeTestFile(
         ParquetProperties.WriterVersion version,

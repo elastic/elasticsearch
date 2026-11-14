@@ -78,24 +78,14 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    private static ParentJoinFieldMapper toType(FieldMapper in) {
-        return (ParentJoinFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
-            "eager_global_ordinals",
-            true,
-            m -> toType(m).eagerGlobalOrdinals,
-            true
-        );
+        final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true, true);
         final Parameter<List<Relations>> relations = new Parameter<List<Relations>>(
             "relations",
             true,
             Collections::emptyList,
             (n, c, o) -> Relations.parse(o),
-            m -> toType(m).relations,
             XContentBuilder::field,
             Objects::toString
         ).setMergeValidator(ParentJoinFieldMapper::checkRelationsConflicts);
@@ -121,6 +111,25 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
+        /**
+         * Writes no multi-fields and no {@code copy_to}, and the relations as a map from parent to its children
+         * rather than through the parameters.
+         */
+        @Override
+        protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field("type", contentType());
+            builder.field("eager_global_ordinals", eagerGlobalOrdinals.get());
+            builder.startObject("relations");
+            for (Relations relation : relations.get()) {
+                if (relation.children().size() == 1) {
+                    builder.field(relation.parent(), relation.children().iterator().next());
+                } else {
+                    builder.field(relation.parent(), relation.children());
+                }
+            }
+            builder.endObject();
+        }
+
         @Override
         public ParentJoinFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
@@ -131,19 +140,19 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 );
             }
             checkObjectOrNested(context, leafName());
+            final JoinFieldType joinFieldType = new JoinFieldType(context.buildFullName(leafName()), relations.get(), meta.get());
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get()
                 .stream()
-                .map(relation -> new ParentIdFieldMapper(leafName() + "#" + relation.parent(), eagerGlobalOrdinals.get()))
+                .map(
+                    relation -> new ParentIdFieldMapper(
+                        leafName() + "#" + relation.parent(),
+                        eagerGlobalOrdinals.get(),
+                        joinFieldType.getJoiner()
+                    )
+                )
                 .forEach(mapper -> parentIdFields.put(mapper.fullPath(), mapper));
-            Joiner joiner = new Joiner(leafName(), relations.get());
-            return new ParentJoinFieldMapper(
-                leafName(),
-                new JoinFieldType(context.buildFullName(leafName()), joiner, meta.get()),
-                Collections.unmodifiableMap(parentIdFields),
-                eagerGlobalOrdinals.get(),
-                relations.get()
-            );
+            return new ParentJoinFieldMapper(leafName(), joinFieldType, Collections.unmodifiableMap(parentIdFields));
         }
     }
 
@@ -156,9 +165,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
         private final Joiner joiner;
 
-        private JoinFieldType(String name, Joiner joiner, Map<String, String> meta) {
+        private JoinFieldType(String name, List<Relations> relations, Map<String, String> meta) {
             super(name, IndexType.terms(true, true), false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-            this.joiner = joiner;
+            this.joiner = new Joiner(this, relations);
         }
 
         Joiner getJoiner() {
@@ -201,26 +210,16 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     private static boolean checkRelationsConflicts(List<Relations> previous, List<Relations> current, Conflicts conflicts) {
-        Joiner pj = new Joiner("f", previous);
-        Joiner cj = new Joiner("f", current);
+        Joiner pj = new JoinFieldType("f", previous, Map.of()).getJoiner();
+        Joiner cj = new JoinFieldType("f", current, Map.of()).getJoiner();
         return pj.canMerge(cj, s -> conflicts.addConflict("relations", s));
     }
 
     private final Map<String, ParentIdFieldMapper> parentIdFields;
-    private final boolean eagerGlobalOrdinals;
-    private final List<Relations> relations;
 
-    protected ParentJoinFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        Map<String, ParentIdFieldMapper> parentIdFields,
-        boolean eagerGlobalOrdinals,
-        List<Relations> relations
-    ) {
+    protected ParentJoinFieldMapper(String simpleName, MappedFieldType mappedFieldType, Map<String, ParentIdFieldMapper> parentIdFields) {
         super(simpleName, mappedFieldType, BuilderParams.empty());
         this.parentIdFields = parentIdFields;
-        this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-        this.relations = relations;
     }
 
     @Override
@@ -322,26 +321,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
         context.path().remove();
         return new ParseResult.Indexed();
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field("type", contentType());
-        builder.field("eager_global_ordinals", eagerGlobalOrdinals);
-        builder.startObject("relations");
-        for (Relations relation : relations) {
-            if (relation.children().size() == 1) {
-                builder.field(relation.parent(), relation.children().iterator().next());
-            } else {
-                builder.field(relation.parent(), relation.children());
-            }
-        }
-        builder.endObject();
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
     }
 
     @Override

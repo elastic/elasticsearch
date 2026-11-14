@@ -40,6 +40,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -88,6 +90,8 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
 
     public static final String NAME = "indices:data/write/otlp/metrics";
     public static final ActionType<OTLPActionResponse> TYPE = new ActionType<>(NAME);
+
+    private static final Logger logger = LogManager.getLogger(OTLPMetricsTransportAction.class);
 
     // visible for testing
     volatile MappingHints defaultMappingHints;
@@ -158,8 +162,10 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
             // through to the doc-mode loop below for the whole request, exactly as if canUseBatchIndexing
             // had returned false in the first place.
             if (tryAddEscfBatch(bulkRequestBuilder, allGroups, firstTarget, expandedContentTracker)) {
+                logger.trace("built an ESCF batch of [{}] rows for [{}]", totalItems, firstTarget);
                 return context;
             }
+            logger.debug("[{}] is batch-indexed but a data point or attribute value is not expressible as ESCF columns", firstTarget);
         }
 
         MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);

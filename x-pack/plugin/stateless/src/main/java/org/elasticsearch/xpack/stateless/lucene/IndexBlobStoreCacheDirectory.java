@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader;
@@ -93,7 +93,7 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             totalBytesWarmedFromObjectStore,
             BlobCacheMetrics.CachePopulationReason.Warming,
-            StatelessPlugin.PREWARM_THREAD_POOL,
+            StatelessThreadPools.PREWARM_THREAD_POOL,
             ThreadPool.Names.GENERIC
         );
     }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 
@@ -15,11 +16,22 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomKeywordEsField;
 import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
+import static org.hamcrest.Matchers.is;
 
 public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField> {
     @Override
     protected KeywordEsField createTestInstance() {
         return randomKeywordEsField(4);
+    }
+
+    public void testSingleValuedSerialization() throws Exception {
+        var field = new KeywordEsField("k", Map.of(), true, Short.MAX_VALUE, false, false, EsField.TimeSeriesFieldType.NONE, true);
+        assertThat(copyInstance(field, EsField.ESQL_SERIALIZE_SINGLE_VALUED_FIELD).isStaticallySingleValued(), is(true));
+        assertThat(
+            copyInstance(field, TransportVersionUtils.getPreviousVersion(EsField.ESQL_SERIALIZE_SINGLE_VALUED_FIELD))
+                .isStaticallySingleValued(),
+            is(false)
+        );
     }
 
     @Override
@@ -31,7 +43,8 @@ public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField
         boolean normalized = instance.getNormalized();
         boolean isAlias = instance.isAlias();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
-        switch (between(0, 6)) {
+        boolean isStaticallySingleValued = instance.isStaticallySingleValued();
+        switch (between(0, 7)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> hasDocValues = false == hasDocValues;
@@ -39,8 +52,9 @@ public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField
             case 4 -> normalized = false == normalized;
             case 5 -> isAlias = false == isAlias;
             case 6 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
+            case 7 -> isStaticallySingleValued = false == isStaticallySingleValued;
             default -> throw new IllegalArgumentException();
         }
-        return new KeywordEsField(name, properties, hasDocValues, precision, normalized, isAlias, tsType);
+        return new KeywordEsField(name, properties, hasDocValues, precision, normalized, isAlias, tsType, isStaticallySingleValued);
     }
 }

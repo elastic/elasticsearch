@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160838
+pr: 164997
+summary: Drop single-value warnings on unbound threads
+type: bug

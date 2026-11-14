@@ -192,8 +192,9 @@ EXPORT void vec_doti4_bulk_masked(
     int32_t count,
     f32_t* results
 ) {
+    const int32_t block_mask = clamp_mask(mask, count);
     doti4_bulk_impl<int8_t, masked_mapper, 2, masked_output>(
-        docs, query, packed_len, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        docs, query, packed_len, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_doti4_bulk_sparse(

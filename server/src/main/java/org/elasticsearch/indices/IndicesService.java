@@ -74,6 +74,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -129,6 +130,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -200,6 +202,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -639,6 +642,50 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
+     * Charges the time of tasks equally to those of {@code shardIds} on this node.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
+        return searchLoad(shardIds, shardId -> 0L);
+    }
+
+    /**
+     * Charges the time of tasks to those of {@code shardIds} on this node by how much their {@code total} grew since the previous
+     * task, the same way as the previous task when none grew, and equally until one grows. With {@code total} counting the results
+     * of each shard so far, a task is charged to the shards whose results it took in.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> total) {
+        List<ShardId> ids = new ArrayList<>(shardIds.size());
+        List<ShardSearchStats> shards = new ArrayList<>(shardIds.size());
+        for (ShardId shardId : shardIds) {
+            IndexService indexService = indexService(shardId.getIndex());
+            IndexShard shard = indexService == null ? null : indexService.getShardOrNull(shardId.id());
+            if (shard != null) {
+                ids.add(shardId);
+                shards.add(shard.shardSearchStats());
+            }
+        }
+        long[] totals = new long[ids.size()];
+        long[] charged = new long[ids.size()];
+        long[] weights = new long[ids.size()];
+        return (nanos, cpuNanos, finishNanos) -> {
+            synchronized (charged) {
+                boolean grew = false;
+                for (int i = 0; i < totals.length; i++) {
+                    totals[i] = total.applyAsLong(ids.get(i));
+                    grew |= totals[i] > charged[i];
+                }
+                if (grew) {
+                    for (int i = 0; i < totals.length; i++) {
+                        weights[i] = Math.max(0L, totals[i] - charged[i]);
+                        charged[i] = Math.max(charged[i], totals[i]);
+                    }
+                }
+                ShardSearchStats.charge(shards, weights, nanos, cpuNanos, finishNanos);
+            }
+        };
+    }
+
+    /**
      * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.
      */
     @Override
@@ -1018,13 +1065,21 @@ public class IndicesService extends AbstractLifecycleComponent
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode localNode,
         @Nullable final DiscoveryNode sourceNode,
-        long clusterStateVersion
+        long clusterStateVersion,
+        int localRecoveryRetries
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
-        IndexShard indexShard = indexService.createShard(shardRouting, localNode, sourceNode, globalCheckpointSyncer, retentionLeaseSyncer);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            localNode,
+            sourceNode,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            localRecoveryRetries
+        );
         indexShard.addShardFailureCallback(onShardFailure);
 
         throttlingRecoveryService.enqueue(projectId, recoveryListener, indexShard, indexService.getMetadata(), listener -> {

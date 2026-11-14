@@ -51,6 +51,20 @@ public class EsqlFlags {
     );
 
     /**
+     * Whether the coordinator may plan the fetch phase: load the columns a query only needs after a {@code LIMIT} or
+     * {@code TopN} for the rows that survive it, instead of on every data node for every candidate row. Nothing can
+     * run such a plan yet, so only tests turn it on.
+     */
+    public enum FetchPhaseMode {
+        /** Every plan loads its columns eagerly. */
+        DISABLED,
+        /** The fetch phase for the plans that can use it and are likely faster with it. */
+        AUTO,
+        /** The fetch phase for every plan that can use it, whatever it costs. Tests and benchmarks use it to cover every shape. */
+        ALWAYS
+    }
+
+    /**
      * Cluster-wide cap on the number of leaf branches an independently executed query may use.
      * View compaction also uses this as the flatten budget for nested view unions.
      * An explicit {@link QueryPragmas#MAX_BRANCH_COUNT} pragma overrides this value for that query.
@@ -135,6 +149,18 @@ public class EsqlFlags {
         Setting.Property.Dynamic
     );
 
+    /**
+     * When enabled, time-series aggregates are reduced separately in each index before results are combined. This uses less memory and can
+     * improve query performance, but results may be approximate for time buckets that overlap index rollover boundaries and for windowed
+     * aggregates whose windows reach across those boundaries.
+     */
+    public static final Setting<Boolean> ESQL_TIME_SERIES_REDUCE_PER_INDEX = Setting.boolSetting(
+        "esql.query.time_series.reduce_per_index",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     // this is only used for testing purposes right now
     public static List<Setting<?>> ALL_ESQL_FLAGS_SETTINGS = List.of(
         ESQL_STRING_LIKE_ON_INDEX,
@@ -144,7 +170,8 @@ public class EsqlFlags {
         ESQL_MAX_BRANCH_LEVEL,
         ESQL_MAX_BRANCH_COUNT_PER_MERGE,
         ESQL_MAX_FILLNULL_FIELDS,
-        ESQL_METRICS_INFO_MAX_TIME_RANGE
+        ESQL_METRICS_INFO_MAX_TIME_RANGE,
+        ESQL_TIME_SERIES_REDUCE_PER_INDEX
     );
 
     /**
@@ -159,7 +186,9 @@ public class EsqlFlags {
         ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
         ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
         ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
-        ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY)
+        ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
+        ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
+        FetchPhaseMode.DISABLED
     );
 
     private final boolean stringLikeOnIndex;
@@ -177,6 +206,10 @@ public class EsqlFlags {
     private final int maxCommandCount;
 
     private final TimeValue metricsInfoMaxTimeRange;
+
+    private final boolean timeSeriesReducePerIndex;
+
+    private final FetchPhaseMode fetchPhaseMode;
 
     /**
      * Constructor for tests.
@@ -296,6 +329,32 @@ public class EsqlFlags {
         int maxCommandCount,
         TimeValue metricsInfoMaxTimeRange
     ) {
+        this(
+            stringLikeOnIndex,
+            roundToPushdownThreshold,
+            maxBranchCount,
+            maxBranchLevel,
+            maxBranchCountPerMerge,
+            maxFillNullFields,
+            maxCommandCount,
+            metricsInfoMaxTimeRange,
+            ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
+            FetchPhaseMode.DISABLED
+        );
+    }
+
+    public EsqlFlags(
+        boolean stringLikeOnIndex,
+        int roundToPushdownThreshold,
+        int maxBranchCount,
+        int maxBranchLevel,
+        int maxBranchCountPerMerge,
+        int maxFillNullFields,
+        int maxCommandCount,
+        TimeValue metricsInfoMaxTimeRange,
+        boolean timeSeriesReducePerIndex,
+        FetchPhaseMode fetchPhaseMode
+    ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
         this.maxBranchCount = maxBranchCount;
@@ -304,6 +363,8 @@ public class EsqlFlags {
         this.maxFillNullFields = maxFillNullFields;
         this.maxCommandCount = maxCommandCount;
         this.metricsInfoMaxTimeRange = metricsInfoMaxTimeRange;
+        this.timeSeriesReducePerIndex = timeSeriesReducePerIndex;
+        this.fetchPhaseMode = fetchPhaseMode;
     }
 
     public EsqlFlags(ClusterSettings settings) {
@@ -315,7 +376,45 @@ public class EsqlFlags {
             settings.get(ESQL_MAX_BRANCH_COUNT_PER_MERGE),
             settings.get(ESQL_MAX_FILLNULL_FIELDS),
             settings.get(ESQL_MAX_COMMAND_COUNT),
-            settings.get(ESQL_METRICS_INFO_MAX_TIME_RANGE)
+            settings.get(ESQL_METRICS_INFO_MAX_TIME_RANGE),
+            settings.get(ESQL_TIME_SERIES_REDUCE_PER_INDEX),
+            FetchPhaseMode.DISABLED
+        );
+    }
+
+    /**
+     * Test helper that leaves the other flags at their defaults.
+     */
+    public static EsqlFlags withTimeSeriesReducePerIndex(boolean enabled) {
+        return new EsqlFlags(
+            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
+            ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
+            ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
+            ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
+            enabled,
+            FetchPhaseMode.DISABLED
+        );
+    }
+
+    /**
+     * Test helper that leaves the other flags at their defaults.
+     */
+    public static EsqlFlags withFetchPhase(FetchPhaseMode fetchPhaseMode) {
+        return new EsqlFlags(
+            ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
+            ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_LEVEL.getDefault(Settings.EMPTY),
+            ESQL_MAX_BRANCH_COUNT_PER_MERGE.getDefault(Settings.EMPTY),
+            ESQL_MAX_FILLNULL_FIELDS.getDefault(Settings.EMPTY),
+            ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY),
+            ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
+            ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
+            fetchPhaseMode
         );
     }
 
@@ -356,6 +455,17 @@ public class EsqlFlags {
         return metricsInfoMaxTimeRange;
     }
 
+    public boolean timeSeriesReducePerIndex() {
+        return timeSeriesReducePerIndex;
+    }
+
+    /**
+     * Whether the coordinator may plan the fetch phase. See {@link FetchPhaseMode}.
+     */
+    public FetchPhaseMode fetchPhaseMode() {
+        return fetchPhaseMode;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -368,7 +478,9 @@ public class EsqlFlags {
             && maxBranchCountPerMerge == that.maxBranchCountPerMerge
             && maxFillNullFields == that.maxFillNullFields
             && maxCommandCount == that.maxCommandCount
-            && Objects.equals(metricsInfoMaxTimeRange, that.metricsInfoMaxTimeRange);
+            && timeSeriesReducePerIndex == that.timeSeriesReducePerIndex
+            && Objects.equals(metricsInfoMaxTimeRange, that.metricsInfoMaxTimeRange)
+            && fetchPhaseMode == that.fetchPhaseMode;
     }
 
     @Override
@@ -381,7 +493,9 @@ public class EsqlFlags {
             maxBranchCountPerMerge,
             maxFillNullFields,
             maxCommandCount,
-            metricsInfoMaxTimeRange
+            metricsInfoMaxTimeRange,
+            timeSeriesReducePerIndex,
+            fetchPhaseMode
         );
     }
 
@@ -403,6 +517,10 @@ public class EsqlFlags {
             + maxCommandCount
             + ", metricsInfoMaxTimeRange="
             + metricsInfoMaxTimeRange
+            + ", timeSeriesReducePerIndex="
+            + timeSeriesReducePerIndex
+            + ", fetchPhaseMode="
+            + fetchPhaseMode
             + ']';
     }
 }

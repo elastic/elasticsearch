@@ -50,6 +50,7 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.UNKNOWN_TIMESTAMP;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.getPendingRangesToPrefetch;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.NOTIFICATION_UPLOADED_ATTRIBUTE_KEY;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -382,26 +383,12 @@ public class SearchCommitPrefetcherTests extends ESTestCase {
                 assertThat(counts.getFirst().getLong(), equalTo(1L));
                 assertThat(
                     counts.getFirst().attributes(),
-                    equalTo(
-                        Map.of(
-                            SearchCommitPrefetcherMetrics.TYPE_ATTRIBUTE,
-                            "foreground",
-                            SearchCommitPrefetcherMetrics.UPLOADED_ATTRIBUTE,
-                            true
-                        )
-                    )
+                    equalTo(Map.of(SearchCommitPrefetcherMetrics.TYPE_ATTRIBUTE, "foreground", NOTIFICATION_UPLOADED_ATTRIBUTE_KEY, true))
                 );
                 assertThat(durations, hasSize(1));
                 assertThat(
                     durations.getFirst().attributes(),
-                    equalTo(
-                        Map.of(
-                            SearchCommitPrefetcherMetrics.TYPE_ATTRIBUTE,
-                            "foreground",
-                            SearchCommitPrefetcherMetrics.UPLOADED_ATTRIBUTE,
-                            true
-                        )
-                    )
+                    equalTo(Map.of(SearchCommitPrefetcherMetrics.TYPE_ATTRIBUTE, "foreground", NOTIFICATION_UPLOADED_ATTRIBUTE_KEY, true))
                 );
             } else {
                 assertThat(counts, empty());

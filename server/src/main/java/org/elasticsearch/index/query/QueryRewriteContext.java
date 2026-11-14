@@ -17,11 +17,14 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
@@ -43,6 +46,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -342,6 +346,32 @@ public class QueryRewriteContext {
      */
     public XContentParserConfiguration getParserConfig() {
         return parserConfiguration;
+    }
+
+    /**
+     * Returns a parser that charges the REST request this rewrite runs for, see {@link ParsedContentReservation#track(ThreadContext,
+     * XContentParser)}. Use it for content that the rewrite parses, such as the query inside a {@code wrapper} query, which the request's
+     * own parsers never read. Away from the REST request, such as on a data node, the parse is checked against
+     * {@link #parsedContentBreaker()} instead, if there is one.
+     */
+    public XContentParser trackParsedContent(XContentParser parser) {
+        final ThreadPool threadPool = client == null ? null : client.threadPool();
+        final ParsedContentReservation reservation = threadPool == null
+            ? null
+            : threadPool.getThreadContext().getTransient(ParsedContentReservation.TRANSIENT_NAME);
+        if (reservation != null) {
+            return reservation.track(parser);
+        }
+        final CircuitBreaker breaker = parsedContentBreaker();
+        return breaker == null ? parser : ParsedContentReservation.trackWhileParsing(breaker, parser);
+    }
+
+    /**
+     * The breaker that content this rewrite parses away from a REST request is checked against, or {@code null} for none.
+     */
+    @Nullable
+    protected CircuitBreaker parsedContentBreaker() {
+        return null;
     }
 
     /**

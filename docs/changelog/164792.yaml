@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 163986
+pr: 164792
+summary: Charge shard responses while they arrive, so searches can fail with a 429 under heap pressure
+type: enhancement

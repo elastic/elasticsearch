@@ -318,7 +318,7 @@ public class GeoBoundingBoxQueryBuilder extends LeafQueryBuilder<GeoBoundingBoxQ
                     bbox = GeoBoundingBox.parseBoundingBox(parser);
                     fieldName = currentFieldName;
                 } catch (Exception e) {
-                    throw new ElasticsearchParseException("failed to parse [{}] query. [{}]", NAME, e.getMessage());
+                    throw new ElasticsearchParseException("failed to parse [{}] query. [{}]", e, NAME, e.getMessage());
                 }
             } else if (token.isValue()) {
                 if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

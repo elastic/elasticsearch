@@ -33,6 +33,12 @@ FROM index | SORT field | LIMIT 1000 | MV_EXPAND mv_field | WHERE mv_field == "v
 ```
 ::::
 
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
+A full-text search on the expanded column, such as `MATCH`, is a
+[runtime search](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers-mv-expand):
+it runs row by row, and analyzes an indexed `text` field with the `standard` analyzer instead of the analyzer in
+its mapping.
+
 ## Example
 
 :::{include} ../../generated/x-pack-esql/commands/examples/mv_expand.csv-spec/simple.md

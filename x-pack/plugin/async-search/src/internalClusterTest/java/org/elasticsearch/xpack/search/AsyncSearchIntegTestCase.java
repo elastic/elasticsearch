@@ -79,7 +79,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         @Override
         public List<QuerySpec<?>> getQueries() {
             return Arrays.asList(new QuerySpec<>(BlockingQueryBuilder.NAME, BlockingQueryBuilder::new, p -> {
-                throw new IllegalStateException("not implemented");
+                // For REST requests, which have no other way to block a search.
+                p.skipChildren();
+                return new BlockingQueryBuilder(0L);
             }),
                 new QuerySpec<>(
                     ThrowingQueryBuilder.NAME,

@@ -25,6 +25,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         "max_operation_size_rejections_added"
     );
 
+    private static final TransportVersion INGEST_EXPANSION_STATS_ADDED = TransportVersion.fromName(
+        "indexing_pressure_ingest_expansion_stats"
+    );
+
     private final long totalCombinedCoordinatingAndPrimaryBytes;
     private final long totalCoordinatingBytes;
     private final long totalPrimaryBytes;
@@ -47,6 +51,13 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long highWaterMarkSplits;
     private final long largeOpsRejections;
     private final long totalLargeRejectedOpsBytes;
+
+    // Bytes by which ingest pipelines grew documents of in-flight bulks, only the growth and not the full size of the grown documents.
+    // These are part of the coordinating and combined bytes above.
+    private final long currentIngestExpansionBytes;
+    private final long totalIngestExpansionBytes;
+    // Rejections of ingest expansion. These are also counted in coordinatingRejections.
+    private final long ingestExpansionRejections;
 
     // These fields will be used for additional back-pressure and metrics in the future
     private final long totalCoordinatingOps;
@@ -96,6 +107,16 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             largeOpsRejections = -1L;
             totalLargeRejectedOpsBytes = -1L;
         }
+
+        if (in.getTransportVersion().supports(INGEST_EXPANSION_STATS_ADDED)) {
+            currentIngestExpansionBytes = in.readVLong();
+            totalIngestExpansionBytes = in.readVLong();
+            ingestExpansionRejections = in.readVLong();
+        } else {
+            currentIngestExpansionBytes = 0L;
+            totalIngestExpansionBytes = 0L;
+            ingestExpansionRejections = 0L;
+        }
     }
 
     public IndexingPressureStats(
@@ -122,7 +143,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         long lowWaterMarkSplits,
         long highWaterMarkSplits,
         long largeOpsRejections,
-        long totalRejectedLargeOpsBytes
+        long totalRejectedLargeOpsBytes,
+        long currentIngestExpansionBytes,
+        long totalIngestExpansionBytes,
+        long ingestExpansionRejections
     ) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
@@ -151,6 +175,9 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.highWaterMarkSplits = highWaterMarkSplits;
         this.largeOpsRejections = largeOpsRejections;
         this.totalLargeRejectedOpsBytes = totalRejectedLargeOpsBytes;
+        this.currentIngestExpansionBytes = currentIngestExpansionBytes;
+        this.totalIngestExpansionBytes = totalIngestExpansionBytes;
+        this.ingestExpansionRejections = ingestExpansionRejections;
     }
 
     @Override
@@ -181,6 +208,12 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().supports(MAX_OPERATION_SIZE_REJECTIONS_ADDED)) {
             out.writeVLong(largeOpsRejections);
             out.writeVLong(totalLargeRejectedOpsBytes);
+        }
+
+        if (out.getTransportVersion().supports(INGEST_EXPANSION_STATS_ADDED)) {
+            out.writeVLong(currentIngestExpansionBytes);
+            out.writeVLong(totalIngestExpansionBytes);
+            out.writeVLong(ingestExpansionRejections);
         }
     }
 
@@ -280,6 +313,18 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         return totalLargeRejectedOpsBytes;
     }
 
+    public long getCurrentIngestExpansionBytes() {
+        return currentIngestExpansionBytes;
+    }
+
+    public long getTotalIngestExpansionBytes() {
+        return totalIngestExpansionBytes;
+    }
+
+    public long getIngestExpansionRejections() {
+        return ingestExpansionRejections;
+    }
+
     private static final String COMBINED = "combined_coordinating_and_primary";
     private static final String COMBINED_IN_BYTES = "combined_coordinating_and_primary_in_bytes";
     private static final String COORDINATING = "coordinating";
@@ -297,6 +342,9 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private static final String LIMIT = "limit";
     private static final String LIMIT_IN_BYTES = "limit_in_bytes";
     private static final String LARGE_OPERATION_REJECTIONS = "large_operation_rejections";
+    private static final String INGEST_EXPANSION = "ingest_expansion";
+    private static final String INGEST_EXPANSION_IN_BYTES = "ingest_expansion_in_bytes";
+    private static final String INGEST_EXPANSION_REJECTIONS = "ingest_expansion_rejections";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -312,6 +360,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             ALL,
             ByteSizeValue.ofBytes(currentReplicaBytes + currentCombinedCoordinatingAndPrimaryBytes)
         );
+        builder.humanReadableField(INGEST_EXPANSION_IN_BYTES, INGEST_EXPANSION, ByteSizeValue.ofBytes(currentIngestExpansionBytes));
         builder.endObject();
         builder.startObject("total");
         builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, ByteSizeValue.ofBytes(totalCombinedCoordinatingAndPrimaryBytes));
@@ -319,11 +368,13 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, ByteSizeValue.ofBytes(totalPrimaryBytes));
         builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, ByteSizeValue.ofBytes(totalReplicaBytes));
         builder.humanReadableField(ALL_IN_BYTES, ALL, ByteSizeValue.ofBytes(totalReplicaBytes + totalCombinedCoordinatingAndPrimaryBytes));
+        builder.humanReadableField(INGEST_EXPANSION_IN_BYTES, INGEST_EXPANSION, ByteSizeValue.ofBytes(totalIngestExpansionBytes));
         builder.field(COORDINATING_REJECTIONS, coordinatingRejections);
         builder.field(PRIMARY_REJECTIONS, primaryRejections);
         builder.field(REPLICA_REJECTIONS, replicaRejections);
         builder.field(PRIMARY_DOCUMENT_REJECTIONS, primaryDocumentRejections);
         builder.field(LARGE_OPERATION_REJECTIONS, largeOpsRejections);
+        builder.field(INGEST_EXPANSION_REJECTIONS, ingestExpansionRejections);
         builder.endObject();
         builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, ByteSizeValue.ofBytes(memoryLimit));
         builder.endObject();

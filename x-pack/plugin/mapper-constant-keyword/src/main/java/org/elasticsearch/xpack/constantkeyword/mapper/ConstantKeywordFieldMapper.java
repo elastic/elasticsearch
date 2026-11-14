@@ -57,7 +57,6 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
@@ -89,15 +88,6 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "constant_keyword";
 
-    private static ConstantKeywordFieldMapper toType(FieldMapper in) {
-        return (ConstantKeywordFieldMapper) in;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         // This is defined as updateable because it can be updated once, from [null] to any value,
@@ -107,7 +97,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new MapperParsingException("Property [value] on field [" + n + "] must be a number or a string, but got [" + o + "]");
             }
             return o.toString();
-        }, m -> toType(m).fieldType().value, XContentBuilder::field, Objects::toString);
+        }, XContentBuilder::field, Objects::toString);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -119,6 +109,22 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         public Builder setValue(String v) {
             this.value.setValue(v);
             return this;
+        }
+
+        /**
+         * Sets the value inferred from a document. Throws an exception a different value has already been set.
+         */
+        public void setFromDocument(String v) {
+            if (value.isSet() && Objects.equals(value.getValue(), v) == false) {
+                throw new IllegalArgumentException(
+                    "[constant_keyword] field ["
+                        + leafName()
+                        + "] only accepts values that are equal to the value defined in the mappings, but got ["
+                        + v
+                        + "]"
+                );
+            }
+            setValue(v);
         }
 
         @Override
@@ -450,10 +456,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            Builder builder = new Builder(leafName()).setValue(value);
-            Mapper result = context.getDynamicMapper(builder);
             // the mapper is already part of the mapping, we're just updating it with the new value
-            assert result != null;
+            context.updateMapping(fullPath(), builder -> ((Builder) builder).setFromDocument(value));
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["

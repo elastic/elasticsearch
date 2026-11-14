@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.heap_attack;
 
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -19,6 +22,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -191,6 +195,40 @@ public abstract class HeapAttackTestCase extends HeapAttackRestHelpers {
         request = new Request("POST", "/" + name + "/_flush");
         response = client().performRequest(request);
         assertThat(entityAsMap(response), matchesMap().entry("_shards", matchesMap().extraOk().entry("failed", 0)).extraOk());
+    }
+
+    /**
+     * Indexes the one document {@code doc}, which is CBOR, as the document {@code 1} of {@code name}, then flushes as {@link #bulk}
+     * does.
+     * <p>
+     * A document that is large enough to exhaust the heap is sent as CBOR, which is about half the size of the same values as JSON:
+     * a one character string takes 2 bytes, not 4. What indexing pressure counts for a write is a multiple of the size of the document
+     * (about 4 times), and a node of the suite allows a part of its heap for that. A document of the size that
+     * {@link #scaleToHeap} gives for a larger heap, as in serverless, where that part is smaller than the cluster of this suite
+     * allows, would not be indexed as JSON.
+     */
+    protected void indexCborDocument(String name, XContentBuilder doc) throws IOException {
+        Request request = new Request("PUT", "/" + name + "/_doc/1");
+        request.setEntity(new ByteArrayEntity(BytesReference.toBytes(BytesReference.bytes(doc)), ContentType.create("application/cbor")));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
+        );
+        Response response = client().performRequest(request);
+        assertThat(entityAsMap(response), matchesMap().entry("result", "created").extraOk());
+
+        request = new Request("POST", "/" + name + "/_flush");
+        response = client().performRequest(request);
+        assertThat(entityAsMap(response), matchesMap().entry("_shards", matchesMap().extraOk().entry("failed", 0)).extraOk());
+    }
+
+    /** Writes the field {@code name}, as the array of {@code elements} one character strings that {@link #indexCborDocument} sends. */
+    protected static void arrayOfShortStrings(XContentBuilder builder, String name, int elements) throws IOException {
+        builder.startArray(name);
+        for (int e = 0; e < elements; e++) {
+            builder.value("x");
+        }
+        builder.endArray();
     }
 
     protected void initIndex(String name, String bulk) throws IOException {

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.LogManager;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.TimedListener;
 import org.elasticsearch.xpack.inference.services.custom.request.CompletionParameters;
 import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
 import org.elasticsearch.xpack.inference.services.custom.request.EmbeddingParameters;
@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.inference.services.custom.request.RerankParameter
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseEntity;
 
 import java.util.Objects;
-import java.util.function.Supplier;
 
 public class CustomRequestManager extends BaseRequestManager {
     private static final Logger logger = LogManager.getLogger(CustomRequestManager.class);
@@ -65,8 +64,7 @@ public class CustomRequestManager extends BaseRequestManager {
     public void execute(
         InferenceInputs inferenceInputs,
         RequestSender requestSender,
-        Supplier<Boolean> hasRequestCompletedFunction,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
         RequestParameters requestParameters;
         if (inferenceInputs instanceof QueryAndDocsInputs queryAndDocsInputs) {
@@ -76,23 +74,23 @@ public class CustomRequestManager extends BaseRequestManager {
         } else if (inferenceInputs instanceof EmbeddingsInput embeddingsInput) {
             requestParameters = EmbeddingParameters.of(embeddingsInput, model.getServiceSettings().getInputTypeTranslator());
         } else {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    Strings.format("Invalid input received from custom service %s", inferenceInputs.getClass().getSimpleName()),
-                    RestStatus.BAD_REQUEST
-                )
-            );
+            timedListener.getListener()
+                .onFailure(
+                    new ElasticsearchStatusException(
+                        Strings.format("Invalid input received from custom service %s", inferenceInputs.getClass().getSimpleName()),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
             return;
         }
 
         try {
             var request = new CustomRequest(requestParameters, model);
-            execute(new ExecutableInferenceRequest(requestSender, logger, request, handler, hasRequestCompletedFunction, listener));
+            execute(new ExecutableInferenceRequest(requestSender, logger, request, handler, timedListener));
         } catch (Exception e) {
             // Intentionally not logging this exception because it could contain sensitive information from the CustomRequest construction
-            listener.onFailure(
-                new ElasticsearchStatusException("Failed to construct the custom service request", RestStatus.BAD_REQUEST, e)
-            );
+            timedListener.getListener()
+                .onFailure(new ElasticsearchStatusException("Failed to construct the custom service request", RestStatus.BAD_REQUEST, e));
         }
     }
 }

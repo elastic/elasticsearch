@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 164812
+pr: 164875
+summary: Allow more commands with LOAD_ALL
+type: enhancement

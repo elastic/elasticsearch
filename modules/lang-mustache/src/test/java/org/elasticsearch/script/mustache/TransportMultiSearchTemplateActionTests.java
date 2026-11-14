@@ -42,9 +42,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -340,8 +339,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
         AtomicReference<Integer> observedSize = new AtomicReference<>();
         AtomicReference<Integer> observedConcurrency = new AtomicReference<>();
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
                 @Override
@@ -402,8 +400,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
         ClusterService clusterService = clusterServiceWithDataNodes(1);
         AtomicInteger multiSearchCalls = new AtomicInteger();
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
                 @Override
@@ -456,8 +453,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
         ClusterService clusterService = clusterServiceWithDataNodes(1);
         AtomicInteger multiSearchCalls = new AtomicInteger();
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
                 @Override
@@ -528,8 +524,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
         ClusterService clusterService = clusterServiceWithDataNodes(1);
         AtomicInteger multiSearchCalls = new AtomicInteger();
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
                 @Override
@@ -588,8 +583,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
         ClusterService clusterService = clusterServiceWithDataNodes(1);
         TrackingCircuitBreaker tracker = new TrackingCircuitBreaker();
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
                 @Override
@@ -645,8 +639,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
         TrackingCircuitBreaker tracker = new TrackingCircuitBreaker(true);
         AtomicInteger multiSearchCalls = new AtomicInteger();
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
                 @Override
@@ -701,8 +694,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
             .thenThrow(new RuntimeException("slot 1 compile error"))
             .thenReturn(successFactory);
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             // Slot 1 is a convert failure → only 2 searches are sent to multiSearch (slots 0 and 2).
             NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
@@ -772,8 +764,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
         ClusterService clusterService = clusterServiceWithDataNodes(1);
         AtomicInteger multiSearchCalls = new AtomicInteger();
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             int numRequests = 3;
             NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
@@ -836,8 +827,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
         ClusterService clusterService = clusterServiceWithDataNodes(1);
         AtomicReference<org.elasticsearch.tasks.TaskId> observedParentTask = new AtomicReference<>();
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
                 @Override
@@ -903,8 +893,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
         }
         CancellableTask task = (CancellableTask) request.createTask(1L, "type", "action", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
                 @Override
@@ -959,8 +948,7 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
         ClusterService clusterService = clusterServiceWithDataNodes(1);
         PeakCapturingBreaker breaker = new PeakCapturingBreaker();
 
-        Settings settings = Settings.builder().put("node.name", getTestName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
                 @Override

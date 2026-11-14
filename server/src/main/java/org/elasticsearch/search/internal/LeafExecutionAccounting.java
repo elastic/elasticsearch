@@ -19,11 +19,11 @@ import java.util.concurrent.atomic.AtomicLongArray;
 /**
  * Tracks execution RAM charged to a single request's circuit breaker. One instance is owned by a single
  * {@link ContextIndexSearcher} and shared by every leaf-execution charge source registered with it (currently
- * {@link PointRangeBreakerWeight} and {@link MultiTermBreakerWeight}, each charging under its own label). A charge
- * belongs to the {@link LeafExecutionScope} bound to the charging thread, which releases it. Without one it belongs
- * to the leaf: releasing a leaf drains everything charged to it, however it got there, so an out-of-band charge on
- * a leaf (e.g. a filter bitset materialised ahead of collection) is released as soon as that leaf is next scored
- * rather than only at {@link #close()}.
+ * {@link PointRangeBreakerWeight}, {@link MultiTermBreakerWeight} and {@link QueryCacheBreakerWeight}, each
+ * charging under its own label). A charge belongs to the {@link LeafExecutionScope} bound to the charging
+ * thread, which releases it. Without one it belongs to the leaf: releasing a leaf drains everything charged to
+ * it, however it got there, so an out-of-band charge on a leaf (e.g. a filter bitset materialised ahead of
+ * collection) is released as soon as that leaf is next scored rather than only at {@link #close()}.
  */
 final class LeafExecutionAccounting implements Releasable {
 

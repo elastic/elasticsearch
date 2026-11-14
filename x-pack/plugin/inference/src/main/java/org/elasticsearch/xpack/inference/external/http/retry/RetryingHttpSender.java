@@ -23,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.sender.TimedListener;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -32,7 +33,6 @@ import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -98,16 +98,15 @@ public class RetryingHttpSender implements RequestSender {
         private final ResponseHandler responseHandler;
         private final Logger logger;
         private final HttpClientContext context;
-        private final Supplier<Boolean> hasRequestCompletedFunction;
+        private final TimedListener<InferenceServiceResults> timedListener;
         private final AtomicInteger retryCount;
 
         InternalRetrier(
             Logger logger,
             OutboundRequest outboundRequest,
             HttpClientContext context,
-            Supplier<Boolean> hasRequestCompletedFunction,
             ResponseHandler responseHandler,
-            ActionListener<InferenceServiceResults> listener
+            TimedListener<InferenceServiceResults> timedListener
         ) {
             super(
                 Objects.requireNonNull(logger),
@@ -115,14 +114,14 @@ public class RetryingHttpSender implements RequestSender {
                 retrySettings.getInitialDelay(),
                 retrySettings.getMaxDelayBound(),
                 retrySettings.getTimeout(),
-                listener,
+                Objects.requireNonNull(timedListener).getListener(),
                 executor
             );
             this.logger = logger;
             this.outboundRequest = Objects.requireNonNull(outboundRequest);
             this.context = Objects.requireNonNull(context);
             this.responseHandler = Objects.requireNonNull(responseHandler);
-            this.hasRequestCompletedFunction = Objects.requireNonNull(hasRequestCompletedFunction);
+            this.timedListener = timedListener;
             this.retryCount = new AtomicInteger(0);
         }
 
@@ -130,7 +129,7 @@ public class RetryingHttpSender implements RequestSender {
         public void tryAction(ActionListener<InferenceServiceResults> listener) {
             retryCount.incrementAndGet();
             // A timeout likely occurred so let's stop attempting to execute the request
-            if (hasRequestCompletedFunction.get()) {
+            if (timedListener.hasCompleted()) {
                 // TimedListener will drop this, just being safe to avoid a hanging listener
                 listener.onFailure(
                     new ElasticsearchStatusException(timeoutString(outboundRequest.getInferenceEntityId()), RestStatus.GATEWAY_TIMEOUT)
@@ -167,7 +166,7 @@ public class RetryingHttpSender implements RequestSender {
             SubscribableListener.<HttpRequest>newForked(
                 createHttpRequestListener -> outboundRequest.createHttpRequest(createHttpRequestListener)
             ).<InferenceServiceResults>andThen((inferenceServiceResultsActionListener, httpRequest) -> {
-                if (hasRequestCompletedFunction.get()) {
+                if (timedListener.hasCompleted()) {
                     // TimedListener will drop this, just being safe to avoid a hanging listener
                     inferenceServiceResultsActionListener.onFailure(
                         new ElasticsearchStatusException(timeoutString(outboundRequest.getInferenceEntityId()), RestStatus.GATEWAY_TIMEOUT)
@@ -184,8 +183,14 @@ public class RetryingHttpSender implements RequestSender {
         }
 
         private void sendRequest(HttpRequest httpRequest, ActionListener<InferenceServiceResults> listener) throws IOException {
+            /*
+              The connection pool queues requests without a lease timeout, so an exchange is only bounded by the inference timeout.
+              Failing the inference listener does not stop the exchange though, so we register its abort action. Otherwise a timed out
+              request keeps waiting for a pooled connection forever, holding on to its request body.
+             */
+            final Runnable abortExchange;
             if (outboundRequest.isStreaming() && responseHandler.canHandleStreamingResponses()) {
-                httpClient.stream(httpRequest, context, listener.delegateFailureAndWrap((l, r) -> {
+                abortExchange = httpClient.stream(httpRequest, context, listener.delegateFailureAndWrap((l, r) -> {
                     if (r.isSuccessfulResponse()) {
                         l.onResponse(responseHandler.parseResult(outboundRequest, r.toHttpResult()));
                     } else {
@@ -197,7 +202,7 @@ public class RetryingHttpSender implements RequestSender {
                     }
                 }));
             } else {
-                httpClient.send(
+                abortExchange = httpClient.send(
                     httpRequest,
                     context,
                     listener.delegateFailureAndWrap(
@@ -205,6 +210,7 @@ public class RetryingHttpSender implements RequestSender {
                     )
                 );
             }
+            timedListener.addAbortHandler(abortExchange);
         }
 
         /**
@@ -275,18 +281,10 @@ public class RetryingHttpSender implements RequestSender {
     public void send(
         Logger logger,
         OutboundRequest outboundRequest,
-        Supplier<Boolean> hasRequestTimedOutFunction,
         ResponseHandler responseHandler,
-        ActionListener<InferenceServiceResults> listener
+        TimedListener<InferenceServiceResults> timedListener
     ) {
-        var retrier = new InternalRetrier(
-            logger,
-            outboundRequest,
-            HttpClientContext.create(),
-            hasRequestTimedOutFunction,
-            responseHandler,
-            listener
-        );
+        var retrier = new InternalRetrier(logger, outboundRequest, HttpClientContext.create(), responseHandler, timedListener);
         retrier.run();
     }
 

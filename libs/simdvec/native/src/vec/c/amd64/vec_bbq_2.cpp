@@ -106,6 +106,60 @@ static inline int64_t dotd2q4_inner_avx512(const int8_t* a, const int8_t* q, con
     return _mm512_reduce_add_epi64(acc);
 }
 
+// 4-bit doc x 4-bit query in one pass. The doc is four contiguous bit planes of length/4 bytes, the
+// query four planes of length/4 bytes. Each of the 16 (doc plane, query plane) pairs has its own popcount
+// accumulator; they are weighted by 2^(doc bit + query bit) only at the end, before a single horizontal
+// reduction per vector, rather than one per pair.
+static inline int64_t dotd4q4_inner_avx512(const int8_t* a, const int8_t* q, const int32_t length) {
+    constexpr int doc_bits = 4;
+    constexpr int query_bits = 4;
+    const int32_t bit_length = length / 4;
+    __m512i acc[doc_bits][query_bits];
+    apply_indexed<doc_bits>([&](auto D) {
+        apply_indexed<query_bits>([&](auto Q) {
+            acc[D][Q] = _mm512_setzero_si512();
+        });
+    });
+
+    // one doc plane against each query plane, into the pairs' popcount accumulators
+    const auto accumulate = [](__m512i (&acc_row)[query_bits], const __m512i doc_plane, const __m512i (&query_planes)[query_bits]) {
+        apply_indexed<query_bits>([&](auto Q) {
+            acc_row[Q] = _mm512_add_epi64(acc_row[Q], _mm512_popcnt_epi64(_mm512_and_si512(doc_plane, query_planes[Q])));
+        });
+    };
+
+    int r = 0;
+    const int upperBound = bit_length & ~(sizeof(__m512i) - 1);
+    for (; r < upperBound; r += sizeof(__m512i)) {
+        __m512i query_planes[query_bits];
+        apply_indexed<query_bits>([&](auto Q) {
+            query_planes[Q] = _mm512_loadu_si512((const __m512i_u*)(q + Q * bit_length + r));
+        });
+        apply_indexed<doc_bits>([&](auto D) {
+            accumulate(acc[D], _mm512_loadu_si512((const __m512i_u*)(a + D * bit_length + r)), query_planes);
+        });
+    }
+    const int remaining = bit_length - r;
+    if (remaining > 0) {
+        const __mmask64 mask = (1ULL << remaining) - 1;
+        __m512i query_planes[query_bits];
+        apply_indexed<query_bits>([&](auto Q) {
+            query_planes[Q] = _mm512_maskz_loadu_epi8(mask, q + Q * bit_length + r);
+        });
+        apply_indexed<doc_bits>([&](auto D) {
+            accumulate(acc[D], _mm512_maskz_loadu_epi8(mask, a + D * bit_length + r), query_planes);
+        });
+    }
+
+    __m512i sum = _mm512_setzero_si512();
+    apply_indexed<doc_bits>([&](auto D) {
+        apply_indexed<query_bits>([&](auto Q) {
+            sum = _mm512_add_epi64(sum, _mm512_slli_epi64(acc[D][Q], D + Q));
+        });
+    });
+    return _mm512_reduce_add_epi64(sum);
+}
+
 // Packed bulk: process 4 vectors at a time for length<=16 (dims<=128)
 static inline void dotd1q4_bulk_packed4(
     const int8_t* a,
@@ -263,8 +317,9 @@ EXPORT void vec_dotd1q4_bulk_masked_2(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd1q_inner_bulk<int8_t, masked_mapper, dotd1qN_inner_avx512<4>, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd1q4_bulk_sparse_2(
@@ -294,8 +349,9 @@ EXPORT void vec_dotd1q1_bulk_masked_2(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd1q_inner_bulk<int8_t, masked_mapper, dotd1qN_inner_avx512<1>, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd1q1_bulk_sparse_2(
@@ -335,8 +391,9 @@ EXPORT void vec_dotd2q2_bulk_masked_2(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
+    const int32_t block_mask = clamp_mask(mask, count);
     dotd2q_inner_bulk<int8_t, masked_mapper, dotd1qN_inner_avx512<2>, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd2q2_bulk_sparse_2(
@@ -363,7 +420,7 @@ EXPORT void vec_dotd2q4_bulk_2(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<int8_t, sequential_mapper, dotd2q4_inner_avx512>(a, query, length, length, NULL, count, results);
+    dotd_striped_inner_bulk<int8_t, sequential_mapper, dotd2q4_inner_avx512>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd2q4_bulk_masked_2(
@@ -374,8 +431,9 @@ EXPORT void vec_dotd2q4_bulk_masked_2(
     const int32_t mask,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<int8_t, masked_mapper, dotd2q4_inner_avx512, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+    const int32_t block_mask = clamp_mask(mask, count);
+    dotd_striped_inner_bulk<int8_t, masked_mapper, dotd2q4_inner_avx512, masked_output>(
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd2q4_bulk_sparse_2(
@@ -384,17 +442,12 @@ EXPORT void vec_dotd2q4_bulk_sparse_2(
     const int32_t length,
     const int32_t count,
     f32_t* results) {
-    dotd2q4_inner_bulk<const int8_t*, sparse_mapper, dotd2q4_inner_avx512>
+    dotd_striped_inner_bulk<const int8_t*, sparse_mapper, dotd2q4_inner_avx512>
         ((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
 EXPORT int64_t vec_dotd4q4_2(const int8_t* a, const int8_t* query, const int32_t length) {
-    const int32_t bit_length = length / 4;
-    int64_t p0 = dotd1qN_inner_avx512<4>(a + 0 * bit_length, query, bit_length);
-    int64_t p1 = dotd1qN_inner_avx512<4>(a + 1 * bit_length, query, bit_length);
-    int64_t p2 = dotd1qN_inner_avx512<4>(a + 2 * bit_length, query, bit_length);
-    int64_t p3 = dotd1qN_inner_avx512<4>(a + 3 * bit_length, query, bit_length);
-    return p0 + (p1 << 1) + (p2 << 2) + (p3 << 3);
+    return dotd4q4_inner_avx512(a, query, length);
 }
 
 EXPORT void vec_dotd4q4_bulk_2(
@@ -404,7 +457,7 @@ EXPORT void vec_dotd4q4_bulk_2(
     const int32_t count,
     f32_t* results
 ) {
-    dotd4q4_inner_bulk<int8_t, sequential_mapper, dotd1qN_inner_avx512<4>>(a, query, length, length, NULL, count, results);
+    dotd_striped_inner_bulk<int8_t, sequential_mapper, dotd4q4_inner_avx512>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd4q4_bulk_masked_2(
@@ -416,8 +469,9 @@ EXPORT void vec_dotd4q4_bulk_masked_2(
     const int32_t count,
     f32_t* results
 ) {
-    dotd4q4_inner_bulk<int8_t, masked_mapper, dotd1qN_inner_avx512<4>, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
+    const int32_t block_mask = clamp_mask(mask, count);
+    dotd_striped_inner_bulk<int8_t, masked_mapper, dotd4q4_inner_avx512, masked_output>(
+        a, query, length, pitch, &block_mask, __builtin_popcount((uint32_t)block_mask), results);
 }
 
 EXPORT void vec_dotd4q4_bulk_sparse_2(
@@ -427,6 +481,6 @@ EXPORT void vec_dotd4q4_bulk_sparse_2(
     const int32_t count,
     f32_t* results
 ) {
-    dotd4q4_inner_bulk<const int8_t*, sparse_mapper, dotd1qN_inner_avx512<4>>
+    dotd_striped_inner_bulk<const int8_t*, sparse_mapper, dotd4q4_inner_avx512>
         ((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }

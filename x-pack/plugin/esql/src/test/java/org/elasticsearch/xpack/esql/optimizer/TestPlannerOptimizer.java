@@ -38,10 +38,17 @@ public class TestPlannerOptimizer {
     private final Configuration config;
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer) {
+        this(config, analyzer, EsqlFlags.DEFAULTS);
+    }
+
+    /**
+     * @param flags the flags of the logical optimizer, such as whether the fetch phase is on
+     */
+    public TestPlannerOptimizer(Configuration config, Analyzer analyzer, EsqlFlags flags) {
         this(
             config,
             analyzer,
-            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion()))
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion(), flags))
         );
     }
 
@@ -53,6 +60,13 @@ public class TestPlannerOptimizer {
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion()));
         mapper = new Mapper();
 
+    }
+
+    /**
+     * The optimized logical plan of the query, before the mapper turns it into a physical plan.
+     */
+    public LogicalPlan logicalPlan(String query) {
+        return logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
     }
 
     public PhysicalPlan plan(String query) {
@@ -74,6 +88,14 @@ public class TestPlannerOptimizer {
 
     public PhysicalPlan plan(String query, SearchStats stats, EsqlFlags esqlFlags) {
         return optimizedPlan(physicalPlan(query, analyzer), stats, esqlFlags);
+    }
+
+    /**
+     * Builds the distributed physical plan before it is split into coordinator and data-node plans.
+     * This exposes the same boundary used by {@link PlannerUtils#breakPlanBetweenCoordinatorAndDataNode} to planner tests.
+     */
+    public PhysicalPlan distributedPlan(String query) {
+        return EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan(query, analyzer)));
     }
 
     /**
@@ -113,7 +135,10 @@ public class TestPlannerOptimizer {
     }
 
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
+        var optimizer = analyzer.context().minimumVersion().equals(this.analyzer.context().minimumVersion())
+            ? logicalOptimizer
+            : new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion()));
+        LogicalPlan logical = optimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         return mapper.map(new Versioned<>(logical, analyzer.context().minimumVersion()));
     }

@@ -23,11 +23,9 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class StreamingPageOperatorTests extends AnyOperatorTestCase {
 
-    private static final int PAGE_SIZE = 1024;
-
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new StreamingPageOperator.Factory(new PageStreamPublisher(PAGE_SIZE), Function.identity());
+        return new StreamingPageOperator.Factory(new PageStreamPublisher(), Function.identity());
     }
 
     @Override
@@ -57,7 +55,7 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testInitiallyBlocked() {
-        PageStreamPublisher publisher = new PageStreamPublisher(PAGE_SIZE);
+        PageStreamPublisher publisher = new PageStreamPublisher();
         try (StreamingPageOperator operator = new StreamingPageOperator(publisher, Function.identity())) {
             assertFalse("operator should not need input before any subscriber demand", operator.needsInput());
             assertFalse("unblock listener should not be done before demand", operator.isBlocked().listener().isDone());
@@ -65,7 +63,7 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testUnblockedAfterDemand() {
-        PageStreamPublisher publisher = new PageStreamPublisher(PAGE_SIZE);
+        PageStreamPublisher publisher = new PageStreamPublisher();
         TestSubscriber subscriber = new TestSubscriber();
         publisher.subscribe(subscriber);
         subscriber.requestOne();
@@ -77,7 +75,7 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testAlignmentApplied() {
-        PageStreamPublisher publisher = new PageStreamPublisher(1);
+        PageStreamPublisher publisher = new PageStreamPublisher();
         TestSubscriber subscriber = new TestSubscriber();
         publisher.subscribe(subscriber);
         subscriber.requestOne();
@@ -103,10 +101,10 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testPageAndRowCounting() {
-        PageStreamPublisher publisher = new PageStreamPublisher(10_000);
+        PageStreamPublisher publisher = new PageStreamPublisher();
         TestSubscriber subscriber = new TestSubscriber();
         publisher.subscribe(subscriber);
-        subscriber.requestOne();
+        subscriber.request(3);
 
         try (StreamingPageOperator operator = new StreamingPageOperator(publisher, Function.identity())) {
             for (int rowCount : new int[] { 1, 2, 3 }) {
@@ -130,7 +128,7 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testFinishSetsIsFinished() {
-        PageStreamPublisher publisher = new PageStreamPublisher(PAGE_SIZE);
+        PageStreamPublisher publisher = new PageStreamPublisher();
         try (StreamingPageOperator operator = new StreamingPageOperator(publisher, Function.identity())) {
             assertFalse("not finished before finish() is called", operator.isFinished());
             operator.finish();
@@ -139,7 +137,7 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
     }
 
     public void testNeedsInputFalseAfterFinish() {
-        PageStreamPublisher publisher = new PageStreamPublisher(PAGE_SIZE);
+        PageStreamPublisher publisher = new PageStreamPublisher();
         TestSubscriber subscriber = new TestSubscriber();
         publisher.subscribe(subscriber);
         subscriber.requestOne();
@@ -172,7 +170,11 @@ public class StreamingPageOperatorTests extends AnyOperatorTestCase {
         public void onComplete() {}
 
         void requestOne() {
-            subscription.request(1);
+            request(1);
+        }
+
+        void request(long n) {
+            subscription.request(n);
         }
     }
 }

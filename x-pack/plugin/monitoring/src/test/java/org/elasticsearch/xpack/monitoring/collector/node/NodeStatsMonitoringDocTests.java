@@ -371,6 +371,8 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             no,
             no,
             no,
+            Double.valueOf(no),
+            Double.valueOf(no),
             Double.valueOf(no)
         );
         indicesCommonStats.getSearch().add(new SearchStats(searchStats, no, null));

@@ -294,6 +294,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             null,
             false,
             false,
+            false,
             false
         );
         assertNull(longSource(skipperLong).createSortedDocsProducerOrNull(reader, null));
@@ -314,7 +315,8 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
             null,
             false,
             false,
-            true
+            true,
+            false
         );
         assertTrue(indexTermsLong.indexType().hasDenseIndex());
         assertFalse(indexTermsLong.indexType().hasPoints());

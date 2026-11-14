@@ -124,6 +124,14 @@ public class JsonExtractPathSyntaxTests extends AbstractScalarFunctionTestCase {
         super.testFold();
     }
 
+    @Override
+    public void testFoldAnyNullIsNullWithoutFoldNull() {
+        if (isNullSourceCase(testCase)) {
+            return;
+        }
+        super.testFoldAnyNullIsNullWithoutFoldNull();
+    }
+
     private static boolean isNullSourceCase(TestCaseSupplier.TestCase tc) {
         return tc.getData().size() > 0 && tc.getData().get(0).type() == DataType.SOURCE && tc.getData().get(0).getValue() == null;
     }

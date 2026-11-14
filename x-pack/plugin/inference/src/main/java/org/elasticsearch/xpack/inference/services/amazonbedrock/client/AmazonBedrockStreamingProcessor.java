@@ -57,6 +57,8 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
 
     volatile Flow.Subscriber<? super T> downstream;
 
+    private volatile StreamSubscription downstreamSubscription;
+
     @Override
     public void onSubscribe(Flow.Subscription subscription) {
         if (upstream == null) {
@@ -74,12 +76,27 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
     public void subscribe(Flow.Subscriber<? super T> subscriber) {
         if (downstream == null) {
             downstream = subscriber;
-            downstream.onSubscribe(new StreamSubscription());
+            downstreamSubscription = new StreamSubscription();
+            downstream.onSubscribe(downstreamSubscription);
             downstreamReady.set(true);
             // the upstream may have failed before the downstream was ready, and errors do not require demand
             deliverErrorIfPending();
         } else {
             subscriber.onError(new IllegalStateException("Subscriber already set."));
+        }
+    }
+
+    /**
+     * Requests the next item for an event that reset demand but produced nothing to send. Going through the downstream subscription
+     * restores that demand, so a completion or error that arrives next is still delivered. The downstream's own request is still
+     * outstanding because nothing was emitted, so this does not add to {@link #downstreamDemand}.
+     */
+    void requestNextOnBehalfOfDownstream() {
+        var subscription = downstreamSubscription;
+        if (subscription != null) {
+            subscription.requestWithoutDownstreamDemand(1);
+        } else if (upstream != null) {
+            upstream.request(1);
         }
     }
 
@@ -146,31 +163,35 @@ abstract class AmazonBedrockStreamingProcessor<T> implements Flow.Processor<Conv
         @Override
         public void request(long n) {
             if (n > 0L) {
-                demand.updateAndGet(i -> {
-                    var sum = i + n;
-                    return sum >= 0 ? sum : Long.MAX_VALUE;
-                });
                 downstreamDemand.updateAndGet(i -> {
                     var sum = i + n;
                     return sum >= 0 ? sum : Long.MAX_VALUE;
                 });
-                if (error.get() != null) {
-                    // a stored error always wins over completion, even if its delivery has already been queued
-                    deliverErrorIfPending();
-                    return;
-                }
-                if (upstream == null) {
-                    // wait for upstream to subscribe before forwarding request
-                    return;
-                }
-                if (upstreamIsRunning()) {
-                    requestOnMlThread(n);
-                } else if (onCompleteCalled.compareAndSet(false, true)) {
-                    downstream.onComplete();
-                }
+                requestWithoutDownstreamDemand(n);
             } else {
                 cancel();
                 downstream.onError(new IllegalStateException("Cannot request a negative number."));
+            }
+        }
+
+        private void requestWithoutDownstreamDemand(long n) {
+            demand.updateAndGet(i -> {
+                var sum = i + n;
+                return sum >= 0 ? sum : Long.MAX_VALUE;
+            });
+            if (error.get() != null) {
+                // a stored error always wins over completion, even if its delivery has already been queued
+                deliverErrorIfPending();
+                return;
+            }
+            if (upstream == null) {
+                // wait for upstream to subscribe before forwarding request
+                return;
+            }
+            if (upstreamIsRunning()) {
+                requestOnMlThread(n);
+            } else if (onCompleteCalled.compareAndSet(false, true)) {
+                downstream.onComplete();
             }
         }
 

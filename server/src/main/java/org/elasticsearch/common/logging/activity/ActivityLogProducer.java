@@ -24,11 +24,12 @@ import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD
  *
  * @param <Context> Specific logger context
  */
-public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
+public interface ActivityLogProducer<Context extends QueryCaptureContext> {
 
     String X_OPAQUE_ID_FIELD = "http.request.headers.x_opaque_id";
     String EVENT_OUTCOME_FIELD = "event.outcome";
     String EVENT_DURATION_FIELD = "event.duration";
+    String EVENT_ACTION_FIELD = "event.action";
     String TRACE_ID_FIELD = "trace.id";
     String TASK_ID_FIELD = "elasticsearch.task.id";
     String PARENT_TASK_ID_FIELD = "elasticsearch.parent.task.id";
@@ -60,6 +61,7 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
         fields.field(prefix + "took", tookInNanos);
         fields.field(prefix + "took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
         fields.field(prefix + "type", context.getType());
+        fields.field(EVENT_ACTION_FIELD, context.getAction());
         fields.field(TASK_ID_FIELD, context.getTaskId());
         context.getParentTaskId().ifPresent(taskId -> {
             fields.field(PARENT_TASK_ID_FIELD, taskId.getId());

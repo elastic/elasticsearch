@@ -1,0 +1,5 @@
+area: Columnar
+issues: []
+pr: 165448
+summary: Fix composite aggregations missing buckets on multi-valued keyword index sort fields in columnar indices
+type: bug

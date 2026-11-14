@@ -182,7 +182,7 @@ public class StatelessMergePreWarmingIT extends AbstractStatelessPluginIntegTest
                 long length
             ) throws IOException {
                 assert (blobName.equals(bccToUpload)
-                    && Thread.currentThread().getName().contains(StatelessPlugin.PREWARM_THREAD_POOL)) == false
+                    && Thread.currentThread().getName().contains(StatelessThreadPools.PREWARM_THREAD_POOL)) == false
                     : "Unexpected read from the pre-warmed thread";
                 return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
             }

@@ -1,0 +1,5 @@
+FROM employees
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| SORT hire_date
+| LIMIT 10
+| KEEP full_name, salary

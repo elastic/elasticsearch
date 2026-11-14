@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 164883
+summary: Fix get filters/data frame analytics/transforms completing the listener multiple times on a corrupt document
+type: bug

@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 161617
-summary: "ES|QL|DS: A resolve asks storage for metadata instead of reading a byte of the object"
+summary: "Add a resolve that asks storage for metadata instead of reading a byte of the object"
 type: enhancement

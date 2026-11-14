@@ -54,6 +54,10 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
         this(source, child, buildAttributes(source));
     }
 
+    public static MetricsInfo fromTsInfo(TsInfo tsInfo) {
+        return new MetricsInfo(tsInfo.source(), tsInfo.child(), List.copyOf(tsInfo.output().subList(0, ATTRIBUTES.size())));
+    }
+
     private MetricsInfo(Source source, LogicalPlan child, List<Attribute> attributes) {
         super(source, child);
         this.attributes = attributes;

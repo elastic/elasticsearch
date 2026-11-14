@@ -6,6 +6,10 @@
     },
     "stability": "stable",
     "visibility": "public",
+    "deprecated": {
+      "version": "9.6.0",
+      "description": "Use inference.chat_completion_streaming instead, which calls the same endpoint"
+    },
     "headers": {
       "accept": [
         "text/event-stream"

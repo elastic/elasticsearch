@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -62,6 +63,10 @@ public final class MockSearchDfsQueryThenFetchAsyncAction extends SearchDfsQuery
     }
 
     public MockSearchDfsQueryThenFetchAsyncAction(int numShards, SearchRequest searchRequest) {
+        this(numShards, searchRequest, NoopCircuitBreaker.INSTANCE);
+    }
+
+    public MockSearchDfsQueryThenFetchAsyncAction(int numShards, SearchRequest searchRequest, CircuitBreaker circuitBreaker) {
         super(
             logger,
             new NamedWriteableRegistry(List.of()),
@@ -72,7 +77,7 @@ public final class MockSearchDfsQueryThenFetchAsyncAction extends SearchDfsQuery
             Map.of(),
             Runnable::run,
             null,
-            NoopCircuitBreaker.INSTANCE,
+            circuitBreaker,
             searchRequest,
             ActionListener.noop(),
             createShardIterators(numShards),

@@ -14,6 +14,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -87,7 +88,8 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
 
     @Override
     public String[] indices() {
-        return new String[] { index };
+        // The index is optional for some requests. Report no indices for them, instead of an array with a null element.
+        return index == null ? Strings.EMPTY_ARRAY : new String[] { index };
     }
 
     @Override

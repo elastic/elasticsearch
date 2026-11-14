@@ -39,7 +39,6 @@ public class CompositeRuntimeField implements RuntimeField {
             false,
             () -> null,
             RuntimeField::parseScript,
-            RuntimeField.initializerNotSupported(),
             XContentBuilder::field,
             Objects::toString
         ).addValidator(s -> {
@@ -48,17 +47,13 @@ public class CompositeRuntimeField implements RuntimeField {
             }
         });
 
-        private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(
-            m -> m.builderParams.onScriptError(),
-            script
-        );
+        private final FieldMapper.Parameter<OnScriptError> onScriptError = FieldMapper.Parameter.onScriptErrorParam(script);
 
         private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<Map<String, Object>>(
             "fields",
             false,
             Collections::emptyMap,
             (f, p, o) -> parseFields(f, o),
-            RuntimeField.initializerNotSupported(),
             XContentBuilder::field,
             Objects::toString
         ).addValidator(objectMap -> {

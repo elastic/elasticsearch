@@ -149,6 +149,11 @@ public final class InlineArrayReader implements ArrayReader {
         return new Text(new XContentString.UTF8Bytes(data, currentStart + 4, len));
     }
 
+    @Override
+    public int valueLength() {
+        return ByteUtils.readIntLE(data, currentStart);
+    }
+
     /**
      * Creates a child {@link InlineArrayReader} reader over the current compound array element's payload.
      * The current element must be a UNION_ARRAY or FIXED_ARRAY.

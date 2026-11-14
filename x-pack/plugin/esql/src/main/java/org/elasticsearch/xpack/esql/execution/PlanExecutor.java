@@ -420,9 +420,9 @@ public class PlanExecutor {
         );
         queryLog.onQueryFailure(request.queryDescription(), settings, request.viewSettings(), ex, System.nanoTime() - begin);
         // Matched by condition, not class: a failure from a remote data node arrives as a wrapper that keeps only the condition.
-        if (cacheService != null && ExternalException.hasCondition(ex, ExternalException.Condition.OBJECT_CHANGED)) {
-            // The object was rewritten after the listing this query used was cached. Drop the entries this query read, so the
-            // client's next attempt lists them again; other queries' entries stay.
+        if (cacheService != null && ExternalException.isStaleCachedObject(ex)) {
+            // The object was rewritten or deleted after the listing this query used was cached. Drop the entries this query
+            // read, so the client's next attempt lists them again; other queries' entries stay.
             externalSourceResolver.invalidateUsedCacheEntries();
         }
         listener.onFailure(ex);

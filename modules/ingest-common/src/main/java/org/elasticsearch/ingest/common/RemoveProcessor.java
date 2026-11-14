@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.FieldPath;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
@@ -30,7 +31,11 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     public static final String TYPE = "remove";
 
-    private final List<TemplateScript.Factory> fieldsToRemove;
+    private final List<FieldPath> fieldsToRemove;
+    // The fields to keep are not paths that are used to get at something in the document, so unlike the fields to remove they are not
+    // FieldPaths. They are rendered and compared, as text, with the names of the fields that the document has (see shouldKeep), so
+    // there is nothing to parse ahead of time, and a FieldPath would not mean quite the same thing: it is validated, and it
+    // understands prefixes like _source.
     private final List<TemplateScript.Factory> fieldsToKeep;
     private final boolean ignoreMissing;
 
@@ -42,7 +47,7 @@ public final class RemoveProcessor extends AbstractProcessor {
         boolean ignoreMissing
     ) {
         super(tag, description);
-        this.fieldsToRemove = List.copyOf(fieldsToRemove);
+        this.fieldsToRemove = List.copyOf(fieldsToRemove.stream().map(FieldPath::of).toList());
         this.fieldsToKeep = List.copyOf(fieldsToKeep);
         this.ignoreMissing = ignoreMissing;
     }
@@ -60,8 +65,18 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     private void fieldsToRemoveProcessor(IngestDocument document) {
         // micro-optimization note: actual for-each loop here rather than a .forEach because it happens to be ~5% faster in benchmarks
-        for (TemplateScript.Factory field : fieldsToRemove) {
-            document.removeField(document.renderTemplate(field), ignoreMissing);
+        for (FieldPath field : fieldsToRemove) {
+            // an empty field is treated as one that is missing (rather than as an invalid path), just like it is in the kv and rename
+            // processors, which matters for a template that renders as nothing when the document doesn't have something that it
+            // refers to
+            FieldPath path = field.resolveUnlessEmpty(document);
+            if (path == null) {
+                if (ignoreMissing) {
+                    continue;
+                }
+                throw new IllegalArgumentException("field [] doesn't exist");
+            }
+            document.removeField(path, ignoreMissing);
         }
     }
 
@@ -141,7 +156,7 @@ public final class RemoveProcessor extends AbstractProcessor {
         }
     }
 
-    public List<TemplateScript.Factory> getFieldsToRemove() {
+    public List<FieldPath> getFieldsToRemove() {
         return fieldsToRemove;
     }
 

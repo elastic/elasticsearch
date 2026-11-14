@@ -7966,3 +7966,426 @@ mapped-1       | William Faulkner | text_state_mapped      | null
 nonexistent-1  | none             | text_state_nonexistent | null
 unmapped-1     | none             | text_state_unmapped    | null
 ;
+
+// COMPLETION, DENSE_VECTOR, RERANK, FUSE, HIGHLIGHT and MMR do not interact with _unmapped_fields. The ones that read or add columns of
+// their own pass it through. FUSE groups its input, like STATS, and so does not return the column.
+
+completionKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: completion
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| COMPLETION answer = message WITH { "inference_id" : "test_completion" }
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | answer:keyword
+2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}" | 42
+;
+
+denseVectorKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: dense_vector_command
+required_capability: dense_vector_field_type_released
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| DENSE_VECTOR message WITH { "inference_id" : "test_dense_inference" }
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | message_dense_vector:dense_vector
+2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}" | [49.0, 54.0, 54.0]
+;
+
+rerankKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: rerank
+required_capability: match_operator_colon
+required_capability: routing_function_update
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data METADATA _score
+| WHERE message:"Connection error?"
+| RERANK "connection" ON message WITH { "inference_id" : "test_reranker" }
+| EVAL _score = ROUND(_score, 2)
+| SORT _score DESC, @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | _score:double
+2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d"",""language_code"":""1""}" | 0.06
+2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c"",""language_code"":""3""}" | 0.06
+;
+
+// Three documents have the message "Connection error?". Which one scores highest depends on how they are spread over the shards of the
+// index, so the first branch is limited to the one the result shows: it is not left to the scores to tie.
+fuseDropsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: fork_v9
+required_capability: fuse_v6
+required_capability: match_operator_colon
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data METADATA _id, _index, _score
+| FORK ( WHERE message:"Connection error?" AND @timestamp == "2024-10-23T13:51:54.732Z" | SORT _score DESC, @timestamp | LIMIT 10)
+       ( WHERE message:"Connected to 10.1.0.3!" | SORT _score DESC, @timestamp | LIMIT 10)
+| FUSE
+| EVAL _score = ROUND(_score, 4)
+| DROP _id, _index
+| SORT _score DESC, @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _fork:keyword | _score:double
+2024-10-23T12:15:03.360Z | 173.21.2.162 | 3450232 | Connected to 10.1.0.3! | fork2 | 0.0164
+2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | fork1 | 0.0164
+;
+
+highlightKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: highlight_v6
+required_capability: match_operator_colon
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message:"Connection error?"
+| HIGHLIGHT ON message
+| SORT @timestamp
+| LIMIT 2
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source | highlight_message:keyword
+2024-10-23T13:51:54.732Z | 173.21.3.15 | 725447 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""725449"",""unmapped.nested"":""d"",""language_code"":""1""}" | <em>Connection</em> <em>error</em>?
+2024-10-23T13:52:55.015Z | 173.21.3.15 | 8268152 | Connection error? | "{""unmapped_message"":""Disconnection error"",""unmapped_event_duration"":""8268154"",""unmapped.nested"":""c"",""language_code"":""3""}" | <em>Connection</em> <em>error</em>?
+;
+
+mmrKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_completion_rerank_fuse_highlight_mmr
+required_capability: mmr_v2
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM mmr_text_vector_keyword
+| SORT keyword_field
+| LIMIT 10
+| MMR ON text_vector LIMIT 3
+| DROP text_vector, byte_vector, bit_vector
+;
+
+keyword_field:keyword | text_body:text | _unmapped_fields:_source
+test1 | first text | null
+test3 | third text | null
+test6 | sixth text | null
+;
+
+// A column that one subquery branch computes is loaded from _source in the branches that lack it (#164545), where LOAD null-fills.
+loadAllSubqueryEvalInOneBranchLoadsSourceValueInSiblings
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data, (FROM no_mapping_sample_data | EVAL message = "sub" | LIMIT 1)
+| KEEP message
+| STATS from_source = COUNT(*) WHERE message != "sub", computed = COUNT(*) WHERE message == "sub", null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+7                | 1             | 0
+;
+
+// Without an outer reference the column is still a column of the merge, so it is not left in the sibling's _unmapped_fields.
+loadAllSubqueryEvalInOneBranchNoKeepLoadsSourceValueInSiblings
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | WHERE unmapped_message == "43"), (FROM no_mapping_sample_data | WHERE unmapped_message == "Disconnected from 10.1.0.1" | EVAL message = "sub")
+| SORT unmapped_message
+;
+
+unmapped_message:keyword | message:keyword | _unmapped_fields:_source
+43 | 42 | "{""@timestamp"":""2024-10-23T13:33:34.937Z"",""client_ip"":""173.21.0.5"",""event_duration"":1232381,""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
+Disconnected from 10.1.0.1 | sub | "{""@timestamp"":""2024-10-23T13:55:01.543Z"",""client_ip"":""173.21.3.15"",""event_duration"":1756466,""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""language_code"":""1""}"
+;
+
+// Where a branch genuinely drops the column it stays null-filled there, even though it is read from _source.
+loadAllSubqueryEvalInOneBranchDroppedInSiblingStaysNull
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | DROP message), (FROM no_mapping_sample_data | EVAL message = "sub" | LIMIT 1)
+| KEEP message
+| STATS from_source = COUNT(*) WHERE message != "sub", computed = COUNT(*) WHERE message == "sub", null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+0                | 1             | 7
+;
+
+// #162512: a union nested in a subquery next to an outer FROM source keeps the row, and the unmapped fields, of every branch.
+loadAllNestedUnionNextToOuterSourceLoadsFromEveryBranch
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data, (FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data) | WHERE message == "42")
+| WHERE message == "42"
+| KEEP message, unmapped_message*
+;
+
+message:keyword | _unmapped_fields:_source
+42              | "{""unmapped_message"":""43""}"
+42              | "{""unmapped_message"":""43""}"
+42              | "{""unmapped_message"":""43""}"
+;
+
+
+// The branch that lacks the column loads it whichever side of the computing branch it is on.
+loadAllSubquerySiblingColumnWhateverTheBranchOrder
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | EVAL message = "sub" | LIMIT 1), no_mapping_sample_data
+| STATS from_source = COUNT(*) WHERE message != "sub", computed = COUNT(*) WHERE message == "sub", null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+7                | 1             | 0
+;
+
+// A column that a sibling makes with RENAME is loaded in the branch that lacks it.
+loadAllSubquerySiblingColumnFromRename
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data, (FROM no_mapping_sample_data | EVAL m = "sub" | RENAME m AS message | LIMIT 1)
+| STATS from_source = COUNT(*) WHERE message != "sub", computed = COUNT(*) WHERE message == "sub", null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+7                | 1             | 0
+;
+
+// The column comes from a union nested two levels down: the outer source and the middle source both load it.
+loadAllSubquerySiblingColumnThroughNestedUnions
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: nested_subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data, (FROM no_mapping_sample_data, (FROM no_mapping_sample_data | EVAL message = "sub" | LIMIT 1))
+| STATS from_source = COUNT(*) WHERE message != "sub", computed = COUNT(*) WHERE message == "sub", null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+14               | 1             | 0
+;
+
+// Two siblings compute the column with the same type, and the third loads it.
+loadAllSubquerySiblingColumnComputedByTwoSiblings
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | EVAL message = "a" | LIMIT 1), (FROM no_mapping_sample_data | EVAL message = "b" | LIMIT 1), no_mapping_sample_data
+| STATS from_source = COUNT(*) WHERE message NOT IN ("a", "b"), computed = COUNT(*) WHERE message IN ("a", "b"), null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+7                | 2             | 0
+;
+
+// The sibling computes a long, so the branch that lacks the column reads the keyword from _source and casts it to long.
+loadAllSubquerySiblingColumnIsCastToTheSiblingType
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data, (FROM no_mapping_sample_data | EVAL event_duration = 5 | LIMIT 1)
+| STATS non_null = COUNT(*) WHERE event_duration IS NOT NULL, over_a_million = COUNT(*) WHERE event_duration > 1000000
+;
+
+non_null:long | over_a_million:long
+8              | 6
+;
+
+// The branch that lacks the column has a LOOKUP JOIN, which is not a unary plan nor a merge.
+loadAllSubquerySiblingColumnInBranchWithLookupJoin
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | LOOKUP JOIN keyword_languages_lookup ON language_code), (FROM no_mapping_sample_data | EVAL message = "sub" | LIMIT 1)
+| STATS from_source = COUNT(*) WHERE message != "sub", computed = COUNT(*) WHERE message == "sub", null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+7                | 1             | 0
+;
+
+// The branch that lacks the column has an INLINE STATS, which is not a unary plan nor a merge either.
+loadAllSubquerySiblingColumnInBranchWithInlineStats
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM no_mapping_sample_data | INLINE STATS c = COUNT(*) BY client_ip), (FROM no_mapping_sample_data | EVAL message = "sub" | LIMIT 1)
+| STATS from_source = COUNT(*) WHERE message != "sub", computed = COUNT(*) WHERE message == "sub", null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+7                | 1             | 0
+;
+
+// The sibling that has the column is a branch with a FORK in it.
+loadAllSubquerySiblingColumnFromBranchWithFork
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_fork
+required_capability: subquery_in_from_command
+required_capability: fork_v9
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data, (FROM no_mapping_sample_data | FORK (EVAL message = "sub" | LIMIT 1) (EVAL message = "sub2" | LIMIT 1))
+| STATS from_source = COUNT(*) WHERE message NOT IN ("sub", "sub2"), computed = COUNT(*) WHERE message IN ("sub", "sub2"), null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+7                | 2             | 0
+;
+
+// Under FORK too, a branch that lacks a column that another branch computes reads it from _source.
+loadAllForkBranchLoadsColumnThatAnotherBranchComputes
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data
+| FORK (EVAL message = "sub" | LIMIT 1) (WHERE true)
+| STATS from_source = COUNT(*) WHERE message != "sub", computed = COUNT(*) WHERE message == "sub", null_rows = COUNT(*) WHERE message IS NULL
+;
+
+from_source:long | computed:long | null_rows:long
+7                | 1             | 0
+;
+
+// The column the FORK branch loads is not left in the _unmapped_fields object of its row.
+loadAllForkRowOfBranchThatLacksColumnHasItAsAColumn
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM no_mapping_sample_data
+| WHERE unmapped_message == "43"
+| FORK (EVAL message = "sub") (WHERE true)
+| WHERE _fork == "fork2"
+| DROP @timestamp, client_ip, event_duration
+;
+
+unmapped_message:keyword | message:keyword | _fork:keyword | _unmapped_fields:_source
+43                       | 42              | fork2         | "{""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
+;
+
+// A column that a sibling branch gets from a lookup join, or computes, is not one the query reads when nothing downstream names it, so
+// the branch that lacks it is not asked to load it: the field caps requests do not ask for it, and the index of that branch may map it.
+loadAllSiblingColumnNobodyReadsIsNotLoadedLookupJoin
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+required_capability: join_lookup_v12
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data,
+     (FROM partial_mapping_sample_data | LOOKUP JOIN sample__data_ts_nanos_lookup ON message | LIMIT 1)
+| STATS c = COUNT(*)
+;
+
+c:long
+8
+;
+
+loadAllSiblingColumnNobodyReadsIsNotLoadedComputed
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | EVAL event_duration = "a" | LIMIT 1), no_mapping_sample_data
+| STATS c = COUNT(*)
+;
+
+c:long
+15
+;
+
+loadAllSiblingColumnNobodyReadsIsNotLoadedFork
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+required_capability: optional_fields_load_all_sibling_column_from_source
+required_capability: join_lookup_v12
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| FORK (LOOKUP JOIN sample__data_ts_nanos_lookup ON message | LIMIT 1) (WHERE true)
+| STATS c = COUNT(*)
+;
+
+c:long
+8
+;
+
+// The same branches as above, but now the query names the column, so the field caps requests ask for it. The mapped long of one branch
+// and the computed keyword of another conflict, and the branch that lacks it neither loads nor casts it.
+loadAllSiblingColumnTheQueryNamesConflictsAndStaysUnsupported
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_sibling_column_from_source
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | EVAL event_duration = "a" | LIMIT 1), no_mapping_sample_data
+| KEEP event_duration
+| LIMIT 1
+;
+
+event_duration:unsupported
+null
+;

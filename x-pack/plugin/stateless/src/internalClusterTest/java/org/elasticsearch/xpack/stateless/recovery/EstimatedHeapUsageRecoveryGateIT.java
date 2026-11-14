@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -88,6 +89,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
             greaterThan(0L)
         );
         assertThat(getLastLongAsyncGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC, telemetry), equalTo(1L));
+        assertCurrentGateHasPendingRecoveries(telemetry, true);
         assertThat(telemetry.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC), empty());
         final List<Measurement> blockCount = telemetry.getLongCounterMeasurement(
             RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_TOTAL_METRIC
@@ -127,6 +129,7 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
             getLastLongAsyncGaugeValue(RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC, telemetry),
             equalTo(0L)
         );
+        assertCurrentGateHasPendingRecoveries(telemetry, false);
         assertThat(
             getLastDoubleGaugeValue(EstimatedHeapUsageRecoveryGate.ESTIMATED_HEAP_USAGE_DELTA_PERCENTAGE_METRIC, telemetry),
             greaterThan(0.0)
@@ -306,5 +309,18 @@ public class EstimatedHeapUsageRecoveryGateIT extends AbstractStatelessPluginInt
 
     private static double getLastDoubleGaugeValue(String name, TestTelemetryPlugin telemetryPlugin) {
         return telemetryPlugin.getDoubleGaugeMeasurement(name).getLast().getDouble();
+    }
+
+    private static void assertCurrentGateHasPendingRecoveries(TestTelemetryPlugin telemetry, boolean expected) {
+        for (String metric : List.of(
+            RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC,
+            RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC
+        )) {
+            assertThat(
+                metric,
+                telemetry.getLongAsyncGaugeMeasurement(metric).getLast().attributes(),
+                equalTo(Map.of(RecoveryMetricsCollector.RECOVERY_GATE_HAS_PENDING_RECOVERIES_ATTRIBUTE_KEY, expected))
+            );
+        }
     }
 }

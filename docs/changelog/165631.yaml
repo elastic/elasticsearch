@@ -1,0 +1,5 @@
+area: Logs
+issues: []
+pr: 165631
+summary: Make flattened companions follow FLS of parent
+type: bug

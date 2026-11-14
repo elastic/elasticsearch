@@ -83,8 +83,8 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         signatures = {
             @Signature(params = { "STRING" }, returnType = "date"),
             @Signature(params = { "STRING", "STRING" }, returnType = "date"),
-            @Signature(params = { "STRING", "object" }, returnType = "date"),
-            @Signature(params = { "STRING", "STRING", "object" }, returnType = "date") },
+            @Signature(params = { "STRING", "named_parameters" }, returnType = "date"),
+            @Signature(params = { "STRING", "STRING", "named_parameters" }, returnType = "date") },
         briefSummary = "Parses a string into a date using the specified format.",
         description = "Returns a date by parsing the second argument using the format specified in the first argument.",
         examples = @Example(file = "docs", tag = "dateParse")

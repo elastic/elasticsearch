@@ -1,0 +1,1970 @@
+{
+  "$schema" : "http://json-schema.org/draft-07/schema#",
+  "$id" : "https://www.elastic.co/schema/elasticsearch/esql-profile-response.json",
+  "title" : "ES|QL profile response",
+  "$ref" : "#/definitions/EsqlProfile",
+  "definitions" : {
+    "EsqlProfile" : {
+      "type" : "object",
+      "properties" : {
+        "query" : {
+          "anyOf" : [
+            {
+              "$ref" : "#/definitions/TimeSpan"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "planning" : {
+          "anyOf" : [
+            {
+              "$ref" : "#/definitions/TimeSpan"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "parsing" : {
+          "anyOf" : [
+            {
+              "$ref" : "#/definitions/TimeSpan"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "view_resolution" : {
+          "anyOf" : [
+            {
+              "$ref" : "#/definitions/TimeSpan"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "dataset_resolution" : {
+          "anyOf" : [
+            {
+              "$ref" : "#/definitions/TimeSpan"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "preanalysis" : {
+          "anyOf" : [
+            {
+              "$ref" : "#/definitions/TimeSpan"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "indices_resolution" : {
+          "anyOf" : [
+            {
+              "$ref" : "#/definitions/TimeSpan"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "enrich_resolution" : {
+          "anyOf" : [
+            {
+              "$ref" : "#/definitions/TimeSpan"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "inference_resolution" : {
+          "anyOf" : [
+            {
+              "$ref" : "#/definitions/TimeSpan"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "analysis" : {
+          "anyOf" : [
+            {
+              "$ref" : "#/definitions/TimeSpan"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "planning_cpu_nanos" : {
+          "type" : "integer"
+        },
+        "field_caps_calls" : {
+          "type" : "integer"
+        },
+        "files_scanned" : {
+          "type" : "integer"
+        },
+        "splits_scanned" : {
+          "type" : "integer"
+        },
+        "bytes_scanned" : {
+          "type" : "integer"
+        },
+        "unmapped_fields" : {
+          "enum" : [
+            "default",
+            "nullify",
+            "load",
+            "load_all"
+          ]
+        },
+        "external_warm_aggregates" : {
+          "type" : "integer"
+        },
+        "split_discovery_nanos" : {
+          "type" : "integer"
+        },
+        "split_discovery_cpu_nanos" : {
+          "type" : "integer"
+        },
+        "planning_bytes_read" : {
+          "type" : "integer"
+        },
+        "planning_requests" : {
+          "type" : "integer"
+        },
+        "external_resolution_bytes_read" : {
+          "type" : "integer"
+        },
+        "external_resolution_requests" : {
+          "type" : "integer"
+        },
+        "split_discovery_probes" : {
+          "type" : "integer"
+        },
+        "drivers" : {
+          "type" : "array",
+          "items" : {
+            "$ref" : "#/definitions/DriverProfile"
+          }
+        },
+        "plans" : {
+          "type" : "array",
+          "items" : {
+            "$ref" : "#/definitions/PlanProfile"
+          }
+        },
+        "minimumTransportVersion" : {
+          "anyOf" : [
+            {
+              "type" : "integer"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        }
+      },
+      "required" : [
+        "query",
+        "planning",
+        "parsing",
+        "view_resolution",
+        "dataset_resolution",
+        "preanalysis",
+        "indices_resolution",
+        "enrich_resolution",
+        "inference_resolution",
+        "analysis",
+        "planning_cpu_nanos",
+        "field_caps_calls",
+        "unmapped_fields",
+        "drivers",
+        "plans",
+        "minimumTransportVersion"
+      ],
+      "additionalProperties" : false
+    },
+    "TimeSpan" : {
+      "type" : "object",
+      "properties" : {
+        "start_millis" : {
+          "type" : "integer"
+        },
+        "start" : {
+          "type" : "string"
+        },
+        "stop_millis" : {
+          "type" : "integer"
+        },
+        "stop" : {
+          "type" : "string"
+        },
+        "took_time" : {
+          "type" : "string"
+        },
+        "took_millis" : {
+          "type" : "integer"
+        },
+        "took_nanos" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "start_millis",
+        "stop_millis",
+        "took_millis",
+        "took_nanos"
+      ],
+      "additionalProperties" : false
+    },
+    "DriverSleeps" : {
+      "type" : "object",
+      "properties" : {
+        "counts" : {
+          "type" : "object",
+          "additionalProperties" : {
+            "type" : "integer"
+          }
+        },
+        "first" : {
+          "type" : "array",
+          "items" : {
+            "$ref" : "#/definitions/DriverSleep"
+          }
+        },
+        "last" : {
+          "type" : "array",
+          "items" : {
+            "$ref" : "#/definitions/DriverSleep"
+          }
+        }
+      },
+      "required" : [
+        "counts",
+        "first",
+        "last"
+      ],
+      "additionalProperties" : false
+    },
+    "DriverSleep" : {
+      "type" : "object",
+      "properties" : {
+        "reason" : {
+          "type" : "string"
+        },
+        "thread_name" : {
+          "type" : "string"
+        },
+        "sleep" : {
+          "type" : "string"
+        },
+        "sleep_millis" : {
+          "type" : "integer"
+        },
+        "wake" : {
+          "type" : "string"
+        },
+        "wake_millis" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "reason",
+        "thread_name",
+        "sleep_millis"
+      ],
+      "additionalProperties" : false
+    },
+    "PlanProfile" : {
+      "type" : "object",
+      "properties" : {
+        "description" : {
+          "type" : "string"
+        },
+        "cluster_name" : {
+          "type" : "string"
+        },
+        "node_name" : {
+          "type" : "string"
+        },
+        "plan" : {
+          "type" : "string"
+        },
+        "logical_plan" : {
+          "type" : "string"
+        },
+        "logical_optimization_nanos" : {
+          "type" : "integer"
+        },
+        "physical_optimization_nanos" : {
+          "type" : "integer"
+        },
+        "reduction_nanos" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "description",
+        "cluster_name",
+        "node_name",
+        "plan"
+      ],
+      "additionalProperties" : false
+    },
+    "DriverProfile" : {
+      "type" : "object",
+      "properties" : {
+        "description" : {
+          "type" : "string"
+        },
+        "cluster_name" : {
+          "type" : "string"
+        },
+        "node_name" : {
+          "type" : "string"
+        },
+        "start" : {
+          "type" : "string"
+        },
+        "start_millis" : {
+          "type" : "integer"
+        },
+        "stop" : {
+          "type" : "string"
+        },
+        "stop_millis" : {
+          "type" : "integer"
+        },
+        "took_nanos" : {
+          "type" : "integer"
+        },
+        "took_time" : {
+          "type" : "string"
+        },
+        "cpu_nanos" : {
+          "type" : "integer"
+        },
+        "cpu_time" : {
+          "type" : "string"
+        },
+        "driver_nanos" : {
+          "type" : "integer"
+        },
+        "driver_time" : {
+          "type" : "string"
+        },
+        "documents_found" : {
+          "type" : "integer"
+        },
+        "values_loaded" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "bytes_read" : {
+          "type" : "integer"
+        },
+        "read_nanos" : {
+          "type" : "integer"
+        },
+        "read_cpu_nanos" : {
+          "type" : "integer"
+        },
+        "iterations" : {
+          "type" : "integer"
+        },
+        "operators" : {
+          "type" : "array",
+          "items" : {
+            "$ref" : "#/definitions/OperatorStatus"
+          }
+        },
+        "sleeps" : {
+          "$ref" : "#/definitions/DriverSleeps"
+        }
+      },
+      "required" : [
+        "description",
+        "cluster_name",
+        "node_name",
+        "start_millis",
+        "stop_millis",
+        "took_nanos",
+        "cpu_nanos",
+        "driver_nanos",
+        "documents_found",
+        "values_loaded",
+        "rows_emitted",
+        "bytes_read",
+        "read_nanos",
+        "read_cpu_nanos",
+        "iterations",
+        "operators",
+        "sleeps"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_MMR" : {
+      "type" : "object",
+      "properties" : {
+        "emit_nanos" : {
+          "type" : "integer"
+        },
+        "emit_time" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_processed" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "emit_nanos",
+        "pages_received",
+        "pages_processed",
+        "rows_received",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_agg" : {
+      "type" : "object",
+      "properties" : {
+        "aggregation_nanos" : {
+          "type" : "integer"
+        },
+        "aggregation_time" : {
+          "type" : "string"
+        },
+        "aggregation_finish_nanos" : {
+          "anyOf" : [
+            {
+              "type" : "integer"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "aggregation_finish_time" : {
+          "anyOf" : [
+            {
+              "type" : "string"
+            },
+            {
+              "type" : "null"
+            }
+          ]
+        },
+        "pages_processed" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "aggregation_nanos",
+        "aggregation_finish_nanos",
+        "pages_processed",
+        "rows_received",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_async_external_source" : {
+      "type" : "object",
+      "properties" : {
+        "pages_waiting" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "bytes_decoded" : {
+          "type" : "integer"
+        },
+        "bytes_buffered" : {
+          "type" : "integer"
+        },
+        "process_nanos" : {
+          "type" : "integer"
+        },
+        "splits_processed" : {
+          "type" : "integer"
+        },
+        "splits_total" : {
+          "type" : "integer"
+        },
+        "current_split" : {
+          "type" : "integer"
+        },
+        "bytes_read" : {
+          "type" : "integer"
+        },
+        "request_count" : {
+          "type" : "integer"
+        },
+        "retry_count" : {
+          "type" : "integer"
+        },
+        "read_nanos" : {
+          "type" : "integer"
+        },
+        "read_cpu_nanos" : {
+          "type" : "integer"
+        },
+        "stripes_committed" : {
+          "type" : "integer"
+        },
+        "partial" : {
+          "type" : "boolean"
+        },
+        "format_reader" : {
+          "$ref" : "#/definitions/FormatReaderStatus"
+        },
+        "failure" : {
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "pages_waiting",
+        "pages_emitted",
+        "rows_emitted",
+        "bytes_decoded",
+        "bytes_buffered",
+        "process_nanos",
+        "splits_processed",
+        "splits_total",
+        "current_split",
+        "bytes_read",
+        "request_count",
+        "retry_count",
+        "read_nanos",
+        "read_cpu_nanos",
+        "stripes_committed",
+        "partial",
+        "format_reader"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_async_operator" : {
+      "type" : "object",
+      "properties" : {
+        "process_nanos" : {
+          "type" : "integer"
+        },
+        "process_time" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_completed" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "process_nanos",
+        "pages_received",
+        "pages_completed"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_enrich" : {
+      "type" : "object",
+      "properties" : {
+        "process_nanos" : {
+          "type" : "integer"
+        },
+        "process_time" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_completed" : {
+          "type" : "integer"
+        },
+        "total_terms" : {
+          "type" : "integer"
+        },
+        "bytes_read" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "process_nanos",
+        "pages_received",
+        "pages_completed",
+        "total_terms",
+        "bytes_read"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_enrich_query_source" : {
+      "type" : "object",
+      "properties" : {
+        "bytes_read" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "bytes_read"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_exchange_sink" : {
+      "type" : "object",
+      "properties" : {
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "pages_received",
+        "rows_received"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_exchange_source" : {
+      "type" : "object",
+      "properties" : {
+        "pages_waiting" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "pages_waiting",
+        "pages_emitted",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_external_field_extract" : {
+      "type" : "object",
+      "properties" : {
+        "process_nanos" : {
+          "type" : "integer"
+        },
+        "process_time" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_completed" : {
+          "type" : "integer"
+        },
+        "pages_processed" : {
+          "type" : "integer"
+        },
+        "rows_extracted" : {
+          "type" : "integer"
+        },
+        "extract_nanos" : {
+          "type" : "integer"
+        },
+        "extract_cpu_nanos" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "process_nanos",
+        "pages_received",
+        "pages_completed",
+        "pages_processed",
+        "rows_extracted",
+        "extract_nanos",
+        "extract_cpu_nanos"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_fetch_docs_source" : {
+      "type" : "object",
+      "properties" : {
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "docs_emitted" : {
+          "type" : "integer"
+        },
+        "segment_runs" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "pages_emitted",
+        "docs_emitted",
+        "segment_runs"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_grouped_limit" : {
+      "type" : "object",
+      "properties" : {
+        "limit_per_group" : {
+          "type" : "integer"
+        },
+        "group_count" : {
+          "type" : "integer"
+        },
+        "pages_processed" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "ram_bytes_used" : {
+          "type" : "integer"
+        },
+        "ram_used" : {
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "limit_per_group",
+        "group_count",
+        "pages_processed",
+        "rows_received",
+        "rows_emitted",
+        "ram_bytes_used",
+        "ram_used"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_groupedtopn" : {
+      "type" : "object",
+      "properties" : {
+        "receive_nanos" : {
+          "type" : "integer"
+        },
+        "receive_time" : {
+          "type" : "string"
+        },
+        "emit_nanos" : {
+          "type" : "integer"
+        },
+        "emit_time" : {
+          "type" : "string"
+        },
+        "occupied_rows" : {
+          "type" : "integer"
+        },
+        "group_count" : {
+          "type" : "integer"
+        },
+        "ram_bytes_used" : {
+          "type" : "integer"
+        },
+        "ram_used" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "receive_nanos",
+        "emit_nanos",
+        "occupied_rows",
+        "group_count",
+        "ram_bytes_used",
+        "ram_used",
+        "pages_received",
+        "pages_emitted",
+        "rows_received",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_hashagg" : {
+      "type" : "object",
+      "properties" : {
+        "hash_nanos" : {
+          "type" : "integer"
+        },
+        "hash_time" : {
+          "type" : "string"
+        },
+        "aggregation_nanos" : {
+          "type" : "integer"
+        },
+        "aggregation_time" : {
+          "type" : "string"
+        },
+        "pages_processed" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "emit_count" : {
+          "type" : "integer"
+        },
+        "emit_nanos" : {
+          "type" : "integer"
+        },
+        "emit_time" : {
+          "type" : "string"
+        },
+        "partitioning" : {
+          "type" : "object",
+          "properties" : {
+            "add_input_nanos" : {
+              "type" : "integer"
+            },
+            "add_input_time" : {
+              "type" : "string"
+            },
+            "add_input_inline_count" : {
+              "type" : "integer"
+            },
+            "add_input_inline_rows" : {
+              "type" : "integer"
+            },
+            "add_input_inline_nanos" : {
+              "type" : "integer"
+            },
+            "add_input_inline_time" : {
+              "type" : "string"
+            },
+            "partitioned_blocks_received" : {
+              "type" : "integer"
+            },
+            "finish_nanos" : {
+              "type" : "integer"
+            },
+            "finish_time" : {
+              "type" : "string"
+            },
+            "split_count" : {
+              "type" : "integer"
+            },
+            "split_nanos" : {
+              "type" : "integer"
+            },
+            "split_time" : {
+              "type" : "string"
+            },
+            "inline_emit_count" : {
+              "type" : "integer"
+            },
+            "inline_emit_rows" : {
+              "type" : "integer"
+            },
+            "inline_emit_nanos" : {
+              "type" : "integer"
+            },
+            "inline_emit_time" : {
+              "type" : "string"
+            },
+            "worker_tasks" : {
+              "type" : "integer"
+            }
+          },
+          "required" : [
+            "add_input_nanos",
+            "add_input_inline_count",
+            "add_input_inline_rows",
+            "add_input_inline_nanos",
+            "partitioned_blocks_received",
+            "finish_nanos",
+            "split_count",
+            "split_nanos",
+            "inline_emit_count",
+            "inline_emit_rows",
+            "inline_emit_nanos",
+            "worker_tasks"
+          ],
+          "additionalProperties" : false
+        }
+      },
+      "required" : [
+        "hash_nanos",
+        "aggregation_nanos",
+        "pages_processed",
+        "rows_received",
+        "rows_emitted",
+        "emit_nanos"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_limit" : {
+      "type" : "object",
+      "properties" : {
+        "limit" : {
+          "type" : "integer"
+        },
+        "limit_remaining" : {
+          "type" : "integer"
+        },
+        "pages_processed" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "limit",
+        "limit_remaining",
+        "pages_processed",
+        "rows_received",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_linearScoreEval" : {
+      "type" : "object",
+      "properties" : {
+        "emit_nanos" : {
+          "type" : "integer"
+        },
+        "emit_time" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_processed" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "emit_nanos",
+        "pages_received",
+        "pages_processed",
+        "rows_received",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_lookup" : {
+      "type" : "object",
+      "properties" : {
+        "process_nanos" : {
+          "type" : "integer"
+        },
+        "process_time" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_completed" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "total_rows" : {
+          "type" : "integer"
+        },
+        "bytes_read" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "process_nanos",
+        "pages_received",
+        "pages_completed",
+        "pages_emitted",
+        "rows_emitted",
+        "total_rows",
+        "bytes_read"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_lookup_query" : {
+      "type" : "object",
+      "properties" : {
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "bytes_read" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "pages_received",
+        "pages_emitted",
+        "rows_received",
+        "rows_emitted",
+        "bytes_read"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_lucene_source" : {
+      "type" : "object",
+      "properties" : {
+        "processed_slices" : {
+          "type" : "integer"
+        },
+        "processed_queries" : {
+          "type" : "array",
+          "items" : {
+            "type" : "string"
+          }
+        },
+        "processed_shards" : {
+          "type" : "array",
+          "items" : {
+            "type" : "string"
+          }
+        },
+        "process_nanos" : {
+          "type" : "integer"
+        },
+        "process_time" : {
+          "type" : "string"
+        },
+        "slice_index" : {
+          "type" : "integer"
+        },
+        "total_slices" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "slice_min" : {
+          "type" : "integer"
+        },
+        "slice_max" : {
+          "type" : "integer"
+        },
+        "current" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "bytes_read" : {
+          "type" : "integer"
+        },
+        "partitioning_strategies" : {
+          "type" : "object",
+          "additionalProperties" : {
+            "type" : "string"
+          }
+        },
+        "min_competitive" : {
+          "type" : "object",
+          "properties" : {
+            "changed_value" : {
+              "type" : "integer"
+            },
+            "match_all" : {
+              "type" : "integer"
+            },
+            "match_none" : {
+              "type" : "integer"
+            },
+            "greater_than_min_competitive" : {
+              "type" : "integer"
+            },
+            "update_invocations" : {
+              "type" : "integer"
+            },
+            "update_nanos" : {
+              "type" : "integer"
+            },
+            "update_time" : {
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "changed_value",
+            "match_all",
+            "match_none",
+            "greater_than_min_competitive",
+            "update_invocations",
+            "update_nanos"
+          ],
+          "additionalProperties" : false
+        }
+      },
+      "required" : [
+        "processed_slices",
+        "processed_queries",
+        "processed_shards",
+        "process_nanos",
+        "slice_index",
+        "total_slices",
+        "pages_emitted",
+        "slice_min",
+        "slice_max",
+        "current",
+        "rows_emitted",
+        "bytes_read",
+        "partitioning_strategies"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_metrics_info" : {
+      "type" : "object",
+      "properties" : {
+        "mode" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "metrics_accumulated" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "mode",
+        "pages_received",
+        "rows_received",
+        "rows_emitted",
+        "metrics_accumulated"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_mv_expand" : {
+      "type" : "object",
+      "properties" : {
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "noops" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "pages_received",
+        "pages_emitted",
+        "noops",
+        "rows_received",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_page_mapping" : {
+      "type" : "object",
+      "properties" : {
+        "process_nanos" : {
+          "type" : "integer"
+        },
+        "process_time" : {
+          "type" : "string"
+        },
+        "pages_processed" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "process_nanos",
+        "pages_processed",
+        "rows_received",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_page_mapping_to_iterator" : {
+      "type" : "object",
+      "properties" : {
+        "process_nanos" : {
+          "type" : "integer"
+        },
+        "process_time" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "process_nanos",
+        "pages_received",
+        "pages_emitted",
+        "rows_received",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_sample" : {
+      "type" : "object",
+      "properties" : {
+        "collect_nanos" : {
+          "type" : "integer"
+        },
+        "collect_time" : {
+          "type" : "string"
+        },
+        "emit_nanos" : {
+          "type" : "integer"
+        },
+        "emit_time" : {
+          "type" : "string"
+        },
+        "pages_processed" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "collect_nanos",
+        "emit_nanos",
+        "pages_processed",
+        "rows_received",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_streaming_lookup" : {
+      "type" : "object",
+      "properties" : {
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "planning_nanos" : {
+          "type" : "integer"
+        },
+        "process_nanos" : {
+          "type" : "integer"
+        },
+        "bytes_read" : {
+          "type" : "integer"
+        },
+        "lookup_plans" : {
+          "type" : "array",
+          "items" : {
+            "type" : "object",
+            "properties" : {
+              "workers" : {
+                "type" : "array",
+                "items" : {
+                  "type" : "string"
+                }
+              },
+              "plan" : {
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "workers",
+              "plan"
+            ],
+            "additionalProperties" : false
+          }
+        }
+      },
+      "required" : [
+        "pages_received",
+        "pages_emitted",
+        "rows_received",
+        "rows_emitted",
+        "planning_nanos",
+        "process_nanos",
+        "bytes_read"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_streaming_page" : {
+      "type" : "object",
+      "properties" : {
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "pages_emitted",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_topn" : {
+      "type" : "object",
+      "properties" : {
+        "receive_nanos" : {
+          "type" : "integer"
+        },
+        "receive_time" : {
+          "type" : "string"
+        },
+        "emit_nanos" : {
+          "type" : "integer"
+        },
+        "emit_time" : {
+          "type" : "string"
+        },
+        "occupied_rows" : {
+          "type" : "integer"
+        },
+        "ram_bytes_used" : {
+          "type" : "integer"
+        },
+        "ram_used" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "min_competitive_updates" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "receive_nanos",
+        "emit_nanos",
+        "occupied_rows",
+        "ram_bytes_used",
+        "ram_used",
+        "pages_received",
+        "pages_emitted",
+        "rows_received",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_ts_info" : {
+      "type" : "object",
+      "properties" : {
+        "mode" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "entries_accumulated" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "mode",
+        "pages_received",
+        "rows_received",
+        "rows_emitted",
+        "entries_accumulated"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus_values_source_reader" : {
+      "type" : "object",
+      "properties" : {
+        "readers_built" : {
+          "type" : "object",
+          "additionalProperties" : {
+            "type" : "integer"
+          }
+        },
+        "converters_used" : {
+          "type" : "object",
+          "additionalProperties" : {
+            "type" : "integer"
+          }
+        },
+        "values_loaded" : {
+          "type" : "integer"
+        },
+        "bytes_read" : {
+          "type" : "integer"
+        },
+        "bytes_decoded" : {
+          "type" : "integer"
+        },
+        "source_docs_loaded" : {
+          "type" : "integer"
+        },
+        "source_field_reads" : {
+          "type" : "integer"
+        },
+        "source_bytes_loaded" : {
+          "type" : "integer"
+        },
+        "process_nanos" : {
+          "type" : "integer"
+        },
+        "process_time" : {
+          "type" : "string"
+        },
+        "pages_received" : {
+          "type" : "integer"
+        },
+        "pages_emitted" : {
+          "type" : "integer"
+        },
+        "rows_received" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "readers_built",
+        "values_loaded",
+        "bytes_read",
+        "bytes_decoded",
+        "source_docs_loaded",
+        "source_field_reads",
+        "source_bytes_loaded",
+        "process_nanos",
+        "pages_received",
+        "pages_emitted",
+        "rows_received",
+        "rows_emitted"
+      ],
+      "additionalProperties" : false
+    },
+    "OperatorStatus" : {
+      "anyOf" : [
+        {
+          "type" : "object",
+          "properties" : {
+            "operator" : {
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "operator"
+          ],
+          "additionalProperties" : false
+        },
+        {
+          "type" : "object",
+          "properties" : {
+            "operator" : {
+              "type" : "string"
+            },
+            "status" : {
+              "anyOf" : [
+                {
+                  "$ref" : "#/definitions/OperatorStatus_MMR"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_agg"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_async_external_source"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_async_operator"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_enrich"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_enrich_query_source"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_exchange_sink"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_exchange_source"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_external_field_extract"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_fetch_docs_source"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_grouped_limit"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_groupedtopn"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_hashagg"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_limit"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_linearScoreEval"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_lookup"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_lookup_query"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_lucene_source"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_metrics_info"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_mv_expand"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_page_mapping"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_page_mapping_to_iterator"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_sample"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_streaming_lookup"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_streaming_page"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_topn"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_ts_info"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_values_source_reader"
+                }
+              ]
+            }
+          },
+          "required" : [
+            "operator",
+            "status"
+          ],
+          "additionalProperties" : false
+        }
+      ]
+    },
+    "FormatReaderStatus_csv" : {
+      "type" : "object",
+      "properties" : {
+        "format" : {
+          "enum" : [
+            "csv",
+            "tsv"
+          ]
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "parse_errors" : {
+          "type" : "integer"
+        },
+        "header_detected" : {
+          "type" : "boolean"
+        }
+      },
+      "required" : [
+        "format",
+        "rows_emitted",
+        "parse_errors",
+        "header_detected"
+      ],
+      "additionalProperties" : false
+    },
+    "FormatReaderStatus_ndjson" : {
+      "type" : "object",
+      "properties" : {
+        "format" : {
+          "const" : "ndjson"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "parse_errors" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "format",
+        "rows_emitted",
+        "parse_errors"
+      ],
+      "additionalProperties" : false
+    },
+    "FormatReaderStatus_orc" : {
+      "type" : "object",
+      "properties" : {
+        "format" : {
+          "const" : "orc"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "footer_read_nanos" : {
+          "type" : "integer"
+        },
+        "footer_size_bytes" : {
+          "type" : "integer"
+        },
+        "footer_cache_hits" : {
+          "type" : "integer"
+        },
+        "footer_cache_misses" : {
+          "type" : "integer"
+        },
+        "stripes_in_file" : {
+          "type" : "integer"
+        },
+        "stripes_total" : {
+          "type" : "integer"
+        },
+        "predicate_pushdown_used" : {
+          "type" : "boolean"
+        },
+        "predicate_columns" : {
+          "type" : "array",
+          "items" : {
+            "type" : "string"
+          }
+        },
+        "columns_projected" : {
+          "type" : "integer"
+        },
+        "columns_total" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "format",
+        "rows_emitted",
+        "footer_read_nanos",
+        "footer_size_bytes",
+        "footer_cache_hits",
+        "footer_cache_misses",
+        "stripes_in_file",
+        "stripes_total",
+        "predicate_pushdown_used",
+        "predicate_columns",
+        "columns_projected",
+        "columns_total"
+      ],
+      "additionalProperties" : false
+    },
+    "FormatReaderStatus_parquet" : {
+      "type" : "object",
+      "properties" : {
+        "format" : {
+          "const" : "parquet"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "predicate_pushdown_used" : {
+          "type" : "boolean"
+        },
+        "footer_read_nanos" : {
+          "type" : "integer"
+        },
+        "footer_size_bytes" : {
+          "type" : "integer"
+        },
+        "footer_cache_hits" : {
+          "type" : "integer"
+        },
+        "footer_cache_misses" : {
+          "type" : "integer"
+        },
+        "row_groups_in_file" : {
+          "type" : "integer"
+        },
+        "row_groups_total" : {
+          "type" : "integer"
+        },
+        "row_groups_kept" : {
+          "type" : "integer"
+        },
+        "row_groups_dictionary_filter_skipped" : {
+          "type" : "integer"
+        },
+        "page_index_used" : {
+          "type" : "boolean"
+        },
+        "rows_in_kept_row_groups" : {
+          "type" : "integer"
+        },
+        "rows_after_page_index" : {
+          "type" : "integer"
+        },
+        "late_materialization_enabled" : {
+          "type" : "boolean"
+        },
+        "late_materialization_used" : {
+          "type" : "boolean"
+        },
+        "predicate_columns" : {
+          "type" : "array",
+          "items" : {
+            "type" : "string"
+          }
+        },
+        "columns" : {
+          "type" : "object",
+          "additionalProperties" : {
+            "type" : "object",
+            "properties" : {
+              "materialization" : {
+                "enum" : [
+                  "eager",
+                  "late"
+                ]
+              }
+            },
+            "required" : [ ],
+            "additionalProperties" : false
+          }
+        }
+      },
+      "required" : [
+        "format",
+        "rows_emitted",
+        "predicate_pushdown_used",
+        "footer_read_nanos",
+        "footer_size_bytes",
+        "footer_cache_hits",
+        "footer_cache_misses",
+        "row_groups_in_file",
+        "row_groups_total",
+        "row_groups_kept",
+        "row_groups_dictionary_filter_skipped",
+        "page_index_used",
+        "rows_in_kept_row_groups",
+        "rows_after_page_index",
+        "late_materialization_enabled",
+        "late_materialization_used",
+        "predicate_columns"
+      ],
+      "additionalProperties" : false
+    },
+    "FormatReaderStatus" : {
+      "oneOf" : [
+        {
+          "type" : "object",
+          "properties" : { },
+          "required" : [ ],
+          "additionalProperties" : false
+        },
+        {
+          "$ref" : "#/definitions/FormatReaderStatus_csv"
+        },
+        {
+          "$ref" : "#/definitions/FormatReaderStatus_ndjson"
+        },
+        {
+          "$ref" : "#/definitions/FormatReaderStatus_orc"
+        },
+        {
+          "$ref" : "#/definitions/FormatReaderStatus_parquet"
+        }
+      ]
+    },
+    "OperatorExtraStatus_parallel_hashagg_extra_fields" : {
+      "type" : "object",
+      "properties" : {
+        "partitioning" : {
+          "type" : "object",
+          "properties" : {
+            "add_input_nanos" : {
+              "type" : "integer"
+            },
+            "add_input_time" : {
+              "type" : "string"
+            },
+            "add_input_inline_count" : {
+              "type" : "integer"
+            },
+            "add_input_inline_rows" : {
+              "type" : "integer"
+            },
+            "add_input_inline_nanos" : {
+              "type" : "integer"
+            },
+            "add_input_inline_time" : {
+              "type" : "string"
+            },
+            "partitioned_blocks_received" : {
+              "type" : "integer"
+            },
+            "finish_nanos" : {
+              "type" : "integer"
+            },
+            "finish_time" : {
+              "type" : "string"
+            },
+            "split_count" : {
+              "type" : "integer"
+            },
+            "split_nanos" : {
+              "type" : "integer"
+            },
+            "split_time" : {
+              "type" : "string"
+            },
+            "inline_emit_count" : {
+              "type" : "integer"
+            },
+            "inline_emit_rows" : {
+              "type" : "integer"
+            },
+            "inline_emit_nanos" : {
+              "type" : "integer"
+            },
+            "inline_emit_time" : {
+              "type" : "string"
+            },
+            "worker_tasks" : {
+              "type" : "integer"
+            }
+          },
+          "required" : [
+            "add_input_nanos",
+            "add_input_inline_count",
+            "add_input_inline_rows",
+            "add_input_inline_nanos",
+            "partitioned_blocks_received",
+            "finish_nanos",
+            "split_count",
+            "split_nanos",
+            "inline_emit_count",
+            "inline_emit_rows",
+            "inline_emit_nanos",
+            "worker_tasks"
+          ],
+          "additionalProperties" : false
+        }
+      },
+      "required" : [
+        "partitioning"
+      ],
+      "additionalProperties" : false
+    }
+  }
+}

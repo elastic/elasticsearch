@@ -25,6 +25,10 @@ restResources {
 
 dependencies {
   clusterModules project(':x-pack:plugin:esql')
+  // x-pack-esql extends x-pack-eql (-> x-pack-ql -> mapper-version); stage that chain so the test cluster can load esql.
+  clusterModules project(':x-pack:plugin:eql')
+  clusterModules project(':x-pack:plugin:ql')
+  clusterModules project(':x-pack:plugin:mapper-version')
   clusterModules project(':x-pack:plugin:autoscaling')
   clusterModules project(':x-pack:plugin:ilm')
 }

@@ -21,7 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -61,7 +61,7 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
         this.preferredNodeId = preferredNodeId;
         this.client = client;
         this.chunkSizeBytes = chunkSize.getBytes();
-        this.fillVBCCExecutor = threadPool.executor(StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL);
+        this.fillVBCCExecutor = threadPool.executor(StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL);
     }
 
     @Override
@@ -81,7 +81,7 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
 
     @Override
     public void getRangeInputStream(long position, int length, ActionListener<InputStream> listener) {
-        assert Objects.equals(EsExecutors.executorName(Thread.currentThread()), StatelessPlugin.SHARD_READ_THREAD_POOL) == false
+        assert Objects.equals(EsExecutors.executorName(Thread.currentThread()), StatelessThreadPools.SHARD_READ_THREAD_POOL) == false
             : Thread.currentThread().getName() + " is a shard read thread";
         getVirtualBatchedCompoundCommitChunk(bccTermAndGen, position, length, preferredNodeId, ActionListener.wrap(rbr -> {
             // The InboundHandler decrements the GetVirtualBatchedCompoundCommitChunkResponse (and thus the data). So we need to retain the
@@ -143,7 +143,7 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
 
     @Override
     public String executorName() {
-        return StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
+        return StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL;
     }
 
     @Override

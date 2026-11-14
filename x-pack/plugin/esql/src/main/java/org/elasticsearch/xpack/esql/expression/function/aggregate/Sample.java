@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -48,7 +49,12 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionVa
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeLimit;
 
-public class Sample extends UnaryAggregateFunction implements ToAggregator, PostOptimizationVerificationAware, AnyNullIsNull {
+public class Sample extends UnaryAggregateFunction
+    implements
+        ToAggregator,
+        PostOptimizationVerificationAware,
+        AnyNullIsNull,
+        UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sample", Sample::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Sample.class)
         .binary(Sample::new)

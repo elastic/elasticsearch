@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -359,6 +360,17 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Status::new
         );
 
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, Status::toXContent)
+            .required("process_nanos", ProfileSchema.integer())
+            .optional("process_time", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("pages_completed", ProfileSchema.integer())
+            .required("pages_emitted", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("total_rows", ProfileSchema.integer())
+            .required("bytes_read", ProfileSchema.integer())
+            .build();
+
         private static final TransportVersion ESQL_LOOKUP_OPERATOR_EMITTED_ROWS = TransportVersion.fromName(
             "esql_lookup_operator_emitted_rows"
         );
@@ -440,12 +452,16 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private static XContentBuilder toXContent(XContentBuilder builder, Status status, Params params) throws IOException {
             builder.startObject();
-            super.innerToXContent(builder);
-            builder.field("pages_emitted", emittedPages);
-            builder.field("rows_emitted", emittedRows);
-            builder.field("total_rows", totalRows);
-            builder.field("bytes_read", bytesRead);
+            status.innerToXContent(builder);
+            builder.field("pages_emitted", status.emittedPages);
+            builder.field("rows_emitted", status.emittedRows);
+            builder.field("total_rows", status.totalRows);
+            builder.field("bytes_read", status.bytesRead);
             return builder.endObject();
         }
 

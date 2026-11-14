@@ -46,6 +46,7 @@ import static org.elasticsearch.ingest.iplocation.GeoIpProcessor.IP_LOCATION_TYP
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -975,5 +976,31 @@ public class GeoIpProcessorTests extends ESTestCase {
         fields.put("country_name", String.class);
         when(info.getFields()).thenReturn(fields);
         return info;
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it.
+     */
+    public void testMalformedTargetFieldFailsAtExecutionTime() throws Exception {
+        GeoIpProcessor processor = new GeoIpProcessor(
+            GEOIP_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            createLookup("GeoLite2-City.mmdb"),
+            "a..b",
+            false,
+            false,
+            "filename"
+        );
+        assertThat(processor.getTargetField(), hasToString("a..b"));
+
+        // the source is fine, so it is the target that causes the failure
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "2602:306:33d3:8000::3257:9652");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 }

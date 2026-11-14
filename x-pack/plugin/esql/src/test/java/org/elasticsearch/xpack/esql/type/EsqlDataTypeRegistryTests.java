@@ -76,6 +76,7 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
                 IndexMode.STANDARD,
                 0,
                 0,
+                0,
                 0
             )
         );
@@ -100,6 +101,7 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
                 Map.of(field, new IndexFieldCapabilitiesBuilder(field, esTypeName).metricType(metricType).build()),
                 true,
                 IndexMode.TIME_SERIES,
+                0,
                 0,
                 0,
                 0

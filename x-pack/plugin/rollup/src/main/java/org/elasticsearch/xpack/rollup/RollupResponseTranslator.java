@@ -10,7 +10,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.DocValueFormat;
@@ -352,7 +351,7 @@ public class RollupResponseTranslator {
             sucessfulShards,
             skippedShards,
             took,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             rolledResponses.get(0).getClusters()
         );
     }

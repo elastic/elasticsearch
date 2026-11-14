@@ -58,16 +58,16 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
         return List.of(MockTransportService.TestPlugin.class);
     }
 
-    /// Regression test for the `failedShardsCache` eviction bug in [IndicesClusterStateService].
+    /// Regression test for the `pendingAllocationStates` eviction bug in [IndicesClusterStateService].
     ///
     /// Verifies that a shard is re-created with only one shardFailed round after the master
     /// re-allocates it with a bumped primary term but the same allocation id.
     ///
     /// The test creates a primary-only index, fails the started primary via [IndexShard#failShard],
     /// and simulates the data node missing the intermediate UNASSIGNED cluster state (transient
-    /// network partition). If `updateFailedShardsCache` fails to evict the stale cache entry, it
+    /// network partition). If `updatePendingAllocationTracker` fails to evict the stale entry, it
     /// will resend `localShardFailed` to the master, causing an unnecessary round of allocation.
-    public void testFailedShardCacheEvictedAfterPrimaryTermBump() throws Exception {
+    public void testFailureReportedEvictedAfterPrimaryTermBump() throws Exception {
         final var masterNodeName = internalCluster().startMasterOnlyNode();
         final var primaryNodeName = internalCluster().startDataOnlyNode();
 
@@ -80,8 +80,8 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
         // Intercept COMMIT_STATE on the data node. Drops every COMMIT whose last-accepted state has
         // the shard UNASSIGNED, until the first INITIALIZING is delivered, to simulate a transient
         // partition that causes the data node to miss the UNASSIGNED window and see the
-        // re-allocation directly. `failedShardsCache` still holds the stale entry when INITIALIZING
-        // arrives with the same allocation id.
+        // re-allocation directly. `pendingAllocationStates` still holds the stale entry when
+        // INITIALIZING arrives with the same allocation id.
         final var seenInitializing = new AtomicBoolean(false);
         final var dataTransport = setupCommitStateHandler(primaryNodeName, primary -> {
             if (primary.initializing()) {
@@ -108,9 +108,15 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
             // Wait for the first localShardFailed to reach the master.
             safeAwait(masterReceivedShardFailedRequest);
 
-            // Wait for ICSS to finish all processing.
+            // Wait for the stale FailureReported left behind by the first failure to be evicted
             final var icss = internalCluster().getInstance(IndicesClusterStateService.class, primaryNodeName);
-            assertBusy(() -> assertTrue(icss.failedShardsCache.isEmpty()));
+            assertBusy(
+                () -> assertTrue(
+                    icss.pendingAllocationStates.values()
+                        .stream()
+                        .noneMatch(s -> s instanceof IndicesClusterStateService.PendingAllocationState.FailureReported)
+                )
+            );
             ensureGreen(TimeValue.timeValueSeconds(30), INDEX_NAME);
 
             final var finalState = masterClusterService.state();

@@ -60,9 +60,10 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("copy_test");
 
         // Check json serialization
-        TextFieldMapper stringFieldMapper = (TextFieldMapper) fieldMapper;
+        assertThat(fieldMapper, Matchers.instanceOf(TextFieldMapper.class));
         XContentBuilder builder = jsonBuilder().startObject();
-        stringFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
+        fieldToXContent(mapperService, "copy_test", builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
         builder.close();
         Map<String, Object> serializedMap;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {

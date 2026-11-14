@@ -1,0 +1,6 @@
+area: SLM
+issues:
+ - 160463
+pr: 165261
+summary: Fixing slm history failure log level on shutdown
+type: bug

@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams;
 
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionType;
@@ -1767,8 +1768,8 @@ public class DataStreamIT extends ESIntegTestCase {
         DataStreamIT.putComposableIndexTemplate("my-template", List.of("my-*"));
 
         var request = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "my-index");
-        var e = expectThrows(IllegalStateException.class, client().execute(CreateDataStreamAction.INSTANCE, request));
-        assertThat(e.getMessage(), containsString("data stream [my-index] conflicts with index"));
+        var e = expectThrows(ResourceAlreadyExistsException.class, client().execute(CreateDataStreamAction.INSTANCE, request));
+        assertThat(e.getMessage(), containsString("data_stream [my-index] already exists as an index"));
     }
 
     public void testCreateDataStreamWithSameNameAsDataStreamAlias() throws Exception {

@@ -493,6 +493,36 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] already exists"));
     }
 
+    public void testCreateDataStreamWithSameNameAsIndex() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        var projectId = randomProjectIdOrDefault();
+        IndexMetadata existingIndex = IndexMetadata.builder(dataStreamName)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(existingIndex, false).build())
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(projectId, dataStreamName);
+
+        ResourceAlreadyExistsException e = expectThrows(
+            ResourceAlreadyExistsException.class,
+            () -> MetadataCreateDataStreamService.createDataStream(
+                metadataCreateIndexService,
+                Settings.EMPTY,
+                cs,
+                randomBoolean(),
+                req,
+                RerouteBehavior.PERFORM_REROUTE,
+                ActionListener.noop(),
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("data_stream [" + dataStreamName + "] already exists as an index"));
+    }
+
     public void testCreateDataStreamWithInvalidName() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "_My-da#ta- ,stream-";

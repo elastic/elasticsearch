@@ -940,6 +940,30 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    public void testLimitByRejectsIndirectCounter() {
+        tsdb().error(
+            "FROM test | RENAME network.bytes_in AS c | LIMIT 1 BY c",
+            equalTo("1:55: cannot group by on [counter_long] type for grouping [c]")
+        );
+        tsdb().error(
+            "FROM test | MV_EXPAND network.bytes_in | LIMIT 1 BY network.bytes_in",
+            equalTo("1:53: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+        tsdb().error(
+            "FROM test | FORK (WHERE true) (WHERE true) | LIMIT 1 BY network.bytes_in",
+            equalTo("1:57: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+        tsdb().error(
+            "FROM test | LIMIT 1 BY TO_COUNTER(network.connections)",
+            equalTo("1:24: cannot group by on [counter_long] type for grouping [TO_COUNTER(network.connections)]")
+        );
+    }
+
+    public void testLimitByConvertedCounter() {
+        tsdb().query("FROM test | LIMIT 1 BY TO_LONG(network.bytes_in)");
+        tsdb().query("FROM test | RENAME network.bytes_in AS c | LIMIT 1 BY c::long");
+    }
+
     public void testUnsupportedGroupKeyTypesNotAllowedInStatsBy() {
         analyzer().addK8sDownsampled()
             .stripErrorPrefix(true)
@@ -1761,6 +1785,50 @@ public class VerifierTests extends AnalyzerTestCase {
         tsdb().error(
             "FROM test | STATS present(name) BY network.bytes_in",
             equalTo("1:36: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+    }
+
+    public void testGroupByIndirectCounter() {
+        tsdb().error(
+            "FROM test | STATS count(*) BY c = network.bytes_in",
+            equalTo("1:31: cannot group by on [counter_long] type for grouping [c = network.bytes_in]")
+        );
+        tsdb().error(
+            "FROM test | RENAME network.message_in AS c | STATS count(*) BY c",
+            equalTo("1:64: cannot group by on [counter_double] type for grouping [c]")
+        );
+        tsdb().error(
+            "FROM test | MV_EXPAND network.message_out | STATS count(*) BY network.message_out",
+            equalTo("1:63: cannot group by on [counter_integer] type for grouping [network.message_out]")
+        );
+        tsdb().error(
+            "FROM test | FORK (WHERE true) (WHERE true) | STATS count(*) BY network.bytes_in",
+            equalTo("1:64: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+        tsdb().error(
+            "FROM test | STATS count(*) BY c = TO_COUNTER(network.connections)",
+            equalTo("1:31: cannot group by on [counter_long] type for grouping [c = TO_COUNTER(network.connections)]")
+        );
+        tsdb().error(
+            "FROM test | INLINE STATS count(*) BY c = network.bytes_in",
+            equalTo("1:38: cannot group by on [counter_long] type for grouping [c = network.bytes_in]")
+        );
+        tsdb().error(
+            "FROM test | RENAME network.bytes_in AS c | INLINE STATS count(*) BY c",
+            equalTo("1:69: cannot group by on [counter_long] type for grouping [c]")
+        );
+    }
+
+    public void testGroupByConvertedCounter() {
+        tsdb().query("FROM test | STATS count(*) BY c = TO_LONG(network.bytes_in)");
+        tsdb().query("FROM test | RENAME network.bytes_in AS c | STATS count(*) BY c::long");
+        tsdb().query("FROM test | INLINE STATS count(*) BY c = network.bytes_in::long");
+    }
+
+    public void testEvalCopyOfCounter() {
+        tsdb().error(
+            "FROM test | EVAL c = network.bytes_in",
+            equalTo("1:18: EVAL does not support type [counter_long] as the return data type of expression [network.bytes_in]")
         );
     }
 
@@ -5266,6 +5334,28 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testDedupRejectsAggregateMetricDoubleWhenInSchema() {
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         k8sDownsampled().error("FROM k8s | DEDUP", containsString("cannot group by on [aggregate_metric_double] type for grouping"));
+    }
+
+    public void testDedupRejectsIndirectCounter() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        tsdb().error(
+            "FROM test | KEEP network.bytes_in | RENAME network.bytes_in AS c | DEDUP",
+            equalTo("1:44: cannot group by on [counter_long] type for grouping [network.bytes_in AS c]")
+        );
+        tsdb().error(
+            "FROM test | KEEP network.message_in | MV_EXPAND network.message_in | DEDUP",
+            equalTo("1:49: cannot group by on [counter_double] type for grouping [network.message_in]")
+        );
+        tsdb().error(
+            "FROM test | KEEP network.message_out | FORK (WHERE true) (WHERE true) | DROP _fork | DEDUP",
+            equalTo("1:18: cannot group by on [counter_integer] type for grouping [network.message_out]")
+        );
+    }
+
+    public void testDedupConvertedCounter() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        tsdb().query("FROM test | KEEP network.bytes_in | EVAL network.bytes_in = TO_LONG(network.bytes_in) | DEDUP");
+        tsdb().query("FROM test | KEEP network.bytes_in | RENAME network.bytes_in AS c | EVAL c = c::long | DEDUP");
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -402,6 +403,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         return child -> new MvExpand(src, child, field, new UnresolvedAttribute(src, field.qualifier(), field.name(), null));
 
+    }
+
+    @Override
+    public PlanFactory visitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx) {
+        UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
+        Source src = source(ctx);
+        return child -> new NestedExpand(src, child, field);
     }
 
     @Override

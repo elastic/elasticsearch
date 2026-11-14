@@ -11,6 +11,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -4831,6 +4832,27 @@ public class EsqlCapabilities {
          * {@code column_metadata} reports the field a column reads as {@code _meta.field} and its unit as {@code _meta.unit}.
          */
         COLUMN_METADATA_FIELD_SEMANTICS(Build.current().isSnapshot()),
+
+        /**
+         * Test-only execution of the nested-reductions proof of concept. Stays unadvertised, including on snapshot
+         * builds, unless the node is started with {@code -Desql.nested_reductions.test_execution=true}. The REST
+         * contracts use that switch; leaving it off is what keeps a default run from treating a skip as success.
+         */
+        NESTED_REDUCTIONS(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
+
+        /**
+         * Test-only execution of the {@code NESTED_EXPAND} command, which turns each object of a mapped nested field into a row.
+         * Stays unadvertised under the same switch as {@link #NESTED_REDUCTIONS}.
+         */
+        NESTED_EXPAND(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
+
+        /**
+         * A field under a {@code nested} object reads, outside the nested functions, as a multivalued column holding the values
+         * of all of the parent's objects, like a field under a plain object. The nested object itself is still not a column.
+         * Before, ES|QL hid such fields (<a href="https://github.com/elastic/elasticsearch/issues/154011">#154011</a>). Snapshot
+         * only, with the nested functions.
+         */
+        NESTED_FLATTENED_LEAVES(Build.current().isSnapshot()),
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which

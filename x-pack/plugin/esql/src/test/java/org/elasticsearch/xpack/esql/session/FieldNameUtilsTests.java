@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.session;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.index.NestedField;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -86,6 +88,43 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testBasicEvalAndDrop() {
         assertFieldNames("from test | eval x = 1 | drop x", ALL_FIELDS);
+    }
+
+    /** A nested reduction asks for the fields it reads and their parents, which is where field caps reports the nested path. */
+    public void testNestedReductionAsksForItsFieldsAndTheirParents() {
+        assertFieldNames(
+            "from test | eval t = nested(sum(items.price)) | keep t",
+            Set.of("items.price", "items.price.*", "items", "_index", NestedField.REQUEST_MARKER)
+        );
+    }
+
+    public void testNestedPredicateAsksForItsFieldsAndTheParentFields() {
+        assertFieldNames(
+            "from test | where nested_any(items.price > 1) | keep id",
+            Set.of("id", "id.*", "items.price", "items.price.*", "items", "_index", NestedField.REQUEST_MARKER)
+        );
+    }
+
+    /** NESTED_JSON returns every child field of its collection. */
+    public void testNestedJsonAsksForTheWholeCollection() {
+        assertFieldNames(
+            "from test | eval j = nested_json(items) | keep j",
+            Set.of("items", "items.*", "_index", NestedField.REQUEST_MARKER)
+        );
+    }
+
+    /** NESTED_EXPAND turns every child field of its collection into a column. */
+    public void testNestedExpandAsksForTheWholeCollection() {
+        assumeTrue("NESTED_EXPAND is snapshot-only", Build.current().isSnapshot());
+        assertFieldNames(
+            "from test | nested_expand items | keep items.price",
+            Set.of("items.price", "items.price.*", "items", "items.*", "_index", NestedField.REQUEST_MARKER)
+        );
+    }
+
+    /** A query that needs every field still asks for all of them. */
+    public void testNestedWithoutNarrowingAsksForAllFields() {
+        assertFieldNames("from test | where nested_any(items.price > 1)", Set.of("*", NestedField.REQUEST_MARKER));
     }
 
     public void testSimple1() {

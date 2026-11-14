@@ -86,6 +86,7 @@ processingCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
     | {this.isDevVersion()}? describeCommand
+    | {this.isDevVersion()}? nestedExpandCommand
     ;
 
 whereCommand
@@ -303,6 +304,10 @@ grokCommand
 
 mvExpandCommand
     : MV_EXPAND qualifiedName
+    ;
+
+nestedExpandCommand
+    : DEV_NESTED_EXPAND qualifiedName
     ;
 
 explainCommand

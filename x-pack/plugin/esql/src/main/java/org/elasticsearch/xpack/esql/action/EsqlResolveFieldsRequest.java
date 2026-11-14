@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -28,21 +29,41 @@ import java.util.Map;
  */
 public class EsqlResolveFieldsRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
+    public static final TransportVersion NESTED_REDUCTIONS_SOURCE_VALIDATION = TransportVersion.fromName("esql_nested_reductions");
+
     private final FieldCapabilitiesRequest fieldCapsRequest;
+    private final boolean nestedReductions;
 
     public EsqlResolveFieldsRequest(FieldCapabilitiesRequest fieldCapsRequest) {
+        this(fieldCapsRequest, false);
+    }
+
+    /** Requests conservative mapping validation only for the source-backed NESTED prototype. */
+    public EsqlResolveFieldsRequest(FieldCapabilitiesRequest fieldCapsRequest, boolean nestedReductions) {
         this.fieldCapsRequest = fieldCapsRequest;
+        this.nestedReductions = nestedReductions;
     }
 
     @SuppressWarnings("this-escape")
     public EsqlResolveFieldsRequest(StreamInput in) throws IOException {
         this.fieldCapsRequest = new FieldCapabilitiesRequest(in);
+        this.nestedReductions = in.getTransportVersion().supports(NESTED_REDUCTIONS_SOURCE_VALIDATION) && in.readBoolean();
         setParentTask(fieldCapsRequest.getParentTask());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (nestedReductions && out.getTransportVersion().supports(NESTED_REDUCTIONS_SOURCE_VALIDATION) == false) {
+            throw new IllegalArgumentException("NESTED source validation requires all planning nodes to support nested reductions");
+        }
         fieldCapsRequest.writeTo(out);
+        if (out.getTransportVersion().supports(NESTED_REDUCTIONS_SOURCE_VALIDATION)) {
+            out.writeBoolean(nestedReductions);
+        }
+    }
+
+    public boolean nestedReductions() {
+        return nestedReductions;
     }
 
     public FieldCapabilitiesRequest fieldCapsRequest() {

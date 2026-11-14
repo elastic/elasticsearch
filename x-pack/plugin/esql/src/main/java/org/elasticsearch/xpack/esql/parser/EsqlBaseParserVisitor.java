@@ -369,6 +369,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#nestedExpandCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#explainCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -819,6 +825,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#functionGrouping}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFunctionGrouping(EsqlBaseParser.FunctionGroupingContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#functionName}.
    * @param ctx the parse tree

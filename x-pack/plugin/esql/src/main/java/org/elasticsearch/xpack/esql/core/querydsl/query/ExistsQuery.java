@@ -40,15 +40,22 @@ public class ExistsQuery extends Query {
      * has no mapping for it, and a sub-field of a {@code nested} object resolves to its own type. Field caps
      * and field extraction treat both as missing, so pushed-down queries have to as well: otherwise they
      * reject wildcard/regexp queries or match documents whose extracted value is {@code null}, for example
-     * through a nested object's {@code include_in_root} copy.
+     * through a nested object's {@code include_in_root} copy. Inside a {@code nested} query the documents are that
+     * object's children, which hold the sub-field's own values, so there it resolves.
      */
     @Nullable
     public static MappedFieldType mappedFieldType(SearchExecutionContext context, String field) {
         MappedFieldType ft = context.getFieldType(field);
-        if (ft == null || SearchContextStats.isExtractableMappedField(context, field) == false) {
+        if (ft == null
+            || (SearchContextStats.isExtractableMappedField(context, field) == false && inNestedScope(context, field) == false)) {
             return null;
         }
         return ft;
+    }
+
+    private static boolean inNestedScope(SearchExecutionContext context, String field) {
+        var scope = context.nestedScope().getObjectMapper();
+        return scope != null && scope.fullPath().equals(context.nestedLookup().getNestedParent(field));
     }
 
     /**

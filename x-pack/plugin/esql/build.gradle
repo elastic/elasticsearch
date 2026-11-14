@@ -61,6 +61,19 @@ sourceSets {
   }
 }
 
+// The runtime contract tests reuse the test-first REST inputs and expected results.
+tasks.named('processTestResources').configure {
+  from(rootProject.file('x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/esql/292_nested_reductions.yml')) {
+    into 'nested-scope-contract'
+  }
+  from(rootProject.file('x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/esql/295_nested_expand.yml')) {
+    into 'nested-scope-contract'
+  }
+  from(rootProject.file('x-pack/plugin/src/yamlRestTest/resources/rest-api-spec/test/esql/296_nested_reductions_pushdown.yml')) {
+    into 'nested-scope-contract'
+  }
+}
+
 tasks.named('internalClusterTest').configure {
   classpath = classpath - configurations.internalClusterTestRuntimeClasspath + configurations.securityIntegTest
 }

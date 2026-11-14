@@ -51,7 +51,11 @@ primaryExpression
     ;
 
 functionExpression
-    : functionName LP (ASTERISK | ((booleanExpression | lambda) (COMMA (booleanExpression | lambda))* (COMMA mapExpression)?))? RP
+    : functionName LP (ASTERISK | ((booleanExpression | lambda) (COMMA (booleanExpression | lambda))* (COMMA mapExpression)?))? functionGrouping? RP
+    ;
+
+functionGrouping
+    : {this.isDevVersion()}? BY booleanExpression (COMMA booleanExpression)*
     ;
 
 functionName

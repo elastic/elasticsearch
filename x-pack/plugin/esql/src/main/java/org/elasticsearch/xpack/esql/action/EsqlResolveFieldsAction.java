@@ -30,11 +30,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReductionsSourceValidation;
 import org.elasticsearch.xpack.esql.view.ViewResolutionService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -84,41 +87,73 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<EsqlResolveF
         FieldCapabilitiesRequest fieldCapsRequest = request.fieldCapsRequest();
         clearDatasetResolution(fieldCapsRequest);
 
-        fieldCapsAction.executeRequest(task, fieldCapsRequest, new TransportFieldCapabilitiesAction.LinkedRequestExecutor<>() {
-            @Override
-            public void executeRemoteRequest(
-                TransportService transportService,
-                Transport.Connection conn,
-                FieldCapabilitiesRequest remoteRequest,
-                ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
-            ) {
-                // Neither kind of non-remotable abstraction is asked for: #157726 stopped asking a remote to resolve
-                // its views and this change stops asking it to resolve its datasets, so a name that matches either one
-                // there falls through to normal remote index resolution and resolves to nothing.
-                transportService.sendRequest(
-                    conn,
-                    RESOLVE_REMOTE_TYPE.name(),
-                    remoteRequest,
-                    TransportRequestOptions.EMPTY,
-                    responseHandler
-                );
-            }
+        fieldCapsAction.executeRequest(
+            task,
+            fieldCapsRequest,
+            new TransportFieldCapabilitiesAction.LinkedRequestExecutor<EsqlResolveFieldsResponse>() {
+                @Override
+                public void executeRemoteRequest(
+                    TransportService transportService,
+                    Transport.Connection conn,
+                    FieldCapabilitiesRequest remoteRequest,
+                    ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
+                ) {
+                    // Neither kind of non-remotable abstraction is asked for: #157726 stopped asking a remote to resolve
+                    // its views and this change stops asking it to resolve its datasets, so a name that matches either one
+                    // there falls through to normal remote index resolution and resolves to nothing.
+                    transportService.sendRequest(
+                        conn,
+                        RESOLVE_REMOTE_TYPE.name(),
+                        new EsqlResolveFieldsRequest(remoteRequest, request.nestedReductions()),
+                        TransportRequestOptions.EMPTY,
+                        responseHandler
+                    );
+                }
 
-            @Override
-            public EsqlResolveFieldsResponse read(StreamInput in) throws IOException {
-                return new EsqlResolveFieldsResponse(in);
-            }
+                @Override
+                public EsqlResolveFieldsResponse read(StreamInput in) throws IOException {
+                    return new EsqlResolveFieldsResponse(in);
+                }
 
-            @Override
-            public EsqlResolveFieldsResponse wrapPrimary(FieldCapabilitiesResponse primary) {
-                return new EsqlResolveFieldsResponse(primary);
-            }
+                @Override
+                public EsqlResolveFieldsResponse wrapPrimary(FieldCapabilitiesResponse primary) {
+                    return new EsqlResolveFieldsResponse(primary);
+                }
 
-            @Override
-            public FieldCapabilitiesResponse unwrapPrimary(EsqlResolveFieldsResponse esqlResolveFieldsResponse) {
-                return esqlResolveFieldsResponse.caps();
-            }
-        }, listener);
+                @Override
+                public FieldCapabilitiesResponse unwrapPrimary(EsqlResolveFieldsResponse esqlResolveFieldsResponse) {
+                    return esqlResolveFieldsResponse.caps();
+                }
+            },
+            listener.delegateFailureAndWrap((l, response) -> {
+                if (request.nestedReductions()) {
+                    var metadata = projectResolver.getProjectState(clusterService.state()).metadata();
+                    Map<String, String> sourceFailures = new HashMap<>();
+                    for (var indexCaps : response.caps().getIndexResponses()) {
+                        var index = metadata.index(indexCaps.getIndexName());
+                        if (index == null) {
+                            throw new IllegalArgumentException(
+                                "NESTED source-backed PoC requires a local index with available mapping metadata"
+                            );
+                        }
+                        try {
+                            NestedReductionsSourceValidation.validate(
+                                indexCaps.getIndexName(),
+                                index.getSettings(),
+                                index.mapping() == null ? Map.of() : index.mapping().sourceAsMap(),
+                                indexCaps.get().keySet()
+                            );
+                        } catch (IllegalArgumentException e) {
+                            // Doc values may still serve the query. Fail only if it has to read this index's _source.
+                            sourceFailures.put(indexCaps.getIndexName(), e.getMessage());
+                        }
+                    }
+                    l.onResponse(new EsqlResolveFieldsResponse(response.caps(), sourceFailures));
+                    return;
+                }
+                l.onResponse(response);
+            })
+        );
     }
 
     /**

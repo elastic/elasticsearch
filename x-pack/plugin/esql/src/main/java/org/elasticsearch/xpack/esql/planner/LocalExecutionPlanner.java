@@ -177,6 +177,9 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -224,6 +227,8 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedReduceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -501,6 +506,8 @@ public class LocalExecutionPlanner {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
             return planMvExpand(mvExpand, context);
+        } else if (node instanceof NestedExpandExec nestedExpand) {
+            return planNestedExpand(nestedExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
         } else if (node instanceof HighlightExec highlight) {
@@ -1520,11 +1527,15 @@ public class LocalExecutionPlanner {
                 layout = outputLayout.build();
                 pendingAliases.clear();
             }
+            // Without shard contexts NESTED reductions read _source, as the nested_loader pragma may ask.
+            boolean nestedFromSource = eval instanceof NestedReduceExec
+                && context.queryPragmas().nestedLoader() != QueryPragmas.NestedLoader.INDEX
+                && field.child().anyMatch(NestedReduction.class::isInstance);
             var evaluatorSupplier = EvalMapper.toEvaluator(
                 context.foldCtx(),
                 field.child(),
                 layout,
-                context.shardContexts,
+                nestedFromSource ? null : context.shardContexts,
                 context.analysisRegistry()
             );
             outputLayout.append(field.toAttribute());
@@ -2863,6 +2874,40 @@ public class LocalExecutionPlanner {
         layout.replace(mvExpandExec.target().id(), mvExpandExec.expanded().id());
         return source.with(
             new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
+            layout.build()
+        );
+    }
+
+    private PhysicalOperation planNestedExpand(NestedExpandExec expand, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(expand.child(), context);
+        Layout.Builder layout = source.layout.builder();
+        expand.expanded().forEach(layout::append);
+        Attribute doc = expand.child().output().stream().filter(EsQueryExec::isDocAttribute).findFirst().orElse(null);
+        var children = doc == null
+            || source.layout.get(doc.id()) == null
+            || context.queryPragmas().nestedLoader() != QueryPragmas.NestedLoader.INDEX
+                ? null
+                : NestedChildren.factory(
+                    context.shardContexts,
+                    expand.path(),
+                    expand.paths(),
+                    expand.expanded().stream().map(Attribute::dataType).toList()
+                );
+        // Only _index remains when every child field has doc values and _source was not loaded.
+        Attribute sourceMetadata = expand.metadata().size() > 1 ? expand.metadata().getFirst() : null;
+        return source.with(
+            new NestedExpandOperator.Factory(
+                sourceMetadata == null ? -1 : source.layout.get(sourceMetadata.id()).channel(),
+                source.layout.get(expand.metadata().getLast().id()).channel(),
+                children == null ? -1 : source.layout.get(doc.id()).channel(),
+                children,
+                expand.path(),
+                expand.indices(),
+                expand.expanded().stream().map(Attribute::dataType).toList(),
+                expand.paths(),
+                expand.mappedIndices(),
+                expand.sourceFailures()
+            ),
             layout.build()
         );
     }

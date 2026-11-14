@@ -1,0 +1,168 @@
+# WHERE NESTED_ANY(<predicate>) runs in Lucene as a nested query when the predicate translates exactly, so only matching
+# parents leave the index: documents_found counts them. Otherwise the reduction filters in memory and every parent is read.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nr_push
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                qty:
+                  type: long
+                sku:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nr_push
+          _id: a
+      - id: a
+        items:
+        - { price: 20, qty: 2, sku: book }
+        - { price: 5, qty: 1, sku: pen }
+      - index:
+          _index: nr_push
+          _id: b
+      - id: b
+        items:
+        - { price: 1, qty: 1, sku: book }
+      - index:
+          _index: nr_push
+          _id: c
+      - id: c
+      - index:
+          _index: nr_push
+          _id: d
+      - id: d
+        items:
+        - { price: 20, qty: 1, sku: cup }
+
+---
+a nested predicate is pushed to Lucene:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+    - [d]
+- match: { documents_found: 2 }
+
+---
+a pushed conjunction matches within one nested object:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE NESTED_ANY(items.price > 10 AND items.qty == 1) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [d]
+- match: { documents_found: 1 }
+
+---
+a pushed keyword predicate:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE NESTED_ANY(items.sku == "book") | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+    - [b]
+- match: { documents_found: 2 }
+
+---
+a nested predicate is pushed beside a parent filter:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE id != "d" AND NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+- match: { documents_found: 1 }
+
+---
+the source loader pragma filters in memory:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
+        pragma:
+          nested_loader: source
+- match:
+    values:
+    - [a]
+    - [d]
+- match: { documents_found: 4 }
+
+---
+an untranslatable nested predicate filters in memory:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE NESTED_ANY(items.price + items.qty >= 21) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+    - [d]
+- match: { documents_found: 4 }
+
+---
+a negated nested predicate filters in memory:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE NOT NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [b]
+    - [c]
+- match: { documents_found: 4 }
+
+---
+a nested predicate in a disjunction filters in memory:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push | WHERE id == "b" OR NESTED_ANY(items.price > 10) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+    - [b]
+    - [d]
+- match: { documents_found: 4 }

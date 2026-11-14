@@ -710,6 +710,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) { }
   /**
    * {@inheritDoc}
@@ -1545,6 +1557,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFunctionGrouping(EsqlBaseParser.FunctionGroupingContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFunctionGrouping(EsqlBaseParser.FunctionGroupingContext ctx) { }
   /**
    * {@inheritDoc}
    *

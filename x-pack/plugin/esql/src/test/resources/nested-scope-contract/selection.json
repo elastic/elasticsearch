@@ -1,0 +1,369 @@
+{
+  "index": "nr_nested_selection",
+  "mapping": {
+    "dynamic": "strict",
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "items": {
+        "type": "nested",
+        "properties": {
+          "sku": {
+            "type": "keyword"
+          },
+          "rank": {
+            "type": "long"
+          },
+          "seq": {
+            "type": "integer"
+          },
+          "score": {
+            "type": "double"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "documents": [
+    {
+      "id": "regular",
+      "items": [
+        {
+          "sku": "high",
+          "rank": 20,
+          "seq": 2,
+          "score": 9.5,
+          "active": true
+        },
+        {
+          "sku": "low",
+          "rank": 10,
+          "seq": 1,
+          "score": 1.5,
+          "active": false
+        }
+      ]
+    },
+    {
+      "id": "null_value",
+      "items": [
+        {
+          "sku": "usable",
+          "rank": 20
+        },
+        {
+          "sku": null,
+          "rank": 30
+        }
+      ]
+    },
+    {
+      "id": "null_keys",
+      "items": [
+        {
+          "sku": "a",
+          "rank": null
+        },
+        {
+          "sku": "b"
+        }
+      ]
+    },
+    {
+      "id": "ties",
+      "items": [
+        {
+          "sku": "a",
+          "rank": 20
+        },
+        {
+          "sku": "b",
+          "rank": 20
+        },
+        {
+          "sku": "low",
+          "rank": 10
+        }
+      ]
+    },
+    {
+      "id": "mv_rank",
+      "items": [
+        {
+          "sku": "a",
+          "rank": [
+            10,
+            30
+          ]
+        },
+        {
+          "sku": "b",
+          "rank": 20
+        }
+      ]
+    },
+    {
+      "id": "mv_value",
+      "items": [
+        {
+          "sku": [
+            "a",
+            "z"
+          ],
+          "rank": 30
+        },
+        {
+          "sku": "b",
+          "rank": 20
+        }
+      ]
+    },
+    {
+      "id": "empty",
+      "items": []
+    },
+    {
+      "id": "negative_keys",
+      "items": [
+        {
+          "sku": "none",
+          "rank": null
+        },
+        {
+          "sku": "min",
+          "rank": -9223372036854775808
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "name": "keyword return",
+      "query": "FROM nr_nested_selection | WHERE id == \"regular\" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked",
+      "expected": [
+        [
+          "regular",
+          "high"
+        ]
+      ],
+      "type": "keyword"
+    },
+    {
+      "name": "double return",
+      "query": "FROM nr_nested_selection | WHERE id == \"regular\" | EVAL picked = NESTED(LAST(items.score, items.rank)) | KEEP id, picked",
+      "expected": [
+        [
+          "regular",
+          9.5
+        ]
+      ],
+      "type": "double"
+    },
+    {
+      "name": "boolean return",
+      "query": "FROM nr_nested_selection | WHERE id == \"regular\" | EVAL picked = NESTED(LAST(items.active, items.rank)) | KEEP id, picked",
+      "expected": [
+        [
+          "regular",
+          true
+        ]
+      ],
+      "type": "boolean"
+    },
+    {
+      "name": "integer key",
+      "query": "FROM nr_nested_selection | WHERE id == \"regular\" | EVAL picked = NESTED(LAST(items.sku, items.seq)) | KEEP id, picked",
+      "expected": [
+        [
+          "regular",
+          "high"
+        ]
+      ],
+      "type": "keyword"
+    },
+    {
+      "name": "literal null return",
+      "query": "FROM nr_nested_selection | WHERE id == \"regular\" | EVAL picked = NESTED(LAST(null, items.rank)) | KEEP id, picked",
+      "expected": [
+        [
+          "regular",
+          null
+        ]
+      ],
+      "type": "null"
+    },
+    {
+      "name": "typed null return",
+      "query": "FROM nr_nested_selection | WHERE id == \"regular\" | EVAL picked = NESTED(LAST(null::keyword, items.rank)) | KEEP id, picked",
+      "expected": [
+        [
+          "regular",
+          null
+        ]
+      ],
+      "type": "keyword"
+    },
+    {
+      "name": "null value at maximum key",
+      "query": "FROM nr_nested_selection | WHERE id == \"null_value\" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked",
+      "expected": [
+        [
+          "null_value",
+          null
+        ]
+      ],
+      "type": "keyword"
+    },
+    {
+      "name": "all null keys",
+      "query": "FROM nr_nested_selection | WHERE id == \"null_keys\" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked",
+      "allowed": [
+        "a",
+        "b"
+      ],
+      "type": "keyword",
+      "expected_id": "null_keys"
+    },
+    {
+      "name": "maximum key tie",
+      "query": "FROM nr_nested_selection | WHERE id == \"ties\" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked",
+      "allowed": [
+        "a",
+        "b"
+      ],
+      "type": "keyword",
+      "expected_id": "ties"
+    },
+    {
+      "name": "constant key",
+      "query": "FROM nr_nested_selection | WHERE id == \"ties\" | EVAL picked = NESTED(LAST(items.sku, 1)) | KEEP id, picked",
+      "allowed": [
+        "a",
+        "b",
+        "low"
+      ],
+      "type": "keyword",
+      "expected_id": "ties"
+    },
+    {
+      "name": "literal null key",
+      "query": "FROM nr_nested_selection | WHERE id == \"ties\" | EVAL picked = NESTED(LAST(items.sku, null)) | KEEP id, picked",
+      "allowed": [
+        "a",
+        "b",
+        "low"
+      ],
+      "type": "keyword",
+      "expected_id": "ties"
+    },
+    {
+      "name": "multivalued return rejected",
+      "query": "FROM nr_nested_selection | WHERE id == \"mv_value\" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked",
+      "error": "runtime",
+      "reason": "scalar child values"
+    },
+    {
+      "name": "multivalued key rejected",
+      "query": "FROM nr_nested_selection | WHERE id == \"mv_rank\" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked",
+      "error": "runtime",
+      "reason": "scalar child values"
+    },
+    {
+      "name": "scalarized multivalued key",
+      "query": "FROM nr_nested_selection | WHERE id == \"mv_rank\" | EVAL picked = NESTED(LAST(items.sku, MV_MAX(items.rank))) | KEEP id, picked",
+      "expected": [
+        [
+          "mv_rank",
+          "a"
+        ]
+      ],
+      "type": "keyword"
+    },
+    {
+      "name": "scalarized multivalued return",
+      "query": "FROM nr_nested_selection | WHERE id == \"mv_value\" | EVAL picked = NESTED(LAST(MV_MIN(items.sku), items.rank)) | KEEP id, picked",
+      "expected": [
+        [
+          "mv_value",
+          "a"
+        ]
+      ],
+      "type": "keyword"
+    },
+    {
+      "name": "double key rejected",
+      "query": "FROM nr_nested_selection | WHERE id == \"regular\" | EVAL picked = NESTED(LAST(items.sku, items.score)) | KEEP id, picked",
+      "error": "analysis"
+    },
+    {
+      "name": "empty scope selection",
+      "query": "FROM nr_nested_selection | WHERE id == \"empty\" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked",
+      "expected": [
+        [
+          "empty",
+          null
+        ]
+      ],
+      "type": "keyword"
+    },
+    {
+      "name": "minimum long key beats null",
+      "query": "FROM nr_nested_selection | WHERE id == \"negative_keys\" | EVAL picked = NESTED(LAST(items.sku, items.rank)) | KEEP id, picked",
+      "expected": [
+        [
+          "negative_keys",
+          "min"
+        ]
+      ],
+      "type": "keyword"
+    },
+    {
+      "name": "statically null return does not need key selection",
+      "query": "FROM nr_nested_selection | WHERE id == \"mv_rank\" | EVAL picked = NESTED(LAST(null, items.rank)) | KEEP id, picked",
+      "expected": [
+        [
+          "mv_rank",
+          null
+        ]
+      ],
+      "type": "null"
+    },
+    {
+      "name": "statically null SUM body",
+      "query": "FROM nr_nested_selection | WHERE id == \"regular\" | EVAL picked = NESTED(SUM(CASE(items.rank > 0, null, null))) | KEEP id, picked",
+      "expected": [
+        [
+          "regular",
+          null
+        ]
+      ],
+      "type": "null"
+    },
+    {
+      "name": "null-propagating value expression",
+      "query": "FROM nr_nested_selection | WHERE id == \"regular\" | EVAL picked = NESTED(LAST(COALESCE(null::keyword, items.sku), items.rank)) | KEEP id, picked",
+      "expected": [
+        [
+          "regular",
+          "high"
+        ]
+      ],
+      "type": "keyword"
+    },
+    {
+      "name": "null-propagating ordering expression",
+      "query": "FROM nr_nested_selection | WHERE id == \"regular\" | EVAL picked = NESTED(LAST(items.sku, COALESCE(null::long, items.rank))) | KEEP id, picked",
+      "expected": [
+        [
+          "regular",
+          "high"
+        ]
+      ],
+      "type": "keyword"
+    }
+  ]
+}

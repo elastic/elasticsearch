@@ -1,0 +1,237 @@
+# NESTED_JSON(<collection>) returns each parent's nested objects as one keyword holding a JSON array, in document order.
+# Values come from doc values, never _source: within an object the keys are sorted, arrays are in doc-values order with
+# keyword duplicates removed, and missing or null fields are left out. An empty or missing collection gives null.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nj_orders
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                sku:
+                  type: keyword
+                tags:
+                  type: keyword
+                details:
+                  properties:
+                    color:
+                      type: keyword
+            shipments:
+              type: nested
+              properties:
+                carrier:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nj_orders
+          _id: a
+      - id: a
+        items:
+        - { price: 20, sku: book, tags: [y, x, x], details: { color: red } }
+        - { price: 5, sku: pen }
+        shipments:
+        - { carrier: ups }
+      - index:
+          _index: nj_orders
+          _id: b
+      - id: b
+        items: []
+      - index:
+          _index: nj_orders
+          _id: c
+      - id: c
+      - index:
+          _index: nj_orders
+          _id: d
+      - id: d
+        items:
+        - {}
+      - index:
+          _index: nj_orders
+          _id: e
+      - id: e
+        items:
+        - { price: 1, sku: cup }
+
+---
+each parent's objects as a JSON array:
+- do:
+    esql.query:
+      body:
+        query: FROM nj_orders | EVAL items = NESTED_JSON(items) | KEEP id, items | SORT id | LIMIT 10
+- match:
+    columns:
+    - name: id
+      type: keyword
+    - name: items
+      type: keyword
+- match:
+    values:
+    - [a, '[{"details":{"color":"red"},"price":20,"sku":"book","tags":["x","y"]},{"price":5,"sku":"pen"}]']
+    - [b, null]
+    - [c, null]
+    - [d, '[{}]']
+    - [e, '[{"price":1,"sku":"cup"}]']
+
+---
+after filtering, sorting and limiting parents:
+- do:
+    esql.query:
+      body:
+        query: >-
+          FROM nj_orders | WHERE NESTED_ANY(items.price < 10) | SORT id DESC | LIMIT 1
+          | EVAL items = NESTED_JSON(items) | KEEP id, items
+- match:
+    values:
+    - [e, '[{"price":1,"sku":"cup"}]']
+
+---
+another name keeps the collection usable:
+- do:
+    esql.query:
+      body:
+        query: >-
+          FROM nj_orders | EVAL shipped = NESTED_JSON(shipments) | EVAL has_items = NESTED_ANY(items, true)
+          | KEEP id, shipped, has_items | SORT id | LIMIT 2
+- match:
+    values:
+    - [a, '[{"carrier":"ups"}]', true]
+    - [b, null, false]
+
+---
+the argument must be a nested collection:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM nj_orders | EVAL x = NESTED_JSON(items.price) | LIMIT 1
+- contains:
+    error.reason: "NESTED_JSON requires a nested collection, not [items.price]"
+
+---
+a parent field is not a collection:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM nj_orders | EVAL x = NESTED_JSON(id) | LIMIT 1
+- contains:
+    error.reason: "NESTED_JSON requires a nested collection, not [id]"
+
+---
+only in EVAL:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM nj_orders | WHERE NESTED_JSON(items) IS NOT NULL | LIMIT 1
+- contains:
+    error.reason: "NESTED_JSON is supported in EVAL"
+
+---
+a replaced name is no longer a nested scope:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM nj_orders | EVAL items = NESTED_JSON(items) | EVAL x = NESTED_ANY(items, true) | LIMIT 1
+- contains:
+    error.reason: "NESTED_ANY cannot use [items]: a column of that name replaces it here"
+
+---
+a replaced name cannot be expanded:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM nj_orders | EVAL items = NESTED_JSON(items) | NESTED_EXPAND items | LIMIT 1
+- contains:
+    error.reason: "NESTED_EXPAND cannot use [items]: a column of that name replaces it here"
+
+---
+never reads _source:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM nj_orders | EVAL items = NESTED_JSON(items) | LIMIT 1
+        pragma:
+          nested_loader: source
+- contains:
+    error.reason: "NESTED_JSON reads doc values only"
+
+---
+a child field without doc values:
+- do:
+    indices.create:
+      index: nj_text
+      body:
+        mappings:
+          dynamic: strict
+          properties:
+            items:
+              type: nested
+              properties:
+                description:
+                  type: text
+- do:
+    index:
+      index: nj_text
+      refresh: true
+      body: { items: [{ description: red shoes }] }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM nj_text | EVAL items = NESTED_JSON(items) | LIMIT 1
+- contains:
+    error.reason: "NESTED_JSON reads doc values only"
+
+---
+an unsupported child type:
+- do:
+    indices.create:
+      index: nj_dates
+      body:
+        mappings:
+          dynamic: strict
+          properties:
+            items:
+              type: nested
+              properties:
+                when:
+                  type: date
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM nj_dates | EVAL items = NESTED_JSON(items) | LIMIT 1
+- contains:
+    error.reason: "NESTED_JSON does not support child type [DATETIME] for [items.when]"

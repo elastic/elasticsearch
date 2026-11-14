@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
+import org.elasticsearch.xpack.esql.analysis.rules.NestedReductionsAnalysis;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightFieldMappings;
@@ -344,7 +345,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             ),
             new Batch<>(
                 "Resolution",
+                new NestedReductionsAnalysis.Prepare(),
                 new ResolveRefs(),
+                new NestedReductionsAnalysis.Resolve(),
                 // Must run in a fixpoint batch, right after ResolveRefs: it inspects the child's output, which is only
                 // trustworthy once ResolveRefs has resolved the child (e.g. expanded wildcard projections such as KEEP *),
                 // and it must strip the wrapper before the union-type rules below inspect the UnionAll's parent.

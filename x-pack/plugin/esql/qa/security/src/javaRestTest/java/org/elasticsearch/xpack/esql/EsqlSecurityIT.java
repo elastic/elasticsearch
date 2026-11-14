@@ -134,6 +134,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("fls_user3_alias", "x-pack-test-password", "fls_user3_alias", false)
         .user("fls_user4_1", "x-pack-test-password", "fls_user4_1", false)
         .user("fls_user4_1_alias", "x-pack-test-password", "fls_user4_1_alias", false)
+        .user("nested_reductions_fls_user", "x-pack-test-password", "nested_reductions_fls", false)
+        .user("nested_reductions_dls_user", "x-pack-test-password", "nested_reductions_dls", false)
         .user("dls_user", "x-pack-test-password", "dls_user", false)
         .user("eql_dls_user", "x-pack-test-password", "eql_dls_user", false)
         .user("eql_fls_user", "x-pack-test-password", "eql_fls_user", false)
@@ -3333,6 +3335,49 @@ public class EsqlSecurityIT extends ESRestTestCase {
         List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
         // index: value allowed — 2 docs (10.0, 20.0); index-user1: value FLS-denied — contributes 0
         assertThat(values.get(0).get(0), equalTo(2));
+    }
+
+    public void testNestedReductionHonorsFieldAndDocumentSecurity() throws Exception {
+        assumeTrue("The nested functions are registered on snapshot builds", Build.current().isSnapshot());
+        Request delete = new Request("DELETE", "nr-security");
+        delete.addParameter("ignore_unavailable", "true");
+        client().performRequest(delete);
+        String mapping = """
+            "properties":{"region":{"type":"keyword"},"items":{"type":"nested","properties":{"sku":{"type":"keyword"},\
+            "price":{"type":"long"},"quantity":{"type":"long"}}}}
+            """;
+        createIndex("nr-security", indexSettings(), mappingPrefix() + mapping);
+        Request west = new Request("PUT", "nr-security/_doc/1");
+        west.setJsonEntity("""
+            {"region":"west","items":[{"sku":"a","price":2,"quantity":5},{"sku":"b","price":4,"quantity":5}]}""");
+        client().performRequest(west);
+        Request east = new Request("PUT", "nr-security/_doc/2");
+        east.setJsonEntity("""
+            {"region":"east","items":[{"sku":"c","price":7,"quantity":10}]}""");
+        client().performRequest(east);
+        refresh("nr-security");
+
+        String total = "FROM nr-security | EVAL total = NESTED(SUM(items.price * items.quantity)) | STATS amount = SUM(total)";
+        Response admin = runESQLCommand("test-admin", total);
+        assertOK(admin);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> adminValues = (List<List<Object>>) entityAsMap(admin).get("values");
+        assertThat(adminValues.get(0).get(0), equalTo(100));
+
+        Response visible = runESQLCommand("nested_reductions_dls_user", total);
+        assertOK(visible);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> visibleValues = (List<List<Object>>) entityAsMap(visible).get("values");
+        assertThat(visibleValues.get(0).get(0), equalTo(30));
+
+        ResponseException denied = expectThrows(
+            ResponseException.class,
+            () -> runESQLCommand("nested_reductions_fls_user", "FROM nr-security | EVAL total = NESTED(SUM(items.price)) | KEEP total")
+        );
+        assertThat(denied.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+        String body = EntityUtils.toString(denied.getResponse().getEntity());
+        assertThat(body, containsString("items.price"));
+        assertThat(body, not(containsString("\"values\"")));
     }
 
     public void testSumAcrossIndicesWithFlsDeniedFieldAndCast() throws Exception {

@@ -250,6 +250,23 @@ fls_user4_2_alias:
       field_security:
         grant: [ "value" ]
 
+# Reads nr-security except the nested price. The reduction must not recover that price from _source.
+nested_reductions_fls:
+  cluster: []
+  indices:
+    - names: [ 'nr-security' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ region, items, items.sku, items.quantity ]
+
+# Reads only region:west documents of nr-security.
+nested_reductions_dls:
+  cluster: []
+  indices:
+    - names: [ 'nr-security' ]
+      privileges: [ 'read' ]
+      query: '{"term": {"region": "west"}}'
+
 dls_user:
   cluster: []
   indices:

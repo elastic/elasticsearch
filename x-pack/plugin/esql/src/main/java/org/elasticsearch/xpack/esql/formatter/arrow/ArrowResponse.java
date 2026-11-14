@@ -90,7 +90,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                 }
                 boolean multivalued = false;
                 for (Page page : pages) {
-                    if (page.getBlock(blockIndex).mayHaveMultivaluedFields()) {
+                    if (converter.isMultivalued(column.name, page.getBlock(blockIndex))) {
                         multivalued = true;
                         break;
                     }
@@ -475,7 +475,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case TSID_DATA_TYPE -> new BlockArrowFormatter.AsVarBinary(type);
             case DENSE_VECTOR -> TO_BE_IMPLEMENTED_MARKER;
 
-            case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
+            case AGGREGATE_METRIC_DOUBLE -> new BlockArrowFormatter.AsAggregateMetricDouble(type);
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
             case FLATTENED -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
             case GEOHASH -> TO_BE_IMPLEMENTED_MARKER;

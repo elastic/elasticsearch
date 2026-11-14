@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
+import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.elasticsearch.client.Request;
@@ -182,6 +185,73 @@ public class ArrowFormatIT extends ESRestTestCase {
 
             assertDescription(root);
             assertValues(root);
+        }
+    }
+
+    public void testAggregateMetricDouble() throws Exception {
+        Request request = new Request("PUT", "/arrow-aggregate-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value": { "type": "integer" },
+                  "metric": { "type": "aggregate_metric_double", "metrics": ["min", "max", "sum", "value_count"] }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-aggregate-test&refresh=true");
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "metric": {"min": 1.0, "max": 3.0, "sum": 6.0, "value_count": 3}}
+            {"index": {"_id": "2"}}
+            {"value": 2}
+            {"index": {"_id": "3"}}
+            {"value": 3, "metric": {"min": -2.0, "max": 0.0, "sum": -2.0, "value_count": 2}}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-aggregate-test | SORT value | LIMIT 100 | KEEP metric"
+            }""")) {
+            assertEquals(3, root.getRowCount());
+            assertEquals(1, root.getSchema().getFields().size());
+            StructVector metric = (StructVector) root.getVector("metric");
+            Field field = metric.getField();
+            assertEquals(Types.MinorType.STRUCT.getType(), field.getType());
+            assertTrue(field.isNullable());
+            assertEquals("aggregate_metric_double", field.getMetadata().get("elastic:type"));
+            assertEquals(List.of("min", "max", "sum", "value_count"), field.getChildren().stream().map(Field::getName).toList());
+            for (Field child : field.getChildren()) {
+                assertTrue(child.isNullable());
+                assertEquals(
+                    child.getName().equals("value_count") ? Types.MinorType.INT.getType() : Types.MinorType.FLOAT8.getType(),
+                    child.getType()
+                );
+            }
+
+            Float8Vector min = (Float8Vector) metric.getChild("min");
+            Float8Vector max = (Float8Vector) metric.getChild("max");
+            Float8Vector sum = (Float8Vector) metric.getChild("sum");
+            IntVector count = (IntVector) metric.getChild("value_count");
+            assertFalse(metric.isNull(0));
+            assertEquals(1.0, min.get(0), 0.0);
+            assertEquals(3.0, max.get(0), 0.0);
+            assertEquals(6.0, sum.get(0), 0.0);
+            assertEquals(3, count.get(0));
+            assertTrue(metric.isNull(1));
+            assertTrue(min.isNull(1));
+            assertTrue(max.isNull(1));
+            assertTrue(sum.isNull(1));
+            assertTrue(count.isNull(1));
+            assertFalse(metric.isNull(2));
+            assertEquals(-2.0, min.get(2), 0.0);
+            assertEquals(0.0, max.get(2), 0.0);
+            assertEquals(-2.0, sum.get(2), 0.0);
+            assertEquals(2, count.get(2));
         }
     }
 

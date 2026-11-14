@@ -15,6 +15,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -53,6 +54,21 @@ public abstract class BlockArrowFormatter {
 
     public Field arrowField(String name) {
         return new Field(name, fieldType, null);
+    }
+
+    /**
+     * Whether this block requires its column to be encoded as an Arrow list. The column is a list if any of its blocks
+     * returns {@code true}, and the remaining blocks may then not be checked. This is decided before the schema is sent,
+     * since the schema can't change once streaming has started.
+     * <p>
+     * Formatters that can't encode lists must override this to return {@code false}, rejecting blocks that actually
+     * contain multivalued positions.
+     *
+     * @param columnName the column name, for error messages
+     * @param block a block of that column
+     */
+    public boolean isMultivalued(String columnName, Block block) {
+        return block.mayHaveMultivaluedFields();
     }
 
     // Block.nullValuesCount was more efficient but was removed in https://github.com/elastic/elasticsearch/pull/108916
@@ -740,6 +756,124 @@ public abstract class BlockArrowFormatter {
                     out.writeDoubleLE(block.getDouble(valueIndex));
                 }
             }
+        }
+    }
+
+    /**
+     * Keeps aggregate summaries columnar while preserving independently absent metrics as nullable struct children.
+     * <p>
+     * A row is a null struct only when all four metrics are absent: {@link AggregateMetricDoubleBlock} has no separate
+     * validity, so it can't distinguish a missing summary from a summary where every metric is missing. Rows with at
+     * least one metric are valid structs whose absent metrics are null children.
+     * <p>
+     * Summaries are always single-valued, so columns of this type are never encoded as Arrow lists.
+     */
+    public static class AsAggregateMetricDouble extends BlockArrowFormatter {
+        private static final AsFloat64 DOUBLE_FORMATTER = new AsFloat64(DataType.DOUBLE);
+        private static final AsInt32 COUNT_FORMATTER = new AsInt32(DataType.INTEGER);
+
+        private final DataType esqlType;
+
+        public AsAggregateMetricDouble(DataType esqlType) {
+            super(esqlType, Types.MinorType.STRUCT);
+            this.esqlType = esqlType;
+        }
+
+        @Override
+        public Field arrowField(String name) {
+            var doubleType = FieldType.nullable(Types.MinorType.FLOAT8.getType());
+            var countType = FieldType.nullable(Types.MinorType.INT.getType());
+            return new Field(
+                name,
+                super.arrowField(name).getFieldType(),
+                List.of(
+                    new Field("min", doubleType, null),
+                    new Field("max", doubleType, null),
+                    new Field("sum", doubleType, null),
+                    new Field("value_count", countType, null)
+                )
+            );
+        }
+
+        @Override
+        public boolean isMultivalued(String columnName, Block block) {
+            // mayHaveMultivaluedFields() can report false positives, which must not reject valid summaries.
+            if (block.doesHaveMultivaluedFields()) {
+                throw new IllegalArgumentException(
+                    "Column ["
+                        + columnName
+                        + "] of ES|QL type ["
+                        + esqlType.outputType()
+                        + "] has multivalued fields, which the Arrow format does not support for this type"
+                );
+            }
+            return false;
+        }
+
+        @Override
+        public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
+            AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
+            DoubleBlock min = aggregate.minBlock();
+            DoubleBlock max = aggregate.maxBlock();
+            DoubleBlock sum = aggregate.sumBlock();
+            IntBlock count = aggregate.countBlock();
+            int positions = block.getPositionCount();
+            int minNulls = 0;
+            int maxNulls = 0;
+            int sumNulls = 0;
+            int countNulls = 0;
+            int summaryNulls = 0;
+            if (block.mayHaveNulls()) {
+                for (int position = 0; position < positions; position++) {
+                    boolean minNull = min.isNull(position);
+                    boolean maxNull = max.isNull(position);
+                    boolean sumNull = sum.isNull(position);
+                    boolean countNull = count.isNull(position);
+                    minNulls += minNull ? 1 : 0;
+                    maxNulls += maxNull ? 1 : 0;
+                    sumNulls += sumNull ? 1 : 0;
+                    countNulls += countNull ? 1 : 0;
+                    if (minNull && maxNull && sumNull && countNull) {
+                        summaryNulls++;
+                    }
+                }
+            }
+            // The struct and each of its children have one slot per row.
+            nodes.add(new ArrowFieldNode(positions, summaryNulls));
+            nodes.add(new ArrowFieldNode(positions, minNulls));
+            nodes.add(new ArrowFieldNode(positions, maxNulls));
+            nodes.add(new ArrowFieldNode(positions, sumNulls));
+            nodes.add(new ArrowFieldNode(positions, countNulls));
+        }
+
+        @Override
+        public void convert(
+            Block block,
+            boolean multivalued,
+            List<ArrowBuf> bufs,
+            List<BufWriter> bufWriters,
+            List<Releasable> releasables
+        ) {
+            AggregateMetricDoubleBlock aggregate = (AggregateMetricDoubleBlock) block;
+            if (summaryMayBeNull(aggregate)) {
+                accumulateVectorValidity(bufs, bufWriters, block, false);
+            } else {
+                // The block reports nulls if any metric may be null, but a summary is only null when all four are.
+                bufs.add(dummyArrowBuf(0));
+                bufWriters.add(out -> 0);
+            }
+            // Child accessors on ConstantNullBlock return the null block itself, which primitive formatters also accept.
+            DOUBLE_FORMATTER.convert(aggregate.minBlock(), false, bufs, bufWriters, releasables);
+            DOUBLE_FORMATTER.convert(aggregate.maxBlock(), false, bufs, bufWriters, releasables);
+            DOUBLE_FORMATTER.convert(aggregate.sumBlock(), false, bufs, bufWriters, releasables);
+            COUNT_FORMATTER.convert(aggregate.countBlock(), false, bufs, bufWriters, releasables);
+        }
+
+        private static boolean summaryMayBeNull(AggregateMetricDoubleBlock aggregate) {
+            return aggregate.minBlock().mayHaveNulls()
+                && aggregate.maxBlock().mayHaveNulls()
+                && aggregate.sumBlock().mayHaveNulls()
+                && aggregate.countBlock().mayHaveNulls();
         }
     }
 

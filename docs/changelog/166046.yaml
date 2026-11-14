@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166046
+summary: Keep the implicit `_timeseries` column in unions
+type: bug

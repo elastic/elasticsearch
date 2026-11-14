@@ -283,8 +283,12 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             keepExistingUnsupportedAttributes(toReferenceAttributesPreservingIds(withoutUnmapped, unionAll.output()), unionAll.output()),
             unmapped
         );
-        return newOutput.equals(unionAll.output()) ? unionAll : unionAll.replaceSubPlansAndOutput(unionAll.children(),
-            unionAll.withScoreAttributeFromChildren(unionAll.children(), newOutput));
+        return newOutput.equals(unionAll.output())
+            ? unionAll
+            : unionAll.replaceSubPlansAndOutput(
+                unionAll.children(),
+                unionAll.withScoreAttributeFromChildren(unionAll.children(), newOutput)
+            );
     }
 
     /** {@code null} when no branch exposes {@code _unmapped_fields}. */

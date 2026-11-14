@@ -86,6 +86,22 @@ public class EsqlToJsonProcessorTests extends ESTestCase {
         }
     }
 
+    public void testMultipleRowsShouldBeSeparatedBySingleSpaceForPreview() throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try (
+            EsqlToJsonProcessor processor = new EsqlToJsonProcessor(
+                List.of(column("v", KEYWORD)),
+                new EsqlParserQueryAnalyzer(),
+                outputStream
+            )
+        ) {
+            processor.process(List.of("a"));
+            processor.process(List.of("b"));
+        }
+        // TransportPreviewDatafeedAction turns "} {" into "},{"; any other separator yields invalid JSON.
+        assertThat(outputStream.toString(StandardCharsets.UTF_8), equalTo("{\"v\":\"a\"} {\"v\":\"b\"}"));
+    }
+
     private static String rowsToString(List<ColumnInfo> columns, List<Object> rowValues) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, new EsqlParserQueryAnalyzer(), outputStream)) {

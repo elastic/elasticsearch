@@ -32,6 +32,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         private static final TransportVersion SEARCH_LOAD_PER_INDEX_STATS = TransportVersion.fromName("search_load_per_index_stats");
         private static final TransportVersion SEARCH_QUERY_WAITING = TransportVersion.fromName("search_query_waiting");
+        private static final TransportVersion SEARCH_QUERY_CPU = TransportVersion.fromName("search_query_cpu");
 
         private long queryCount;
         private long queryTimeInMillis;
@@ -58,6 +59,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         // Like recentSearchLoad, for the time queries waited with work for the shard and nothing running on the node.
         private double recentSearchWaiting;
+        // The part of recentSearchLoad spent on CPU.
+        private double recentSearchCpu;
 
         private Stats() {
             // for internal use, initializes all counts to 0
@@ -96,7 +99,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 suggestTimeInMillis,
                 suggestCurrent,
                 recentSearchLoad,
-                0
+                0.0,
+                0.0
             );
         }
 
@@ -116,7 +120,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
             long suggestTimeInMillis,
             long suggestCurrent,
             double recentSearchLoad,
-            double recentSearchWaiting
+            double recentSearchWaiting,
+            double recentSearchCpu
         ) {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;
@@ -138,6 +143,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             this.recentSearchLoad = recentSearchLoad;
             this.recentSearchWaiting = recentSearchWaiting;
+            this.recentSearchCpu = recentSearchCpu;
         }
 
         private Stats(StreamInput in) throws IOException {
@@ -165,6 +171,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             }
             if (in.getTransportVersion().supports(SEARCH_QUERY_WAITING)) {
                 recentSearchWaiting = in.readDouble();
+            }
+            if (in.getTransportVersion().supports(SEARCH_QUERY_CPU)) {
+                recentSearchCpu = in.readDouble();
             }
         }
 
@@ -195,6 +204,9 @@ public class SearchStats implements Writeable, ToXContentFragment {
             if (out.getTransportVersion().supports(SEARCH_QUERY_WAITING)) {
                 out.writeDouble(recentSearchWaiting);
             }
+            if (out.getTransportVersion().supports(SEARCH_QUERY_CPU)) {
+                out.writeDouble(recentSearchCpu);
+            }
         }
 
         public void add(Stats stats) {
@@ -218,6 +230,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             recentSearchLoad += stats.recentSearchLoad;
             recentSearchWaiting += stats.recentSearchWaiting;
+            recentSearchCpu += stats.recentSearchCpu;
         }
 
         public void addForClosingShard(Stats stats) {
@@ -239,6 +252,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             recentSearchLoad += stats.recentSearchLoad;
             recentSearchWaiting += stats.recentSearchWaiting;
+            recentSearchCpu += stats.recentSearchCpu;
         }
 
         public long getQueryCount() {
@@ -321,6 +335,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return recentSearchWaiting;
         }
 
+        public double getSearchCpuRate() {
+            return recentSearchCpu;
+        }
+
         public static Stats readStats(StreamInput in) throws IOException {
             return new Stats(in);
         }
@@ -347,6 +365,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
             builder.field(Fields.RECENT_SEARCH_LOAD, recentSearchLoad);
             builder.field(Fields.RECENT_SEARCH_WAITING, recentSearchWaiting);
+            builder.field(Fields.RECENT_SEARCH_CPU, recentSearchCpu);
 
             return builder;
         }
@@ -371,7 +390,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 && suggestTimeInMillis == that.suggestTimeInMillis
                 && suggestCurrent == that.suggestCurrent
                 && recentSearchLoad == that.recentSearchLoad
-                && recentSearchWaiting == that.recentSearchWaiting;
+                && recentSearchWaiting == that.recentSearchWaiting
+                && recentSearchCpu == that.recentSearchCpu;
         }
 
         @Override
@@ -384,7 +404,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 fetchCount,
                 fetchTimeInMillis,
                 fetchCurrent,
-                fetchCount,
+                fetchFailure,
                 scrollCount,
                 scrollTimeInMillis,
                 scrollCurrent,
@@ -392,7 +412,8 @@ public class SearchStats implements Writeable, ToXContentFragment {
                 suggestTimeInMillis,
                 suggestCurrent,
                 recentSearchLoad,
-                recentSearchWaiting
+                recentSearchWaiting,
+                recentSearchCpu
             );
         }
     }
@@ -512,6 +533,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String SUGGEST_CURRENT = "suggest_current";
         static final String RECENT_SEARCH_LOAD = "recent_search_load";
         static final String RECENT_SEARCH_WAITING = "recent_search_waiting";
+        static final String RECENT_SEARCH_CPU = "recent_search_cpu";
     }
 
     @Override

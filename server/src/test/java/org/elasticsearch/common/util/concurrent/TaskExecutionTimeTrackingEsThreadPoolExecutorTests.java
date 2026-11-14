@@ -264,8 +264,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         try {
             AtomicLong first = new AtomicLong();
             AtomicLong second = new AtomicLong();
-            TaskLoadAttribution.Target firstTarget = (nanos, finishNanos) -> first.addAndGet(nanos);
-            TaskLoadAttribution.Target secondTarget = (nanos, finishNanos) -> second.addAndGet(nanos);
+            TaskLoadAttribution.Target firstTarget = (nanos, cpuNanos, finishNanos) -> first.addAndGet(nanos);
+            TaskLoadAttribution.Target secondTarget = (nanos, cpuNanos, finishNanos) -> second.addAndGet(nanos);
             // outside a pool task, attributing does nothing
             TaskLoadAttribution.attribute(secondTarget);
 
@@ -306,7 +306,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     public void testChargingExecutor() throws Exception {
         var executor = attributingExecutor();
         AtomicLong charged = new AtomicLong();
-        Executor charging = TaskLoadAttribution.charging(executor, (nanos, finishNanos) -> charged.addAndGet(nanos));
+        Executor charging = TaskLoadAttribution.charging(executor, (nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos));
         AtomicInteger ran = new AtomicInteger();
         AtomicInteger failed = new AtomicInteger();
         AtomicInteger rejected = new AtomicInteger();
@@ -337,7 +337,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
      * A task whose failure handling throws is failed once, and completed once.
      */
     public void testChargingExecutorFailsTaskOnce() {
-        Executor charging = TaskLoadAttribution.charging(EsExecutors.DIRECT_EXECUTOR_SERVICE, (nanos, finishNanos) -> {});
+        Executor charging = TaskLoadAttribution.charging(EsExecutors.DIRECT_EXECUTOR_SERVICE, (nanos, cpuNanos, finishNanos) -> {});
         AtomicInteger failed = new AtomicInteger();
         AtomicInteger completed = new AtomicInteger();
         var thrown = expectThrows(IllegalArgumentException.class, () -> charging.execute(new AbstractRunnable() {
@@ -540,7 +540,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         );
         try {
             AtomicLong charged = new AtomicLong();
-            runTask(executor, 1, () -> TaskLoadAttribution.attribute((nanos, finishNanos) -> charged.addAndGet(nanos)));
+            runTask(executor, 1, () -> TaskLoadAttribution.attribute((nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos)));
             assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L));
             assertThat(executor.getAttributedTaskExecutionTime(), equalTo(0L));
             assertThat(charged.get(), equalTo(0L));

@@ -24,6 +24,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlAstBuilder;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.BitSet;
@@ -60,13 +61,19 @@ public class PromqlParser {
      * Parses an PromQL expression into execution plan
      */
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, null, null, 0, 0, new QueryParams());
+        return createStatement(query, null, null, 1, 0, new QueryParams());
     }
 
     public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn) {
         return createStatement(query, start, end, startLine, startColumn, new QueryParams());
     }
 
+    /**
+     * Parses a PromQL expression that starts at {@code startLine} (1-based) and {@code startColumn} (0-based)
+     * of an enclosing query, such as the inner query of a PROMQL source command. Every location, including the
+     * one of a thrown {@link ParsingException}, is reported in the coordinates of the enclosing query.
+     * A standalone expression starts at line 1, column 0.
+     */
     public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as expression: {}", query);
@@ -125,7 +132,13 @@ public class PromqlParser {
                 }
             }
 
-            ParserRuleContext tree = parseFunction.apply(parser);
+            ParserRuleContext tree;
+            try {
+                tree = parseFunction.apply(parser);
+            } catch (ParsingException pe) {
+                // syntax errors carry positions within the PromQL query, unlike the builder below
+                throw PromqlParserUtils.adjustParsingException(pe, startLine, startColumn);
+            }
 
             if (log.isTraceEnabled()) {
                 log.trace("Parse tree: {}", tree.toStringTree());

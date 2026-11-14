@@ -190,7 +190,7 @@ public class PrometheusQueryExemplarsRestAction extends BaseRestHandler {
             query,
             Literal.dateTime(Source.EMPTY, start),
             Literal.dateTime(Source.EMPTY, end),
-            0,
+            1,
             0
         );
         for (RangeSelector selector : plan.collect(RangeSelector.class)) {

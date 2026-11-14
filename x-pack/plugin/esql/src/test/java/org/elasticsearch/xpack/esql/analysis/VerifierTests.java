@@ -2155,15 +2155,15 @@ public class VerifierTests extends AnalyzerTestCase {
                    (where true)
             | where match(t, "cat")
             """);
-        // an explicit null column is the same shape, and equally empty
-        fullText().query("""
+        // an explicit null column is null-typed, and nothing widens it to the merged type, so it conflicts on data type
+        fullText().error("""
             from test
             | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
                    (eval t = null)
             | where match(t, "cat")
-            """);
-        // ... but only in this order. A null-typed branch coming first represents the column in the merged output
-        // and nothing widens it, so the populated branch conflicts on data type before the analyzers are compared.
+            """, containsString("Column [t] has conflicting data types in FORK branches: [NULL] and [TEXT]"));
+        // ... in either order. A null-typed branch coming first represents the column in the merged output, so it is
+        // the populated branch that is reported.
         fullText().error("""
             from test
             | fork (eval t = null)

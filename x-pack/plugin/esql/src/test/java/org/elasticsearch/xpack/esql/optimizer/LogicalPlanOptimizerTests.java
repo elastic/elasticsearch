@@ -11267,6 +11267,31 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(fork.children(), hasSize(2));
     }
 
+    /**
+     * A FORK branch that fills a sibling's grouping key with an untyped null is rejected by the analyzer rather than
+     * failing the plan check after optimization.
+     */
+    public void testForkBranchWithUntypedNullColumnIsRejected() {
+        var e = expectThrows(VerificationException.class, () -> optimizedPlan("""
+            from employees
+             | fork (stats total = sum(salary) by languages)
+                    (stats total = sum(salary) | eval languages = null)
+            """));
+        assertThat(e.getMessage(), containsString("Column [languages] has conflicting data types in FORK branches: [NULL] and [INTEGER]"));
+    }
+
+    public void testForkBranchWithTypedNullColumn() {
+        var plan = optimizedPlan("""
+            from employees
+             | fork (stats total = sum(salary) by languages)
+                    (stats total = sum(salary) | eval languages = null::integer)
+            """);
+        var limit = as(plan, Limit.class);
+        var fork = as(limit.child(), Fork.class);
+        assertThat(fork.children(), hasSize(2));
+        assertThat(Expressions.names(fork.output()), contains("total", "languages", "_fork"));
+    }
+
     public void testPushDownLimitInFork() {
         var query = """
             from employees

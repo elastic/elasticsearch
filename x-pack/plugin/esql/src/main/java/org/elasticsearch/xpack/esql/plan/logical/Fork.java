@@ -99,7 +99,6 @@ public final class Fork extends MergePlan implements TelemetryAware {
         Map<String, Attribute> mergedOutput = fork.output().stream().collect(Collectors.toMap(Attribute::name, attr -> attr));
 
         fork.children().forEach(subPlan -> {
-            Predicate<Attribute> onlyNull = producesOnlyNull(subPlan);
             for (Attribute attr : subPlan.output()) {
                 var merged = mergedOutput.get(attr.name());
 
@@ -107,13 +106,13 @@ public final class Fork extends MergePlan implements TelemetryAware {
                 // We only assign an UNSUPPORTED attribute in the FORK output when there exists no attribute with the
                 // same name and supported data type in any of the FORK branches.
                 //
-                // Likewise, a branch that does not produce the column at all had it filled with nulls to line the branches up.
-                // Those rows carry no values, so there is nothing for a sibling's declarations to disagree with.
+                // A null-typed column is not exempt: the plan check after optimization requires every branch column to carry
+                // the merged data type, and failing there is a 500.
                 //
                 // Union-type resolution can also introduce synthetic conversion attributes after this FORK's output was
                 // resolved. They are carried through the branch projections so the conversion can be extracted, but are
                 // intentionally absent from the user-visible FORK output and removed by the union-types cleanup rule.
-                if (merged == null || merged.dataType() == DataType.UNSUPPORTED || onlyNull.test(attr)) {
+                if (merged == null || merged.dataType() == DataType.UNSUPPORTED) {
                     continue;
                 }
 
@@ -214,8 +213,8 @@ public final class Fork extends MergePlan implements TelemetryAware {
         }
         // Declaring nothing is declaring the standard analyzer, so it still disagrees with a sibling that names a
         // different one: the merged column can carry only one, and the other branch's values would be analyzed with
-        // an analyzer they never declared. A column with no values to analyze - one a branch lacks, or fills with
-        // nulls - is skipped by the caller rather than weakening the comparison here.
+        // an analyzer they never declared. A column a branch lacks is not compared at all: it is only filled with
+        // nulls after analysis.
         String branchAnalyzer = analyzerOrStandard(branch);
         String mergedAnalyzer = analyzerOrStandard(merged);
         if (branchAnalyzer.equals(mergedAnalyzer) == false) {

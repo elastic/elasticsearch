@@ -5039,3 +5039,16 @@ FROM employees
 mc:long | md:long
 10      | 1
 ;
+
+multiValuedGroupingKeysSameAggAfterFilter
+required_capability: fix_deduplicate_aggs_over_aggregate_outputs
+
+ROW x = [1, 2], y = [1, 2]
+| STATS BY x, y
+| WHERE x < y
+| STATS mx = MAX(x), my = MAX(y)
+;
+
+mx:integer | my:integer
+1          | 2
+;

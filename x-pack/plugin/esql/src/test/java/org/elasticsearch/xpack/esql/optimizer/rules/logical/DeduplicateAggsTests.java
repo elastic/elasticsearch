@@ -665,4 +665,61 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         var inner = as(agg.child(), Aggregate.class);
         assertThat(Expressions.names(inner.aggregates()), contains("d", "c"));
     }
+
+    /**
+     * {@code x} and {@code y} are both {@code [1, 2]} below the first aggregate, but each holds one expanded value per group
+     * above it, so {@code MAX(x)} and {@code MAX(y)} are different aggregations.
+     */
+    public void testMultiValuedGroupingKeysSameAggAfterFilter() {
+        var plan = plan("""
+            ROW x = [1, 2], y = [1, 2]
+            | STATS BY x, y
+            | WHERE x < y
+            | STATS mx = MAX(x), my = MAX(y)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("mx", "my"));
+        aggFieldName(aggs.get(0), Max.class, "x");
+        aggFieldName(aggs.get(1), Max.class, "y");
+    }
+
+    /**
+     * {@code a} is the literal {@code 0} per group, but a row with a multi-valued grouping key joins every one of its groups,
+     * so {@code a} can be multi-valued while {@code z} is not, and {@code COUNT(a)} and {@code COUNT(z)} differ.
+     */
+    public void testInlineStatsRightSideEvalSameAggOverEqualLiteral() {
+        var plan = plan("""
+            from test
+            | inline stats a = count(*) where false, m = max(salary) by languages
+            | eval z = 0::long
+            | stats ca = count(a), cz = count(z), mm = max(m)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("ca", "cz", "mm"));
+        aggFieldName(aggs.get(0), Count.class, "a");
+    }
+
+    public void testChainedStatsDeduplicatesDuplicateInnerAggs() {
+        var plan = plan("""
+            from test
+            | stats c = count(*), d = count(*) by languages
+            | stats mc = min(c), md = min(d)
+            """);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("mc", "md"));
+        assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("mc"));
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("mc"));
+        aggFieldName(aggs.get(0), Min.class, "c");
+    }
 }

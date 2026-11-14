@@ -21,11 +21,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Replace nested expressions over aggregates with synthetic eval post the aggregation
@@ -64,17 +66,11 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
         Map<GroupingFunction.NonEvaluatableGroupingFunction, Attribute> nonEvalGroupingAttributes = new HashMap<>(
             aggregate.groupings().size()
         );
-        aggregate.forEachUp(plan -> {
-            // The aliases of another aggregate are computed over that aggregate's own input rows, so two of them with the same
-            // definition, e.g., COUNT(*) before and after a filter, can hold different values and must not be resolved.
-            if (plan == aggregate || plan instanceof Aggregate == false) {
-                plan.forEachExpression(Alias.class, a -> {
-                    if (a.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction groupingFunction) {
-                        nonEvalGroupingAttributes.put(groupingFunction, a.toAttribute());
-                    } else {
-                        aliasesBuilder.put(a.toAttribute(), a.child());
-                    }
-                });
+        collectAliases(aggregate, aggregate, a -> {
+            if (a.child() instanceof GroupingFunction.NonEvaluatableGroupingFunction groupingFunction) {
+                nonEvalGroupingAttributes.put(groupingFunction, a.toAttribute());
+            } else {
+                aliasesBuilder.put(a.toAttribute(), a.child());
             }
         });
         var aliases = aliasesBuilder.build();
@@ -175,6 +171,26 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
         }
 
         return plan;
+    }
+
+    /**
+     * Walks {@code plan} bottom-up and passes on the aliases whose value holds for every row reaching {@code aggregate}, so that
+     * aggregate functions whose arguments resolve to equal expressions compute the same value.
+     * <p>
+     * Nothing at or below another {@link Aggregate} is collected: its aggregate values are computed over its own input rows, and
+     * a multi-valued grouping key keeps its id across it while holding one expanded value per group above it, so an alias below
+     * it no longer describes the key. Only the left-hand side of an {@link InlineJoin} is walked: its right-hand side computes
+     * values per group, and a multi-valued join key makes them multi-valued on the joined rows.
+     */
+    private static void collectAliases(LogicalPlan plan, Aggregate aggregate, Consumer<Alias> consumer) {
+        if (plan != aggregate && plan instanceof Aggregate) {
+            return;
+        }
+        List<LogicalPlan> children = plan instanceof InlineJoin inlineJoin ? List.of(inlineJoin.left()) : plan.children();
+        for (LogicalPlan child : children) {
+            collectAliases(child, aggregate, consumer);
+        }
+        plan.forEachExpression(Alias.class, consumer);
     }
 
     private static AggregateFunction getCannonical(AggregateFunction af, AttributeMap<Expression> aliases) {

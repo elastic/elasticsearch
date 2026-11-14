@@ -81,14 +81,15 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
  * Integration tests for the ES|QL streaming API under network disruption.
  * Tests the fault-before-first-page case (non-200 HTTP status and a single NDJSON error line) and
- * the fault-after-first-page case (HTTP 200, at least one values line, and an error as the last
+ * the fault-after-first-page case (HTTP 200, at least one row line, and an error as the last
  * NDJSON line). The response is only sent once the first page arrives, so a 200 response never ends
- * in an error with no values lines.
+ * in an error with no row lines.
  *
  * {@code numClientNodes = 1} gives a stable shard-free node to pin the REST client to and
  * ensures every compute request is a genuine inter-node transport hop. Real Netty HTTP is
@@ -362,8 +363,10 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A request body whose query produces pages of at most {@code pageSize} rows. A stream writes one line per engine page, so
-     * a small page size makes a scan produce many lines. Callers must check {@link #canUseQueryPragmas()}.
+     * A request body whose query produces pages of at most {@code pageSize} rows. With the default page size a small result
+     * fits in a handful of pages, so the query can finish before a mid-stream disruption lands. A small page size keeps the
+     * engine producing pages (and exchange fetches in flight) while the client is paused, so the disruption hits a running
+     * query. Callers must check {@link #canUseQueryPragmas()}.
      */
     private static String streamBody(String query, int pageSize) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -461,7 +464,7 @@ public class EsqlStreamDisruptionIT extends AbstractEsqlIntegTestCase {
         assertServerFullyCleanedUp();
         assertStreamInvariants(outcome, false, 1000);
         assertThat(outcome.httpStatus(), equalTo(200));
-        assertThat("line 1 must be a values line", outcome.lines().get(1), hasKey("values"));
+        assertThat("line 1 must be a row", outcome.lines().get(1), instanceOf(List.class));
         assertThat("the exchange fault must be hit after the first page", faultHits.get(), greaterThan(0L));
         assertThat("an exchange fault after the first page must end with an error line", outcome.terminal(), equalTo(Terminal.ERROR));
         assertNotEquals("error type must not be remote_transport_exception", "remote_transport_exception", outcome.errorType());

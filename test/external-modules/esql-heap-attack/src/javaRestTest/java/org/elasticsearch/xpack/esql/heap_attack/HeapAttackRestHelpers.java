@@ -309,14 +309,17 @@ public abstract class HeapAttackRestHelpers extends ESRestTestCase {
                 if (line.isBlank()) {
                     continue;
                 }
+                if (line.startsWith("[")) {
+                    // A row: one line per row, written as a bare array of values. There is no need to parse it to count it.
+                    rowCount++;
+                    continue;
+                }
                 Map<String, Object> parsed = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, false);
                 if (parsed.containsKey("error")) {
                     errors.add(parsed);
                 }
                 if (parsed.containsKey("columns")) {
                     columns = (List<Map<String, Object>>) parsed.get("columns");
-                } else if (parsed.containsKey("values")) {
-                    rowCount += ((List<List<Object>>) parsed.get("values")).size();
                 } else if (parsed.containsKey("took")) {
                     footer = parsed;
                 }

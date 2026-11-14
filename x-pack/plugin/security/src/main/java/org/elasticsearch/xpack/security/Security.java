@@ -825,6 +825,7 @@ public class Security extends Plugin
         return systemIndices.getFeatures()
             .stream()
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
+            .filter(SystemDataStreamDescriptor::isAutomaticallyManaged)
             .filter(Security::isManagedByDataStreamLifecycle)
             .map(SystemDataStreamDescriptor::getDataStreamName)
             .filter(

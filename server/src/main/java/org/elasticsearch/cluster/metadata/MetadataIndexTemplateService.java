@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -833,7 +834,7 @@ public class MetadataIndexTemplateService {
         var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
 
         validate(name, templateToValidate, additionalSettings);
-        maybeValidateDataStreamsStillReferenced(projectMetadata, name, templateToValidate);
+        maybeValidateDataStreamsStillReferenced(projectMetadata, systemIndices, name, templateToValidate);
         validateLifecycle(componentTemplates, name, templateToValidate, dataStreamLifecycleSettings.getGlobalRetention(false));
         validateDataStreamOptions(componentTemplates, name, templateToValidate, dataStreamLifecycleSettings.getGlobalRetention(true));
 
@@ -964,6 +965,7 @@ public class MetadataIndexTemplateService {
      */
     private static void maybeValidateDataStreamsStillReferenced(
         ProjectMetadata project,
+        SystemIndices systemIndices,
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
@@ -989,14 +991,14 @@ public class MetadataIndexTemplateService {
             && Objects.equals(existingTemplate.priorityOrZero(), newTemplate.priorityOrZero())) {
             if (Assertions.ENABLED) {
                 try {
-                    validateDataStreamsStillReferenced(project, templateName, newTemplate);
+                    validateDataStreamsStillReferenced(project, systemIndices, templateName, newTemplate);
                 } catch (IllegalArgumentException e) {
                     assert false : "Data stream reference validation took a shortcut but the full check failed: " + e.getMessage();
                 }
             }
             return;
         }
-        validateDataStreamsStillReferenced(project, templateName, newTemplate);
+        validateDataStreamsStillReferenced(project, systemIndices, templateName, newTemplate);
     }
 
     /**
@@ -1007,6 +1009,7 @@ public class MetadataIndexTemplateService {
      */
     private static void validateDataStreamsStillReferenced(
         ProjectMetadata project,
+        SystemIndices systemIndices,
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
@@ -1015,9 +1018,12 @@ public class MetadataIndexTemplateService {
             // For each data stream that we have, see whether it's covered by a different
             // template (which is great), or whether it's now uncovered by any template
             for (var dataStreamEntry : project.dataStreams().entrySet()) {
-                // Exclude system data streams
+                // Exclude managed system data streams, they take their templates from the descriptor, not from the cluster state
                 if (dataStreamEntry.getValue().isSystem()) {
-                    continue;
+                    SystemDataStreamDescriptor descriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamEntry.getKey());
+                    if (descriptor == null || descriptor.isAutomaticallyManaged()) {
+                        continue;
+                    }
                 }
                 final String dataStream = dataStreamEntry.getKey();
                 final String matchingTemplate = findV2Template(project, composableTemplates.entrySet(), dataStream, false, false);

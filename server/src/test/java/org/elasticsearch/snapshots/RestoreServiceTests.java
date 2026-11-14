@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
@@ -99,29 +101,50 @@ import static org.mockito.Mockito.when;
 public class RestoreServiceTests extends ESTestCase {
 
     /**
-     * Test that {@link RestoreService#warnIfIndexTemplateMissing(Map, Set, SnapshotInfo)} does not warn for system
-     * datastreams.
+     * Test that {@link RestoreService#warnIfIndexTemplateMissing(Map, Set, SnapshotInfo, SystemIndices)} only warns for unmanaged
+     * system datastreams, which resolve their template from the cluster state.
      */
-    public void testWarnIfIndexTemplateMissingSkipsSystemDataStreams() throws Exception {
-        String dataStreamName = ".test-system-data-stream";
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        List<Index> indices = List.of(new Index(backingIndexName, randomUUID()));
-
-        var dataStream = DataStream.builder(dataStreamName, indices).setSystem(true).setHidden(true).build();
-        var dataStreamsToRestore = Map.of(dataStreamName, dataStream);
+    public void testWarnIfIndexTemplateMissingOnlyForUnmanagedSystemDataStreams() throws Exception {
+        String managedDataStreamName = ".test-managed-system-data-stream";
+        String noDescriptorDataStreamName = ".test-system-data-stream";
+        String unmanagedDataStreamName = ".test-unmanaged-system-data-stream";
+        var dataStreamsToRestore = Map.of(
+            managedDataStreamName,
+            systemDataStream(managedDataStreamName),
+            noDescriptorDataStreamName,
+            systemDataStream(noDescriptorDataStreamName),
+            unmanagedDataStreamName,
+            systemDataStream(unmanagedDataStreamName)
+        );
         var templatePatterns = Set.of("matches_none");
         var snapshotInfo = createSnapshotInfo(
             new Snapshot(randomProjectIdOrDefault(), "repository", new SnapshotId("name", "uuid")),
             Boolean.FALSE
         );
+        var descriptors = List.of(
+            systemDataStreamDescriptor(
+                managedDataStreamName,
+                randomFrom(SystemDataStreamDescriptor.Type.INTERNAL, SystemDataStreamDescriptor.Type.EXTERNAL)
+            ),
+            systemDataStreamDescriptor(unmanagedDataStreamName, SystemDataStreamDescriptor.Type.EXTERNAL_UNMANAGED)
+        );
+        var systemIndices = new SystemIndices(List.of(new SystemIndices.Feature("test-feature", "a test feature", List.of(), descriptors)));
 
-        RestoreService.warnIfIndexTemplateMissing(dataStreamsToRestore, templatePatterns, snapshotInfo);
+        RestoreService.warnIfIndexTemplateMissing(dataStreamsToRestore, templatePatterns, snapshotInfo, systemIndices);
 
-        ensureNoWarnings();
+        assertWarnings(
+            format(
+                "Snapshot [%s] contains data stream [%s] but custer does not have a matching index template. This will cause"
+                    + " rollover to fail until a matching index template is created",
+                snapshotInfo.snapshot(),
+                unmanagedDataStreamName
+            )
+        );
     }
 
     /**
-     * Test that {@link RestoreService#warnIfIndexTemplateMissing(Map, Set, SnapshotInfo)} warns for non-system datastreams.
+     * Test that {@link RestoreService#warnIfIndexTemplateMissing(Map, Set, SnapshotInfo, SystemIndices)} warns for non-system
+     * datastreams.
      */
     public void testWarnIfIndexTemplateMissing() throws Exception {
         String dataStreamName = ".test-system-data-stream";
@@ -136,7 +159,7 @@ public class RestoreServiceTests extends ESTestCase {
             Boolean.FALSE
         );
 
-        RestoreService.warnIfIndexTemplateMissing(dataStreamsToRestore, templatePatterns, snapshotInfo);
+        RestoreService.warnIfIndexTemplateMissing(dataStreamsToRestore, templatePatterns, snapshotInfo, EmptySystemIndices.INSTANCE);
 
         assertWarnings(
             format(
@@ -341,6 +364,24 @@ public class RestoreServiceTests extends ESTestCase {
                     List.of(SystemIndexDescriptorUtils.createUnmanaged(indexPattern, "test"))
                 )
             )
+        );
+    }
+
+    private static DataStream systemDataStream(String dataStreamName) {
+        List<Index> indices = List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1), randomUUID()));
+        return DataStream.builder(dataStreamName, indices).setSystem(true).setHidden(true).build();
+    }
+
+    private static SystemDataStreamDescriptor systemDataStreamDescriptor(String dataStreamName, SystemDataStreamDescriptor.Type type) {
+        return new SystemDataStreamDescriptor(
+            dataStreamName,
+            "test",
+            type,
+            type.isManaged() ? ComposableIndexTemplate.builder().build() : null,
+            Map.of(),
+            List.of("test"),
+            "test",
+            null
         );
     }
 

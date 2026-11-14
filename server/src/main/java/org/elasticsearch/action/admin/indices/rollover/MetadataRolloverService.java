@@ -331,7 +331,9 @@ public class MetadataRolloverService {
             if (systemDataStreamDescriptor == null) {
                 throw new IllegalArgumentException("no system data stream descriptor found for data stream [" + dataStreamName + "]");
             }
-            templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
+            templateV2 = systemDataStreamDescriptor.isAutomaticallyManaged()
+                ? systemDataStreamDescriptor.getComposableIndexTemplate()
+                : dataStream.getEffectiveIndexTemplate(projectState.metadata());
         }
 
         final DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);

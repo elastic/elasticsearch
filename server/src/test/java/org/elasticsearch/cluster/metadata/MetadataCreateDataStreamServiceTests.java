@@ -464,6 +464,42 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(index.isSystem(), is(true));
     }
 
+    public void testCreateUnmanagedSystemDataStreamUsesClusterTemplate() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = ".unmanaged-system-data-stream";
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName))
+            .dataStreamTemplate(new DataStreamTemplate())
+            .metadata(Map.of("owner", "cluster-template"))
+            .build();
+        var projectId = randomProjectIdOrDefault();
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(
+            projectId,
+            dataStreamName,
+            unmanagedSystemDataStreamDescriptor(),
+            TimeValue.MAX_VALUE,
+            TimeValue.ZERO
+        );
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(
+            metadataCreateIndexService,
+            Settings.EMPTY,
+            cs,
+            randomBoolean(),
+            req,
+            RerouteBehavior.PERFORM_REROUTE,
+            ActionListener.noop(),
+            false
+        );
+        final var project = newState.metadata().getProject(projectId);
+        final DataStream dataStream = project.dataStreams().get(dataStreamName);
+        assertThat(dataStream.getMetadata(), equalTo(Map.of("owner", "cluster-template")));
+        assertThat(dataStream.isSystem(), is(true));
+        assertThat(dataStream.isHidden(), is(true));
+    }
+
     public void testCreateDuplicateDataStream() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
@@ -736,10 +772,28 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     private static SystemIndices getSystemIndices() {
         List<Feature> features = List.of(
-            new Feature("systemFeature", "system feature description", List.of(), List.of(systemDataStreamDescriptor()))
+            new Feature(
+                "systemFeature",
+                "system feature description",
+                List.of(),
+                List.of(systemDataStreamDescriptor(), unmanagedSystemDataStreamDescriptor())
+            )
         );
 
         return new SystemIndices(features);
+    }
+
+    private static SystemDataStreamDescriptor unmanagedSystemDataStreamDescriptor() {
+        return new SystemDataStreamDescriptor(
+            ".unmanaged-system-data-stream",
+            "test unmanaged system datastream",
+            Type.EXTERNAL_UNMANAGED,
+            null,
+            Map.of(),
+            List.of("stack"),
+            "stack",
+            ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+        );
     }
 
     private static SystemDataStreamDescriptor systemDataStreamDescriptor() {

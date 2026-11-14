@@ -128,6 +128,15 @@ public final class Messages {
     public static final String DATAFEED_ESQL_REMOTE_CLUSTER_SOURCE_NOT_SUPPORTED =
         "ES|QL datafeeds currently do not support remote cluster sources, but the index expression [{0}] in the "
             + "esql_query source command refers to remote cluster [{1}]; remove the cluster prefix and query local indices only";
+    public static final String DATAFEED_ESQL_SOURCE_COMMAND_REQUIRED =
+        "ES|QL datafeeds require an esql_query that starts with a FROM or TS source command.";
+    public static final String DATAFEED_ESQL_PROJECT_ROUTING_SETTING_NOT_SUPPORTED =
+        "ES|QL datafeeds do not support SET project_routing in esql_query; set project_routing on the datafeed instead.";
+    public static final String DATAFEED_ESQL_TIME_ZONE_SETTING_NOT_UTC =
+        "ES|QL datafeeds require the UTC time zone, but esql_query sets time_zone to [{0}]; remove the SET time_zone statement.";
+    public static final String DATAFEED_ESQL_LIMIT_BEFORE_STATS_WARNING =
+        "{0} query applies a LIMIT before an aggregation (STATS), which restricts the source rows each extraction window sees, "
+            + "so aggregated values can be incomplete and depend on chunking; use SAMPLE or remove the LIMIT to reduce the data volume.";
     public static final String DATAFEED_ESQL_UPDATE_QUERY_SHAPE_IMMUTABLE =
         "Recreate ES|QL datafeed [{0}] to change esql_query, source_time_field, grouping_interval, indices, query, "
             + "aggregations, scroll_size, indices_options, or runtime_mappings. The update API only supports operational "

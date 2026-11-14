@@ -49,19 +49,6 @@ public class EsqlDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlDataExtractor.class);
 
-    /** Injected row cap when the user query has no outer LIMIT; see {@link EsqlDataExtractorQueryUtils#INJECTED_ROW_LIMIT}. */
-    public static final long INJECTED_ROW_LIMIT = EsqlDataExtractorQueryUtils.INJECTED_ROW_LIMIT;
-
-    /** Delegates to {@link EsqlDataExtractorQueryUtils#injectsRowLimit(String)}. */
-    public static boolean injectsRowLimit(String esqlQuery) {
-        return EsqlDataExtractorQueryUtils.injectsRowLimit(esqlQuery);
-    }
-
-    /** Whether the user's pipeline contains a depth-zero {@code STATS} command (aggregating query). */
-    public static boolean hasAggregation(String esqlQuery) {
-        return EsqlQueryClauseScanner.hasAggregation(esqlQuery);
-    }
-
     private final Client client;
     private final EsqlDataExtractorContext context;
     private final DatafeedTimingStatsReporter timingStatsReporter;
@@ -122,7 +109,7 @@ public class EsqlDataExtractor implements DataExtractor {
     public DataSummary getSummary() {
         QueryBuilder timeFilter = buildTimeFilter();
         SourceRangeSummary sourceSummary = fetchSourceRangeSummary(timeFilter);
-        if (sourceSummary.hasData() == false || EsqlQueryClauseScanner.hasAggregation(context.esqlQuery()) == false) {
+        if (sourceSummary.hasData() == false || context.query().hasAggregation() == false) {
             return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), sourceSummary.totalHits());
         }
         if (sourceSummary.earliestTime() == null) {
@@ -133,9 +120,9 @@ public class EsqlDataExtractor implements DataExtractor {
         return new DataSummary(sourceSummary.earliestTime(), sourceSummary.latestTime(), estimatedOutputRows);
     }
 
-    /** Source-level MIN/MAX/COUNT probe on {@link EsqlQueryClauseScanner#extractLeadingCommand}, not the user pipeline. */
+    /** Source-level MIN/MAX/COUNT probe on the source command, not the user pipeline. */
     private SourceRangeSummary fetchSourceRangeSummary(QueryBuilder timeFilter) {
-        String sourceQuery = EsqlDataExtractorQueryUtils.sourceRangeSummaryQuery(context.esqlQuery());
+        String sourceQuery = context.query().sourceRangeSummaryQuery();
         long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runQueryWithSingleRetry(sourceQuery, timeFilter, sourceTimeFieldParam())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
@@ -173,8 +160,8 @@ public class EsqlDataExtractor implements DataExtractor {
      * STATS. Used only to measure output-row density over a small window, not over the full extraction range.
      */
     private long runBoundedAggregationProbe(long probeStart, long probeEnd) {
-        QueryBuilder probeFilter = EsqlDataExtractorQueryUtils.timeRangeFilter(context.sourceTimeField(), probeStart, probeEnd);
-        String probeQuery = EsqlDataExtractorQueryUtils.boundedProbeQuery(context.esqlQuery());
+        QueryBuilder probeFilter = EsqlQueryExecutor.timeRangeFilter(context.sourceTimeField(), probeStart, probeEnd);
+        String probeQuery = context.query().outputRowsProbeQuery();
         long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runQueryWithSingleRetry(probeQuery, probeFilter, List.of())) {
             long durationMs = client.threadPool().relativeTimeInMillis() - startMs;
@@ -195,13 +182,13 @@ public class EsqlDataExtractor implements DataExtractor {
     }
 
     private QueryBuilder buildTimeFilter() {
-        return EsqlDataExtractorQueryUtils.timeRangeFilter(context.sourceTimeField(), context.start(), context.end());
+        return EsqlQueryExecutor.timeRangeFilter(context.sourceTimeField(), context.start(), context.end());
     }
 
-    private static DataSummary parseSummaryResponse(EsqlResponse response) {
+    private DataSummary parseSummaryResponse(EsqlResponse response) {
         List<? extends ColumnInfo> columns = response.columns();
-        boolean earliestIsDate = columns.isEmpty() == false && EsqlDatafeedColumnValues.isDateColumnType(columns.get(0).outputType());
-        boolean latestIsDate = columns.size() > 1 && EsqlDatafeedColumnValues.isDateColumnType(columns.get(1).outputType());
+        boolean earliestIsDate = columns.isEmpty() == false && context.analyzer().isDateType(columns.get(0).outputType());
+        boolean latestIsDate = columns.size() > 1 && context.analyzer().isDateType(columns.get(1).outputType());
         var rowIterator = response.rows().iterator();
         if (rowIterator.hasNext() == false) {
             return new DataSummary(null, null, 0L);
@@ -231,7 +218,7 @@ public class EsqlDataExtractor implements DataExtractor {
 
         QueryBuilder timeFilter = buildTimeFilter();
 
-        String orderedQuery = EsqlDataExtractorQueryUtils.buildOrderedQuery(context.esqlQuery());
+        String orderedQuery = context.query().orderedQuery();
 
         long startMs = client.threadPool().relativeTimeInMillis();
         try (EsqlQueryResponse response = runQueryWithSingleRetry(orderedQuery, timeFilter, timeFieldParam())) {
@@ -253,6 +240,7 @@ public class EsqlDataExtractor implements DataExtractor {
             }
             EsqlDatafeedQueryValidator.validateEmittedTimesInSourceWindow(
                 columns,
+                context.analyzer(),
                 materializedRows,
                 context.jobId(),
                 context.emittedTimeField(),
@@ -260,7 +248,7 @@ public class EsqlDataExtractor implements DataExtractor {
                 context.end()
             );
             BytesStreamOutput out = new BytesStreamOutput();
-            try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, out)) {
+            try (EsqlToJsonProcessor processor = new EsqlToJsonProcessor(columns, context.analyzer(), out)) {
                 for (List<Object> row : materializedRows) {
                     processor.process(row);
                 }

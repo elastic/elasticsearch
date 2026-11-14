@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQuery;
 
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -147,7 +147,7 @@ public class ChunkedDataExtractorEsqlSizingTests extends ESTestCase {
 
     public void testUserLimitShouldNotCountAsTruncated() {
         ChunkedDataExtractorEsqlSizing sizing = esqlSizing(false);
-        assertThat(sizing.isTruncated(EsqlDataExtractor.INJECTED_ROW_LIMIT), is(false));
+        assertThat(sizing.isTruncated(EsqlDatafeedQuery.INJECTED_ROW_LIMIT), is(false));
     }
 
     private static OptionalLong truncated(ChunkedDataExtractorEsqlSizing sizing, long start, long end) {

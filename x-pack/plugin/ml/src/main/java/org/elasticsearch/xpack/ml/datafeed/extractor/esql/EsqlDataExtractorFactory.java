@@ -12,29 +12,44 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
-public record EsqlDataExtractorFactory(Client client, DatafeedConfig datafeed, Job job, DatafeedTimingStatsReporter timingStatsReporter)
-    implements
-        DataExtractorFactory {
+/** Builds extractors for one ES|QL datafeed; the query is parsed once, when the factory is created. */
+public record EsqlDataExtractorFactory(
+    Client client,
+    DatafeedConfig datafeed,
+    Job job,
+    DatafeedTimingStatsReporter timingStatsReporter,
+    EsqlQueryAnalyzer analyzer,
+    EsqlDatafeedQuery query
+) implements DataExtractorFactory {
 
     public static void create(
         Client client,
         DatafeedConfig datafeed,
         Job job,
         DatafeedTimingStatsReporter timingStatsReporter,
+        EsqlQueryAnalyzer analyzer,
         ActionListener<DataExtractorFactory> factoryHandler
     ) {
-        DataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
-        factoryHandler.onResponse(factory);
+        EsqlDatafeedQuery query;
+        try {
+            query = EsqlDatafeedQuery.parse(analyzer, datafeed.getEsqlQuery());
+        } catch (Exception e) {
+            factoryHandler.onFailure(e);
+            return;
+        }
+        factoryHandler.onResponse(new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter, analyzer, query));
     }
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
         EsqlDataExtractorContext ctx = new EsqlDataExtractorContext(
             job.getId(),
-            datafeed.getEsqlQuery(),
+            query,
+            analyzer,
             datafeed.getSourceTimeField(),
             job.getDataDescription().getTimeField(),
             datafeed.getGroupingInterval().millis(),

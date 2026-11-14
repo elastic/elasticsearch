@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
 import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -152,6 +153,11 @@ public class BlockFactory {
     // For testing
     public BigArrays bigArrays() {
         return bigArrays;
+    }
+
+    @Nullable
+    public SingleArrayPool arrayPool() {
+        return breaker instanceof LocalCircuitBreaker local ? local.arrayPool() : null;
     }
 
     /**

@@ -256,7 +256,7 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
+            public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount, BlockLoader.ArrayPool pool) {
                 final long[] values = new long[expectedCount];
 
                 return new BlockLoader.SingletonLongBuilder() {
@@ -308,7 +308,7 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount) {
+            public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount, BlockLoader.ArrayPool pool) {
                 final int[] values = new int[expectedCount];
 
                 return new BlockLoader.SingletonIntBuilder() {
@@ -357,7 +357,7 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonDoubleBuilder singletonDoubles(int expectedCount) {
+            public BlockLoader.SingletonDoubleBuilder singletonDoubles(int expectedCount, BlockLoader.ArrayPool pool) {
                 final double[] values = new double[expectedCount];
 
                 return new BlockLoader.SingletonDoubleBuilder() {

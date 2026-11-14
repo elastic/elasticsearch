@@ -327,7 +327,7 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         withSegment(values, Framing.PAYLOAD, leaf -> {
             final var loader = new BytesRefsFromBinaryBlockLoader(FIELD);
             final TestBlock block = (TestBlock) loader.reader(NoopCircuitBreaker.INSTANCE, leaf)
-                .read(TestBlock.factory(), docs(0, values.length), 0, false);
+                .read(TestBlock.factory(), docs(0, values.length), 0, false, null);
             for (int d = 0; d < values.length; d++) {
                 assertEquals("document " + d, values[d] == null ? null : payload(values[d]), block.get(d));
             }
@@ -347,7 +347,7 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
                     final CountingBreaker breaker = new CountingBreaker();
                     try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, leaf)) {
                         final long opened = breaker.getUsed();
-                        reader.read(TestBlock.factory(), docs(0, values.length), 0, false);
+                        reader.read(TestBlock.factory(), docs(0, values.length), 0, false, null);
                         assertThat(framing + " " + loader + " charges for its page", breaker.getUsed(), greaterThan(opened));
                     }
                     assertEquals(framing + " " + loader, 0, breaker.getUsed());
@@ -415,7 +415,7 @@ public class ColumnarKeywordPushdownGuardTests extends ESTestCase {
         String[] values,
         Function<String, Object> expected
     ) throws IOException {
-        final TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs(wanted), 0, false);
+        final TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs(wanted), 0, false, null);
         assertEquals(label + " positions", wanted.length, block.size());
         for (int i = 0; i < wanted.length; i++) {
             final String value = values[wanted[i]];

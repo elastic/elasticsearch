@@ -109,7 +109,7 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             boolean success = false;
             Block minBlock = null;
             Block maxBlock = null;
@@ -117,10 +117,12 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
             Block countBlock = null;
             try {
                 int count = docs.count() - offset;
-                minBlock = minReader != null ? minReader.read(factory, docs, offset, nullsFiltered) : factory.constantNulls(count);
-                maxBlock = maxReader != null ? maxReader.read(factory, docs, offset, nullsFiltered) : factory.constantNulls(count);
-                sumBlock = sumReader != null ? sumReader.read(factory, docs, offset, nullsFiltered) : factory.constantNulls(count);
-                countBlock = countReader != null ? countReader.read(factory, docs, offset, nullsFiltered) : factory.constantNulls(count);
+                minBlock = minReader != null ? minReader.read(factory, docs, offset, nullsFiltered, null) : factory.constantNulls(count);
+                maxBlock = maxReader != null ? maxReader.read(factory, docs, offset, nullsFiltered, null) : factory.constantNulls(count);
+                sumBlock = sumReader != null ? sumReader.read(factory, docs, offset, nullsFiltered, null) : factory.constantNulls(count);
+                countBlock = countReader != null
+                    ? countReader.read(factory, docs, offset, nullsFiltered, null)
+                    : factory.constantNulls(count);
                 Block block = factory.buildAggregateMetricDoubleDirect(minBlock, maxBlock, sumBlock, countBlock);
                 success = true;
                 return block;
@@ -213,7 +215,7 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
                 }
 
                 @Override
-                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
                     int expectedCount = docs.count() - offset;
                     if (sumValues == null || valueCountValues == null) {
                         return factory.constantNulls(expectedCount);

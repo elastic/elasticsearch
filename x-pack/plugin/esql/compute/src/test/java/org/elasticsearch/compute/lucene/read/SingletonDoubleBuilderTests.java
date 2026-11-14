@@ -66,7 +66,7 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
             try (IndexReader reader = DirectoryReader.open(directory)) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     var docValues = ctx.reader().getNumericDocValues("field");
-                    try (var builder = new SingletonDoubleBuilder(ctx.reader().numDocs(), factory)) {
+                    try (var builder = new SingletonDoubleBuilder(ctx.reader().numDocs(), factory, null)) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             assertThat(docValues.advanceExact(i), equalTo(true));
                             builder.appendLongs(Double::longBitsToDouble, new long[] { docValues.longValue() }, 0, 1);
@@ -105,7 +105,7 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
                 LeafReader leafReader = reader.leaves().get(0).reader();
                 var docValues = leafReader.getNumericDocValues("field");
                 int offset = 850;
-                try (var builder = new SingletonDoubleBuilder(count - offset, blockFactory())) {
+                try (var builder = new SingletonDoubleBuilder(count - offset, blockFactory(), null)) {
                     for (int i = offset; i < leafReader.maxDoc(); i++) {
                         assertThat(docValues.advanceExact(i), equalTo(true));
                         builder.appendLongs(Double::longBitsToDouble, new long[] { docValues.longValue() }, 0, 1);

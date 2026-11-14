@@ -250,7 +250,7 @@ public class BlockLoaderTestRunner {
             }
             BlockLoader.Docs docs = TestBlock.docs(docArray);
             try (BlockLoader.ColumnAtATimeReader reader = columnAtATimeReaderSource.apply(breaker)) {
-                var block = (TestBlock) reader.read(TestBlock.factory(), docs, offset, false);
+                var block = (TestBlock) reader.read(TestBlock.factory(), docs, offset, false, null);
                 assertThat(block.size(), equalTo(docArray.length - offset));
                 return block.get(0);
             }

@@ -52,7 +52,7 @@ public class DateRangeDocValuesLoaderTests extends ESTestCase {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
                 var loader = new DateRangeDocValuesLoader(FIELD_NAME);
                 try (var reader = loader.columnAtATimeReader(ctx).apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))) {
-                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0), 0, false, null);
 
                     assertThat(block.size(), equalTo(1));
                     // Both ranges stored as inclusive [from, to] are converted to half-open [from, to+1).
@@ -81,7 +81,7 @@ public class DateRangeDocValuesLoaderTests extends ESTestCase {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
                 var loader = new DateRangeDocValuesLoader(FIELD_NAME);
                 try (var reader = loader.columnAtATimeReader(ctx).apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))) {
-                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0), 0, false, null);
 
                     assertThat(block.size(), equalTo(1));
                     // to=Long.MAX_VALUE (inclusive) stays Long.MAX_VALUE in the exclusive representation,
@@ -118,7 +118,7 @@ public class DateRangeDocValuesLoaderTests extends ESTestCase {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
                 var loader = new DateRangeDocValuesLoader(FIELD_NAME);
                 try (var reader = loader.columnAtATimeReader(ctx).apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))) {
-                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
+                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false, null);
 
                     // All three positions must be present: neither the empty-ranges doc nor the missing
                     // doc value may cause a position to be skipped.

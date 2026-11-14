@@ -1077,7 +1077,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         var docs = TestBlock.docs(IntStream.range(i, i + size).toArray());
                         {
                             // bulk loading binary fixed length field:
-                            var block = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, 0, random().nextBoolean());
+                            var block = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, 0, random().nextBoolean(), null);
                             assertNotNull(block);
                             assertEquals(size, block.size());
 
@@ -1088,7 +1088,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         }
                         {
                             // bulk loading binary variable length field:
-                            var block = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, 0, random().nextBoolean());
+                            var block = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, 0, random().nextBoolean(), null);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -1123,11 +1123,11 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                     var expectedBinaryVariableDV = getTSDBBinaryValues(leafReader, binaryVariableField);
 
                     // Test fixed length
-                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, randomOffset, false);
+                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, randomOffset, false, null);
                     assertLengthDenseBlock(fixedBinaryBlock, size, randomOffset, docs, expectedBinaryFixedDV);
 
                     // Test variable length
-                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, randomOffset, false);
+                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, randomOffset, false, null);
                     assertLengthDenseBlock(variableBinaryBlock, size, randomOffset, docs, expectedBinaryVariableDV);
                 }
 
@@ -1145,11 +1145,11 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                     var expectedBinaryVariableDV = getTSDBBinaryValues(leafReader, binaryVariableField);
 
                     // Test fixed length
-                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, 0, false);
+                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, 0, false, null);
                     assertLengthDenseBlock(fixedBinaryBlock, size, 0, docs, expectedBinaryFixedDV);
 
                     // Test variable length
-                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, 0, false);
+                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, 0, false, null);
                     assertLengthDenseBlock(variableBinaryBlock, size, 0, docs, expectedBinaryVariableDV);
                 }
             }
@@ -1213,11 +1213,11 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                     var expectedBinaryVariableDV = getTSDBBinaryValues(leafReader, binaryVariableField);
 
                     // Test fixed length
-                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, randomOffset, false);
+                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, randomOffset, false, null);
                     assertLengthSparseBlock(fixedBinaryBlock, size, randomOffset, docs, expectedBinaryFixedDV);
 
                     // Test variable length
-                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, randomOffset, false);
+                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, randomOffset, false, null);
                     assertLengthSparseBlock(variableBinaryBlock, size, randomOffset, docs, expectedBinaryVariableDV);
                 }
 
@@ -1235,11 +1235,11 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                     var expectedBinaryVariableDV = getTSDBBinaryValues(leafReader, binaryVariableField);
 
                     // Test fixed length
-                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, 0, false);
+                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, 0, false, null);
                     assertLengthSparseBlock(fixedBinaryBlock, size, 0, docs, expectedBinaryFixedDV);
 
                     // Test variable length
-                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, 0, false);
+                    var variableBinaryBlock = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, 0, false, null);
                     assertLengthSparseBlock(variableBinaryBlock, size, 0, docs, expectedBinaryVariableDV);
                 }
             }
@@ -1360,7 +1360,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
 
                         {
                             // bulk loading timestamp:
-                            var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                            var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false, null);
                             assertEquals(timestampDV.docID(), docIdEnd);
                             assertNotNull(block);
                             assertEquals(size, block.size());
@@ -1373,7 +1373,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         }
                         {
                             // bulk loading counter field:
-                            var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                            var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false, null);
                             assertEquals(counterDV.docID(), docIdEnd);
                             assertNotNull(block);
                             assertEquals(size, block.size());
@@ -1384,7 +1384,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                                 random().nextBoolean(),
                                 null,
                                 false,
-                                false
+                                false,
+                                null
                             );
                             assertEquals(stringCounterDV.docID(), docIdEnd);
                             assertNotNull(stringBlock);
@@ -1403,7 +1404,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         }
                         {
                             // bulk loading gauge field:
-                            var block = (TestBlock) gaugeDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                            var block = (TestBlock) gaugeDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false, null);
                             assertEquals(gaugeDV.docID(), docIdEnd);
                             assertNotNull(block);
                             assertEquals(size, block.size());
@@ -1422,7 +1423,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                                 random().nextBoolean(),
                                 null,
                                 false,
-                                useCustomBinaryFormat
+                                useCustomBinaryFormat,
+                                null
                             );
                             assertEquals(binaryFixedDV.docID(), docIdEnd);
                             assertNotNull(block);
@@ -1442,7 +1444,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                                 random().nextBoolean(),
                                 null,
                                 false,
-                                useCustomBinaryFormat
+                                useCustomBinaryFormat,
+                                null
                             );
                             assertEquals(binaryVariableDV.docID(), docIdEnd);
                             assertNotNull(block);
@@ -1484,7 +1487,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 int docIdEnd = docs.get(docs.count() - 1);
                 {
                     // bulk loading timestamp:
-                    var block = (TestBlock) timestampDV.tryRead(blockFactory, docs, randomOffset, false, null, false, false);
+                    var block = (TestBlock) timestampDV.tryRead(blockFactory, docs, randomOffset, false, null, false, false, null);
                     assertEquals(timestampDV.docID(), docIdEnd);
                     assertNotNull(block);
                     assertEquals(size, block.size());
@@ -1497,12 +1500,12 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 }
                 {
                     // bulk loading counter field:
-                    var block = (TestBlock) counterDV.tryRead(factory, docs, randomOffset, false, null, false, false);
+                    var block = (TestBlock) counterDV.tryRead(factory, docs, randomOffset, false, null, false, false, null);
                     assertEquals(counterDV.docID(), docIdEnd);
                     assertNotNull(block);
                     assertEquals(size, block.size());
 
-                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, randomOffset, false, null, false, false);
+                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, randomOffset, false, null, false, false, null);
                     assertEquals(stringCounterDV.docID(), docIdEnd);
                     assertNotNull(stringBlock);
                     assertEquals(size, stringBlock.size());
@@ -1521,7 +1524,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 }
                 {
                     // bulk loading gauge field:
-                    var block = (TestBlock) gaugeDV.tryRead(factory, docs, randomOffset, false, null, false, false);
+                    var block = (TestBlock) gaugeDV.tryRead(factory, docs, randomOffset, false, null, false, false, null);
                     assertEquals(gaugeDV.docID(), docIdEnd);
                     assertNotNull(block);
                     assertEquals(size, block.size());
@@ -1533,7 +1536,16 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 }
                 {
                     // bulk loading binary fixed length field:
-                    var block = (TestBlock) binaryFixedDV.tryRead(factory, docs, randomOffset, false, null, false, useCustomBinaryFormat);
+                    var block = (TestBlock) binaryFixedDV.tryRead(
+                        factory,
+                        docs,
+                        randomOffset,
+                        false,
+                        null,
+                        false,
+                        useCustomBinaryFormat,
+                        null
+                    );
                     assertEquals(binaryFixedDV.docID(), docIdEnd);
                     assertNotNull(block);
                     assertEquals(size, block.size());
@@ -1551,7 +1563,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         false,
                         null,
                         false,
-                        useCustomBinaryFormat
+                        useCustomBinaryFormat,
+                        null
                     );
                     assertEquals(binaryVariableDV.docID(), docIdEnd);
                     assertNotNull(block);
@@ -1608,17 +1621,26 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 binaryVariableDV = getTSDBBinaryValues(leafReader, binaryVariableField);
                 {
                     // bulk loading counter field:
-                    var block = (TestBlock) counterDV.tryRead(factory, docs, 0, false, null, false, false);
+                    var block = (TestBlock) counterDV.tryRead(factory, docs, 0, false, null, false, false, null);
                     assertEquals(counterDV.docID(), docIdEnd);
                     assertNotNull(block);
                     assertEquals(size, block.size());
 
-                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0, false, null, false, false);
+                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0, false, null, false, false, null);
                     assertEquals(stringCounterDV.docID(), docIdEnd);
                     assertNotNull(stringBlock);
                     assertEquals(size, stringBlock.size());
 
-                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryRead(factory, docs, 0, false, null, false, useCustomBinaryFormat);
+                    var fixedBinaryBlock = (TestBlock) binaryFixedDV.tryRead(
+                        factory,
+                        docs,
+                        0,
+                        false,
+                        null,
+                        false,
+                        useCustomBinaryFormat,
+                        null
+                    );
                     assertEquals(binaryFixedDV.docID(), docIdEnd);
                     assertNotNull(fixedBinaryBlock);
                     assertEquals(size, fixedBinaryBlock.size());
@@ -1630,7 +1652,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         false,
                         null,
                         false,
-                        useCustomBinaryFormat
+                        useCustomBinaryFormat,
+                        null
                     );
                     assertEquals(binaryVariableDV.docID(), docIdEnd);
                     assertNotNull(variableBinaryBlock);
@@ -1702,7 +1725,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
 
                         {
                             // bulk loading timestamp:
-                            var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true, false);
+                            var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true, false, null);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -1714,7 +1737,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         }
                         {
                             // bulk loading counter field:
-                            var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true, false);
+                            var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true, false, null);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -1726,7 +1749,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         }
                         {
                             // bulk loading gauge field:
-                            var block = (TestBlock) gaugeDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true, false);
+                            var block = (TestBlock) gaugeDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true, false, null);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -1805,7 +1828,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         random().nextBoolean(),
                         null,
                         false,
-                        useCustomBinaryFormat
+                        useCustomBinaryFormat,
+                        null
                     );
                     assertNotNull(block);
                     assertTrue(block.size() > 0);
@@ -1815,7 +1839,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                     }
 
                     var binaryDVField2 = getTSDBBinaryValues(leaf.reader(), binaryFieldTwo);
-                    block = (TestBlock) binaryDVField2.tryRead(factory, docs, 0, random().nextBoolean(), null, false, true);
+                    block = (TestBlock) binaryDVField2.tryRead(factory, docs, 0, random().nextBoolean(), null, false, true, null);
                     for (int j = 0; j < Objects.requireNonNull(block).size(); j++) {
                         var values = (List<?>) block.get(j);
                         assertFalse(values.isEmpty());
@@ -1927,7 +1951,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                     var docs = TestBlock.docs(docIds);
                     {
                         timestampDV = getBaseDenseNumericValues(leafReader, timestampField);
-                        var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                        var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false, null);
                         assertNotNull(block);
                         assertEquals(numDocsPerQValue, block.size());
                         for (int j = 0; j < block.size(); j++) {
@@ -1938,7 +1962,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                     }
                     {
                         counterDV = getBaseDenseNumericValues(leafReader, counterField);
-                        var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                        var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false, null);
                         assertNotNull(block);
                         assertEquals(numDocsPerQValue, block.size());
                         for (int j = 0; j < block.size(); j++) {
@@ -1949,7 +1973,16 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                     }
                     {
                         counterAsStringDV = getBaseSortedDocValues(leafReader, counterAsStringField);
-                        var block = (TestBlock) counterAsStringDV.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                        var block = (TestBlock) counterAsStringDV.tryRead(
+                            factory,
+                            docs,
+                            0,
+                            random().nextBoolean(),
+                            null,
+                            false,
+                            false,
+                            null
+                        );
                         assertNotNull(block);
                         assertEquals(numDocsPerQValue, block.size());
                         for (int j = 0; j < block.size(); j++) {
@@ -1975,8 +2008,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         assertThat(dv, instanceOf(OptionalColumnAtATimeReader.class));
                         OptionalColumnAtATimeReader directReader = (OptionalColumnAtATimeReader) dv;
                         docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
-                        assertNull(directReader.tryRead(factory, docs, 0, false, null, false, false));
-                        TestBlock block = (TestBlock) directReader.tryRead(factory, docs, 0, true, null, false, false);
+                        assertNull(directReader.tryRead(factory, docs, 0, false, null, false, false, null));
+                        TestBlock block = (TestBlock) directReader.tryRead(factory, docs, 0, true, null, false, false, null);
                         assertNotNull(block);
                         for (int i = 0; i < testDocs.size(); i++) {
                             assertThat(block.get(i), equalTo(temperatureValues[testDocs.get(i)]));
@@ -1988,8 +2021,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
                         NumericDocValues dv = leafReader.getNumericDocValues(temperatureField);
                         OptionalColumnAtATimeReader directReader = (OptionalColumnAtATimeReader) dv;
-                        assertNull(directReader.tryRead(factory, docs, 0, false, null, false, false));
-                        assertNull(directReader.tryRead(factory, docs, 0, true, null, false, false));
+                        assertNull(directReader.tryRead(factory, docs, 0, false, null, false, false, null));
+                        assertNull(directReader.tryRead(factory, docs, 0, true, null, false, false, null));
                     }
                 }
 
@@ -2001,7 +2034,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         if (denseBinaryData) {
                             {
                                 var dv = getTSDBBinaryValues(leafReader, binaryFixedField);
-                                var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                                var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false, null);
                                 assertNotNull(block);
                                 for (int i = 0; i < testDocs.size(); i++) {
                                     assertThat(block.get(i), equalTo(binaryFixed[testDocs.get(i)]));
@@ -2009,7 +2042,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                             }
                             {
                                 var dv = getTSDBBinaryValues(leafReader, binaryVariableField);
-                                var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                                var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false, null);
                                 assertNotNull(block);
                                 for (int i = 0; i < testDocs.size(); i++) {
                                     assertThat(block.get(i), equalTo(binaryVariable[testDocs.get(i)]));
@@ -2018,12 +2051,12 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                         } else {
                             {
                                 var dv = getTSDBBinaryValues(leafReader, binaryFixedField);
-                                var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                                var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false, null);
                                 assertNull(block);
                             }
                             {
                                 var dv = getTSDBBinaryValues(leafReader, binaryVariableField);
-                                var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false);
+                                var block = (TestBlock) dv.tryRead(factory, docs, 0, random().nextBoolean(), null, false, false, null);
                                 assertNull(block);
                             }
                         }
@@ -2145,30 +2178,30 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 {
                     // Dense numeric
                     var dv = getBaseDenseNumericValues(leafReader, denseNumericField);
-                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false, null));
                     dv = getBaseDenseNumericValues(leafReader, denseNumericField);
-                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false, null));
                 }
                 {
                     // Dense binary fixed-length
                     var dv = getTSDBBinaryValues(leafReader, binaryFixedField);
-                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false, null));
                     dv = getTSDBBinaryValues(leafReader, binaryFixedField);
-                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false, null));
                 }
                 {
                     // Dense binary variable-length
                     var dv = getTSDBBinaryValues(leafReader, binaryVariableField);
-                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false, null));
                     dv = getTSDBBinaryValues(leafReader, binaryVariableField);
-                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false, null));
                 }
                 {
                     // Sorted doc values
                     var dv = getBaseSortedDocValues(leafReader, sortedField);
-                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false, null));
                     dv = getBaseSortedDocValues(leafReader, sortedField);
-                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false, null));
                 }
             }
         }

@@ -115,7 +115,7 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
                 assertThat(loader, hasToString("GeoGridFromShapeDocValues[field, ST_GEOHASH, 3]"));
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
                     assertThat(reader, hasToString("GeoGridFromShapeDocValues"));
-                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(ctx), 0, false)) {
+                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(ctx), 0, false, null)) {
                         assertThat(block.size(), equalTo(ctx.reader().numDocs()));
                         for (int i = 0; i < block.size(); i++) {
                             assertThat("doc " + i, block.get(i), equalTo(expected.get(i)));
@@ -145,7 +145,7 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
                 );
                 var loader = new GeoGridFromShapeDocValuesBlockLoader(FIELD, config, null);
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
-                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(ctx), 0, false)) {
+                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(ctx), 0, false, null)) {
                         assertThat(block.size(), equalTo(2));
                         assertThat(block.get(0), nullValue());
                         assertThat(block.get(1), nullValue());

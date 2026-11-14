@@ -66,7 +66,7 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
             try (IndexReader reader = DirectoryReader.open(directory)) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     var docValues = ctx.reader().getNumericDocValues("field");
-                    try (SingletonIntBuilder builder = new SingletonIntBuilder(ctx.reader().numDocs(), factory)) {
+                    try (SingletonIntBuilder builder = new SingletonIntBuilder(ctx.reader().numDocs(), factory, null)) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             assertThat(docValues.advanceExact(i), equalTo(true));
                             long value = docValues.longValue();
@@ -103,7 +103,7 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
                 LeafReader leafReader = reader.leaves().get(0).reader();
                 var docValues = leafReader.getNumericDocValues("field");
                 int offset = 850;
-                try (SingletonIntBuilder builder = new SingletonIntBuilder(count - offset, blockFactory())) {
+                try (SingletonIntBuilder builder = new SingletonIntBuilder(count - offset, blockFactory(), null)) {
                     for (int i = offset; i < leafReader.maxDoc(); i++) {
                         assertThat(docValues.advanceExact(i), equalTo(true));
                         long value = docValues.longValue();
@@ -134,7 +134,7 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
             source[i] = i * 7 + 3;
         }
         int from = 5;
-        try (SingletonIntBuilder builder = new SingletonIntBuilder(count, blockFactory())) {
+        try (SingletonIntBuilder builder = new SingletonIntBuilder(count, blockFactory(), null)) {
             int appended = 0;
             while (appended < count) {
                 int length = Math.min(randomIntBetween(1, 64), count - appended);

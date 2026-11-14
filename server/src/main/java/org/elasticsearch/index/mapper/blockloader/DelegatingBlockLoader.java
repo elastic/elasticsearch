@@ -81,8 +81,8 @@ public abstract class DelegatingBlockLoader implements BlockLoader {
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            return reader.read(factory, docs, offset, nullsFiltered);
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
+            return reader.read(factory, docs, offset, nullsFiltered, pool);
         }
 
         @Override

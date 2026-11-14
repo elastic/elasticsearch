@@ -79,7 +79,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
                 LeafReader leaf = getOnlyLeafReader(reader);
                 try (
                     BlockLoader.ColumnAtATimeReader allReader = loader.reader(breaker, leaf.getContext());
-                    var block = (TestBlock) allReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false)
+                    var block = (TestBlock) allReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false, null)
                 ) {
                     assertThat(block.size(), equalTo(1));
                     assertThat(block.get(0), nullValue());
@@ -153,7 +153,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
                     }
                     try (
                         BlockLoader.ColumnAtATimeReader allReader = loader.reader(breaker, leaf);
-                        var block = (TestBlock) allReader.read(TestBlock.factory(), TestBlock.docs(array), 0, false)
+                        var block = (TestBlock) allReader.read(TestBlock.factory(), TestBlock.docs(array), 0, false, null)
                     ) {
                         for (int i = 0; i < block.size(); i++) {
                             intArrayResults.add(block.get(i));

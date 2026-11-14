@@ -94,7 +94,7 @@ public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocVal
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             NumericDocValues docValues = numericDocValues.docValues();
             try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
@@ -138,7 +138,7 @@ public class GeoGridFromDocValuesBlockLoader extends BlockDocValuesReader.DocVal
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             SortedNumericDocValues docValues = numericDocValues.docValues();
             // Cell ids of sorted points are neither sorted nor unique, so use the unconstrained builder.
             try (LongBuilder builder = factory.longs(docs.count() - offset)) {

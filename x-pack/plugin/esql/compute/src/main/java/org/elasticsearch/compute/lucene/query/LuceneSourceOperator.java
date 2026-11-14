@@ -24,15 +24,14 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.SingleArrayPool;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrategy;
@@ -42,7 +41,6 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -71,7 +69,7 @@ public class LuceneSourceOperator extends LuceneOperator {
     private int remainingDocs;
     private final Limiter limiter;
 
-    private final IntArrayPool docIdsPool;
+    private final SingleArrayPool docIdsPool;
     private int[] docIds;
     private int currentPagePos = 0;
     private DoubleVector.Builder scoreBuilder;
@@ -484,7 +482,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 scoreBuilder = null;
                 this.leafCollector = new LimitingCollector();
             }
-            this.docIdsPool = new IntArrayPool(blockFactory.breaker());
+            this.docIdsPool = new SingleArrayPool(blockFactory.breaker(), () -> {});
             this.minCompetitiveQuery = minCompetitive == null ? null : minCompetitive.build(blockFactory);
             success = true;
         } finally {
@@ -614,7 +612,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 return null;
             }
             if (docIds == null) {
-                docIds = docIdsPool.getOrAllocate(maxPageSize);
+                docIds = docIdsPool.getOrAllocateInts(maxPageSize);
             }
             final int remainingDocsStart = remainingDocs = limiter.remaining();
             if (remainingDocsStart == 0) {
@@ -686,7 +684,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         this.docIds = null;
         final var arrayPool = this.docIdsPool; // avoid holding reference to this
         final IntVector docs = blockFactory.newIntArrayVector(docIds, currentPagePos);
-        docs.attachReleasable(() -> arrayPool.put(docIds));
+        docs.attachReleasable(() -> arrayPool.putInts(docIds));
         return docs;
     }
 
@@ -730,41 +728,5 @@ public class LuceneSourceOperator extends LuceneOperator {
     @Override
     protected MinCompetitiveQuery.Status minCompetitiveStatus() {
         return minCompetitiveQuery == null ? null : minCompetitiveQuery.status();
-    }
-
-    private static class IntArrayPool implements Releasable {
-        private int[] pool;
-        private long usedBytes;
-        private final CircuitBreaker breaker;
-
-        IntArrayPool(CircuitBreaker breaker) {
-            this.breaker = breaker;
-        }
-
-        int[] getOrAllocate(int size) {
-            int[] arr = this.pool;
-            this.pool = null;
-            if (arr == null || arr.length < size) {
-                final long newBytes = RamUsageEstimator.alignObjectSize(
-                    (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Integer.BYTES * size
-                );
-                if (newBytes > usedBytes) {
-                    breaker.addEstimateBytesAndMaybeBreak(newBytes - usedBytes, "int[]");
-                    usedBytes = newBytes;
-                }
-                arr = new int[size];
-            }
-            return arr;
-        }
-
-        void put(int[] arr) {
-            // the pool can be tolerated with races, where we just allocate a new array
-            this.pool = arr;
-        }
-
-        @Override
-        public void close() {
-            breaker.addWithoutBreaking(-usedBytes);
-        }
     }
 }

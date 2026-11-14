@@ -290,7 +290,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         boolean nullsFiltered,
                         BlockDocValuesReader.ToDouble toDouble,
                         boolean toInt,
-                        boolean binaryMultiValuedFormat
+                        boolean binaryMultiValuedFormat,
+                        BlockLoader.ArrayPool pool
                     ) throws IOException {
                         if (docs.mayContainDuplicates()) {
                             return null;
@@ -359,7 +360,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         boolean nullsFiltered,
                         BlockDocValuesReader.ToDouble toDouble,
                         boolean toInt,
-                        boolean binaryMultiValuedFormat
+                        boolean binaryMultiValuedFormat,
+                        BlockLoader.ArrayPool pool
                     ) throws IOException {
                         if (docs.mayContainDuplicates()) {
                             return null;
@@ -509,7 +511,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     boolean nullsFiltered,
                     BlockDocValuesReader.ToDouble toDouble,
                     boolean toInt,
-                    boolean binaryMultiValuedFormat
+                    boolean binaryMultiValuedFormat,
+                    BlockLoader.ArrayPool pool
                 ) throws IOException {
                     if (docs.mayContainDuplicates()) {
                         return null;
@@ -1149,7 +1152,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean binaryMultiValuedFormat
+            boolean binaryMultiValuedFormat,
+            BlockLoader.ArrayPool pool
         ) throws IOException {
             return null;
         }
@@ -1158,10 +1162,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         @Nullable
-        public BlockLoader.Block tryReadLength(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-            throws IOException {
+        public BlockLoader.Block tryReadLength(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockLoader.ArrayPool pool
+        ) throws IOException {
             int count = docs.count() - offset;
-            try (var builder = factory.singletonInts(count)) {
+            try (var builder = factory.singletonInts(count, pool)) {
                 int countIndex = 0;
                 int[] counts = new int[count];
                 for (int i = offset; i < docs.count(); i++) {
@@ -1274,7 +1283,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean binaryMultiValuedFormat
+            boolean binaryMultiValuedFormat,
+            BlockLoader.ArrayPool pool
         ) throws IOException {
             return null;
         }
@@ -1283,8 +1293,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         @Nullable
-        public BlockLoader.Block tryReadLength(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-            throws IOException {
+        public BlockLoader.Block tryReadLength(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockLoader.ArrayPool pool
+        ) throws IOException {
             int count = docs.count() - offset;
             try (var builder = factory.ints(count)) {
                 for (int i = offset; i < docs.count(); i++) {
@@ -1414,7 +1429,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 boolean nullsFiltered,
                 BlockDocValuesReader.ToDouble toDouble,
                 boolean toInt,
-                boolean binaryMultiValuedFormat
+                boolean binaryMultiValuedFormat,
+                BlockLoader.ArrayPool pool
             ) throws IOException {
                 assert toDouble == null;
                 if (ords instanceof BaseDenseNumericValues denseOrds) {
@@ -1533,7 +1549,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean binaryMultiValuedFormat
+            boolean binaryMultiValuedFormat,
+            BlockLoader.ArrayPool pool
         ) throws IOException {
             return null;
         }
@@ -1628,7 +1645,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean binaryMultiValuedFormat
+            boolean binaryMultiValuedFormat,
+            BlockLoader.ArrayPool pool
         ) throws IOException {
             return null;
         }
@@ -1693,7 +1711,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean binaryMultiValuedFormat
+            boolean binaryMultiValuedFormat,
+            BlockLoader.ArrayPool pool
         ) throws IOException {
             return null;
         }
@@ -2653,9 +2672,10 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     boolean nullsFiltered,
                     BlockDocValuesReader.ToDouble toDouble,
                     boolean toInt,
-                    boolean binaryMultiValuedFormat
+                    boolean binaryMultiValuedFormat,
+                    BlockLoader.ArrayPool pool
                 ) throws IOException {
-                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, docs.count() - offset, toInt)) {
+                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, docs.count() - offset, toInt, pool)) {
                         return tryRead(singletonLongBuilder, docs, offset);
                     }
                 }
@@ -2760,7 +2780,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     boolean nullsFiltered,
                     BlockDocValuesReader.ToDouble toDouble,
                     boolean toInt,
-                    boolean binaryMultiValuedFormat
+                    boolean binaryMultiValuedFormat,
+                    BlockLoader.ArrayPool pool
                 ) throws IOException {
                     if (nullsFiltered == false) {
                         return null;
@@ -2798,7 +2819,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             assert disi.index() == firstIndex + i : "unexpected disi index " + (firstIndex + i) + "!=" + disi.index();
                         }
                     }
-                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, valueCount, toInt)) {
+                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, valueCount, toInt, pool)) {
                         for (int i = 0; i < valueCount;) {
                             final int index = firstIndex + i;
                             final int blockIndex = index >>> numericBlockShift;
@@ -3215,16 +3236,17 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         BlockLoader.BlockFactory factory,
         BlockDocValuesReader.ToDouble toDouble,
         int valueCount,
-        boolean toInt
+        boolean toInt,
+        @Nullable BlockLoader.ArrayPool pool
     ) {
         assert (toInt && toDouble != null) == false;
 
         if (toDouble != null) {
-            return new SingletonLongToDoubleDelegate(factory.singletonDoubles(valueCount), toDouble);
+            return new SingletonLongToDoubleDelegate(factory.singletonDoubles(valueCount, pool), toDouble);
         } else if (toInt) {
-            return new SingletonLongtoIntDelegate(factory.singletonInts(valueCount));
+            return new SingletonLongtoIntDelegate(factory.singletonInts(valueCount, pool));
         } else {
-            return factory.singletonLongs(valueCount);
+            return factory.singletonLongs(valueCount, pool);
         }
     }
 

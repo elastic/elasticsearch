@@ -100,7 +100,7 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
             }
 
             @Override
-            public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
                 try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {
                         int docId = docs.get(i);

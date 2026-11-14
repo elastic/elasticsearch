@@ -431,8 +431,13 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-            throws IOException {
+        public BlockLoader.Block read(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockLoader.ArrayPool pool
+        ) throws IOException {
             BlockLoader.Block minima = null;
             BlockLoader.Block maxima = null;
             BlockLoader.Block sums = null;
@@ -443,12 +448,12 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             boolean success = false;
             try {
                 // min, max and sum may be absent for empty histograms even if the field itself is present
-                minima = minimaReader.read(factory, docs, offset, false);
-                maxima = maximaReader.read(factory, docs, offset, false);
-                sums = sumsReader.read(factory, docs, offset, false);
-                valueCounts = valueCountsReader.read(factory, docs, offset, nullsFiltered);
-                zeroThresholds = zeroThresholdsReader.read(factory, docs, offset, nullsFiltered);
-                encodedBytes = bytesReader.read(factory, docs, offset, nullsFiltered);
+                minima = minimaReader.read(factory, docs, offset, false, null);
+                maxima = maximaReader.read(factory, docs, offset, false, null);
+                sums = sumsReader.read(factory, docs, offset, false, null);
+                valueCounts = valueCountsReader.read(factory, docs, offset, nullsFiltered, null);
+                zeroThresholds = zeroThresholdsReader.read(factory, docs, offset, nullsFiltered, null);
+                encodedBytes = bytesReader.read(factory, docs, offset, nullsFiltered, null);
                 result = factory.buildExponentialHistogramBlockDirect(minima, maxima, sums, valueCounts, zeroThresholds, encodedBytes);
                 success = true;
             } finally {

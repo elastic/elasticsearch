@@ -71,7 +71,7 @@ public class ConstantNull implements BlockLoader {
         private ColumnReader() {}
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) {
             return factory.constantNulls(docs.count() - offset);
         }
 

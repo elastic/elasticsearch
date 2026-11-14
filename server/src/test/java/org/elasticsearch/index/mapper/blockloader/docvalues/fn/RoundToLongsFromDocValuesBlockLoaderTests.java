@@ -95,7 +95,7 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractNumericBl
                 RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points);
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
                     BlockLoader.Docs docs = TestBlock.docs(ctx);
-                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false, null)) {
                         assertTrue("expected constant block from skipper optimization", block.isConstant());
                         assertThat(block.size(), equalTo(docCount));
                         for (int i = 0; i < docCount; i++) {
@@ -142,7 +142,7 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractNumericBl
                 RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points);
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
                     BlockLoader.Docs docs = TestBlock.docs(ctx);
-                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false, null)) {
                         assertFalse("expected non-constant block when values span buckets", block.isConstant());
                         assertThat(block.size(), equalTo(docCount));
                         for (int i = 0; i < docCount; i++) {
@@ -188,7 +188,7 @@ public class RoundToLongsFromDocValuesBlockLoaderTests extends AbstractNumericBl
                 RoundToLongsFromDocValuesBlockLoader loader = new RoundToLongsFromDocValuesBlockLoader("field", points);
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
                     BlockLoader.Docs docs = TestBlock.docs(ctx);
-                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false)) {
+                    try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), docs, 0, false, null)) {
                         assertFalse("expected non-constant block when values are missing", block.isConstant());
                         assertThat(block.size(), equalTo(docCount));
                         for (int i = 0; i < docCount; i++) {

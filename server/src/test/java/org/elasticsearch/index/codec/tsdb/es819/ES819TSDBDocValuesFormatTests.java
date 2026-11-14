@@ -188,7 +188,7 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
                     for (LeafReaderContext leaf : reader.leaves()) {
                         BlockLoader.Docs docs = TestBlock.docs(leaf);
                         var idReader = ESTestCase.asInstanceOf(OptionalColumnAtATimeReader.class, leaf.reader().getNumericDocValues("id"));
-                        TestBlock idBlock = (TestBlock) idReader.tryRead(factory, docs, 0, false, null, false, false);
+                        TestBlock idBlock = (TestBlock) idReader.tryRead(factory, docs, 0, false, null, false, false, null);
                         assertNotNull(idBlock);
 
                         {
@@ -202,7 +202,7 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
                                 block = (TestBlock) reader2.tryReadAHead(factory, docs, randomOffset);
                             } else {
                                 assertNull(reader2.tryReadAHead(factory, docs, randomOffset));
-                                block = (TestBlock) reader2.tryRead(factory, docs, randomOffset, false, null, false, false);
+                                block = (TestBlock) reader2.tryRead(factory, docs, randomOffset, false, null, false, false, null);
                             }
                             assertNotNull(block);
                             assertThat(block.size(), equalTo(docs.count() - randomOffset));
@@ -224,7 +224,7 @@ public class ES819TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTe
                                 block = (TestBlock) reader3.tryReadAHead(factory, docs, randomOffset);
                             } else {
                                 assertNull(reader3.tryReadAHead(factory, docs, randomOffset));
-                                block = (TestBlock) reader3.tryRead(factory, docs, randomOffset, false, null, false, false);
+                                block = (TestBlock) reader3.tryRead(factory, docs, randomOffset, false, null, false, false, null);
                             }
                             assertNotNull(reader3);
                             assertNotNull(block);

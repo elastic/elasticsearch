@@ -149,7 +149,7 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
             try (BlockLoader.ColumnAtATimeReader columnReader = columnarColumnReader(mapperService, reader.leaves().get(0))) {
                 assertThat(columnReader, instanceOf(BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary.class));
 
-                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, randomBoolean());
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, randomBoolean(), null);
                 assertThat(((BytesRef) block.get(0)).utf8ToString(), equalTo(value0));
                 assertThat(((BytesRef) block.get(1)).utf8ToString(), equalTo(value1));
                 assertThat(((BytesRef) block.get(2)).utf8ToString(), equalTo(value2));
@@ -174,7 +174,7 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
                 // The inline-null decoder is package-private here, so assert by exclusion that the fast-path reader was not selected.
                 assertThat(columnReader, not(instanceOf(BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary.class)));
 
-                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, randomBoolean());
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, randomBoolean(), null);
                 // Both values come back in document (array) order.
                 List<?> values = (List<?>) block.get(0);
                 assertThat(values, hasSize(2));

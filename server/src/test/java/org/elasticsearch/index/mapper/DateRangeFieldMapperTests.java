@@ -133,7 +133,7 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 try (BlockLoader.ColumnAtATimeReader columnReader = loader.columnAtATimeReader(reader.leaves().get(0)).apply(breaker)) {
-                    TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+                    TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false, null);
                     assertThat(block.get(0), nullValue());
                 }
             }

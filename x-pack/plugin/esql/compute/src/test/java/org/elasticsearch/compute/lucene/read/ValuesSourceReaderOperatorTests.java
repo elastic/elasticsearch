@@ -2250,7 +2250,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
      */
     private record SegmentColumnAtATimeReader(int segment) implements BlockLoader.ColumnAtATimeReader {
         @Override
-        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered) {
+        public BlockLoader.Block read(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockLoader.ArrayPool pool
+        ) {
             BlockLoader.IntBuilder builder = factory.ints(docs.count() - offset);
             boolean success = false;
             try {
@@ -2425,7 +2431,13 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
 
         @Override
-        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered) {
+        public BlockLoader.Block read(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockLoader.ArrayPool pool
+        ) {
             if (closed) {
                 readAfterClose.set(true);
             }

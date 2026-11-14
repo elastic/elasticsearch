@@ -122,7 +122,7 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             Block constant = tryConstantBlock(factory, docs, offset, points, skipper);
             if (constant != null) {
                 return constant;
@@ -170,7 +170,7 @@ public class RoundToLongsFromDocValuesBlockLoader extends BlockDocValuesReader.D
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             Block constant = tryConstantBlock(factory, docs, offset, points, skipper);
             if (constant != null) {
                 return constant;

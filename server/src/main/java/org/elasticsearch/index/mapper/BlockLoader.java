@@ -211,9 +211,10 @@ public interface BlockLoader {
          *                      treating the field as dense (every document has value) even if it is sparse in
          *                      the index. For example, "FROM index | WHERE x != null | STATS sum(x)", after filtering out
          *                      documents without value for field x, all target documents returned from the source operator
-         *                      will have a value for field x whether x is dense or sparse in the index.
+         *                      will have a value for field x whether x is dense or sparse in the index
+         * @param pool an optional pool
          */
-        BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
+        BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException;
     }
 
     /**
@@ -229,10 +230,11 @@ public interface BlockLoader {
          * Returns {@code null} if unable to load the values.
          *
          * @param nullsFiltered  if {@code true}, then target docs are guaranteed to have a value for the field.
-         *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
+         *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean, ArrayPool)}
          * @param toDouble       a function to convert long values to double, or null if no conversion is needed/supported
          * @param toInt          whether to convert to int in case int block / vector is needed
          * @param binaryMultiValuedFormat whether the multi-valued binary format is used (MultiValuedBinaryDocValuesField).
+         * @param pool           the pool given to {@link ColumnAtATimeReader#read}, or {@code null} to allocate a new array
          */
         @Nullable
         BlockLoader.Block tryRead(
@@ -242,7 +244,8 @@ public interface BlockLoader {
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
             boolean toInt,
-            boolean binaryMultiValuedFormat
+            boolean binaryMultiValuedFormat,
+            @Nullable ArrayPool pool
         ) throws IOException;
 
         /**
@@ -290,10 +293,12 @@ public interface BlockLoader {
          * Returns {@code null} if unable to load the values.
          *
          * @param nullsFiltered  if {@code true}, then target docs are guaranteed to have a value for the field.
-         *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
+         *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean, ArrayPool)}
+         * @param pool           the pool given to {@link ColumnAtATimeReader#read}, or {@code null} to allocate a new array
          */
         @Nullable
-        BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
+        BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, @Nullable ArrayPool pool)
+            throws IOException;
 
         /**
          * Converts the length of each binary value associated with documents into a {@link NumericDocValues} representation.
@@ -710,8 +715,9 @@ public interface BlockLoader {
          * </ul>
          *
          * @param expectedCount The maximum number of values to be collected.
+         * @param pool          The pool given to {@link ColumnAtATimeReader#read}, or {@code null} to allocate a new array.
          */
-        SingletonLongBuilder singletonLongs(int expectedCount);
+        SingletonLongBuilder singletonLongs(int expectedCount, @Nullable ArrayPool pool);
 
         /**
          * Build a specialized builder for singleton dense int based fields with the following constraints:
@@ -721,8 +727,9 @@ public interface BlockLoader {
          * </ul>
          *
          * @param expectedCount The maximum number of values to be collected.
+         * @param pool          The pool given to {@link ColumnAtATimeReader#read}, or {@code null} to allocate a new array.
          */
-        SingletonIntBuilder singletonInts(int expectedCount);
+        SingletonIntBuilder singletonInts(int expectedCount, @Nullable ArrayPool pool);
 
         /**
          * Build a specialized builder for singleton dense double based fields with the following constraints:
@@ -732,8 +739,9 @@ public interface BlockLoader {
          * </ul>
          *
          * @param expectedCount The maximum number of values to be collected.
+         * @param pool          The pool given to {@link ColumnAtATimeReader#read}, or {@code null} to allocate a new array.
          */
-        SingletonDoubleBuilder singletonDoubles(int expectedCount);
+        SingletonDoubleBuilder singletonDoubles(int expectedCount, @Nullable ArrayPool pool);
 
         /**
          * Build a builder to load only {@code null}s.
@@ -839,6 +847,16 @@ public interface BlockLoader {
      * </p>
      */
     interface Block extends Releasable {}
+
+    /**
+     * Keeps the array behind the last block loaded for a field so the next block can reuse it rather than
+     * allocate a new one for every page. The caller of {@link ColumnAtATimeReader#read} owns it and passes
+     * the same one on every read of that field; readers hand it on to the {@link BlockFactory}.
+     * <p>
+     *     <strong>This</strong> is just a marker interface. The compute engine has the implementations.
+     * </p>
+     */
+    interface ArrayPool extends Releasable {}
 
     /**
      * A builder for typed values. For each document you may either call

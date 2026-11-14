@@ -2987,7 +2987,8 @@ public class TextFieldMapperTests extends MapperTestCase {
                                 TestBlock.factory(),
                                 TestBlock.docs(IntStream.range(0, numDocs).toArray()),
                                 0,
-                                randomBoolean()
+                                randomBoolean(),
+                                null
                             );
                         }
                     }

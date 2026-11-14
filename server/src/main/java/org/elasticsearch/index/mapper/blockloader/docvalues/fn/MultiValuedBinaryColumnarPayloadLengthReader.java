@@ -59,8 +59,13 @@ public abstract class MultiValuedBinaryColumnarPayloadLengthReader extends Block
     public abstract String toString();
 
     @Override
-    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-        throws IOException {
+    public BlockLoader.Block read(
+        BlockLoader.BlockFactory factory,
+        BlockLoader.Docs docs,
+        int offset,
+        boolean nullsFiltered,
+        BlockLoader.ArrayPool pool
+    ) throws IOException {
         int count = docs.count() - offset;
         if (count == 1) {
             return blockForSingleDoc(factory, docs.get(offset));

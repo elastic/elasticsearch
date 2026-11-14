@@ -23,11 +23,16 @@ public record ColumnAtATimeReaderWithoutReuse(
     Consumer<BlockLoader.Reader> track
 ) implements BlockLoader.ColumnAtATimeReader {
     @Override
-    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-        throws IOException {
+    public BlockLoader.Block read(
+        BlockLoader.BlockFactory factory,
+        BlockLoader.Docs docs,
+        int offset,
+        boolean nullsFiltered,
+        BlockLoader.ArrayPool pool
+    ) throws IOException {
         try (BlockLoader.ColumnAtATimeReader reader = fn.apply(breaker)) {
             track.accept(reader);
-            return reader.read(factory, docs, offset, nullsFiltered);
+            return reader.read(factory, docs, offset, nullsFiltered, pool);
         }
     }
 

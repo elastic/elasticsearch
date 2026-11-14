@@ -31,7 +31,7 @@ public class MvMaxIntsFromDocValuesBlockLoader extends IntsBlockLoader {
         // Own read loop so the per-document append compiles monomorphically rather than going megamorphic through a shared reader.
         return new AbstractNumericBlockLoader.Sorted("MvMaxIntsFromDocValues", docValues) {
             @Override
-            public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
                 SortedNumericDocValues docValues = values.docValues();
                 try (IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {

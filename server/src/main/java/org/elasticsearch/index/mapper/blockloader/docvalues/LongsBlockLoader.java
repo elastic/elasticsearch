@@ -56,11 +56,11 @@ public class LongsBlockLoader extends AbstractNumericBlockLoader {
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             NumericDocValues docValues = numericDocValues.docValues();
             // Attempt a fast path through OptionalColumnAtATimeReader
             if (docValues instanceof OptionalColumnAtATimeReader direct) {
-                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
+                Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false, pool);
                 if (result != null) {
                     return result;
                 }
@@ -85,7 +85,7 @@ public class LongsBlockLoader extends AbstractNumericBlockLoader {
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     readSortedDoc(docs.get(i), builder);

@@ -141,7 +141,7 @@ This guidance only applies if you’re using the `terms` aggregation’s default
 
 Even with a larger `shard_size` value, `doc_count` values for a `terms` aggregation may be approximate. As a result, any sub-aggregations on the `terms` aggregation may also be approximate.
 
-`sum_other_doc_count` is the number of documents that didn’t make it into the the top `size` terms. If this is greater than `0`, you can be sure that the `terms` agg had to throw away some buckets, either because they didn’t fit into `size` on the coordinating node or they didn’t fit into `shard_size` on the data node.
+`sum_other_doc_count` is the number of documents that didn’t make it into the top `size` terms. If this is greater than `0`, you can be sure that the `terms` agg had to throw away some buckets, either because they didn’t fit into `size` on the coordinating node or they didn’t fit into `shard_size` on the data node.
 
 
 ## Per bucket document count error [_per_bucket_document_count_error]

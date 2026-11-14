@@ -874,9 +874,11 @@ class KibanaOwnedReservedRoleDescriptors {
     }
 
     /*
-     * Roles for the service accounts of AlertZero workers (Kibana Security Solution). Each mirrors the worker's
-     * definition in WORKER_ROLE_DEFINITIONS (x-pack/solutions/security/plugins/alertzero/common/worker_roles.ts in Kibana),
-     * and covers the worker, its child workflows and the actions it can run without a human approver, in all spaces.
+     * Roles for the service accounts of AlertZero workers (Kibana Security Solution). Kibana defines no role of its own:
+     * outside Serverless it looks these up by name (getWorkerRoleName in
+     * x-pack/solutions/security/packages/kbn-alertzero-common/worker_roles.ts in Kibana), and on Serverless it uses the
+     * _alertzero_<worker> predefined roles from elasticsearch-controller. Each role covers the worker, its child
+     * workflows and the actions it can run without a human approver, in all spaces.
      */
     private static final String[] ALERTZERO_WORKER_CLUSTER_PRIVILEGES = { "monitor_inference" };
 
@@ -919,6 +921,10 @@ class KibanaOwnedReservedRoleDescriptors {
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(".internal.alerts-security.alerts-*")
                 .privileges("index", "maintenance")
+                .build(),
+            RoleDescriptor.IndicesPrivileges.builder()
+                .indices(".ai-index-idx-security-triage-decisions")
+                .privileges("read", "index", "auto_configure")
                 .build()
         );
     }

@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 164444
+pr: 164741
+summary: Fix case-insensitive queries on wildcard fields
+type: bug

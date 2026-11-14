@@ -28,6 +28,24 @@ final class CsvLogicalRecordReader {
     private final Charset charset;
     private final boolean utf8;
     /**
+     * What {@link #nextRecord()}'s bulk scan does with each ASCII character: {@link #KIND_PLAIN} and
+     * {@link #KIND_WHITESPACE} extend the run (the latter without marking the field non-blank), {@link #KIND_DELIMITER}
+     * extends it and starts a new field, {@link #KIND_STOP} hands the character to the per-character branches. One
+     * table lookup where the per-character branches compare against each special character in turn.
+     */
+    private final byte[] asciiKinds = new byte[0x80];
+    private static final byte KIND_PLAIN = 0;
+    private static final byte KIND_WHITESPACE = 1;
+    private static final byte KIND_DELIMITER = 2;
+    private static final byte KIND_STOP = 3;
+    /**
+     * Where the fields of the record exposed by {@link #nextRecord()} end: the offset within the record of each
+     * delimiter outside quotes, in order. Valid only while {@link #plainFields} holds; see {@link #plainFieldEnds()}.
+     */
+    private int[] fieldEnds = new int[16];
+    private int fieldEndCount;
+    private boolean plainFields;
+    /**
      * Encoded-byte length of the most recently returned record, including its line terminator(s).
      * Set just before each {@link #readRecord(boolean)} return so callers can derive a record's
      * start offset as {@code bytesRead() - lastRecordBytes()} without re-walking the input.
@@ -95,6 +113,16 @@ final class CsvLogicalRecordReader {
      */
     private char[] recBuf;
     private int recLen;
+    /**
+     * While a record read by {@link #nextRecord()} has stayed inside one fill of {@link #inBuf}, the record is
+     * {@code inBuf[recStart, recStart + recLen)} and nothing is copied: the appends only count. The first refill
+     * inside a record copies what has been counted so far into {@link #recBuf} and the appends store from then
+     * on. {@link #recordBuffer()} and {@link #recordOffset()} present whichever holds the record. Records are
+     * much shorter than the 8K buffer, so nearly every record is served without the copy, which was a seventh of
+     * the direct read on a 2,000,000-row scan without a JIT to turn it into a memcpy.
+     */
+    private boolean contiguous;
+    private int recStart;
 
     CsvLogicalRecordReader(Reader reader, char quoteChar, char delimiter, int maxRecordBytes, Charset charset) {
         this(reader, quoteChar, delimiter, maxRecordBytes, charset, true);
@@ -129,6 +157,22 @@ final class CsvLogicalRecordReader {
         this.utf8 = StandardCharsets.UTF_8.equals(charset);
         this.quoteAware = quoteAware;
         this.escapeAware = escapeAware;
+        for (int c = 0; c < asciiKinds.length; c++) {
+            asciiKinds[c] = CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(c) ? KIND_WHITESPACE : KIND_PLAIN;
+        }
+        // The same precedence as the per-character branches: a delimiter that is also the quote or escape character
+        // is theirs, so it stops the run.
+        if (delimiter < 0x80) {
+            asciiKinds[delimiter] = KIND_DELIMITER;
+        }
+        asciiKinds['\n'] = KIND_STOP;
+        asciiKinds['\r'] = KIND_STOP;
+        if (quoteAware && quoteChar < 0x80) {
+            asciiKinds[quoteChar] = KIND_STOP;
+        }
+        if (escapeAware && escapeChar < 0x80) {
+            asciiKinds[escapeChar] = KIND_STOP;
+        }
     }
 
     /**
@@ -381,11 +425,52 @@ final class CsvLogicalRecordReader {
     boolean nextRecord() throws IOException {
         assert bulkBuffered : "nextRecord() requires bulk buffering";
         recLen = 0;
+        contiguous = true;
+        // A pushed-back lookahead was the last character pulled from inBuf, so it sits just before inPos.
+        recStart = pending != NO_PENDING ? inPos - 1 : inPos;
+        fieldEndCount = 0;
+        plainFields = true;
         boolean inQuotes = false;
         boolean fieldHasNonWhitespace = false;
         int recordBytes = 0;
 
         while (true) {
+            if (inQuotes == false && pending == NO_PENDING && utf8) {
+                // Bulk fast path for the common case: outside quotes, a run of plain ASCII characters and
+                // delimiters (no terminator, quote or escape) is copied into the record with one arraycopy and
+                // counted as one byte each, which is exactly what the per-character branches below do for
+                // them. The run stops at any character those branches must look at and at the byte cap, so
+                // the cap check (and its drain) in addBytes fires on the same character as before.
+                final char[] buf = inBuf;
+                final byte[] kinds = asciiKinds;
+                final int start = inPos;
+                final int limit = start + Math.min(inLimit - start, maxRecordBytes - recordBytes);
+                boolean nonWhitespace = fieldHasNonWhitespace;
+                int i = start;
+                while (i < limit) {
+                    char c = buf[i];
+                    if (c >= 0x80) {
+                        break;
+                    }
+                    byte kind = kinds[c];
+                    if (kind == KIND_STOP) {
+                        break;
+                    }
+                    if (kind == KIND_DELIMITER) {
+                        nonWhitespace = false;
+                        addFieldEnd(recLen + i - start);
+                    } else if (kind == KIND_PLAIN) {
+                        nonWhitespace = true;
+                    }
+                    i++;
+                }
+                if (i > start) {
+                    appendRecord(buf, start, i - start);
+                    recordBytes += i - start;
+                    inPos = i;
+                    fieldHasNonWhitespace = nonWhitespace;
+                }
+            }
             int ch = nextBulkChar();
             if (ch == -1) {
                 // Trailing unterminated record at EOF: commit its bytes so a subsequent caller's offset
@@ -431,6 +516,7 @@ final class CsvLogicalRecordReader {
             }
 
             if (escapeAware && ch == escapeChar) {
+                plainFields = false;
                 appendRecord((char) ch);
                 int next = nextBulkChar();
                 if (next != -1) {
@@ -458,14 +544,19 @@ final class CsvLogicalRecordReader {
                 return true;
             }
             if (ch == delimiter) {
+                addFieldEnd(recLen);
                 appendRecord((char) ch);
                 fieldHasNonWhitespace = false;
                 continue;
             }
-            if (quoteAware && ch == quoteChar && fieldHasNonWhitespace == false) {
-                inQuotes = true;
-                appendRecord((char) ch);
-                continue;
+            if (quoteAware && ch == quoteChar) {
+                // Any quote, opening or not, sends the record through the splitter's own quote-aware walk.
+                plainFields = false;
+                if (fieldHasNonWhitespace == false) {
+                    inQuotes = true;
+                    appendRecord((char) ch);
+                    continue;
+                }
             }
             if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(ch) == false) {
                 fieldHasNonWhitespace = true;
@@ -474,9 +565,18 @@ final class CsvLogicalRecordReader {
         }
     }
 
-    /** Backing buffer of the record exposed by the most recent {@link #nextRecord()} (valid for {@code [0, recordLength())}). */
+    /**
+     * Backing buffer of the record exposed by the most recent {@link #nextRecord()}, valid for
+     * {@code [recordOffset(), recordOffset() + recordLength())}. Either the input buffer itself or the record copy;
+     * see {@link #contiguous}.
+     */
     char[] recordBuffer() {
-        return recBuf;
+        return contiguous ? inBuf : recBuf;
+    }
+
+    /** Offset of the record within {@link #recordBuffer()}. */
+    int recordOffset() {
+        return contiguous ? recStart : 0;
     }
 
     /** Length of the record exposed by the most recent {@link #nextRecord()}. */
@@ -484,11 +584,57 @@ final class CsvLogicalRecordReader {
         return recLen;
     }
 
+    /**
+     * The field ends of the record exposed by the most recent {@link #nextRecord()}, as offsets of its delimiters
+     * within the record, when the record holds no quote or escape character so that splitting it is only a matter
+     * of those delimiters; {@code null} otherwise, when the caller must walk the record itself. The first
+     * {@link #plainFieldEndCount()} entries are valid, and the array is reused by the next record.
+     */
+    int[] plainFieldEnds() {
+        return plainFields ? fieldEnds : null;
+    }
+
+    int plainFieldEndCount() {
+        return fieldEndCount;
+    }
+
+    private void addFieldEnd(int offset) {
+        if (fieldEndCount == fieldEnds.length) {
+            fieldEnds = Arrays.copyOf(fieldEnds, fieldEnds.length * 2);
+        }
+        fieldEnds[fieldEndCount++] = offset;
+    }
+
     private void appendRecord(char c) {
+        if (contiguous) {
+            recLen++;
+            return;
+        }
         if (recLen == recBuf.length) {
             recBuf = Arrays.copyOf(recBuf, recBuf.length * 2);
         }
         recBuf[recLen++] = c;
+    }
+
+    private void appendRecord(char[] src, int from, int len) {
+        if (contiguous) {
+            recLen += len;
+            return;
+        }
+        if (recLen + len > recBuf.length) {
+            recBuf = Arrays.copyOf(recBuf, Math.max(recBuf.length * 2, recLen + len));
+        }
+        System.arraycopy(src, from, recBuf, recLen, len);
+        recLen += len;
+    }
+
+    /** The record in progress is about to lose its input buffer: keep what it has counted so far in {@link #recBuf}. */
+    private void detachRecordFromInput() {
+        if (recLen > recBuf.length) {
+            recBuf = new char[Math.max(recBuf.length * 2, recLen)];
+        }
+        System.arraycopy(inBuf, recStart, recBuf, 0, recLen);
+        contiguous = false;
     }
 
     /**
@@ -511,6 +657,9 @@ final class CsvLogicalRecordReader {
         }
         if (eof) {
             return -1;
+        }
+        if (contiguous) {
+            detachRecordFromInput();
         }
         inLimit = reader.read(inBuf, 0, inBuf.length);
         inPos = 0;

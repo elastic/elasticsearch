@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 /**
- * Replace type converting eval with aliasing eval when type change does not occur.
+ * Replace type converting eval with aliasing eval when the conversion is a {@link ConvertFunction#isNoop() no-op}.
  * A following {@link ReplaceAliasingEvalWithProject} will effectively convert {@link ReferenceAttribute} into {@link FieldAttribute},
  * something very useful in local physical planning.
  */
@@ -22,7 +23,7 @@ public final class ReplaceTrivialTypeConversions extends OptimizerRules.Optimize
     @Override
     protected LogicalPlan rule(Eval eval) {
         return eval.transformExpressionsOnly(AbstractConvertFunction.class, convert -> {
-            if (convert.field() instanceof FieldAttribute fa && fa.dataType() == convert.dataType()) {
+            if (convert.field() instanceof FieldAttribute fa && convert.isNoop()) {
                 return fa;
             }
             return convert;

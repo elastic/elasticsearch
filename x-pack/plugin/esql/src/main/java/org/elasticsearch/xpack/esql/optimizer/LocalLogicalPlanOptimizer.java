@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetr
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InjectTemporality;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceCountFieldWithCountStar;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceEmptyStringWithNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull;
@@ -52,6 +53,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new ReplaceTopNWithLimitAndSort(),
             new ReplaceFieldWithConstantOrNull(),
             new InferIsNotNull(),
+            // Before InferNonNullAggConstraint, which has nothing to add for the counts that no longer read a field
+            new ReplaceCountFieldWithCountStar(),
             new InferNonNullAggConstraint(),
             new ReplaceDateTruncBucketWithRoundTo(),
             new ReplaceEmptyStringWithNull()

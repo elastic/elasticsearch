@@ -915,10 +915,10 @@ public abstract class Engine implements Closeable {
         }
 
         /**
-         * The failed result of an operation that {@link Engine#indexBatch} never attempted because an earlier operation of
-         * the batch failed while being planned. Nothing was consumed for it: no sequence number, no Lucene or translog
-         * write. A caller that splits its request into several batches can fail the rest of the request the same way
-         * instead of attempting it.
+         * The failed result of an operation that {@link Engine#indexBatch} did not apply because planning failed for its
+         * sub-batch or an earlier one while the engine stayed healthy. Nothing was consumed for it: no sequence number,
+         * no Lucene or translog write. A caller that splits its request into several batches can fail the rest of the
+         * request the same way instead of attempting it.
          */
         public static IndexResult batchAborted(Exception failure, long term, String id) {
             return new IndexResult(failure, Versions.MATCH_ANY, term, UNASSIGNED_SEQ_NO, id, true);

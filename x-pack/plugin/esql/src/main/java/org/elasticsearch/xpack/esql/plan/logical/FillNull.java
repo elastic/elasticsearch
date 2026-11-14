@@ -436,6 +436,21 @@ public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisV
             if (fillType == type) {
                 return fillValue;
             }
+            // A whole number into an unsigned_long column. DataType.areCompatible is the predicate of a binary comparison, which keeps
+            // unsigned_long apart from the other numeric types, so it refuses this pair; filling converts one literal once, and
+            // COALESCE accepts it. A negative value is refused by the conversion, and the literal keeps the long encoding of
+            // unsigned_long values.
+            if (type == DataType.UNSIGNED_LONG
+                && fillType.isWholeNumber()
+                && fillValue instanceof Literal wholeNumber
+                && wholeNumber.value() instanceof Number number) {
+                try {
+                    long unsigned = NumericUtils.asLongUnsigned(DataTypeConverter.safeToUnsignedLong(number.longValue()));
+                    return new Literal(wholeNumber.source(), unsigned, DataType.UNSIGNED_LONG);
+                } catch (InvalidArgumentException e) {
+                    return null;
+                }
+            }
             // Type-compatible but different type (e.g. INTEGER fill into a LONG column): convert the literal once
             if (DataType.areCompatible(fillType, type) && fillValue instanceof Literal lit) {
                 DataType literalType = type.noText();

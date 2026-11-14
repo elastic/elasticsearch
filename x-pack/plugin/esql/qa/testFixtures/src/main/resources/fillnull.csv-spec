@@ -1330,18 +1330,100 @@ ul:unsigned_long
 18446744073709551615
 ;
 
-fillNullIntegerValueForUnsignedLongSkippedForAllFields
+fillNullIntegerValueForUnsignedLongForAllFields
 required_capability: fillnull
+required_capability: fillnull_whole_number_into_unsigned_long
 
-// An integer value cannot be applied to an unsigned_long column, so the column is left unchanged and reported.
+// A whole-number value fills an unsigned_long column, as it fills a long or an integer one.
 ROW ul = null, i = null
 | EVAL ul = ul::unsigned_long, i = i::integer
 | FILLNULL 7 ON *
 ;
-warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [ul]
 
 ul:unsigned_long | i:integer
-null             | 7
+7                | 7
+;
+
+fillNullZeroForUnsignedLong
+required_capability: fillnull
+required_capability: fillnull_whole_number_into_unsigned_long
+
+ROW ul = null
+| EVAL ul = ul::unsigned_long
+| FILLNULL 0 ON ul
+;
+
+ul:unsigned_long
+0
+;
+
+fillNullLongValueForUnsignedLong
+required_capability: fillnull
+required_capability: fillnull_whole_number_into_unsigned_long
+
+ROW ul = null
+| EVAL ul = ul::unsigned_long
+| FILLNULL 9223372036854775807 ON ul
+;
+
+ul:unsigned_long
+9223372036854775807
+;
+
+fillNullNegativeValueForUnsignedLongSkipped
+required_capability: fillnull
+
+// A negative value does not fit unsigned_long, so the column is left unchanged and reported.
+ROW ul = null
+| EVAL ul = ul::unsigned_long
+| FILLNULL -1 ON ul
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [ul]
+
+ul:unsigned_long
+null
+;
+
+fillNullFractionalValueForUnsignedLongSkipped
+required_capability: fillnull
+
+// A fractional value does not convert to unsigned_long exactly, so the column is left unchanged and reported.
+ROW ul = null
+| EVAL ul = ul::unsigned_long
+| FILLNULL 0.5 ON ul
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [ul]
+
+ul:unsigned_long
+null
+;
+
+fillNullUnsignedLongValueTooBigForLongSkipped
+required_capability: fillnull
+
+// 18446744073709551615 does not fit a long column, so the column is left unchanged and reported.
+ROW l = null
+| EVAL l = l::long
+| FILLNULL 18446744073709551615 ON l
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [l]
+
+l:long
+null
+;
+
+fillNullStringValueForIntegerSkipped
+required_capability: fillnull
+
+// ES|QL never implicitly converts a string to a number, so the column is left unchanged and reported.
+ROW i = null
+| EVAL i = i::integer
+| FILLNULL "0" ON i
+;
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [i]
+
+i:integer
+null
 ;
 
 fillNullThenInlineStatsGroupsByTheFilledColumn

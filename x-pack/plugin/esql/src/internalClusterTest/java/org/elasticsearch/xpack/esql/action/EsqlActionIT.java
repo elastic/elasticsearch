@@ -117,6 +117,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FILLNULL;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FILLNULL_WHOLE_NUMBER_INTO_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY;
@@ -2426,6 +2427,17 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(10, getValuesList(results).size());
         } finally {
             clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    public void testFillNullWholeNumberIntoUnsignedLong() {
+        assumeTrue("requires FILLNULL capability", FILLNULL.isEnabled());
+        assumeTrue("requires whole number fills into unsigned_long", FILLNULL_WHOLE_NUMBER_INTO_UNSIGNED_LONG.isEnabled());
+        try (EsqlQueryResponse results = run("ROW ul = null | EVAL ul = ul::unsigned_long | FILLNULL 7 ON ul | KEEP ul")) {
+            assertThat(results.columns().get(0).type(), is(DataType.UNSIGNED_LONG));
+            List<List<Object>> values = getValuesList(results);
+            assertThat(values, hasSize(1));
+            assertThat(((Number) values.get(0).get(0)).longValue(), is(7L));
         }
     }
 

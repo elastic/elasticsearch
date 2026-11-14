@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -251,6 +252,61 @@ public class FillNullTests extends ESTestCase {
         FillNull materialized = materialize(fillNull, List.of(intCol), TEST_CFG);
         assertTrue("an out-of-range fill value must not be applied", materialized.fillAliases().isEmpty());
         assertEquals("and the column is reported", Set.of("i"), unfillableNames(materialized));
+    }
+
+    public void testWholeNumberFillIntoUnsignedLongColumnIsApplied() {
+        Attribute ul = getFieldAttribute("ul", DataType.UNSIGNED_LONG);
+        for (Literal fill : List.of(
+            new Literal(Source.EMPTY, 7, DataType.INTEGER),
+            new Literal(Source.EMPTY, 7L, DataType.LONG),
+            new Literal(Source.EMPTY, 0L, DataType.LONG),
+            new Literal(Source.EMPTY, Long.MAX_VALUE, DataType.LONG)
+        )) {
+            FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(ul)), fill, List.of());
+            FillNull materialized = materialize(fillNull, List.of(ul), TEST_CFG);
+            assertEquals(fill + " is applied", 1, materialized.fillAliases().size());
+            assertEquals(Set.of(), unfillableNames(materialized));
+            Coalesce coalesce = (Coalesce) aliasFor(materialized, "ul").child();
+            Literal filled = (Literal) coalesce.children().get(1);
+            assertEquals(DataType.UNSIGNED_LONG, filled.dataType());
+            // The literal carries the long encoding of unsigned_long values, which is not the value itself above Long.MAX_VALUE
+            assertEquals(
+                NumericUtils.asLongUnsigned(BigInteger.valueOf(((Number) fill.value()).longValue())),
+                ((Number) filled.value()).longValue()
+            );
+        }
+    }
+
+    public void testNegativeFillIntoUnsignedLongColumnIsSkipped() {
+        Attribute ul = getFieldAttribute("ul", DataType.UNSIGNED_LONG);
+        for (Literal fill : List.of(new Literal(Source.EMPTY, -1, DataType.INTEGER), new Literal(Source.EMPTY, -1L, DataType.LONG))) {
+            FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(ul)), fill, List.of());
+            FillNull materialized = materialize(fillNull, List.of(ul), TEST_CFG);
+            assertTrue(fill + " does not fit unsigned_long", materialized.fillAliases().isEmpty());
+            assertEquals("and the column is reported", Set.of("ul"), unfillableNames(materialized));
+        }
+    }
+
+    public void testFractionalFillIntoUnsignedLongColumnIsSkipped() {
+        Attribute ul = getFieldAttribute("ul", DataType.UNSIGNED_LONG);
+        Literal fill = new Literal(Source.EMPTY, 0.5, DataType.DOUBLE);
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(ul)), fill, List.of());
+        FillNull materialized = materialize(fillNull, List.of(ul), TEST_CFG);
+        assertTrue("a fractional value does not convert to unsigned_long exactly", materialized.fillAliases().isEmpty());
+        assertEquals("and the column is reported", Set.of("ul"), unfillableNames(materialized));
+    }
+
+    public void testUnsignedLongFillIntoLongColumnIsSkipped() {
+        Attribute l = getFieldAttribute("l", DataType.LONG);
+        Literal fill = new Literal(
+            Source.EMPTY,
+            NumericUtils.asLongUnsigned(new BigInteger("18446744073709551615")),
+            DataType.UNSIGNED_LONG
+        );
+        FillNull fillNull = new FillNull(Source.EMPTY, childWith(List.of(l)), fill, List.of());
+        FillNull materialized = materialize(fillNull, List.of(l), TEST_CFG);
+        assertTrue("a value above Long.MAX_VALUE does not fit a long column", materialized.fillAliases().isEmpty());
+        assertEquals("and the column is reported", Set.of("l"), unfillableNames(materialized));
     }
 
     public void testAllFieldsInRangeFillConvertsLiteralToColumnType() {

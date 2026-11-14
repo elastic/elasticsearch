@@ -402,7 +402,7 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
 
         if (queryVector != null) {
-            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector.get());
+            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector.get(), params);
         }
 
         if (queryVectorBuilder != null) {

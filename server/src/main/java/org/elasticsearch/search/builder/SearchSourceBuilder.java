@@ -1781,19 +1781,19 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         if (retrieverBuilder != null) {
-            builder.field(RETRIEVER.getPreferredName(), retrieverBuilder);
+            builder.field(RETRIEVER.getPreferredName(), retrieverBuilder, params);
         }
 
         if (subSearchSourceBuilders.isEmpty() == false) {
             if (subSearchSourceBuilders.size() == 1) {
-                builder.field(QUERY_FIELD.getPreferredName(), subSearchSourceBuilders.get(0).getQueryBuilder());
+                builder.field(QUERY_FIELD.getPreferredName(), subSearchSourceBuilders.get(0).getQueryBuilder(), params);
             } else {
-                builder.xContentList(SUB_SEARCHES_FIELD.getPreferredName(), subSearchSourceBuilders);
+                builder.xContentList(SUB_SEARCHES_FIELD.getPreferredName(), subSearchSourceBuilders, params);
             }
         }
 
         if (postQueryBuilder != null) {
-            builder.field(POST_FILTER_FIELD.getPreferredName(), postQueryBuilder);
+            builder.field(POST_FILTER_FIELD.getPreferredName(), postQueryBuilder, params);
         }
 
         if (knnSearch.isEmpty() == false) {
@@ -1807,7 +1807,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         if (rankBuilder != null) {
-            builder.field(RANK_FIELD.getPreferredName(), rankBuilder);
+            builder.field(RANK_FIELD.getPreferredName(), rankBuilder, params);
         }
 
         if (minScore != null) {
@@ -1831,7 +1831,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         if (fetchSourceContext != null) {
-            builder.field(_SOURCE_FIELD.getPreferredName(), fetchSourceContext);
+            builder.field(_SOURCE_FIELD.getPreferredName(), fetchSourceContext, params);
         }
 
         if (storedFieldsContext != null) {
@@ -1897,7 +1897,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         if (aggregations != null) {
-            builder.field(AGGREGATIONS_FIELD.getPreferredName(), aggregations);
+            builder.field(AGGREGATIONS_FIELD.getPreferredName(), aggregations, params);
         }
 
         if (highlightBuilder != null) {
@@ -1905,7 +1905,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         if (suggestBuilder != null) {
-            builder.field(SUGGEST_FIELD.getPreferredName(), suggestBuilder);
+            builder.field(SUGGEST_FIELD.getPreferredName(), suggestBuilder, params);
         }
 
         if (rescoreBuilders != null) {
@@ -1929,7 +1929,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         if (collapse != null) {
-            builder.field(COLLAPSE.getPreferredName(), collapse);
+            builder.field(COLLAPSE.getPreferredName(), collapse, params);
         }
         if (pointInTimeBuilder != null) {
             builder.startObject(POINT_IN_TIME.getPreferredName());

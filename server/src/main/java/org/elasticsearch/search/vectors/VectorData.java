@@ -33,6 +33,8 @@ import static org.elasticsearch.common.Strings.format;
 
 public record VectorData(float[] floatVector, byte[] byteVector, String stringVector) implements Writeable, ToXContentFragment {
 
+    public static final String TOXCONTENT_WRITE_FLOAT_VECTOR_AS_BASE64 = "float_vectors_as_base64";
+
     private static final TransportVersion QUERY_VECTOR_BASE64 = TransportVersion.fromName("knn_query_vector_base64");
 
     public VectorData(float[] floatVector) {
@@ -147,11 +149,15 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (floatVector != null) {
-            builder.startArray();
-            for (float v : floatVector) {
-                builder.value(v);
+            if (params.paramAsBoolean(TOXCONTENT_WRITE_FLOAT_VECTOR_AS_BASE64, false)) {
+                builder.value(DecodedVector.floatsToBase64(floatVector));
+            } else {
+                builder.startArray();
+                for (float v : floatVector) {
+                    builder.value(v);
+                }
+                builder.endArray();
             }
-            builder.endArray();
         } else if (stringVector != null) {
             builder.value(stringVector);
         } else {
@@ -259,5 +265,4 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         DecodedVector decoded = DecodedVector.decode(encoded, elementType, dims);
         return decoded.isByteVector() ? VectorData.fromBytes(decoded.bytes()) : VectorData.fromFloats(decoded.toFloatArray());
     }
-
 }

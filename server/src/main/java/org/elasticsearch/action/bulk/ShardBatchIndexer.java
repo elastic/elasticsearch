@@ -154,7 +154,22 @@ public final class ShardBatchIndexer {
                     context.markBatchOperationAsExecuted(result);
                     context.markAsCompleted(context.getExecutionResult());
                 }
+                final Engine.IndexResult last = results.getLast();
+                if (last.isBatchAborted()) {
+                    failRemainingItems(primary, context, last.getFailure());
+                    return;
+                }
             }
+        }
+    }
+
+    /** Fails every item the context has not executed yet with {@code failure}, without attempting it. */
+    private static void failRemainingItems(IndexShard primary, BulkPrimaryExecutionContext context, Exception failure) {
+        while (context.hasMoreOperationsToExecute()) {
+            final DocWriteRequest<?> current = context.getCurrent();
+            context.setRequestToExecute(current);
+            context.markBatchOperationAsExecuted(Engine.IndexResult.batchAborted(failure, primary.getOperationPrimaryTerm(), current.id()));
+            context.markAsCompleted(context.getExecutionResult());
         }
     }
 

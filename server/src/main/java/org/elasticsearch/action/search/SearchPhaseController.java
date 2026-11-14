@@ -605,7 +605,8 @@ public final class SearchPhaseController {
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
         boolean isEmptyResult,
         Long timeRangeFilterFromMillis,
-        // SearchHits from top_hits aggs for release by SearchResponse (may be null)
+        // SearchHits from top_hits aggs, shared with the QueryPhaseResultConsumer which releases whatever is still in it on close;
+        // buildResponse drains it to hand ownership to the SearchResponse (may be null)
         @Nullable List<SearchHits> topHitsToRelease
     ) {
 
@@ -624,6 +625,9 @@ public final class SearchPhaseController {
             Collection<? extends SearchPhaseResult> fetchResults,
             @Nullable List<SearchHit> completionOptionHitsToRelease
         ) {
+            // Ownership of the top_hits moves to the response only here, so that if the search fails before a response is built
+            // (e.g. in fetch) the consumer still releases them when it is closed.
+            final List<SearchHits> ownedTopHits = drainTopHitsToRelease();
             return new SearchResponseSections(
                 hits,
                 aggregations,
@@ -633,9 +637,25 @@ public final class SearchPhaseController {
                 buildSearchProfileResults(fetchResults),
                 numReducePhases,
                 timeRangeFilterFromMillis,
-                topHitsToRelease,
+                ownedTopHits,
                 completionOptionHitsToRelease
             );
+        }
+
+        /**
+         * Removes and returns the top_hits to release from the list shared with the {@link QueryPhaseResultConsumer}, so that the
+         * consumer no longer releases them. Synchronized on the list so a concurrent close of the consumer cannot release them twice.
+         */
+        @Nullable
+        private List<SearchHits> drainTopHitsToRelease() {
+            if (topHitsToRelease == null) {
+                return null;
+            }
+            synchronized (topHitsToRelease) {
+                final List<SearchHits> drained = new ArrayList<>(topHitsToRelease);
+                topHitsToRelease.clear();
+                return drained;
+            }
         }
 
         private SearchProfileResults buildSearchProfileResults(Collection<? extends SearchPhaseResult> fetchResults) {

@@ -14,6 +14,8 @@ import org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.fetch.FetchOperator;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
@@ -59,6 +61,18 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
      * The result and the profile of one run.
      */
     protected record Run(List<String> columns, List<List<Object>> rows, List<DriverProfile> drivers) {}
+
+    /**
+     * The reaper runs often, so a context that nobody frees goes once its keep-alive passed, see
+     * {@link #testAPlainLimitFetchesTheColumnsOfTheRowsItKeeps}.
+     */
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100))
+            .build();
+    }
 
     @Before
     public void setupIndex() {
@@ -134,9 +148,21 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     /**
      * Without a sort, a {@code LIMIT} keeps the first rows that reach the coordinator, so the rows change from run to run.
      * The fetch loads the columns of the rows it kept, and each row holds the values of its own document.
+     * <p>
+     * The {@code LIMIT} can finish the exchange before the pages of some shards reach the coordinator. Their data nodes keep
+     * the contexts those pages name, and the coordinator never learns of them, so the reaper frees them once their keep-alive
+     * passed. The query runs with a keep-alive short enough for that to happen while the test waits for every context to
+     * close.
      */
     public void testAPlainLimitFetchesTheColumnsOfTheRowsItKeeps() {
-        Run run = runQuery("FROM " + indexName + " | LIMIT 10 | KEEP unique_sort, payload, category", true);
+        Run run;
+        updateClusterSettings(Settings.builder().put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(5)));
+        try {
+            run = runQuery("FROM " + indexName + " | LIMIT 10 | KEEP unique_sort, payload, category", true);
+        } finally {
+            // a context keeps the keep-alive it got
+            updateClusterSettings(Settings.builder().putNull(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey()));
+        }
         assertThat(run.rows(), hasSize(10));
         Set<Long> documents = new HashSet<>();
         for (List<Object> row : run.rows()) {

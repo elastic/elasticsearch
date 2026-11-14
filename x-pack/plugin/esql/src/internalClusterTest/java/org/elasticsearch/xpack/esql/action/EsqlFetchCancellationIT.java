@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelT
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
@@ -51,11 +52,20 @@ import static org.hamcrest.Matchers.not;
  * Queries with the fetch phase, cancelled while a shard still searches, between the query phase and the fetch, while a
  * node loads the documents of the winners, and at a random moment. Afterwards every reader context the query opened is
  * closed, and none closed on a transport thread, where dropping the last reference to a reader can block on IO.
+ * <p>
+ * A data node keeps the contexts of the rows that left it, also when the query was cancelled. The coordinator frees the
+ * ones whose rows reached it. Rows that were on their way when the query was cancelled never do, so their contexts wait
+ * for the reaper. The nodes here reap often and keep a context for a few seconds, so the reaper frees them while the
+ * test waits.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 3)
 public class EsqlFetchCancellationIT extends AbstractEsqlIntegTestCase {
     private static final String INDEX = "fetch_cancellation";
     private static final int DOCS = 400;
+    /**
+     * Short enough for the reaper to free a context within the wait for all of them to close.
+     */
+    private static final TimeValue KEEP_ALIVE = TimeValue.timeValueSeconds(3);
 
     private final Set<ShardSearchContextId> opened = ConcurrentHashMap.newKeySet();
     private final Set<ShardSearchContextId> closed = ConcurrentHashMap.newKeySet();
@@ -69,6 +79,15 @@ public class EsqlFetchCancellationIT extends AbstractEsqlIntegTestCase {
         // holds a shard while it searches, or a node while it loads the winners
         plugins.add(SimplePauseFieldPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100))
+            .put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), KEEP_ALIVE)
+            .build();
     }
 
     @Before
@@ -113,8 +132,8 @@ public class EsqlFetchCancellationIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Cancelled while a shard searches. The data nodes free the contexts they opened, also those of the shards that already
-     * sent rows.
+     * Cancelled while a shard searches. The data nodes free the contexts whose rows didn't leave them. The coordinator frees
+     * the ones whose rows reached it, and the reaper the others.
      */
     public void testCancelWhileAShardStillSearches() throws Exception {
         ActionFuture<EsqlQueryResponse> query = start("FROM " + INDEX + " | WHERE pause >= 0 | SORT ts DESC | LIMIT 10 | KEEP ts, payload");

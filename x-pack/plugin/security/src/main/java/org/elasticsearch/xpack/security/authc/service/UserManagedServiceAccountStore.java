@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.security.action.service.ServiceAccountAuthor
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.SecurityFeatures;
@@ -383,6 +384,54 @@ public class UserManagedServiceAccountStore implements CacheInvalidatorRegistry.
          * {@code search_after}. Empty when the query was not sorted.
          */
         public record Item(UserManagedServiceAccount account, Object[] sortValues) {}
+    }
+
+    /**
+     * Reports whether any API key the account created can still authenticate, that is, one that is neither invalidated
+     * nor expired. Such a key would start authenticating again, with the privileges captured when it was created, as soon
+     * as an account of the same name exists, so a caller can refuse to recreate the account while one remains. Like the
+     * equivalent check on service tokens, this is a bounded existence search that stops at the first match.
+     */
+    void hasUsableApiKeysFor(ServiceAccountId accountId, ActionListener<Boolean> listener) {
+        final IndexState projectSecurityIndex = securityIndex.forCurrentProject();
+        if (projectSecurityIndex.indexExists() == false) {
+            listener.onResponse(false);
+            return;
+        }
+        if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+            return;
+        }
+        projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+            final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
+                .setQuery(usableApiKeysQuery(accountId, clock.instant()))
+                .setSize(0)
+                .setTerminateAfter(1)
+                .setTrackTotalHitsUpTo(1)
+                .request();
+            executeAsyncWithOrigin(
+                client,
+                SECURITY_ORIGIN,
+                TransportSearchAction.TYPE,
+                request,
+                ActionListener.wrap(response -> listener.onResponse(response.getHits().getTotalHits().value() > 0), listener::onFailure)
+            );
+        });
+    }
+
+    private static BoolQueryBuilder usableApiKeysQuery(ServiceAccountId accountId, Instant now) {
+        // The doc_type filter matters: the account's own document records its creator under the same field names.
+        return QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("doc_type", "api_key"))
+            .filter(QueryBuilders.termQuery("creator.principal", accountId.asPrincipal()))
+            .filter(QueryBuilders.termQuery("creator.realm_type", ServiceAccountSettings.REALM_TYPE))
+            .filter(QueryBuilders.termQuery("api_key_invalidated", false))
+            .filter(
+                QueryBuilders.boolQuery()
+                    .should(QueryBuilders.rangeQuery("expiration_time").gt(now.toEpochMilli()))
+                    .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")))
+                    .minimumShouldMatch(1)
+            );
     }
 
     /**

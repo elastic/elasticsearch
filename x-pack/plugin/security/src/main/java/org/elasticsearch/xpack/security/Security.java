@@ -1122,7 +1122,8 @@ public class Security extends Plugin
             cacheInvalidatorRegistry,
             threadPool,
             telemetryProvider.getMeterRegistry(),
-            featureService
+            featureService,
+            serviceAccountService
         );
         components.add(apiKeyService);
         components.add(new IndexPrivilegesCacheMetrics(telemetryProvider.getMeterRegistry()));

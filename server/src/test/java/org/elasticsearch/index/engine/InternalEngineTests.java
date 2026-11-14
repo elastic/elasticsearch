@@ -8764,7 +8764,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testIndexBatchFailureAfterSeqNoReservationFailsEngine() throws IOException {
         engine.close();
-        final AtomicReference<ThrowingIndexWriter> iw = new AtomicReference<>();
+        final SetOnce<ThrowingIndexWriter> iw = new SetOnce<>();
         try (Store store = createStore(); InternalEngine engine = createEngine((dir, iwc) -> {
             // ThrowingIndexWriter simulates a Lucene IndexWriter after reserving seqnos.
             iw.set(new ThrowingIndexWriter(dir, iwc));
@@ -8778,6 +8778,50 @@ public class InternalEngineTests extends EngineTestCase {
 
             // indexBatch will now throw a tragic exception
             IOException e = expectThrows(IOException.class, () -> engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops))));
+            assertThat(e, sameInstance(writeFailure));
+            assertThat(engine.failedEngine.get(), sameInstance(writeFailure));
+            assertTrue(engine.isClosed.get());
+        }
+    }
+
+    public void testIndexBatchFailureAfterSeqNoReservationFailsEngineWhileClosing() throws Exception {
+        engine.close();
+        final SetOnce<ThrowingIndexWriter> iw = new SetOnce<>();
+        try (Store store = createStore(); InternalEngine engine = createEngine((dir, iwc) -> {
+            iw.set(new ThrowingIndexWriter(dir, iwc));
+            return iw.get();
+        }, config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE))) {
+            final IOException writeFailure = new IOException("simulated write failure");
+            final CountDownLatch writing = new CountDownLatch(1);
+            // The Lucene write, i.e. the applying phase after the sequence numbers were reserved, fails only once a close has
+            // started draining in-flight operations: the engine is marked as closing but still fully open, waiting for this batch
+            iw.get().setThrowFailure(() -> {
+                writing.countDown();
+                try {
+                    assertBusy(() -> assertTrue(engine.isClosing()));
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+                return writeFailure;
+            });
+            iw.get().setTragicException(new IOException("tragic event recorded by another thread"));
+
+            final Thread closer = new Thread(() -> {
+                safeAwait(writing);
+                try {
+                    engine.flushAndClose();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closer.start();
+
+            List<Engine.Index> ops = List.of(indexForDoc(createParsedDoc("1", null)), indexForDoc(createParsedDoc("2", null)));
+            IOException e = expectThrows(IOException.class, () -> engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops))));
+            closer.join();
+
+            // the batch failed the engine while the close was waiting for it, so the closing flush could not commit a partial
+            // sub-batch; the close then completed on the failed engine
             assertThat(e, sameInstance(writeFailure));
             assertThat(engine.failedEngine.get(), sameInstance(writeFailure));
             assertTrue(engine.isClosed.get());

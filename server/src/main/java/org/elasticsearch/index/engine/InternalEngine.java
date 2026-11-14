@@ -1558,10 +1558,7 @@ public class InternalEngine extends Engine {
     }
 
     private boolean engineSurvived(Exception e) {
-        return e instanceof AlreadyClosedException == false
-            && failedEngine.get() == null
-            && isClosing() == false
-            && isClosed.get() == false;
+        return e instanceof AlreadyClosedException == false && failedEngine.get() == null && isClosed.get() == false;
     }
 
     private static String describe(IndexOperationBatch subBatch) {

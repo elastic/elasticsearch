@@ -2,7 +2,7 @@
 navigation_title: "Cluster state encryption"
 description: "How Elasticsearch encrypts sensitive values stored in cluster state using a cluster state encryption key, including password requirements, key rotation, and recovery."
 applies_to:
-  stack: ga 9.5
+  stack: preview 9.5+
 products:
   - id: elasticsearch
 ---
@@ -38,6 +38,10 @@ To let a node persist the key to disk, it needs a password configured as a [secu
 :   The `<id>` of the password currently used to protect newly written keys.
 
 These settings are node-local. Configure a different password value on each node. Password IDs can be the same across nodes.
+
+:::{warning}
+Add both settings to every node's keystore before you reload secure settings on any node, and to any new node before it joins. When you first configure the password, reload all nodes at once with `POST /_nodes/reload_secure_settings` rather than one node at a time. Once the cluster state encryption key exists, a node without the password can't save cluster state. If most master-eligible nodes don't have it, the cluster has no elected master. Even when every keystore is ready, the elected master can briefly step down while the nodes reload. Refer to [known issues](/release-notes/known-issues.md#elasticsearch-9.6.0-known-issues) for details.
+:::
 
 **On {{ech}} and {{ece}}**, the control plane supplies this password automatically.
 

@@ -10,6 +10,16 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.6.0 [elasticsearch-9.6.0-known-issues]
 
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten and reloaded while the password is temporarily missing.
+
+  Affected nodes log errors containing `cannot wrap PEK for disk`. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, add the password to every node's keystore, then reload all nodes at once with `POST /_nodes/reload_secure_settings` rather than one node at a time. Even then, the elected master can briefly step down while the nodes reload, and cluster state updates in progress at that moment can fail. To recover, add the password to the affected nodes and reload their secure settings. A fix is in progress.
+
 * A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes such as `[a-z]+` and `foo|bar` are unaffected, but patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
 
 This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859).
@@ -26,6 +36,16 @@ This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and i
 
 ## 9.5.2 [elasticsearch-9.5.2-known-issues]
 
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten and reloaded while the password is temporarily missing.
+
+  Affected nodes log errors containing `cannot wrap PEK for disk`. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, add the password to every node's keystore, then reload all nodes at once with `POST /_nodes/reload_secure_settings` rather than one node at a time. Even then, the elected master can briefly step down while the nodes reload, and cluster state updates in progress at that moment can fail. To recover, add the password to the affected nodes and reload their secure settings. A fix is in progress.
+
 * A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
 
   This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and is fixed in [#164859](https://github.com/elastic/elasticsearch/pull/164859), released in Elasticsearch v9.5.7, v9.6.1, and v9.7.0. We recommend upgrading directly to a fixed version.
@@ -39,6 +59,16 @@ This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and i
   Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
 
 ## 9.5.1 [elasticsearch-9.5.1-known-issues]
+
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten and reloaded while the password is temporarily missing.
+
+  Affected nodes log errors containing `cannot wrap PEK for disk`. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, add the password to every node's keystore, then reload all nodes at once with `POST /_nodes/reload_secure_settings` rather than one node at a time. Even then, the elected master can briefly step down while the nodes reload, and cluster state updates in progress at that moment can fail. To recover, add the password to the affected nodes and reload their secure settings. A fix is in progress.
 
 * A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
 
@@ -64,6 +94,16 @@ This defect was introduced by the Lucene 10 upgrade in Elasticsearch 9.0.0 and i
   Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
 
 ## 9.5.0 [elasticsearch-9.5.0-known-issues]
+
+* A node that doesn't have the [cluster state encryption](/reference/elasticsearch/cluster-state-encryption-key.md) password (`cluster.state.encryption.active_password_id` and the matching `cluster.state.encryption.password.<id>`) can't save cluster state to disk once the cluster state encryption key exists. The elected master creates the key as soon as it has a password, even if no feature uses encryption. A node can be missing the password when, for example:
+
+  * Secure settings are reloaded before every node's keystore has the password. `POST /_nodes/reload_secure_settings` reloads every node.
+  * A node joins the cluster without the password.
+  * A node's keystore is rewritten and reloaded while the password is temporarily missing.
+
+  Affected nodes log errors containing `cannot wrap PEK for disk`. Cluster state updates that change cluster-wide metadata, such as cluster settings, snapshots, and SLM and ILM steps, can fail. If most master-eligible nodes are affected, the cluster has no elected master. No encryption keys are lost.
+
+  To avoid this, add the password to every node's keystore, then reload all nodes at once with `POST /_nodes/reload_secure_settings` rather than one node at a time. Even then, the elected master can briefly step down while the nodes reload, and cluster state updates in progress at that moment can fail. To recover, add the password to the affected nodes and reload their secure settings. A fix is in progress.
 
 * A `simple_pattern` tokenizer whose regex does not compile to a Deterministic Finite Automaton (DFA) fails to instantiate on 9.x with `java.lang.IllegalArgumentException: please determinize the incoming automaton first`. Indices whose analyzers reference such a tokenizer cannot open their shards on 9.x nodes, so during a rolling upgrade from 8.x their replicas fail to allocate on upgraded nodes, and once all nodes are on 9.x their primaries cannot open either. Simple regexes (e.g. `[a-z]+`, `foo|bar`) are unaffected; patterns such as `ab|ac` or `[0-9]{2}/[0-9]{2}/[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}` fail. The sibling `simple_pattern_split` tokenizer is not affected.
 

@@ -12,6 +12,7 @@ import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.TimeStampMilliVector;
@@ -51,6 +52,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlockBuilder.DoubleRange;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
@@ -163,6 +165,14 @@ public class ArrowResponseTests extends ESTestCase {
         block -> block.appendDouble(randomDouble()),
         (block, i, scratch) -> block.getDouble(i),
         Float8Vector::get
+    );
+
+    static final ValueType DENSE_VECTOR_VALUES = new ValueTypeImpl<FloatBlock.Builder, FloatBlock, Float4Vector>(
+        "dense_vector",
+        factory -> factory.newFloatBlockBuilder(0),
+        block -> block.appendFloat(randomFloat()),
+        (block, i, scratch) -> block.getFloat(i),
+        Float4Vector::get
     );
 
     static final ValueType BOOLEAN_VALUES = new ValueTypeImpl<BooleanBlock.Builder, BooleanBlock, BitVector>(
@@ -316,6 +326,7 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.COUNTER_LONG, LONG_VALUES),
         Map.entry(DataType.UNSIGNED_LONG, ULONG_VALUES),
         Map.entry(DataType.DOUBLE, DOUBLE_VALUES),
+        Map.entry(DataType.DENSE_VECTOR, DENSE_VECTOR_VALUES),
         Map.entry(DataType.COUNTER_DOUBLE, DOUBLE_VALUES),
 
         Map.entry(DataType.TEXT, TEXT_VALUES),
@@ -535,6 +546,137 @@ public class ArrowResponseTests extends ESTestCase {
         }
     }
 
+    public void testDenseVectorOutput() throws IOException {
+        FloatBlock block;
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(4)) {
+            builder.appendFloat(1.25f);
+            builder.appendNull();
+            builder.beginPositionEntry();
+            builder.appendFloat(Float.MAX_VALUE);
+            builder.appendFloat(-Float.MAX_VALUE);
+            builder.appendFloat(Float.MIN_VALUE);
+            builder.appendFloat(-0.0f);
+            builder.endPositionEntry();
+            builder.appendFloat(0.0f);
+            block = builder.build();
+        }
+        var column = TestColumn.create("vector", DataType.DENSE_VECTOR, true);
+        try (
+            TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            ListVector vector = (ListVector) root.getVector("vector");
+            assertDenseVectorSchema(vector);
+            assertListLayout(vector, 0, 1, 1, 5, 6);
+            assertEquals(List.of(1.25f), vector.getObject(0));
+            assertTrue(vector.isNull(1));
+            assertEquals(List.of(Float.MAX_VALUE, -Float.MAX_VALUE, Float.MIN_VALUE, -0.0f), vector.getObject(2));
+            assertEquals(List.of(0.0f), vector.getObject(3));
+        }
+    }
+
+    public void testSingleDimensionDenseVectorOutput() throws IOException {
+        FloatBlock block;
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(3)) {
+            block = builder.appendFloat(1.0f).appendNull().appendFloat(2.0f).build();
+        }
+        assertFalse(block.mayHaveMultivaluedFields());
+        var column = TestColumn.create("vector", DataType.DENSE_VECTOR, false);
+        try (
+            TestCase testCase = new TestCase(
+                List.of(column),
+                List.of(
+                    new TestPage(List.of(TestBlock.create(column, block))),
+                    new TestPage(List.of(TestBlock.create(column, blockFactory.newConstantNullBlock(2))))
+                )
+            );
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            ListVector vector = (ListVector) root.getVector("vector");
+            assertDenseVectorSchema(vector);
+            assertListLayout(vector, 0, 1, 1, 2, 2, 2);
+            assertEquals(List.of(1.0f), vector.getObject(0));
+            assertEquals(List.of(2.0f), vector.getObject(2));
+        }
+    }
+
+    public void testDenseVectorListSchemaAcrossPages() throws IOException {
+        FloatBlock singleCoordinate;
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(1)) {
+            singleCoordinate = builder.appendFloat(1.5f).build();
+        }
+        FloatBlock multipleCoordinates;
+        try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(3)) {
+            builder.beginPositionEntry().appendFloat(2.0f).appendFloat(3.0f).appendFloat(4.0f).endPositionEntry();
+            multipleCoordinates = builder.appendNull().appendFloat(-1.0f).build();
+        }
+        assertFalse(singleCoordinate.mayHaveMultivaluedFields());
+        assertTrue(multipleCoordinates.mayHaveMultivaluedFields());
+        var column = TestColumn.create("vector", DataType.DENSE_VECTOR, true);
+        try (
+            TestCase testCase = new TestCase(
+                List.of(column),
+                List.of(
+                    new TestPage(List.of(TestBlock.create(column, blockFactory.newConstantNullBlock(2)))),
+                    new TestPage(List.of(TestBlock.create(column, singleCoordinate))),
+                    new TestPage(List.of(TestBlock.create(column, multipleCoordinates)))
+                )
+            );
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            ListVector vector = (ListVector) root.getVector("vector");
+            assertDenseVectorSchema(vector);
+            assertListLayout(vector, 0, 0, 0, 1, 4, 4, 5);
+            assertTrue(vector.isNull(0));
+            assertTrue(vector.isNull(1));
+            assertEquals(List.of(1.5f), vector.getObject(2));
+            assertEquals(List.of(2.0f, 3.0f, 4.0f), vector.getObject(3));
+            assertTrue(vector.isNull(4));
+            assertEquals(List.of(-1.0f), vector.getObject(5));
+        }
+    }
+
+    public void testAllNullDenseVectorOutput() throws IOException {
+        var column = TestColumn.create("vector", DataType.DENSE_VECTOR, false);
+        try (
+            TestCase testCase = new TestCase(
+                List.of(column),
+                List.of(new TestPage(List.of(TestBlock.create(column, blockFactory.newConstantNullBlock(3)))))
+            );
+            VectorSchemaRoot root = toArrowVectors(testCase)
+        ) {
+            compareEsqlAndArrow(testCase, root);
+            ListVector vector = (ListVector) root.getVector("vector");
+            assertDenseVectorSchema(vector);
+            assertListLayout(vector, 0, 0, 0, 0);
+            for (int position = 0; position < 3; position++) {
+                assertTrue(vector.isNull(position));
+            }
+        }
+    }
+
+    public void testDenseVectorEmptyResponse() throws IOException {
+        var column = TestColumn.create("vector", DataType.DENSE_VECTOR, false);
+        try (TestCase testCase = new TestCase(List.of(column), List.of()); VectorSchemaRoot root = toArrowVectors(testCase)) {
+            assertEquals(0, root.getRowCount());
+            assertDenseVectorSchema((ListVector) root.getVector("vector"));
+        }
+    }
+
+    private static void assertDenseVectorSchema(ListVector vector) {
+        Field field = vector.getField();
+        assertEquals(Types.MinorType.LIST.getType(), field.getType());
+        assertTrue(field.isNullable());
+        assertEquals("dense_vector", field.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+        assertEquals(1, field.getChildren().size());
+        Field coordinates = field.getChildren().getFirst();
+        assertEquals(Types.MinorType.FLOAT4.getType(), coordinates.getType());
+        assertFalse(coordinates.isNullable());
+    }
+
     public void testSingleBlock() throws IOException {
         // Simple test to easily focus on a specific type & density
         DataType type = DataType.TEXT;
@@ -571,9 +713,9 @@ public class ArrowResponseTests extends ESTestCase {
     }
 
     public void testDroppedUnsupportedColumnIsNotValidated() throws IOException {
-        assertFalse(ArrowResponse.ESQL_FORMATTERS.containsKey(DataType.DENSE_VECTOR));
+        assertFalse(ArrowResponse.ESQL_FORMATTERS.containsKey(DataType.OBJECT));
         List<TestColumn> columns = List.of(
-            new TestColumn("unsupported", DataType.DENSE_VECTOR, NULL_VALUES, false),
+            new TestColumn("unsupported", DataType.OBJECT, NULL_VALUES, false),
             TestColumn.create("retained", DataType.INTEGER, false)
         );
         TestCase testCase = new TestCase(

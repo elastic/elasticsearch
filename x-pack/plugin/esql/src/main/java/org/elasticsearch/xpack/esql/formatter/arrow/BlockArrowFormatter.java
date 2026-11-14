@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
@@ -97,7 +98,8 @@ public abstract class BlockArrowFormatter {
     /**
      * Convert a block into Arrow buffers.
      * @param block the ESQL block
-     * @param multivalued is this column multivalued? This block may not, but some blocks in that column are.
+     * @param multivalued whether to encode values as an Arrow list, for ES|QL multivalues or dense-vector coordinates.
+     *                    The encoding is fixed for the column even when a page contains only single values or nulls.
      * @param bufs arrow buffers, used to track sizes
      * @param bufWriters buffer writers, that will do the actual work of writing the data
      * @param releasables resources retained until the deferred buffer writers have completed
@@ -109,6 +111,44 @@ public abstract class BlockArrowFormatter {
         List<BufWriter> bufWriters,
         List<Releasable> releasables
     );
+
+    /**
+     * Preserves the precision of FloatBlock values, including dense-vector coordinates inside Arrow lists.
+     */
+    public static class AsFloat32 extends BlockArrowFormatter {
+
+        public AsFloat32(DataType esqlType) {
+            super(esqlType, Types.MinorType.FLOAT4);
+        }
+
+        @Override
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters, List<Releasable> releasables) {
+            FloatBlock block = (FloatBlock) b;
+            if (multivalued) {
+                addListOffsets(bufs, bufWriters, block);
+            }
+            accumulateVectorValidity(bufs, bufWriters, block, multivalued);
+
+            long byteSize = (long) Float.BYTES * arrowValueCount(block, multivalued);
+            bufs.add(dummyArrowBuf(byteSize));
+            bufWriters.add(out -> {
+                for (int position = 0; position < block.getPositionCount(); position++) {
+                    if (block.isNull(position)) {
+                        if (multivalued == false) {
+                            out.writeIntLE(0);
+                        }
+                        continue;
+                    }
+                    int start = block.getFirstValueIndex(position);
+                    int end = start + block.getValueCount(position);
+                    for (int valueIndex = start; valueIndex < end; valueIndex++) {
+                        out.writeIntLE(Float.floatToRawIntBits(block.getFloat(valueIndex)));
+                    }
+                }
+                return byteSize;
+            });
+        }
+    }
 
     /**
      * Conversion of Double blocks

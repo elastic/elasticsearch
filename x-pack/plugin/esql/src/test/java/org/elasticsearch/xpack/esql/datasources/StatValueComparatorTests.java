@@ -34,6 +34,16 @@ public class StatValueComparatorTests extends ESTestCase {
         assertThat(StatValueComparator.compare(2.0d, 2), equalTo(0));
     }
 
+    public void testSignedZerosCompareEqual() {
+        assertThat(StatValueComparator.compare(-0.0, 0.0), equalTo(0));
+        assertThat(StatValueComparator.compare(0.0, -0.0), equalTo(0));
+        assertThat(StatValueComparator.compare(-0.0, -0.0), equalTo(0));
+        assertThat(StatValueComparator.compare(-0.0, 1.0), lessThan(0));
+        assertTrue(StatValueComparator.zerosOfOppositeSign(-0.0, 0.0));
+        assertFalse(StatValueComparator.zerosOfOppositeSign(-0.0, -0.0));
+        assertFalse(StatValueComparator.zerosOfOppositeSign(-0.0, 1.0));
+    }
+
     public void testBytesRefVsString() {
         assertThat(StatValueComparator.compare(new BytesRef("abc"), "abc"), equalTo(0));
         assertThat(StatValueComparator.compare(new BytesRef("abd"), "abc"), greaterThan(0));

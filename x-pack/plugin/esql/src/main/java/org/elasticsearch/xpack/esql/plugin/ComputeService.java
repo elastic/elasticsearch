@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -49,6 +50,7 @@ import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.RemoteSink;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Assertions;
@@ -74,7 +76,9 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -139,7 +143,6 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -305,6 +308,32 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    /**
+     * Options for a request that carries a plan to another node. The plan can hold large local data, such as the result of an
+     * INLINE STATS sub-plan, and the transport layer keeps one serialized copy per target until it has been written, so that
+     * copy is charged to the request breaker and a trip fails the request instead of running the node out of memory.
+     */
+    TransportRequestOptions planRequestOptions() {
+        return TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
+    }
+
+    /**
+     * Wraps the listener of a plan request whose target already holds the exchange that {@code remoteSink} reads from. When the
+     * request fails before it is sent, for example because serializing it trips the breaker, nothing runs on the target to finish
+     * that exchange, and once the failure cancels the request's task the coordinator can no longer tell the target to finish it.
+     * So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the target until
+     * its inactive-sink reaper removes it.
+     */
+    static <T> ActionListener<T> finishRemoteSinkIfNotSent(RemoteSink remoteSink, ActionListener<T> listener) {
+        return listener.delegateResponse((l, e) -> {
+            if (e instanceof SendRequestTransportException) {
+                remoteSink.close(ActionListener.running(() -> l.onFailure(e)));
+            } else {
+                l.onFailure(e);
+            }
+        });
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -1143,6 +1172,12 @@ public class ComputeService {
             || (exchange.child() instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance));
     }
 
+    /**
+     * Executes {@code physicalPlan} and collects its result pages on the coordinator.
+     *
+     * @param maxResultSize limit on the collected result pages, or {@code null} for no limit. The execution fails as soon as the
+     *                      pages exceed it, see {@link BoundedPageCollector}.
+     */
     public void execute(
         String sessionId,
         CancellableTask rootTask,
@@ -1152,6 +1187,7 @@ public class ComputeService {
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
         PlanTimeProfile planTimeProfile,
+        @Nullable ByteSizeValue maxResultSize,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -1194,7 +1230,9 @@ public class ComputeService {
                     null,
                     initialClusterStatuses,
                     planTimeProfile,
-                    warnIndexCoordinatorOnce
+                    warnIndexCoordinatorOnce,
+                    SiblingPlacement.SINGLE,
+                    maxResultSize
                 );
                 case SubPlan.Merge merge -> new SubPlansExecutor(
                     this,
@@ -1209,6 +1247,7 @@ public class ComputeService {
                     warnIndexCoordinatorOnce,
                     planTimeProfile,
                     merge,
+                    maxResultSize,
                     dispatchListener
                 ).executePlan();
             }
@@ -1220,42 +1259,12 @@ public class ComputeService {
         }
     }
 
-    public void executePlan(
-        String sessionId,
-        CancellableTask rootTask,
-        EsqlFlags flags,
-        PhysicalPlan physicalPlan,
-        Configuration configuration,
-        FoldContext foldContext,
-        EsqlExecutionInfo execInfo,
-        String profileQualifier,
-        ActionListener<Result> listener,
-        Supplier<ExchangeSink> exchangeSinkSupplier,
-        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
-        PlanTimeProfile planTimeProfile,
-        Runnable warnIndexCoordinatorOnce
-    ) {
-        executePlan(
-            sessionId,
-            rootTask,
-            flags,
-            physicalPlan,
-            configuration,
-            foldContext,
-            execInfo,
-            profileQualifier,
-            listener,
-            exchangeSinkSupplier,
-            initialClusterStatuses,
-            planTimeProfile,
-            warnIndexCoordinatorOnce,
-            SiblingPlacement.SINGLE
-        );
-    }
-
     /**
      * Runs one producer after split discovery, placing it with {@code placement} so sibling
      * UNION leaves rotate and hop instead of stacking on the coordinator.
+     *
+     * @param maxResultSize limit on the result pages collected when {@code exchangeSinkSupplier} is {@code null}, or
+     *                      {@code null} for no limit, see {@link BoundedPageCollector}
      */
     public void executePlan(
         String sessionId,
@@ -1271,7 +1280,8 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
-        SiblingPlacement placement
+        SiblingPlacement placement,
+        @Nullable ByteSizeValue maxResultSize
     ) {
         final long splitDiscoveryStart = System.nanoTime();
         ExternalPlanningReservation reservation = execInfo == null ? null : execInfo.externalPlanning();
@@ -1305,7 +1315,8 @@ public class ComputeService {
                     planTimeProfile,
                     warnIndexCoordinatorOnce,
                     splitDiscoveryStart + waitedNanos,
-                    placement
+                    placement,
+                    maxResultSize
                 ),
                 releasing
             );
@@ -1418,7 +1429,8 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
         long splitDiscoveryStart,
-        SiblingPlacement placement
+        SiblingPlacement placement,
+        @Nullable ByteSizeValue maxResultSize
     ) {
         final ExternalDistributionResult distributionResult;
         try {
@@ -1441,7 +1453,8 @@ public class ComputeService {
             return;
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
-        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        final BoundedPageCollector pageCollector = new BoundedPageCollector(maxResultSize);
+        final List<Page> collectedPages = pageCollector.pages();
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
             l.onFailure(e);
@@ -1455,7 +1468,7 @@ public class ComputeService {
             ? streaming.pageStream()
             : null;
         if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
-            coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
+            coordinatorPlan = new OutputExec(coordinatorPlan, pageCollector);
         }
 
         PhysicalPlan dataNodePlan = coordinatorAndDataNode.v2();

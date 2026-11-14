@@ -1547,3 +1547,205 @@ emp_no:integer | gender:keyword | _fork:keyword | c:long
 10010          | null           | fork2         | 2
 10011          | null           | fork2         | 2
 ;
+
+// FILLNULL has no default for these types and cannot convert any value into them, not even a string that would cast (ES|QL converts a
+// string only to datetime, date_nanos, ip, version and boolean). The column is left unchanged and both forms warn.
+fillNullGeoPointIsLeftUnchanged
+required_capability: fillnull
+required_capability: casting_operator
+ROW gp = NULL::geo_point
+| FILLNULL DEFAULT ON gp
+| FILLNULL "POINT(1 2)" ON gp
+;
+warning:Line 2:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [gp]; provide an explicit value
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [gp]
+
+gp:geo_point
+null
+;
+
+fillNullGeoShapeIsLeftUnchanged
+required_capability: fillnull
+required_capability: casting_operator
+ROW gs = NULL::geo_shape
+| FILLNULL DEFAULT ON gs
+| FILLNULL "POLYGON ((0 0, 1 0, 1 1, 0 0))" ON gs
+;
+warning:Line 2:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [gs]; provide an explicit value
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [gs]
+
+gs:geo_shape
+null
+;
+
+fillNullCartesianPointIsLeftUnchanged
+required_capability: fillnull
+required_capability: casting_operator
+ROW cp = NULL::cartesian_point
+| FILLNULL DEFAULT ON cp
+| FILLNULL "POINT(1 2)" ON cp
+;
+warning:Line 2:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [cp]; provide an explicit value
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [cp]
+
+cp:cartesian_point
+null
+;
+
+fillNullCartesianShapeIsLeftUnchanged
+required_capability: fillnull
+required_capability: casting_operator
+ROW cs = NULL::cartesian_shape
+| FILLNULL DEFAULT ON cs
+| FILLNULL "POLYGON ((0 0, 1 0, 1 1, 0 0))" ON cs
+;
+warning:Line 2:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [cs]; provide an explicit value
+warning:Line 3:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [cs]
+
+cs:cartesian_shape
+null
+;
+
+fillNullDenseVectorIsLeftUnchanged
+required_capability: fillnull
+required_capability: dense_vector_field_type_released
+required_capability: dense_vector_agg_metric_double_if_version
+
+FROM dense_vector
+| WHERE id == 4
+| KEEP id, float_vector
+| FILLNULL DEFAULT ON float_vector
+| FILLNULL "0102" ON float_vector
+;
+warning:Line 4:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [float_vector]; provide an explicit value
+warning:Line 5:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [float_vector]
+
+id:l | float_vector:dense_vector
+4    | null
+;
+
+fillNullDateRangeIsLeftUnchanged
+required_capability: fillnull
+required_capability: date_range_field_type_v6
+
+FROM decades
+| WHERE decade == 1900
+| KEEP decade, date_range
+| FILLNULL DEFAULT ON date_range
+| FILLNULL "1900-01-01..1910-01-01" ON date_range
+;
+warning:Line 4:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [date_range]; provide an explicit value
+warning:Line 5:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [date_range]
+
+decade:integer | date_range:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+fillNullCounterLongIsLeftUnchanged
+required_capability: fillnull
+required_capability: counter_types
+
+FROM k8s
+| WHERE cluster == "prod" AND pod == "two"
+| SORT @timestamp DESC
+| KEEP @timestamp, network.total_bytes_in
+| LIMIT 2
+| FILLNULL DEFAULT ON network.total_bytes_in
+| FILLNULL 0 ON network.total_bytes_in
+;
+warning:Line 6:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [network.total_bytes_in]; provide an explicit value
+warning:Line 7:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [network.total_bytes_in]
+
+@timestamp:datetime      | network.total_bytes_in:counter_long
+2024-05-10T00:22:53.000Z | 10277
+2024-05-10T00:20:44.000Z | 9465
+;
+
+fillNullCounterDoubleIsLeftUnchanged
+required_capability: fillnull
+required_capability: counter_types
+
+FROM k8s
+| WHERE cluster == "prod" AND pod == "two"
+| SORT @timestamp DESC
+| KEEP @timestamp, network.total_cost
+| LIMIT 2
+| FILLNULL DEFAULT ON network.total_cost
+| FILLNULL 0.0 ON network.total_cost
+;
+warning:Line 6:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [network.total_cost]; provide an explicit value
+warning:Line 7:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [network.total_cost]
+
+@timestamp:datetime      | network.total_cost:counter_double
+2024-05-10T00:22:53.000Z | 18.375
+2024-05-10T00:20:44.000Z | 7.625
+;
+
+fillNullHistogramIsLeftUnchanged
+required_capability: fillnull
+required_capability: histogram_release_version
+
+FROM histogram_standard_index
+| WHERE instance == "hand-rolled"
+| KEEP instance, responseTime
+| FILLNULL DEFAULT ON responseTime
+| FILLNULL "{}" ON responseTime
+;
+warning:Line 4:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [responseTime]; provide an explicit value
+warning:Line 5:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [responseTime]
+
+instance:keyword | responseTime:histogram
+hand-rolled      | "{""values"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
+;
+
+fillNullTDigestIsLeftUnchanged
+required_capability: fillnull
+required_capability: tdigest_tech_preview
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled"
+| KEEP instance, responseTime
+| FILLNULL DEFAULT ON responseTime
+| FILLNULL "{}" ON responseTime
+;
+warning:Line 4:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [responseTime]; provide an explicit value
+warning:Line 5:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [responseTime]
+
+instance:keyword | responseTime:tdigest
+hand-rolled      | "{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"
+;
+
+fillNullExponentialHistogramIsLeftUnchanged
+required_capability: fillnull
+required_capability: exponential_histogram_tech_preview
+
+FROM exp_histo_sample
+| WHERE instance == "dummy-empty"
+| KEEP instance, responseTime
+| FILLNULL DEFAULT ON responseTime
+| FILLNULL "{}" ON responseTime
+;
+warning:Line 4:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [responseTime]; provide an explicit value
+warning:Line 5:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [responseTime]
+
+instance:keyword | responseTime:exponential_histogram
+dummy-empty       | "{""scale"":0}"
+;
+
+fillNullAggregateMetricDoubleIsLeftUnchanged
+required_capability: fillnull
+required_capability: aggregate_metric_double_v0
+
+FROM k8s-downsampled
+| SORT @timestamp, cluster, pod
+| KEEP @timestamp, cluster, pod, network.eth0.tx
+| LIMIT 1
+| FILLNULL DEFAULT ON network.eth0.tx
+| FILLNULL "{}" ON network.eth0.tx
+;
+warning:Line 5:3: [FILLNULL] the following fields have no default fill value for their type and were left unchanged: [network.eth0.tx]; provide an explicit value
+warning:Line 6:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [network.eth0.tx]
+
+@timestamp:datetime      | cluster:keyword | pod:keyword | network.eth0.tx:aggregate_metric_double
+2024-05-09T23:30:00.000Z | prod            | one         | {"min":565.0,"max":829.0,"sum":7290.0,"value_count":10}
+;

@@ -122,6 +122,35 @@ public class FillNullTests extends ESTestCase {
         assertTrue("the fill alias wraps a COALESCE", aliasFor(materialized, "i").child() instanceof Coalesce);
     }
 
+    /**
+     * A union turns a metadata column into a reference attribute, which is not internal, so the name of the column decides whether a
+     * {@code *} leaves it alone.
+     */
+    public void testAllColumnsLeaveAReferenceWithAMetadataNameAlone() {
+        for (String name : List.of("_index", "_id", "_score")) {
+            Attribute metadata = new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+            Attribute other = getFieldAttribute("k", DataType.KEYWORD);
+            List<Attribute> output = List.of(metadata, other);
+
+            FillNull defaults = materialize(allFields(output), output, TEST_CFG);
+            assertEquals(Set.of("k"), filledNames(defaults));
+            assertEquals("a column left alone is not reported either", Set.of(), unfillableNames(defaults));
+
+            FillNull value = new FillNull(Source.EMPTY, childWith(output), keyword("x"), List.of());
+            assertEquals(Set.of("k"), filledNames(materialize(value, output, TEST_CFG)));
+        }
+    }
+
+    public void testNamedReferenceWithAMetadataNameIsFilled() {
+        Attribute metadata = new ReferenceAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        Attribute other = getFieldAttribute("k", DataType.KEYWORD);
+        List<Attribute> output = List.of(metadata, other);
+        for (List<NamedExpression> targets : List.of(List.<NamedExpression>of(metadata), List.<NamedExpression>of(other, metadata))) {
+            FillNull fillNull = new FillNull(Source.EMPTY, childWith(output), keyword("x"), targets);
+            assertTrue("naming _index fills it", filledNames(materialize(fillNull, output, TEST_CFG)).contains("_index"));
+        }
+    }
+
     public void testOutputKeepsTheChildIdsAndTurnsFilledColumnsIntoReferences() {
         Attribute i = getFieldAttribute("i", DataType.INTEGER);
         Attribute d = getFieldAttribute("d", DataType.DATETIME);

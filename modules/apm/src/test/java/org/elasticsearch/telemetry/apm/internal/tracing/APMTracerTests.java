@@ -89,6 +89,8 @@ public class APMTracerTests extends ESTestCase {
         }
     };
 
+    private static final String scopeName = "test.scope";
+
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
     private TracingSettingsUpdater settingsUpdater;
@@ -518,11 +520,7 @@ public class APMTracerTests extends ESTestCase {
         assertThat(finishedSpanNames(), empty());
     }
 
-    /**
-     * The current span is wrapped by the same kind of span that starting it gives: a span that records, while tracing is enabled, and a
-     * propagated span for anything else, including the spans that are live, but the tracer is disabled.
-     */
-    public void testCurrentSpanIsAPropagatedSpanOnceTracingIsDisabled() {
+    public void testCurrentSpanStaysRecordingAfterTracingIsDisabled() {
         final APMTracer tracer = tracer(enabledSettings());
         final Span span = tracer.spanBuilder("name1").startSpan();
 
@@ -532,8 +530,15 @@ public class APMTracerTests extends ESTestCase {
 
             updateSettings(Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false));
 
-            assertThat(tracer.currentSpan(), instanceOf(PropagatedSpan.class));
-            assertThat(tracer.currentSpan().isRecording(), is(false));
+            assertThat(tracer.currentSpan(), instanceOf(APMSpan.class));
+            assertThat(tracer.currentSpan().isRecording(), is(true));
+
+            // newly started spans, including child spans, are not recorded though
+            final Span notRecordingSpan = tracer.spanBuilder("name1").startSpan();
+            try (var ignored2 = notRecordingSpan.storeInThreadContext()) {
+                assertThat(tracer.currentSpan().isRecording(), is(false));
+            }
+            notRecordingSpan.end();
         }
         span.end();
     }
@@ -1019,7 +1024,7 @@ public class APMTracerTests extends ESTestCase {
         );
         settingsUpdater = new TracingSettingsUpdater(service, allSampled);
         service.start();
-        return service.tracer();
+        return service.tracer(scopeName);
     }
 
     private static void startAndEnd(Tracer tracer, String name) {

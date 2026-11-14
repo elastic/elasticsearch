@@ -49,7 +49,6 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -91,13 +90,13 @@ public class MockNode extends Node {
             Settings settings,
             ThreadPool threadPool,
             Set<String> taskHeaders,
-            Tracer tracer,
+            TelemetryProvider telemetryProvider,
             String nodeId
         ) {
             if (pluginsService.filterPlugins(MockTransportService.TestPlugin.class).findAny().isEmpty()) {
-                return super.newTaskManager(pluginsService, settings, threadPool, taskHeaders, tracer, nodeId);
+                return super.newTaskManager(pluginsService, settings, threadPool, taskHeaders, telemetryProvider, nodeId);
             }
-            return MockTaskManager.create(settings, threadPool, taskHeaders, tracer, nodeId);
+            return MockTaskManager.create(settings, threadPool, taskHeaders, telemetryProvider, nodeId);
         }
 
         @Override

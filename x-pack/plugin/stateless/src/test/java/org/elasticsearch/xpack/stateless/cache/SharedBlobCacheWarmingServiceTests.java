@@ -2710,7 +2710,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
     private static TelemetryProvider telemetryProvider(MeterRegistry meterRegistry) {
         return new TelemetryProvider() {
             @Override
-            public Tracer getTracer() {
+            public Tracer getTracer(String scopeName) {
                 return Tracer.noop();
             }
 

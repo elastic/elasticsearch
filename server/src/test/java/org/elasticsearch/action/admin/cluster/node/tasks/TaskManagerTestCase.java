@@ -38,7 +38,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.tasks.MockTaskManager;
@@ -178,7 +178,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 discoveryNode.set(DiscoveryNodeUtils.create(name, address.publishAddress(), emptyMap(), emptySet()));
                 return discoveryNode.get();
             };
-            TaskManager taskManager = MockTaskManager.create(settings, threadPool, emptySet(), Tracer.noop(), name);
+            TaskManager taskManager = MockTaskManager.create(settings, threadPool, emptySet(), TelemetryProvider.NOOP, name);
             transportService = new TransportService(
                 settings,
                 new Netty4Transport(

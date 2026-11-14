@@ -31,6 +31,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.AttributeKeys;
 import org.elasticsearch.telemetry.tracing.SpanBuilder;
 import org.elasticsearch.telemetry.tracing.Tracer;
@@ -105,13 +106,23 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     // For testing (especially the creating a random node ID, which some tests rely on)
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
+    TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
         this(settings, threadPool, taskHeaders, tracer, UUIDs.randomBase64UUID());
     }
 
     // TODO Both of the above overloads should be moved to the test package.
 
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
+    public TaskManager(
+        Settings settings,
+        ThreadPool threadPool,
+        Set<String> taskHeaders,
+        TelemetryProvider telemetryProvider,
+        String nodeId
+    ) {
+        this(settings, threadPool, taskHeaders, telemetryProvider.getTracer("elasticsearch.task"), nodeId);
+    }
+
+    private TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
         this.threadPool = threadPool;
         this.taskHeaders = Set.copyOf(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);

@@ -14,12 +14,12 @@ import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.StatusCode;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.apm.internal.APMTracingService;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMSpanBuilder;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 import org.elasticsearch.telemetry.apm.internal.tracing.AbstractSpan;
@@ -55,8 +55,13 @@ public class HttpServerTracingTests extends ESTestCase {
     /** The attributes that the instrumentation adds to the span builder, apart from the ones that it sets one by one. */
     final AttributesBuilder extractedAttributes = Attributes.builder();
     final ThreadContext.StoredContext storedContext = mock(ThreadContext.StoredContext.class);
-    final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-    final HttpServerTracing instrumentation = new HttpServerTracing(tracer);
+    final APMTracingService tracingService = mock(APMTracingService.class);
+    final HttpServerTracing instrumentation = newInstrumentation();
+
+    private HttpServerTracing newInstrumentation() {
+        when(tracingService.tracer("elasticsearch.http")).thenReturn(tracer);
+        return new HttpServerTracing(tracingService);
+    }
 
     public HttpServerTracingTests() {
         when(tracer.spanBuilder("GET /{index}/_search")).thenReturn(spanBuilder);

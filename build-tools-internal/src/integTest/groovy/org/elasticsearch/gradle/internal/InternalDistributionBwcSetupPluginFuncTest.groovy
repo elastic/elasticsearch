@@ -201,6 +201,68 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         ).exists()
     }
 
+    def "downloads stable API jars from prebuilt snapshots for versions on or after 8.7.0"() {
+        given:
+        def bwcVersion = "8.7.0"
+        def bwcBranch = "main"
+        def shortHash = "abc12345"
+        def buildId = "${bwcVersion}-${shortHash}"
+
+        settingsFile << "\ninclude ':distribution:bwc:main'\n"
+        file("cloned/distribution/bwc/main/build.gradle") << "\n"
+
+        stubManifestOk(wireMock, draManifestPath(buildId, bwcVersion))
+        ["logging", "plugin-api", "plugin-analysis-api"].each { stableApiProjectName ->
+            def mavenGroup = stableApiProjectName.startsWith("plugin-") ? "org.elasticsearch.plugin" : "org.elasticsearch"
+            def mavenModule = "elasticsearch-${stableApiProjectName}"
+            stubJarArtifact(wireMock, mavenSnapshotArtifactPath(bwcVersion, mavenGroup, mavenModule), "fake-${stableApiProjectName}".bytes)
+        }
+        redirectBwcRepositories(wireMock.baseUrl())
+
+        when:
+        def result = gradleRunner(
+            ":distribution:bwc:main:buildBwcLogging",
+            ":distribution:bwc:main:buildBwcPluginApi",
+            ":distribution:bwc:main:buildBwcPluginAnalysisApi",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dtests.bwc.main.version=${bwcVersion}",
+            "-Dtests.bwc.mode=prebuilt",
+            "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
+            "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
+        ).build()
+
+        then: "all stable API BWC tasks resolve prebuilt jars"
+        result.task(":distribution:bwc:main:buildBwcLogging").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:main:buildBwcPluginApi").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:main:buildBwcPluginAnalysisApi").outcome == TaskOutcome.SUCCESS
+
+        and: "the jars are written under libs/<name> inside the BWC checkout"
+        file(
+            "cloned/distribution/bwc/main/build/bwc/checkout-${bwcBranch}/"
+                + "libs/logging/build/distributions/elasticsearch-logging-${bwcVersion}-SNAPSHOT.jar"
+        ).exists()
+        file(
+            "cloned/distribution/bwc/main/build/bwc/checkout-${bwcBranch}/"
+                + "libs/plugin-api/build/distributions/elasticsearch-plugin-api-${bwcVersion}-SNAPSHOT.jar"
+        ).exists()
+        file(
+            "cloned/distribution/bwc/main/build/bwc/checkout-${bwcBranch}/"
+                + "libs/plugin-analysis-api/build/distributions/elasticsearch-plugin-analysis-api-${bwcVersion}-SNAPSHOT.jar"
+        ).exists()
+    }
+
+    def "does not register stable API BWC tasks for versions before 8.7.0"() {
+        when:
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcLogging",
+            "-Dbwc.dist.version=8.6.9-SNAPSHOT"
+        ).buildAndFail()
+
+        then:
+        result.output.contains("as task 'buildBwcLogging' not found in project ':distribution:bwc:major1'")
+    }
+
     def "falls back to local gradle build when DRA manifest returns 404"() {
         given:
         def bwcVersion = "8.4.0"

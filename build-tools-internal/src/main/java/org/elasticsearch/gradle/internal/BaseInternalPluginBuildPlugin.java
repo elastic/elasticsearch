@@ -86,6 +86,14 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
             });
 
         boolean isModule = GradleUtils.isModuleProject(project.getPath());
+        var pluginModuleRegistryService = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent(PluginModuleRegistryService.NAME, PluginModuleRegistryService.class, spec -> {});
+        project.afterEvaluate(
+            ignored -> pluginModuleRegistryService.get()
+                .registerModule(project.getPath(), extension.getName(), extension.getExtendedPlugins(), isModule)
+        );
+
         boolean isXPackModule = isModule && project.getPath().startsWith(":x-pack");
         if (isModule == false || isXPackModule) {
             addNoticeGeneration(project, extension);

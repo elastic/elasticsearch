@@ -78,6 +78,7 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
 public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private static final String WRAPPER_DISTS_RELATIVE_PATH = "wrapper/dists";
+    private static final List<String> STABLE_API_PROJECT_NAMES = List.of("logging", "plugin-api", "plugin-analysis-api");
     static final Attribute<Boolean> BWC_DISTRIBUTION_ATTRIBUTE = Attribute.of("bwc-distribution", Boolean.class);
 
     private final ObjectFactory objectFactory;
@@ -197,7 +198,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             spec.getParameters().getVersion().set(versionInfoProvider.map(info -> info.version().toString()));
             Provider<String> branch = versionInfoProvider.map(info -> info.branch());
             spec.getParameters().getBranch().set(branch);
-            spec.getParameters().getRootProjectDir().set(project.getRootProject().getLayout().getProjectDirectory().getAsFile());
+            spec.getParameters().getRootProjectDir().set(project.getLayout().getSettingsDirectory().getAsFile());
             spec.getParameters().getRemote().set(remote);
             spec.getParameters().getMode().set(providerFactory.systemProperty("tests.bwc.mode").orElse("gradle"));
             // -Dtests.bwc.dra.hash.{branch} overrides the local remote-tracking ref lookup,
@@ -279,21 +280,14 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             mavenSnapshotsBaseUrl
         );
 
-        // for versions before 8.7.0, we do not need to set up stable API bwc
-        if (bwcVersion.get().before(Version.fromString("8.7.0"))) {
-            return;
-        }
-
-        for (Project stableApiProject : resolveStableProjects(project)) {
-
-            String relativeDir = project.getRootProject().relativePath(stableApiProject.getProjectDir());
-
+        for (String stableApiProjectName : stableApiProjectNames(bwcVersion.get())) {
+            String stableApiProjectDir = stableApiProjectPath(stableApiProjectName);
             DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
                 new File(
                     checkoutDir.get(),
-                    relativeDir
+                    stableApiProjectDir
                         + "/build/distributions/elasticsearch-"
-                        + stableApiProject.getName()
+                        + stableApiProjectName
                         + "-"
                         + bwcVersion.get()
                         + "-SNAPSHOT.jar"
@@ -301,16 +295,16 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 null
             );
 
-            String stableMavenModule = "elasticsearch-" + stableApiProject.getName();
-            String stableMavenGroup = stableApiProject.getName().startsWith("plugin-") ? "org.elasticsearch.plugin" : "org.elasticsearch";
+            String stableMavenModule = "elasticsearch-" + stableApiProjectName;
+            String stableMavenGroup = stableApiProjectName.startsWith("plugin-") ? "org.elasticsearch.plugin" : "org.elasticsearch";
             createBuildBwcTask(
                 bwcSetupExtension,
                 buildParams,
                 project,
                 bwcVersion,
                 BwcArtifact.mavenArtifact(
-                    stableApiProject.getName(),
-                    "libs/" + stableApiProject.getName(),
+                    stableApiProjectName,
+                    stableApiProjectDir,
                     stableAnalysisPluginProjectArtifact,
                     "assemble",
                     "jar",
@@ -568,13 +562,23 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         }).collect(Collectors.toList());
     }
 
-    private static List<Project> resolveStableProjects(Project project) {
-        Set<String> stableProjectNames = Set.of("logging", "plugin-api", "plugin-analysis-api");
-        return project.findProject(":libs")
-            .getSubprojects()
-            .stream()
-            .filter(subproject -> stableProjectNames.contains(subproject.getName()))
-            .toList();
+    /**
+     * The stable API libraries that need BWC setup, by project name. This is a fixed list rather than a lookup of
+     * {@code :libs} subprojects because, under project isolation, a plugin must not traverse other projects (the old
+     * {@code findProject(":libs").getSubprojects()} scan is incompatible with isolated projects). Stable API BWC only
+     * applies from 8.7.0 onwards; earlier versions get an empty list so no stable API BWC tasks are registered.
+     */
+    static List<String> stableApiProjectNames(Version bwcVersion) {
+        return bwcVersion.before(Version.fromString("8.7.0")) ? List.of() : STABLE_API_PROJECT_NAMES;
+    }
+
+    /**
+     * Maps a stable API project name to its checkout-relative directory. The {@code libs/<name>} layout is hardcoded
+     * (matching what {@code BwcArtifact.mavenArtifact} already expected) to avoid an isolated-projects-unsafe
+     * {@code getRootProject().relativePath(stableApiProject.getProjectDir())} cross-project read.
+     */
+    static String stableApiProjectPath(String stableApiProjectName) {
+        return "libs/" + stableApiProjectName;
     }
 
     public static String buildBwcTaskName(String projectName) {

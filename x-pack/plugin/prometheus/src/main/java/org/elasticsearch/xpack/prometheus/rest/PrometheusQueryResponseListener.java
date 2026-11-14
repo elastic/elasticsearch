@@ -114,7 +114,13 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // response holds a live reference for the duration of this synchronous callback, same as the
         // generic EsqlResponse.rows()/ResponseValueUtils path this class used to go through.
         try {
-            XContentBuilder builder = convertToPrometheusJson(
+            // The channel's builder writes to a buffer that the channel owns: made of pooled pages, and released once the response has been
+            // sent. Unlike the default, which is a single array that doubles as it grows and is copied once more into the response, it
+            // doesn't need a contiguous allocation of up to twice the size of a large response. The response is always JSON, whatever
+            // format or Accept header the request has, and isn't filtered, as the Prometheus API doesn't have those parameters.
+            XContentBuilder builder = channel.newBuilder(channel.request().getXContentType(), XContentType.JSON, false);
+            convertToPrometheusJson(
+                builder,
                 queryResponse.pages(),
                 queryResponse.columns(),
                 queryResponse.zoneId(),
@@ -167,6 +173,23 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         QueryMode mode,
         int limit
     ) throws IOException {
+        return convertToPrometheusJson(XContentFactory.jsonBuilder(), pages, columns, zoneId, resultType, mode, limit);
+    }
+
+    /**
+     * Writes the response to {@code builder}, which the caller provides so that it can write to the buffer of the REST channel.
+     *
+     * @return {@code builder}
+     */
+    static XContentBuilder convertToPrometheusJson(
+        XContentBuilder builder,
+        List<Page> pages,
+        List<ColumnInfoImpl> columns,
+        ZoneId zoneId,
+        String resultType,
+        QueryMode mode,
+        int limit
+    ) throws IOException {
         if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
         }
@@ -177,7 +200,6 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // Column 1 is either _timeseries (a JSON blob) or the first of the individual dimension columns
         final boolean useSeriesCol = columns.size() > 2 && MetadataAttribute.TIMESERIES.equals(columns.get(DIMENSION_COL_START_IDX).name());
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field("status", "success");
         builder.startObject("data");

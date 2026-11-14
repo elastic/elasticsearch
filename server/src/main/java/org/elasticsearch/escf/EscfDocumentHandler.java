@@ -12,7 +12,6 @@ package org.elasticsearch.escf;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.simdjson.JsonDocumentHandler;
 import org.elasticsearch.sourcebatch.KeyValueWriter;
-import org.elasticsearch.sourcebatch.LeafSink;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper;
 import org.elasticsearch.sourcebatch.SourceBatchEncodeHelper.PackedArray;
 import org.elasticsearch.sourcebatch.SourceValueType;
@@ -22,8 +21,9 @@ import java.math.BigInteger;
 import java.util.Arrays;
 
 /**
- * Implements {@link JsonDocumentHandler} by delegating to {@link EscfRowBuffer}
- * for column storage and to {@link LeafSink} for routing/extraction callbacks.
+ * Implements {@link JsonDocumentHandler} by delegating directly to {@link EscfBatchBuilder}
+ * for column storage. Field values are written straight into the column builders with no
+ * intermediate row buffer.
  *
  * <p>Array elements are accumulated into temporary buffers and packed via
  * {@link SourceBatchEncodeHelper}. Nested objects within arrays are serialized
@@ -35,11 +35,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
 
     private static final int ARRAY_INIT_CAP = 16;
 
-    private final EscfRowBuffer row;
     private final EscfBatchBuilder backend;
-    private final LeafSink sink;
-    private final boolean rawTextMode;
-    private final boolean firePathSink;
 
     // ---- Array accumulation state ----
     private byte[] elemTypes;
@@ -78,12 +74,8 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
     private int[] kvInlineArrayDepthStack;
     private int kvInlineArrayStackDepth;
 
-    EscfDocumentHandler(EscfRowBuffer row, EscfBatchBuilder backend, LeafSink sink, boolean rawTextMode) {
-        this.row = row;
+    EscfDocumentHandler(EscfBatchBuilder backend) {
         this.backend = backend;
-        this.sink = sink;
-        this.rawTextMode = rawTextMode;
-        this.firePathSink = sink != LeafSink.NO_OP;
     }
 
     // ---- Object field events ----
@@ -95,7 +87,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvDepth++;
             return;
         }
-        row.startObject(fieldName);
+        backend.startObject(fieldName);
     }
 
     @Override
@@ -105,7 +97,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvDepth--;
             return;
         }
-        row.endObject();
+        backend.endObject();
     }
 
     @Override
@@ -114,7 +106,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvWriter.writeEmptyObjectField(fieldName);
             return;
         }
-        row.emptyObject(fieldName);
+        backend.emptyObject(fieldName);
     }
 
     @Override
@@ -123,11 +115,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvWriter.writeStringField(fieldName, buf, off, len);
             return;
         }
-        var text = new XContentString.UTF8Bytes(buf, off, len);
-        int colIdx = row.stringField(fieldName, text);
-        if (firePathSink) {
-            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, text);
-        }
+        backend.stringField(fieldName, buf, off, len);
     }
 
     @Override
@@ -140,13 +128,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             }
             return;
         }
-        byte type = fitsInt ? SourceValueType.INT : SourceValueType.LONG;
-        int colIdx = row.longField(fieldName, value);
-        if (rawTextMode) {
-            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen));
-        } else if (firePathSink) {
-            sink.onLongPrimitive(colIdx, backend.columnPath(colIdx), type, value);
-        }
+        backend.longField(fieldName, value);
     }
 
     @Override
@@ -155,11 +137,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvWriter.writeStringField(fieldName, srcBuf, srcOff, srcLen);
             return;
         }
-        var text = new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);
-        int colIdx = row.stringField(fieldName, text);
-        if (firePathSink) {
-            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), SourceValueType.STRING, text);
-        }
+        backend.stringField(fieldName, srcBuf, srcOff, srcLen);
     }
 
     @Override
@@ -172,13 +150,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             }
             return;
         }
-        byte type = fitsFloat ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
-        int colIdx = row.doubleField(fieldName, value, lexicalForm(value, srcBuf, srcOff, srcLen));
-        if (rawTextMode) {
-            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen));
-        } else if (firePathSink) {
-            sink.onDoublePrimitive(colIdx, backend.columnPath(colIdx), type, value);
-        }
+        backend.doubleField(fieldName, value, lexicalForm(value, srcBuf, srcOff, srcLen));
     }
 
     @Override
@@ -187,13 +159,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvWriter.writeBooleanField(fieldName, value);
             return;
         }
-        int colIdx = row.booleanField(fieldName, value);
-        if (rawTextMode) {
-            byte type = value ? SourceValueType.TRUE : SourceValueType.FALSE;
-            sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen));
-        } else if (firePathSink) {
-            sink.onBooleanPrimitive(colIdx, backend.columnPath(colIdx), value);
-        }
+        backend.booleanField(fieldName, value);
     }
 
     @Override
@@ -202,7 +168,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             kvWriter.writeNullField(fieldName);
             return;
         }
-        row.nullField(fieldName);
+        backend.nullField(fieldName);
     }
 
     // ---- Array events ----
@@ -426,10 +392,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             forceUnion = true;
             elemCount++;
         } else {
-            int colIdx = row.arrayField(arrayFieldName, packed.arrayType(), packed.packed());
-            if (firePathSink) {
-                sink.onArrayLeaf(colIdx, backend.columnPath(colIdx));
-            }
+            backend.arrayField(arrayFieldName, packed.arrayType(), packed.packed());
         }
     }
 

@@ -314,9 +314,9 @@ public class EscfColumnTransformsTests extends ESTestCase {
             ) {
                 Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
                 try (EscfEncoder encoder = new EscfEncoder(recycler)) {
-                    encoder.addDocument(BytesReference.bytes(doc0), type, 0);
-                    encoder.addDocument(BytesReference.bytes(doc1), type, 0);
-                    try (EscfBatch batch = encoder.buildPartition(0)) {
+                    encoder.addDocument(BytesReference.bytes(doc0), type);
+                    encoder.addDocument(BytesReference.bytes(doc1), type);
+                    try (EscfBatch batch = encoder.build()) {
                         EscfColumn col = columnByPath(batch, "f");
                         assertEquals(type.toString(), EscfColumnKind.DOUBLE, col.kind());
                         assertTuples(EscfColumnTransforms.utf8Cursor(col, randomBoolean()), tuple(0, "1.1"), tuple(1, "123.42"));
@@ -390,9 +390,9 @@ public class EscfColumnTransformsTests extends ESTestCase {
         Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         try (EscfEncoder encoder = new EscfEncoder(recycler)) {
             for (String doc : jsonDocs) {
-                encoder.addDocument(new BytesArray(doc), XContentType.JSON, 0);
+                encoder.addDocument(new BytesArray(doc), XContentType.JSON);
             }
-            return encoder.buildPartition(0);
+            return encoder.build();
         }
     }
 

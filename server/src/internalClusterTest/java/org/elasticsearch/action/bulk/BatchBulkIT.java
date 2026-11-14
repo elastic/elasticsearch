@@ -905,10 +905,9 @@ public class BatchBulkIT extends ESIntegTestCase {
                 doc.field("name", "name-" + i);
                 doc.field("value", (long) i);
                 doc.endObject();
-                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
-                encoder.commitScratchTo(0);
+                encoder.addDocument(BytesReference.bytes(doc), XContentType.JSON);
             }
-            batch = encoder.buildPartition(0);
+            batch = encoder.build();
         }
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
@@ -2840,10 +2839,9 @@ public class BatchBulkIT extends ESIntegTestCase {
                 doc.field("host", "host-" + (i % 3));
                 doc.field("value", (long) i);
                 doc.endObject();
-                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
-                encoder.commitScratchTo(0);
+                encoder.addDocument(BytesReference.bytes(doc), XContentType.JSON);
             }
-            batch = encoder.buildPartition(0);
+            batch = encoder.build();
         }
 
         // Build sourceless IndexRequests carrying row references into the pre-built batch.
@@ -2931,10 +2929,9 @@ public class BatchBulkIT extends ESIntegTestCase {
                 doc.field("service_name", "svc-" + i);
                 doc.field("value", (long) i);
                 doc.endObject();
-                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
-                encoder.commitScratchTo(0);
+                encoder.addDocument(BytesReference.bytes(doc), XContentType.JSON);
             }
-            batch = encoder.buildPartition(0);
+            batch = encoder.build();
         }
 
         BulkRequest bulkRequest = new BulkRequest();
@@ -2997,9 +2994,8 @@ public class BatchBulkIT extends ESIntegTestCase {
             doc.field("host", "host-0");
             doc.field("value", 0L);
             doc.endObject();
-            encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
-            encoder.commitScratchTo(0);
-            batch = encoder.buildPartition(0);
+            encoder.addDocument(BytesReference.bytes(doc), XContentType.JSON);
+            batch = encoder.build();
         }
 
         // Item has inline source bytes — no row reference — but we also set preBuiltBatches.
@@ -3045,10 +3041,9 @@ public class BatchBulkIT extends ESIntegTestCase {
                 doc.field("host", "host-" + (i % 4));
                 doc.field("value", (long) i);
                 doc.endObject();
-                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
-                encoder.commitScratchTo(0);
+                encoder.addDocument(BytesReference.bytes(doc), XContentType.JSON);
             }
-            batch = encoder.buildPartition(0);
+            batch = encoder.build();
         }
 
         BulkRequest bulkRequest = new BulkRequest();
@@ -3096,10 +3091,9 @@ public class BatchBulkIT extends ESIntegTestCase {
                 doc.field("name", "name-" + i);
                 doc.field("value", (long) i);
                 doc.endObject();
-                encoder.parseToScratch(BytesReference.bytes(doc), XContentType.JSON);
-                encoder.commitScratchTo(0);
+                encoder.addDocument(BytesReference.bytes(doc), XContentType.JSON);
             }
-            batch = encoder.buildPartition(0);
+            batch = encoder.build();
         }
 
         BulkRequest bulkRequest = new BulkRequest();
@@ -3108,7 +3102,9 @@ public class BatchBulkIT extends ESIntegTestCase {
             ir.indexSource().setSourceRow(batch, i, XContentType.JSON);
             bulkRequest.add(ir);
         }
-        bulkRequest.setPreBuiltBatches(Map.of(alias, batch));
+        // Batch must be keyed by the write-target (concrete index name) that batchKey() resolves to,
+        // not the alias name — even though items target the alias.
+        bulkRequest.setPreBuiltBatches(Map.of(index, batch));
 
         BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
         assertNoFailures(bulkResponse);

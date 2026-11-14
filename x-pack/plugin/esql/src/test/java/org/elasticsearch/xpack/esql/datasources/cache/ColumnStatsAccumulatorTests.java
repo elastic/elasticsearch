@@ -99,6 +99,26 @@ public class ColumnStatsAccumulatorTests extends ESTestCase {
         assertNull(snap.get("u").max());
     }
 
+    public void testDoubleMinMaxSkipNaN() {
+        ColumnStatsAccumulator acc = ColumnStatsAccumulator.forProjectedAttributes(new Attribute[] { attr("d", DataType.DOUBLE) });
+        acc.acceptDoubleAt(0, Double.NaN);
+        acc.acceptDoubleAt(0, 0.0);
+        acc.acceptDoubleAt(0, Double.NaN);
+        Map<String, ExternalStats.ColumnStats> snap = acc.snapshot();
+        assertEquals(0.0, snap.get("d").min());
+        assertEquals(0.0, snap.get("d").max());
+        assertEquals(3L, snap.get("d").valueCount());
+    }
+
+    public void testAllNaNDoubleColumnIsNaN() {
+        ColumnStatsAccumulator acc = ColumnStatsAccumulator.forProjectedAttributes(new Attribute[] { attr("d", DataType.DOUBLE) });
+        acc.acceptDoubleAt(0, Double.NaN);
+        acc.acceptDoubleAt(0, Double.NaN);
+        Map<String, ExternalStats.ColumnStats> snap = acc.snapshot();
+        assertEquals(Double.NaN, snap.get("d").min());
+        assertEquals(Double.NaN, snap.get("d").max());
+    }
+
     public void testOutOfRangeIndicesSilentlyIgnored() {
         ColumnStatsAccumulator acc = ColumnStatsAccumulator.forProjectedAttributes(new Attribute[] { attr("v", DataType.LONG) });
         acc.acceptNullAt(-1);

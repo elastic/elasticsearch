@@ -28,6 +28,7 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.ColumnOrder;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -1947,6 +1948,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     Object maxVal = normalizeStatValue(stats.genericGetMax(), pt);
                     if (minVal == null || maxVal == null) {
                         poisonedTemporalStats.add(colName);
+                    } else if (isUnservableFloatingBound(minVal, pt) || isUnservableFloatingBound(maxVal, pt)) {
+                        poisonedBounds.add(colName);
                     } else {
                         mins.merge(colName, new Comparable[] { (Comparable) minVal }, (a, b) -> {
                             if (compareStatExtremum(a[0], b[0]) > 0) a[0] = b[0];
@@ -2323,13 +2326,40 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // null count so MIN/MAX/COUNT fall back to a scan for this column. Map values may not be
                     // null anyway (Map.copyOf below rejects nulls).
                     stats.remove(SourceStatisticsSerializer.columnNullCountKey(colName));
-                } else {
+                } else if (isUnservableFloatingBound(minVal, pt) == false && isUnservableFloatingBound(maxVal, pt) == false) {
                     stats.put(SourceStatisticsSerializer.columnMinKey(colName), minVal);
                     stats.put(SourceStatisticsSerializer.columnMaxKey(colName), maxVal);
                 }
             }
         }
         return Map.copyOf(stats);
+    }
+
+    /**
+     * True when a floating-point footer bound cannot stand for the scan's {@code MIN}/{@code MAX}, which skip NaN and
+     * order {@code -0.0} below {@code 0.0}. A NaN bound says nothing about the finite values. Outside
+     * {@code IEEE_754_TOTAL_ORDER} a writer may record a zero with either sign regardless of the data, and parquet-java
+     * rewrites a zero minimum to {@code -0.0} and a zero maximum to {@code 0.0} on read, so a zero bound is not exact.
+     * Covers {@code Double} (double, float16) and {@code Float} bounds.
+     */
+    static boolean isUnservableFloatingBound(Object bound, PrimitiveType primitiveType) {
+        double value;
+        if (bound instanceof Double d) {
+            value = d;
+        } else if (bound instanceof Float f) {
+            value = f;
+        } else {
+            return false;
+        }
+        if (Double.isNaN(value)) {
+            return true;
+        }
+        return value == 0.0 && isTotalOrder(primitiveType) == false;
+    }
+
+    private static boolean isTotalOrder(PrimitiveType primitiveType) {
+        ColumnOrder order = primitiveType.columnOrder();
+        return order != null && order.getColumnOrderName() == ColumnOrder.ColumnOrderName.IEEE_754_TOTAL_ORDER;
     }
 
     /**

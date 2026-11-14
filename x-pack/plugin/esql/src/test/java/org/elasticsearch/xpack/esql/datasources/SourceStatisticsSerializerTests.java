@@ -232,17 +232,13 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
     }
 
     /**
-     * A poisoned MIN/MAX taints ONLY that extremum (per-statistic), not the whole column: a sibling cannot
-     * resurrect it (the marker is a PRESENT key that OR-folds, unlike a bare key removal which the next fold
-     * level can't tell from "never observed"), AND the column's COUNT-family (null_count/value_count) survives
-     * -- an incompatible/NaN extremum does not invalidate a count. This is the two-level fold (stripe fragments
-     * -&gt; per-stripe, then per-stripe -&gt; whole-file): a NaN in one fragment must not let another stripe's finite
-     * value become the served file MIN, but COUNT(v) must still short-circuit.
+     * A NaN extremum is skipped by the fold, matching the runtime MIN/MAX aggregators, at both levels of the
+     * two-level fold (stripe fragments -&gt; per-stripe, then per-stripe -&gt; whole-file). The finite extrema are
+     * served and the COUNT-family (null_count/value_count) folds as usual.
      */
-    public void testMergeStatisticsPoisonedExtremumTaintsOnlyExtremumNotCount() {
+    public void testMergeStatisticsNaNFragmentIsSkippedAndCountsHold() {
         // Level 1 (text path, implicitNullsForAbsentColumn=false): two fragments of ONE stripe; the NaN
-        // fragment poisons the finite fragment's MIN/MAX. null_count/value_count are present, as the real
-        // harvest always emits them.
+        // fragment is skipped. null_count/value_count are present, as the real harvest always emits them.
         Map<String, Object> finiteFragment = new HashMap<>();
         finiteFragment.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
         finiteFragment.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
@@ -260,20 +256,24 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         Map<String, Object> poisonedStripe = SourceStatisticsSerializer.mergeStatistics(List.of(finiteFragment, nanFragment), false);
         assertNotNull(poisonedStripe);
         assertEquals(20L, poisonedStripe.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
-        // The extremum value is cleared and a PRESENT unservable marker is set.
-        assertNull("poisoned min value must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMinKey("v")));
-        assertNull("poisoned max value must be cleared", poisonedStripe.get(SourceStatisticsSerializer.columnMaxKey("v")));
-        assertEquals(Boolean.TRUE, poisonedStripe.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
-        assertEquals(Boolean.TRUE, poisonedStripe.get(SourceStatisticsSerializer.columnMaxUnservableKey("v")));
+        // NaN is skipped: the finite fragment's extrema are served and no unservable marker is set.
+        assertEquals(5.0, poisonedStripe.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9.0, poisonedStripe.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        assertNull(poisonedStripe.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
+        assertNull(poisonedStripe.get(SourceStatisticsSerializer.columnMaxUnservableKey("v")));
         // COUNT-family SURVIVES -- an extremum taint does not invalidate a count.
-        assertEquals("null_count survives an extremum taint", 0L, poisonedStripe.get(SourceStatisticsSerializer.columnNullCountKey("v")));
         assertEquals(
-            "value_count survives an extremum taint",
+            "null_count folds across the NaN fragment",
+            0L,
+            poisonedStripe.get(SourceStatisticsSerializer.columnNullCountKey("v"))
+        );
+        assertEquals(
+            "value_count folds across the NaN fragment",
             20L,
             poisonedStripe.get(SourceStatisticsSerializer.columnValueCountKey("v"))
         );
 
-        // Level 2: fold the poisoned stripe with a finite sibling stripe; MIN/MAX must NOT resurrect, COUNT holds.
+        // Level 2: fold the stripe with a finite sibling stripe; the finite extrema still serve and COUNT holds.
         Map<String, Object> finiteStripe = new HashMap<>();
         finiteStripe.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
         finiteStripe.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
@@ -283,29 +283,18 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
 
         Map<String, Object> wholeFile = SourceStatisticsSerializer.mergeStatistics(List.of(poisonedStripe, finiteStripe), false);
         assertNotNull(wholeFile);
-        assertNull(
-            "a finite sibling stripe must not resurrect a NaN-poisoned MIN",
-            wholeFile.get(SourceStatisticsSerializer.columnMinKey("v"))
-        );
-        assertNull(
-            "a finite sibling stripe must not resurrect a NaN-poisoned MAX",
-            wholeFile.get(SourceStatisticsSerializer.columnMaxKey("v"))
-        );
-        assertEquals(Boolean.TRUE, wholeFile.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
-        // COUNT-family folds through both levels: value_count = 20 (poisoned stripe) + 10 (sibling) = 30.
-        assertEquals(
-            "value_count still folds and serves through an extremum taint",
-            30L,
-            wholeFile.get(SourceStatisticsSerializer.columnValueCountKey("v"))
-        );
+        assertEquals(5.0, wholeFile.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertEquals(9.0, wholeFile.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        assertNull(wholeFile.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
+        // COUNT-family folds through both levels: value_count = 20 (first stripe) + 10 (sibling) = 30.
+        assertEquals("value_count still folds and serves", 30L, wholeFile.get(SourceStatisticsSerializer.columnValueCountKey("v")));
     }
 
     /**
-     * Per-extremum independence: a fragment whose MIN is NaN (unmergeable) but whose MAX is finite must poison
-     * ONLY the min. The two extrema carry independent servability -- the max still serves. Characterization test
-     * pinning current behavior before the fold is refactored to carry servability as a compact-model bit.
+     * A fragment whose MIN is NaN but whose MAX is finite contributes only its MAX: the NaN min is skipped in
+     * favour of the sibling's finite min.
      */
-    public void testMergeStatisticsPoisonedMinLeavesMaxServable() {
+    public void testMergeStatisticsNaNMinIsSkipped() {
         Map<String, Object> nanMinFragment = new HashMap<>();
         nanMinFragment.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 10L);
         nanMinFragment.put(SourceStatisticsSerializer.columnNullCountKey("v"), 0L);
@@ -320,12 +309,11 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
 
         Map<String, Object> merged = SourceStatisticsSerializer.mergeStatistics(List.of(nanMinFragment, finiteFragment), false);
         assertNotNull(merged);
-        // MIN poisoned by the NaN operand -> value cleared, marker set.
-        assertNull("NaN min poisons the min value", merged.get(SourceStatisticsSerializer.columnMinKey("v")));
-        assertEquals(Boolean.TRUE, merged.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
-        // MAX folds independently (8.0, 9.0 both finite) -> serves 9.0, no marker.
-        assertEquals("max is independent of the poisoned min", 9.0, merged.get(SourceStatisticsSerializer.columnMaxKey("v")));
-        assertNull("max is NOT marked unservable", merged.get(SourceStatisticsSerializer.columnMaxUnservableKey("v")));
+        // The NaN min is skipped in favour of the finite min; neither extremum is marked unservable.
+        assertEquals("NaN min is skipped", 5.0, merged.get(SourceStatisticsSerializer.columnMinKey("v")));
+        assertNull(merged.get(SourceStatisticsSerializer.columnMinUnservableKey("v")));
+        assertEquals(9.0, merged.get(SourceStatisticsSerializer.columnMaxKey("v")));
+        assertNull(merged.get(SourceStatisticsSerializer.columnMaxUnservableKey("v")));
         // COUNT-family unaffected by an extremum taint.
         assertEquals(0L, merged.get(SourceStatisticsSerializer.columnNullCountKey("v")));
     }

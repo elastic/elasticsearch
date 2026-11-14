@@ -429,17 +429,17 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     static Object mergedMin(@Nullable Object existing, @Nullable Object incoming) {
         if (existing == null) return incoming;
         if (incoming == null) return existing;
-        // A NaN operand is unmergeable: the runtime aggregator propagates NaN (Math.min(x,NaN)=NaN), but
-        // Comparable.compareTo orders NaN as the largest double, which would silently drop it from a MIN.
-        // Returning null poisons the fold so the column safe-misses and a full scan returns the correct NaN.
-        if (isNaN(existing) || isNaN(incoming)) return null;
+        // The runtime aggregator skips NaN and answers NaN only when every value is NaN, whereas
+        // Comparable.compareTo orders NaN as the largest double. Decide NaN operands here so the fold agrees.
+        if (isNaN(existing)) return incoming;
+        if (isNaN(incoming)) return existing;
         if (existing.getClass() == incoming.getClass()) {
             return sameClassExtremum(existing, incoming, true);
         }
         return crossTypeExtremum(existing, incoming, true);
     }
 
-    /** True for a {@code Double}/{@code Float} NaN; such a value cannot be folded as an extremum. */
+    /** True for a {@code Double}/{@code Float} NaN; the fold skips it in favour of the other operand. */
     private static boolean isNaN(Object o) {
         return (o instanceof Double d && d.isNaN()) || (o instanceof Float f && f.isNaN());
     }
@@ -475,7 +475,8 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
     static Object mergedMax(@Nullable Object existing, @Nullable Object incoming) {
         if (existing == null) return incoming;
         if (incoming == null) return existing;
-        if (isNaN(existing) || isNaN(incoming)) return null; // NaN is unmergeable — see mergedMin
+        if (isNaN(existing)) return incoming; // NaN is skipped — see mergedMin
+        if (isNaN(incoming)) return existing;
         if (existing.getClass() == incoming.getClass()) {
             return sameClassExtremum(existing, incoming, false);
         }

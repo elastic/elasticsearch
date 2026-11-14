@@ -22,9 +22,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class APMTracerFlushTests extends ESTestCase {
 
@@ -95,7 +95,9 @@ public class APMTracerFlushTests extends ESTestCase {
         tracer.close(); // must not throw
 
         assertThat(supplier.calls, contains("attemptFlushTraces", "close"));
-        assertThat(tracer.getSpans(), anEmptyMap());
+        // the services are destroyed, so nothing is recorded anymore
+        final APMSpan span = (APMSpan) tracer.spanBuilder("name").startSpan();
+        assertThat(io.opentelemetry.api.trace.Span.fromContext(span.context()).isRecording(), is(false));
     }
 
     /**

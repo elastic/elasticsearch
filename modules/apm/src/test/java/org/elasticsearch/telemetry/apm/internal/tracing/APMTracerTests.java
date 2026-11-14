@@ -9,372 +9,978 @@
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
-import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.MeterProvider;
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.TraceFlags;
-import io.opentelemetry.api.trace.TraceState;
-import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.data.EventData;
+import io.opentelemetry.sdk.trace.data.LinkData;
+import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
+import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
-import org.elasticsearch.telemetry.tracing.Traceable;
+import org.elasticsearch.telemetry.tracing.AttributeKeys;
+import org.elasticsearch.telemetry.tracing.Span;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
+import org.junit.After;
+import org.junit.Before;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.LogRecord;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.anEmptyMap;
+import static io.opentelemetry.api.common.AttributeKey.stringKey;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
+import static org.hamcrest.Matchers.startsWith;
 
 @TestLogging(reason = "improved visibility", value = "org.elasticsearch.telemetry.apm.internal.tracing:TRACE")
 public class APMTracerTests extends ESTestCase {
 
-    private static final Traceable TRACEABLE1 = new TestTraceable("id1");
-    private static final Traceable TRACEABLE2 = new TestTraceable("id2");
-    private static final Traceable TRACEABLE3 = new TestTraceable("id3");
-
     private static final String TRACE_ID = "0af7651916cd43dd8448eb211c80319c";
     private static final String SPAN_ID = "b7ad6b7169203331";
     private static final String TRACE_PARENT = "00-" + TRACE_ID + "-" + SPAN_ID + "-01";
+    private static final String UNSAMPLED_TRACE_PARENT = "00-" + TRACE_ID + "-" + SPAN_ID + "-00";
+
+    /** Does not sample spans whose name ends in {@code _discard}, the way a sampler that drops a trace would. */
+    private static final Sampler NAME_SAMPLER = new Sampler() {
+        @Override
+        public SamplingResult shouldSample(
+            Context parentContext,
+            String traceId,
+            String name,
+            SpanKind spanKind,
+            Attributes attributes,
+            List<LinkData> parentLinks
+        ) {
+            return name.endsWith("_discard") ? SamplingResult.drop() : SamplingResult.recordAndSample();
+        }
+
+        @Override
+        public String getDescription() {
+            return "NameSampler";
+        }
+    };
 
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
+    private final List<OpenTelemetrySdk> sdks = new ArrayList<>();
 
-    /**
-     * The two-arg constructor accepting a {@code Supplier<MeterProvider>} should construct without
-     * throwing regardless of the supplier's return value.
-     */
+    @Before
+    public void resetExporter() {
+        exporter.reset();
+    }
+
+    @After
+    public void shutdownSdks() {
+        sdks.forEach(OpenTelemetrySdk::close);
+    }
+
     public void testConstructorWithMeterProviderSupplierDoesNotThrow() {
-        new APMTracer(new ThreadContext(Settings.EMPTY), Settings.EMPTY, MeterProvider::noop);
+        new APMTracer(threadContext, Settings.EMPTY, MeterProvider::noop);
+    }
+
+    public void testTracingCanBeEnabledAfterStartingDisabled() {
+        final APMTracer tracer = tracer(disabledSettings());
+        assertThat(isRecorded(tracer.spanBuilder("name1").startSpan()), is(false));
+        assertThat(finishedSpanNames(), empty());
+
+        tracer.setEnabled(true);
+
+        startAndEnd(tracer, "name2");
+        assertThat(finishedSpanNames(), containsInAnyOrder("name2"));
+    }
+
+    public void testSpanBuilderRejectsNullName() {
+        expectThrows(AssertionError.class, () -> tracer(enabledSettings()).spanBuilder(null));
+    }
+
+    public void testTracingResumesAfterDisableAndReEnable() {
+        final APMTracer tracer = tracer(enabledSettings());
+
+        startAndEnd(tracer, "resume-test-1");
+        assertThat(finishedSpanNames(), containsInAnyOrder("resume-test-1"));
+
+        tracer.setEnabled(false);
+        exporter.reset();
+        final Span disabled = tracer.spanBuilder("resume-test-2").startSpan();
+        assertThat(isRecorded(disabled), is(false));
+        disabled.end();
+        assertThat(finishedSpanNames(), empty());
+
+        tracer.setEnabled(true);
+        startAndEnd(tracer, "resume-test-3");
+        assertThat(finishedSpanNames(), containsInAnyOrder("resume-test-3"));
+    }
+
+    public void testStartSpanRecordsSpanOnEnd() {
+        final APMTracer tracer = tracer(enabledSettings());
+
+        final Span span = tracer.spanBuilder("name1").startSpan();
+        assertThat(span, instanceOf(APMSpan.class));
+        assertThat(isRecorded(span), is(true));
+        assertThat(finishedSpanNames(), empty()); // not ended yet
+
+        span.end();
+
+        final SpanData data = finishedSpan("name1");
+        assertThat(data.getKind(), is(SpanKind.INTERNAL));
+        assertThat(data.getParentSpanContext().isValid(), is(false));
+        assertThat(data.getAttributes().get(stringKey(AttributeKeys.NODE_NAME)), equalTo("test-node"));
+        assertThat(data.getAttributes().get(stringKey(AttributeKeys.CLUSTER_NAME)), equalTo("test-cluster"));
+    }
+
+    public void testStartSpanDoesNotChangeTheThreadContext() {
+        final APMTracer tracer = tracer(enabledSettings());
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
+        final var headersBefore = threadContext.getHeaders();
+
+        final Span span = tracer.spanBuilder("name1").startSpan();
+
+        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+        assertThat(threadContext.getHeaders(), equalTo(headersBefore));
+        assertThat(tracer.currentSpan(), sameInstance(Span.noop()));
+        span.end();
+    }
+
+    public void testSpanWithoutParentStartsANewTrace() {
+        final APMTracer tracer = tracer(enabledSettings());
+
+        startAndEnd(tracer, "name1");
+
+        assertThat(finishedSpan("name1").getParentSpanContext().isValid(), is(false));
+    }
+
+    public void testStoredSpanIsTheCurrentSpan() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Span span = tracer.spanBuilder("name1").startSpan();
+
+        final SpanContext current;
+        try (var ignored = span.storeInThreadContext()) {
+            current = currentSpanContext();
+            assertThat(current.isValid(), is(true));
+            assertThat(current.isSampled(), is(true));
+            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParent(current)));
+            assertThat(tracer.currentSpan(), instanceOf(APMSpan.class));
+            assertThat(spanContextOf(((APMSpan) tracer.currentSpan()).context()), equalTo(current));
+        }
+        span.end();
+
+        assertThat(finishedSpan("name1").getSpanContext(), equalTo(current));
+    }
+
+    public void testClosingTheStoredContextRestoresTheThreadContext() {
+        final APMTracer tracer = tracer(enabledSettings());
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
+        threadContext.putHeader(Task.TRACE_STATE, "vendor=value");
+        final Span span = tracer.spanBuilder("name1").startSpan();
+
+        try (var ignored = span.storeInThreadContext()) {
+            assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
+        }
+
+        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+        assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(TRACE_PARENT));
+        assertThat(threadContext.getHeader(Task.TRACE_STATE), equalTo("vendor=value"));
+        span.end();
+    }
+
+    public void testClosingTheStoredContextKeepsTheResponseHeaders() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Span span = tracer.spanBuilder("name1").startSpan();
+
+        try (var ignored = span.storeInThreadContext()) {
+            threadContext.addResponseHeader("Warning", "something");
+        }
+
+        assertThat(threadContext.getResponseHeaders().get("Warning"), equalTo(List.of("something")));
+        span.end();
+    }
+
+    public void testTraceParentHeaderFollowsTheCurrentSpan() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        try (var ignored = root.storeInThreadContext()) {
+            final SpanContext rootContext = currentSpanContext();
+            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParent(rootContext)));
+
+            final Span child = tracer.spanBuilder("child").startSpan();
+            try (var ignored2 = child.storeInThreadContext()) {
+                final SpanContext childContext = currentSpanContext();
+                assertThat(childContext.getSpanId(), not(equalTo(rootContext.getSpanId())));
+                assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParent(childContext)));
+            }
+            child.end();
+
+            assertThat(currentSpanContext(), equalTo(rootContext));
+            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParent(rootContext)));
+        }
+        root.end();
+    }
+
+    public void testNoopSpanCannotBeStoredInTheThreadContext() {
+        final Tracer noop = Tracer.noop();
+        final var headersBefore = threadContext.getHeaders();
+
+        try (var ignored = noop.spanBuilder("name1").startSpan().storeInThreadContext()) {
+            assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+        }
+
+        assertThat(threadContext.getHeaders(), equalTo(headersBefore));
+    }
+
+    public void testChildSpanIsStartedUnderTheCurrentSpan() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        try (var ignored = root.storeInThreadContext()) {
+            startAndEnd(tracer, "child");
+        }
+        root.end();
+
+        final SpanData rootData = finishedSpan("root");
+        final SpanData childData = finishedSpan("child");
+        assertThat(childData.getParentSpanId(), equalTo(rootData.getSpanId()));
+        assertThat(childData.getTraceId(), equalTo(rootData.getTraceId()));
+    }
+
+    public void testChildSpanIsStartedUnderTheGivenParent() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        tracer.spanBuilder("child").setParent(root).startSpan().end();
+        root.end();
+
+        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("root").getSpanId()));
+        assertThat(finishedSpan("child").getTraceId(), equalTo(finishedSpan("root").getTraceId()));
+    }
+
+    public void testGivenParentTakesPrecedenceOverTheCurrentSpan() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span current = tracer.spanBuilder("current").startSpan();
+        final Span given = tracer.spanBuilder("given").startSpan();
+
+        try (var ignored = current.storeInThreadContext()) {
+            tracer.spanBuilder("child").setParent(given).startSpan().end();
+        }
+        given.end();
+        current.end();
+
+        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("given").getSpanId()));
+    }
+
+    public void testCurrentSpanCanBeGivenAsTheParent() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        final Span child;
+        try (var ignored = root.storeInThreadContext()) {
+            child = tracer.spanBuilder("child").setParent(tracer.currentSpan()).startSpan();
+        }
+        child.end();
+        root.end();
+
+        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("root").getSpanId()));
+    }
+
+    public void testNoParentStartsANewTraceInsteadOfInheritingTheCurrentSpan() {
+        final APMTracer tracer = tracer(enabledSettings(), 0);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        try (var ignored = root.storeInThreadContext()) {
+            // a root, so it is at depth 0 and is not dropped by the limit, which would drop a child of the current span
+            final Span span = tracer.spanBuilder("new-root").setNoParent().startSpan();
+            assertThat(isRecorded(span), is(true));
+            span.end();
+        }
+        root.end();
+
+        assertThat(finishedSpan("new-root").getParentSpanContext().isValid(), is(false));
+        assertThat(finishedSpan("new-root").getTraceId(), not(equalTo(finishedSpan("root").getTraceId())));
+    }
+
+    public void testNoParentIgnoresTheRemoteParentInTheRequestHeaders() {
+        final APMTracer tracer = tracer(enabledSettings());
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
+
+        tracer.spanBuilder("new-root").setNoParent().startSpan().end();
+
+        final SpanData data = finishedSpan("new-root");
+        assertThat(data.getParentSpanContext().isValid(), is(false));
+        assertThat(data.getTraceId(), not(equalTo(TRACE_ID)));
+    }
+
+    public void testNoParentIsNotDroppedWithTheTraceOfTheCurrentSpan() {
+        final APMTracer tracer = tracer(enabledSettings(), 5, false, Sampler.parentBased(Sampler.alwaysOn()));
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, UNSAMPLED_TRACE_PARENT);
+        final Span entry = tracer.spanBuilder("entry").startSpan();
+        assertThat(isRecorded(entry), is(false));
+
+        try (var ignored = entry.storeInThreadContext()) {
+            // a child of the current span is dropped with it, but a new trace is sampled on its own
+            assertThat(isRecorded(tracer.spanBuilder("child").startSpan()), is(false));
+
+            final Span newRoot = tracer.spanBuilder("new-root").setNoParent().startSpan();
+            assertThat(isRecorded(newRoot), is(true));
+            newRoot.end();
+        }
+
+        assertThat(finishedSpan("new-root").getTraceId(), not(equalTo(TRACE_ID)));
+    }
+
+    public void testChildOfASpanStartedWithNoParentBelongsToTheNewTrace() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        try (var ignored = root.storeInThreadContext()) {
+            final Span newRoot = tracer.spanBuilder("new-root").setNoParent().startSpan();
+            try (var ignored2 = newRoot.storeInThreadContext()) {
+                startAndEnd(tracer, "child");
+            }
+            newRoot.end();
+        }
+        root.end();
+
+        assertThat(finishedSpan("child").getTraceId(), equalTo(finishedSpan("new-root").getTraceId()));
+        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("new-root").getSpanId()));
+        assertThat(finishedSpan("child").getTraceId(), not(equalTo(finishedSpan("root").getTraceId())));
+    }
+
+    public void testNoParentSetAfterTheParentWins() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Span given = tracer.spanBuilder("given").startSpan();
+        tracer.spanBuilder("name1").setParent(given).setNoParent().startSpan().end();
+        given.end();
+
+        assertThat(finishedSpan("name1").getParentSpanContext().isValid(), is(false));
+        assertThat(finishedSpan("name1").getTraceId(), not(equalTo(finishedSpan("given").getTraceId())));
+    }
+
+    public void testParentSetAfterNoParentWins() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span given = tracer.spanBuilder("given").startSpan();
+        tracer.spanBuilder("name1").setNoParent().setParent(given).startSpan().end();
+        given.end();
+
+        assertThat(finishedSpan("name1").getParentSpanId(), equalTo(finishedSpan("given").getSpanId()));
+        assertThat(finishedSpan("name1").getTraceId(), equalTo(finishedSpan("given").getTraceId()));
+    }
+
+    /** A noop span is not a context, so as a parent it changes nothing: the parent is inherited, as if none had been given. */
+    public void testNoopSpanAsTheParentIsIgnored() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        try (var ignored = root.storeInThreadContext()) {
+            tracer.spanBuilder("child").setParent(Span.noop()).startSpan().end();
+        }
+        root.end();
+
+        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("root").getSpanId()));
+    }
+
+    public void testNoopSpanAsTheParentStillFollowsTheRemoteParent() {
+        final APMTracer tracer = tracer(enabledSettings());
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
+
+        tracer.spanBuilder("name1").setParent(Span.noop()).startSpan().end();
+
+        assertThat(finishedSpan("name1").getTraceId(), equalTo(TRACE_ID));
+        assertThat(finishedSpan("name1").getParentSpanId(), equalTo(SPAN_ID));
+    }
+
+    public void testNoParentOnADisabledTracerDoesNotRecord() {
+        final APMTracer tracer = tracer(enabledSettings());
+        tracer.setEnabled(false);
+
+        assertThat(isRecorded(tracer.spanBuilder("name1").setNoParent().startSpan()), is(false));
     }
 
     /**
-     * Check that the tracer doesn't create spans when tracing is disabled, and that the trace context is dropped when it is
-     * asked to make the span current.
+     * Simulates a data node: the {@code traceparent} request header is propagated over transport (as a regular header) but the context
+     * of the span is not (transients are not serialised over transport). The span is started as a child of the remote span.
      */
-    public void test_onTraceStarted_withTracingDisabled_doesNotStartTrace() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer apmTracer = buildTracer(settings);
+    public void testRemoteParentIsTakenFromTheTraceParentHeader() {
+        final APMTracer tracer = tracer(enabledSettings());
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
 
+        startAndEnd(tracer, "name1");
+
+        final SpanData data = finishedSpan("name1");
+        assertThat(data.getTraceId(), equalTo(TRACE_ID));
+        assertThat(data.getParentSpanId(), equalTo(SPAN_ID));
+        assertThat(data.getParentSpanContext().isRemote(), is(true));
+    }
+
+    public void testTraceStateIsPropagatedFromTheRemoteParent() {
+        final APMTracer tracer = tracer(enabledSettings());
         threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
         threadContext.putHeader(Task.TRACE_STATE, "vendor=value");
 
-        apmTracer.startTrace(TRACEABLE1, "name1", null);
-        assertThat(apmTracer.getSpans(), anEmptyMap());
-        // starting the span does not change the thread context
-        assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(TRACE_PARENT));
+        final Span span = tracer.spanBuilder("name1").startSpan();
+        try (var ignored = span.storeInThreadContext()) {
+            assertThat(threadContext.getHeader(Task.TRACE_STATE), equalTo("vendor=value"));
+        }
+        span.end();
 
-        try (var ignored = apmTracer.storeSpanInThreadContext(TRACEABLE1)) {
+        assertThat(finishedSpan("name1").getSpanContext().getTraceState().get("vendor"), equalTo("value"));
+    }
+
+    public void testLocalParentTakesPrecedenceOverRemoteParent() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        try (var ignored = root.storeInThreadContext()) {
+            // a different remote parent, as if the header was stale
+            threadContext.putHeaderAllowOverwrite(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
+            startAndEnd(tracer, "child");
+        }
+        root.end();
+
+        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("root").getSpanId()));
+    }
+
+    public void testCurrentSpanIsNoopWithoutAStoredSpan() {
+        assertThat(tracer(enabledSettings()).currentSpan(), sameInstance(Span.noop()));
+    }
+
+    public void testCurrentSpanIsTheLiveSpan() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Span span = tracer.spanBuilder("name1").startSpan();
+
+        try (var ignored = span.storeInThreadContext()) {
+            final Span current = tracer.currentSpan();
+            assertThat(current, instanceOf(APMSpan.class));
+            current.setAttribute("added.later", "value");
+        }
+        span.end();
+
+        assertThat(finishedSpan("name1").getAttributes().get(stringKey("added.later")), equalTo("value"));
+    }
+
+    public void testCurrentSpanOfASpanThatHasEndedIsNotRecorded() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span span = tracer.spanBuilder("name1").startSpan();
+
+        try (var ignored = span.storeInThreadContext()) {
+            span.end();
+
+            final Span current = tracer.currentSpan();
+            assertThat(current, instanceOf(APMSpan.class));
+            assertThat(isRecorded(current), is(false));
+
+            tracer.spanBuilder("child").setParent(current).startSpan().end();
+        }
+
+        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("name1").getSpanId()));
+    }
+
+    public void testCurrentSpanOfASpanThatIsNotRecordedIsNotRecorded() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span span = tracer.spanBuilder("name1_discard").startSpan();
+
+        try (var ignored = span.storeInThreadContext()) {
+            final Span current = tracer.currentSpan();
+            assertThat(current, instanceOf(APMSpan.class));
+            assertThat(isRecorded(current), is(false));
+
+            assertThat(isRecorded(tracer.spanBuilder("child").setParent(current).startSpan()), is(false));
+        }
+
+        assertThat(finishedSpanNames(), empty());
+    }
+
+    public void testDisabledTracerDropsTheLocalTrace() {
+        final APMTracer tracer = tracer(disabledSettings());
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
+        threadContext.putHeader(Task.TRACE_STATE, "vendor=value");
+
+        final Span span = tracer.spanBuilder("name1").startSpan();
+        assertThat(isRecorded(span), is(false));
+        try (var ignored = span.storeInThreadContext()) {
             assertLocalTraceDropped();
         }
+        span.end();
+
+        assertThat(finishedSpanNames(), empty());
         // restored
         assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(TRACE_PARENT));
-        assertThat(threadContext.getHeader(Task.TRACE_STATE), equalTo("vendor=value"));
     }
 
-    /**
-     * Check that the tracer doesn't create spans if a Traceable's span name is filtered out, and that the local trace is dropped when
-     * it is asked to make the span current.
-     */
-    public void test_onTraceStarted_withSpanNameOmitted_doesNotStartTrace() {
-        Settings settings = Settings.builder()
-            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
-            .putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(), List.of("filtered*"))
-            .build();
-        APMTracer apmTracer = buildTracer(settings);
+    public void testDisabledTracerClearsTheContextOfAnExistingTrace() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Span root = tracer.spanBuilder("root").startSpan();
 
-        apmTracer.startTrace(TRACEABLE1, "name1", null);
+        try (var ignored = root.storeInThreadContext()) {
+            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), notNullValue());
+            tracer.setEnabled(false);
 
-        assertThat(recordedSpans(apmTracer), anEmptyMap());
-        try (var ignored = apmTracer.storeSpanInThreadContext(TRACEABLE1)) {
+            final Span span = tracer.spanBuilder("name1").startSpan();
+            assertThat(isRecorded(span), is(false));
+            try (var ignored2 = span.storeInThreadContext()) {
+                assertLocalTraceDropped();
+            }
+        }
+    }
+
+    public void testSpanWithAFilteredOutNameDropsTheLocalTrace() {
+        final Settings settings = enabledSettingsBuilder().putList(
+            APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(),
+            List.of("filtered*")
+        ).build();
+        final APMTracer tracer = tracer(settings);
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
+
+        final Span span = tracer.spanBuilder("name1").startSpan();
+        assertThat(isRecorded(span), is(false));
+        try (var ignored = span.storeInThreadContext()) {
             assertLocalTraceDropped();
         }
+
+        assertThat(finishedSpanNames(), empty());
     }
 
     /**
-     * Check that when a trace is started, the tracer starts a span and records it, without making it the current one.
+     * A span that is filtered out is not recorded, and neither is anything that is started under it, but its siblings are not
+     * affected. It also stops the trace from being propagated from where it is stored, since there is no span to continue it.
      */
-    public void test_onTraceStarted_startsTrace() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings);
+    public void testFilteredOutChildSpanDropsItsSubtree() {
+        final Settings settings = enabledSettingsBuilder().putList(
+            APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(),
+            List.of("excluded*")
+        ).build();
+        final APMTracer tracer = tracer(settings, 2);
+        final Span root = tracer.spanBuilder("root").startSpan();
 
-        apmTracer.startTrace(TRACEABLE1, "name1", null);
+        try (var ignored = root.storeInThreadContext()) {
+            final Span excluded = tracer.spanBuilder("excluded-child").startSpan();
+            assertThat(isRecorded(excluded), is(false));
+            try (var ignored2 = excluded.storeInThreadContext()) {
+                assertThat(spanContextOf(threadContext.getTransient(Task.APM_TRACE_CONTEXT)).isValid(), is(false));
+                assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
 
-        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
-        assertThat(recordedSpans(apmTracer), aMapWithSize(1));
-        assertThat(recordedSpans(apmTracer), hasKey(TRACEABLE1.getSpanId()));
-    }
-
-    /**
-     * Check that when a root trace is started, but it is not recorded, e.g. due to sampling,
-     * the tracer doesn't record it, but still makes its (not sampled) context the current one once it is asked to.
-     */
-    public void test_onTraceStarted_ifNotRecorded_doesNotStartTracing() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings);
-
-        apmTracer.startTrace(TRACEABLE1, "name1_discard", null);
-
-        assertThat(recordedSpans(apmTracer), anEmptyMap());
-        try (var ignored = apmTracer.storeSpanInThreadContext(TRACEABLE1)) {
-            assertThat(spanContextOf(threadContext.getTransient(Task.APM_TRACE_CONTEXT)).isSampled(), is(false));
+                // part of the dropped subtree
+                assertThat(isRecorded(tracer.spanBuilder("included-grandchild").startSpan()), is(false));
+            }
+            // the context of the parent is back, and so is the sibling's chance
+            startAndEnd(tracer, "included-child");
         }
+        root.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("root", "included-child"));
+        assertThat(finishedSpan("included-child").getParentSpanId(), equalTo(finishedSpan("root").getSpanId()));
     }
 
     /**
-     * Check that when a trace is not sampled, the tracer does not record any of the spans that are started under it.
+     * A span that is not recorded, e.g. due to sampling, is not exported, but its (not sampled) context is what is stored and
+     * propagated, so that the decision is shared by everything that is started under it.
      */
-    public void test_onNestedTraceStarted_ifParentNotSampled_doesNotStartTrace() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings, 5);
+    public void testRootSpanThatIsNotRecordedPropagatesTheDecision() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Span span = tracer.spanBuilder("name1_discard").startSpan();
+        assertThat(isRecorded(span), is(false));
 
-        apmTracer.startTrace(TRACEABLE1, "name1", null);
-        try (var ignored1 = apmTracer.storeSpanInThreadContext(TRACEABLE1)) {
-            final Context rootContext = threadContext.getTransient(Task.APM_TRACE_CONTEXT);
+        try (var ignored = span.storeInThreadContext()) {
+            final SpanContext current = currentSpanContext();
+            assertThat(current.isValid(), is(true));
+            assertThat(current.isSampled(), is(false));
+            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParent(current)));
+        }
+        span.end();
 
-            apmTracer.startTrace(TRACEABLE2, "name2_discard", null);
-            try (var ignored2 = apmTracer.storeSpanInThreadContext(TRACEABLE2)) {
-                final Context discardedContext = threadContext.getTransient(Task.APM_TRACE_CONTEXT);
-                assertThat(discardedContext, not(sameInstance(rootContext)));
-                assertThat(spanContextOf(discardedContext).isSampled(), is(false));
+        assertThat(finishedSpanNames(), empty());
+    }
 
-                apmTracer.startTrace(TRACEABLE3, "name3", null);
-                try (var ignored3 = apmTracer.storeSpanInThreadContext(TRACEABLE3)) {
-                    assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), sameInstance(discardedContext));
+    public void testSpansUnderAnUnsampledTraceAreDropped() {
+        final APMTracer tracer = tracer(enabledSettings(), 5);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        try (var ignored = root.storeInThreadContext()) {
+            final Span discarded = tracer.spanBuilder("child_discard").startSpan();
+            try (var ignored2 = discarded.storeInThreadContext()) {
+                final SpanContext discardedContext = currentSpanContext();
+                assertThat(discardedContext.isSampled(), is(false));
+
+                // the sampler would record this one, but it is part of a dropped trace
+                final Span grandchild = tracer.spanBuilder("grandchild").startSpan();
+                assertThat(isRecorded(grandchild), is(false));
+                try (var ignored3 = grandchild.storeInThreadContext()) {
+                    assertThat(currentSpanContext(), equalTo(discardedContext));
                 }
             }
-            assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), sameInstance(rootContext));
         }
-        assertThat(recordedSpans(apmTracer), aMapWithSize(1));
-        assertThat(recordedSpans(apmTracer), hasKey(TRACEABLE1.getSpanId()));
+        root.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("root"));
     }
 
-    /**
-     * Checks that when a trace is started with a specific start time, the tracer starts a span and records it.
-     */
-    public void test_onTraceStartedWithStartTime_startsTrace() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings);
+    public void testRemoteParentThatIsNotSampledDropsTheLocalTrace() {
+        final APMTracer tracer = tracer(enabledSettings(), 5, false, Sampler.parentBased(Sampler.alwaysOn()));
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, UNSAMPLED_TRACE_PARENT);
 
-        // 1_000_000L because of "toNanos" conversions that overflow for large long millis
-        Instant spanStartTime = Instant.ofEpochMilli(randomLongBetween(0, Long.MAX_VALUE / 1_000_000L));
-        threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, spanStartTime);
-        apmTracer.startTrace(TRACEABLE1, "name1", null);
+        final Span entry = tracer.spanBuilder("entry").startSpan();
+        assertThat(isRecorded(entry), is(false));
 
-        assertThat(recordedSpans(apmTracer), aMapWithSize(1));
-        assertThat(recordedSpans(apmTracer), hasKey(TRACEABLE1.getSpanId()));
-        assertThat(((SpyAPMTracer) apmTracer).getSpanStartTime("name1"), is(spanStartTime));
-    }
+        try (var ignored = entry.storeInThreadContext()) {
+            assertThat(isRecorded(tracer.spanBuilder("child").startSpan()), is(false));
 
-    /**
-     * Check that the start time override only applies to the local root span.
-     */
-    public void test_onTraceStartedWithStartTime_ignoredForChildSpan() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings, 1);
-
-        Instant spanStartTime = Instant.ofEpochMilli(randomLongBetween(0, Long.MAX_VALUE / 1_000_000L));
-        threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, spanStartTime);
-        apmTracer.startTrace(TRACEABLE1, "root", null);
-        try (var ignored = apmTracer.storeSpanInThreadContext(TRACEABLE1)) {
-            apmTracer.startTrace(TRACEABLE2, "child", null);
+            final SpanContext current = currentSpanContext();
+            assertThat(current.getTraceId(), equalTo(TRACE_ID));
+            assertThat(current.isSampled(), is(false));
+            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), startsWith("00-" + TRACE_ID + "-"));
+            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParent(current)));
         }
 
-        assertThat(recordedSpans(apmTracer), aMapWithSize(2));
-        assertThat(((SpyAPMTracer) apmTracer).getSpanStartTime("root"), is(spanStartTime));
-        assertThat(((SpyAPMTracer) apmTracer).getSpanStartTime("child"), nullValue());
+        assertThat(finishedSpanNames(), empty());
     }
 
-    /**
-     * Check that when a trace is stopped, the tracer ends the span and removes the record of it.
-     */
-    public void test_onTraceStopped_stopsTrace() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings);
+    public void testRemoteParentThatIsSampledIsFollowed() {
+        final APMTracer tracer = tracer(enabledSettings(), 5, false, Sampler.parentBased(Sampler.alwaysOff()));
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
 
-        apmTracer.startTrace(TRACEABLE1, "name1", null);
-        apmTracer.stopTrace(TRACEABLE1);
-        apmTracer.stopTrace(TRACEABLE2); // stopping a non-existent trace is a noop
+        startAndEnd(tracer, "entry");
 
-        assertThat(apmTracer.getSpans(), anEmptyMap());
+        assertThat(finishedSpan("entry").getTraceId(), equalTo(TRACE_ID));
     }
 
-    /**
-     * Check that when the span of a trace is made the current one, then the thread context is updated with tracing information.
-     * <p>
-     * The tracer injects the {@link Task#TRACE_PARENT_HTTP_HEADER} and {@link Task#TRACE_STATE} headers into the context when
-     * there is a propagator, which these tests do not have unless they say so. We can check that the local context object is added,
-     * however.
-     */
-    public void test_whenSpanIsStoredInThreadContext_threadContextIsPopulated() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings);
+    public void testIncludedSpanNamesAreRecorded() {
+        final Settings settings = enabledSettingsBuilder().putList(
+            APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(),
+            List.of(
+                // exact name
+                "name-aaa",
+                // regex
+                "name-b*"
+            )
+        ).build();
+        final APMTracer tracer = tracer(settings);
 
-        apmTracer.startTrace(TRACEABLE1, "name1", null);
-        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
-
-        try (var ignored = apmTracer.storeSpanInThreadContext(TRACEABLE1)) {
-            assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
+        for (String name : List.of("name-aaa", "name-bbb", "name-ccc")) {
+            startAndEnd(tracer, name);
         }
-        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("name-aaa", "name-bbb"));
     }
 
-    /**
-     * Check that when a trace is started for a request carrying the {@link Task#X_ELASTIC_PROJECT_ID_HTTP_HEADER}
-     * header, the project id is stamped on the span as the {@code project.id} attribute.
-     */
-    public void test_whenTraceStarted_projectIdHeaderIsSetAsSpanAttribute() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings);
+    public void testExcludedSpanNamesAreNotRecorded() {
+        final Settings settings = enabledSettingsBuilder().putList(
+            APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(),
+            List.of(
+                // exact name
+                "name-aaa",
+                // regex
+                "name-b*"
+            )
+        ).build();
+        final APMTracer tracer = tracer(settings);
 
-        String projectId = randomAlphaOfLength(16);
-        threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
-        apmTracer.startTrace(TRACEABLE1, "name1", null);
+        for (String name : List.of("name-aaa", "name-bbb", "name-ccc")) {
+            startAndEnd(tracer, name);
+        }
 
-        Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
-        assertThat(span, notNullValue());
-        Mockito.verify(span).setAttribute("project.id", projectId);
+        assertThat(finishedSpanNames(), containsInAnyOrder("name-ccc"));
     }
 
-    /**
-     * Check that when a trace is started for a request without the {@link Task#X_ELASTIC_PROJECT_ID_HTTP_HEADER}
-     * header (e.g. a non multi-project request), no {@code project.id} attribute is added to the span.
-     */
-    public void test_whenTraceStarted_withoutProjectIdHeader_noProjectIdSpanAttribute() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings);
+    public void testExcludeTakesPrecedenceOverInclude() {
+        final Settings settings = enabledSettingsBuilder().putList(
+            APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(),
+            List.of("name-a*")
+        ).putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(), List.of("name-a*")).build();
+        final APMTracer tracer = tracer(settings);
 
-        apmTracer.startTrace(TRACEABLE1, "name1", null);
+        startAndEnd(tracer, "name-aaa");
 
-        Span span = Span.fromContextOrNull(apmTracer.getSpans().get(TRACEABLE1.getSpanId()));
-        assertThat(span, notNullValue());
-        Mockito.verify(span, never()).setAttribute(eq("project.id"), anyString());
+        assertThat(finishedSpanNames(), empty());
     }
 
-    /**
-     * Check that when a tracer has a list of include names configured, then those
-     * names are used to filter spans.
-     */
-    public void test_whenTraceStarted_andSpanNameIncluded_thenSpanIsStarted() {
-        final List<String> includePatterns = List.of(
-            // exact name
-            "name-aaa",
-            // regex
-            "name-b*"
-        );
-        Settings settings = Settings.builder()
-            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
-            .putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(), includePatterns)
-            .build();
-        APMTracer apmTracer = buildTracer(settings);
+    public void testSpanNameFiltersCanBeUpdated() {
+        final APMTracer tracer = tracer(enabledSettings());
 
-        startTraceInNewContext(apmTracer, TRACEABLE1, "name-aaa");
-        startTraceInNewContext(apmTracer, TRACEABLE2, "name-bbb");
-        startTraceInNewContext(apmTracer, TRACEABLE3, "name-ccc");
+        tracer.setExcludeNames(List.of("name-a*"));
+        startAndEnd(tracer, "name-aaa");
+        startAndEnd(tracer, "name-bbb");
+        assertThat(finishedSpanNames(), containsInAnyOrder("name-bbb"));
 
-        assertThat(recordedSpans(apmTracer), hasKey(TRACEABLE1.getSpanId()));
-        assertThat(recordedSpans(apmTracer), hasKey(TRACEABLE2.getSpanId()));
-        assertThat(recordedSpans(apmTracer), not(hasKey(TRACEABLE3.getSpanId())));
+        tracer.setExcludeNames(List.of());
+        tracer.setIncludeNames(List.of("name-a*"));
+        startAndEnd(tracer, "name-aaa");
+        startAndEnd(tracer, "name-ccc");
+        assertThat(finishedSpanNames(), containsInAnyOrder("name-bbb", "name-aaa"));
     }
 
-    /**
-     * Check that when a tracer has a list of include and exclude names configured, and
-     * a span matches both, then the exclude filters take precedence.
-     */
-    public void test_whenTraceStarted_andSpanNameIncludedAndExcluded_thenSpanIsNotStarted() {
-        final List<String> includePatterns = List.of("name-a*");
-        final List<String> excludePatterns = List.of("name-a*");
-        Settings settings = Settings.builder()
-            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
-            .putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.getKey(), includePatterns)
-            .putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(), excludePatterns)
-            .build();
-        APMTracer apmTracer = buildTracer(settings);
+    public void testMaxDepthZeroRecordsOnlyTheRootSpan() {
+        final APMTracer tracer = tracer(enabledSettings(), 0);
 
-        startTraceInNewContext(apmTracer, TRACEABLE1, "name-aaa");
+        final Span root = tracer.spanBuilder("root").startSpan();
+        final Span child = tracer.spanBuilder("child").setParent(root).startSpan();
+        assertThat(isRecorded(child), is(false));
+        child.end();
+        root.end();
 
-        assertThat(recordedSpans(apmTracer), not(hasKey("id1")));
+        assertThat(finishedSpanNames(), containsInAnyOrder("root"));
     }
 
-    /**
-     * Check that when a tracer has a list of exclude names configured, then those
-     * names are used to filter spans.
-     */
-    public void test_whenTraceStarted_andSpanNameExcluded_thenSpanIsNotStarted() {
-        final List<String> excludePatterns = List.of(
-            // exact name
-            "name-aaa",
-            // regex
-            "name-b*"
-        );
-        Settings settings = Settings.builder()
-            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
-            .putList(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.getKey(), excludePatterns)
-            .build();
-        APMTracer apmTracer = buildTracer(settings);
+    public void testSpanDroppedByALimitDropsItsSubtree() {
+        final APMTracer tracer = tracer(enabledSettings(), 0);
+        final Span root = tracer.spanBuilder("root").startSpan();
 
-        startTraceInNewContext(apmTracer, TRACEABLE1, "name-aaa");
-        startTraceInNewContext(apmTracer, TRACEABLE2, "name-bbb");
-        startTraceInNewContext(apmTracer, TRACEABLE3, "name-ccc");
+        try (var ignored = root.storeInThreadContext()) {
+            final SpanContext rootContext = currentSpanContext();
 
-        assertThat(recordedSpans(apmTracer), not(hasKey(TRACEABLE1.getSpanId())));
-        assertThat(recordedSpans(apmTracer), not(hasKey(TRACEABLE2.getSpanId())));
-        assertThat(recordedSpans(apmTracer), hasKey(TRACEABLE3.getSpanId()));
+            final Span child = tracer.spanBuilder("child").startSpan();
+            assertThat(isRecorded(child), is(false));
+            try (var ignored2 = child.storeInThreadContext()) {
+                assertThat(spanContextOf(threadContext.getTransient(Task.APM_TRACE_CONTEXT)).isValid(), is(false));
+                assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+            }
+
+            // back to the root span
+            assertThat(currentSpanContext(), equalTo(rootContext));
+            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParent(rootContext)));
+        }
+        root.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("root"));
     }
 
-    /**
-     * Check that sensitive attributes are not added verbatim to a span, but instead the value is redacted.
-     */
-    public void test_whenAddingAttributes_thenSensitiveValuesAreRedacted() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer apmTracer = buildTracer(settings);
-        CharacterRunAutomaton labelFilterAutomaton = apmTracer.getLabelFilterAutomaton();
+    public void testMaxDepthOneRecordsTheChildButNotTheGrandchild() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+
+        final Span root = tracer.spanBuilder("root").startSpan();
+        final Span child = tracer.spanBuilder("child").setParent(root).startSpan();
+        final Span grandchild = tracer.spanBuilder("grandchild").setParent(child).startSpan();
+        assertThat(isRecorded(grandchild), is(false));
+        grandchild.end();
+        child.end();
+        root.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child"));
+        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("root").getSpanId()));
+    }
+
+    public void testMaxDepthAppliesToStoredParentsToo() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+
+        try (var ignored = root.storeInThreadContext()) {
+            final Span child = tracer.spanBuilder("child").startSpan();
+            try (var ignored2 = child.storeInThreadContext()) {
+                assertThat(isRecorded(tracer.spanBuilder("grandchild").startSpan()), is(false));
+            }
+            child.end();
+        }
+        root.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child"));
+    }
+
+    public void testMaxSpansTwoDropsTheThirdChild() {
+        final Settings settings = enabledSettingsBuilder().put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), 2).build();
+        final APMTracer tracer = tracer(settings, 5);
+
+        final Span root = tracer.spanBuilder("root").startSpan();
+        for (String name : List.of("child-1", "child-2", "child-3")) {
+            tracer.spanBuilder(name).setParent(root).startSpan().end();
+        }
+        root.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child-1", "child-2"));
+    }
+
+    public void testMaxSpansIsSharedByTheWholeLocalTrace() {
+        final Settings settings = enabledSettingsBuilder().put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), 2).build();
+        final APMTracer tracer = tracer(settings, 5);
+
+        final Span root = tracer.spanBuilder("root").startSpan();
+        final Span child = tracer.spanBuilder("child").setParent(root).startSpan();
+        tracer.spanBuilder("grandchild").setParent(child).startSpan().end();
+        child.end();
+        tracer.spanBuilder("second-child").setParent(root).startSpan().end();
+        root.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child", "grandchild"));
+    }
+
+    public void testMaxDepthZeroRecordsTheEntrySpanOfARemoteTraceButNotItsLocalChildren() {
+        final APMTracer tracer = tracer(enabledSettings(), 0);
+        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
+
+        final Span entry = tracer.spanBuilder("entry-span").startSpan();
+        assertThat(isRecorded(tracer.spanBuilder("local-child").setParent(entry).startSpan()), is(false));
+        entry.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("entry-span"));
+        assertThat(finishedSpan("entry-span").getParentSpanId(), equalTo(SPAN_ID));
+    }
+
+    public void testLimitsCanBeUpdated() {
+        final APMTracer tracer = tracer(enabledSettings(), 0);
+        final Span root = tracer.spanBuilder("root").startSpan();
+        assertThat(isRecorded(tracer.spanBuilder("child-1").setParent(root).startSpan()), is(false));
+
+        tracer.setMaxTraceDepth(1);
+        tracer.setMaxSpans(1);
+
+        tracer.spanBuilder("child-2").setParent(root).startSpan().end();
+        assertThat(isRecorded(tracer.spanBuilder("child-3").setParent(root).startSpan()), is(false));
+        root.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("root", "child-2"));
+    }
+
+    public void testLocalRootSpanUsesTheTraceStartTime() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Instant startTime = Instant.ofEpochMilli(randomLongBetween(0, 4_000_000_000_000L));
+        threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, startTime);
+
+        startAndEnd(tracer, "name1");
+
+        assertThat(finishedSpan("name1").getStartEpochNanos(), equalTo(epochNanos(startTime)));
+    }
+
+    public void testTraceStartTimeIsRemovedFromTheThreadContextOnceItIsUsed() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Instant startTime = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
+        threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, startTime);
+
+        final Span first = tracer.spanBuilder("first").startSpan();
+
+        assertThat(threadContext.getTransient(Task.LOCAL_TRACE_START_TIME), nullValue());
+        first.end();
+        // the next one, that does not belong to the same trace, starts when it is started
+        startAndEnd(tracer, "second");
+
+        assertThat(finishedSpan("first").getStartEpochNanos(), equalTo(epochNanos(startTime)));
+        assertThat(finishedSpan("second").getStartEpochNanos(), not(equalTo(epochNanos(startTime))));
+    }
+
+    public void testTraceStartTimeIsKeptWhenTheSpanDoesNotUseIt() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span root = tracer.spanBuilder("root").startSpan();
+        final Instant startTime = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
+        threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, startTime);
+
+        // a child span starts when it is started, so the start time is not for it
+        tracer.spanBuilder("child").setParent(root).startSpan().end();
+
+        assertThat(threadContext.getTransient(Task.LOCAL_TRACE_START_TIME), equalTo(startTime));
+        root.end();
+    }
+
+    public void testTraceStartTimeIsIgnoredForChildSpans() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Instant startTime = Instant.ofEpochMilli(randomLongBetween(0, 1_000_000_000_000L));
+        threadContext.putTransient(Task.LOCAL_TRACE_START_TIME, startTime);
+
+        final Span root = tracer.spanBuilder("root").startSpan();
+        tracer.spanBuilder("child").setParent(root).startSpan().end();
+        root.end();
+
+        assertThat(finishedSpan("root").getStartEpochNanos(), equalTo(epochNanos(startTime)));
+        assertThat(finishedSpan("child").getStartEpochNanos(), not(equalTo(epochNanos(startTime))));
+    }
+
+    public void testAttributesSetOnTheBuilderAreRecorded() {
+        final APMTracer tracer = tracer(enabledSettings());
+
+        tracer.spanBuilder("name1")
+            .setAttribute("a.boolean", true)
+            .setAttribute("a.double", 1.5d)
+            .setAttribute("a.long", 42L)
+            .setAttribute("an.int", 7)
+            .setAttribute("a.string", "value")
+            .startSpan()
+            .end();
+
+        final Attributes attributes = finishedSpan("name1").getAttributes();
+        assertThat(attributes.get(AttributeKey.booleanKey("a.boolean")), equalTo(true));
+        assertThat(attributes.get(AttributeKey.doubleKey("a.double")), equalTo(1.5d));
+        assertThat(attributes.get(AttributeKey.longKey("a.long")), equalTo(42L));
+        assertThat(attributes.get(AttributeKey.longKey("an.int")), equalTo(7L));
+        assertThat(attributes.get(stringKey("a.string")), equalTo("value"));
+    }
+
+    public void testAttributesSetOnTheSpanAreRecorded() {
+        final APMTracer tracer = tracer(enabledSettings());
+
+        final Span span = tracer.spanBuilder("name1").startSpan();
+        span.setAttribute("a.boolean", true).setAttribute("a.double", 1.5d).setAttribute("a.long", 42L).setAttribute("a.string", "value");
+        span.end();
+
+        final Attributes attributes = finishedSpan("name1").getAttributes();
+        assertThat(attributes.get(AttributeKey.booleanKey("a.boolean")), equalTo(true));
+        assertThat(attributes.get(AttributeKey.doubleKey("a.double")), equalTo(1.5d));
+        assertThat(attributes.get(AttributeKey.longKey("a.long")), equalTo(42L));
+        assertThat(attributes.get(stringKey("a.string")), equalTo("value"));
+    }
+
+    public void testSettingAnAttributeToNullIsRejected() {
+        final APMTracer tracer = tracer(enabledSettings());
+
+        expectThrows(AssertionError.class, () -> tracer.spanBuilder("name1").setAttribute("a.string", (String) null));
+        final Span span = tracer.spanBuilder("name1").startSpan();
+        expectThrows(AssertionError.class, () -> span.setAttribute("a.string", (String) null));
+        span.end();
+    }
+
+    public void testSensitiveAttributeValuesAreRedacted() {
+        final APMTracer tracer = tracer(enabledSettings());
+
+        tracer.spanBuilder("name1")
+            .setAttribute("password", "hunter2")
+            .setAttribute("http.request.headers.authorization", "Basic abc")
+            .setAttribute("session_id", 1234L)
+            .setAttribute("credit-card", 1.5d)
+            .setAttribute("my-token-flag", true)
+            .setAttribute("not.sensitive", "visible")
+            .startSpan()
+            .end();
+
+        final Attributes attributes = finishedSpan("name1").getAttributes();
+        for (String key : List.of("password", "http.request.headers.authorization", "session_id", "credit-card", "my-token-flag")) {
+            assertThat(key, attributes.get(stringKey(key)), equalTo("[REDACTED]"));
+        }
+        assertThat(attributes.get(stringKey("not.sensitive")), equalTo("visible"));
+    }
+
+    public void testRedactedKeysCanBeUpdated() {
+        final APMTracer tracer = tracer(enabledSettings());
+        tracer.setLabelFilters(List.of("custom*"));
+
+        tracer.spanBuilder("name1").setAttribute("custom-field", "a").setAttribute("password", "hunter2").startSpan().end();
+
+        final Attributes attributes = finishedSpan("name1").getAttributes();
+        assertThat(attributes.get(stringKey("custom-field")), equalTo("[REDACTED]"));
+        assertThat(attributes.get(stringKey("password")), equalTo("hunter2"));
+    }
+
+    public void testDefaultSensitiveKeysAreMatchedByTheLabelFilter() {
+        final var labelFilterAutomaton = tracer(disabledSettings()).getLabelFilterAutomaton();
 
         Stream.of(
             "auth",
@@ -405,486 +1011,214 @@ public class APMTracerTests extends ESTestCase {
         ).forEach(key -> assertTrue("Expected label filter automaton to redact [" + key + "]", labelFilterAutomaton.run(key)));
     }
 
-    /**
-     * Simulates a data-node scenario: {@link Task#TRACE_PARENT_HTTP_HEADER} is propagated
-     * over transport (as a regular header) but {@link Task#APM_TRACE_CONTEXT} is not
-     * (transients are not serialised over transport). The tracer should start a span whose
-     * parent matches the remote span encoded in the header.
-     */
-    public void test_whenTraceStartedWithPropagatedTraceParentHeader_andNoLocalParent_usesRemoteParentFromHeader() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracerWithW3CPropagator(settings);
+    public void testSpanKindIsInternalUnlessSet() {
+        final APMTracer tracer = tracer(enabledSettings());
 
-        // Simulate transport propagation: the TRACE_PARENT_HTTP_HEADER request header is read from the stream on the receiving node.
-        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
-        // APM_TRACE_CONTEXT is intentionally absent — transients are not serialised over transport.
+        tracer.spanBuilder("server-span").setSpanKind(SpanKind.SERVER).startSpan().end();
+        // the attributes do not make the kind
+        tracer.spanBuilder("internal-span").setAttribute("http.method", "GET").startSpan().end();
 
-        apmTracer.startTrace(TRACEABLE1, "name1", null);
-
-        assertThat(apmTracer.getSpans(), aMapWithSize(1));
-        Context spanContext = apmTracer.getSpans().get(TRACEABLE1.getSpanId());
-        assertThat(spanContext, notNullValue());
-        // MockSpanBuilder.setParent() stores the parent's SpanContext on the mock span.
-        // Verify it matches the trace ID and span ID from the traceparent header.
-        Span span = Span.fromContext(spanContext);
-        assertThat(span.getSpanContext().getTraceId(), is(TRACE_ID));
-        assertThat(span.getSpanContext().getSpanId(), is(SPAN_ID));
+        assertThat(finishedSpan("server-span").getKind(), is(SpanKind.SERVER));
+        assertThat(finishedSpan("internal-span").getKind(), is(SpanKind.INTERNAL));
     }
 
-    public void testTracingResumesAfterDisableAndReEnable() {
-        InMemorySpanExporter exporter = InMemorySpanExporter.create();
-        SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
-            .addSpanProcessor(SimpleSpanProcessor.create(exporter))
-            .setSampler(Sampler.alwaysOn())
-            .build();
-        OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setTracerProvider(tracerProvider).build();
+    public void testHeadersAreRecordedAsAttributes() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final String projectId = randomAlphaOfLength(16);
+        final String opaqueId = randomAlphaOfLength(16);
+        threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
+        threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
 
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(threadContext, settings, () -> sdk, 0, false);
+        startAndEnd(tracer, "name1");
+
+        final Attributes attributes = finishedSpan("name1").getAttributes();
+        assertThat(attributes.get(stringKey("project.id")), equalTo(projectId));
+        assertThat(attributes.get(stringKey("es.x-opaque-id")), equalTo(opaqueId));
+    }
+
+    public void testNoHeaderAttributesWithoutTheHeaders() {
+        final APMTracer tracer = tracer(enabledSettings());
+
+        startAndEnd(tracer, "name1");
+
+        final Attributes attributes = finishedSpan("name1").getAttributes();
+        assertThat(attributes.get(stringKey("project.id")), nullValue());
+        assertThat(attributes.get(stringKey("es.x-opaque-id")), nullValue());
+    }
+
+    public void testRecordExceptionWithStacksDisabledEmitsTypeAndMessageOnly() {
+        final APMTracer tracer = tracer(enabledSettings(), 0, false);
+
+        final Span span = tracer.spanBuilder("span-with-error").startSpan();
+        assertThat(span.recordException(new IllegalStateException("boom")), sameInstance(span));
+        span.end();
+
+        final EventData event = exceptionEvent(finishedSpan("span-with-error"));
+        assertThat(event.getAttributes().get(stringKey("exception.type")), is(IllegalStateException.class.getName()));
+        assertThat(event.getAttributes().get(stringKey("exception.message")), is("boom"));
+        assertThat(event.getAttributes().get(stringKey("exception.stacktrace")), nullValue());
+    }
+
+    public void testRecordExceptionWithStacksEnabledRecordsTheStackTrace() {
+        final APMTracer tracer = tracer(enabledSettings(), 0, true);
+
+        final Span span = tracer.spanBuilder("span-with-error").startSpan();
+        span.recordException(new IllegalStateException("boom"));
+        span.end();
+
+        final EventData event = exceptionEvent(finishedSpan("span-with-error"));
+        assertThat(event.getAttributes().get(stringKey("exception.type")), is(IllegalStateException.class.getName()));
+        assertThat(event.getAttributes().get(stringKey("exception.message")), is("boom"));
+        assertThat(event.getAttributes().get(stringKey("exception.stacktrace")), notNullValue());
+    }
+
+    public void testRecordExceptionWithNullMessageOmitsTheMessageAttribute() {
+        final APMTracer tracer = tracer(enabledSettings(), 0, false);
+
+        final Span span = tracer.spanBuilder("span-with-error").startSpan();
+        span.recordException(new IllegalStateException());
+        span.end();
+
+        final EventData event = exceptionEvent(finishedSpan("span-with-error"));
+        assertThat(event.getAttributes().get(stringKey("exception.type")), is(IllegalStateException.class.getName()));
+        assertThat(event.getAttributes().get(stringKey("exception.message")), nullValue());
+    }
+
+    public void testRecordExceptionStacksCanBeUpdated() {
+        final APMTracer tracer = tracer(enabledSettings(), 0, false);
+        tracer.setRecordExceptionStacks(true);
+
+        final Span span = tracer.spanBuilder("span-with-error").startSpan();
+        span.recordException(new IllegalStateException("boom"));
+        span.end();
+
+        assertThat(exceptionEvent(finishedSpan("span-with-error")).getAttributes().get(stringKey("exception.stacktrace")), notNullValue());
+    }
+
+    public void testEndingASpanTwiceHasNoEffect() {
+        final APMTracer tracer = tracer(enabledSettings());
+
+        final Span span = tracer.spanBuilder("name1").startSpan();
+        span.end();
+        span.end();
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("name1"));
+    }
+
+    public void testSpanCanBeEndedOnAnotherThread() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Span span = tracer.spanBuilder("name1").startSpan();
+
+        runInParallel(1, i -> span.end());
+
+        assertThat(finishedSpanNames(), containsInAnyOrder("name1"));
+    }
+
+    public void testSpanThatIsNotRecordedCanBeUsedLikeAnyOtherSpan() {
+        final APMTracer tracer = tracer(disabledSettings());
+
+        final Span span = tracer.spanBuilder("name1").setAttribute("a", "b").startSpan();
+        span.setAttribute("a", true).setAttribute("a", 1.0d).setAttribute("a", 1L).setAttribute("a", "b").recordException(new Exception());
+        span.end();
+        span.end();
+
+        assertThat(finishedSpanNames(), empty());
+    }
+
+    // helpers
+
+    private static Settings.Builder enabledSettingsBuilder() {
+        return Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true);
+    }
+
+    private static Settings enabledSettings() {
+        return enabledSettingsBuilder().build();
+    }
+
+    private static Settings disabledSettings() {
+        return Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
+    }
+
+    private APMTracer tracer(Settings settings) {
+        return tracer(settings, 0);
+    }
+
+    private APMTracer tracer(Settings settings, int maxTraceDepth) {
+        return tracer(settings, maxTraceDepth, false);
+    }
+
+    private APMTracer tracer(Settings settings, int maxTraceDepth, boolean recordExceptionStacks) {
+        return tracer(settings, maxTraceDepth, recordExceptionStacks, NAME_SAMPLER);
+    }
+
+    private APMTracer tracer(Settings settings, int maxTraceDepth, boolean recordExceptionStacks, Sampler sampler) {
+        final SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
+            .setSampler(sampler)
+            .addSpanProcessor(SimpleSpanProcessor.create(exporter))
+            .build();
+        final OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
+            .setTracerProvider(tracerProvider)
+            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+            .build();
+        sdks.add(sdk);
+
+        final APMTracer tracer = new APMTracer(threadContext, settings, () -> sdk, maxTraceDepth, recordExceptionStacks);
         tracer.setNodeName("test-node");
         tracer.setClusterName("test-cluster");
         tracer.start();
-
-        startAndStopSpan(tracer, TRACEABLE1, "resume-test-1");
-        assertThat(exporter.getFinishedSpanItems(), hasSize(1));
-
-        tracer.setEnabled(false);
-        exporter.reset();
-        startAndStopSpan(tracer, TRACEABLE2, "resume-test-2");
-        assertThat(exporter.getFinishedSpanItems(), empty());
-
-        tracer.setEnabled(true);
-        startAndStopSpan(tracer, TRACEABLE3, "resume-test-3");
-        assertThat(exporter.getFinishedSpanItems(), hasSize(1));
-
-        sdk.close();
+        return tracer;
     }
 
-    private void startAndStopSpan(APMTracer tracer, Traceable traceable, String spanName) {
-        startTraceInNewContext(tracer, traceable, spanName);
-        tracer.stopTrace(traceable);
+    private static void startAndEnd(Tracer tracer, String name) {
+        tracer.spanBuilder(name).startSpan().end();
     }
 
-    /**
-     * The tracer stores the span context in a transient header, which can only be set once per context, so spans that
-     * are not nested must each be started in their own context.
-     */
-    private void startTraceInNewContext(APMTracer tracer, Traceable traceable, String spanName) {
-        try (var ignored = threadContext.newEmptyContext()) {
-            tracer.startTrace(traceable, spanName, null);
-        }
+    /** Whether the span is recorded, which is not the case for the spans that are dropped, nor once they have ended. */
+    private static boolean isRecorded(Span span) {
+        return span instanceof APMSpan apmSpan && spanOf(apmSpan.context()).isRecording();
     }
 
-    /** The spans that are recorded, which is not the case for the ones that are started, but dropped. */
-    private static Map<String, Context> recordedSpans(APMTracer tracer) {
-        return tracer.getSpans()
-            .entrySet()
-            .stream()
-            .filter(entry -> Span.fromContext(entry.getValue()).isRecording())
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    private List<String> finishedSpanNames() {
+        return exporter.getFinishedSpanItems().stream().map(SpanData::getName).toList();
     }
 
-    /** Asserts that the thread context marks the local trace as dropped and that no trace context is propagated. */
-    private void assertLocalTraceDropped() {
-        assertThat(spanContextOf(threadContext.getTransient(Task.APM_TRACE_CONTEXT)).isValid(), is(false));
-        assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
-        assertThat(threadContext.getHeader(Task.TRACE_STATE), nullValue());
+    private SpanData finishedSpan(String name) {
+        final List<SpanData> spans = exporter.getFinishedSpanItems().stream().filter(s -> s.getName().equals(name)).toList();
+        assertThat("finished spans named [" + name + "] in " + finishedSpanNames(), spans.size(), equalTo(1));
+        return spans.getFirst();
+    }
+
+    private static EventData exceptionEvent(SpanData span) {
+        final List<EventData> events = span.getEvents().stream().filter(e -> e.getName().equals("exception")).toList();
+        assertThat(events.size(), equalTo(1));
+        return events.getFirst();
+    }
+
+    private static long epochNanos(Instant instant) {
+        return TimeUnit.SECONDS.toNanos(instant.getEpochSecond()) + instant.getNano();
+    }
+
+    private SpanContext currentSpanContext() {
+        return spanContextOf(threadContext.getTransient(Task.APM_TRACE_CONTEXT));
     }
 
     private static SpanContext spanContextOf(Context context) {
+        return spanOf(context).getSpanContext();
+    }
+
+    private static io.opentelemetry.api.trace.Span spanOf(Context context) {
         assertThat(context, notNullValue());
-        return Span.fromContext(context).getSpanContext();
-    }
-
-    /** The context of a recorded span that was started by this node, as found in the thread context. */
-    private static Context sampledLocalParentContext() {
-        return Context.root().with(Span.wrap(sampledSpanContext()));
-    }
-
-    private static SpanContext sampledSpanContext() {
-        return SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getSampled(), TraceState.getDefault());
-    }
-
-    private APMTracer buildTracer(Settings settings) {
-        return buildTracer(settings, 0, false);
-    }
-
-    private APMTracer buildTracer(Settings settings, int maxTraceDepth) {
-        return buildTracer(settings, maxTraceDepth, false);
-    }
-
-    private APMTracer buildTracer(Settings settings, int maxTraceDepth, boolean recordExceptionStacks) {
-        APMTracer tracer = new SpyAPMTracer(threadContext, settings, OpenTelemetry.noop(), maxTraceDepth, recordExceptionStacks);
-        tracer.doStart();
-        return tracer;
-    }
-
-    private APMTracer buildTracerWithW3CPropagator(Settings settings) {
-        return buildTracerWithW3CPropagator(settings, 0);
-    }
-
-    private APMTracer buildTracerWithW3CPropagator(Settings settings, int maxTraceDepth) {
-        APMTracer tracer = new SpyAPMTracer(threadContext, settings, openTelemetryWithW3CPropagator(), maxTraceDepth, false);
-        tracer.doStart();
-        return tracer;
+        return io.opentelemetry.api.trace.Span.fromContext(context);
     }
 
     private static String traceParent(SpanContext spanContext) {
         return "00-" + spanContext.getTraceId() + "-" + spanContext.getSpanId() + "-" + spanContext.getTraceFlags().asHex();
     }
 
-    private static OpenTelemetry openTelemetryWithW3CPropagator() {
-        return OpenTelemetrySdk.builder().setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance())).build();
-    }
-
-    public void test_onSdkPath_withMaxTraceDepthZero_dropsChildSpan() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildTracer(settings, 0);
-
-        threadContext.putTransientAllowOverwrite(Task.APM_TRACE_CONTEXT, sampledLocalParentContext());
-
-        tracer.startTrace(TRACEABLE1, "child-span", Map.of());
-
-        assertThat(recordedSpans(tracer), anEmptyMap());
-    }
-
-    public void test_onSdkPath_withMaxTraceDepthZero_recordsRootSpan() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildTracer(settings, 0);
-
-        // No APM_TRACE_CONTEXT transient => no local parent => this is a root span.
-        tracer.startTrace(TRACEABLE1, "root-span", Map.of());
-
-        assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
-    }
-
-    public void test_onSdkPath_withMaxTraceDepthOne_recordsChildSpan() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildTracer(settings, 1);
-
-        threadContext.putTransientAllowOverwrite(Task.APM_TRACE_CONTEXT, sampledLocalParentContext());
-
-        tracer.startTrace(TRACEABLE1, "child-span", Map.of());
-
-        assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
-    }
-
-    public void test_onSdkPath_withMaxTraceDepthOne_dropsGrandchildSpan() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildTracer(settings, 1);
-
-        tracer.startTrace(TRACEABLE1, "root", Map.of());
-        try (var ignore1 = tracer.storeSpanInThreadContext(TRACEABLE1)) {
-            tracer.startTrace(TRACEABLE2, "child", Map.of());
-            try (var ignore2 = tracer.storeSpanInThreadContext(TRACEABLE2)) {
-                tracer.startTrace(TRACEABLE3, "grandchild", Map.of());
-            }
-        }
-
-        assertThat(recordedSpans(tracer), aMapWithSize(2));
-        assertThat(recordedSpans(tracer), hasKey(TRACEABLE1.getSpanId()));
-        assertThat(recordedSpans(tracer), hasKey(TRACEABLE2.getSpanId()));
-        assertThat(recordedSpans(tracer), not(hasKey(TRACEABLE3.getSpanId())));
-    }
-
-    public void test_onSdkPath_withMaxSpansTwo_dropsThirdChildSpan() {
-        Settings settings = Settings.builder()
-            .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true)
-            .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), 2)
-            .build();
-        APMTracer tracer = buildTracer(settings, 5);
-        Traceable child3 = new TestTraceable("id4");
-
-        tracer.startTrace(TRACEABLE1, "root", Map.of());
-        for (Traceable child : List.of(TRACEABLE2, TRACEABLE3, child3)) {
-            try (var ignored = tracer.storeSpanInThreadContext(TRACEABLE1)) {
-                tracer.startTrace(child, "child", Map.of());
-            }
-        }
-
-        assertThat(recordedSpans(tracer).keySet(), equalTo(Set.of(TRACEABLE1.getSpanId(), TRACEABLE2.getSpanId(), TRACEABLE3.getSpanId())));
-    }
-
-    public void test_onSdkPath_withMaxTraceDepthZero_recordsEntryAndDropsLocalChild() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildTracerWithW3CPropagator(settings);
-
-        // APM_TRACE_CONTEXT is intentionally absent: this simulates a fresh entry from a remote caller.
-        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
-
-        tracer.startTrace(TRACEABLE1, "entry-span", Map.of());
-        try (var ignored = tracer.storeSpanInThreadContext(TRACEABLE1)) {
-            tracer.startTrace(TRACEABLE2, "local-child", Map.of());
-        }
-
-        assertThat(recordedSpans(tracer).keySet(), equalTo(Set.of(TRACEABLE1.getSpanId())));
-        Span entrySpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
-        assertThat(entrySpan.getSpanContext().getTraceId(), is(TRACE_ID));
-        assertThat(entrySpan.getSpanContext().getSpanId(), is(SPAN_ID));
-    }
-
-    /**
-     * The span that is stored in the thread context is the one that its descendants are parented to, and its context is propagated in
-     * the trace headers; closing the stored context restores both, but keeps the response headers.
-     */
-    public void test_storeSpanInThreadContext_propagatesTheSpanAndRestoresTheThreadContext() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracerWithW3CPropagator(settings);
-        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, "00-" + TRACE_ID + "-0000000000000001-01");
-        apmTracer.startTrace(TRACEABLE1, "name1", null);
-
-        try (var ignored = apmTracer.storeSpanInThreadContext(TRACEABLE1)) {
-            final Context stored = threadContext.getTransient(Task.APM_TRACE_CONTEXT);
-            assertThat(stored, sameInstance(apmTracer.getSpans().get(TRACEABLE1.getSpanId())));
-            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParent(spanContextOf(stored))));
-            threadContext.addResponseHeader("response-header", "value");
-        }
-
-        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
-        assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo("00-" + TRACE_ID + "-0000000000000001-01"));
-        assertThat(threadContext.getResponseHeaders().get("response-header"), equalTo(List.of("value")));
-    }
-
-    public void test_storeSpanInThreadContext_ofSpanThatWasNotStarted_leavesThreadContextAsItIs() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracerWithW3CPropagator(settings);
-        threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, TRACE_PARENT);
-
-        try (var ignored = apmTracer.storeSpanInThreadContext(TRACEABLE1)) {
-            assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
-            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(TRACE_PARENT));
-        }
-        assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(TRACE_PARENT));
-    }
-
-    public void test_addError_withStacksDisabled_emitsTypeAndMessageOnly() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildTracer(settings, 0, false);
-        tracer.startTrace(TRACEABLE1, "span-with-error", Map.of());
-        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
-
-        tracer.addError(TRACEABLE1, new IllegalStateException("boom"));
-
-        ArgumentCaptor<Attributes> attrs = ArgumentCaptor.forClass(Attributes.class);
-        Mockito.verify(recordedSpan).addEvent(eq("exception"), attrs.capture());
-        Mockito.verify(recordedSpan, never()).recordException(Mockito.any());
-        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.type")), is(IllegalStateException.class.getName()));
-        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.message")), is("boom"));
-        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.stacktrace")), nullValue());
-    }
-
-    public void test_addError_withStacksEnabled_delegatesToRecordException() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildTracer(settings, 0, true);
-        tracer.startTrace(TRACEABLE1, "span-with-error", Map.of());
-        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
-
-        Exception failure = new IllegalStateException("boom");
-        tracer.addError(TRACEABLE1, failure);
-
-        Mockito.verify(recordedSpan).recordException(failure);
-        Mockito.verify(recordedSpan, never()).addEvent(anyString(), Mockito.any(Attributes.class));
-    }
-
-    public void test_addError_withNullMessage_omitsMessageAttribute() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildTracer(settings, 0, false);
-        tracer.startTrace(TRACEABLE1, "span-with-error", Map.of());
-        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
-
-        tracer.addError(TRACEABLE1, new IllegalStateException());
-
-        ArgumentCaptor<Attributes> attrs = ArgumentCaptor.forClass(Attributes.class);
-        Mockito.verify(recordedSpan).addEvent(eq("exception"), attrs.capture());
-        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.type")), is(IllegalStateException.class.getName()));
-        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.message")), nullValue());
-    }
-
-    public void test_setAttributes_callsSetAllAttributes() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildTracer(settings);
-        tracer.startTrace(TRACEABLE1, "name1", Map.of());
-        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
-
-        Attributes attributes = Attributes.of(AttributeKey.stringKey("http.method"), "GET", AttributeKey.longKey("http.status_code"), 200L);
-        tracer.setAttributes(TRACEABLE1, attributes);
-
-        Mockito.verify(recordedSpan).setAllAttributes(attributes);
-    }
-
-    @SuppressForbidden(reason = "OpenTelemetry logs API usage issues via java.util.logging")
-    public void testUntrackedSpans() {
-        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer apmTracer = buildTracer(settings);
-
-        List<String> usageIssues = new ArrayList<>();
-        Handler handler = new Handler() {
-            @Override
-            public void publish(LogRecord logRecord) {
-                usageIssues.add(logRecord.getMessage());
-            }
-
-            @Override
-            public void flush() {}
-
-            @Override
-            public void close() {}
-        };
-        // OpenTelemetry logs API usage issues at WARNING only once per JVM, but at FINEST every time
-        java.util.logging.Logger usageLogger = java.util.logging.Logger.getLogger("io.opentelemetry.usage");
-        Level previousLevel = usageLogger.getLevel();
-        usageLogger.setLevel(Level.FINEST);
-        usageLogger.addHandler(handler);
-        try {
-            apmTracer.stopTrace(TRACEABLE1); // Stopping a trace that was never started
-        } finally {
-            usageLogger.removeHandler(handler);
-            usageLogger.setLevel(previousLevel);
-        }
-
-        assertThat(usageIssues, empty());
-    }
-
-    static class SpyAPMTracer extends APMTracer {
-
-        Map<String, Instant> spanStartTimeMap;
-        private final OpenTelemetry openTelemetry;
-
-        SpyAPMTracer(
-            ThreadContext threadContext,
-            Settings settings,
-            OpenTelemetry openTelemetry,
-            int maxTraceDepth,
-            boolean recordExceptionStacks
-        ) {
-            super(threadContext, settings, () -> openTelemetry, maxTraceDepth, recordExceptionStacks);
-            this.openTelemetry = openTelemetry;
-            this.spanStartTimeMap = new HashMap<>();
-        }
-
-        @Override
-        APMServices createApmServices() {
-            Tracer mockTracer = mock(Tracer.class);
-            doAnswer(invocation -> {
-                String spanName = (String) invocation.getArguments()[0];
-                return new MockSpanBuilder(spanName);
-            }).when(mockTracer).spanBuilder(anyString());
-            return new APMServices(mockTracer, openTelemetry);
-        }
-
-        Instant getSpanStartTime(String spanName) {
-            return spanStartTimeMap.get(spanName);
-        }
-
-        /**
-         * Spans created by the default span builder would be NOOP spans that are not recorded, because these unit tests
-         * have no configured exporter. This builder simulates recorded spans so that we can test the tracer behavior.
-         */
-        class MockSpanBuilder implements SpanBuilder {
-
-            Span span;
-            Instant startTime;
-            String spanName;
-
-            MockSpanBuilder(String spanName) {
-                this.spanName = spanName;
-                this.span = Mockito.mock(Span.class, spanName);
-                // simulate a span discarded because its trace was not sampled
-                Mockito.when(span.isRecording()).thenReturn(isSampled());
-                Mockito.when(span.storeInContext(Mockito.any(Context.class))).thenCallRealMethod();
-                Mockito.when(span.getSpanContext()).thenReturn(withOwnSampling(sampledSpanContext()));
-            }
-
-            private boolean isSampled() {
-                return spanName.endsWith("_discard") == false;
-            }
-
-            /** Keeps the ids of the given context, but has this span's own sampling decision. */
-            private SpanContext withOwnSampling(SpanContext parent) {
-                final TraceFlags flags = isSampled() ? TraceFlags.getSampled() : TraceFlags.getDefault();
-                return SpanContext.create(parent.getTraceId(), parent.getSpanId(), flags, parent.getTraceState());
-            }
-
-            @Override
-            public SpanBuilder setParent(Context context) {
-                SpanContext spanContext = withOwnSampling(Span.fromContext(context).getSpanContext());
-                Mockito.when(span.getSpanContext()).thenReturn(spanContext);
-                return this;
-            }
-
-            @Override
-            public SpanBuilder setNoParent() {
-                Mockito.when(span.getSpanContext()).thenReturn(withOwnSampling(SpanContext.getInvalid()));
-                return this;
-            }
-
-            @Override
-            public SpanBuilder addLink(SpanContext spanContext) {
-                return this;
-            }
-
-            @Override
-            public SpanBuilder addLink(SpanContext spanContext, Attributes attributes) {
-                return this;
-            }
-
-            @Override
-            public SpanBuilder setAttribute(String key, String value) {
-                // Record string attributes on the mock span so tests can Mockito.verify(span).setAttribute(...)
-                span.setAttribute(key, value);
-                return this;
-            }
-
-            @Override
-            public SpanBuilder setAttribute(String key, long value) {
-                return this;
-            }
-
-            @Override
-            public SpanBuilder setAttribute(String key, double value) {
-                return this;
-            }
-
-            @Override
-            public SpanBuilder setAttribute(String key, boolean value) {
-                return this;
-            }
-
-            @Override
-            public <T> SpanBuilder setAttribute(AttributeKey<T> key, T value) {
-                return this;
-            }
-
-            @Override
-            public SpanBuilder setSpanKind(SpanKind spanKind) {
-                return this;
-            }
-
-            @Override
-            public SpanBuilder setStartTimestamp(long startTimestamp, TimeUnit unit) {
-                startTime = Instant.ofEpochMilli(TimeUnit.MILLISECONDS.convert(startTimestamp, unit));
-                return this;
-            }
-
-            @Override
-            public Span startSpan() {
-                // finally record the spanName-startTime association when the span is actually started
-                spanStartTimeMap.put(spanName, startTime);
-                return span;
-            }
-        }
-    }
-
-    private static class TestTraceable implements Traceable {
-        private final String spanId;
-
-        TestTraceable(String spanId) {
-            this.spanId = Objects.requireNonNull(spanId);
-        }
-
-        @Override
-        public String getSpanId() {
-            return spanId;
-        }
+    /** Asserts that the thread context marks the local trace as dropped and that no trace context is propagated. */
+    private void assertLocalTraceDropped() {
+        assertThat(currentSpanContext().isValid(), is(false));
+        assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+        assertThat(threadContext.getHeader(Task.TRACE_STATE), nullValue());
     }
 }

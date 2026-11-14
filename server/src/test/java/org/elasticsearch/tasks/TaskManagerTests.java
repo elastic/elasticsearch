@@ -28,6 +28,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.tracing.AttributeKeys;
+import org.elasticsearch.telemetry.tracing.Span;
+import org.elasticsearch.telemetry.tracing.SpanBuilder;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -60,19 +63,18 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class TaskManagerTests extends ESTestCase {
@@ -102,7 +104,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testTrackingChannelTask() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.noop());
         Set<Task> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
@@ -152,7 +154,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testTrackingTaskAndCloseChannelConcurrently() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.noop());
         Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
@@ -211,7 +213,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testRemoveBansOnChannelDisconnects() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.noop());
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
         taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
@@ -312,185 +314,152 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     /**
-     * Check that registering a task also causes tracing to be started on that task.
+     * Check that registering a task also causes tracing to be started on that task, and that unregistering it ends the span.
      */
-    public void testRegisterTaskStartsTracing() {
-        final Tracer mockTracer = mock(Tracer.class);
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+    public void testRegisterTaskStartsTracingAndUnregisterEndsIt() {
+        final RecordingTracer tracer = new RecordingTracer();
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), tracer);
 
         final boolean hasParentTask = randomBoolean();
         final TaskId parentTask = hasParentTask ? new TaskId("parentNode", 1) : TaskId.EMPTY_TASK_ID;
 
         try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
+            final Task task = taskManager.register("testType", "testAction", taskRequest(parentTask));
 
-            final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
-
-                @Override
-                public void setParentTask(TaskId taskId) {}
-
-                @Override
-                public void setRequestId(long requestId) {}
-
-                @Override
-                public TaskId getParentTask() {
-                    return parentTask;
-                }
-            });
-
-            Map<String, Object> attributes = hasParentTask
-                ? Map.of(Tracer.AttributeKeys.TASK_ID, task.getId(), Tracer.AttributeKeys.PARENT_TASK_ID, parentTask.toString())
-                : Map.of(Tracer.AttributeKeys.TASK_ID, task.getId());
-            verify(mockTracer).startTrace(eq(task), eq("testAction"), eq(attributes));
+            assertThat(tracer.spans, hasSize(1));
+            final RecordedSpan span = tracer.spans.getFirst();
+            assertThat(span.name, equalTo("testAction"));
+            assertThat(
+                span.attributes,
+                equalTo(
+                    hasParentTask
+                        ? Map.of(AttributeKeys.TASK_ID, task.getId(), AttributeKeys.PARENT_TASK_ID, parentTask.toString())
+                        : Map.of(AttributeKeys.TASK_ID, task.getId())
+                )
+            );
+            assertThat(span.endCount, equalTo(0));
 
             taskManager.unregister(task);
-            verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
+            assertThat(span.endCount, equalTo(1));
         }
     }
 
+    public void testTaskSpanIsNotStoredInThreadContext() {
+        final RecordingTracer tracer = new RecordingTracer();
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), tracer);
+
+        final Task task = taskManager.register("testType", "testAction", taskRequest(TaskId.EMPTY_TASK_ID));
+        taskManager.unregister(task);
+
+        assertThat(tracer.spans, hasSize(1));
+        assertThat(tracer.spans.getFirst().storeCount, equalTo(0));
+        assertThat(tracer.spans.getFirst().parent, nullValue());
+    }
+
     /**
-     * The span of a task is not made current in any thread context, so the span of the parent task is made the parent of the span of its
-     * child by storing it in the thread context for as long as the span of the child is being started.
+     * The span of a task is not made current in any thread context, so the span of the child of a task is given the span of its parent
+     * task as the parent explicitly.
      */
-    public void testRegisterTaskStartsTracingUnderTheSpanOfItsParentTask() {
-        final Tracer mockTracer = mock(Tracer.class);
-        final ThreadContext.StoredContext storedParentSpan = mock(ThreadContext.StoredContext.class);
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
-        final Task parent = taskManager.register("testType", "parentAction", taskRequestWithParent(TaskId.EMPTY_TASK_ID));
-        when(mockTracer.storeSpanInThreadContext(parent)).thenReturn(storedParentSpan);
+    public void testSpanOfTheChildOfALocalTaskIsAChildOfTheSpanOfItsParentTask() {
+        final RecordingTracer tracer = new RecordingTracer();
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), tracer);
+        final Task parent = taskManager.register("testType", "parentAction", taskRequest(TaskId.EMPTY_TASK_ID));
+        // other tasks, so that the parent is not just the only one that there is
+        final Task other = taskManager.register("testType", "otherAction", taskRequest(TaskId.EMPTY_TASK_ID));
 
         final Task child = taskManager.register(
             "testType",
             "childAction",
-            taskRequestWithParent(new TaskId(taskManager.getNodeId(), parent.getId()))
+            taskRequest(new TaskId(taskManager.getNodeId(), parent.getId()))
         );
 
-        final var inOrder = inOrder(mockTracer, storedParentSpan);
-        inOrder.verify(mockTracer).storeSpanInThreadContext(parent);
-        inOrder.verify(mockTracer).startTrace(eq(child), eq("childAction"), anyMap());
-        inOrder.verify(storedParentSpan).close();
+        assertThat(tracer.spans, hasSize(3));
+        final RecordedSpan parentSpan = tracer.spans.get(0);
+        final RecordedSpan childSpan = tracer.spans.get(2);
+        assertThat(parentSpan.name, equalTo("parentAction"));
+        assertThat(childSpan.name, equalTo("childAction"));
+        assertThat(childSpan.parent, sameInstance(parentSpan));
+        assertThat(tracer.spans.get(1).parent, nullValue());
+
+        taskManager.unregister(child);
+        taskManager.unregister(other);
+        taskManager.unregister(parent);
+    }
+
+    /**
+     * Same as above, for a task that can be cancelled, which is registered in another way.
+     */
+    public void testSpanOfTheChildOfALocalCancellableTaskIsAChildOfTheSpanOfItsParentTask() {
+        final RecordingTracer tracer = new RecordingTracer();
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), tracer);
+        final Task parent = taskManager.register("testType", "parentAction", new CancellableRequest("parent"));
+        assertThat(parent, instanceOf(CancellableTask.class));
+
+        final Task child = taskManager.register(
+            "testType",
+            "childAction",
+            taskRequest(new TaskId(taskManager.getNodeId(), parent.getId()))
+        );
+
+        assertThat(tracer.spans, hasSize(2));
+        assertThat(tracer.spans.get(1).parent, sameInstance(tracer.spans.get(0)));
 
         taskManager.unregister(child);
         taskManager.unregister(parent);
     }
 
     /**
-     * Check that the span of a task whose parent task is not registered is a child of the span that is current in the thread context.
+     * If the parent task is not registered (any more), the span is not given a parent, so that it is inherited from the thread context.
      */
-    public void testRegisterTaskStartsTracingWithoutStoringASpanIfItsParentTaskIsNotRegistered() {
-        final Tracer mockTracer = mock(Tracer.class);
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+    public void testSpanOfTheChildOfATaskThatIsNotRegisteredHasNoExplicitParent() {
+        final RecordingTracer tracer = new RecordingTracer();
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), tracer);
 
-        final Task child = taskManager.register(
-            "testType",
-            "childAction",
-            taskRequestWithParent(new TaskId(taskManager.getNodeId(), 12345))
-        );
+        final Task child = taskManager.register("testType", "childAction", taskRequest(new TaskId(taskManager.getNodeId(), 12345)));
 
-        verify(mockTracer).startTrace(eq(child), eq("childAction"), anyMap());
-        verify(mockTracer, never()).storeSpanInThreadContext(any());
+        assertThat(tracer.spans, hasSize(1));
+        assertThat(tracer.spans.getFirst().parent, nullValue());
 
         taskManager.unregister(child);
     }
 
-    public void testRegisterTaskDoesNotUseTheSpanOfATaskOfAnotherNodeWithTheSameNumericIdAsItsParent() {
-        final Tracer mockTracer = mock(Tracer.class);
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
-        final Task unrelated = taskManager.register("testType", "unrelatedAction", taskRequestWithParent(TaskId.EMPTY_TASK_ID));
+    /**
+     * Task ids are only unique within a node, so a parent task of another node must not be looked up among the tasks of this one, even
+     * if one of them has the same numeric id: that would make the span of the child a child of the span of an unrelated task.
+     */
+    public void testSpanOfTheChildOfATaskOfAnotherNodeWithTheSameNumericIdHasNoExplicitParent() {
+        final RecordingTracer tracer = new RecordingTracer();
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), tracer);
+        final Task unrelated = taskManager.register("testType", "unrelatedAction", taskRequest(TaskId.EMPTY_TASK_ID));
         final String otherNodeId = randomValueOtherThan(taskManager.getNodeId(), () -> randomAlphaOfLength(10));
 
-        final Task child = taskManager.register(
-            "testType",
-            "childAction",
-            taskRequestWithParent(new TaskId(otherNodeId, unrelated.getId()))
-        );
+        final Task child = taskManager.register("testType", "childAction", taskRequest(new TaskId(otherNodeId, unrelated.getId())));
 
-        verify(mockTracer).startTrace(eq(child), eq("childAction"), anyMap());
-        verify(mockTracer, never()).storeSpanInThreadContext(any());
+        assertThat(tracer.spans, hasSize(2));
+        assertThat(tracer.spans.get(1).parent, nullValue());
 
         taskManager.unregister(child);
         taskManager.unregister(unrelated);
     }
 
-    private static TaskAwareRequest taskRequestWithParent(TaskId parentTaskId) {
-        return new TaskAwareRequest() {
-            @Override
-            public void setParentTask(TaskId taskId) {}
-
-            @Override
-            public void setRequestId(long requestId) {}
-
-            @Override
-            public TaskId getParentTask() {
-                return parentTaskId;
-            }
-        };
-    }
-
     /**
-     * Check that unregistering a task also causes tracing to be stopped on that task.
+     * Check that registering a task without tracing it neither starts nor ends any span.
      */
-    public void testUnregisterTaskStopsTracingIfTraceContextExists() {
-        final Tracer mockTracer = mock(Tracer.class);
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+    public void testRegisterTaskWithoutTracingDoesNotStartSpan() {
+        final RecordingTracer tracer = new RecordingTracer();
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), tracer);
 
-        final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
-
-            @Override
-            public void setParentTask(TaskId taskId) {}
-
-            @Override
-            public void setRequestId(long requestId) {}
-
-            @Override
-            public TaskId getParentTask() {
-                return TaskId.EMPTY_TASK_ID;
-            }
-        });
-
-        // fake an APM trace context
-        threadPool.getThreadContext().putTransient(Task.APM_TRACE_CONTEXT, null);
-
+        final Task task = taskManager.register("testType", "testAction", taskRequest(TaskId.EMPTY_TASK_ID), false);
         taskManager.unregister(task);
-        verify(mockTracer).stopTrace(task);
+
+        assertThat(tracer.spans, empty());
     }
 
-    /**
-     * Check that unregistering a task also causes tracing to be stopped on that task.
-     */
-    public void testUnregisterTaskStopsTracingIfTraceContextMissing() {
-        final Tracer mockTracer = mock(Tracer.class);
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
-
-        final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
-
-            @Override
-            public void setParentTask(TaskId taskId) {}
-
-            @Override
-            public void setRequestId(long requestId) {}
-
-            @Override
-            public TaskId getParentTask() {
-                return TaskId.EMPTY_TASK_ID;
-            }
-        });
-
-        // no trace context, which does not keep the span of the task from being started
-
-        taskManager.unregister(task);
-        verify(mockTracer).startTrace(eq(task), eq("testAction"), anyMap());
-        verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
-        verifyNoMoreInteractions(mockTracer);
-    }
-
-    /**
-     * Check that registering and executing a task also causes tracing to be started on that task.
-     */
     public void testRegisterAndExecuteStartsTracing() {
-        final Tracer mockTracer = mock(Tracer.class);
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+        final RecordingTracer tracer = new RecordingTracer();
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), tracer);
 
-        final Task task = taskManager.registerAndExecute(
+        taskManager.registerAndExecute(
             "testType",
             new TransportAction<ActionRequest, ActionResponse>(
                 "actionName",
@@ -521,13 +490,140 @@ public class TaskManagerTests extends ESTestCase {
             ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
-        verify(mockTracer).startTrace(eq(task), eq("actionName"), anyMap());
-        verify(mockTracer).stopTrace(task); // always attempt stopping to guard against leaks
+        assertThat(tracer.spans, hasSize(1));
+        assertThat(tracer.spans.getFirst().name, equalTo("actionName"));
+        assertThat(tracer.spans.getFirst().endCount, equalTo(1));
+    }
+
+    private static TaskAwareRequest taskRequest(TaskId parentTask) {
+        return new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public void setRequestId(long requestId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return parentTask;
+            }
+        };
+    }
+
+    /**
+     * A {@link Tracer} that records the spans that were started on it, with their attributes and the number of times they were closed.
+     */
+    private static class RecordingTracer implements Tracer {
+        final List<RecordedSpan> spans = new ArrayList<>();
+
+        @Override
+        public SpanBuilder spanBuilder(String name) {
+            final RecordedSpan span = new RecordedSpan(name);
+            return new SpanBuilder() {
+                @Override
+                public SpanBuilder setParent(Span parentSpan) {
+                    span.parent = parentSpan;
+                    return this;
+                }
+
+                @Override
+                public SpanBuilder setNoParent() {
+                    return this;
+                }
+
+                @Override
+                public SpanBuilder setAttribute(String key, boolean value) {
+                    span.attributes.put(key, value);
+                    return this;
+                }
+
+                @Override
+                public SpanBuilder setAttribute(String key, double value) {
+                    span.attributes.put(key, value);
+                    return this;
+                }
+
+                @Override
+                public SpanBuilder setAttribute(String key, long value) {
+                    span.attributes.put(key, value);
+                    return this;
+                }
+
+                @Override
+                public SpanBuilder setAttribute(String key, String value) {
+                    span.attributes.put(key, value);
+                    return this;
+                }
+
+                @Override
+                public Span startSpan() {
+                    spans.add(span);
+                    return span;
+                }
+            };
+        }
+
+        @Override
+        public Span currentSpan() {
+            return Span.noop();
+        }
+    }
+
+    private static class RecordedSpan implements Span {
+        final String name;
+        final Map<String, Object> attributes = new HashMap<>();
+        Span parent;
+        int endCount;
+        int storeCount;
+
+        RecordedSpan(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public Span setAttribute(String key, boolean value) {
+            attributes.put(key, value);
+            return this;
+        }
+
+        @Override
+        public Span setAttribute(String key, double value) {
+            attributes.put(key, value);
+            return this;
+        }
+
+        @Override
+        public Span setAttribute(String key, long value) {
+            attributes.put(key, value);
+            return this;
+        }
+
+        @Override
+        public Span setAttribute(String key, String value) {
+            attributes.put(key, value);
+            return this;
+        }
+
+        @Override
+        public Span recordException(Throwable throwable) {
+            return this;
+        }
+
+        @Override
+        public void end() {
+            endCount++;
+        }
+
+        @Override
+        public ThreadContext.StoredContext storeInThreadContext() {
+            storeCount++;
+            return () -> {};
+        }
     }
 
     public void testRegisterWithEnabledDisabledTracing() {
-        final Tracer mockTracer = mock(Tracer.class);
-        final TaskManager taskManager = spy(new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer));
+
+        final TaskManager taskManager = spy(new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.noop()));
 
         taskManager.register("type", "action", makeTaskRequest(true, 123), false);
         verify(taskManager, times(0)).startTrace(any());
@@ -675,7 +771,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testForEachCancellableTaskIteratesOverTasks() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.noop());
 
         Task task1 = taskManager.register("transport", "action1", new CancellableRequest("1"));
         Task task2 = taskManager.register("transport", "action2", new CancellableRequest("2"));
@@ -697,7 +793,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testForEachCancellableTaskEarlyTermination() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.noop());
 
         Task task1 = taskManager.register("transport", "action1", new CancellableRequest("1"));
         Task task2 = taskManager.register("transport", "action2", new CancellableRequest("2"));
@@ -719,7 +815,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testForEachCancellableTaskSkipsNonPositiveThreshold() {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.noop());
 
         Task task = taskManager.register("transport", "action", new CancellableRequest("1"));
         try {
@@ -741,7 +837,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testForEachCancellableTaskReportsHasOutstandingChildren() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.noop());
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
         taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {

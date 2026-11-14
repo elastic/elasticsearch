@@ -9,6 +9,8 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -379,6 +381,58 @@ public class EscfBatchBuilderTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testStreamedBinaryMatchesCopiedBinary() throws IOException {
+        int rows = between(1, 50);
+        List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < rows; i++) {
+            values.add(i > 0 && rarely() ? null : new BytesRef(randomByteArrayOfLength(between(0, 2048))));
+        }
+        try (EscfBatchBuilder streamed = newBuilder(); EscfBatchBuilder copied = newBuilder()) {
+            for (BytesRef value : values) {
+                EscfRowBuffer s = streamed.beginRow();
+                EscfRowBuffer c = copied.beginRow();
+                if (value != null) {
+                    s.binaryField("b", out -> out.writeBytes(value.bytes, value.offset, value.length));
+                    c.binaryField("b", value);
+                }
+                s.finishRow();
+                c.finishRow();
+                streamed.commit(0);
+                copied.commit(0);
+            }
+            try (EscfBatch s = streamed.buildPartition(0); EscfBatch c = copied.buildPartition(0)) {
+                assertEquals(EscfColumnKind.BINARY, s.column(0).kind());
+                assertEquals(binaryValues(c.column(0), rows), binaryValues(s.column(0), rows));
+            }
+        }
+    }
+
+    public void testStreamedBinaryOnUnionColumn() throws IOException {
+        try (EscfBatchBuilder builder = newBuilder()) {
+            EscfRowBuffer row = builder.beginRow();
+            row.longField("b", 1L);
+            row.finishRow();
+            builder.commit(0);
+            row = builder.beginRow();
+            row.binaryField("b", out -> out.writeBytes(new byte[] { 1, 2, 3 }, 0, 3));
+            row.finishRow();
+            builder.commit(0);
+            try (EscfBatch batch = builder.buildPartition(0)) {
+                assertEquals(2, batch.docCount());
+                assertEquals(EscfColumnKind.UNION, batch.column(0).kind());
+            }
+        }
+    }
+
+    private static List<BytesRef> binaryValues(EscfColumn column, int rows) {
+        List<BytesRef> values = new ArrayList<>(Collections.nCopies(rows, null));
+        ObjectTupleCursor<BytesRef> cursor = column.bytesRefCursor(true);
+        for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
+            values.set(doc, BytesRef.deepCopyOf(cursor.value()));
+        }
+        return values;
     }
 
     private static EscfBatchBuilder newBuilder() {

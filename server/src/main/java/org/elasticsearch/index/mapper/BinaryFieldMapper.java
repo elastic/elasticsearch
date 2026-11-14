@@ -16,12 +16,16 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.LuceneBinaryColumn;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
@@ -383,6 +387,41 @@ public class BinaryFieldMapper extends FieldMapper {
             // no doc values
             context.addToFieldNames(fieldType().name());
         }
+    }
+
+    /**
+     * Only single-valued doc values are mapped in batch: they hold the raw bytes, so the source column is indexed as it is.
+     */
+    @Override
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        return fieldType().columnarFormat() == BinaryDocValuesFormat.PLAIN
+            && stored == false
+            && docValues.onFailure() != DocValuesParameter.Values.OnFailure.IGNORE;
+    }
+
+    /**
+     * Only raw bytes: base64 values from a JSON source take the row path.
+     */
+    @Override
+    public boolean supportsColumnKind(byte kind) {
+        return kind == EscfColumnKind.BINARY;
+    }
+
+    /**
+     * The doc values alias the source column, without a copy.
+     */
+    @Override
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        if (supportsColumnKind(source.kind()) == false) {
+            throw new UnsupportedOperationException(
+                Strings.format(
+                    "mapColumnBatch: ESCF column kind [%s] is not supported for binary field [%s]",
+                    EscfColumnKind.name(source.kind()),
+                    fullPath()
+                )
+            );
+        }
+        ctx.addColumn(LuceneBinaryColumn.of(source.columnData(), fieldType().name(), org.apache.lucene.document.BinaryDocValuesField.TYPE));
     }
 
     @Override

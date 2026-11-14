@@ -12,11 +12,14 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -154,6 +157,28 @@ public final class EscfRowBuffer {
     /** Stages a UTF-8 string value from a raw byte slice. Returns the leaf column index. */
     public int stringField(String name, byte[] bytes, int offset, int length) {
         return stringField(name, new XContentString.UTF8Bytes(bytes, offset, length));
+    }
+
+    /**
+     * Stages a raw binary value. The bytes are copied on {@link EscfBatchBuilder#commit}, so they must not change before.
+     * Returns the leaf column index.
+     */
+    public int binaryField(String name, BytesRef value) {
+        int colIdx = addLeaf(name);
+        scratchType[colIdx] = SourceValueType.BINARY;
+        scratchVar[colIdx] = value;
+        return colIdx;
+    }
+
+    /**
+     * Stages a raw binary value that {@code writer} writes into the column on {@link EscfBatchBuilder#commit}, without an
+     * intermediate copy. Returns the leaf column index.
+     */
+    public int binaryField(String name, CheckedConsumer<StreamOutput, IOException> writer) {
+        int colIdx = addLeaf(name);
+        scratchType[colIdx] = SourceValueType.BINARY;
+        scratchVar[colIdx] = writer;
+        return colIdx;
     }
 
     /** Stages a boolean value. Returns the leaf column index. */

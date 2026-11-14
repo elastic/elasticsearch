@@ -949,6 +949,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         return measurementsAsLongs.getFirst();
     }
 
+    /// Flushes the VBCC mid-warming so a range has to be re-driven from the object store, then blocks the object store before the engine
+    /// opens: any range that warming reported done without it being resident fails the recovery. Regression test for search warming
+    /// waiting on ranges claimed by another caller (the metadata read), see `awaitPendingFill` on `CacheFileRegion#populate`.
     public void testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded() {
         // When true, the VBCC is released immediately after upload (pre-recentlyUploadedVbccs behaviour): the first chunk
         // request from the search node receives a ResourceAlreadyUploadedException and warming falls back to the object store.
@@ -1904,13 +1907,24 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             RangeMissingHandler writer,
             Executor fetchExecutor,
             long timestampMillis,
+            boolean awaitPendingFill,
             ActionListener<Boolean> listener
         ) {
             if (noFreeRegionForWarming.get()) {
                 // Simulate no free region
                 listener.onResponse(false);
             } else {
-                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, timestampMillis, listener);
+                super.maybeFetchRange(
+                    cacheKey,
+                    region,
+                    range,
+                    blobLength,
+                    writer,
+                    fetchExecutor,
+                    timestampMillis,
+                    awaitPendingFill,
+                    listener
+                );
             }
         }
     }

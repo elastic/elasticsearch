@@ -303,6 +303,7 @@ public class StatelessOnlinePrewarmingService implements OnlinePrewarmingService
                 }
             }),
             timestampMillis,
+            false,
             listener
         );
     }

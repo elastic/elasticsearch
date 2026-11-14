@@ -255,8 +255,9 @@ public class ExternalSourceResolver {
     /** The schema, file-metadata and dataset-aggregate caches. Listing goes through {@link #listingService}. */
     private final ExternalSourceCacheService cacheService;
     /**
-     * Set while the first resolution pass runs: an object-changed failure then is retried by {@link #resolve}, so it is logged at
-     * DEBUG and not counted as a discovery failure. The second pass runs with it clear, so a failure that reaches the caller is.
+     * Set while the first resolution pass runs: a stale cached object (rewritten or deleted) is then retried by
+     * {@link #resolve}, so it is logged at DEBUG and not counted as a discovery failure. The second pass runs with it
+     * clear, so a failure that reaches the caller is.
      */
     private volatile boolean objectChangeRetryAhead;
     /** The listings and file-metadata entries this query read from the caches, so a failure can drop exactly those. */
@@ -781,10 +782,11 @@ public class ExternalSourceResolver {
      * predicates built from the TEMPORAL extract before {@code projectListingHints} drops
      * {@code @timestamp}. Absent path means grain INs only.
      * <p>
-     * An object rewritten after its listing was cached fails its conditional read with the object-changed condition. When
-     * that happens here, during resolution, nothing has run yet and the query's task is still live, so resolution drops
-     * the cache entries it used and runs once more: the second pass lists the object again and reads its new version. A
-     * second failure is returned as it is. A rewrite caught later, by a read during execution, is not retried here.
+     * An object rewritten or deleted after its listing was cached fails its read with {@code OBJECT_CHANGED} or
+     * {@code OBJECT_NOT_FOUND}. When that happens here, during resolution, nothing has run yet and the query's task is
+     * still live, so resolution drops the cache entries it used and runs once more: the second pass lists the store again.
+     * A second failure is returned as it is. The same conditions caught later, by a read during execution, are not retried
+     * here.
      * <p>
      * The first pass's planning-memory charges are held until the query ends, so the second pass runs with roughly twice the
      * listing and schema-map charge. A glob near the planning limit can then trip the request breaker, a retryable 429, where a
@@ -811,11 +813,11 @@ public class ExternalSourceResolver {
             folderRanges,
             ActionListener.runBefore(listener, () -> objectChangeRetryAhead = false).delegateResponse((l, e) -> {
                 objectChangeRetryAhead = false;
-                if (ExternalException.hasCondition(e, ExternalException.Condition.OBJECT_CHANGED) == false || isCancelled()) {
+                if (ExternalException.isStaleCachedObject(e) == false || isCancelled()) {
                     l.onFailure(e);
                     return;
                 }
-                LOGGER.debug("an external object changed during resolution; resolving {} again", paths);
+                LOGGER.debug("an external object was missing or rewritten during resolution; resolving {} again", paths);
                 invalidateUsedCacheEntries();
                 resolveOnce(paths, pathConfigs, filterHints, declaredMappings, pathsRequiringStats, pathsReadingNoRows, folderRanges, l);
             })
@@ -1145,11 +1147,10 @@ public class ExternalSourceResolver {
     // Package-private so the client-status recovery gate below can be tested directly.
     RuntimeException mapResolveFailure(String path, Exception e) {
         RuntimeException mapped = doMapResolveFailure(path, e);
-        // A cancellation is the query's outcome, not a discovery failure, and is not counted. Nor is an object change the retry
-        // in resolve() will handle: only the failure that reaches the caller counts.
-        boolean retriedObjectChange = objectChangeRetryAhead
-            && ExternalException.hasCondition(mapped, ExternalException.Condition.OBJECT_CHANGED);
-        if (ExceptionsHelper.unwrap(mapped, TaskCancelledException.class) == null && retriedObjectChange == false) {
+        // A cancellation is the query's outcome, not a discovery failure, and is not counted. Nor is a stale cached
+        // object the retry in resolve() will handle: only the failure that reaches the caller counts.
+        boolean retriedStaleObject = objectChangeRetryAhead && ExternalException.isStaleCachedObject(mapped);
+        if (ExceptionsHelper.unwrap(mapped, TaskCancelledException.class) == null && retriedStaleObject == false) {
             recordDiscoveryFailure(path, mapped);
         }
         return mapped;
@@ -1227,7 +1228,11 @@ public class ExternalSourceResolver {
         // an IllegalArgumentException, which would otherwise shadow the typed condition.
         ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
         if (clientException != null) {
-            logClientResolveFailure(path, clientException.getMessage(), e);
+            if (objectChangeRetryAhead && ExternalException.isStaleCachedObject(clientException)) {
+                LOGGER.debug("External source [{}] was missing during resolution, resolving again: {}", path, clientException.getMessage());
+            } else {
+                logClientResolveFailure(path, clientException.getMessage(), e);
+            }
             return clientException.withoutCause();
         }
         IllegalArgumentException clientError = (IllegalArgumentException) ExceptionsHelper.unwrap(e, IllegalArgumentException.class);

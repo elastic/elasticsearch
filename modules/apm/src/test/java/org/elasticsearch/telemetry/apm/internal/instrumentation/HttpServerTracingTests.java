@@ -14,8 +14,6 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -46,14 +44,12 @@ public class HttpServerTracingTests extends ESTestCase {
             .withPath("/my-index/_search")
             .withHeaders(Map.of("Accept-Encoding", List.of("gzip")))
             .build();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
-        instrumentation.start(threadContext, request, "/{index}/_search");
+        instrumentation.start(request, "/{index}/_search");
 
         var inOrder = inOrder(tracer);
         inOrder.verify(tracer)
             .startTrace(
-                threadContext,
                 request,
                 "GET /{index}/_search",
                 Map.of(
@@ -93,15 +89,13 @@ public class HttpServerTracingTests extends ESTestCase {
                 )
             )
             .build();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         var route = "/{index}/_search";
 
-        instrumentation.start(threadContext, request, route);
+        instrumentation.start(request, route);
 
         var inOrder = inOrder(tracer);
         inOrder.verify(tracer)
             .startTrace(
-                threadContext,
                 request,
                 "GET /{index}/_search",
                 Map.of(
@@ -153,13 +147,12 @@ public class HttpServerTracingTests extends ESTestCase {
     }
 
     public void test_end_setsResponseAttributes_minimal() {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/_search")
             .build();
         RestResponse response = new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
 
-        var releasable = instrumentation.prepareEnd(threadContext, request, response);
+        var releasable = instrumentation.prepareEnd(request, response);
 
         verifyNoMoreInteractions(tracer, spanStatusBuilder);
 
@@ -180,7 +173,6 @@ public class HttpServerTracingTests extends ESTestCase {
     }
 
     public void test_end_setsResponseAttributes_full() {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("/my-index/_search")
             .build();
@@ -188,7 +180,7 @@ public class HttpServerTracingTests extends ESTestCase {
 
         when(tracer.spanStatusBuilder(request)).thenReturn(spanStatusBuilder);
 
-        var releasable = instrumentation.prepareEnd(threadContext, request, response);
+        var releasable = instrumentation.prepareEnd(request, response);
 
         verifyNoMoreInteractions(tracer, spanStatusBuilder);
 

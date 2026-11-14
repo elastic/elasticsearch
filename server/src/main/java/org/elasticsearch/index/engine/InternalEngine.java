@@ -1240,7 +1240,7 @@ public class InternalEngine extends Engine {
             }
         }
 
-        return versionMap.getUnderLock(id);
+        return versionMap.getForWriteUnderLock(id);
     }
 
     private boolean canOptimizeAddDocument(Index index) {
@@ -2354,7 +2354,7 @@ public class InternalEngine extends Engine {
     private boolean assertDocDoesNotExist(final Index index, final boolean allowDeleted) throws IOException {
         // NOTE this uses direct access to the version map since we are in the assertion code where we maintain a secondary
         // map in the version map such that we don't need to refresh if we are unsafe;
-        final VersionValue versionValue = versionMap.getVersionForAssert(index.uid());
+        final VersionValue versionValue = versionMap.getVersionForWriteForAssert(index.uid());
         if (versionValue != null) {
             if (versionValue.isDelete() == false || allowDeleted == false) {
                 throw new AssertionError("doc [" + index.id() + "] exists in version map (version " + versionValue + ")");
@@ -4347,7 +4347,7 @@ public class InternalEngine extends Engine {
         final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
         // We treat a delete on the tombstones on replicas as a regular document, then use updateDocument (not addDocument).
         if (allowDeleted) {
-            final VersionValue versionValue = versionMap.getVersionForAssert(id);
+            final VersionValue versionValue = versionMap.getVersionForWriteForAssert(id);
             if (versionValue != null && versionValue.isDelete()) {
                 return true;
             }

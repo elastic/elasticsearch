@@ -92,7 +92,7 @@ public class APMTracingServiceTests extends ESTestCase {
         }
     }
 
-    /** A service whose spans are exported to {@link #exporter} by the service. */
+    /** A service whose spans are exported to {@link #exporter} through the sampler of the service. */
     private APMTracingService service(boolean enabled) {
         final Settings settings = Settings.builder()
             .put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), enabled)
@@ -101,8 +101,10 @@ public class APMTracingServiceTests extends ESTestCase {
         return new APMTracingService(
             new ThreadContext(settings),
             settings,
-            () -> OpenTelemetrySdk.builder()
-                .setTracerProvider(SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exporter)).build())
+            sampler -> () -> OpenTelemetrySdk.builder()
+                .setTracerProvider(
+                    SdkTracerProvider.builder().setSampler(sampler).addSpanProcessor(SimpleSpanProcessor.create(exporter)).build()
+                )
                 .build()
         );
     }

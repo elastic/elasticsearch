@@ -113,6 +113,7 @@ import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BatchMappingShardContext;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -1181,6 +1182,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ifSeqNo,
             ifPrimaryTerm
         );
+    }
+
+    /**
+     * Hands a mapped batch chunk to the engine's document size reporter before the chunk's columns are frozen, see
+     * {@link Engine#onBatchParsingCompleted}.
+     */
+    @Override
+    public void onBatchParsingCompleted(BatchMappingContext context) {
+        getEngine().onBatchParsingCompleted(context);
     }
 
     /**

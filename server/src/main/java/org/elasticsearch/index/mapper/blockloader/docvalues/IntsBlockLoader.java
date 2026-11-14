@@ -65,7 +65,7 @@ public class IntsBlockLoader extends AbstractNumericBlockLoader {
                     return result;
                 }
             }
-            try (IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+            try (SingletonIntBuilder builder = factory.singletonInts(docs.count() - offset, pool)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (docValues.advanceExact(doc)) {

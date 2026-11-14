@@ -68,7 +68,7 @@ public class DoublesBlockLoader extends AbstractNumericBlockLoader {
                     return result;
                 }
             }
-            try (DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
+            try (SingletonDoubleBuilder builder = factory.singletonDoubles(docs.count() - offset, pool)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (docValues.advanceExact(doc)) {

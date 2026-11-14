@@ -19,6 +19,7 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
@@ -128,4 +129,29 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
         return new IndexWriter(directory, iwc);
     }
 
+    public void testNulls() {
+        BlockFactory factory = blockFactory();
+        int count = between(1, 100);
+        boolean[] nulls = new boolean[count];
+        try (SingletonDoubleBuilder builder = new SingletonDoubleBuilder(count, factory, null)) {
+            for (int i = 0; i < count; i++) {
+                nulls[i] = randomBoolean();
+                if (nulls[i]) {
+                    builder.appendNull();
+                } else {
+                    builder.appendDouble(i);
+                }
+            }
+            try (DoubleBlock block = (DoubleBlock) builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(count));
+                for (int i = 0; i < count; i++) {
+                    assertThat(block.isNull(i), equalTo(nulls[i]));
+                    if (nulls[i] == false) {
+                        assertThat(block.getDouble(block.getFirstValueIndex(i)), equalTo((double) i));
+                    }
+                }
+            }
+        }
+        assertThat(factory.breaker().getUsed(), equalTo(0L));
+    }
 }

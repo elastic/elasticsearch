@@ -14,8 +14,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 
+import java.util.BitSet;
+
 /**
- * Like {@link org.elasticsearch.compute.data.LongBlockBuilder} but optimized for collecting dense single valued values.
+ * Like {@link org.elasticsearch.compute.data.LongBlockBuilder} but optimized for collecting single valued values, which may be null.
  * Additionally, this builder doesn't grow its array.
  */
 public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuilder, Releasable, Block.Builder {
@@ -26,6 +28,7 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
     private final SingleArrayPool pool;
 
     private int count;
+    private BitSet nulls;
 
     public SingletonLongBuilder(int expectedCount, BlockFactory blockFactory, @Nullable SingleArrayPool pool) {
         this.blockFactory = blockFactory;
@@ -38,7 +41,12 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
 
     @Override
     public Block.Builder appendNull() {
-        throw new UnsupportedOperationException();
+        if (nulls == null) {
+            nulls = new BitSet();
+        }
+        nulls.set(count);
+        values[count++] = 0;
+        return this;
     }
 
     @Override
@@ -75,11 +83,13 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
         if (expectedCount != count) {
             throw new IllegalStateException("expected [" + expectedCount + "] values but got [" + count + "]");
         }
-        var vector = blockFactory.newLongArrayVector(values, count);
+        Block block = nulls == null
+            ? blockFactory.newLongArrayVector(values, count).asBlock()
+            : blockFactory.newLongArrayBlock(values, count, null, nulls, Block.MvOrdering.SORTED_ASCENDING);
         if (pool != null) {
-            vector.attachReleasable(() -> pool.putLongs(values));
+            block.attachReleasable(() -> pool.putLongs(values));
         }
-        return vector.asBlock();
+        return block;
     }
 
     @Override

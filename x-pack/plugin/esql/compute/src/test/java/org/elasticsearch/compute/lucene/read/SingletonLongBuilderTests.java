@@ -137,6 +137,75 @@ public class SingletonLongBuilderTests extends ComputeTestCase {
         }
     }
 
+    public void testNulls() {
+        BlockFactory factory = blockFactory();
+        try (SingleArrayPool pool = new SingleArrayPool(factory.breaker(), () -> {})) {
+            for (int page = 0; page < 3; page++) {
+                int count = between(1, 100);
+                boolean[] nulls = new boolean[count];
+                try (SingletonLongBuilder builder = new SingletonLongBuilder(count, factory, randomBoolean() ? pool : null)) {
+                    for (int i = 0; i < count; i++) {
+                        nulls[i] = page != 1 && randomBoolean();
+                        if (nulls[i]) {
+                            builder.appendNull();
+                        } else {
+                            builder.appendLong(i);
+                        }
+                    }
+                    try (LongBlock block = (LongBlock) builder.build()) {
+                        assertThat(block.getPositionCount(), equalTo(count));
+                        for (int i = 0; i < count; i++) {
+                            assertThat(block.isNull(i), equalTo(nulls[i]));
+                            if (nulls[i] == false) {
+                                assertThat(block.getLong(block.getFirstValueIndex(i)), equalTo((long) i));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assertThat(factory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A field that is missing from some documents is read with nulls, and still pools its array.
+     */
+    public void testReadSparsePoolsArray() throws IOException {
+        BlockFactory factory = blockFactory();
+        int count = 1_000;
+        try (Directory directory = newDirectory(); SingleArrayPool pool = new SingleArrayPool(factory.breaker(), () -> {})) {
+            try (IndexWriter indexWriter = createIndexWriter(directory)) {
+                for (int i = 0; i < count; i++) {
+                    indexWriter.addDocument(i % 3 == 0 ? List.of() : List.of(new NumericDocValuesField("field", i)));
+                }
+                indexWriter.forceMerge(1);
+            }
+            try (
+                IndexReader reader = DirectoryReader.open(directory);
+                ComputeBlockLoaderFactory loaderFactory = new ComputeBlockLoaderFactory(factory)
+            ) {
+                LeafReaderContext ctx = reader.leaves().get(0);
+                try (BlockLoader.ColumnAtATimeReader columnReader = new LongsBlockLoader("field").reader(factory.breaker(), ctx)) {
+                    long readerOnly = factory.breaker().getUsed();
+                    for (int from = 0; from < count; from += 250) {
+                        int[] docs = IntStream.range(from, from + 250).toArray();
+                        try (LongBlock block = (LongBlock) columnReader.read(loaderFactory, TestBlock.docs(docs), 0, false, pool)) {
+                            assertThat(block.getPositionCount(), equalTo(docs.length));
+                            for (int i = 0; i < docs.length; i++) {
+                                assertThat(block.isNull(i), equalTo(docs[i] % 3 == 0));
+                                if (block.isNull(i) == false) {
+                                    assertThat(block.getLong(block.getFirstValueIndex(i)), equalTo((long) docs[i]));
+                                }
+                            }
+                        }
+                        assertThat(factory.breaker().getUsed() - readerOnly, greaterThan(0L));
+                    }
+                }
+            }
+        }
+        assertThat(factory.breaker().getUsed(), equalTo(0L));
+    }
+
     public void testPoolBreaks() {
         BlockFactory factory = blockFactory(ByteSizeValue.ofBytes(1000));
         try (SingleArrayPool pool = new SingleArrayPool(factory.breaker(), () -> {})) {

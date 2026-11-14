@@ -14,8 +14,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 
+import java.util.BitSet;
+
 /**
- * Like {@link org.elasticsearch.compute.data.IntBlockBuilder} but optimized for collecting dense single valued values.
+ * Like {@link org.elasticsearch.compute.data.IntBlockBuilder} but optimized for collecting single valued values, which may be null.
  * Additionally, this builder doesn't grow its array.
  */
 public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilder, Releasable, Block.Builder {
@@ -26,6 +28,7 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
     private final SingleArrayPool pool;
 
     private int count;
+    private BitSet nulls;
 
     public SingletonIntBuilder(int expectedCount, BlockFactory blockFactory, @Nullable SingleArrayPool pool) {
         this.blockFactory = blockFactory;
@@ -38,7 +41,12 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
 
     @Override
     public Block.Builder appendNull() {
-        throw new UnsupportedOperationException();
+        if (nulls == null) {
+            nulls = new BitSet();
+        }
+        nulls.set(count);
+        values[count++] = 0;
+        return this;
     }
 
     @Override
@@ -75,11 +83,19 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
         if (expectedCount != count) {
             throw new IllegalStateException("expected " + expectedCount + " values but got " + count);
         }
-        var vector = blockFactory.newIntArrayVector(values, count);
+        Block block = nulls == null
+            ? blockFactory.newIntArrayVector(values, count).asBlock()
+            : blockFactory.newIntArrayBlock(values, count, null, nulls, Block.MvOrdering.SORTED_ASCENDING);
         if (pool != null) {
-            vector.attachReleasable(() -> pool.putInts(values));
+            block.attachReleasable(() -> pool.putInts(values));
         }
-        return vector.asBlock();
+        return block;
+    }
+
+    @Override
+    public BlockLoader.SingletonIntBuilder appendInt(int value) {
+        values[count++] = value;
+        return this;
     }
 
     @Override

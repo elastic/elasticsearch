@@ -15,8 +15,10 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
+import java.util.BitSet;
+
 /**
- * Like {@link org.elasticsearch.compute.data.DoubleBlockBuilder} but optimized for collecting dense single valued values.
+ * Like {@link org.elasticsearch.compute.data.DoubleBlockBuilder} but optimized for collecting single valued values, which may be null.
  * Additionally, this builder doesn't grow its array.
  */
 public final class SingletonDoubleBuilder implements BlockLoader.SingletonDoubleBuilder, Releasable, Block.Builder {
@@ -27,6 +29,7 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
     private final SingleArrayPool pool;
 
     private int count;
+    private BitSet nulls;
 
     public SingletonDoubleBuilder(int expectedCount, BlockFactory blockFactory, @Nullable SingleArrayPool pool) {
         this.blockFactory = blockFactory;
@@ -39,7 +42,12 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
 
     @Override
     public Block.Builder appendNull() {
-        throw new UnsupportedOperationException();
+        if (nulls == null) {
+            nulls = new BitSet();
+        }
+        nulls.set(count);
+        values[count++] = 0;
+        return this;
     }
 
     @Override
@@ -76,11 +84,19 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
         if (expectedCount != count) {
             throw new IllegalStateException("expected " + expectedCount + " values but got " + count);
         }
-        var vector = blockFactory.newDoubleArrayVector(values, count);
+        Block block = nulls == null
+            ? blockFactory.newDoubleArrayVector(values, count).asBlock()
+            : blockFactory.newDoubleArrayBlock(values, count, null, nulls, Block.MvOrdering.SORTED_ASCENDING);
         if (pool != null) {
-            vector.attachReleasable(() -> pool.putDoubles(values));
+            block.attachReleasable(() -> pool.putDoubles(values));
         }
-        return vector.asBlock();
+        return block;
+    }
+
+    @Override
+    public BlockLoader.SingletonDoubleBuilder appendDouble(double value) {
+        values[count++] = value;
+        return this;
     }
 
     @Override

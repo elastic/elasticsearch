@@ -708,7 +708,7 @@ public interface BlockLoader {
         LongBuilder longs(int expectedCount);
 
         /**
-         * Build a specialized builder for singleton dense long based fields with the following constraints:
+         * Build a specialized builder for singleton long based fields, which may have nulls, with the following constraints:
          * <ul>
          *     <li>Only one value per document can be collected</li>
          *     <li>No more than expectedCount values can be collected</li>
@@ -720,7 +720,7 @@ public interface BlockLoader {
         SingletonLongBuilder singletonLongs(int expectedCount, @Nullable ArrayPool pool);
 
         /**
-         * Build a specialized builder for singleton dense int based fields with the following constraints:
+         * Build a specialized builder for singleton int based fields, which may have nulls, with the following constraints:
          * <ul>
          *     <li>Only one value per document can be collected</li>
          *     <li>No more than expectedCount values can be collected</li>
@@ -732,7 +732,7 @@ public interface BlockLoader {
         SingletonIntBuilder singletonInts(int expectedCount, @Nullable ArrayPool pool);
 
         /**
-         * Build a specialized builder for singleton dense double based fields with the following constraints:
+         * Build a specialized builder for singleton double based fields, which may have nulls, with the following constraints:
          * <ul>
          *     <li>Only one value per document can be collected</li>
          *     <li>No more than expectedCount values can be collected</li>
@@ -944,7 +944,7 @@ public interface BlockLoader {
     }
 
     /**
-     * Specialized builder for collecting dense arrays of long values.
+     * Specialized builder for collecting arrays of single long values or nulls.
      */
     interface SingletonLongBuilder extends Builder {
         SingletonLongBuilder appendLong(long value);
@@ -953,16 +953,20 @@ public interface BlockLoader {
     }
 
     /**
-     * Specialized builder for collecting dense arrays of double values.
+     * Specialized builder for collecting arrays of single double values or nulls.
      */
     interface SingletonDoubleBuilder extends Builder {
+        SingletonDoubleBuilder appendDouble(double value);
+
         SingletonDoubleBuilder appendLongs(BlockDocValuesReader.ToDouble toDouble, long[] values, int from, int length);
     }
 
     /**
-     * Specialized builder for collecting dense arrays of int values.
+     * Specialized builder for collecting arrays of single int values or nulls.
      */
     interface SingletonIntBuilder extends Builder {
+        SingletonIntBuilder appendInt(int value);
+
         SingletonIntBuilder appendLongs(long[] values, int from, int length);
 
         SingletonIntBuilder appendInts(int[] values, int from, int length);

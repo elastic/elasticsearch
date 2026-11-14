@@ -65,7 +65,7 @@ public class LongsBlockLoader extends AbstractNumericBlockLoader {
                     return result;
                 }
             }
-            try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+            try (SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset, pool)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (docValues.advanceExact(doc)) {

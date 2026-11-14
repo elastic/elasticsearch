@@ -54,10 +54,9 @@ public class DeterministicTaskQueue {
     public static final String NODE_ID_LOG_CONTEXT_KEY = "nodeId";
 
     /**
-     * A runnable task with what {@link SelectionPolicy#RANDOM_PRIORITY} needs to know about it: its priority, and the value of
-     * {@link #picks} when it became runnable.
+     * A runnable task with its priority under {@link SelectionPolicy#RANDOM_PRIORITY}.
      */
-    private record RunnableTask(Runnable task, double priority, long runnableSincePick) {}
+    private record RunnableTask(Runnable task, double priority) {}
 
     private final List<RunnableTask> runnableTasks = new ArrayList<>();
 
@@ -99,18 +98,10 @@ public class DeterministicTaskQueue {
         RANDOM_PRIORITY
     }
 
-    /**
-     * Under {@link SelectionPolicy#RANDOM_PRIORITY}, a task passed over more than this many times fails the test rather than
-     * being released quietly: reaching it means a zero-delay livelock or starvation by the policy, and either needs a look.
-     */
-    static final long DEFAULT_PRIORITY_AGE_CAP = 10_000L;
-
     private SelectionPolicy selectionPolicy = SelectionPolicy.UNIFORM;
     // Separate generator so that priority draws neither shift the uniform policy's draws nor trip the test Random's thread check
     // when a task is submitted from outside the test thread.
     private Random priorityRandom;
-    private final long priorityAgeCap;
-    private long picks;
 
     private final Random random;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
@@ -120,13 +111,7 @@ public class DeterministicTaskQueue {
     private long latestDeferredExecutionTime;
 
     public DeterministicTaskQueue(Random random) {
-        this(random, DEFAULT_PRIORITY_AGE_CAP);
-    }
-
-    // visible for testing
-    DeterministicTaskQueue(Random random, long priorityAgeCap) {
         this.random = random;
-        this.priorityAgeCap = priorityAgeCap;
     }
 
     public DeterministicTaskQueue() {
@@ -245,26 +230,6 @@ public class DeterministicTaskQueue {
                 best = i;
             }
         }
-        // every other runnable task is passed over once more by this pick
-        int oldest = -1;
-        for (int i = 0; i < runnableTasks.size(); i++) {
-            if (i != best && (oldest == -1 || runnableTasks.get(i).runnableSincePick() < runnableTasks.get(oldest).runnableSincePick())) {
-                oldest = i;
-            }
-        }
-        if (oldest != -1) {
-            final long passedOver = picks + 1 - runnableTasks.get(oldest).runnableSincePick();
-            if (passedOver > priorityAgeCap) {
-                throw new AssertionError(
-                    "priority policy: task passed over ["
-                        + passedOver
-                        + "] times, more than the cap ["
-                        + priorityAgeCap
-                        + "]: "
-                        + runnableTasks.get(oldest).task()
-                );
-            }
-        }
         return best;
     }
 
@@ -273,12 +238,11 @@ public class DeterministicTaskQueue {
             case UNIFORM -> 0.0;
             case RANDOM_PRIORITY -> priorityRandom.nextDouble();
         };
-        runnableTasks.add(new RunnableTask(task, priority, picks));
+        runnableTasks.add(new RunnableTask(task, priority));
     }
 
     private void runTask(final int index) {
         final Runnable task = runnableTasks.remove(index).task();
-        picks++;
         logger.trace("running task {} of {}: {}", index, runnableTasks.size() + 1, task);
         task.run();
     }

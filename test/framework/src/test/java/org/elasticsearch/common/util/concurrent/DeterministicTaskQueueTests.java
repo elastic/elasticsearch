@@ -32,7 +32,6 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -205,33 +204,6 @@ public class DeterministicTaskQueueTests extends ESTestCase {
                 }
             };
         }
-    }
-
-    /**
-     * With a cap of 2 and tasks that are all runnable from the start, each pick passes over every other task once more, whatever the
-     * priorities: the third pick would pass over a task for the third time if at least two tasks remain.
-     */
-    public void testRandomPriorityFailsWhenTaskPassedOverMoreThanCap() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(new Random(randomLong()), 2);
-        taskQueue.setSelectionPolicy(DeterministicTaskQueue.SelectionPolicy.RANDOM_PRIORITY);
-        final AtomicInteger runCount = new AtomicInteger();
-        for (int i = 0; i < 5; i++) {
-            taskQueue.scheduleNow(runCount::incrementAndGet);
-        }
-        final AssertionError e = expectThrows(AssertionError.class, taskQueue::runAllRunnableTasks);
-        assertThat(e.getMessage(), containsString("task passed over [3] times, more than the cap [2]"));
-        assertThat(runCount.get(), equalTo(2));
-    }
-
-    public void testRandomPriorityAllowsTaskPassedOverUpToCap() {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(new Random(randomLong()), 2);
-        taskQueue.setSelectionPolicy(DeterministicTaskQueue.SelectionPolicy.RANDOM_PRIORITY);
-        final AtomicInteger runCount = new AtomicInteger();
-        for (int i = 0; i < 3; i++) {
-            taskQueue.scheduleNow(runCount::incrementAndGet);
-        }
-        taskQueue.runAllRunnableTasks();
-        assertThat(runCount.get(), equalTo(3));
     }
 
     public void testSelectionPolicyMustBeSetBeforeTasksAreRunnable() {

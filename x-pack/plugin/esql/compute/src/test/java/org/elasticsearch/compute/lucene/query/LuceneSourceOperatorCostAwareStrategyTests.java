@@ -21,6 +21,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -28,6 +29,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -37,6 +39,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrategy.DOC;
 import static org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrategy.SEGMENT;
@@ -45,12 +48,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Tests {@link LuceneSourceOperator.Factory#autoStrategy(long)}, the cost-aware source strategy.
+ * Tests {@link LuceneSourceOperator.Factory#autoStrategy(long, int, boolean)}, the cost-aware source strategy.
  *
  * <p>A <b>no-limit</b> scan (e.g. {@code STATS}) visits every matching doc, so it shares the cost-threshold rule with
  * count and TopN: a scan-heavy doc-values filter → {@link LuceneSliceQueue.PartitioningStrategy#DOC}; a cheap indexed
  * lookup, an empty result, or the low-cost side of the threshold → {@link LuceneSliceQueue.PartitioningStrategy#SEGMENT};
- * a costly point/multi-term clause → SEGMENT; {@code MatchAll} → DOC.
+ * a costly multi-term clause → SEGMENT; {@code MatchAll} → DOC. A point range or point set is SEGMENT while it matches fewer
+ * than {@code minCostForDoc * taskConcurrency} docs in every segment, and DOC once one segment alone matches that many:
+ * SEGMENT never cuts a segment, so a range that matches most of one big segment (a time window over recent data) would be
+ * read by one driver. When the rows are wide, the plan loads many fields per doc, any costly clause is DOC whatever it
+ * matches: SEGMENT sizes slices by segment docs, not by matches, so a selective filter leaves one driver with the work.
  *
  * <p>A <b>limited</b> scan (implicit {@code LIMIT}) keeps {@link LuceneSliceQueue.PartitioningStrategy#SHARD} for
  * costly-to-build clauses (BKD point ranges, multi-term), for indexed spatial queries (their scorers walk a BKD
@@ -63,6 +70,10 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
 
     private static final int NUM_DOCS = 200;
     private static final long MIN_COST_FOR_DOC = 10;
+    /** A point range is promoted to DOC at {@code MIN_COST_FOR_DOC * TASK_CONCURRENCY} = 40 matching docs. */
+    private static final int TASK_CONCURRENCY = 4;
+    /** Puts the point range promotion threshold, {@code MIN_COST_FOR_DOC * 100}, above the {@link #NUM_DOCS} docs. */
+    private static final int HIGH_TASK_CONCURRENCY = 100;
 
     private static final String GEO = "geo";
     private static final String GEO_DV = "geo_dv";
@@ -128,8 +139,86 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
         assertThat(pick(Queries.NO_DOCS_INSTANCE, NO_LIMIT), equalTo(SEGMENT));
     }
 
-    public void testStatsPointRangePicksSegment() throws IOException {
-        assertThat(pick(LongPoint.newRangeQuery("pt", 0, NUM_DOCS / 2), NO_LIMIT), equalTo(SEGMENT));
+    public void testStatsPointRangeMatchingEnoughDocsPicksDoc() throws IOException {
+        Query query = nearlyAllDocsRange();
+        assertCostlyAfterRewrite(reader, query);
+        assertCostAtLeast(query, MIN_COST_FOR_DOC * TASK_CONCURRENCY);
+        assertThat(pick(query, NO_LIMIT), equalTo(DOC));
+    }
+
+    public void testStatsPointRangeMatchingFewDocsPicksSegment() throws IOException {
+        // The same range, but with a task concurrency high enough that its matches cannot give every driver a minimum slice.
+        Query query = nearlyAllDocsRange();
+        assertCostlyAfterRewrite(reader, query);
+        assertThat(pick(reader, query, NO_LIMIT, HIGH_TASK_CONCURRENCY), equalTo(SEGMENT));
+    }
+
+    public void testStatsPointRangeSpreadOverSegmentsPicksSegment() throws IOException {
+        // Four segments of 50 docs, nearly all matching. The matches add up to 199, but no segment alone reaches the threshold of 60,
+        // and SEGMENT can run the four segments in parallel.
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+                for (int i = 0; i < NUM_DOCS; i++) {
+                    Document doc = new Document();
+                    doc.add(new LongPoint("pt", i));
+                    doc.add(new NumericDocValuesField("pt", i));
+                    writer.addDocument(doc);
+                    if ((i + 1) % 50 == 0) {
+                        writer.flush();
+                    }
+                }
+            }
+            try (IndexReader segmented = DirectoryReader.open(dir)) {
+                assertThat(segmented.leaves().size(), equalTo(4));
+                Query query = nearlyAllDocsRange();
+                assertCostlyAfterRewrite(segmented, query);
+                assertThat(pick(segmented, query, NO_LIMIT, 6), equalTo(SEGMENT));
+                // With a threshold of 40, each segment has enough matches to be worth cutting.
+                assertThat(pick(segmented, query, NO_LIMIT, 4), equalTo(DOC));
+            }
+        }
+    }
+
+    public void testStatsWideRowsWithFewMatchesPicksDoc() throws IOException {
+        // A selective terms filter next to a point range, like a session filter over a time window: the matches are far
+        // below the threshold, but each one is read with many fields, so a few matches are still a lot of work.
+        Query query = new BooleanQuery.Builder().add(nearlyAllDocsRange(), BooleanClause.Occur.FILTER)
+            .add(new WildcardQuery(new Term("kw", "v1?")), BooleanClause.Occur.FILTER)
+            .build();
+        assertThat(pick(reader, query, NO_LIMIT, HIGH_TASK_CONCURRENCY, false), equalTo(SEGMENT));
+        assertThat(pick(reader, query, NO_LIMIT, HIGH_TASK_CONCURRENCY, true), equalTo(DOC));
+    }
+
+    public void testStatsWideRowsWithPointRangeFewMatchesPicksDoc() throws IOException {
+        Query query = nearlyAllDocsRange();
+        assertThat(pick(reader, query, NO_LIMIT, HIGH_TASK_CONCURRENCY, false), equalTo(SEGMENT));
+        assertThat(pick(reader, query, NO_LIMIT, HIGH_TASK_CONCURRENCY, true), equalTo(DOC));
+    }
+
+    public void testStatsWideRowsWithoutCostlyClauseFollowsCostThreshold() throws IOException {
+        // Wide rows only change what a costly clause does. A cheap indexed lookup still stays on SEGMENT.
+        assertThat(pick(reader, new TermQuery(new Term("kw", "v7")), NO_LIMIT, TASK_CONCURRENCY, true), equalTo(SEGMENT));
+        assertThat(pick(reader, Queries.NO_DOCS_INSTANCE, NO_LIMIT, TASK_CONCURRENCY, true), equalTo(SEGMENT));
+    }
+
+    public void testLimitedWideRowsPointRangeStillPicksShard() throws IOException {
+        // A limit can fire early, so a wide-row scan keeps the low-overhead SHARD for a costly clause.
+        assertThat(pick(reader, nearlyAllDocsRange(), between(1, 1000), TASK_CONCURRENCY, true), equalTo(SHARD));
+    }
+
+    public void testStatsPointSetMatchingEnoughDocsPicksDoc() throws IOException {
+        Query query = LongPoint.newSetQuery("pt", LongStream.range(0, NUM_DOCS).toArray());
+        assertCostlyAfterRewrite(reader, query);
+        assertCostAtLeast(query, MIN_COST_FOR_DOC * TASK_CONCURRENCY);
+        assertThat(pick(query, NO_LIMIT), equalTo(DOC));
+    }
+
+    public void testStatsPointRangeWithMultiTermClausePicksSegment() throws IOException {
+        // The point range alone matches enough docs for DOC, but a DOC slice would also rebuild the wildcard scorer.
+        Query query = new BooleanQuery.Builder().add(nearlyAllDocsRange(), BooleanClause.Occur.FILTER)
+            .add(new WildcardQuery(new Term("kw", "v*")), BooleanClause.Occur.FILTER)
+            .build();
+        assertThat(pick(query, NO_LIMIT), equalTo(SEGMENT));
     }
 
     // --- implicit limit: cost-aware, not always SHARD ---
@@ -210,9 +299,38 @@ public class LuceneSourceOperatorCostAwareStrategyTests extends ESTestCase {
     }
 
     private LuceneSliceQueue.PartitioningStrategy pick(IndexReader indexReader, Query query, int limit) throws IOException {
+        return pick(indexReader, query, limit, TASK_CONCURRENCY);
+    }
+
+    private LuceneSliceQueue.PartitioningStrategy pick(IndexReader indexReader, Query query, int limit, int taskConcurrency)
+        throws IOException {
+        return pick(indexReader, query, limit, taskConcurrency, false);
+    }
+
+    private LuceneSliceQueue.PartitioningStrategy pick(IndexReader indexReader, Query query, int limit, int taskConcurrency, boolean wide)
+        throws IOException {
         ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(indexReader, 0);
         Query rewritten = new IndexSearcher(indexReader).rewrite(query);
-        return LuceneSourceOperator.Factory.autoStrategy(MIN_COST_FOR_DOC).pickStrategy(limit).apply(ctx, rewritten);
+        return LuceneSourceOperator.Factory.autoStrategy(MIN_COST_FOR_DOC, taskConcurrency, wide).pickStrategy(limit).apply(ctx, rewritten);
+    }
+
+    /**
+     * A range over every doc but the first. Lucene rewrites a point range that covers every doc to match-all, which takes
+     * DOC for a different reason than the one under test.
+     */
+    private static Query nearlyAllDocsRange() {
+        return LongPoint.newRangeQuery("pt", 1, NUM_DOCS - 1);
+    }
+
+    private static void assertCostlyAfterRewrite(IndexReader indexReader, Query query) throws IOException {
+        Query rewritten = new IndexSearcher(indexReader).rewrite(query);
+        assertTrue("expected a point clause after rewrite: " + rewritten, LuceneSourceOperator.Factory.containsCostlyClause(rewritten));
+    }
+
+    private void assertCostAtLeast(Query query, long minCost) throws IOException {
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+        Query rewritten = new IndexSearcher(reader).rewrite(query);
+        assertThat(LuceneSourceOperator.Factory.queryCost(ctx, rewritten, Long.MAX_VALUE), greaterThanOrEqualTo(minCost));
     }
 
     private void assertGeoCostAtLeastDocThreshold(Query query) throws IOException {

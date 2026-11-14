@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165726
+summary: Use DOC partitioning for costly filters on busy scans
+type: enhancement

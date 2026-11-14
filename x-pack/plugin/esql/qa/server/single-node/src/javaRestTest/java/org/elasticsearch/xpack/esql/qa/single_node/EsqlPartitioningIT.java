@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -117,6 +118,7 @@ public class EsqlPartitioningIT extends ESRestTestCase {
     }
 
     public void test() throws IOException {
+        assumeTrue("requires the task_concurrency pragma", Build.current().isSnapshot());
         setupIndex(index, switch (index) {
             case "idx" -> IDX_DOCS;
             case "small_idx" -> SMALL_IDX_DOCS;
@@ -164,6 +166,13 @@ public class EsqlPartitioningIT extends ESRestTestCase {
         XContentBuilder b = JsonXContent.contentBuilder().startObject();
         b.field("query", query);
         b.field("profile", true);
+        /*
+         * A point range that matches many docs in one segment is partitioned by DOC once it matches at least
+         * min_docs_per_slice * task_concurrency docs. The test cluster has two processors, so the default is low enough
+         * for a range over most of the 300,000 docs. Pin a concurrency that keeps those ranges below the threshold, so the
+         * expectations don't depend on how many cores the node has.
+         */
+        b.startObject("pragma").field("task_concurrency", 16).endObject();
         request.setJsonEntity(Strings.toString(b.endObject()));
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(w -> {
             w.remove("No limit defined, adding default limit of [1000]");

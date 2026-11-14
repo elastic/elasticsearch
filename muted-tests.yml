@@ -150,6 +150,11 @@ tests:
   - :server:internalClusterTest
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/166028
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  tasks:
+  - :docs:yamlRestTest
+  method: test {yaml=reference/searchable-snapshots/apis/clear-cache/line_46}
+  issue: https://github.com/elastic/elasticsearch/issues/166031
 
 # Examples:
 #

@@ -25,7 +25,7 @@ For a hands-on example, refer to [get started with {{esql}} Data Federation](esq
 
 ## How external data is read
 
-When you query a dataset, {{es}} reads data from object storage (such as Amazon S3) rather than from a local index. This means every column and every row that a query touches results in network I/O. The query engine applies several optimizations automatically, and there are things you can do to help it read less data.
+When you query a dataset, {{es}} reads data from object storage (such as Amazon S3) rather than from a local index. This means every column and every row that a query touches results in network I/O. The query engine applies several optimizations automatically, and there are things you can do to help it read less data. Your storage provider also bills for these reads. For details, refer to [](esql-data-federation-costs.md).
 
 ### Column selection
 
@@ -63,7 +63,7 @@ The general query performance advice in [optimize {{esql}} query performance](es
 {{es}} caches dataset metadata on each node so that repeated queries against the same dataset don't discover files and read file metadata again each time:
 
 - **File listings** are reused for a fixed time before {{es}} lists the storage again. A file added to or removed from the bucket becomes visible once the listing expires.
-- **Inferred schemas** are invalidated when the underlying file changes. 
+- **Inferred schemas** are invalidated when the underlying file changes.
   - {applies_to}`stack: preview 9.6+` Additionally, a schema is reused for at most 20 minutes by default.
 - {applies_to}`stack: preview 9.6+` **Footers of columnar files**, such as Parquet footers, are kept while queries keep reading them, and dropped 5 minutes after the last read by default. Footer entries are keyed by the object's version, so a file overwritten in place is read with its new footer. Objects without a version aren't footer-cached.
 
@@ -155,7 +155,7 @@ FROM access_logs METADATA _file.path, _file.name, _file.size
 
 ## Use search functions
 
-[Search functions](/reference/query-languages/esql/functions-operators/search-functions.md) can filter dataset rows by evaluating the query against values read from the files. This runtime search does not use an inverted index.
+[Search functions](/reference/query-languages/esql/functions-operators/search-functions.md) can filter dataset rows by evaluating the query against values read from the files. This [runtime search](esql-runtime-search.md) does not use an inverted index.
 
 Because there is no inverted index, search functions on a dataset evaluate by scanning values row by row. For large datasets where search is the primary access pattern, consider ingesting the data into {{es}} for indexed search performance.
 
@@ -175,6 +175,7 @@ The following search functions are available for datasets:
 |---|---|
 | [`MATCH`](functions-operators/search-functions/match.md) | {applies_to}`stack: preview 9.6+, experimental =9.5` |
 | [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: preview 9.6+` |
+| [`KNN`](functions-operators/dense-vector-functions/knn.md) on a `dense_vector` column | {applies_to}`stack: preview 9.6+` |
 | `_score` for dataset rows | {applies_to}`stack: preview 9.6+` |
 
 ## Limitations
@@ -189,7 +190,8 @@ The limitations below include operations that require structures available only 
 | `LOOKUP JOIN`, with a dataset as the lookup target | A dataset works as the left (source) side of the join. The lookup target must be an {{es}} index. | `LOOKUP JOIN against a dataset is not supported; dataset(s) requested: [...]` |
 | `TS` (time series) | A time-series source must be an {{es}} index. | `TS command is not supported for datasets; dataset(s) requested: [...]` |
 | Search functions | Search functions work on datasets as runtime search functions, scanning values row by row without an inverted index. Availability varies by version. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
-| `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
+| `KNN` {applies_to}`stack: experimental =9.5` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
+| `KNN` {applies_to}`stack: preview 9.6+` | `KNN` performs an exact search over every row instead of an approximate search. Dataset columns don't map to `dense_vector`, so create one at query time with [`TO_DENSE_VECTOR`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md) or with the [`DENSE_VECTOR`](commands/dense-vector.md) command. | |
 | More than 8 sources in one `FROM` {applies_to}`stack: experimental =9.5` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
 | More sources in one `FROM` than `max_branch_count_per_merge` allows {applies_to}`stack: preview 9.6+` | A `FROM` that includes datasets runs one execution branch per resolved source. The limit is the `esql.query.max_branch_count_per_merge` cluster setting (default 8). Query fewer sources together, or raise the limit. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
@@ -221,8 +223,8 @@ Slow queries
 503 error when creating a data source with credentials
 :   {{es}} encrypts credentials before storing them. If the cluster state encryption key is not available, the request returns `503 SERVICE_UNAVAILABLE`. Refer to [credential encryption](esql-data-federation-security.md#credential-encryption) for details.
 
-503 error while nodes join the cluster
-:   A node that has just joined the cluster, or that has not yet applied a recent dataset change, cannot run a query's external reads until it catches up. {{es}} sends the reads to another node when one is available; otherwise the node waits to catch up. If it does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query, or increase [`esql.external.worker_ready_timeout`](esql-data-federation-cluster-settings.md#esql-external-worker-ready-timeout).
+503 error after changing a dataset or adding a node {applies_to}`stack: preview 9.7+`
+:   A node that has not yet applied a recent dataset change, or that has just joined the cluster, cannot read external data until it catches up. {{es}} waits briefly for it. If it does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query.
 
 $$$unknown-index-dataset$$$
 

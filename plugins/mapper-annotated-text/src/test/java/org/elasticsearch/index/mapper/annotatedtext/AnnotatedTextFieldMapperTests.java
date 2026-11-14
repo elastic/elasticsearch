@@ -547,11 +547,12 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                 .endObject()
                 .endObject()
         );
-        mapper = createDocumentMapper(mapping);
+        MapperService mapperService = createMapperService(mapping);
+        mapper = mapperService.documentMapper();
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        mapper.mapping().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")));
+        mappingToXContent(mapperService, builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")));
         builder.endObject();
 
         String mappingString = Strings.toString(builder);

@@ -194,6 +194,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterEqlCommand(EsqlBaseParser.EqlCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitEqlCommand(EsqlBaseParser.EqlCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterIndexPatternAndMetadataFields(EsqlBaseParser.IndexPatternAndMetadataFieldsContext ctx) { }
   /**
    * {@inheritDoc}
@@ -969,6 +981,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitTsCollapseCommand(EsqlBaseParser.TsCollapseCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterDescribeCommand(EsqlBaseParser.DescribeCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitDescribeCommand(EsqlBaseParser.DescribeCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -1790,13 +1814,25 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterJoinTarget(EsqlBaseParser.JoinTargetContext ctx) { }
+  @Override public void enterSubqueryJoinTarget(EsqlBaseParser.SubqueryJoinTargetContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitJoinTarget(EsqlBaseParser.JoinTargetContext ctx) { }
+  @Override public void exitSubqueryJoinTarget(EsqlBaseParser.SubqueryJoinTargetContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterLookupJoinTarget(EsqlBaseParser.LookupJoinTargetContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLookupJoinTarget(EsqlBaseParser.LookupJoinTargetContext ctx) { }
   /**
    * {@inheritDoc}
    *

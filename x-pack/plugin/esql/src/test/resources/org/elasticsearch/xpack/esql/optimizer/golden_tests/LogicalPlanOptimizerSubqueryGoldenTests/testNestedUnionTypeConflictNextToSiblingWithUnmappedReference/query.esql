@@ -1,0 +1,3 @@
+SET unmapped_fields="nullify";
+FROM (FROM (FROM employees), (FROM employees, employees_incompatible) | EVAL x = 1), (FROM employees)
+| KEEP first_name, avg_worked_seconds, does_not_exist

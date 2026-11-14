@@ -82,11 +82,13 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -102,6 +104,7 @@ import org.elasticsearch.xpack.stateless.utils.TransferableCloseables;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -121,6 +124,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils.randomNonZeroPositiveLong;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.BUCKET_SETTING;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.OBJECT_STORE_FILE_DELETION_DELAY;
 import static org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.ObjectStoreType.AZURE;
@@ -133,11 +137,13 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
@@ -312,7 +318,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertThat(objectStoreService.lifecycleState(), equalTo(Lifecycle.State.CLOSED));
 
             final var future = new PlainActionFuture<Void>();
-            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), future);
+            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), () -> false, () -> {}, future);
 
             // The listener must be failed (not stranded by a thrown error) so the caller can release its references.
             final var e = expectThrows(IllegalStateException.class, future::actionGet);
@@ -333,7 +339,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             assertThat(objectStoreService.lifecycleState(), equalTo(Lifecycle.State.STOPPED));
 
             final var future = new PlainActionFuture<Void>();
-            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), future);
+            objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1, 2, 3 }), () -> false, () -> {}, future);
 
             final var e = expectThrows(IllegalStateException.class, future::actionGet);
             assertThat(e.getMessage(), startsWith("Object store service is not running"));
@@ -1195,11 +1201,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
             final var objectStoreService = testHarness.objectStoreService;
 
             // Block shard file deletions
-            final int maxDeletionThreads = testHarness.threadPool.info(StatelessPlugin.SHARD_WRITE_THREAD_POOL).getMax();
+            final int maxDeletionThreads = testHarness.threadPool.info(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).getMax();
             final var startBarrier = new CyclicBarrier(maxDeletionThreads + 1);
             final var deletionBarrier = new CyclicBarrier(maxDeletionThreads + 1);
             for (int i = 0; i < maxDeletionThreads; i++) {
-                testHarness.threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL).submit(() -> {
+                testHarness.threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL).submit(() -> {
                     safeAwait(startBarrier);
                     safeAwait(deletionBarrier);
                 });
@@ -1242,7 +1248,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 3)),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1250,7 +1256,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     new ShardId(new Index(indexMetadata.getIndex().getName(), indexMetadata.getIndexUUID()), 0),
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1258,7 +1264,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             objectStoreService.asyncDeleteShardFile(
                 new StaleCompoundCommit(
                     testHarness.shardId,
-                    new PrimaryTermAndGeneration(primaryTerm, randomNonNegativeLong()),
+                    new PrimaryTermAndGeneration(primaryTerm, randomNonZeroPositiveLong()),
                     primaryTerm
                 )
             );
@@ -1350,7 +1356,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             // In case of no-delay, translog upload is fast and hence we log at DEBUG level
             var future1 = new PlainActionFuture<Void>();
             MockLog.assertThatLogger(() -> {
-                objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1 }), future1);
+                objectStoreService.uploadTranslogFile("translog-1", new BytesArray(new byte[] { 1 }), () -> false, () -> {}, future1);
                 safeGet(future1);
             },
                 ObjectStoreService.class,
@@ -1373,7 +1379,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             // In case of a delay that exceeds the slow translog upload threshold we log at WARN level
             var future2 = new PlainActionFuture<Void>();
             MockLog.assertThatLogger(() -> {
-                objectStoreService.uploadTranslogFile("translog-2", new BytesArray(new byte[] { 2 }), future2);
+                objectStoreService.uploadTranslogFile("translog-2", new BytesArray(new byte[] { 2 }), () -> false, () -> {}, future2);
                 safeGet(future2);
             },
                 ObjectStoreService.class,
@@ -1439,7 +1445,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
         ) {
             final var bytes = new BytesArray(randomByteArrayOfLength(between(1, 64) * 1024));
             final var future = new PlainActionFuture<Void>();
-            testHarness.objectStoreService.uploadTranslogFile("translog", bytes, future);
+            testHarness.objectStoreService.uploadTranslogFile("translog", bytes, () -> false, () -> {}, future);
             safeGet(future);
 
             assertThat(
@@ -1458,6 +1464,159 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .toList(),
                 equalTo(List.of(ByteSizeUnit.BYTES.toKB(bytes.length())))
             );
+        }
+    }
+
+    public void testTranslogUploadCallsOnBeforeUploadOnlyWhenItStarts() throws Exception {
+        final var firstUploadStarted = new CountDownLatch(1);
+        final var releaseFirstUpload = new CountDownLatch(1);
+        final List<String> events = Collections.synchronizedList(new ArrayList<>());
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                // a single translog-upload slot
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
+                    .build();
+            }
+
+            @Override
+            protected ThreadPool createThreadPool(Settings nodeSettings) {
+                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true));
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                        throws IOException {
+                        if (purpose == OperationPurpose.TRANSLOG) {
+                            if (blobName.equals("translog-1")) {
+                                firstUploadStarted.countDown();
+                                safeAwait(releaseFirstUpload);
+                            }
+                            events.add("write " + blobName);
+                        }
+                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                    }
+                };
+            }
+        }) {
+            final var objectStoreService = testHarness.objectStoreService;
+            final var firstFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-1",
+                new BytesArray(new byte[] { 1 }),
+                () -> false,
+                () -> events.add("before translog-1"),
+                firstFuture
+            );
+            safeAwait(firstUploadStarted);
+
+            // the first upload holds the single slot, so the second upload waits in the task runner's queue
+            // but does NOT call onBeforeUpload yet because it has not yet started running
+            final var secondFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-2",
+                new BytesArray(new byte[] { 2 }),
+                () -> false,
+                () -> events.add("before translog-2"),
+                secondFuture
+            );
+            assertFalse(secondFuture.isDone());
+            // the second queued upload has not been notified because the first upload is holding the lock
+            assertThat(events, equalTo(List.of("before translog-1")));
+
+            releaseFirstUpload.countDown();
+            safeGet(firstFuture);
+            safeGet(secondFuture);
+            assertThat(events, equalTo(List.of("before translog-1", "write translog-1", "before translog-2", "write translog-2")));
+        }
+    }
+
+    // test that a translog upload waiting in the task runner's queue is skipped if, when it is time to upload its translog was
+    // already uploaded by some other upload
+    public void testTranslogUploadIsSkippedWhenAlreadyUploadedWhileQueued() throws Exception {
+        final var firstUploadStarted = new CountDownLatch(1);
+        final var releaseFirstUpload = new CountDownLatch(1);
+        final List<String> events = Collections.synchronizedList(new ArrayList<>());
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
+            @Override
+            protected Settings nodeSettings() {
+                // a single translog-upload slot
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".core", 1)
+                    .put(StatelessThreadPools.TRANSLOG_THREAD_POOL_SETTING + ".max", 1)
+                    .build();
+            }
+
+            @Override
+            protected ThreadPool createThreadPool(Settings nodeSettings) {
+                return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true));
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                        throws IOException {
+                        if (purpose == OperationPurpose.TRANSLOG) {
+                            if (blobName.equals("translog-1")) {
+                                firstUploadStarted.countDown();
+                                safeAwait(releaseFirstUpload);
+                            }
+                            events.add("write " + blobName);
+                        }
+                        super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                    }
+                };
+            }
+        }) {
+            final var objectStoreService = testHarness.objectStoreService;
+            final var firstFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-1",
+                new BytesArray(new byte[] { 1 }),
+                () -> false,
+                () -> events.add("before translog-1"),
+                firstFuture
+            );
+            safeAwait(firstUploadStarted);
+
+            // the first upload holds the single slot, so the second upload waits in the task runner's queue
+            final var translogAlreadyUploaded = new AtomicBoolean(false);
+            final var secondFuture = new PlainActionFuture<Void>();
+            objectStoreService.uploadTranslogFile(
+                "translog-2",
+                new BytesArray(new byte[] { 2 }),
+                translogAlreadyUploaded::get,
+                () -> events.add("before translog-2"),
+                secondFuture
+            );
+            assertFalse(secondFuture.isDone());
+            // while the second upload waits in the queue, its translog gets uploaded by some other upload
+            translogAlreadyUploaded.set(true);
+
+            releaseFirstUpload.countDown();
+            safeGet(firstFuture);
+            safeGet(secondFuture);
+            // the second upload was not notified
+            assertThat(events, equalTo(List.of("before translog-1", "write translog-1")));
         }
     }
 
@@ -1553,7 +1712,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             safeAwait(waitForUploadLatch);
 
             final var measurements = meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.stateless.bcc_multipart_upload.part_start.latency.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_MULTIPART_UPLOAD_PART_START_LATENCY_HISTOGRAM);
             // time since the start of the upload is 10, 10 + 20 (=30), and 10 + 20 + 30 (=60) milliseconds
             assertThat(
                 measurements.stream().map(Measurement::getLong).toList(),
@@ -1563,6 +1722,22 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 measurements.stream().map(m -> m.attributes().get("multipart")).toList(),
                 equalTo(isMultipart ? List.of(true, true, true) : List.of(false))
             );
+
+            final var partDurations = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.BCC_UPLOAD_PART_DURATION_HISTOGRAM);
+            assertThat(partDurations.size(), equalTo((isMultipart ? 3 : 1) * (1 + retriesPerPart)));
+            assertTrue(partDurations.stream().allMatch(m -> m.getLong() >= 0L));
+            assertThat(
+                partDurations.stream().map(m -> m.attributes().get("multipart")).distinct().toList(),
+                equalTo(isMultipart ? List.of(true) : List.of(false))
+            );
+
+            final var objectStoreUploads = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BccUploadMetrics.BCC_OBJECT_STORE_UPLOAD_DURATION_HISTOGRAM_METRIC);
+            assertThat(objectStoreUploads.size(), equalTo(1));
+            assertThat(objectStoreUploads.getFirst().getLong(), greaterThanOrEqualTo(0L));
+            assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_UPLOAD_SUCCESS_ATTRIBUTE_KEY), equalTo(true));
+            assertThat(objectStoreUploads.getFirst().attributes().get(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY), notNullValue());
         }
     }
 
@@ -1638,10 +1813,10 @@ public class ObjectStoreServiceTests extends ESTestCase {
         if (randomBoolean()) {
             return Optional.empty();
         }
-        final int numCopyThreads = node.threadPool.info(StatelessPlugin.BLOB_COPY_THREAD_POOL).getMax();
+        final int numCopyThreads = node.threadPool.info(StatelessThreadPools.BLOB_COPY_THREAD_POOL).getMax();
         final var releaseThreadsLatch = new CountDownLatch(1);
         for (int i = 0; i < numCopyThreads; i++) {
-            node.threadPool.executor(StatelessPlugin.BLOB_COPY_THREAD_POOL).execute(() -> { safeAwait(releaseThreadsLatch); });
+            node.threadPool.executor(StatelessThreadPools.BLOB_COPY_THREAD_POOL).execute(() -> { safeAwait(releaseThreadsLatch); });
         }
         return Optional.of(releaseThreadsLatch);
     }

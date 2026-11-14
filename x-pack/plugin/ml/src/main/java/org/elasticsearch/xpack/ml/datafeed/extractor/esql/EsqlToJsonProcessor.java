@@ -46,8 +46,8 @@ class EsqlToJsonProcessor implements Releasable {
             columnIndex++;
         }
         jsonBuilder.endObject();
+        // No newline: preview turns the "} {" root separator into "},{" to build a JSON array.
         jsonBuilder.flush();
-        outputStream.write('\n');
         writtenDocumentCount++;
     }
 

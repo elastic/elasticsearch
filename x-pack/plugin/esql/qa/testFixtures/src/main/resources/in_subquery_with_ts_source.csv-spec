@@ -3059,3 +3059,119 @@ TS k8s
 avg_c:double
 1.0
 ;
+
+forkInsideFromTimeSeriesSubquery
+required_capability: fork_v9
+required_capability: ts_command_v0
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM (TS k8s | STATS max_bytes = MAX(TO_LONG(network.total_bytes_in)) BY cluster | FORK (WHERE cluster == "prod") (WHERE cluster != "prod"))
+| SORT _fork, cluster
+| KEEP cluster, max_bytes, _fork
+;
+
+cluster:keyword | max_bytes:long | _fork:keyword
+prod            | 10277          | fork1
+qa              | 10797          | fork2
+staging         | 7403           | fork2
+;
+
+forkAfterFromTimeSeriesSubqueryWithFork
+required_capability: fork_v9
+required_capability: ts_command_v0
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM (TS k8s | STATS max_bytes = MAX(TO_LONG(network.total_bytes_in)) BY cluster | FORK (WHERE cluster == "prod") (WHERE cluster != "prod"))
+| FORK (WHERE cluster != "staging") (WHERE cluster == "staging")
+| SORT _fork, cluster
+| KEEP cluster, max_bytes, _fork
+;
+
+cluster:keyword | max_bytes:long | _fork:keyword
+prod            | 10277          | fork1
+qa              | 10797          | fork1
+staging         | 7403           | fork2
+;
+
+forkInsideTimeSeriesInSubqueryInWhereMainTS
+required_capability: fork_v9
+required_capability: ts_command_v0
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+TS k8s
+| STATS max_bytes = MAX(TO_LONG(network.total_bytes_in)) BY cluster
+| WHERE cluster IN (
+    TS k8s
+    | STATS m = MAX(TO_LONG(network.total_bytes_in)) BY cluster
+    | FORK
+        (WHERE cluster == "prod")
+        (WHERE cluster == "qa")
+    | KEEP cluster
+  )
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+prod            | 10277
+qa              | 10797
+;
+
+forkAfterTimeSeriesInSubqueryWithForkInWhereMainTS
+required_capability: fork_v9
+required_capability: ts_command_v0
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+TS k8s
+| STATS max_bytes = MAX(TO_LONG(network.total_bytes_in)) BY cluster
+| WHERE cluster IN (
+    TS k8s
+    | STATS m = MAX(TO_LONG(network.total_bytes_in)) BY cluster
+    | FORK
+        (WHERE cluster == "prod")
+        (WHERE cluster == "qa")
+    | KEEP cluster
+  )
+| FORK (WHERE cluster == "prod") (WHERE cluster == "qa")
+| SORT _fork
+| KEEP cluster, max_bytes, _fork
+;
+
+cluster:keyword | max_bytes:long | _fork:keyword
+prod            | 10277          | fork1
+qa              | 10797          | fork2
+;
+
+forkInsideTimeSeriesInSubqueryInStatsWhereMainTS
+required_capability: fork_v9
+required_capability: ts_command_v0
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_ts
+required_capability: stats_where_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+TS k8s
+| STATS docs = COUNT(network.bytes_in) WHERE cluster IN (
+    TS k8s
+    | STATS m = MAX(TO_LONG(network.total_bytes_in)) BY cluster
+    | FORK
+        (WHERE cluster == "prod")
+        (WHERE cluster == "qa")
+    | KEEP cluster
+  ) BY cluster
+| SORT cluster
+;
+
+docs:long | cluster:keyword
+3         | prod
+3         | qa
+0         | staging
+;

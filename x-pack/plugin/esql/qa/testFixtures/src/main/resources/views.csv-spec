@@ -3753,3 +3753,131 @@ null                           | Disconnected    | fork2
 2023-10-23T13:33:34.937Z       | Disconnected    | fork1
 2023-10-23T13:33:34.937123456Z | Disconnected    | fork1
 ;
+
+forkAfterViewWithFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_fork_sample_data
+| FORK (WHERE event_duration > 3000000) (WHERE event_duration <= 3000000)
+| KEEP event_duration, _fork
+| SORT _fork, event_duration
+;
+
+event_duration:long | _fork:keyword
+3450233             | fork1
+5033755             | fork1
+8268153             | fork1
+725448              | fork2
+1232382             | fork2
+1756467             | fork2
+2764889             | fork2
+;
+
+forkAfterViewWithForkStats
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_fork_sample_data
+| FORK (WHERE event_duration > 3000000) (WHERE event_duration <= 3000000)
+| STATS c = COUNT(*) BY _fork
+| SORT _fork
+;
+
+c:long | _fork:keyword
+3      | fork1
+4      | fork2
+;
+
+forkAfterViewWithInSubqueryContainingFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_in_subquery_with_fork
+| FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork2
+10003          | fork2
+;
+
+forkAfterInSubqueryOverViewWithFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no <= 10005
+| WHERE emp_no IN (FROM view_fork_employees | KEEP emp_no)
+| FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork2
+10003          | fork2
+;
+
+forkOverViewWithForkInsideInSubquery
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM employees
+| WHERE emp_no IN (
+    FROM view_fork_employees
+    | FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+forkInsideInSubqueryInEvalOverViewWithFork
+required_capability: fork_v9
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: where_in_subquery_without_view
+required_capability: where_in_subquery_with_view
+required_capability: eval_in_subquery
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+FROM view_fork_employees
+| WHERE emp_no <= 10004
+| EVAL m = emp_no IN (FROM view_fork_employees | FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002) | KEEP emp_no)
+| FORK (WHERE m == true) (WHERE m == false)
+| SORT _fork, emp_no
+| KEEP emp_no, m, _fork
+;
+
+emp_no:integer | m:boolean | _fork:keyword
+10001          | true      | fork1
+10002          | true      | fork1
+10003          | true      | fork1
+;

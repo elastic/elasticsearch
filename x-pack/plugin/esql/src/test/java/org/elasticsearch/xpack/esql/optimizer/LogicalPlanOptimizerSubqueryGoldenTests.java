@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 
 import java.util.EnumSet;
@@ -1272,6 +1273,69 @@ public class LogicalPlanOptimizerSubqueryGoldenTests extends GoldenTestCase {
             | STATS m = MAX(@timestamp)
             | RENAME m AS x
             """, STAGES);
+    }
+
+    // FORK after a subquery, view or LET binding that contains a FORK. They are different FORK scopes, so they are not consecutive FORKs.
+
+    public void testForkAfterSingleSubqueryWithFork() {
+        runGoldenTest("""
+            FROM (FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10))
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, STAGES);
+    }
+
+    public void testForkAfterViewWithFork() {
+        runGoldenTest(
+            "FROM fork_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)",
+            STAGES,
+            Map.of("fork_view", "FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)")
+        );
+    }
+
+    public void testForkAfterNestedViewWithFork() {
+        runGoldenTest(
+            "FROM outer_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)",
+            STAGES,
+            Map.of(
+                "inner_view",
+                "FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)",
+                "outer_view",
+                "FROM inner_view | WHERE emp_no > 0"
+            )
+        );
+    }
+
+    public void testForkAfterLetWithFork() {
+        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        runGoldenTest("""
+            LET q = (FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10));
+            FROM q
+            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
+            """, STAGES);
+    }
+
+    public void testForkAfterChainedLetsWithFork() {
+        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
+        runGoldenTest("""
+            LET q = (FROM employees | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10));
+            LET r = (FROM q | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5));
+            FROM r
+            """, STAGES);
+    }
+
+    // a time series subquery in FROM with a FORK, and a FORK in the main query after it
+
+    public void testForkInsideFromTimeSeriesSubquery() {
+        builder("""
+            FROM employees, (TS k8s | STATS m = MAX(network.bytes_in) BY cluster | FORK (WHERE m > 0) (WHERE m <= 0))
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
+    }
+
+    public void testForkAfterFromTimeSeriesSubqueryWithFork() {
+        builder("""
+            FROM employees, (TS k8s | STATS m = MAX(network.bytes_in) BY cluster | FORK (WHERE m > 0) (WHERE m <= 0))
+            | FORK (WHERE m > 5) (WHERE m <= 5)
+            """).stages(STAGES).since(DimensionValues.DIMENSION_VALUES_VERSION).expectationChangesAt(PACK_DIMS_AGG).run();
     }
 
     // helpers

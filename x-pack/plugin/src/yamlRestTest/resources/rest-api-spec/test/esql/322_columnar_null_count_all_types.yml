@@ -1,0 +1,66 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index mode and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+              kwd_indexed:
+                type: keyword
+                index: true
+              txt:
+                type: text
+              mot:
+                type: match_only_text
+              lng:
+                type: long
+              dt:
+                type: date
+              addr:
+                type: ip
+              flag:
+                type: boolean
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "only_null" } }'
+          - '{ "kwd": [ null ], "kwd_indexed": [ null ], "txt": [ null ], "mot": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "kwd": [ "a", null, "b" ], "kwd_indexed": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "mot": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+
+---
+COUNT counts only the values of each field type:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS kwd = COUNT(kwd), kwd_indexed = COUNT(kwd_indexed), txt = COUNT(txt), mot = COUNT(mot), lng = COUNT(lng), dt = COUNT(dt), addr = COUNT(addr), flag = COUNT(flag) | LIMIT 1'
+
+  - match: { values: [ [ 2, 2, 2, 2, 2, 2, 2, 2 ] ] }
+
+---
+COUNT counts only the values of each field type after a LIMIT:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | LIMIT 100 | STATS kwd = COUNT(kwd), kwd_indexed = COUNT(kwd_indexed), txt = COUNT(txt), mot = COUNT(mot), lng = COUNT(lng), dt = COUNT(dt), addr = COUNT(addr), flag = COUNT(flag)'
+
+  - match: { values: [ [ 2, 2, 2, 2, 2, 2, 2, 2 ] ] }

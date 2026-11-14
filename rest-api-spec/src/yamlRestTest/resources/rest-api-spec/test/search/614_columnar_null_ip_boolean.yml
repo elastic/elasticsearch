@@ -1,0 +1,170 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index mode and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              addr:
+                type: ip
+              flag:
+                type: boolean
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "addr": "192.168.0.1", "flag": true }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "addr": [ null ], "flag": [ null ] }'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{ "addr": [ null, null ], "flag": [ null, null ] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "addr": null, "flag": null }'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{ "addr": [], "flag": [] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "addr": [ null, "192.168.0.1" ], "flag": [ null, true ] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "addr": [ "192.168.0.1", null ], "flag": [ true, null ] }'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{ "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
+
+---
+exists matches only documents with a non-null value on an ip field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: addr } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: addr } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a boolean field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: flag } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: flag } }
+
+  - match: { count: 5 }
+
+---
+synthetic source drops the null elements of an ip field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: addr
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.addr: "192.168.0.1" }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.addr: [ "192.168.0.1", "192.168.0.2" ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.addr: "192.168.0.1" }
+  - match: { hits.hits.8._source.addr: "192.168.0.1" }
+  - match: { hits.hits.9._source.addr: "192.168.0.1" }
+
+---
+synthetic source drops the null elements of a boolean field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: flag
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.flag: true }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.flag: [ true, false ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.flag: true }
+  - match: { hits.hits.8._source.flag: true }
+  - match: { hits.hits.9._source.flag: true }
+
+---
+value_count counts only the values of an ip field and a boolean field:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            ip: { value_count: { field: addr } }
+            boolean: { value_count: { field: flag } }
+
+  - match: { aggregations.ip.value: 6 }
+  - match: { aggregations.boolean.value: 6 }

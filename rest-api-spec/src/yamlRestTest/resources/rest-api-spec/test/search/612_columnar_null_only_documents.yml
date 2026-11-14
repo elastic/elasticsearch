@@ -1,0 +1,1041 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index mode and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+                index: false
+              kwd_indexed:
+                type: keyword
+                index: true
+              txt:
+                type: text
+              lng:
+                type: long
+              dt:
+                type: date
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "kwd": "a", "kwd_indexed": "a", "txt": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z" }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "kwd": [ null ], "kwd_indexed": [ null ], "txt": [ null ], "lng": [ null ], "dt": [ null ] }'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{ "kwd": [ null, null ], "kwd_indexed": [ null, null ], "txt": [ null, null ], "lng": [ null, null ], "dt": [ null, null ] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "kwd": [ "a", null, "b" ], "kwd_indexed": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "kwd": null, "kwd_indexed": null, "txt": null, "lng": null, "dt": null }'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{ "kwd": [], "kwd_indexed": [], "txt": [], "lng": [], "dt": [] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "kwd": [ null, "a" ], "kwd_indexed": [ null, "a" ], "txt": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "kwd": [ "a", null ], "kwd_indexed": [ "a", null ], "txt": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ] }'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{ "kwd": [ null, "a", null ], "kwd_indexed": [ null, "a", null ], "txt": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ] }'
+
+---
+exists in the default index mode matches only documents with a non-null value:
+  - do:
+      indices.create:
+        index: control
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+              lng:
+                type: long
+
+  - do:
+      bulk:
+        index: control
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{ "kwd": "a", "lng": 1 }'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{ "kwd": [ null ], "lng": [ null ] }'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{ "kwd": [ null, null ], "lng": [ null, null ] }'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{ "kwd": [ "a", null, "b" ], "lng": [ 1, null, 2 ] }'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{ "kwd": null, "lng": null }'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{ "kwd": [], "lng": [] }'
+          - '{ "index": { "_id": "missing" } }'
+          - '{ "other": "c" }'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{ "kwd": [ null, "a" ], "lng": [ null, 1 ] }'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{ "kwd": [ "a", null ], "lng": [ 1, null ] }'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{ "kwd": [ null, "a", null ], "lng": [ null, 1, null ] }'
+
+  - do:
+      search:
+        index: control
+        body:
+          query: { exists: { field: kwd } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: control
+        body:
+          query: { exists: { field: lng } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: control
+        body:
+          query: { exists: { field: kwd } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: control
+        body:
+          query: { exists: { field: lng } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a keyword field without an index:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: kwd } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on an indexed keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: kwd_indexed } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a text field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: txt } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a long field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: lng } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: lng } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: lng } } } }
+
+  - match: { count: 5 }
+
+---
+exists matches only documents with a non-null value on a date field:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: dt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: dt } }
+
+  - match: { count: 5 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { bool: { must_not: { exists: { field: dt } } } }
+
+  - match: { count: 5 }
+
+---
+exists hits, size 0 total and count agree on a keyword field without an index:
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists hits, size 0 total and count agree on an indexed keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the exists total takes the term count and is lower than the hits when documents hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists hits, size 0 total and count agree on a text field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the exists total takes the term count and is lower than the hits when documents hold only nulls"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists hits, size 0 total and count agree on string fields after a deletion:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the exists total takes the term count when the segment shows no deletion, so agreement depends on the deletion still being visible"
+
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists hits, size 0 total and count agree on string fields after a merge:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the exists total takes the term count when the merge removes the deletion, so agreement depends on the merge keeping it"
+
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - set: { hits.total.value: total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: $total }
+
+  - do:
+      count:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+
+  - match: { count: $total }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          from: $total
+          size: 1
+          _source: false
+
+  - length: { hits.hits: 0 }
+
+---
+exists matches only documents with a non-null value on string fields after a deletion:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      indices.stats:
+        index: test
+        metric: docs
+
+  - gt: { _all.primaries.docs.deleted: 0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+---
+exists matches only documents with a non-null value on string fields after a merge:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract)"
+
+  - do:
+      delete:
+        index: test
+        id: missing
+        refresh: true
+
+  - do:
+      indices.forcemerge:
+        index: test
+        max_num_segments: 1
+
+  - do:
+      indices.stats:
+        index: test
+        metric: docs,segments
+
+  - match: { _all.primaries.segments.count: 1 }
+  - match: { _all.primaries.docs.count: 9 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { exists: { field: txt } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+---
+exists and the missing aggregation count each document once on an indexed keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "string exists matches documents that hold only nulls (proposed contract), while the missing aggregation counts them as missing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { ids: { values: [ null_in_array, trailing_null ] } }
+          post_filter: { exists: { field: kwd_indexed } }
+          aggs:
+            without: { missing: { field: kwd_indexed } }
+          sort: [ _doc ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: trailing_null }
+  - match: { aggregations.without.doc_count: 1 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              filter:
+                - ids: { values: [ null_in_array, trailing_null ] }
+                - exists: { field: kwd_indexed }
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      count:
+        index: test
+        body:
+          query:
+            bool:
+              filter:
+                - ids: { values: [ null_in_array, trailing_null ] }
+                - exists: { field: kwd_indexed }
+
+  - match: { count: 1 }
+
+---
+sort puts documents with only nulls among the documents with no keyword value:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ { kwd: { missing: _first } }, _doc ]
+          _source: false
+
+  - match: { hits.hits.0._id: null_in_array }
+  - match: { hits.hits.1._id: only_nulls }
+  - match: { hits.hits.2._id: bare_null }
+  - match: { hits.hits.3._id: empty_array }
+  - match: { hits.hits.4._id: missing }
+  - match: { hits.hits.5._id: value }
+  - match: { hits.hits.6._id: mixed }
+  - match: { hits.hits.7._id: leading_null }
+  - match: { hits.hits.8._id: trailing_null }
+  - match: { hits.hits.9._id: both_ends_null }
+
+---
+sort puts documents with only nulls among the documents with no long value:
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ { lng: { missing: _first } }, _doc ]
+          _source: false
+
+  - match: { hits.hits.0._id: null_in_array }
+  - match: { hits.hits.1._id: only_nulls }
+  - match: { hits.hits.2._id: bare_null }
+  - match: { hits.hits.3._id: empty_array }
+  - match: { hits.hits.4._id: missing }
+  - match: { hits.hits.5._id: value }
+  - match: { hits.hits.6._id: mixed }
+  - match: { hits.hits.7._id: leading_null }
+  - match: { hits.hits.8._id: trailing_null }
+  - match: { hits.hits.9._id: both_ends_null }
+
+---
+value_count and missing aggregations treat documents with only nulls as having no keyword value:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            values: { value_count: { field: kwd } }
+            without: { missing: { field: kwd } }
+
+  - match: { aggregations.values.value: 6 }
+  - match: { aggregations.without.doc_count: 5 }
+
+---
+value_count and missing aggregations treat documents with only nulls as having no long value:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            values: { value_count: { field: lng } }
+            without: { missing: { field: lng } }
+
+  - match: { aggregations.values.value: 6 }
+  - match: { aggregations.without.doc_count: 5 }
+
+---
+value_count counts only the values of an indexed keyword field and a date field:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            keyword: { value_count: { field: kwd_indexed } }
+            date: { value_count: { field: dt } }
+
+  - match: { aggregations.keyword.value: 6 }
+  - match: { aggregations.date.value: 6 }
+
+---
+synthetic source drops the null elements of a keyword field without an index:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: kwd
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.kwd: a }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.kwd: [ a, b ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.kwd: a }
+  - match: { hits.hits.8._source.kwd: a }
+  - match: { hits.hits.9._source.kwd: a }
+
+---
+synthetic source drops the null elements of an indexed keyword field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: kwd_indexed
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.kwd_indexed: a }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.kwd_indexed: [ a, b ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.kwd_indexed: a }
+  - match: { hits.hits.8._source.kwd_indexed: a }
+  - match: { hits.hits.9._source.kwd_indexed: a }
+
+---
+synthetic source drops the null elements of a text field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: txt
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.txt: a }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.txt: [ a, b ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.txt: a }
+  - match: { hits.hits.8._source.txt: a }
+  - match: { hits.hits.9._source.txt: a }
+
+---
+synthetic source drops the null elements of a long field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: lng
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.lng: 1 }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.lng: [ 1, 2 ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.lng: 1 }
+  - match: { hits.hits.8._source.lng: 1 }
+  - match: { hits.hits.9._source.lng: 1 }
+
+---
+synthetic source drops the null elements of a date field:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+
+  - do:
+      search:
+        index: test
+        body:
+          query: { match_all: {} }
+          sort: [ _doc ]
+          _source: dt
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.dt: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.dt: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.8._source.dt: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.9._source.dt: "2026-01-01T00:00:00.000Z" }

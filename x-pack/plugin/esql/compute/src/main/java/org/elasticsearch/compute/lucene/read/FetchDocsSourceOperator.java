@@ -51,7 +51,7 @@ public final class FetchDocsSourceOperator extends SourceOperator {
          * The fewest documents in a piece of a split. Fewer would read their stored fields one document at a time, also when
          * they sit next to each other.
          */
-        static final int MIN_PIECE_DOCS = ValuesFromSingleReader.SEQUENTIAL_BOUNDARY;
+        static final int MIN_PIECE_DOCS = ValuesReader.SegmentRun.SEQUENTIAL_BOUNDARY;
 
         public ShardDocs {
             checkSorted(segments, docs);

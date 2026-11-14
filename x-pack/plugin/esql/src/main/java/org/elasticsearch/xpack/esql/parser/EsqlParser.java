@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.BitSet;
 import java.util.EmptyStackException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -56,6 +57,27 @@ public class EsqlParser {
      * that the world just isn't that big.
      */
     public static final int MAX_LENGTH = 1_000_000;
+
+    /**
+     * Maximum number of binary operators between two consecutive separators of an ESQL query. A comma separates at any nesting
+     * level, a pipe or the semicolon that ends a {@code SET} or {@code LET} statement only outside parentheses, so a nested pipe,
+     * e.g. in a subquery, cannot be used to reset the count of the enclosing expression. A flat chain such as {@code 0+0+0+...} or
+     * a balanced tree such as {@code ((a+a)+(a+a))+...} stays under the parenthesis depth limit but makes ANTLR allocate a very
+     * large parse tree, so such queries are rejected from the token stream before parsing starts. The check is syntax-blind: unary
+     * {@code +}/{@code -} are conservatively counted too, and so is the {@code *} in {@code COUNT(*)}. Commas separate independent
+     * expressions (fields of an {@code EVAL}, arguments of a function), so wide but shallow queries such as an {@code EVAL} with
+     * thousands of fields are not affected.
+     */
+    public static final int MAX_BINARY_OPERATORS = 1000;
+
+    /**
+     * Maximum number of left parentheses, which are the function calls, subqueries and parenthesized expressions, of one top level item
+     * of an ESQL query. Unlike the binary operators, they are not reset inside parentheses, only by a comma, a pipe or a statement
+     * semicolon outside of any parentheses, e.g. between the fields of an {@code EVAL}. A balanced tree of nested function calls such as
+     * {@code max(max(0,0),max(0,0))} contains no binary operators, so the {@link #MAX_BINARY_OPERATORS} limit does not see it, but its
+     * prediction cost in ANTLR grows with the number of the nested calls, and a few thousand characters can take gigabytes of heap.
+     */
+    public static final int MAX_LEFT_PARENTHESES = 500;
 
     private static void replaceSymbolWithLiteral(Map<String, String> symbolReplacements, String[] literalNames, String[] symbolicNames) {
         for (int i = 0, replacements = symbolReplacements.size(); i < symbolicNames.length && replacements > 0; i++) {
@@ -250,32 +272,21 @@ public class EsqlParser {
         try {
             ParserPipeline pipeline = createParserPipeline(query, params);
 
-            // Pre-scan the token stream for expression depth BEFORE invoking ANTLR's
+            // Pre-scan the token stream for expression depth and complexity BEFORE invoking ANTLR's
             // recursive-descent parser.
+            boolean lexed;
             try {
                 pipeline.tokenStream().fill();
-                int depth = 0;
-                int prefixChain = 0;
-                for (Token token : pipeline.tokenStream().getTokens()) {
-                    switch (token.getType()) {
-                        case EsqlBaseLexer.LP -> depth++;
-                        case EsqlBaseLexer.RP -> depth--;
-                        case EsqlBaseLexer.NOT, EsqlBaseLexer.MINUS, EsqlBaseLexer.PLUS -> prefixChain++;
-                        default -> prefixChain = 0;
-                    }
-                    if (depth + prefixChain > ExpressionBuilder.MAX_EXPRESSION_DEPTH) {
-                        throw new ParsingException(
-                            "ES|QL statement exceeded the maximum expression depth allowed ({})",
-                            ExpressionBuilder.MAX_EXPRESSION_DEPTH
-                        );
-                    }
-                }
+                lexed = true;
             } catch (ParsingException pe) {
-                if (pe.getMessage() != null && pe.getMessage().contains("exceeded the maximum expression depth")) {
-                    throw pe;
-                }
+                lexed = false;
+            }
+            // If the lexer failed, the buffer still holds the tokens before the invalid character. Those are the only tokens the
+            // parser can work on before reporting the error, so they must respect the limits too.
+            checkTokenLimits(pipeline.tokenStream().getTokens());
+            if (lexed == false) {
                 // Lexer error during fill() — rebuild the entire pipeline from scratch so the
-                // parser runs lazily and reports the same error as without this depth check.
+                // parser runs lazily and reports the same error as without this pre-scan.
                 pipeline = createParserPipeline(query, params);
             }
 
@@ -295,6 +306,61 @@ public class EsqlParser {
         } catch (EmptyStackException ese) {
             throw new ParsingException("Invalid query [{}]", query);
         }
+    }
+
+    private static void checkTokenLimits(List<Token> tokens) {
+        int depth = 0;
+        int prefixChain = 0;
+        int binaryOperators = 0;
+        int leftParentheses = 0;
+        for (Token token : tokens) {
+            int type = token.getType();
+            switch (type) {
+                case EsqlBaseLexer.LP -> {
+                    depth++;
+                    leftParentheses++;
+                }
+                case EsqlBaseLexer.RP -> depth--;
+                case EsqlBaseLexer.NOT, EsqlBaseLexer.MINUS, EsqlBaseLexer.PLUS -> prefixChain++;
+                default -> prefixChain = 0;
+            }
+            if (depth + prefixChain > ExpressionBuilder.MAX_EXPRESSION_DEPTH) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum expression depth allowed ({})",
+                    ExpressionBuilder.MAX_EXPRESSION_DEPTH
+                );
+            }
+            // depth can be negative for an invalid query with an unmatched right parenthesis, which is reported by the parser
+            boolean topLevelSeparator = depth <= 0
+                && (type == EsqlBaseLexer.COMMA || type == EsqlBaseLexer.PIPE || type == EsqlBaseLexer.SEMICOLON);
+            if (type == EsqlBaseLexer.COMMA || topLevelSeparator) {
+                binaryOperators = 0;
+            }
+            if (topLevelSeparator) {
+                leftParentheses = 0;
+            }
+            if (isBinaryOperator(type) && ++binaryOperators > MAX_BINARY_OPERATORS) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ({})",
+                    MAX_BINARY_OPERATORS
+                );
+            }
+            if (leftParentheses > MAX_LEFT_PARENTHESES) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum number of left parentheses allowed in an expression ({})",
+                    MAX_LEFT_PARENTHESES
+                );
+            }
+        }
+    }
+
+    private static boolean isBinaryOperator(int tokenType) {
+        return switch (tokenType) {
+            case EsqlBaseLexer.PLUS, EsqlBaseLexer.MINUS, EsqlBaseLexer.ASTERISK, EsqlBaseLexer.SLASH, EsqlBaseLexer.PERCENT,
+                EsqlBaseLexer.EQ, EsqlBaseLexer.CIEQ, EsqlBaseLexer.NEQ, EsqlBaseLexer.LT, EsqlBaseLexer.LTE, EsqlBaseLexer.GT,
+                EsqlBaseLexer.GTE, EsqlBaseLexer.AND, EsqlBaseLexer.OR, EsqlBaseLexer.CAST_OP -> true;
+            default -> false;
+        };
     }
 
     private class PostProcessor extends EsqlBaseParserBaseListener {

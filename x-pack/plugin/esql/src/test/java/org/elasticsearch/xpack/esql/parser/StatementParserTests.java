@@ -121,6 +121,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
@@ -1528,6 +1529,187 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EsqlFlags.DEFAULTS
             )
         );
+    }
+
+    private static final String MAX_BINARY_OPERATORS_ERROR =
+        "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ("
+            + EsqlParser.MAX_BINARY_OPERATORS
+            + ")";
+
+    private static final String MAX_LEFT_PARENTHESES_ERROR =
+        "ES|QL statement exceeded the maximum number of left parentheses allowed in an expression ("
+            + EsqlParser.MAX_LEFT_PARENTHESES
+            + ")";
+
+    private static final String MAX_EXPRESSION_DEPTH_ERROR = "ES|QL statement exceeded the maximum expression depth allowed ("
+        + ExpressionBuilder.MAX_EXPRESSION_DEPTH
+        + ")";
+
+    /** A balanced binary tree of {@code leaf + leaf}, such as {@code ((a + a) + (a + a))}, with 2^levels leaves. */
+    private static String balancedAdditionTree(String leaf, int levels) {
+        String expr = leaf;
+        for (int i = 0; i < levels; i++) {
+            expr = "(" + expr + " + " + expr + ")";
+        }
+        return expr;
+    }
+
+    private static String balancedAdditionTree(int levels) {
+        return balancedAdditionTree("a", levels);
+    }
+
+    /** A balanced binary tree of nested function calls without any operator, such as {@code max(max(0,0),max(0,0))}. */
+    private static String balancedFunctionCallTree(int levels) {
+        String expr = "0";
+        for (int i = 0; i < levels; i++) {
+            expr = "max(" + expr + "," + expr + ")";
+        }
+        return expr;
+    }
+
+    /** {@code ROW x0 = 1 + 1, x1 = 1 + 1, ...} with one binary operator per field. */
+    private static String fieldsWithOneOperatorEach(String prefix, int fields) {
+        return IntStream.range(0, fields).mapToObj(i -> prefix + i + " = 1 + 1").collect(Collectors.joining(", "));
+    }
+
+    /** {@code abs(1), abs(1), ...} with one left parenthesis per item. */
+    private static String functionCalls(int count) {
+        return IntStream.range(0, count).mapToObj(i -> "abs(1)").collect(Collectors.joining(", "));
+    }
+
+    public void testFlatOperatorChainFailsMaxBinaryOperators() {
+        expectError("row x = 0" + " + 0".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | eval y = a" + " - a".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | where a > 0" + " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS), MAX_BINARY_OPERATORS_ERROR);
+        expectError("from test | eval y = a" + "::long".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1), MAX_BINARY_OPERATORS_ERROR);
+    }
+
+    public void testBalancedOperatorTreeFailsMaxLeftParentheses() {
+        // Reproduces https://github.com/elastic/esql-planning/issues/2297: shallow parenthesis nesting, but a huge number of operators
+        expectError("from test | eval y = " + balancedAdditionTree(17) + " | keep y", MAX_LEFT_PARENTHESES_ERROR);
+        // 2^10 - 1 = 1023 parentheses
+        expectError("from test | eval y = " + balancedAdditionTree(10), MAX_LEFT_PARENTHESES_ERROR);
+        // 2^8 - 1 = 255 parentheses
+        query("from test | eval y = " + balancedAdditionTree(8) + " | keep y");
+    }
+
+    public void testBalancedFunctionCallTreeFailsMaxLeftParentheses() {
+        // No binary operators at all, but the cost of parsing grows with the nested calls: 2^10 - 1 = 1023 calls take gigabytes of heap
+        expectError("row x = " + balancedFunctionCallTree(10), MAX_LEFT_PARENTHESES_ERROR);
+        expectError("row x = " + balancedFunctionCallTree(15), MAX_LEFT_PARENTHESES_ERROR);
+        // 2^5 - 1 = 31 calls
+        query("row x = " + balancedFunctionCallTree(5));
+    }
+
+    public void testCommasInsideParenthesesDoNotHideLeftParentheses() {
+        // The commas of the inner function calls reset the operator count, but not the count of the left parentheses
+        expectError("from test | eval y = " + balancedAdditionTree("coalesce(a, a)", 10) + " | keep y", MAX_LEFT_PARENTHESES_ERROR);
+        expectError("from test | eval y = abs(" + balancedAdditionTree("coalesce(a, a)", 9) + ", 1)", MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testLeftParenthesesUpToMaxAreAccepted() {
+        query("row x = coalesce(" + functionCalls(EsqlParser.MAX_LEFT_PARENTHESES - 1) + ")");
+        expectError("row x = coalesce(" + functionCalls(EsqlParser.MAX_LEFT_PARENTHESES) + ")", MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testLeftParenthesesAreResetByTopLevelCommaAndPipe() {
+        // Fields of a command are independent
+        query(
+            "row "
+                + IntStream.range(0, 5 * EsqlParser.MAX_LEFT_PARENTHESES)
+                    .mapToObj(i -> "x" + i + " = abs(1)")
+                    .collect(Collectors.joining(", "))
+        );
+        // Commands are independent
+        String calls = functionCalls(EsqlParser.MAX_LEFT_PARENTHESES - 1);
+        query("from test | eval a = coalesce(" + calls + ") | eval b = coalesce(" + calls + ") | keep a, b");
+        // A pipe or a comma inside parentheses do not reset the count of the enclosing expression
+        expectError("from test | eval a = coalesce(" + calls + ", " + calls + ")", MAX_LEFT_PARENTHESES_ERROR);
+        expectError("from test | where x in (from a | where " + calls + " | where " + calls + ")", MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testBinaryOperatorCountIsResetByComma() {
+        // Fields of a command are independent expressions, so any number of them is fine
+        query("row " + fieldsWithOneOperatorEach("x", 5 * EsqlParser.MAX_BINARY_OPERATORS));
+        query("from test | eval " + fieldsWithOneOperatorEach("x", 5 * EsqlParser.MAX_BINARY_OPERATORS) + " | keep x0");
+        // Arguments of a function call are independent expressions too
+        query("row x = coalesce(" + IntStream.range(0, 2300).mapToObj(i -> "1 + 1").collect(Collectors.joining(", ")) + ")");
+        // COUNT(*) is conservatively counted as a multiplication
+        query(
+            "from test | stats "
+                + IntStream.range(0, 5 * EsqlParser.MAX_BINARY_OPERATORS)
+                    .mapToObj(i -> "c" + i + " = count(*)")
+                    .collect(Collectors.joining(", "))
+        );
+        // Two big trees in two fields are accepted, the same trees in one expression are not
+        String tree = balancedAdditionTree(8);
+        query("from test | eval x = " + tree + ", y = " + tree);
+        expectError("from test | eval x = " + tree + " + " + tree, MAX_LEFT_PARENTHESES_ERROR);
+    }
+
+    public void testBinaryOperatorCountIsResetByPipe() {
+        String tree = balancedAdditionTree(8);
+        // Each command is below the limit while the statement total is above it
+        query("from test | eval x = " + tree + " | eval y = " + tree + " | eval z = " + tree + " | keep x");
+        String conditions = " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS / 4);
+        query("from test | where a > 0" + conditions + " | where a > 0" + conditions + " | where a > 0" + conditions);
+    }
+
+    public void testNestedPipeDoesNotResetBinaryOperatorCount() {
+        // Each half is below the limit, the subquery between them must not hide the operators of the enclosing WHERE
+        String conditions = " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS * 2 / 5);
+        expectError("from test | where a > 0" + conditions + " and x in (from sub | keep x)" + conditions, MAX_BINARY_OPERATORS_ERROR);
+    }
+
+    public void testOperatorsWithoutSeparatorFailMaxBinaryOperators() {
+        // The function call does not hide the operators from the check, because they are not separated by a comma
+        expectError("from test | eval x = abs(a" + " + a".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1) + ")", MAX_BINARY_OPERATORS_ERROR);
+        expectError(
+            "from test | where abs(a"
+                + " + a".repeat(EsqlParser.MAX_BINARY_OPERATORS / 2)
+                + ") > 0"
+                + " and a > 0".repeat(EsqlParser.MAX_BINARY_OPERATORS / 2),
+            MAX_BINARY_OPERATORS_ERROR
+        );
+    }
+
+    public void testLimitsAreCheckedWhenTheLexerFails() {
+        // The parser would work on everything before the invalid character, so the limits must hold for that part
+        List<String> invalidEnds = List.of(" | keep \u00c5", " \"unterminated", " /* unterminated");
+        for (String end : invalidEnds) {
+            expectError("row x = 0" + " + 0".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1) + end, MAX_BINARY_OPERATORS_ERROR);
+            expectError("from test | eval y = " + balancedAdditionTree(17) + end, MAX_LEFT_PARENTHESES_ERROR);
+            expectError("row x = " + balancedFunctionCallTree(10) + end, MAX_LEFT_PARENTHESES_ERROR);
+            expectError(
+                "row x = "
+                    + "(".repeat(ExpressionBuilder.MAX_EXPRESSION_DEPTH + 1)
+                    + "1"
+                    + ")".repeat(ExpressionBuilder.MAX_EXPRESSION_DEPTH + 1)
+                    + end,
+                MAX_EXPRESSION_DEPTH_ERROR
+            );
+        }
+    }
+
+    public void testLexerErrorIsReportedWhenTheLimitsHold() {
+        // The query is parsed lazily again, so the first error in the query is reported, not necessarily the lexer error
+        expectError("from test | keep \u00c5", "token recognition error at: '\u00c5'");
+        expectError("from test | eval y = " + balancedAdditionTree(3) + " | keep \u00c5", "token recognition error at: '\u00c5'");
+        expectError("from | keep \u00c5", "mismatched input '|' expecting");
+    }
+
+    public void testUnmatchedRightParenthesisIsReportedByTheParser() {
+        for (String query : List.of("row x = ) | eval y = 1", "row x = 1) + (2", ") | eval " + fieldsWithOneOperatorEach("x", 10))) {
+            ParsingException e = expectThrows(ParsingException.class, () -> query(query));
+            assertThat(e.getMessage(), not(containsString("exceeded the maximum")));
+        }
+    }
+
+    public void testOperatorLikeTokensInStringsAndCommentsAreNotCounted() {
+        String plusses = "+".repeat(EsqlParser.MAX_BINARY_OPERATORS + 1);
+        query("row x = \"" + plusses + "\"");
+        query("row x = 1 // " + plusses);
+        query("row x = 1 /* " + plusses + " */");
     }
 
     public void testBlockComments() {

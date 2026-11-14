@@ -299,7 +299,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         );
         if (NestedField.FLATTENED_LEAVES) {
             for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-                if (attr instanceof FieldAttribute == false) {
+                // An unsupported field, such as one whose indices disagree on its type, is null everywhere
+                if (attr instanceof FieldAttribute == false
+                    || attr.dataType() == DataType.UNSUPPORTED
+                    || fieldExtractExec.mayBeNested(attr) == false) {
                     continue;
                 }
                 EsField field = ((FieldAttribute) attr).field();

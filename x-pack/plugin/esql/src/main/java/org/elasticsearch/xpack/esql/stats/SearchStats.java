@@ -39,6 +39,14 @@ public interface SearchStats {
         return false;
     }
 
+    /**
+     * Whether a shard here may map {@code field} under a nested object, so that it is read from the child documents.
+     * Stats that can't tell answer {@code true}.
+     */
+    default boolean mayBeNestedField(FieldName field) {
+        return true;
+    }
+
     /** Whether every shard here that maps the nested child {@code field} can query it. At least one must map it. */
     default boolean nestedFieldIsSearchable(FieldName field) {
         return false;

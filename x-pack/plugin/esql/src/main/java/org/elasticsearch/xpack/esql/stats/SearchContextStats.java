@@ -188,6 +188,16 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean mayBeNestedField(FieldName field) {
+        for (SearchExecutionContext context : contexts) {
+            if (isFlattenedNestedField(context, field.string())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public boolean mayHoldUnmappedFields() {
         if (mayHoldUnmappedFields == null) {
             boolean mayHold = false;

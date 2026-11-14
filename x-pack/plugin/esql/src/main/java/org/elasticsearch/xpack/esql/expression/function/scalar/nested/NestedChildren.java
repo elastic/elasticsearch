@@ -10,7 +10,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -56,9 +56,13 @@ public final class NestedChildren implements Releasable {
 
     /**
      * One shard's filters selecting parents and the children of this nested field, {@code null} where it is not mapped.
-     * {@code parents} is only read with {@code children}.
+     * {@code parents} is only read with {@code children}. {@code warning} is added to each driver that reads the shard.
      */
-    public record Shard(IndexReader reader, @Nullable BitSetProducer parents, @Nullable BitSetProducer children) {}
+    public record Shard(IndexReader reader, @Nullable BitSetProducer parents, @Nullable BitSetProducer children, @Nullable String warning) {
+        public Shard(IndexReader reader, @Nullable BitSetProducer parents, @Nullable BitSetProducer children) {
+            this(reader, parents, children, null);
+        }
+    }
 
     /** @param reader loads the child fields; {@code null} when no child field is read, as for {@code COUNT(*)} */
     public record Factory(IndexedByShardId<Shard> shards, @Nullable ValuesSourceReaderOperator.Factory reader) {
@@ -107,8 +111,12 @@ public final class NestedChildren implements Releasable {
             SearchExecutionContext context = ((EsPhysicalOperationProviders.DefaultShardContext) shard).executionContext();
             NestedObjectMapper nested = nested(shard, pathFor(field));
             if (nested != null && (readable == false || withoutDocValues(shard, List.of(field)) != null)) {
-                HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", field);
-                nested = null;
+                return new Shard(
+                    shard.searcher().getIndexReader(),
+                    null,
+                    null,
+                    Strings.format("Field [%s] cannot be retrieved, it is unsupported or not indexed; returning null", field)
+                );
             }
             if (nested == null) {
                 return new Shard(shard.searcher().getIndexReader(), null, null);
@@ -256,7 +264,11 @@ public final class NestedChildren implements Releasable {
 
     /** Whether the shard maps the nested object, so its parents have children to read. */
     boolean hasChildren(int shard) {
-        return shards.get(shard).children() != null;
+        Shard s = shards.get(shard);
+        if (s.warning() != null && context.warningsMode() == DriverContext.WarningsMode.COLLECT) {
+            context.addWarning(s.warning());
+        }
+        return s.children() != null;
     }
 
     /**

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -20,8 +21,10 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -42,10 +45,14 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
         var preference = context.configuration() != null
             ? context.configuration().pragmas().fieldExtractPreference()
             : MappedFieldType.FieldExtractPreference.NONE;
-        return InsertFieldExtraction.rule(plan, preference);
+        return InsertFieldExtraction.rule(plan, preference, context.searchStats());
     }
 
-    static PhysicalPlan rule(PhysicalPlan plan, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
+    static PhysicalPlan rule(
+        PhysicalPlan plan,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference,
+        @Nullable SearchStats stats
+    ) {
         // apply the plan locally, adding a field extractor right before data is loaded
         // by going bottom-up
         plan = plan.transformUp(p -> {
@@ -66,7 +73,8 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
                         if (child.outputSet().stream().anyMatch(EsQueryExec::isDocAttribute)) {
                             found = true;
                             // collect source attributes and add the extractor
-                            child = new FieldExtractExec(p.source(), child, List.copyOf(missing), fieldExtractPreference);
+                            child = new FieldExtractExec(p.source(), child, List.copyOf(missing), fieldExtractPreference)
+                                .withNestedAttributes(nestedAttributes(missing, stats));
                         }
                     }
                     newChildren.add(child);
@@ -82,6 +90,20 @@ public class InsertFieldExtraction extends PhysicalOptimizerRules.ParameterizedO
         });
 
         return plan;
+    }
+
+    @Nullable
+    private static Set<Attribute> nestedAttributes(Set<Attribute> attributes, @Nullable SearchStats stats) {
+        if (stats == null) {
+            return null;
+        }
+        Set<Attribute> nested = new HashSet<>();
+        for (Attribute attr : attributes) {
+            if (attr instanceof FieldAttribute fa && stats.mayBeNestedField(fa.fieldName())) {
+                nested.add(attr);
+            }
+        }
+        return nested;
     }
 
     private static Set<Attribute> missingAttributes(PhysicalPlan p) {

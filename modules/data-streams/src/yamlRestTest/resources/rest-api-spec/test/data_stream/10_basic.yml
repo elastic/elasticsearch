@@ -144,6 +144,7 @@ teardown:
   - is_true: acknowledged
 
   - do:
+      headers: { X-elastic-product-origin: elastic }
       indices.create_data_stream:
         name: .hidden-data-stream
   - is_true: acknowledged

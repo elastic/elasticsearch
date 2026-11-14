@@ -1016,7 +1016,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "all shards failed",
-                new ShardSearchFailure[] { new ShardSearchFailure(new SearchContextMissingException(new ShardSearchContextId("s", 2))) }
+                List.of(new ShardSearchFailure(new SearchContextMissingException(new ShardSearchContextId("s", 2))))
             )
         );
         assertStopsTheSweep(cause);
@@ -1029,9 +1029,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
     public void testShardRestoringStopsTheSweep() {
         final var restoring = new ShardRestoringException("index", randomUUID());
         assertStopsTheSweep(restoring);
-        assertStopsTheSweep(
-            new SearchPhaseExecutionException("query", "all shards failed", new ShardSearchFailure[] { new ShardSearchFailure(restoring) })
-        );
+        assertStopsTheSweep(new SearchPhaseExecutionException("query", "all shards failed", List.of(new ShardSearchFailure(restoring))));
     }
 
     private void assertStopsTheSweep(Exception cause) {
@@ -1057,7 +1055,7 @@ public class TransportKnnEvalActionTests extends ESTestCase {
             new SearchPhaseExecutionException(
                 "query",
                 "all shards failed",
-                new ShardSearchFailure[] { new ShardSearchFailure(new IllegalArgumentException("wrong dimensions")) }
+                List.of(new ShardSearchFailure(new IllegalArgumentException("wrong dimensions")))
             )
         );
         KnnEvalResponse response = safeGet(execute(client, 10, null, 5.0f));

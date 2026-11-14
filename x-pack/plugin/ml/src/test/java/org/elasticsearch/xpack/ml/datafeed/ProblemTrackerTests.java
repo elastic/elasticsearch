@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -52,7 +54,7 @@ public class ProblemTrackerTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException(
             "test-phase",
             "partial shards failure",
-            new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchException("for the cause!")) }
+            List.of(new ShardSearchFailure(new ElasticsearchException("for the cause!")))
         );
 
         problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, searchPhaseExecutionException));
@@ -258,7 +260,7 @@ public class ProblemTrackerTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException(
             "query",
             "all shards failed",
-            new ShardSearchFailure[] { new ShardSearchFailure(parentCircuitBreaker) }
+            List.of(new ShardSearchFailure(parentCircuitBreaker))
         );
 
         problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, searchPhaseExecutionException));
@@ -272,7 +274,7 @@ public class ProblemTrackerTests extends ESTestCase {
             "query",
             "all shards failed",
             parentCircuitBreaker,
-            ShardSearchFailure.EMPTY_ARRAY
+            List.of()
         );
 
         problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, searchPhaseExecutionException));
@@ -285,9 +287,7 @@ public class ProblemTrackerTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException(
             "query",
             "all shards failed",
-            new ShardSearchFailure[] {
-                new ShardSearchFailure(new ElasticsearchException("shard unavailable")),
-                new ShardSearchFailure(parentCircuitBreaker) }
+            List.of(new ShardSearchFailure(new ElasticsearchException("shard unavailable")), new ShardSearchFailure(parentCircuitBreaker))
         );
 
         problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, searchPhaseExecutionException));

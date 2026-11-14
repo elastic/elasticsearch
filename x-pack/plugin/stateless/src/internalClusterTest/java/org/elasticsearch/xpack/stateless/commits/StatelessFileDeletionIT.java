@@ -754,7 +754,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             totalIndexedDocs += indexDocsAndFlush(indexName);
         }
 
-        var blobsBeforeMerging = listBlobsWithAbsolutePath(shardCommitsContainer);
+        var bccBlobsBeforeMerging = listBccBlobsWithAbsolutePath(shardCommitsContainer);
 
         long millisBeforeDeletions = System.currentTimeMillis();
         forceMerge();
@@ -762,8 +762,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
 
         assertBusy(() -> {
-            var blobsAfterMerging = listBlobsWithAbsolutePath(shardCommitsContainer);
-            assertThat(Sets.intersection(blobsBeforeMerging, blobsAfterMerging), empty());
+            var bccBlobsAfterMerging = listBccBlobsWithAbsolutePath(shardCommitsContainer);
+            assertThat(Sets.intersection(bccBlobsBeforeMerging, bccBlobsAfterMerging), empty());
         });
         long millisForDeletions = System.currentTimeMillis() - millisBeforeDeletions;
         assertThat("delete delay should have taken effect", millisForDeletions, greaterThan((long) deleteDelayMillis));
@@ -836,7 +836,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         ensureGreen(indexName);
 
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
-        var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
+        var initialBccBlobs = listBccBlobsWithAbsolutePath(shardCommitsContainer);
 
         int totalIndexedDocs = 0;
 
@@ -844,7 +844,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         totalIndexedDocs += numDocsBeforeOpenScroll;
 
         // We need to disregard the first empty commit
-        var blobsUsedForScroll = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+        var bccBlobsUsedForScroll = Sets.difference(listBccBlobsWithAbsolutePath(shardCommitsContainer), initialBccBlobs);
 
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().get());
         final AtomicReference<String> currentScrollId = new AtomicReference<>();
@@ -877,8 +877,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             equalTo((long) totalIndexedDocs)
         );
 
-        var blobsBeforeReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
-        assertThat(blobsBeforeReleasingScroll.containsAll(blobsUsedForScroll), is(true));
+        var bccBlobsBeforeReleasingScroll = listBccBlobsWithAbsolutePath(shardCommitsContainer);
+        assertThat(bccBlobsBeforeReleasingScroll.containsAll(bccBlobsUsedForScroll), is(true));
 
         var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
         var shardId = new ShardId(resolveIndex(indexName), 0);
@@ -906,16 +906,17 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 break;
             case ALL_COMMITS_DELETED_AFTER_INDEX_DELETED:
                 assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
-                assertBusy(() -> { assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()); }); // all blobs should be deleted
+                // all BCC blobs should be deleted
+                assertBusy(() -> { assertThat(listBccBlobsWithAbsolutePath(shardCommitsContainer), empty()); });
                 return;
             default:
                 assert false : "unknown test case " + testCase;
         }
 
-        // Check that scroll's blobs are deleted
+        // Check that scroll's BCC blobs are deleted
         assertBusy(() -> {
-            var blobsAfterReleasingScroll = listBlobsWithAbsolutePath(shardCommitsContainer);
-            assertThat(Sets.intersection(blobsUsedForScroll, blobsAfterReleasingScroll), empty());
+            var bccBlobsAfterReleasingScroll = listBccBlobsWithAbsolutePath(shardCommitsContainer);
+            assertThat(Sets.intersection(bccBlobsUsedForScroll, bccBlobsAfterReleasingScroll), empty());
         });
 
         // For most cases we expect at least one additional newCommitNotification response after releasing the scroll.
@@ -929,7 +930,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             // The last notification response should no longer contain blobs used for scroll
             assertThat(
                 Sets.intersection(
-                    blobsUsedForScroll.stream()
+                    bccBlobsUsedForScroll.stream()
                         .map(name -> name.substring(name.lastIndexOf('/') + 1))
                         .map(BatchedCompoundCommit::parseGenerationFromBlobName)
                         .collect(Collectors.toUnmodifiableSet()),
@@ -960,7 +961,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
         indexDocsAndFlush(indexName);
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
-        assertBusy(() -> { assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()); });
+        assertBusy(() -> { assertThat(listBccBlobsWithAbsolutePath(shardCommitsContainer), empty()); });
     }
 
     @TestLogging(
@@ -1080,7 +1081,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
         logger.info("--> deleting index");
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
-        assertBusy(() -> assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty())); // all blobs should be deleted
+        assertBusy(() -> assertThat(listBccBlobsWithAbsolutePath(shardCommitsContainer), empty())); // all BCC blobs should be deleted
     }
 
     public void testDeleteIndexAfterPrimaryRelocation() throws Exception {
@@ -1102,7 +1103,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
         logger.info("--> deleting index");
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
-        assertBusy(() -> assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty())); // all blobs should be deleted
+        assertBusy(() -> assertThat(listBccBlobsWithAbsolutePath(shardCommitsContainer), empty())); // all BCC blobs should be deleted
     }
 
     public void testBlobsNotDeletedDuringSuccessfulRelocation() throws Exception {
@@ -1153,18 +1154,18 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         }
 
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA, 0);
-        final var blobsBeforeMerge = shardCommitsContainer.listBlobs(operationPurpose).keySet();
-        assertThat(blobsBeforeMerge, not(empty()));
-        logger.info("--> blobs before merge: {}", blobsBeforeMerge);
+        final var bccBlobsBeforeMerge = listBccBlobNames(shardCommitsContainer);
+        assertThat(bccBlobsBeforeMerge, not(empty()));
+        logger.info("--> BCC blobs before merge: {}", bccBlobsBeforeMerge);
         final long lastGenerationBeforeMerge = indexEngine.getCurrentGeneration();
 
         // Step 2: Force merge supersedes old commits. No deletion due to locally acquired readers
         logger.info("--> force merging to a single segment");
         forceMerge(true);
         flush(indexName);
-        final Set<String> blobsAfterMerge = shardCommitsContainer.listBlobs(operationPurpose).keySet();
-        logger.info("--> blobs after merge: {}", blobsAfterMerge);
-        assertThat(blobsAfterMerge, hasItems(blobsBeforeMerge.toArray(new String[0])));
+        final Set<String> bccBlobsAfterMerge = listBccBlobNames(shardCommitsContainer);
+        logger.info("--> BCC blobs after merge: {}", bccBlobsAfterMerge);
+        assertThat(bccBlobsAfterMerge, hasItems(bccBlobsBeforeMerge.toArray(new String[0])));
 
         // The search shard releases its references to the superseded commits only once it has acknowledged the post-merge commit, which
         // happens asynchronously after the flush above returns. Wait for that so that the locally acquired readers are the only remaining
@@ -1198,9 +1199,9 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         // Step 4: Release local readers of old commits while the shard is RELOCATING. Commits deletion should be deferred.
         logger.info("--> releasing local readers of old commits");
         readers.forEach(shardLocalReadersTracker::onLocalReaderClosed);
-        final Set<String> blobsAfterReleasingLocalReaders = shardCommitsContainer.listBlobs(operationPurpose).keySet();
-        logger.info("--> blobs after releasing local readers: {}", blobsAfterReleasingLocalReaders);
-        assertThat(blobsAfterReleasingLocalReaders, hasItems(blobsBeforeMerge.toArray(new String[0])));
+        final Set<String> bccBlobsAfterReleasingLocalReaders = listBccBlobNames(shardCommitsContainer);
+        logger.info("--> BCC blobs after releasing local readers: {}", bccBlobsAfterReleasingLocalReaders);
+        assertThat(bccBlobsAfterReleasingLocalReaders, hasItems(bccBlobsBeforeMerge.toArray(new String[0])));
 
         // Step 5: Complete or fail the relocation and the commits are deleted accordingly
         proceedWithHandOff.countDown();
@@ -1212,16 +1213,16 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             // Therefore old commits should still exist
             assertThat(
                 "old commit blobs should not be deleted by old primary after successful relocation",
-                shardCommitsContainer.listBlobs(operationPurpose).keySet(),
-                hasItems(blobsBeforeMerge.toArray(String[]::new))
+                listBccBlobNames(shardCommitsContainer),
+                hasItems(bccBlobsBeforeMerge.toArray(String[]::new))
             );
         } else {
             // The old primary reprocesses deferred stale blob deletions on failed relocation and deletes old commits
             assertBusy(() -> {
-                final var remaining = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+                final var remaining = listBccBlobNames(shardCommitsContainer);
                 assertThat(
-                    remaining + " still contains some of " + blobsBeforeMerge,
-                    Sets.intersection(remaining, blobsBeforeMerge),
+                    remaining + " still contains some of " + bccBlobsBeforeMerge,
+                    Sets.intersection(remaining, bccBlobsBeforeMerge),
                     empty()
                 );
             });
@@ -1277,8 +1278,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         }
 
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA, 0);
-        final var blobsBeforeMerge = shardCommitsContainer.listBlobs(operationPurpose).keySet();
-        assertThat(blobsBeforeMerge, not(empty()));
+        final var bccBlobsBeforeMerge = listBccBlobNames(shardCommitsContainer);
+        assertThat(bccBlobsBeforeMerge, not(empty()));
         final long lastGenerationBeforeMerge = indexEngine.getCurrentGeneration();
 
         // Step 2: Intercept post-merge notifications on the search node to keep it on the pre-merge commit.
@@ -1319,17 +1320,17 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         // by its mock reader) should be deleted, while the user-flush blobs (still held by the search node)
         // must survive. Using assertBusy because the actual deletion is asynchronous.
         assertBusy(() -> {
-            final var remaining = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+            final var remaining = listBccBlobNames(shardCommitsContainer);
             // At least one pre-merge blob was reclaimed by markRelocationFailed via the deferred list
             assertThat(
                 "no pre-merge blob was deleted by markRelocationFailed; deferred list may be empty",
-                Sets.difference(blobsBeforeMerge, remaining),
+                Sets.difference(bccBlobsBeforeMerge, remaining),
                 not(empty())
             );
             // The blobs still held by the search node survived the failed relocation
             assertThat(
                 "all pre-merge blobs were deleted; search-node hold did not protect them",
-                Sets.intersection(remaining, blobsBeforeMerge),
+                Sets.intersection(remaining, bccBlobsBeforeMerge),
                 not(empty())
             );
         });
@@ -1340,9 +1341,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         while ((delayed = delayedNotifications.poll()) != null) {
             delayed.run();
         }
-        assertBusy(
-            () -> assertThat(Sets.intersection(shardCommitsContainer.listBlobs(operationPurpose).keySet(), blobsBeforeMerge), empty())
-        );
+        assertBusy(() -> assertThat(Sets.intersection(listBccBlobNames(shardCommitsContainer), bccBlobsBeforeMerge), empty()));
 
         assertHitCount(prepareSearch(indexName).setQuery(matchAllQuery()), totalDocs);
         findPlugin(indexNodeB, TestStatelessPlugin.class).shouldDeleteShardFiles.set(true);
@@ -1369,7 +1368,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         ensureGreen(indexName);
 
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA, 0);
-        var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
+        var initialBccBlobs = listBccBlobsWithAbsolutePath(shardCommitsContainer);
 
         final int numberOfSegments = randomIntBetween(2, 5);
         for (int i = 0; i < numberOfSegments; i++) {
@@ -1383,7 +1382,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         var shardId = new ShardId(resolveIndex(indexName), 0);
 
         // We need to disregard the first empty commit that's deleted right away
-        var blobsBeforeTriggeringForceMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+        var bccBlobsBeforeTriggeringForceMerge = Sets.difference(listBccBlobsWithAbsolutePath(shardCommitsContainer), initialBccBlobs);
 
         final MockTransportService indexNodeTransportService = MockTransportService.getInstance(indexNodeA);
         final MockTransportService masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
@@ -1430,8 +1429,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         // The consistency check is executed in an observer that's applied before the listener that triggers this future
         rejoinedCluster.get();
 
-        var blobsAfterNodeIsStale = listBlobsWithAbsolutePath(shardCommitsContainer);
-        assertThat(blobsAfterNodeIsStale.containsAll(blobsBeforeTriggeringForceMerge), is(true));
+        var bccBlobsAfterNodeIsStale = listBccBlobsWithAbsolutePath(shardCommitsContainer);
+        assertThat(bccBlobsAfterNodeIsStale.containsAll(bccBlobsBeforeTriggeringForceMerge), is(true));
     }
 
     // Since the commit deletion relies on a NewCommitNotification being processed on all unpromotables, while an unpromotable is
@@ -1445,7 +1444,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         var searchNode2 = startSearchNode();
         ensureStableCluster(3);
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
-        var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
+        var initialBccBlobs = listBccBlobsWithAbsolutePath(shardCommitsContainer);
 
         var indexShard = findIndexShard(indexName);
         var initialGeneration = asInstanceOf(IndexEngine.class, indexShard.getEngineOrNull()).getCurrentGeneration();
@@ -1491,7 +1490,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 );
             });
 
-        final var blobsBeforeNewCommitNotificationResponse = new AtomicReference<Set<String>>();
+        final var bccBlobsBeforeNewCommitNotificationResponse = new AtomicReference<Set<String>>();
         final var searchShardRecovered = new CountDownLatch(1);
 
         // Delay all new commit notifications on searchNode2 except the one to recover from
@@ -1522,7 +1521,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                                         Thread.currentThread().interrupt();
                                         fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
                                     }
-                                    blobsBeforeNewCommitNotificationResponse.set(listBlobsWithAbsolutePath(shardCommitsContainer));
+                                    bccBlobsBeforeNewCommitNotificationResponse.set(listBccBlobsWithAbsolutePath(shardCommitsContainer));
                                 }
                             })),
                             task
@@ -1538,9 +1537,9 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         // Start the second search shard and waits for recovery to start
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2), indexName);
         safeAwait(commitRegistrationStarted);
-        var blobsBeforeMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+        var bccBlobsBeforeMerge = Sets.difference(listBccBlobsWithAbsolutePath(shardCommitsContainer), initialBccBlobs);
         // We're testing that these don't get deleted, so there should be some
-        assertThat(blobsBeforeMerge, not(empty()));
+        assertThat(bccBlobsBeforeMerge, not(empty()));
 
         // While search shard is recovering, create a new merged commit
         logger.debug("--> force merging");
@@ -1565,13 +1564,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         }
 
         assertBusy(() -> {
-            assertThat(blobsBeforeNewCommitNotificationResponse.get(), notNullValue());
+            assertThat(bccBlobsBeforeNewCommitNotificationResponse.get(), notNullValue());
             assertThat(
-                "blobs before merge = "
-                    + blobsBeforeMerge
-                    + ", blobs before new commit notification response ="
-                    + blobsBeforeNewCommitNotificationResponse.get(),
-                blobsBeforeNewCommitNotificationResponse.get().containsAll(blobsBeforeMerge),
+                "BCC blobs before merge = "
+                    + bccBlobsBeforeMerge
+                    + ", BCC blobs before new commit notification response ="
+                    + bccBlobsBeforeNewCommitNotificationResponse.get(),
+                bccBlobsBeforeNewCommitNotificationResponse.get().containsAll(bccBlobsBeforeMerge),
                 is(true)
             );
         });
@@ -1586,8 +1585,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         indexDocs(indexName, randomIntBetween(10, 20));
         flush(indexName);
         assertBusy(() -> {
-            var blobsAfterRecoveryAndRefresh = listBlobsWithAbsolutePath(shardCommitsContainer);
-            assertThat(Sets.intersection(blobsAfterRecoveryAndRefresh, blobsBeforeMerge), is(empty()));
+            var bccBlobsAfterRecoveryAndRefresh = listBccBlobsWithAbsolutePath(shardCommitsContainer);
+            assertThat(Sets.intersection(bccBlobsAfterRecoveryAndRefresh, bccBlobsBeforeMerge), is(empty()));
         });
     }
 
@@ -1747,10 +1746,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         }
 
         assertBusy(
-            () -> assertThat(
-                shardCommitsContainer.listBlobs(operationPurpose).keySet(),
-                is(equalTo(expectedBlobsAfterProcessingNewCommitNotifications))
-            )
+            () -> assertThat(listBccBlobNames(shardCommitsContainer), is(equalTo(expectedBlobsAfterProcessingNewCommitNotifications)))
         );
 
         internalCluster().stopNode(searchNode);
@@ -1762,7 +1758,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         // If all the search nodes leave the cluster we should keep the latest BCC around
         assertBusy(
             () -> assertThat(
-                shardCommitsContainer.listBlobs(operationPurpose).keySet(),
+                listBccBlobNames(shardCommitsContainer),
                 is(equalTo(Set.of(BatchedCompoundCommit.blobNameFromGeneration(maxUploadedBCCGeneration))))
             )
         );
@@ -1838,7 +1834,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         }
 
         // Run a force merge so only the open PITs are retaining the previous commits
-        var blobsRetainedByPITs = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+        var bccBlobsRetainedByPITs = listBccBlobNames(shardCommitsContainer);
         forceMerge(true);
 
         // run searches and check number of docs
@@ -1860,7 +1856,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 newCommitNotificationReceivedLatch.countDown();
                 handler.messageReceived(request, channel, task);
             });
-        var retainedBlobsBeforeUnpromotableShardMoved = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+        var retainedBccBlobsBeforeUnpromotableShardMoved = listBccBlobNames(shardCommitsContainer);
 
         var delayShardStartedMessages = new AtomicBoolean(true);
         var delayedShardStartedMessages = new ConcurrentLinkedQueue<CheckedRunnable<Exception>>();
@@ -1890,7 +1886,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         // The new search node should have responded back to the new commit notification
         // (and at this point it'll be just using the latest commit), but since it's still initializing
         // the response would be ignored
-        assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(retainedBlobsBeforeUnpromotableShardMoved)));
+        assertThat(listBccBlobNames(shardCommitsContainer), is(equalTo(retainedBccBlobsBeforeUnpromotableShardMoved)));
 
         // The default waitForActiveShards would wait until the relocating search shard has finished, we don't need to wait for that.
         indexDocs(indexName, randomIntBetween(10, 20), bulkRequest -> bulkRequest.setWaitForActiveShards(ActiveShardCount.NONE));
@@ -1898,19 +1894,19 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         assertNoFailures(flushResponse);
         // Up until now we're retaining all commits by the open PITs + the force merged commit and the newly flushed commit
 
-        var blobsAfterFlushWhileSearchShardIsRecovering = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+        var bccBlobsAfterFlushWhileSearchShardIsRecovering = listBccBlobNames(shardCommitsContainer);
 
-        assertThat(blobsAfterFlushWhileSearchShardIsRecovering.containsAll(retainedBlobsBeforeUnpromotableShardMoved), is(true));
-        assertThat(blobsAfterFlushWhileSearchShardIsRecovering, hasSize(retainedBlobsBeforeUnpromotableShardMoved.size() + 1));
+        assertThat(bccBlobsAfterFlushWhileSearchShardIsRecovering.containsAll(retainedBccBlobsBeforeUnpromotableShardMoved), is(true));
+        assertThat(bccBlobsAfterFlushWhileSearchShardIsRecovering, hasSize(retainedBccBlobsBeforeUnpromotableShardMoved.size() + 1));
 
         // At this point we should be retaining all commits since the unpromotable shard is still recovering,
         // and we'll be holding all commits in that case until the initialization finishes
         var forceMergeResponse = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         assertNoFailures(forceMergeResponse);
 
-        var blobsAfterSecondForceMerge = shardCommitsContainer.listBlobs(operationPurpose).keySet();
+        var bccBlobsAfterSecondForceMerge = listBccBlobNames(shardCommitsContainer);
 
-        assertThat(blobsAfterSecondForceMerge.containsAll(blobsAfterFlushWhileSearchShardIsRecovering), is(true));
+        assertThat(bccBlobsAfterSecondForceMerge.containsAll(bccBlobsAfterFlushWhileSearchShardIsRecovering), is(true));
 
         var latestUploadedBcc = commitService.getLatestUploadedBcc(shardId);
         assertThat(latestUploadedBcc, is(notNullValue()));
@@ -1975,12 +1971,12 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         }
 
         try {
-            assertBusy(() -> assertTrue(shardCommitsContainer.listBlobs(operationPurpose).keySet().containsAll(blobsRetainedByPITs)));
+            assertBusy(() -> assertTrue(listBccBlobNames(shardCommitsContainer).containsAll(bccBlobsRetainedByPITs)));
         } catch (AssertionError e) {
             logger.info(
-                "Expected surviving blobs = {}, blobs after search node relocation = {}",
-                blobsRetainedByPITs,
-                shardCommitsContainer.listBlobs(operationPurpose).keySet()
+                "Expected surviving BCC blobs = {}, BCC blobs after search node relocation = {}",
+                bccBlobsRetainedByPITs,
+                listBccBlobNames(shardCommitsContainer)
             );
             throw e;
         }
@@ -2003,7 +1999,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         try {
             assertBusy(() -> {
                 commitService.updateCommitUseTrackingForInactiveShards(() -> Long.MAX_VALUE);
-                assertThat(shardCommitsContainer.listBlobs(operationPurpose).keySet(), is(equalTo(Set.of(latestUploadedBlob))));
+                assertThat(listBccBlobNames(shardCommitsContainer), is(equalTo(Set.of(latestUploadedBlob))));
             }, 30, TimeUnit.SECONDS);
         } catch (AssertionError e) {
             logBlobRetention("after the final convergence check failed", commitService, shardId, shardCommitsContainer);
@@ -2019,7 +2015,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
     private void logBlobRetention(String when, StatelessCommitService commitService, ShardId shardId, BlobContainer shardCommitsContainer) {
         try {
             final var report = new StringBuilder();
-            report.append("blobs in the object store: ").append(new TreeSet<>(shardCommitsContainer.listBlobs(operationPurpose).keySet()));
+            report.append("BCC blobs in the object store: ").append(new TreeSet<>(listBccBlobNames(shardCommitsContainer)));
             report.append("\nindex node view: ").append(commitService.describeBlobRetention(shardId));
             for (String node : internalCluster().getNodeNames()) {
                 var indexService = internalCluster().getInstance(IndicesService.class, node).indexService(shardId.getIndex());

@@ -24,6 +24,7 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RowInTableLookupOperatorTests extends OperatorTestCase {
     @Override
@@ -121,5 +122,20 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
             )
         );
         assertSimpleOutput(runner.deepCopy(), results, 1, 2);
+    }
+
+    public void testLookupUsesDriverFactory() {
+        DriverContext driverContext = driverContext();
+        // Pages from ROW and other local sources are built on a non-breaking factory.
+        BlockFactory localSourceFactory = TestBlockFactory.getNonBreakingInstance();
+        try (Operator op = simple().get(driverContext)) {
+            op.addInput(new Page(localSourceFactory.newLongArrayVector(new long[] { 7, 3 }, 2).asBlock()));
+            Page output = op.getOutput();
+            try {
+                assertThat(output.getBlock(1).blockFactory(), sameInstance(driverContext.blockFactory()));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
     }
 }

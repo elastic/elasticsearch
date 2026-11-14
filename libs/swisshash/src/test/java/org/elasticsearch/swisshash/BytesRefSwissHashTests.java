@@ -265,6 +265,26 @@ public class BytesRefSwissHashTests extends ESTestCase {
         }
     }
 
+    public void testConcurrentFind() {
+        Set<BytesRef> values = randomValues(count);
+        BytesRef[] v = values.toArray(new BytesRef[0]);
+        BytesRef notFound = randomValueOtherThanMany(values::contains, () -> new BytesRef(randomByteArrayOfLength(between(1, 20))));
+
+        TestRecycler recycler = new TestRecycler();
+        BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, NoopCircuitBreaker.INSTANCE, bigArrays)) {
+            for (int i = 0; i < v.length; i++) {
+                assertThat(addType.add(hash, v[i]), equalTo((long) i));
+            }
+            startInParallel(between(2, 8), t -> {
+                for (int i = 0; i < v.length; i++) {
+                    assertThat(hash.find(v[i]), equalTo((long) i));
+                }
+                assertThat(hash.find(notFound), equalTo(-1L));
+            });
+        }
+    }
+
     private Set<BytesRef> randomValues(int count) {
         Set<BytesRef> values = new HashSet<>();
         while (values.size() < count) {

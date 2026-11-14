@@ -201,6 +201,85 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         ).exists()
     }
 
+    def "fails with a clear error when the JDBC jar is missing from the chosen prebuilt snapshot"() {
+        given: "the DRA snapshot exists but the Maven snapshot repository has no JDBC jar (WireMock answers 404)"
+        def bwcVersion = "8.4.0"
+        def bwcBranch = "8.x"
+        def shortHash = "abc12345"
+        def buildId = "${bwcVersion}-${shortHash}"
+        stubManifestOk(wireMock, draManifestPath(buildId, bwcVersion))
+        redirectBwcRepositories(wireMock.baseUrl())
+
+        when:
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcJdbc",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dtests.bwc.mode=prebuilt",
+            "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
+            "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}",
+            "-Dtests.bwc.mavensnapshot.base.url=${wireMock.baseUrl()}"
+        ).buildAndFail()
+
+        then: "the error names the coordinate, version, branch, mode, build ID and the URL searched"
+        result.output.contains(
+            "BWC [${bwcVersion}]: pre-built snapshot artifact [org.elasticsearch.plugin:x-pack-sql-jdbc:${bwcVersion}-SNAPSHOT@jar] could not be resolved"
+        )
+        result.output.contains("branch: ${bwcBranch}")
+        result.output.contains("tests.bwc.mode: prebuilt")
+        result.output.contains("DRA build ID: ${buildId}")
+        result.output.contains(
+            "searched: ${wireMock.baseUrl()}${mavenSnapshotArtifactPath(bwcVersion, 'org.elasticsearch.plugin', 'x-pack-sql-jdbc')}"
+        )
+        result.output.contains("snapshot publishing or resolution bug")
+
+        and: "the opaque task-dependency resolution error is gone"
+        result.output.contains("Could not determine the dependencies of task") == false
+
+        and: "no source build was attempted"
+        result.task(":distribution:bwc:major1:checkoutBwcBranch") == null
+        result.output.contains("> Task :x-pack:plugin:sql:jdbc:assemble") == false
+        result.output.contains("BWC [${bwcVersion}]: building") == false
+    }
+
+    def "fails with a clear error when a distribution archive is missing from the chosen prebuilt snapshot"() {
+        given: "the DRA snapshot manifest exists but the darwin tar is not published (WireMock answers 404)"
+        def bwcVersion = "8.4.0"
+        def bwcBranch = "8.x"
+        def shortHash = "abc12345"
+        def buildId = "${bwcVersion}-${shortHash}"
+        stubManifestOk(wireMock, draManifestPath(buildId, bwcVersion))
+        redirectBwcRepositories(wireMock.baseUrl())
+
+        when:
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcDarwinTar",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dtests.bwc.mode=prebuilt",
+            "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
+            "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
+        ).buildAndFail()
+
+        then: "the error names the coordinate, version, branch, mode, build ID and the URL searched"
+        result.output.contains(
+            "BWC [${bwcVersion}]: pre-built snapshot artifact [org.elasticsearch:elasticsearch:${bwcVersion}-SNAPSHOT:darwin-x86_64@tar.gz] could not be resolved"
+        )
+        result.output.contains("branch: ${bwcBranch}")
+        result.output.contains("tests.bwc.mode: prebuilt")
+        result.output.contains("DRA build ID: ${buildId}")
+        result.output.contains("searched: ${wireMock.baseUrl()}${draTarArtifactPath(buildId, bwcVersion, 'darwin-x86_64')}")
+        result.output.contains("snapshot publishing or resolution bug")
+
+        and: "the opaque task-dependency resolution error is gone"
+        result.output.contains("Could not determine the dependencies of task") == false
+
+        and: "no source build was attempted"
+        result.task(":distribution:bwc:major1:checkoutBwcBranch") == null
+        result.output.contains("extractedAssemble") == false
+        result.output.contains("BWC [${bwcVersion}]: building") == false
+    }
+
     def "falls back to local gradle build when DRA manifest returns 404"() {
         given:
         def bwcVersion = "8.4.0"

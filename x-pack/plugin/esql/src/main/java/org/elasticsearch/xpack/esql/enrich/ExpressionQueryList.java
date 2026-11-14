@@ -18,7 +18,6 @@ import org.elasticsearch.compute.operator.lookup.BulkKeywordLookup;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -238,7 +237,7 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                     }
                     MappedFieldType rightFieldType = context.getFieldType(rightAttribute.name());
 
-                    if (extractChannelOffset != -1 && rightFieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                    if (extractChannelOffset != -1 && SearchContextStats.holdsValuesAsTerms(context, rightAttribute.name())) {
                         // special handle Equals operator on keyword fields
                         // we can apply as a BulkKeywordLookup for better performance
                         if (binaryComparison instanceof Equals) {

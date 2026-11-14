@@ -4861,6 +4861,12 @@ public class EsqlCapabilities {
          */
         FIX_TS_STATS_BY_TSID,
 
+        /**
+         * {@code LOOKUP JOIN} on a {@code keyword} key that does not hold its values as terms (a runtime field, {@code index: false},
+         * a normalizer) matches as a term query does, instead of matching nothing.
+         */
+        LOOKUP_JOIN_KEYWORD_KEY_WITHOUT_EXACT_TERMS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

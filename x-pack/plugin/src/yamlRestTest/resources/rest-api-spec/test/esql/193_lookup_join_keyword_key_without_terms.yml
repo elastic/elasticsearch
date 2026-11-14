@@ -1,0 +1,146 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ lookup_join_keyword_key_without_exact_terms ]
+      reason: "LOOKUP JOIN on a keyword key that does not hold its values as terms"
+  - do:
+      indices.create:
+        index: firewall
+        body:
+          mappings:
+            properties:
+              ip:
+                type: keyword
+              host:
+                type: keyword
+              code:
+                type: long
+  - do:
+      indices.create:
+        index: lookup_runtime
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            dynamic: runtime
+  - do:
+      indices.create:
+        index: lookup_not_indexed
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              ip:
+                type: keyword
+                index: false
+              threat_level:
+                type: keyword
+  - do:
+      indices.create:
+        index: lookup_normalized
+        body:
+          settings:
+            index:
+              mode: lookup
+              analysis:
+                normalizer:
+                  lower:
+                    type: custom
+                    filter: [ lowercase ]
+          mappings:
+            properties:
+              host:
+                type: keyword
+                normalizer: lower
+              threat_level:
+                type: keyword
+  - do:
+      bulk:
+        index: firewall
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "ip": "192.0.2.1", "code": 1, "host": "ALPHA" }
+          - { "index": { } }
+          - { "ip": "203.0.113.5", "code": 5, "host": "Bravo" }
+          - { "index": { } }
+          - { "ip": "198.51.100.2", "code": 2, "host": "charlie" }
+  - do:
+      bulk:
+        index: lookup_runtime
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "ip": "203.0.113.5", "code": 5, "threat_level": "high" }
+          - { "index": { } }
+          - { "ip": "198.51.100.2", "code": 2, "threat_level": "medium" }
+  - do:
+      bulk:
+        index: lookup_not_indexed
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "ip": "203.0.113.5", "threat_level": "high" }
+          - { "index": { } }
+          - { "ip": "198.51.100.2", "threat_level": "medium" }
+  - do:
+      bulk:
+        index: lookup_normalized
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "host": "Bravo", "threat_level": "high" }
+          - { "index": { } }
+          - { "host": "CHARLIE", "threat_level": "medium" }
+  # Dynamic mapping updates are not acknowledged by every node, so wait until all nodes have applied them.
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"runtime keyword key":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM firewall | LOOKUP JOIN lookup_runtime ON ip | KEEP ip, threat_level | SORT ip | LIMIT 10'
+  - match: { values: [ [ "192.0.2.1", null ], [ "198.51.100.2", "medium" ], [ "203.0.113.5", "high" ] ] }
+
+---
+"runtime keyword key in an expression join":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM firewall | RENAME ip AS left_ip | LOOKUP JOIN lookup_runtime ON left_ip == ip | KEEP left_ip, threat_level | SORT left_ip | LIMIT 10'
+  - match: { values: [ [ "192.0.2.1", null ], [ "198.51.100.2", "medium" ], [ "203.0.113.5", "high" ] ] }
+
+---
+"runtime long key":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM firewall | LOOKUP JOIN lookup_runtime ON code | KEEP code, threat_level | SORT code | LIMIT 10'
+  - match: { values: [ [ 1, null ], [ 2, "medium" ], [ 5, "high" ] ] }
+
+---
+"keyword key that is not indexed":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM firewall | LOOKUP JOIN lookup_not_indexed ON ip | KEEP ip, threat_level | SORT ip | LIMIT 10'
+  - match: { values: [ [ "192.0.2.1", null ], [ "198.51.100.2", "medium" ], [ "203.0.113.5", "high" ] ] }
+
+---
+"keyword key with a normalizer":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM firewall | LOOKUP JOIN lookup_normalized ON host | KEEP ip, threat_level | SORT ip | LIMIT 10'
+  - match: { values: [ [ "192.0.2.1", null ], [ "198.51.100.2", "medium" ], [ "203.0.113.5", "high" ] ] }

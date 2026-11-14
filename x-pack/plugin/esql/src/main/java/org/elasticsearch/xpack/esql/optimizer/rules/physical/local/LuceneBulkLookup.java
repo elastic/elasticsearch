@@ -12,6 +12,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
@@ -85,7 +86,9 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.ParameterizedOptimi
                         break;
                     }
                 }
-                if (rightAttribute != null) {
+                if (rightAttribute != null && holdsValuesAsTerms(rightAttribute, context) == false) {
+                    logger.debug("Cannot use bulk lookup, field {} does not hold its values as terms", fieldName);
+                } else if (rightAttribute != null) {
                     ReferenceAttribute leftAttribute = new ReferenceAttribute(plan.source(), null, fieldName, DataType.KEYWORD);
 
                     logger.debug("Bulk lookup on KEYWORD field {}", fieldName);
@@ -118,7 +121,8 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.ParameterizedOptimi
             && binaryComparison.right() instanceof Attribute rightAttribute
             && binaryComparison.getFunctionType() == EsqlBinaryComparison.BinaryComparisonOperation.EQ
             && leftAttribute.dataType() == DataType.KEYWORD
-            && rightAttribute.dataType() == DataType.KEYWORD) {
+            && rightAttribute.dataType() == DataType.KEYWORD
+            && holdsValuesAsTerms(rightAttribute, context)) {
             logger.debug("Bulk lookup on KEYWORD expression {} == {}", leftAttribute.name(), rightAttribute.name());
 
             return new BulkLookupMvFilterExec(
@@ -139,5 +143,10 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.ParameterizedOptimi
 
         logger.debug("Cannot use bulk lookup optimization");
         return plan;
+    }
+
+    // The bulk lookup seeks keys in the terms dictionary, which finds nothing for a field that is not there as written.
+    private static boolean holdsValuesAsTerms(Attribute rightAttribute, LookupPhysicalOptimizerContext context) {
+        return rightAttribute instanceof FieldAttribute field && context.searchStats().holdsValuesAsTerms(field.fieldName());
     }
 }

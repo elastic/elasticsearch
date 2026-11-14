@@ -47,6 +47,15 @@ public interface SearchStats {
         return false;
     }
 
+    /**
+     * Whether every shard here keeps each value of {@code field} as a term, exactly as written: see
+     * {@link SearchContextStats#holdsValuesAsTerms(SearchExecutionContext, String)}. Only then does seeking a value in the
+     * terms dictionary find the documents a term query for it would.
+     */
+    default boolean holdsValuesAsTerms(FieldName field) {
+        return false;
+    }
+
     boolean hasExactSubfield(FieldName field);
 
     long count();

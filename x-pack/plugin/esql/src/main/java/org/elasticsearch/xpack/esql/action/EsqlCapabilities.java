@@ -2785,6 +2785,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_WITHOUT_OUTPUT,
 
         /**
+         * PromQL {@code or} falls back to its right operand, such as {@code vector(0)}, at the steps its aggregated left operand has
+         * no element, instead of failing on a multivalued step as nodes before 9.7 do.
+         */
+        FIX_PROMQL_OR_VECTOR_FALLBACK,
+
+        /**
          * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
          * also match time series where the label is absent ({@code NULL}), per PromQL spec.
          */

@@ -3730,6 +3730,12 @@ public class EsqlCapabilities {
         FORK_PROJECT_AWAY_COLUMNS_FIX,
 
         /**
+         * Preserve filter inputs when pruning columns from FORK branches.
+         * Fixes https://github.com/elastic/elasticsearch/issues/161764.
+         */
+        FORK_PRUNE_FILTER_INPUTS_FIX,
+
+        /**
          * Fix for histogram block loaders (tdigest, exponential_histogram) passing {@code nullsFiltered=true} to
          * sub-block-loaders for min, max and sum. Those sub-fields can be absent for empty histograms even when the
          * histogram field itself is present, so the null-filtered guarantee does not hold for them.

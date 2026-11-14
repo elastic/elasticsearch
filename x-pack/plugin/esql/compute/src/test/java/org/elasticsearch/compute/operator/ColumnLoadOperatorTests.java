@@ -8,9 +8,12 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -87,6 +90,38 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
             input = new Page(builder.build());
         }
         List<Page> results = new TestDriverRunner().builder(driverContext).input(input).run(simple().get(driverContext));
+        try {
+            assertThat(results, hasSize(1));
+            assertThat(results.get(0).getPositionCount(), equalTo(positionCount));
+        } finally {
+            for (Page p : results) {
+                p.releaseBlocks();
+            }
+        }
+    }
+
+    public void testDensePageNearTargetKeepsWhole() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        int longColumns = 3;
+        // A builder that grows to fit the loaded column crosses the target before it is full.
+        int positionCount = (int) (ColumnLoadOperator.targetBlockSize(longColumns + 1).getBytes() * 95 / 100 / Long.BYTES);
+        Block[] blocks = new Block[longColumns + 1];
+        try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                builder.appendInt(between(0, 4));
+            }
+            blocks[0] = builder.build().asBlock();
+        }
+        for (int c = 1; c <= longColumns; c++) {
+            try (LongVector.FixedBuilder builder = blockFactory.newLongVectorFixedBuilder(positionCount)) {
+                for (int p = 0; p < positionCount; p++) {
+                    builder.appendLong(randomLong());
+                }
+                blocks[c] = builder.build().asBlock();
+            }
+        }
+        List<Page> results = new TestDriverRunner().builder(driverContext).input(new Page(blocks)).run(simple().get(driverContext));
         try {
             assertThat(results, hasSize(1));
             assertThat(results.get(0).getPositionCount(), equalTo(positionCount));

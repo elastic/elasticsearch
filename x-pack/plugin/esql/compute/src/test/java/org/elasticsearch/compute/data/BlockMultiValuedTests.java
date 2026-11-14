@@ -144,7 +144,8 @@ public class BlockMultiValuedTests extends ESTestCase {
     }
 
     public void testLookupSplitDoesNotDependOnNulls() {
-        var b = RandomBlock.randomBlock(blockFactory(), elementType, between(1, 1000), false, 1, 1, 0, 0);
+        // A single-position block is built as a constant, which looks up dense positions without splitting.
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, between(2, 1000), nullAllowed, 1, 1, 0, 0);
         try {
             int positionCount = 16 * 1024;
             int denseBlocks = countLookupBlocks(b.block(), positionCount, 1);

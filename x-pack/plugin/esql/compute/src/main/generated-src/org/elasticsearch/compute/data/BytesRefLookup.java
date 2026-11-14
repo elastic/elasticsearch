@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.ReleasableIterator;
@@ -20,8 +21,8 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
 public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
-    // BytesRefArray sizes 3 value bytes per entry up front and adds 4-byte int offsets once value lengths differ.
-    private static final int PREALLOCATED_BYTES_PER_VALUE = Long.BYTES;
+    // BytesRefArray reserves 3 value bytes per entry up front and adds 4-byte int offsets once value lengths differ.
+    private static final int PREALLOCATED_BYTES_PER_VALUE = 3 + Integer.BYTES;
     private final BytesRef firstScratch = new BytesRef();
     private final BytesRef valueScratch = new BytesRef();
     private final BytesRefBlock values;
@@ -39,8 +40,9 @@ public final class BytesRefLookup implements ReleasableIterator<BytesRefBlock> {
         this.values = values;
         this.positions = positions;
         this.targetByteSize = targetBlockSize.getBytes();
-        // The builder counts preallocated values in estimatedBytes, so start at half the target.
-        this.initialPositions = (int) Math.min(Integer.MAX_VALUE, Math.max(1, targetByteSize / 2 / PREALLOCATED_BYTES_PER_VALUE));
+        // The builder counts its preallocated array in estimatedBytes, so preallocate only as many positions as fit under the target.
+        long fittingPositions = (targetByteSize - RamUsageEstimator.NUM_BYTES_ARRAY_HEADER - 1) / PREALLOCATED_BYTES_PER_VALUE;
+        this.initialPositions = (int) Math.min(Integer.MAX_VALUE, Math.max(1, fittingPositions));
     }
 
     @Override

@@ -552,6 +552,138 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         return out.toByteArray();
     }
 
+    // --- Skipping whole pages without decompressing them ---
+
+    private static final MessageType SKIP_PAGES_SCHEMA = Types.buildMessage()
+        .optional(BINARY)
+        .as(LogicalTypeAnnotation.stringType())
+        .named("s")
+        .named("skip_pages");
+
+    /**
+     * {@link PageColumnReader#skipRows} drops the pages that lie wholly inside a skip without decompressing them. This checks that
+     * the reader is still at the right row afterwards: a random mix of skips and reads over a column with nulls and many small
+     * pages must return the values of the rows that a read of the whole column returns at the same positions. It runs over the
+     * dictionary and the plain encoding, both page versions, and a compressed and an uncompressed file.
+     */
+    public void testSkipRowsOverWholePagesKeepsReaderOnTheRightRow() throws IOException {
+        int rows = 6000;
+        for (ParquetProperties.WriterVersion version : ParquetProperties.WriterVersion.values()) {
+            for (CompressionCodecName codec : List.of(CompressionCodecName.UNCOMPRESSED, CompressionCodecName.SNAPPY)) {
+                for (boolean dictionary : new boolean[] { true, false }) {
+                    byte[] data = writeSkipPagesFile(rows, version, codec, dictionary);
+                    List<String> expected = readAllStrings(data, rows);
+                    assertEquals(rows, expected.size());
+                    for (int round = 0; round < 5; round++) {
+                        assertSkipsAndReadsMatch(data, expected);
+                    }
+                }
+            }
+        }
+    }
+
+    private void assertSkipsAndReadsMatch(byte[] data, List<String> expected) throws IOException {
+        ColumnDescriptor desc = SKIP_PAGES_SCHEMA.getColumns().getFirst();
+        ColumnInfo info = new ColumnInfo(
+            desc,
+            desc.getPrimitiveType().getPrimitiveTypeName(),
+            DataType.KEYWORD,
+            desc.getMaxDefinitionLevel(),
+            desc.getMaxRepetitionLevel(),
+            desc.getPrimitiveType().getLogicalTypeAnnotation()
+        );
+        try (ParquetFileReader reader = openReader(data)) {
+            PageReadStore store = reader.readNextRowGroup();
+            assertNotNull(store);
+            try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, RowRanges.all(expected.size()))) {
+                int position = 0;
+                while (position < expected.size()) {
+                    int left = expected.size() - position;
+                    if (randomBoolean()) {
+                        // mostly long skips, which cross several pages, and some short ones, which stay inside a page
+                        int skip = between(1, Math.min(left, randomBoolean() ? 20 : 2500));
+                        pcr.skipRows(skip);
+                        position += skip;
+                    } else {
+                        Block block = pcr.readBatch(between(1, Math.min(left, 400)), blockFactory);
+                        try {
+                            for (int i = 0; i < block.getPositionCount(); i++) {
+                                String want = expected.get(position + i);
+                                if (want == null) {
+                                    assertTrue("row " + (position + i) + " must be null", block.isNull(i));
+                                } else {
+                                    assertBytesRefAt(block, i, want);
+                                }
+                            }
+                            position += block.getPositionCount();
+                        } finally {
+                            block.close();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private List<String> readAllStrings(byte[] data, int rows) throws IOException {
+        ColumnDescriptor desc = SKIP_PAGES_SCHEMA.getColumns().getFirst();
+        ColumnInfo info = new ColumnInfo(
+            desc,
+            desc.getPrimitiveType().getPrimitiveTypeName(),
+            DataType.KEYWORD,
+            desc.getMaxDefinitionLevel(),
+            desc.getMaxRepetitionLevel(),
+            desc.getPrimitiveType().getLogicalTypeAnnotation()
+        );
+        List<String> values = new ArrayList<>();
+        try (ParquetFileReader reader = openReader(data)) {
+            PageReadStore store = reader.readNextRowGroup();
+            assertNotNull(store);
+            try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, RowRanges.all(rows))) {
+                while (values.size() < rows) {
+                    Block block = pcr.readBatch(rows - values.size(), blockFactory);
+                    try {
+                        BytesRefBlock brb = (BytesRefBlock) block;
+                        for (int i = 0; i < block.getPositionCount(); i++) {
+                            values.add(block.isNull(i) ? null : brb.getBytesRef(brb.getFirstValueIndex(i), new BytesRef()).utf8ToString());
+                        }
+                    } finally {
+                        block.close();
+                    }
+                }
+            }
+        }
+        return values;
+    }
+
+    /** One row group, one column, about 40 pages of a few hundred rows; every seventh value is null. */
+    private byte[] writeSkipPagesFile(int rows, ParquetProperties.WriterVersion version, CompressionCodecName codec, boolean dictionary)
+        throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(SKIP_PAGES_SCHEMA);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(codecFactory)
+                .withType(SKIP_PAGES_SCHEMA)
+                .withWriterVersion(version)
+                .withCompressionCodec(codec)
+                .withDictionaryEncoding(dictionary)
+                .withRowGroupSize(64L * 1024 * 1024)
+                .withPageSize(2048)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group group = factory.newGroup();
+                if (i % 7 != 0) {
+                    group.append("s", dictionary ? "value-" + (i % 40) : "unique-value-" + i);
+                }
+                writer.write(group);
+            }
+        }
+        return out.toByteArray();
+    }
+
     // --- Randomized test ---
 
     public void testRandomSchema() throws IOException {

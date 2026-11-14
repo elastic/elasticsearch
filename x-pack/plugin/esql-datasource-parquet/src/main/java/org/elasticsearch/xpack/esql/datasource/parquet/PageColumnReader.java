@@ -621,6 +621,10 @@ final class PageColumnReader implements Releasable {
         // target measures how far the caller wants to advance from the current cursor.
         long target = rowPositionInRowGroup + count;
         while (rowPositionInRowGroup < target) {
+            skipWholePages(target);
+            if (rowPositionInRowGroup >= target) {
+                break;
+            }
             if (ensurePage() == false) {
                 break;
             }
@@ -637,6 +641,35 @@ final class PageColumnReader implements Releasable {
             int nonNullSkipped = defDecoder.skip(fromPage);
             skipValues(nonNullSkipped);
             advancePosition(fromPage);
+        }
+    }
+
+    /**
+     * Drops the pages that lie wholly inside a skip up to {@code target} without decompressing them. Reading a page decompresses it,
+     * and this reader handles flat columns only, so the value count in the header of a page is its row count (nulls included) and a
+     * page that ends at or before the target has nothing that the caller wants. Only the page that holds the target, and the pages
+     * after it, are decompressed, when the caller reads from them.
+     *
+     * <p>It stops at a page whose position in the row group is known and is not the cursor (a gap of pages that the offset index
+     * excludes), and leaves that case to {@link #loadNextPage()}, which jumps the cursor and banks the surplus. It also does nothing
+     * while the current page still has rows to consume, because the remainder of a page is skipped by the decoders of that page.
+     */
+    private void skipWholePages(long target) {
+        if (columnExhausted || currentPageConsumed < physicalPageValueCount || pageReader instanceof PrefetchedPageReader == false) {
+            return;
+        }
+        PrefetchedPageReader prefetched = (PrefetchedPageReader) pageReader;
+        while (rowPositionInRowGroup < target) {
+            int pageRows = prefetched.nextPageValueCount();
+            if (pageRows <= 0 || pageRows > target - rowPositionInRowGroup) {
+                return;
+            }
+            long firstRow = prefetched.nextPageFirstRowIndex();
+            if (firstRow >= 0 && firstRow != rowPositionInRowGroup) {
+                return;
+            }
+            prefetched.skipNextPage();
+            rowPositionInRowGroup += pageRows;
         }
     }
 

@@ -125,8 +125,17 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
             params.add(new Object[] { prefix + "/multiRG/nullable", codec, WriterVersion.PARQUET_2_0, 1024, 256, 500, true });
         }
 
+        // Legacy LZ4 pages written as a bare raw block with no Hadoop frame; read via the raw fallback.
+        for (WriterVersion version : new WriterVersion[] { WriterVersion.PARQUET_1_0, WriterVersion.PARQUET_2_0 }) {
+            String prefix = UNFRAMED_LZ4_PREFIX + "/" + (version == WriterVersion.PARQUET_1_0 ? "V1" : "V2");
+            params.add(new Object[] { prefix + "/1RG/non-null", CompressionCodecName.LZ4, version, 1024 * 1024, 1024 * 1024, 100, false });
+            params.add(new Object[] { prefix + "/multiRG/nullable", CompressionCodecName.LZ4, version, 1024, 256, 500, true });
+        }
+
         return params;
     }
+
+    private static final String UNFRAMED_LZ4_PREFIX = "LZ4_UNFRAMED";
 
     public void testBaselineAndOptimizedProduceSameOutput() throws Exception {
         // Test variants reuse the same StorageObject path with different file contents; footer
@@ -191,7 +200,11 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
                 .withConf(new PlainParquetConfiguration())
-                .withCodecFactory(LegacyLz4HadoopFramedCodecFactory.forCodec(codec))
+                .withCodecFactory(
+                    description.startsWith(UNFRAMED_LZ4_PREFIX)
+                        ? LegacyLz4HadoopFramedCodecFactory.forCodecUnframedLz4(codec)
+                        : LegacyLz4HadoopFramedCodecFactory.forCodec(codec)
+                )
                 .withType(schema)
                 .withCompressionCodec(codec)
                 .withWriterVersion(writerVersion)

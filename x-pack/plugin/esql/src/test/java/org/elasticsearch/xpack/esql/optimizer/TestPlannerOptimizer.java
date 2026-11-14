@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+
+import java.util.HashSet;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 
@@ -69,6 +72,15 @@ public class TestPlannerOptimizer {
 
     public PhysicalPlan plan(String query, SearchStats stats, EsqlFlags esqlFlags) {
         return optimizedPlan(physicalPlan(query, analyzer), stats, esqlFlags);
+    }
+
+    /**
+     * Plans the right side of the first {@code INLINE STATS}, which runs as its own plan before the main one.
+     */
+    public PhysicalPlan planFirstInlineSubPlan(String query, SearchStats stats, Analyzer analyzer) {
+        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
+        LogicalPlan subPlan = InlineJoin.firstSubPlan(logical, new HashSet<>()).stubReplacedSubPlan();
+        return optimizedPlan(mapper.map(new Versioned<>(subPlan, analyzer.context().minimumVersion())), stats);
     }
 
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {

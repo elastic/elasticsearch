@@ -1981,7 +1981,8 @@ public class SharedBlobCacheWarmingService {
                                 if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
                                     logger.debug(() -> "retrying " + blobLocation + " from object store", e);
                                     // retrying runs on {@link StatelessPlugin#FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL}
-                                    // threads, but that is OK because fetchRange doesn't block or wait for anything.
+                                    // threads, but that is OK because fetchRange never blocks the calling thread. For search warming it
+                                    // may wait for another caller's fill, but only by completing the listener later: no thread is held.
                                     maybeFetchBlobRange(item, cacheBlobReader, cacheKey, l);
                                 } else {
                                     l.onFailure(e);
@@ -2129,7 +2130,8 @@ public class SharedBlobCacheWarmingService {
                     if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {
                         logger.debug(() -> "retrying " + blobFile + " " + byteRangeToWarm + " from object store", e);
                         // retrying runs on {@link StatelessPlugin#FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL}
-                        // threads, but that is OK because fetchRange doesn't block or wait for anything.
+                        // threads, but that is OK because fetchRange never blocks the calling thread. For search warming it may wait for
+                        // another caller's fill, but only by completing the listener later: no thread is held.
                         fetchRange(cacheKey, cacheBlobReader, l);
                     } else {
                         l.onFailure(e);

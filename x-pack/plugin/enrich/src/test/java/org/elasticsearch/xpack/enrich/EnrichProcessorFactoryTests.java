@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -48,7 +50,7 @@ import static org.mockito.Mockito.mock;
 public class EnrichProcessorFactoryTests extends ESTestCase {
 
     private ScriptService scriptService;
-    private EnrichCache enrichCache = new EnrichCache(0L);
+    private EnrichCache enrichCache = new EnrichCache(0L, new ThreadContext(Settings.EMPTY));
     private ProjectId projectId;
 
     @Before
@@ -257,7 +259,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testCaching() throws Exception {
         int[] requestCounter = new int[1];
-        enrichCache = new EnrichCache(100L);
+        enrichCache = new EnrichCache(100L, new ThreadContext(Settings.EMPTY));
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues);
         try (var threadPool = createThreadPool()) {

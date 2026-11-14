@@ -17,12 +17,15 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -411,6 +414,71 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             Exception e = expectThrows(IllegalArgumentException.class, client().index(indexRequest));
             assertThat(e.getMessage(), equalTo("field [users] not present as part of path [users]"));
         }
+    }
+
+    // ensure a downstream processor failure fails every document and doesn't cause the bulk to hang, see #84781
+    public void testFailureAfterCoalescedEnrich() throws Exception {
+        createSourceMatchIndex(1, 1);
+        String policyName = "my-policy";
+        EnrichPolicy enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(SOURCE_INDEX_NAME),
+            MATCH_FIELD,
+            Arrays.asList(DECORATE_FIELDS)
+        );
+        PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName, enrichPolicy);
+        client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
+        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName))
+            .actionGet();
+
+        // A pipeline with a foreach that uses a non existing field that is specified after enrich has run:
+        String pipelineName = "my-pipeline";
+        String pipelineBody = "{\"processors\": [{\"enrich\": {\"policy_name\":\""
+            + policyName
+            + "\", \"field\": \"email\", \"target_field\": \"users\"}},"
+            + "{ \"foreach\": {\"field\":\"users\", \"processor\":{\"append\":{\"field\":\"matched2\",\"value\":\"{{_ingest._value}}\"}}}}"
+            + "]}";
+        putJsonPipeline(pipelineName, pipelineBody);
+
+        long executedSearchesBefore = coordinatorStats().executedSearchesTotal();
+        int numDocs = randomIntBetween(16, 128);
+        BulkRequest bulkRequest = new BulkRequest("my-index");
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(new IndexRequest().setPipeline(pipelineName).source(Map.of(MATCH_FIELD, "non_existing")));
+        }
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        for (BulkItemResponse item : bulkResponse.getItems()) {
+            assertThat(item.isFailed(), is(true));
+            Throwable cause = ExceptionsHelper.unwrapCause(item.getFailure().getCause());
+            assertThat(cause, instanceOf(IllegalArgumentException.class));
+            assertThat(cause.getMessage(), equalTo("field [users] not present as part of path [users]"));
+        }
+
+        // all documents of the bulk shared the one lookup
+        assertThat(coordinatorStats().executedSearchesTotal(), equalTo(executedSearchesBefore + 1));
+
+        // every document left the pipeline: nothing is still counted as in progress (the #84781 symptom)
+        IngestStats ingestStats = getInstanceFromNode(IngestService.class).stats();
+        List<IngestStats.ProcessorStat> processorStats = ingestStats.processorStats().get(ProjectId.DEFAULT).get(pipelineName);
+        assertThat(processorStats, notNullValue());
+        assertThat(processorStats.size(), equalTo(2));
+        for (IngestStats.ProcessorStat processorStat : processorStats) {
+            assertThat(processorStat.type(), processorStat.stats().ingestCurrent(), equalTo(0L));
+            assertThat(processorStat.type(), processorStat.stats().ingestCount(), equalTo((long) numDocs));
+        }
+        assertThat(processorStats.get(1).type(), equalTo("foreach"));
+        assertThat(processorStats.get(1).stats().ingestFailedCount(), equalTo((long) numDocs));
+    }
+
+    private EnrichStatsAction.Response.CoordinatorStats coordinatorStats() {
+        EnrichStatsAction.Response statsResponse = client().execute(
+            EnrichStatsAction.INSTANCE,
+            new EnrichStatsAction.Request(TEST_REQUEST_TIMEOUT)
+        ).actionGet();
+        assertThat(statsResponse.getCoordinatorStats().size(), equalTo(1));
+        return statsResponse.getCoordinatorStats().get(0);
     }
 
     public void testLookupTrippingRequestBreakerFailsDocumentsWithTooManyRequests() throws Exception {

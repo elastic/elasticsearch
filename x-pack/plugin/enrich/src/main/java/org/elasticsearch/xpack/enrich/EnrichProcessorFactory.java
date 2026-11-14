@@ -140,7 +140,6 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         final Client originClient = new OriginSettingClient(client, ENRICH_ORIGIN);
         return (value, maxMatches, reqSupplier, handler) -> {
             final String concreteEnrichIndex = getEnrichIndexKey(projectId, indexAlias);
-            // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
             enrichCache.computeIfAbsent(
                 projectId,
                 concreteEnrichIndex,

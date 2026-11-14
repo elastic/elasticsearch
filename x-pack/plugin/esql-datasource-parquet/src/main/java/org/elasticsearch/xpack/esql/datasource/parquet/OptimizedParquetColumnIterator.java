@@ -19,6 +19,7 @@ import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
@@ -332,6 +333,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     private PrefetchedPageReadStore rowGroup;
     private ColumnReader[] columnReaders;
     private ParquetColumnDecoding.ListColumnReader[] listColumnReaders;
+    /**
+     * Bulk decoders for the LIST columns {@link FloatListPageReader#supports}; such a column has no entry in
+     * {@link #columnReaders} or {@link #listColumnReaders}. Built by {@link #initColumnReaders} only, like those.
+     */
+    private FloatListPageReader[] floatListReaders;
     private PageColumnReader[] pageColumnReaders;
     private boolean validateListExhaustion;
     /** Mirrors the sink installed on {@link #pageColumnReaders} by {@link #applyDropHelperSinks}; passed to list-column reads. */
@@ -2226,7 +2232,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 rowsRemainingInGroup = buildRowRanges != null ? buildRowRanges.selectedRowCount() : rowGroup.getRowCount();
                 currentGroupRowsForBudget = rowsRemainingInGroup;
                 triggerNextRowGroupPrefetch();
-                initColumnReaders(buildRowRanges);
+                initColumnReaders(buildRowRanges, block);
                 if (rowsRemainingInGroup == 0 && validateListExhaustion) {
                     validateListColumnsExhausted();
                 }
@@ -2875,7 +2881,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             decodeBudgetOrNoop()
         );
         rowsRemainingInGroup = rowGroup.getRowCount();
-        initColumnReaders(null);
+        initColumnReaders(null, pending.block);
     }
 
     private void finishFilteredPhase2(Phase2Pending pending, ColumnChunkPrefetcher.PrefetchedChunks result) {
@@ -3161,6 +3167,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         pageColumnReaders = new PageColumnReader[columnInfos.length];
         columnReaders = null;
         listColumnReaders = null;
+        floatListReaders = null;
         validateListExhaustion = false;
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null
@@ -3190,6 +3197,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         pageColumnReaders = new PageColumnReader[columnInfos.length];
         columnReaders = null;
         listColumnReaders = null;
+        floatListReaders = null;
         validateListExhaustion = false;
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null
@@ -3238,7 +3246,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
-    private void initColumnReaders(RowRanges currentRowRanges) {
+    private void initColumnReaders(RowRanges currentRowRanges, BlockMetaData block) {
         // Close any readers from the previous row group before discarding the array — each reader
         // holds a ref-counted BytesRefArray (the cached dictionary) that must be released here.
         // Pages already emitted are unaffected: they own their own BytesRefArrayVector wrappers,
@@ -3247,6 +3255,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         pageColumnReaders = new PageColumnReader[columnInfos.length];
         columnReaders = null;
         listColumnReaders = null;
+        floatListReaders = null;
         validateListExhaustion = currentRowRanges == null || currentRowRanges.isAll();
         for (int i = 0; i < columnInfos.length; i++) {
             if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() == 0) {
@@ -3276,9 +3285,23 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             );
             columnReaders = new ColumnReader[columnInfos.length];
             listColumnReaders = new ParquetColumnDecoding.ListColumnReader[columnInfos.length];
+            floatListReaders = new FloatListPageReader[columnInfos.length];
             for (int i = 0; i < columnInfos.length; i++) {
                 if (columnInfos[i] != null && columnInfos[i].isRowPosition() == false && columnInfos[i].maxRepLevel() > 0) {
-                    columnReaders[i] = store.getColumnReader(columnInfos[i].descriptor());
+                    ColumnDescriptor desc = columnInfos[i].descriptor();
+                    if (FloatListPageReader.supports(columnInfos[i], columnChunk(block, desc))) {
+                        floatListReaders[i] = new FloatListPageReader(
+                            rowGroup.getPageReader(desc),
+                            columnInfos[i],
+                            listCorruptionHandler,
+                            attributes.get(i).name(),
+                            fileLocation,
+                            rowGroupOrdinal,
+                            rowsBeforeCurrentGroup
+                        );
+                        continue;
+                    }
+                    columnReaders[i] = store.getColumnReader(desc);
                     listColumnReaders[i] = ParquetColumnDecoding.ListColumnReader.bind(
                         columnReaders[i],
                         columnInfos[i],
@@ -3291,6 +3314,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
             }
         }
+    }
+
+    @Nullable
+    private static ColumnChunkMetaData columnChunk(BlockMetaData block, ColumnDescriptor descriptor) {
+        ColumnPath path = ColumnPath.get(descriptor.getPath());
+        for (ColumnChunkMetaData column : block.getColumns()) {
+            if (column.getPath().equals(path)) {
+                return column;
+            }
+        }
+        return null;
     }
 
     /**
@@ -4294,6 +4328,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     // Skip entirely
                     if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                         pageColumnReaders[col].skipRows(rowsToRead);
+                    } else if (floatListReaders != null && floatListReaders[col] != null) {
+                        floatListReaders[col].skipRows(rowsToRead);
                     } else if (columnReaders != null && columnReaders[col] != null) {
                         if (listColumnReaders != null && listColumnReaders[col] != null) {
                             ParquetColumnDecoding.skipListValues(listColumnReaders[col], rowsToRead);
@@ -4426,6 +4462,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             return pageColumnReaders[colIndex].readBatch(rowsToRead, blockFactory);
         }
+        if (floatListReaders != null && floatListReaders[colIndex] != null) {
+            return floatListReaders[colIndex].readBatch(rowsToRead, blockFactory, nullListElementWarnings());
+        }
         ColumnReader cr = columnReaders != null ? columnReaders[colIndex] : null;
         if (cr == null) {
             return blockFactory.newConstantNullBlock(rowsToRead);
@@ -4454,6 +4493,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         for (ParquetColumnDecoding.ListColumnReader listReader : listColumnReaders) {
             if (listReader != null) {
                 listReader.validateExhausted();
+            }
+        }
+        for (FloatListPageReader floatListReader : floatListReaders) {
+            if (floatListReader != null) {
+                floatListReader.validateExhausted();
             }
         }
     }

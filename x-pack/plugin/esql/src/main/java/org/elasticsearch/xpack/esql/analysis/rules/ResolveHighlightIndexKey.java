@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -155,7 +154,7 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
             return merge.children().stream().allMatch(branch -> {
                 Attribute branchColumn = firstNamed(branch.output(), Expressions.name(read), a -> true);
                 return branchColumn != null
-                    && Fork.producesOnlyNull(branch).test(branchColumn) == false
+                    && MergePlan.producesOnlyNull(branch).test(branchColumn) == false
                     && holdsIndex(branch, branchColumn);
             });
         }

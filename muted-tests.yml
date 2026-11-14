@@ -145,6 +145,11 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v8.15.5#javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/165675
+- class: org.elasticsearch.action.RejectionActionIT
+  tasks:
+  - :server:internalClusterTest
+  method: testSimulatedSearchRejectionLoad
+  issue: https://github.com/elastic/elasticsearch/issues/166028
 
 # Examples:
 #

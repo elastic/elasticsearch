@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -65,8 +66,8 @@ class PromqlExpressionBuilder extends PromqlIdentifierBuilder {
     private final Literal start, end;
     private final QueryParams params;
 
-    PromqlExpressionBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
-        super(startLine, startColumn);
+    PromqlExpressionBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params, @Nullable String viewName) {
+        super(startLine, startColumn, viewName);
         this.start = start;
         this.end = end;
         this.params = params;

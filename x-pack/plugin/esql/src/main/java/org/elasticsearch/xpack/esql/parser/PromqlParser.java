@@ -19,6 +19,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.dfa.DFA;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -68,11 +69,38 @@ public class PromqlParser {
     }
 
     public LogicalPlan createStatement(String query, Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
+        return createStatement(query, start, end, startLine, startColumn, params, null);
+    }
+
+    /**
+     * Parses a PromQL expression embedded in an ES|QL query or, when {@code viewName} is not {@code null}, in that view's
+     * definition: every {@link org.elasticsearch.xpack.esql.core.tree.Source} is tagged with the view, so it is read back
+     * against the view's query text rather than the caller's.
+     */
+    public LogicalPlan createStatement(
+        String query,
+        Literal start,
+        Literal end,
+        int startLine,
+        int startColumn,
+        QueryParams params,
+        @Nullable String viewName
+    ) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as expression: {}", query);
         }
 
-        return invokeParser(query, start, end, startLine, startColumn, params, PromqlBaseParser::singleStatement, PromqlAstBuilder::plan);
+        return invokeParser(
+            query,
+            start,
+            end,
+            startLine,
+            startColumn,
+            params,
+            viewName,
+            PromqlBaseParser::singleStatement,
+            PromqlAstBuilder::plan
+        );
     }
 
     @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
@@ -83,6 +111,7 @@ public class PromqlParser {
         int startLine,
         int startColumn,
         QueryParams params,
+        @Nullable String viewName,
         Function<PromqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<PromqlAstBuilder, ParserRuleContext, T> visitor
     ) {
@@ -130,7 +159,7 @@ public class PromqlParser {
             if (log.isTraceEnabled()) {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
-            return visitor.apply(new PromqlAstBuilder(start, end, startLine, startColumn, params), tree);
+            return visitor.apply(new PromqlAstBuilder(start, end, startLine, startColumn, params, viewName), tree);
         } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
             throw new ParsingException(
                 "PromQL statement is too large, causing stack overflow when generating the parsing tree: [{}]",

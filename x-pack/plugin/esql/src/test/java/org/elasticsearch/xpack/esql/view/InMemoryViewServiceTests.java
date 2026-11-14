@@ -24,8 +24,10 @@ import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.PlanSize;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -51,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -1571,6 +1574,45 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("ts_view", "TS emp | STATS count(*)");
         LogicalPlan rewritten = replaceViews(query("FROM ts_view"));
         assertThat(rewritten, matchesPlan(query("TS emp | STATS count(*)")));
+    }
+
+    /**
+     * The PromQL sub-parser tags its {@link Source}s with the view name like the ES|QL parser does, so a data node reads
+     * their text from the view's query rather than the caller's, which can be shorter than the source position.
+     */
+    public void testPromqlViewSourcesCarryTheViewName() {
+        EsqlStatement statement = parse("PROMQL index=emp step=5m bytes=(sum(rate(network.bytes_in[5m])))", "promql_view");
+        PromqlCommand promql = (PromqlCommand) statement.plan().collect(PromqlCommand.class::isInstance).getFirst();
+        List<Source> sources = new ArrayList<>();
+        promql.promqlPlan().forEachDown(p -> {
+            sources.add(p.source());
+            p.forEachExpressionDown(Expression.class, e -> sources.add(e.source()));
+        });
+        List<Source> tagged = sources.stream().filter(s -> s != Source.EMPTY).toList();
+        assertThat(tagged, not(empty()));
+        for (Source source : tagged) {
+            assertThat(source.toString(), source.viewName(), equalTo("promql_view"));
+        }
+    }
+
+    /**
+     * PromQL treats a missing label or metric as absent, so a PROMQL body nullifies in the view's own scope unless the
+     * definition sets {@code unmapped_fields} itself. Other bodies keep the default.
+     */
+    public void testPromqlViewBodyResolvesUnmappedFieldsWithNullify() {
+        assertThat(viewSettings("PROMQL index=emp step=5m sum(network.bytes_in)").unmappedFields(), equalTo(UnmappedResolution.NULLIFY));
+        assertThat(viewSettings("FROM emp").unmappedFields(), equalTo(UnmappedResolution.DEFAULT));
+        assertThat(viewSettings("TS emp | STATS count(*)").unmappedFields(), equalTo(UnmappedResolution.DEFAULT));
+        assertThat(
+            viewSettings("SET unmapped_fields=\"load\"; PROMQL index=emp step=5m sum(network.bytes_in)").unmappedFields(),
+            equalTo(UnmappedResolution.LOAD)
+        );
+        // The setting stays implicit: only an explicit SET counts as supplied by the view author.
+        assertThat(viewSettings("PROMQL index=emp step=5m sum(network.bytes_in)").supplied(), empty());
+    }
+
+    private ViewQuerySettings viewSettings(String viewQuery) {
+        return ViewQuerySettings.from(parse(viewQuery, "v"), Settings.EMPTY, Settings.EMPTY);
     }
 
     public void testCircularViewInFork() {

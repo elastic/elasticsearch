@@ -18,29 +18,50 @@ import io.opentelemetry.proto.common.v1.ArrayValue;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+import io.opentelemetry.proto.metrics.v1.ExponentialHistogram;
+import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Gauge;
+import io.opentelemetry.proto.metrics.v1.Histogram;
+import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 import io.opentelemetry.proto.metrics.v1.Sum;
+import io.opentelemetry.proto.metrics.v1.Summary;
+import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
 import io.opentelemetry.sdk.metrics.data.DoublePointData;
+import io.opentelemetry.sdk.metrics.data.ExponentialHistogramPointData;
+import io.opentelemetry.sdk.metrics.data.HistogramPointData;
 import io.opentelemetry.sdk.metrics.data.LongPointData;
 import io.opentelemetry.sdk.metrics.data.MetricData;
+import io.opentelemetry.sdk.metrics.data.SummaryPointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableDoublePointData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramBuckets;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableExponentialHistogramPointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableGaugeData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableHistogramData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableHistogramPointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableLongPointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableMetricData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableSumData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableSummaryData;
+import io.opentelemetry.sdk.metrics.internal.data.ImmutableSummaryPointData;
 
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -67,8 +88,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static io.opentelemetry.sdk.metrics.data.AggregationTemporality.CUMULATIVE;
+import static io.opentelemetry.sdk.metrics.data.AggregationTemporality.DELTA;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -97,8 +120,12 @@ import static org.hamcrest.Matchers.greaterThan;
  *       Its {@code Attributes} API can only express {@link #SDK_SHAPES}, but it provides a real end-to-end test.</li>
  * </ul>
  *
+ * <p>Metrics use every OTLP point type (see {@link MetricType}), with random mapping hints and a random
+ * {@code xpack.otel_data.histogram_field_type}, so every histogram encoding is covered. In these two tests a metric name
+ * keeps its type for the whole run; {@link #testConflictingMetricTypes()} covers a name whose type changes.
+ *
  * <p>Because a single unsupported value makes the whole export fall back to doc mode — which would make this
- * comparison pass vacuously — both tests also assert that the ESCF path was genuinely taken; see
+ * comparison pass vacuously — all tests also assert that the ESCF path was genuinely taken; see
  * {@link #countEscfBatches()}.
  */
 public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
@@ -112,6 +139,10 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     private static final String ESCF_DATASET = "escf";
     private static final String DOCMODE_STREAM = "metrics-docmode.otel-default";
     private static final String ESCF_STREAM = "metrics-escf.otel-default";
+    // Selected by the data_stream.namespace attribute, these streams have a single shard, see testConflictingMetricTypes.
+    private static final String CONFLICT_NAMESPACE = "conflict";
+    private static final String DOCMODE_CONFLICT_STREAM = "metrics-docmode.otel-" + CONFLICT_NAMESPACE;
+    private static final String ESCF_CONFLICT_STREAM = "metrics-escf.otel-" + CONFLICT_NAMESPACE;
 
     private static final String SCOPE_NAME = "io.opentelemetry.escf.comparison.test";
     private static final String SCOPE_VERSION = "1.0.0";
@@ -142,6 +173,10 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     private static OtlpHttpMetricExporter sdkExporter;
     private static volatile boolean classSetupDone = false;
 
+    private static final String HISTOGRAM_FIELD_TYPE_SETTING = "xpack.otel_data.histogram_field_type";
+    /** The value of {@link #HISTOGRAM_FIELD_TYPE_SETTING} for the current iteration, randomised in {@link #setup()}. */
+    private static String histogramFieldType;
+
     /**
      * Skip ESRestTestCase's between-iteration cluster wipe (wipeCluster, resetFeatureStates, etc.).
      * We manage our own cleanup — data streams are deleted in {@link #teardown()}, templates and the
@@ -165,6 +200,15 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         try {
             client().performRequest(new Request("DELETE", "_index_template/metrics-escf.otel-template"));
         } catch (Exception ignored) {}
+        try {
+            client().performRequest(new Request("DELETE", "_index_template/metrics-docmode.otel-conflict-template"));
+        } catch (Exception ignored) {}
+        try {
+            client().performRequest(new Request("DELETE", "_index_template/metrics-escf.otel-conflict-template"));
+        } catch (Exception ignored) {}
+        try {
+            updateClusterSettings(Settings.builder().putNull(HISTOGRAM_FIELD_TYPE_SETTING).build());
+        } catch (Exception ignored) {}
         deleteDataStreams();
     }
 
@@ -179,10 +223,14 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/metrics-otel@template"))));
 
             // Install a doc-mode template at priority 200 (above metrics-otel@template's 120).
-            installTemplate("metrics-docmode.otel-template", "metrics-docmode.otel-*", false);
+            installTemplate("metrics-docmode.otel-template", "metrics-docmode.otel-*", 200, 3, false);
 
             // Install the ESCF template — same but with index.batch_indexing: true.
-            installTemplate("metrics-escf.otel-template", "metrics-escf.otel-*", true);
+            installTemplate("metrics-escf.otel-template", "metrics-escf.otel-*", 200, 3, true);
+
+            // Single-shard variants for the conflict streams, taking precedence over the two above.
+            installTemplate("metrics-docmode.otel-conflict-template", DOCMODE_CONFLICT_STREAM, 201, 1, false);
+            installTemplate("metrics-escf.otel-conflict-template", ESCF_CONFLICT_STREAM, 201, 1, true);
 
             // Build the exporter once. Security is disabled so no auth header is needed.
             String firstHost = cluster.getHttpAddresses().split(",")[0].trim();
@@ -190,6 +238,10 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
 
             classSetupDone = true;
         }
+
+        // Both streams are populated under the same setting, which decides how histograms without mapping hints are stored.
+        histogramFieldType = randomFrom("histogram", "exponential_histogram");
+        updateClusterSettings(Settings.builder().put(HISTOGRAM_FIELD_TYPE_SETTING, histogramFieldType).build());
     }
 
     @After
@@ -198,7 +250,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     }
 
     private static void deleteDataStreams() {
-        for (String ds : List.of(DOCMODE_STREAM, ESCF_STREAM)) {
+        for (String ds : List.of(DOCMODE_STREAM, ESCF_STREAM, DOCMODE_CONFLICT_STREAM, ESCF_CONFLICT_STREAM)) {
             try {
                 client().performRequest(new Request("DELETE", "_data_stream/" + ds));
                 logger.info("Deleted data stream [{}]", ds);
@@ -216,6 +268,69 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     /** Sends payloads end to end through the OpenTelemetry SDK's exporter, limited to {@link #SDK_SHAPES}. */
     public void testSdkPayloads() throws Exception {
         assertEscfMatchesDocMode(randomWorkload(SDK_SHAPES), OTLPMetricsEscfComparisonRestIT::exportSdk);
+    }
+
+    /**
+     * Sends two data points of one series under the same metric name, each with a random metric type, at consecutive
+     * timestamps, either in one export or in two. Depending on the two types, the second document maps cleanly, is coerced,
+     * has its value ignored as malformed ({@code index.mapping.ignore_malformed} is set by {@code metrics-otel@mappings}) or
+     * is flattened into new leaf fields under the {@code metrics} passthrough object. Whichever happens, both paths must
+     * return the same OTLP responses and end up with the same documents and mappings.
+     *
+     * <p>The documents are written to single-shard streams. Data points without a temporality (gauges, summaries) and
+     * with one form separate series, which on several shards would be indexed concurrently: whichever shard's dynamic
+     * mapping update reaches the master first would decide the field type, and with {@code ignore_malformed} the other
+     * document would still be indexed. On a single shard the documents are indexed in order, so the first document always
+     * determines the mapping the second one is checked against.
+     */
+    public void testConflictingMetricTypes() throws Exception {
+        String metricName = "metric.conflict";
+        List<MetricSpec> specs = List.of(randomMetricSpec(metricName), randomMetricSpec(metricName));
+        boolean singleExport = randomBoolean();
+        List<AttributeShape> shapes = List.copyOf(EnumSet.allOf(AttributeShape.class));
+        List<KeyValue> resourceAttributes = new ArrayList<>(randomAttributes(randomAttributeSchema("test.resource", shapes)));
+        resourceAttributes.add(stringAttribute("data_stream.namespace", CONFLICT_NAMESPACE));
+        List<KeyValue> scopeAttributes = randomAttributes(randomAttributeSchema("test.scope", shapes));
+        List<KeyValue> dataPointAttributes = randomAttributes(randomAttributeSchema("test.datapoint", shapes));
+        long firstTimestamp = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis()) - TimeUnit.MINUTES.toNanos(2);
+        logger.info("conflicting metric types {}, single export [{}]", specs, singleExport);
+
+        createDataStream(DOCMODE_CONFLICT_STREAM);
+        createDataStream(ESCF_CONFLICT_STREAM);
+        Map<String, List<ExportResult>> results = new HashMap<>();
+        int escfBatchesBefore = 0;
+        for (String dataset : List.of(DOCMODE_DATASET, ESCF_DATASET)) {
+            if (dataset.equals(ESCF_DATASET)) {
+                escfBatchesBefore = countEscfBatches();
+            }
+            List<ResourceMetrics> resourceMetrics = new ArrayList<>(specs.size());
+            for (int i = 0; i < specs.size(); i++) {
+                long[] timestamps = { firstTimestamp + TimeUnit.SECONDS.toNanos(5L * i) };
+                Metric metric = buildMetric(specs.get(i), List.of(dataPointAttributes), timestamps, i);
+                resourceMetrics.add(buildResourceMetrics(dataset, resourceAttributes, scopeAttributes, metric));
+            }
+            List<ExportResult> datasetResults = new ArrayList<>();
+            if (singleExport) {
+                datasetResults.add(sendProto(ExportMetricsServiceRequest.newBuilder().addAllResourceMetrics(resourceMetrics).build()));
+            } else {
+                for (ResourceMetrics rm : resourceMetrics) {
+                    datasetResults.add(sendProto(ExportMetricsServiceRequest.newBuilder().addResourceMetrics(rm).build()));
+                }
+            }
+            results.put(dataset, datasetResults);
+        }
+        List<ExportResult> escfResults = results.get(ESCF_DATASET);
+        assertThat(
+            "every ESCF export must have been written as an ESCF batch",
+            countEscfBatches() - escfBatchesBefore,
+            equalTo(escfResults.size())
+        );
+        List<ExportResult> docmodeResults = results.get(DOCMODE_DATASET).stream().map(ExportResult::withEscfNames).toList();
+        logger.info("export results: doc mode {}, ESCF {}", docmodeResults, escfResults);
+        assertThat("OTLP responses must match", escfResults, equalTo(docmodeResults));
+
+        refreshAll();
+        assertStreamsMatch(DOCMODE_CONFLICT_STREAM, ESCF_CONFLICT_STREAM);
     }
 
     /**
@@ -261,11 +376,18 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             equalTo(escfExports)
         );
         refreshAll();
-
         // At most 20 timestamps × 3 resources × 6 metrics × 3 attribute sets = 1080 documents, so a single
         // search per stream returns everything.
-        List<Map<String, Object>> docmodeDocs = fetchSorted(DOCMODE_STREAM);
-        List<Map<String, Object>> escfDocs = fetchSorted(ESCF_STREAM);
+        assertStreamsMatch(DOCMODE_STREAM, ESCF_STREAM);
+    }
+
+    /**
+     * Asserts that both streams hold the same documents, with the same {@code _id}, {@code _tsid} and {@code _source},
+     * spread the same way across shards, and that they derived the same mappings.
+     */
+    private static void assertStreamsMatch(String docmodeStream, String escfStream) throws IOException {
+        List<Map<String, Object>> docmodeDocs = fetchSorted(docmodeStream);
+        List<Map<String, Object>> escfDocs = fetchSorted(escfStream);
         assertThat("the doc-mode stream must not be empty", docmodeDocs.size(), greaterThan(0));
         assertThat("doc count must match", escfDocs.size(), equalTo(docmodeDocs.size()));
         for (int i = 0; i < docmodeDocs.size(); i++) {
@@ -283,11 +405,11 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
 
         // If _tsid is computed identically then routing (based on _tsid) assigns the same documents to the same
         // shards in both data streams.
-        assertThat("per-shard doc counts must match", primaryShardDocCounts(ESCF_STREAM), equalTo(primaryShardDocCounts(DOCMODE_STREAM)));
+        assertThat("per-shard doc counts must match", primaryShardDocCounts(escfStream), equalTo(primaryShardDocCounts(docmodeStream)));
 
         // The two paths reach the mapper through different code (columnar vs document parsing), so an attribute
         // shape could round-trip to the same _source while producing a different field type.
-        assertThat("mappings must match", indexMappings(ESCF_STREAM), equalTo(indexMappings(DOCMODE_STREAM)));
+        assertThat("mappings must match", indexMappings(escfStream), equalTo(indexMappings(docmodeStream)));
     }
 
     /**
@@ -349,8 +471,45 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     /** An attribute key together with the single value shape it uses for the whole run. */
     private record AttributeSpec(String key, AttributeShape shape) {}
 
-    /** A metric name together with the point type it uses for the whole run. */
-    private record MetricSpec(String name, boolean sum, boolean longValued) {}
+    /** The OTLP point types a metric can use. */
+    private enum MetricType {
+        LONG_GAUGE,
+        DOUBLE_GAUGE,
+        LONG_SUM,
+        DOUBLE_SUM,
+        HISTOGRAM,
+        EXPONENTIAL_HISTOGRAM,
+        SUMMARY
+    }
+
+    private static final String MAPPING_HINTS_ATTRIBUTE = "elasticsearch.mapping.hints";
+    private static final String AGGREGATE_METRIC_DOUBLE_HINT = "aggregate_metric_double";
+    private static final String HISTOGRAM_RAW_HINT = "histogram:raw";
+    private static final List<String> MAPPING_HINTS = List.of(AGGREGATE_METRIC_DOUBLE_HINT, HISTOGRAM_RAW_HINT, "_doc_count");
+
+    /**
+     * A metric name together with the point type it uses for the whole run.
+     *
+     * @param mappingHints the {@code elasticsearch.mapping.hints} every data point of the metric carries, possibly none
+     * @param cumulative   whether sums and histograms use cumulative rather than delta temporality
+     */
+    private record MetricSpec(String name, MetricType type, List<String> mappingHints, boolean cumulative) {}
+
+    /** A metric of a random type and with random mapping hints, which the current {@link #histogramFieldType} accepts. */
+    private static MetricSpec randomMetricSpec(String name) {
+        MetricType type = randomFrom(MetricType.values());
+        List<String> mappingHints = randomSubsetOf(MAPPING_HINTS);
+        boolean cumulative = switch (type) {
+            case LONG_SUM, DOUBLE_SUM -> randomBoolean();
+            // Cumulative histograms are rejected unless they are stored as exponential_histogram.
+            case HISTOGRAM, EXPONENTIAL_HISTOGRAM -> histogramFieldType.equals("exponential_histogram")
+                && mappingHints.contains(AGGREGATE_METRIC_DOUBLE_HINT) == false
+                && mappingHints.contains(HISTOGRAM_RAW_HINT) == false
+                && randomBoolean();
+            case LONG_GAUGE, DOUBLE_GAUGE, SUMMARY -> false;
+        };
+        return new MetricSpec(name, type, mappingHints, cumulative);
+    }
 
     /**
      * The randomised payload, generated once and sent verbatim to both data streams. Attribute values are
@@ -376,7 +535,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     private static Workload randomWorkload(Set<AttributeShape> shapes) {
         List<MetricSpec> metrics = new ArrayList<>();
         for (int m = 0, numMetrics = randomIntBetween(1, 6); m < numMetrics; m++) {
-            metrics.add(new MetricSpec("metric." + m, randomBoolean(), randomBoolean()));
+            metrics.add(randomMetricSpec("metric." + m));
         }
 
         List<AttributeShape> shapeList = List.copyOf(shapes);
@@ -559,18 +718,23 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     }
 
     /**
-     * Wraps {@code metric} in the resource and scope for {@code resourceIdx}. The {@code data_stream.dataset}
+     * Wraps {@code metric} in a resource and scope carrying the given attributes. The {@code data_stream.dataset}
      * resource attribute is the only difference between the payloads the two streams receive.
      */
-    private static ResourceMetrics buildResourceMetrics(String dataset, Workload workload, int resourceIdx, Metric metric) {
+    private static ResourceMetrics buildResourceMetrics(
+        String dataset,
+        List<KeyValue> resourceAttributes,
+        List<KeyValue> scopeAttributes,
+        Metric metric
+    ) {
         Resource resource = Resource.newBuilder()
-            .addAllAttributes(workload.resourceAttributes().get(resourceIdx))
+            .addAllAttributes(resourceAttributes)
             .addAttributes(stringAttribute("data_stream.dataset", dataset))
             .build();
         InstrumentationScope scope = InstrumentationScope.newBuilder()
             .setName(SCOPE_NAME)
             .setVersion(SCOPE_VERSION)
-            .addAllAttributes(workload.scopeAttributes())
+            .addAllAttributes(scopeAttributes)
             .build();
         return ResourceMetrics.newBuilder()
             .setResource(resource)
@@ -578,54 +742,260 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             .build();
     }
 
-    /** Builds one metric carrying one data point per (attribute set, timestamp) pair. */
-    private static Metric buildMetric(Workload workload, int metricIdx, int resourceIdx, long[] msgTimestamps) {
-        MetricSpec spec = workload.metrics().get(metricIdx);
-        List<List<KeyValue>> attributeSets = workload.dataPointAttributes().get(metricIdx);
-        List<NumberDataPoint> points = new ArrayList<>(attributeSets.size() * msgTimestamps.length);
-        for (long timestamp : msgTimestamps) {
-            for (int a = 0; a < attributeSets.size(); a++) {
-                NumberDataPoint.Builder point = NumberDataPoint.newBuilder()
-                    .setTimeUnixNano(timestamp)
-                    .setStartTimeUnixNano(timestamp)
-                    .addAllAttributes(attributeSets.get(a));
-                long value = pointValue(resourceIdx, a, metricIdx);
-                points.add(spec.longValued() ? point.setAsInt(value).build() : point.setAsDouble(value + 0.5).build());
-            }
-        }
+    /**
+     * Builds one metric carrying one data point per (attribute set, timestamp) pair. The value of each point is derived
+     * from {@code valueBase} and the attribute set index, see {@link #points}.
+     */
+    private static Metric buildMetric(MetricSpec spec, List<List<KeyValue>> attributeSets, long[] timestamps, long valueBase) {
         Metric.Builder metric = Metric.newBuilder().setName(spec.name()).setUnit("1");
-        return spec.sum()
-            ? metric.setSum(
+        AggregationTemporality temporality = spec.cumulative()
+            ? AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE
+            : AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA;
+        switch (spec.type()) {
+            case LONG_GAUGE, DOUBLE_GAUGE -> metric.setGauge(
+                Gauge.newBuilder().addAllDataPoints(numberPoints(spec, attributeSets, timestamps, valueBase))
+            );
+            case LONG_SUM, DOUBLE_SUM -> metric.setSum(
                 Sum.newBuilder()
-                    .addAllDataPoints(points)
+                    .addAllDataPoints(numberPoints(spec, attributeSets, timestamps, valueBase))
                     .setIsMonotonic(true)
-                    .setAggregationTemporality(AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE)
-                    .build()
-            ).build()
-            : metric.setGauge(Gauge.newBuilder().addAllDataPoints(points).build()).build();
+                    .setAggregationTemporality(temporality)
+            );
+            case HISTOGRAM -> metric.setHistogram(
+                Histogram.newBuilder()
+                    .setAggregationTemporality(temporality)
+                    .addAllDataPoints(points(spec, attributeSets, timestamps, valueBase, (timestamp, attributes, value) -> {
+                        HistogramValue histogram = HistogramValue.of(value);
+                        return HistogramDataPoint.newBuilder()
+                            .setTimeUnixNano(timestamp)
+                            .setStartTimeUnixNano(timestamp)
+                            .addAllAttributes(attributes)
+                            .setCount(histogram.count())
+                            .setSum(histogram.sum())
+                            .setMin(histogram.min())
+                            .setMax(histogram.max())
+                            .addAllExplicitBounds(histogram.bounds())
+                            .addAllBucketCounts(histogram.counts())
+                            .build();
+                    }))
+            );
+            case EXPONENTIAL_HISTOGRAM -> metric.setExponentialHistogram(
+                ExponentialHistogram.newBuilder()
+                    .setAggregationTemporality(temporality)
+                    .addAllDataPoints(points(spec, attributeSets, timestamps, valueBase, (timestamp, attributes, value) -> {
+                        ExponentialHistogramValue histogram = ExponentialHistogramValue.of(value);
+                        ExponentialHistogramDataPoint.Builder point = ExponentialHistogramDataPoint.newBuilder()
+                            .setTimeUnixNano(timestamp)
+                            .setStartTimeUnixNano(timestamp)
+                            .addAllAttributes(attributes)
+                            .setScale(histogram.scale())
+                            .setCount(histogram.count())
+                            .setSum(histogram.sum())
+                            .setMin(histogram.min())
+                            .setMax(histogram.max())
+                            .setZeroCount(histogram.zeroCount())
+                            .setPositive(
+                                ExponentialHistogramDataPoint.Buckets.newBuilder()
+                                    .setOffset(histogram.positiveOffset())
+                                    .addAllBucketCounts(histogram.positiveCounts())
+                            );
+                        if (histogram.negativeCounts().isEmpty() == false) {
+                            point.setNegative(
+                                ExponentialHistogramDataPoint.Buckets.newBuilder()
+                                    .setOffset(histogram.negativeOffset())
+                                    .addAllBucketCounts(histogram.negativeCounts())
+                            );
+                        }
+                        return point.build();
+                    }))
+            );
+            case SUMMARY -> metric.setSummary(
+                Summary.newBuilder()
+                    .addAllDataPoints(
+                        points(
+                            spec,
+                            attributeSets,
+                            timestamps,
+                            valueBase,
+                            (timestamp, attributes, value) -> SummaryDataPoint.newBuilder()
+                                .setTimeUnixNano(timestamp)
+                                .setStartTimeUnixNano(timestamp)
+                                .addAllAttributes(attributes)
+                                .setCount(summaryCount(value))
+                                .setSum(value + 0.25)
+                                .build()
+                        )
+                    )
+            );
+        }
+        return metric.build();
     }
 
-    /** Point values are derived from the indices rather than randomised, so a monotonic sum never goes negative. */
-    private static long pointValue(int resourceIdx, int attributeSetIdx, int metricIdx) {
-        return resourceIdx * 10_000L + attributeSetIdx * 100L + metricIdx;
+    private static List<NumberDataPoint> numberPoints(
+        MetricSpec spec,
+        List<List<KeyValue>> attributeSets,
+        long[] timestamps,
+        long valueBase
+    ) {
+        boolean longValued = spec.type() == MetricType.LONG_GAUGE || spec.type() == MetricType.LONG_SUM;
+        return points(spec, attributeSets, timestamps, valueBase, (timestamp, attributes, value) -> {
+            NumberDataPoint.Builder point = NumberDataPoint.newBuilder()
+                .setTimeUnixNano(timestamp)
+                .setStartTimeUnixNano(timestamp)
+                .addAllAttributes(attributes);
+            return longValued ? point.setAsInt(value).build() : point.setAsDouble(value + 0.5).build();
+        });
+    }
+
+    /** Builds one point of type {@code T} for a timestamp, the point's attributes and its value. */
+    @FunctionalInterface
+    private interface PointBuilder<T> {
+        T build(long timestamp, List<KeyValue> attributes, long value);
+    }
+
+    /**
+     * Builds one point per (timestamp, attribute set) pair. Each point carries its attribute set plus the metric's mapping
+     * hints, and the value {@code valueBase + 100 × attribute set index}.
+     */
+    private static <T> List<T> points(
+        MetricSpec spec,
+        List<List<KeyValue>> attributeSets,
+        long[] timestamps,
+        long valueBase,
+        PointBuilder<T> builder
+    ) {
+        List<T> points = new ArrayList<>(attributeSets.size() * timestamps.length);
+        for (long timestamp : timestamps) {
+            for (int a = 0; a < attributeSets.size(); a++) {
+                points.add(builder.build(timestamp, withMappingHints(spec, attributeSets.get(a)), valueBase + a * 100L));
+            }
+        }
+        return points;
+    }
+
+    private static List<KeyValue> withMappingHints(MetricSpec spec, List<KeyValue> attributes) {
+        if (spec.mappingHints().isEmpty()) {
+            return attributes;
+        }
+        List<KeyValue> withHints = new ArrayList<>(attributes);
+        withHints.add(
+            KeyValue.newBuilder()
+                .setKey(MAPPING_HINTS_ATTRIBUTE)
+                .setValue(arrayValue(spec.mappingHints().stream().map(OTLPMetricsEscfComparisonRestIT::stringValue).toList()))
+                .build()
+        );
+        return withHints;
+    }
+
+    /**
+     * The base value of the points of one metric of one resource. Point values are derived from the indices rather than
+     * randomised, so a monotonic sum never goes negative.
+     */
+    private static long valueBase(int resourceIdx, int metricIdx) {
+        return resourceIdx * 10_000L + metricIdx;
+    }
+
+    /** An explicit-bounds histogram derived from a point value, with every bucket but one populated. */
+    private record HistogramValue(List<Double> bounds, List<Long> counts, long count, double sum, double min, double max) {
+        static HistogramValue of(long value) {
+            List<Long> counts = List.of(1 + value % 3, value % 5, 0L, 1 + value % 7);
+            long count = counts.stream().mapToLong(Long::longValue).sum();
+            return new HistogramValue(List.of(1.0, 10.0, 100.0), counts, count, count * 20.5, 0.5, 150.0 + value);
+        }
+    }
+
+    /** An exponential histogram derived from a point value, with negative buckets and a zero count for some values only. */
+    private record ExponentialHistogramValue(
+        int scale,
+        long zeroCount,
+        int positiveOffset,
+        List<Long> positiveCounts,
+        int negativeOffset,
+        List<Long> negativeCounts,
+        double sum,
+        double min,
+        double max
+    ) {
+        static ExponentialHistogramValue of(long value) {
+            List<Long> negativeCounts = value % 2 == 0 ? List.of() : List.of(1L, 0L, 2L);
+            return new ExponentialHistogramValue(
+                3,
+                value % 2,
+                (int) (value % 5),
+                List.of(1 + value % 3, 0L, 2L),
+                -(int) (value % 3),
+                negativeCounts,
+                100.5 + value,
+                negativeCounts.isEmpty() ? 0.0 : -2.0,
+                50.0 + value
+            );
+        }
+
+        long count() {
+            return zeroCount + Stream.concat(positiveCounts.stream(), negativeCounts.stream()).mapToLong(Long::longValue).sum();
+        }
+    }
+
+    private static long summaryCount(long value) {
+        return 1 + value % 10;
     }
 
     /** Builds the export as OTLP protobuf directly, wrapping every message in its own resource and scope. */
     private static void exportProto(String dataset, Workload workload, List<Message> messages) throws IOException {
         ExportMetricsServiceRequest.Builder metricsRequest = ExportMetricsServiceRequest.newBuilder();
         for (Message message : messages) {
-            Metric metric = buildMetric(workload, message.metricIdx(), message.resourceIdx(), message.timestamps());
-            metricsRequest.addResourceMetrics(buildResourceMetrics(dataset, workload, message.resourceIdx(), metric));
+            Metric metric = buildMetric(
+                workload.metrics().get(message.metricIdx()),
+                workload.dataPointAttributes().get(message.metricIdx()),
+                message.timestamps(),
+                valueBase(message.resourceIdx(), message.metricIdx())
+            );
+            metricsRequest.addResourceMetrics(
+                buildResourceMetrics(dataset, workload.resourceAttributes().get(message.resourceIdx()), workload.scopeAttributes(), metric)
+            );
         }
+        ExportResult result = sendProto(metricsRequest.build());
+        assertThat("OTLP export must succeed: " + result, result.status(), equalTo(200));
+        assertThat("OTLP export must not reject any data point: " + result.errorMessage(), result.rejectedDataPoints(), equalTo(0L));
+    }
+
+    /**
+     * The outcome of an OTLP export as the client sees it.
+     *
+     * @param errorMessage the partial success message of a successful export, or the response body of a failed one
+     */
+    private record ExportResult(int status, long rejectedDataPoints, String errorMessage) {
+        /** Replaces the doc-mode dataset in index and data stream names with the ESCF one, so that results of both paths compare. */
+        ExportResult withEscfNames() {
+            return new ExportResult(status, rejectedDataPoints, toEscfNames(errorMessage));
+        }
+    }
+
+    private static String toEscfNames(String text) {
+        return text.replace(DOCMODE_STREAM, ESCF_STREAM).replace(DOCMODE_DATASET + ".otel", ESCF_DATASET + ".otel");
+    }
+
+    /** Sends {@code metricsRequest} and returns its outcome, whether the export succeeded or not. */
+    private static ExportResult sendProto(ExportMetricsServiceRequest metricsRequest) throws IOException {
         Request request = new Request("POST", "/_otlp/v1/metrics");
-        request.setEntity(new ByteArrayEntity(metricsRequest.build().toByteArray(), ContentType.create("application/x-protobuf")));
-        Response response = client().performRequest(request);
-        assertOK(response);
+        request.setEntity(new ByteArrayEntity(metricsRequest.toByteArray(), ContentType.create("application/x-protobuf")));
+        // The dynamic template that maps aggregate_metric_double uses the deprecated default_metric parameter.
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        Response response;
+        try {
+            response = client().performRequest(request);
+        } catch (ResponseException e) {
+            response = e.getResponse();
+        }
+        int status = response.getStatusLine().getStatusCode();
+        if (status != 200) {
+            return new ExportResult(status, -1, EntityUtils.toString(response.getEntity()));
+        }
         ExportMetricsServiceResponse metricsResponse = ExportMetricsServiceResponse.parseFrom(response.getEntity().getContent());
-        assertThat(
-            "OTLP export must not reject any data point: " + metricsResponse.getPartialSuccess().getErrorMessage(),
+        return new ExportResult(
+            status,
             metricsResponse.getPartialSuccess().getRejectedDataPoints(),
-            equalTo(0L)
+            metricsResponse.getPartialSuccess().getErrorMessage()
         );
     }
 
@@ -654,35 +1024,132 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
             sdkAttributes(workload.resourceAttributes().get(message.resourceIdx())).toBuilder().put("data_stream.dataset", dataset).build()
         );
         List<List<KeyValue>> attributeSets = workload.dataPointAttributes().get(message.metricIdx());
-        if (spec.longValued()) {
-            List<LongPointData> points = new ArrayList<>();
-            for (long timestamp : message.timestamps()) {
-                for (int a = 0; a < attributeSets.size(); a++) {
-                    long value = pointValue(message.resourceIdx(), a, message.metricIdx());
-                    points.add(ImmutableLongPointData.create(timestamp, timestamp, sdkAttributes(attributeSets.get(a)), value));
-                }
+        long[] timestamps = message.timestamps();
+        long valueBase = valueBase(message.resourceIdx(), message.metricIdx());
+        var temporality = spec.cumulative() ? CUMULATIVE : DELTA;
+        String name = spec.name();
+        return switch (spec.type()) {
+            case LONG_GAUGE, LONG_SUM -> {
+                List<LongPointData> points = points(
+                    spec,
+                    attributeSets,
+                    timestamps,
+                    valueBase,
+                    (timestamp, attributes, value) -> ImmutableLongPointData.create(timestamp, timestamp, sdkAttributes(attributes), value)
+                );
+                yield spec.type() == MetricType.LONG_SUM
+                    ? ImmutableMetricData.createLongSum(resource, scope, name, "", "1", ImmutableSumData.create(true, temporality, points))
+                    : ImmutableMetricData.createLongGauge(resource, scope, name, "", "1", ImmutableGaugeData.create(points));
             }
-            return spec.sum()
-                ? ImmutableMetricData.createLongSum(
+            case DOUBLE_GAUGE, DOUBLE_SUM -> {
+                List<DoublePointData> points = points(
+                    spec,
+                    attributeSets,
+                    timestamps,
+                    valueBase,
+                    (timestamp, attributes, value) -> ImmutableDoublePointData.create(
+                        timestamp,
+                        timestamp,
+                        sdkAttributes(attributes),
+                        value + 0.5
+                    )
+                );
+                yield spec.type() == MetricType.DOUBLE_SUM
+                    ? ImmutableMetricData.createDoubleSum(
+                        resource,
+                        scope,
+                        name,
+                        "",
+                        "1",
+                        ImmutableSumData.create(true, temporality, points)
+                    )
+                    : ImmutableMetricData.createDoubleGauge(resource, scope, name, "", "1", ImmutableGaugeData.create(points));
+            }
+            case HISTOGRAM -> {
+                List<HistogramPointData> points = points(spec, attributeSets, timestamps, valueBase, (timestamp, attributes, value) -> {
+                    HistogramValue histogram = HistogramValue.of(value);
+                    return ImmutableHistogramPointData.create(
+                        timestamp,
+                        timestamp,
+                        sdkAttributes(attributes),
+                        histogram.sum(),
+                        true,
+                        histogram.min(),
+                        true,
+                        histogram.max(),
+                        histogram.bounds(),
+                        histogram.counts()
+                    );
+                });
+                yield ImmutableMetricData.createDoubleHistogram(
                     resource,
                     scope,
-                    spec.name(),
+                    name,
                     "",
                     "1",
-                    ImmutableSumData.create(true, CUMULATIVE, points)
-                )
-                : ImmutableMetricData.createLongGauge(resource, scope, spec.name(), "", "1", ImmutableGaugeData.create(points));
-        }
-        List<DoublePointData> points = new ArrayList<>();
-        for (long timestamp : message.timestamps()) {
-            for (int a = 0; a < attributeSets.size(); a++) {
-                double value = pointValue(message.resourceIdx(), a, message.metricIdx()) + 0.5;
-                points.add(ImmutableDoublePointData.create(timestamp, timestamp, sdkAttributes(attributeSets.get(a)), value));
+                    ImmutableHistogramData.create(temporality, points)
+                );
             }
-        }
-        return spec.sum()
-            ? ImmutableMetricData.createDoubleSum(resource, scope, spec.name(), "", "1", ImmutableSumData.create(true, CUMULATIVE, points))
-            : ImmutableMetricData.createDoubleGauge(resource, scope, spec.name(), "", "1", ImmutableGaugeData.create(points));
+            case EXPONENTIAL_HISTOGRAM -> {
+                List<ExponentialHistogramPointData> points = points(
+                    spec,
+                    attributeSets,
+                    timestamps,
+                    valueBase,
+                    (timestamp, attributes, value) -> {
+                        ExponentialHistogramValue histogram = ExponentialHistogramValue.of(value);
+                        return ImmutableExponentialHistogramPointData.create(
+                            histogram.scale(),
+                            histogram.sum(),
+                            histogram.zeroCount(),
+                            true,
+                            histogram.min(),
+                            true,
+                            histogram.max(),
+                            ImmutableExponentialHistogramBuckets.create(
+                                histogram.scale(),
+                                histogram.positiveOffset(),
+                                histogram.positiveCounts()
+                            ),
+                            ImmutableExponentialHistogramBuckets.create(
+                                histogram.scale(),
+                                histogram.negativeOffset(),
+                                histogram.negativeCounts()
+                            ),
+                            timestamp,
+                            timestamp,
+                            sdkAttributes(attributes),
+                            List.of()
+                        );
+                    }
+                );
+                yield ImmutableMetricData.createExponentialHistogram(
+                    resource,
+                    scope,
+                    name,
+                    "",
+                    "1",
+                    ImmutableExponentialHistogramData.create(temporality, points)
+                );
+            }
+            case SUMMARY -> {
+                List<SummaryPointData> points = points(
+                    spec,
+                    attributeSets,
+                    timestamps,
+                    valueBase,
+                    (timestamp, attributes, value) -> ImmutableSummaryPointData.create(
+                        timestamp,
+                        timestamp,
+                        sdkAttributes(attributes),
+                        summaryCount(value),
+                        value + 0.25,
+                        List.of()
+                    )
+                );
+                yield ImmutableMetricData.createDoubleSummary(resource, scope, name, "", "1", ImmutableSummaryData.create(points));
+            }
+        };
     }
 
     /** Converts protobuf attributes to SDK {@link Attributes}; only {@link #SDK_SHAPES} can be converted. */
@@ -716,61 +1183,67 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
     }
 
     private static void refreshAll() throws IOException {
-        assertOK(client().performRequest(new Request("POST", "metrics-*.otel-default/_refresh")));
+        assertOK(client().performRequest(new Request("POST", "metrics-*.otel-*/_refresh")));
     }
 
     /**
      * Installs an index template that overrides {@code metrics-otel@template} (priority 120) for the given
-     * pattern at priority 200. Uses the same {@code composed_of} list as the managed OTel template so field
-     * mappings are identical.
+     * pattern. Uses the same {@code composed_of} list as the managed OTel template so field mappings are identical.
      *
+     * @param priority      must exceed 120, and differ from that of any other template with an overlapping pattern.
      * @param batchIndexing when {@code true}, adds {@code index.batch_indexing: true} to the
      *                      template settings so that backing indices opt in to the ESCF columnar path.
      */
-    private static void installTemplate(String name, String pattern, boolean batchIndexing) throws IOException {
+    private static void installTemplate(String name, String pattern, int priority, int numberOfShards, boolean batchIndexing)
+        throws IOException {
         // Disable ILM to prevent lazy rollover during the test window (which would switch the
         // write index and cause past timestamps to be rejected as out-of-range for the new index).
         String batchIndexingSetting = batchIndexing ? """
             ,
                   "index.batch_indexing": true""" : "";
         Request request = new Request("PUT", "_index_template/" + name);
-        request.setJsonEntity("""
-            {
-              "index_patterns": ["$PATTERN"],
-              "priority": 200,
-              "data_stream": {},
-              "composed_of": [
-                "metrics@tsdb-settings",
-                "otel@mappings",
-                "otel@settings",
-                "metrics-otel@mappings",
-                "semconv-resource-to-ecs@mappings",
-                "metrics@custom",
-                "metrics-otel@custom",
-                "ecs-tsdb@mappings"
-              ],
-              "ignore_missing_component_templates": ["metrics@custom", "metrics-otel@custom"],
-              "template": {
-                "settings": {
-                  "index.mode": "time_series",
-                  "index.number_of_shards": 3,
-                  "index.number_of_replicas": 0,
-                  "index.refresh_interval": "-1",
-                  "index.translog.durability": "async",
-                  "index.lifecycle.name": null,
-                  "index.requests.cache.enable": false$BATCH_INDEXING_SETTING
-                },
-                "mappings": {
-                  "properties": {
-                    "data_stream.type": {
-                      "type": "constant_keyword",
-                      "value": "metrics"
+        request.setJsonEntity(
+            """
+                {
+                  "index_patterns": ["$PATTERN"],
+                  "priority": $PRIORITY,
+                  "data_stream": {},
+                  "composed_of": [
+                    "metrics@tsdb-settings",
+                    "otel@mappings",
+                    "otel@settings",
+                    "metrics-otel@mappings",
+                    "semconv-resource-to-ecs@mappings",
+                    "metrics@custom",
+                    "metrics-otel@custom",
+                    "ecs-tsdb@mappings"
+                  ],
+                  "ignore_missing_component_templates": ["metrics@custom", "metrics-otel@custom"],
+                  "template": {
+                    "settings": {
+                      "index.mode": "time_series",
+                      "index.number_of_shards": $NUMBER_OF_SHARDS,
+                      "index.number_of_replicas": 0,
+                      "index.refresh_interval": "-1",
+                      "index.translog.durability": "async",
+                      "index.lifecycle.name": null,
+                      "index.requests.cache.enable": false$BATCH_INDEXING_SETTING
+                    },
+                    "mappings": {
+                      "properties": {
+                        "data_stream.type": {
+                          "type": "constant_keyword",
+                          "value": "metrics"
+                        }
+                      }
                     }
                   }
                 }
-              }
-            }
-            """.replace("$PATTERN", pattern).replace("$BATCH_INDEXING_SETTING", batchIndexingSetting));
+                """.replace("$PATTERN", pattern)
+                .replace("$PRIORITY", Integer.toString(priority))
+                .replace("$NUMBER_OF_SHARDS", Integer.toString(numberOfShards))
+                .replace("$BATCH_INDEXING_SETTING", batchIndexingSetting)
+        );
         assertOK(client().performRequest(request));
     }
 

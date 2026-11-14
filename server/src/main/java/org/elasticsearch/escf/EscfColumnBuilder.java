@@ -383,6 +383,11 @@ public final class EscfColumnBuilder implements Releasable {
         newRowScalar(row, kind, 0L, 0.0, bytes, off, len);
     }
 
+    /** Returns {@code true} between {@link #beginArray} and {@link #endArray}. */
+    public boolean isArrayOpen() {
+        return arrayOpen;
+    }
+
     /** Opens an array cell for {@code row}; elements are supplied via {@code appendX} until {@link #endArray}. */
     public void beginArray(int row) {
         assert arrayOpen == false : "beginArray without a matching endArray";

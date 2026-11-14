@@ -13,11 +13,24 @@ import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.escf.EscfBatch;
+import org.elasticsearch.sourcebatch.SourceRowToXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTLPMetricBatchBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTLPMetricBatchBuilder.ExponentialHistogramSchema;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.newBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,11 +55,53 @@ public class ExponentialHistogramToExponentialHistogramConverterTests extends ES
     }
 
     public void testExponentialHistograms() throws IOException {
-        try (var builder = JsonXContent.contentBuilder()) {
-            ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder);
-            String json = Strings.toString(builder);
-            assertThat(json, equalTo(expectedJson));
+        String json = randomBoolean()
+            ? renderExponentialHistogram(
+                (batchBuilder, schema) -> ExponentialHistogramConverter.writeExponentialHistogram(dataPoint, batchBuilder, schema)
+            )
+            : renderExponentialHistogram(builder -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder));
+        assertThat(toMap(json), equalTo(toMap(expectedJson)));
+    }
+
+    /** Renders the exponential histogram that {@code xContentWriter} writes through the XContent path to JSON. */
+    public static String renderExponentialHistogram(CheckedConsumer<XContentBuilder, IOException> xContentWriter) throws IOException {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            xContentWriter.accept(builder);
+            return Strings.toString(builder);
         }
+    }
+
+    /**
+     * Renders the exponential histogram that {@code columnarWriter} writes through the columnar batch path to JSON, as
+     * it would be read back from a single batch row.
+     */
+    public static String renderExponentialHistogram(BiConsumer<OTLPMetricBatchBuilder, ExponentialHistogramSchema> columnarWriter)
+        throws IOException {
+        String metricName = "histogram";
+        try (
+            OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(
+                BytesRefRecycler.NON_RECYCLING_INSTANCE,
+                MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM
+            )
+        ) {
+            columnarWriter.accept(batchBuilder, batchBuilder.getMetricSubSchema(metricName, ExponentialHistogramSchema.FACTORY));
+            batchBuilder.commitRow();
+            try (EscfBatch batch = batchBuilder.build(); XContentBuilder rowBuilder = JsonXContent.contentBuilder()) {
+                SourceRowToXContent.writeRow(batch.row(0), batch.schema(), rowBuilder);
+                Map<String, Object> row = XContentHelper.convertToMap(BytesReference.bytes(rowBuilder), true, XContentType.JSON).v2();
+                // the row holds a single metric object under metrics, as rendered from the columns
+                @SuppressWarnings("unchecked")
+                Map<String, Object> histogram = (Map<String, Object>) ((Map<String, Object>) row.get("metrics")).get(metricName);
+                try (XContentBuilder histogramBuilder = JsonXContent.contentBuilder()) {
+                    histogramBuilder.map(histogram);
+                    return Strings.toString(histogramBuilder);
+                }
+            }
+        }
+    }
+
+    private static Map<String, Object> toMap(String json) {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
     }
 
     @ParametersFactory(argumentFormatting = "%1$s")

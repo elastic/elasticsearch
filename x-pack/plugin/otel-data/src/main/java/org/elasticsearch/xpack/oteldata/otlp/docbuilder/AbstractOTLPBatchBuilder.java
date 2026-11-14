@@ -22,7 +22,9 @@ import org.elasticsearch.xcontent.XContentString;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Shared infrastructure for building a single-partition {@link EscfBatch} from OTLP data whose document
@@ -72,6 +74,19 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
     private int docCount;
     private boolean built;
 
+    private record SubSchemaCacheKey(int parentIndex, String name, SubSchemaFactory<?> factory) {}
+
+    private final Map<SubSchemaCacheKey, Object> subSchemaCache = new HashMap<>();
+
+    /**
+     * Registers the fields of a structured value (e.g. a histogram object) named {@code name} under
+     * {@code parentFieldIdx} and returns a handle holding their resolved indices. Factories are used as
+     * cache keys by identity, so implementations should be singletons.
+     */
+    public interface SubSchemaFactory<T> {
+        T create(int parentFieldIdx, String name, SourceSchema rootSchema);
+    }
+
     protected AbstractOTLPBatchBuilder(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
     }
@@ -88,6 +103,18 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
     /** Registers (or reuses) the leaf field {@code name} under {@code parentIdx} and returns its column index. */
     protected final int leafField(String name, int parentIdx) {
         return schema.appendLeaf(name, parentIdx);
+    }
+
+    /**
+     * Returns the sub-schema {@code factory} creates for {@code name} under {@code parentIdx}, registering its
+     * fields on first use. Subsequent calls with the same arguments return the cached instance.
+     */
+    protected final <T> T getSubSchema(int parentIdx, String name, SubSchemaFactory<T> factory) {
+        var key = new SubSchemaCacheKey(parentIdx, name, factory);
+        // the cache only ever maps a key to the value its own factory created, so the value is a T
+        @SuppressWarnings("unchecked")
+        T subSchema = (T) subSchemaCache.computeIfAbsent(key, k -> factory.create(parentIdx, name, schema));
+        return subSchema;
     }
 
     /**
@@ -191,6 +218,18 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
     }
 
     /**
+     * Opens an array value at {@code colIdx} and returns the column builder to stream its elements into via
+     * {@link EscfColumnBuilder#appendLong} or {@link EscfColumnBuilder#appendDouble}. Arrays of different columns
+     * may be open at the same time, but each must be closed with {@link EscfColumnBuilder#endArray} before the
+     * column is written again or the batch is built.
+     */
+    public final EscfColumnBuilder beginArray(int colIdx) {
+        EscfColumnBuilder builder = catchUp(colIdx, docCount);
+        builder.beginArray(docCount);
+        return builder;
+    }
+
+    /**
      * Returns {@code true} if {@code colIdx} has already been written as a leaf in the current (uncommitted) row.
      * Callers writing fields whose name comes from the payload (e.g. attribute keys) use this to skip
      * duplicates, which a column can't represent.
@@ -209,6 +248,7 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
             builders.add(new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT, recycler));
         }
         EscfColumnBuilder builder = builders.get(colIdx);
+        assert builder.isArrayOpen() == false : "array of [" + schema.getFullPath(colIdx) + "] is still open";
         int gap = targetRow - builder.nextAppendRow();
         if (gap < 0) {
             throw new IllegalArgumentException("Duplicate field [" + schema.getFullPath(colIdx) + "]");

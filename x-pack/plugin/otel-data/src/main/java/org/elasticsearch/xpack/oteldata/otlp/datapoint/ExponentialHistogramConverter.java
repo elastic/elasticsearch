@@ -11,8 +11,11 @@ import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 
+import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.AbstractOTLPBatchBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.OTLPMetricBatchBuilder;
 
 import java.io.IOException;
 
@@ -73,6 +76,64 @@ public class ExponentialHistogramConverter {
         builder.endObject();
     }
 
+    /**
+     * Columnar counterpart to {@link #buildExponentialHistogram(ExponentialHistogramDataPoint, XContentBuilder)}.
+     * @param dataPoint the point to write
+     * @param builder the batch builder to write to
+     * @param schema the columns of the exponential histogram field within {@code builder}
+     */
+    public static void writeExponentialHistogram(
+        ExponentialHistogramDataPoint dataPoint,
+        AbstractOTLPBatchBuilder builder,
+        OTLPMetricBatchBuilder.ExponentialHistogramSchema schema
+    ) {
+        builder.longField(schema.scaleColIdx(), dataPoint.getScale());
+        if (dataPoint.getZeroCount() > 0) {
+            builder.longField(schema.zeroCountColIdx(), dataPoint.getZeroCount());
+            if (dataPoint.getZeroThreshold() != 0) {
+                builder.doubleField(schema.zeroThresholdColIdx(), dataPoint.getZeroThreshold());
+            }
+        }
+        if (dataPoint.hasNegative()) {
+            writeExponentialBuckets(builder, schema.negativeIndicesColIdx(), schema.negativeCountsColIdx(), dataPoint.getNegative());
+        }
+        if (dataPoint.hasPositive()) {
+            writeExponentialBuckets(builder, schema.positiveIndicesColIdx(), schema.positiveCountsColIdx(), dataPoint.getPositive());
+        }
+        if (dataPoint.hasSum()) {
+            builder.doubleField(schema.sumColIdx(), dataPoint.getSum());
+        }
+        if (dataPoint.hasMin()) {
+            builder.doubleField(schema.minColIdx(), dataPoint.getMin());
+        }
+        if (dataPoint.hasMax()) {
+            builder.doubleField(schema.maxColIdx(), dataPoint.getMax());
+        }
+    }
+
+    private static void writeExponentialBuckets(
+        AbstractOTLPBatchBuilder builder,
+        int indicesColIdx,
+        int countsColIdx,
+        ExponentialHistogramDataPoint.Buckets buckets
+    ) {
+        EscfColumnBuilder indices = builder.beginArray(indicesColIdx);
+        for (int i = 0; i < buckets.getBucketCountsCount(); i++) {
+            if (buckets.getBucketCounts(i) != 0) {
+                indices.appendLong(buckets.getOffset() + i);
+            }
+        }
+        indices.endArray();
+        EscfColumnBuilder counts = builder.beginArray(countsColIdx);
+        for (int i = 0; i < buckets.getBucketCountsCount(); i++) {
+            long count = buckets.getBucketCounts(i);
+            if (count != 0) {
+                counts.appendLong(count);
+            }
+        }
+        counts.endArray();
+    }
+
     private static void writeExponentialBuckets(XContentBuilder builder, String fieldName, ExponentialHistogramDataPoint.Buckets buckets)
         throws IOException {
         builder.startObject(fieldName);
@@ -122,7 +183,49 @@ public class ExponentialHistogramConverter {
         BucketBuffer bucketsScratch
     ) throws IOException {
         builder.startObject().field(SCALE_FIELD, MAX_SCALE);
+        if (convertToBuckets(dataPoint, temporality, bucketsScratch)) {
+            bucketsScratch.writeBuckets(builder);
+            writeSummaryStatistics(dataPoint, builder);
+        }
+        builder.endObject();
+    }
 
+    /**
+     * Columnar counterpart to
+     * {@link #buildExponentialHistogram(HistogramDataPoint, AggregationTemporality, XContentBuilder, BucketBuffer)}.
+     * @param dataPoint the point to write
+     * @param temporality the temporality of the histogram
+     * @param builder the batch builder to write to
+     * @param schema the columns of the exponential histogram field within {@code builder}
+     * @param bucketsScratch reusable, temporary memory used to build the output histogram
+     */
+    public static void writeExponentialHistogram(
+        HistogramDataPoint dataPoint,
+        AggregationTemporality temporality,
+        AbstractOTLPBatchBuilder builder,
+        OTLPMetricBatchBuilder.ExponentialHistogramSchema schema,
+        BucketBuffer bucketsScratch
+    ) {
+        builder.longField(schema.scaleColIdx(), MAX_SCALE);
+        if (convertToBuckets(dataPoint, temporality, bucketsScratch)) {
+            bucketsScratch.writeBuckets(builder, schema);
+            if (dataPoint.hasSum()) {
+                builder.doubleField(schema.sumColIdx(), dataPoint.getSum());
+            }
+            if (dataPoint.hasMin()) {
+                builder.doubleField(schema.minColIdx(), dataPoint.getMin());
+            }
+            if (dataPoint.hasMax()) {
+                builder.doubleField(schema.maxColIdx(), dataPoint.getMax());
+            }
+        }
+    }
+
+    /**
+     * Fills {@code bucketsScratch} with the exponential histogram buckets for {@code dataPoint}.
+     * Returns {@code false} if the data point holds no values, in which case neither buckets nor summary statistics are written.
+     */
+    private static boolean convertToBuckets(HistogramDataPoint dataPoint, AggregationTemporality temporality, BucketBuffer bucketsScratch) {
         int size = dataPoint.getBucketCountsCount();
 
         if (size > 0 && dataPoint.getExplicitBoundsCount() > 0) {
@@ -173,8 +276,7 @@ public class ExponentialHistogramConverter {
                     }
                 }
             }
-            bucketsScratch.writeBuckets(builder);
-            writeSummaryStatistics(dataPoint, builder);
+            return true;
         } else if (dataPoint.getCount() > 0) {
             bucketsScratch.clear();
             double value = 0.0;
@@ -183,10 +285,9 @@ public class ExponentialHistogramConverter {
                 value = dataPoint.getSum() / dataPoint.getCount();
             }
             bucketsScratch.append(value, dataPoint.getCount());
-            bucketsScratch.writeBuckets(builder);
-            writeSummaryStatistics(dataPoint, builder);
+            return true;
         }
-        builder.endObject();
+        return false;
     }
 
     private static void writeSummaryStatistics(HistogramDataPoint dataPoint, XContentBuilder builder) throws IOException {
@@ -322,6 +423,33 @@ public class ExponentialHistogramConverter {
                 }
                 builder.endArray();
                 builder.endObject();
+            }
+        }
+
+        private void writeBuckets(AbstractOTLPBatchBuilder builder, OTLPMetricBatchBuilder.ExponentialHistogramSchema schema) {
+            if (zeroCount > 0) {
+                builder.longField(schema.zeroCountColIdx(), zeroCount);
+            }
+            if (negativeBuckets.size() > 0) {
+                // write in inverse order to get lowest to highest index
+                EscfColumnBuilder indices = builder.beginArray(schema.negativeIndicesColIdx());
+                EscfColumnBuilder counts = builder.beginArray(schema.negativeCountsColIdx());
+                for (int i = negativeBuckets.size() - 1; i >= 0; i--) {
+                    indices.appendLong(negativeBuckets.getIndex(i));
+                    counts.appendLong(negativeBuckets.getCount(i));
+                }
+                indices.endArray();
+                counts.endArray();
+            }
+            if (positiveBuckets.size() > 0) {
+                EscfColumnBuilder indices = builder.beginArray(schema.positiveIndicesColIdx());
+                EscfColumnBuilder counts = builder.beginArray(schema.positiveCountsColIdx());
+                for (int i = 0; i < positiveBuckets.size(); i++) {
+                    indices.appendLong(positiveBuckets.getIndex(i));
+                    counts.appendLong(positiveBuckets.getCount(i));
+                }
+                indices.endArray();
+                counts.endArray();
             }
         }
     }

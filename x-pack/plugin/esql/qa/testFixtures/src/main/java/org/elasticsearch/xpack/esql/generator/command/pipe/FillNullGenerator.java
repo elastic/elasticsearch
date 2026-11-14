@@ -67,7 +67,7 @@ public class FillNullGenerator implements CommandGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
-        if (EsqlCapabilities.Cap.FILLNULL.isEnabled() == false) {
+        if (context.clusterSupports(EsqlCapabilities.Cap.FILLNULL) == false) {
             return EMPTY_DESCRIPTION;
         }
 

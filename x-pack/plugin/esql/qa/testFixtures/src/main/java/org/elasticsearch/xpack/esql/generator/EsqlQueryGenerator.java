@@ -95,6 +95,9 @@ public class EsqlQueryGenerator {
     public static final String COLUMN_TYPE = "type";
     public static final String COLUMN_ORIGINAL_TYPES = "original_types";
 
+    /** {@code TOP} output field of type keyword or text. */
+    static final String TOP_OUTPUT_FIELD_STRING_CAPABILITY = "fn_top_output_field_string";
+
     /**
      * These are commands that are at the beginning of the query, eg. FROM
      */
@@ -446,15 +449,11 @@ public class EsqlQueryGenerator {
         return outerCommand + "(" + innerCommand + ")";
     }
 
-    /**
-     * @deprecated Use {@link #agg(List, List)} instead to properly handle unmapped fields
-     */
-    @Deprecated
-    public static String agg(List<Column> previousOutput) {
-        return agg(previousOutput, null);
-    }
-
-    public static String agg(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
+    public static String agg(
+        List<Column> previousOutput,
+        List<CommandGenerator.CommandDescription> previousCommands,
+        GenerationContext context
+    ) {
         // Null previousCommands means we're in TimeSeriesStatsGenerator (always TS).
         boolean isTimeSeries = previousCommands == null || previousCommands.stream().anyMatch(c -> "ts".equals(c.commandName()));
         boolean allowUnmapped = areUnmappedFieldsAllowed(previousCommands);
@@ -544,8 +543,10 @@ public class EsqlQueryGenerator {
                 yield "top(" + topField + ", " + limit + ", " + order + ")";
             }
             case 7 -> {
-                // top(..., outputField) accepts: double, integer, long, date, keyword, text
-                Set<String> topOutputFieldTypes = Set.of("double", "integer", "long", "date", "datetime", "keyword", "text");
+                // top(..., outputField): double, integer, long, date; keyword and text when the cluster allows them.
+                Set<String> topOutputFieldTypes = context.clusterSupports(TOP_OUTPUT_FIELD_STRING_CAPABILITY)
+                    ? Set.of("double", "integer", "long", "date", "datetime", "keyword", "text")
+                    : Set.of("double", "integer", "long", "date", "datetime");
                 String topField = randomNameOrNullOrConst(typeSafeExpression(previousOutput, topOutputFieldTypes, allowUnmapped));
                 String topOutputField = randomNameOrNullOrConst(typeSafeExpression(previousOutput, topOutputFieldTypes, allowUnmapped));
                 String order = '"' + randomFrom("asc", "desc") + '"';

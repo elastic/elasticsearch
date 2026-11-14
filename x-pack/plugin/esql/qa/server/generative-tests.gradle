@@ -1,0 +1,104 @@
+/*
+ * Generative test tasks for the single-node and multi-node QA projects.
+ * Not part of 'check'. Release-branch runs start at 9.5.
+ *
+ * Set before applying:
+ *   - generativeTestsConfig: configures a StandaloneRestIntegTestTask
+ */
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.InternalBwcGitPlugin
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.gradle.process.ExecOperations
+
+import java.nio.charset.StandardCharsets
+
+def generativeTestsConfig = ext.generativeTestsConfig
+
+tasks.register('generativeTests', StandaloneRestIntegTestTask) {
+  usesDefaultDistribution("to be triaged")
+  generativeTestsConfig(it)
+}
+
+// Release branches from 9.5, at the branch tip.
+buildParams.bwcVersions.unreleasedWireCompatible
+  .findAll { it.onOrAfter(Version.fromString("9.5.0")) && it != VersionProperties.elasticsearchVersion }
+  .each { bwcVersion ->
+    // Function definitions from that checkout.
+    def versionInfo = buildParams.bwcVersions.unreleasedInfo(bwcVersion)
+    def bwcProject = project(versionInfo.gradleProjectPath)
+    def checkoutDir = bwcProject.extensions.getByName('bwcGitConfig').checkoutDir
+    def draBuildId = bwcProject.plugins.getPlugin(InternalBwcGitPlugin).draBuildId
+    // Snapshot commit in the shared release-branch checkout.
+    def prepareTaskName = "prepareEsqlFunctionCheckout"
+    synchronized (bwcProject.tasks) {
+      if (bwcProject.tasks.names.contains(prepareTaskName) == false) {
+        def bwcExecOperations = bwcProject.services.get(ExecOperations)
+        bwcProject.tasks.register(prepareTaskName) {
+          dependsOn "checkoutBwcBranch"
+          inputs.property("draBuildId", draBuildId)
+          onlyIf("pre-built snapshot skipped checkoutBwcBranch") { draBuildId.get().isEmpty() == false }
+          def branch = versionInfo.branch()
+          def remoteName = providers.systemProperty("bwc.remote").getOrElse("elastic")
+          def remoteUrl = providers.systemProperty("testRemoteRepo").getOrElse("https://github.com/${remoteName}/${rootProject.name}")
+          def sourceDir = rootProject.layout.projectDirectory.asFile
+          doLast {
+            def buildId = draBuildId.get()
+            def dash = buildId.lastIndexOf('-')
+            if (dash < 0) {
+              throw new GradleException("Cannot read a commit from BWC snapshot build id [${buildId}]")
+            }
+            def hash = buildId.substring(dash + 1)
+            if ((hash ==~ /[0-9a-fA-F]+/) == false) {
+              throw new GradleException("BWC snapshot build id [${buildId}] does not end in a commit hash")
+            }
+            def dir = checkoutDir.get()
+            if (dir.exists() == false) {
+              dir.parentFile.mkdirs()
+              bwcExecOperations.exec { spec -> spec.commandLine("git", "clone", sourceDir.absolutePath, dir.absolutePath) }
+            }
+            def listedRemotes = new ByteArrayOutputStream()
+            bwcExecOperations.exec { spec ->
+              spec.workingDir(dir)
+              spec.commandLine("git", "remote")
+              spec.standardOutput = listedRemotes
+            }
+            if (listedRemotes.toString(StandardCharsets.UTF_8).readLines().contains(remoteName) == false) {
+              bwcExecOperations.exec { spec ->
+                spec.workingDir(dir)
+                spec.commandLine("git", "remote", "add", remoteName, remoteUrl)
+              }
+            }
+            bwcExecOperations.exec { spec ->
+              spec.workingDir(dir)
+              spec.commandLine("git", "fetch", "--force", remoteName, "+refs/heads/${branch}:refs/remotes/${remoteName}/${branch}")
+            }
+            bwcExecOperations.exec { spec ->
+              spec.workingDir(dir)
+              spec.commandLine("git", "checkout", "--force", hash)
+            }
+          }
+        }
+      }
+    }
+    def functionDefinitions = tasks.register("v${bwcVersion}#copyEsqlFunctionDefinitions", Sync) {
+      dependsOn "${bwcProject.path}:checkoutBwcBranch"
+      dependsOn "${bwcProject.path}:${prepareTaskName}"
+      from(checkoutDir.map {
+        new File(it, 'docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/functions')
+      })
+      into layout.buildDirectory.dir("bwc-esql-functions/${bwcVersion}")
+    }
+    tasks.register("v${bwcVersion}#generativeTests", StandaloneRestIntegTestTask) {
+      usesBwcDistribution(bwcVersion)
+      systemProperty("tests.old_cluster_version", bwcVersion)
+      inputs.files(functionDefinitions)
+      nonInputProperties.systemProperty('tests.esql.function_definitions', "${-> functionDefinitions.get().destinationDir}")
+      generativeTestsConfig(it)
+    }
+  }
+
+tasks.register('bwcGenerativeTests') {
+  dependsOn tasks.matching { it.name ==~ /v.+#generativeTests/ }
+}

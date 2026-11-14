@@ -17,8 +17,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.Map;
 
@@ -33,22 +31,9 @@ public final class SearchHitRamUsageEstimator {
     private static final long HIGHLIGHT_FIELD_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HighlightField.class);
     private static final long TEXT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Text.class);
     private static final long EXPLANATION_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Explanation.class);
-    private static final long FLOAT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Float.class);
-    private static final long HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
-        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-    );
-    // LinkedHashMap.Entry adds a before/after pair to HashMap.Node
-    private static final long LINKED_HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
-        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-    );
-    /**
-     * Wrapper {@link Collections#unmodifiableList} puts around an {@link Explanation}'s details. This and the
-     * {@link ArrayList} term below track how Lucene currently builds that list; revisit on an upgrade that changes it,
-     * since the tests assert relative growth rather than exact bytes and would not catch the drift.
-     */
-    private static final long UNMODIFIABLE_LIST_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOf(
-        Collections.unmodifiableList(new ArrayList<>())
-    );
+    private static final long FLOAT_SHALLOW_SIZE = RamUsageEstimates.FLOAT_SHALLOW_SIZE;
+    private static final long HASH_MAP_NODE_SIZE = RamUsageEstimates.HASH_MAP_NODE_SIZE;
+    private static final long LINKED_HASH_MAP_NODE_SIZE = RamUsageEstimates.LINKED_HASH_MAP_NODE_SIZE;
 
     /**
      * Bounds the per-hit walk of an explanation tree, which runs on the fetch thread. Past this the walk stops and the
@@ -176,7 +161,7 @@ public final class SearchHitRamUsageEstimator {
             Number value = node.getValue();
             size += value instanceof Float ? FLOAT_SHALLOW_SIZE : RamUsageEstimator.shallowSizeOf(value);
             // An unmodifiable view over an exactly sized ArrayList, both allocated even when empty.
-            size += UNMODIFIABLE_LIST_SHALLOW_SIZE + RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE;
+            size += RamUsageEstimates.UNMODIFIABLE_LIST_SHALLOW_SIZE + RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE;
             // getDetails() copies into a fresh array per call, so ask once and size the retained list instead.
             Explanation[] details = node.getDetails();
             if (details.length > 0) {

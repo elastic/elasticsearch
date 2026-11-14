@@ -18,7 +18,7 @@ The enrich coordinator supports the following node settings:
     * An absolute size in bytes, for example `100Mb`.
     * A percentage of the node's maximum heap space, for example `1%`.
 
-    If you specify an absolute byte size or a heap percentage, {{es}} doesn't guarantee that the cache stays exactly within the configured maximum. The cache size is measured using the byte size of the serialized search response, which is a good approximation of actual heap usage but not an exact match. There is a single cache for all enrich processors in the cluster. Defaults to `1%`.
+    If you specify an absolute byte size or a heap percentage, {{es}} doesn't guarantee that the cache stays exactly within the configured maximum. The cache size is measured using the estimated heap size of the cached documents. There is a single cache for all enrich processors in the cluster. Defaults to `1%`.
 
 `enrich.coordinator_proxy.max_concurrent_requests` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Maximum number of concurrent multi-search requests to run when enriching documents. Defaults to `8`.

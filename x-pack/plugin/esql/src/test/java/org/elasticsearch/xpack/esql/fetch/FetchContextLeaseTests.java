@@ -7,14 +7,10 @@
 
 package org.elasticsearch.xpack.esql.fetch;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -23,7 +19,6 @@ import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -43,11 +38,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -64,6 +57,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         leases = new FetchContextLeases(
             searchService(),
             transportService,
+            getInstanceFromNode(SearchTransportService.class),
             FetchNodeDirectory.create(
                 transportService,
                 transportService.getThreadPool().getThreadContext(),
@@ -71,25 +65,6 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
             )
         );
     }
-
-    /**
-     * The keep-alive a node gives the contexts in the tests that don't shorten it: longer than the keep-alive of any query
-     * here, so the one of the query sets the refresh.
-     */
-    private static final TimeValue NODE_KEEP_ALIVE = TimeValue.timeValueDays(1);
-    /**
-     * The index expressions an execution wrote for the remote cluster {@code remote}.
-     */
-    private static final OriginalIndices REMOTE_INDICES = new OriginalIndices(
-        new String[] { "remote-" + INDEX },
-        SearchRequest.DEFAULT_INDICES_OPTIONS
-    );
-    private static final Map<String, OriginalIndices> LOCAL_AND_REMOTE_INDICES = Map.of(
-        RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-        QUERY_INDICES,
-        "remote",
-        REMOTE_INDICES
-    );
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -105,7 +80,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testCloseFreesEveryContext() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        leases.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
+        arrive(leases.leaseFor(task).newExecution(), keepEveryShard(INDEX));
         assertThat(searchService().getActiveContexts(), equalTo(SHARDS));
 
         leases.closeLease(task.getId());
@@ -114,58 +89,33 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * The contexts of a node go in one request, whatever their number.
+     * The lease frees each context with the free action of {@code _search}, like {@code _search} frees the contexts of its
+     * query phase.
      */
-    public void testFreesTheContextsOfANodeWithOneRequest() throws Exception {
+    public void testFreesEachContextWithTheFreeActionOfSearch() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        leases.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
-        List<ReceivedFree> received = captureFrees();
+        arrive(leases.leaseFor(task).newExecution(), keepEveryShard(INDEX));
+        AtomicInteger freeRequests = countFreeRequests();
 
         leases.closeLease(task.getId());
 
         assertAllFreed();
-        assertThat(received, hasSize(1));
-        assertThat(received.getFirst().request().contextIds(), hasSize(SHARDS));
-    }
-
-    /**
-     * Each execution frees with the index expressions of its own query, so its request is authorized like its fetch.
-     */
-    public void testAFreeCarriesTheIndexExpressionsOfItsExecution() throws Exception {
-        createIndexWithDocs(INDEX);
-        List<ReceivedFree> received = captureFrees();
-        CancellableTask task = rootTask();
-        FetchContextLease lease = leases.leaseFor(task);
-        OriginalIndices otherIndices = new OriginalIndices(new String[] { "fetch-*", "-fetch-old" }, IndicesOptions.lenientExpandOpen());
-        List<ShardSearchContextId> queryContexts = respond(INDEX);
-        lease.newExecution(EXECUTION_INDICES).add(localFetchNode(), queryContexts, NODE_KEEP_ALIVE);
-        lease.newExecution(Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, otherIndices))
-            .add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
-
-        lease.close();
-
-        assertAllFreed();
-        assertThat(received, hasSize(2));
-        for (ReceivedFree free : received) {
-            OriginalIndices expected = free.request().contextIds().containsAll(queryContexts) ? QUERY_INDICES : otherIndices;
-            assertThat(free.request().indices(), equalTo(expected.indices()));
-            assertThat(free.request().indicesOptions(), equalTo(expected.indicesOptions()));
-        }
+        assertBusy(() -> assertThat(freeRequests.get(), equalTo(SHARDS)));
     }
 
     /**
      * An administrator can cancel the query of another user. The lease still frees its contexts as the user who ran the
-     * query, so the request is authorized for the indices of that user.
+     * query, who opened them.
      */
     public void testAFreeRunsAsTheUserWhoRanTheQuery() throws Exception {
         createIndexWithDocs(INDEX);
-        List<ReceivedFree> received = captureFrees();
+        List<String> authentications = captureFreeAuthentications();
         Authentication owner = AuthenticationTestHelper.builder().user(new User("owner")).build();
         Authentication administrator = AuthenticationTestHelper.builder().user(new User("administrator")).build();
         CancellableTask task = rootTask();
         as(owner, () -> {
-            leases.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
+            arrive(leases.leaseFor(task).newExecution(), keepEveryShard(INDEX));
             return null;
         });
 
@@ -175,21 +125,20 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         });
 
         assertAllFreed();
-        assertThat(received, hasSize(1));
-        assertThat(received.getFirst().authentication(), equalTo(owner.encode()));
+        assertBusy(() -> assertThat(authentications, hasSize(SHARDS)));
+        assertThat(authentications, everyItem(equalTo(owner.encode())));
     }
 
     /**
-     * A response that arrives after the query ended still lists open contexts. Nobody else would free them before the
-     * reaper does.
+     * Rows that arrive after the query ended still name kept contexts. Nobody else would free them before the reaper does.
      */
-    public void testContextsListedAfterCloseAreFreedAtOnce() throws Exception {
+    public void testContextsThatArriveAfterCloseAreFreedAtOnce() throws Exception {
         createIndexWithDocs(INDEX);
         FetchContextLease lease = leases.leaseFor(rootTask());
-        FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
+        FetchContextLease.Execution execution = lease.newExecution();
         lease.close();
 
-        execution.add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
+        arrive(execution, keepEveryShard(INDEX));
 
         assertAllFreed();
     }
@@ -201,16 +150,14 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testTheEndOfTheCutFreesTheContextsItsRowsDontRead() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution(EXECUTION_INDICES);
-        List<ShardSearchContextId> open = respond(INDEX);
-        execution.add(localFetchNode(), open, NODE_KEEP_ALIVE);
-        Set<ShardSearchContextId> read = Set.copyOf(randomSubsetOf(between(1, SHARDS - 1), open));
-        AtomicInteger freeRequests = countFreeRequests();
+        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution();
+        List<ShardSearchContextId> kept = keepEveryShard(INDEX);
+        arrive(execution, kept);
+        Set<ShardSearchContextId> read = Set.copyOf(randomSubsetOf(between(1, SHARDS - 1), kept));
 
         execution.cutEnded(read);
 
-        assertBusy(() -> assertThat("one request for the node", freeRequests.get(), equalTo(1)));
-        for (ShardSearchContextId id : open) {
+        for (ShardSearchContextId id : kept) {
             assertBusy(() -> assertThat(isOpen(id), equalTo(read.contains(id))));
         }
         leases.closeLease(task.getId());
@@ -218,21 +165,19 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * A response that arrives after the cut ended has its contexts freed at once, unless the rows of the cut read them.
+     * Rows that arrive after the cut ended have their contexts freed at once, unless the rows of the cut read them.
      */
-    public void testAContextListedAfterTheCutIsFreedUnlessItsRowsReadIt() throws Exception {
+    public void testAContextThatArrivesAfterTheCutIsFreedUnlessItsRowsReadIt() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution(EXECUTION_INDICES);
-        List<ShardSearchContextId> open = respond(INDEX);
-        Set<ShardSearchContextId> read = Set.copyOf(randomSubsetOf(between(1, SHARDS - 1), open));
+        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution();
+        List<ShardSearchContextId> kept = keepEveryShard(INDEX);
+        Set<ShardSearchContextId> read = Set.copyOf(randomSubsetOf(between(1, SHARDS - 1), kept));
         execution.cutEnded(read);
-        AtomicInteger freeRequests = countFreeRequests();
 
-        execution.add(localFetchNode(), open, NODE_KEEP_ALIVE);
+        arrive(execution, kept);
 
-        assertBusy(() -> assertThat("one request for the node", freeRequests.get(), equalTo(1)));
-        for (ShardSearchContextId id : open) {
+        for (ShardSearchContextId id : kept) {
             assertBusy(() -> assertThat(isOpen(id), equalTo(read.contains(id))));
         }
         leases.closeLease(task.getId());
@@ -245,12 +190,12 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testTheEndOfTheFetchFreesTheContextsOfItsRows() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution(EXECUTION_INDICES);
-        List<ShardSearchContextId> open = respond(INDEX);
-        execution.add(localFetchNode(), open, NODE_KEEP_ALIVE);
+        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution();
+        List<ShardSearchContextId> kept = keepEveryShard(INDEX);
+        arrive(execution, kept);
         // a fetch that closes before its input ended never saw the end of its cut
         if (randomBoolean()) {
-            execution.cutEnded(Set.copyOf(open));
+            execution.cutEnded(Set.copyOf(kept));
         }
         assertThat("the fetch still reads them", searchService().getActiveContexts(), equalTo(SHARDS));
 
@@ -261,65 +206,15 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * A node frees a context once it answered the fetch that read it for the last time. The lease doesn't free it again.
+     * Rows that arrive after the fetch ended have their contexts freed at once.
      */
-    public void testTheLeaseDoesntFreeTheContextsTheirNodeFreed() throws Exception {
+    public void testAContextThatArrivesAfterTheFetchIsFreedAtOnce() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution(EXECUTION_INDICES);
-        List<ShardSearchContextId> open = respond(INDEX);
-        execution.add(localFetchNode(), open, NODE_KEEP_ALIVE);
-        List<ShardSearchContextId> freedByTheNode = randomSubsetOf(between(1, SHARDS), open);
-        freedByTheNode.forEach(id -> searchService().freeReaderContext(id));
-        List<ReceivedFree> received = captureFrees();
-
-        execution.freedByTheirNode(localFetchNode(), freedByTheNode);
+        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution();
         execution.fetchEnded();
 
-        assertAllFreed();
-        Set<ShardSearchContextId> freedByTheLease = new HashSet<>();
-        received.forEach(free -> freedByTheLease.addAll(free.request().contextIds()));
-        Set<ShardSearchContextId> stillHeld = new HashSet<>(open);
-        freedByTheNode.forEach(stillHeld::remove);
-        assertThat(freedByTheLease, equalTo(stillHeld));
-        leases.closeLease(task.getId());
-    }
-
-    /**
-     * The lease doesn't refresh a context its node freed, so the keep-alive names only the contexts it still holds.
-     */
-    public void testARefreshSkipsTheContextsTheirNodeFreed() throws Exception {
-        createIndexWithDocs(INDEX);
-        List<ReceivedKeepAlive> received = captureKeepAlives();
-        CancellableTask task = rootTask();
-        FetchContextLease lease = leases.leaseFor(task);
-        FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
-        List<ShardSearchContextId> open = respond(INDEX);
-        execution.add(localFetchNode(), open, NODE_KEEP_ALIVE);
-        List<ShardSearchContextId> freedByTheNode = randomSubsetOf(between(1, SHARDS - 1), open);
-        freedByTheNode.forEach(id -> searchService().freeReaderContext(id));
-
-        execution.freedByTheirNode(localFetchNode(), freedByTheNode);
-        lease.refresh();
-
-        assertBusy(() -> assertThat(received, hasSize(1)));
-        leases.closeLease(task.getId());
-        assertAllFreed();
-        Set<ShardSearchContextId> stillHeld = new HashSet<>(open);
-        freedByTheNode.forEach(stillHeld::remove);
-        assertThat(Set.copyOf(received.getFirst().request().contextIds()), equalTo(stillHeld));
-    }
-
-    /**
-     * A response that arrives after the fetch ended has its contexts freed at once.
-     */
-    public void testAContextListedAfterTheFetchIsFreedAtOnce() throws Exception {
-        createIndexWithDocs(INDEX);
-        CancellableTask task = rootTask();
-        FetchContextLease.Execution execution = leases.leaseFor(task).newExecution(EXECUTION_INDICES);
-        execution.fetchEnded();
-
-        execution.add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
+        arrive(execution, keepEveryShard(INDEX));
 
         assertAllFreed();
         leases.closeLease(task.getId());
@@ -332,12 +227,12 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
         FetchContextLease lease = leases.leaseFor(task);
-        FetchContextLease.Execution ending = lease.newExecution(EXECUTION_INDICES);
-        FetchContextLease.Execution running = lease.newExecution(EXECUTION_INDICES);
-        List<ShardSearchContextId> endingContexts = respond(INDEX);
-        List<ShardSearchContextId> runningContexts = respond(INDEX);
-        ending.add(localFetchNode(), endingContexts, NODE_KEEP_ALIVE);
-        running.add(localFetchNode(), runningContexts, NODE_KEEP_ALIVE);
+        FetchContextLease.Execution ending = lease.newExecution();
+        FetchContextLease.Execution running = lease.newExecution();
+        List<ShardSearchContextId> endingContexts = keepEveryShard(INDEX);
+        List<ShardSearchContextId> runningContexts = keepEveryShard(INDEX);
+        arrive(ending, endingContexts);
+        arrive(running, runningContexts);
 
         if (randomBoolean()) {
             ending.cutEnded(Set.of());
@@ -352,255 +247,6 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
             assertTrue("the other execution still reads [" + id + "]", isOpen(id));
         }
         leases.closeLease(task.getId());
-        assertAllFreed();
-    }
-
-    /**
-     * A request without index expressions would be authorized for every index.
-     */
-    public void testAnExecutionNeedsTheIndexExpressionsOfItsQuery() {
-        CancellableTask task = rootTask();
-        FetchContextLease lease = leases.leaseFor(task);
-        OriginalIndices none = new OriginalIndices(new String[0], SearchRequest.DEFAULT_INDICES_OPTIONS);
-
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> lease.newExecution(Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, none))
-        );
-
-        assertThat(e.getMessage(), equalTo("an execution needs the index expressions of its query on every cluster"));
-        leases.closeLease(task.getId());
-    }
-
-    /**
-     * A refresh sends one keep-alive request per execution and node, which names every context the execution holds there.
-     */
-    public void testARefreshNamesEveryHeldContextOncePerNode() throws Exception {
-        createIndexWithDocs(INDEX);
-        List<ReceivedKeepAlive> received = captureKeepAlives();
-        CancellableTask task = rootTask();
-        FetchContextLease lease = leases.leaseFor(task);
-        FetchContextLease.Execution first = lease.newExecution(EXECUTION_INDICES);
-        FetchContextLease.Execution second = lease.newExecution(EXECUTION_INDICES);
-        List<ShardSearchContextId> firstContexts = respond(INDEX);
-        List<ShardSearchContextId> secondContexts = respond(INDEX);
-        first.add(localFetchNode(), firstContexts, NODE_KEEP_ALIVE);
-        second.add(localFetchNode(), secondContexts, NODE_KEEP_ALIVE);
-
-        lease.refresh();
-
-        assertBusy(() -> assertThat(received, hasSize(2)));
-        leases.closeLease(task.getId());
-        assertAllFreed();
-        assertThat(
-            received.stream().map(r -> Set.copyOf(r.request().contextIds())).toList(),
-            containsInAnyOrder(Set.copyOf(firstContexts), Set.copyOf(secondContexts))
-        );
-    }
-
-    /**
-     * Each keep-alive request carries the index expressions of its execution, so it is authorized like the fetch requests.
-     */
-    public void testARefreshCarriesTheIndexExpressionsOfItsExecution() throws Exception {
-        createIndexWithDocs(INDEX);
-        List<ReceivedKeepAlive> received = captureKeepAlives();
-        CancellableTask task = rootTask();
-        FetchContextLease lease = leases.leaseFor(task);
-        OriginalIndices otherIndices = new OriginalIndices(new String[] { "fetch-*", "-fetch-old" }, IndicesOptions.lenientExpandOpen());
-        List<ShardSearchContextId> queryContexts = respond(INDEX);
-        List<ShardSearchContextId> otherContexts = respond(INDEX);
-        lease.newExecution(EXECUTION_INDICES).add(localFetchNode(), queryContexts, NODE_KEEP_ALIVE);
-        lease.newExecution(Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, otherIndices))
-            .add(localFetchNode(), otherContexts, NODE_KEEP_ALIVE);
-
-        lease.refresh();
-
-        assertBusy(() -> assertThat(received, hasSize(2)));
-        leases.closeLease(task.getId());
-        assertAllFreed();
-        for (ReceivedKeepAlive keepAlive : received) {
-            OriginalIndices expected = keepAlive.request().contextIds().containsAll(queryContexts) ? QUERY_INDICES : otherIndices;
-            assertThat(keepAlive.request().indices(), equalTo(expected.indices()));
-            assertThat(keepAlive.request().indicesOptions(), equalTo(expected.indicesOptions()));
-        }
-    }
-
-    /**
-     * The keep-alive of a query is the default keep-alive of {@code _search} on its coordinator.
-     */
-    public void testARefreshAsksForTheKeepAliveOfTheQuery() throws Exception {
-        createIndexWithDocs(INDEX);
-        List<ReceivedKeepAlive> received = captureKeepAlives();
-        CancellableTask task = rootTask();
-        FetchContextLease lease = leases.leaseFor(task);
-        FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
-        execution.add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
-
-        lease.refresh();
-
-        assertBusy(() -> assertThat(received, hasSize(1)));
-        TimeValue keepAlive = TimeValue.timeValueMillis(searchService().getDefaultKeepAliveInMillis());
-        assertThat(execution.keepAlive(), equalTo(keepAlive));
-        assertThat(received.getFirst().request().keepAlive(), equalTo(keepAlive));
-        leases.closeLease(task.getId());
-        assertAllFreed();
-    }
-
-    /**
-     * The contexts the lease already freed, at the end of a cut or of a fetch, aren't refreshed.
-     */
-    public void testARefreshSkipsTheContextsTheLeaseFreed() throws Exception {
-        createIndexWithDocs(INDEX);
-        List<ReceivedKeepAlive> received = captureKeepAlives();
-        CancellableTask task = rootTask();
-        FetchContextLease lease = leases.leaseFor(task);
-        FetchContextLease.Execution cutEnded = lease.newExecution(EXECUTION_INDICES);
-        FetchContextLease.Execution fetchEnded = lease.newExecution(EXECUTION_INDICES);
-        List<ShardSearchContextId> open = respond(INDEX);
-        cutEnded.add(localFetchNode(), open, NODE_KEEP_ALIVE);
-        ShardSearchContextId read = randomFrom(open);
-        cutEnded.cutEnded(Set.of(read));
-        fetchEnded.add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
-        fetchEnded.fetchEnded();
-
-        lease.refresh();
-
-        assertBusy(() -> assertThat(received, hasSize(1)));
-        leases.closeLease(task.getId());
-        assertAllFreed();
-        assertThat("one request for one execution", received, hasSize(1));
-        assertThat(received.getFirst().request().contextIds(), contains(read));
-    }
-
-    /**
-     * Each keep-alive request is a child of the task of the query, sent as the user who ran the query, also when another
-     * thread context triggers the refresh.
-     */
-    public void testARefreshIsAChildOfTheQueryAndRunsAsItsUser() throws Exception {
-        createIndexWithDocs(INDEX);
-        List<ReceivedKeepAlive> received = captureKeepAlives();
-        Authentication owner = AuthenticationTestHelper.builder().user(new User("owner")).build();
-        Authentication administrator = AuthenticationTestHelper.builder().user(new User("administrator")).build();
-        CancellableTask task = rootTask();
-        FetchContextLease lease = as(owner, () -> leases.leaseFor(task));
-        lease.newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
-
-        as(administrator, () -> {
-            lease.refresh();
-            return null;
-        });
-
-        assertBusy(() -> assertThat(received, hasSize(1)));
-        assertThat(received.getFirst().request().getParentTask(), equalTo(new TaskId(localNode().getId(), task.getId())));
-        assertThat(received.getFirst().authentication(), equalTo(owner.encode()));
-        leases.closeLease(task.getId());
-        assertAllFreed();
-    }
-
-    /**
-     * Two refreshes in a row can fail or come late before a context expires. A fixed delay separates two refreshes, so
-     * their requests arrive at least about a third of the keep-alive apart.
-     */
-    public void testTheLeaseRefreshesEveryThirdOfTheKeepAlive() throws Exception {
-        createIndexWithDocs(INDEX);
-        List<ReceivedKeepAlive> received = captureKeepAlives();
-        CancellableTask task = rootTask();
-        TimeValue keepAlive = TimeValue.timeValueMillis(1500);
-        long interval = keepAlive.nanos() / 3;
-        FetchContextLease lease = leaseWithKeepAlive(task, keepAlive);
-        long held = System.nanoTime();
-        lease.newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
-
-        assertBusy(() -> assertThat(received.size(), greaterThanOrEqualTo(3)));
-        lease.close();
-        assertAllFreed();
-        // the receipt of a request can come late, which shortens the gap after it, so the bounds leave room for that
-        assertThat(received.getFirst().nanos() - held, greaterThanOrEqualTo(interval * 9 / 10));
-        assertThat(received.get(2).nanos() - received.getFirst().nanos(), greaterThanOrEqualTo(2 * interval * 9 / 10));
-    }
-
-    /**
-     * A node whose {@code search.max_keep_alive} is shorter than the keep-alive of the query gives its contexts the shorter
-     * one, and its response says so. The lease refreshes every third of it. Every third of the keep-alive of the query, five
-     * minutes here, no refresh would come within this test.
-     */
-    public void testTheLeaseRefreshesWithinTheShortestKeepAliveANodeGave() throws Exception {
-        RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
-        FetchContextLease lease = leaseThrough(rootTask(), transport);
-        FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
-
-        execution.add(FetchNode.local("n1"), List.of(contextId(1)), TimeValue.timeValueMillis(300));
-
-        assertBusy(() -> assertThat(transport.keepAlives.size(), greaterThanOrEqualTo(3)));
-        lease.close();
-    }
-
-    /**
-     * A node that answers once the lease refreshes for the keep-alive of the query, and gave its contexts a shorter one,
-     * restarts the refresh at a third of the shorter one.
-     */
-    public void testANodeWithAShorterKeepAliveRestartsTheRefresh() throws Exception {
-        RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
-        FetchContextLease lease = leaseThrough(rootTask(), transport);
-        FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
-        execution.add(FetchNode.local("n1"), List.of(contextId(1)), NODE_KEEP_ALIVE);
-
-        execution.add(FetchNode.local("n2"), List.of(contextId(2)), TimeValue.timeValueMillis(300));
-
-        assertBusy(() -> assertThat(transport.keepAlives.size(), greaterThanOrEqualTo(3)));
-        lease.close();
-    }
-
-    /**
-     * Once the lease holds no context it stops refreshing, and the next context it holds starts it again.
-     */
-    public void testTheLeaseRefreshesOnlyWhileItHoldsContexts() throws Exception {
-        createIndexWithDocs(INDEX);
-        List<ReceivedKeepAlive> received = captureKeepAlives();
-        CancellableTask task = rootTask();
-        TimeValue keepAlive = TimeValue.timeValueMillis(300);
-        FetchContextLease lease = leaseWithKeepAlive(task, keepAlive);
-        FetchContextLease.Execution first = lease.newExecution(EXECUTION_INDICES);
-        first.add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
-        assertBusy(() -> assertThat(received, not(empty())));
-
-        first.fetchEnded();
-        assertAllFreed();
-        // a refresh that left before the fetch ended can still arrive
-        safeSleep(keepAlive);
-        int settled = received.size();
-        safeSleep(keepAlive.millis() * 2);
-        assertThat("nothing is refreshed while nothing is held", received, hasSize(settled));
-
-        lease.newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
-        assertBusy(() -> assertThat(received.size(), greaterThan(settled)));
-        lease.close();
-        assertAllFreed();
-    }
-
-    /**
-     * Once the query ended, nobody refreshes its contexts, so a context whose free got lost still expires.
-     */
-    public void testClosingStopsTheRefresh() throws Exception {
-        createIndexWithDocs(INDEX);
-        List<ReceivedKeepAlive> received = captureKeepAlives();
-        CancellableTask task = rootTask();
-        TimeValue keepAlive = TimeValue.timeValueMillis(300);
-        FetchContextLease lease = leaseWithKeepAlive(task, keepAlive);
-        List<ShardSearchContextId> open = respond(INDEX);
-        lease.newExecution(EXECUTION_INDICES).add(localFetchNode(), open, NODE_KEEP_ALIVE);
-        assertBusy(() -> assertThat(received, not(empty())));
-        loseFreeRequests();
-
-        lease.close();
-
-        // a refresh that left before the lease closed can still arrive
-        safeSleep(keepAlive);
-        int settled = received.size();
-        safeSleep(keepAlive.millis() * 2);
-        assertThat("nothing is refreshed once the query ended", received, hasSize(settled));
-        assertThat("the frees got lost", searchService().getActiveContexts(), equalTo(SHARDS));
-        open.forEach(id -> searchService().freeReaderContext(id));
         assertAllFreed();
     }
 
@@ -623,7 +269,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testCancellingTheQueryFreesItsContexts() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
-        leases.leaseFor(task).newExecution(EXECUTION_INDICES).add(localFetchNode(), respond(INDEX), NODE_KEEP_ALIVE);
+        arrive(leases.leaseFor(task).newExecution(), keepEveryShard(INDEX));
 
         TaskCancelHelper.cancel(task, "the user cancelled the query");
 
@@ -631,13 +277,48 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
+     * Many rows arrive through the same context. The execution holds it once, and frees it once.
+     */
+    public void testRowsOfTheSameContextAreHeldOnce() {
+        RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
+        FetchContextLease lease = leaseThrough(rootTask(), transport);
+        FetchContextLease.Execution execution = lease.newExecution();
+        int pages = between(2, 10);
+        for (int p = 0; p < pages; p++) {
+            execution.arrived(FetchNode.local("n1"), contextId(1));
+        }
+
+        lease.close();
+
+        assertThat(transport.frees, contains(new RecordingFetchContextTransport.Sent(FetchNode.local("n1"), List.of(contextId(1)))));
+    }
+
+    /**
+     * Rows of a context keep arriving after the execution stopped reading it. One free is enough.
+     */
+    public void testRowsThatArriveAfterTheEndFreeTheirContextOnce() {
+        RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
+        FetchContextLease lease = leaseThrough(rootTask(), transport);
+        FetchContextLease.Execution execution = lease.newExecution();
+        execution.fetchEnded();
+        int pages = between(2, 10);
+
+        for (int p = 0; p < pages; p++) {
+            execution.arrived(FetchNode.local("n1"), contextId(1));
+        }
+
+        assertThat(transport.frees, hasSize(1));
+        lease.close();
+    }
+
+    /**
      * The lease keeps the contexts of each node apart by the cluster and the id of the node, so a node of another cluster
-     * with the same id is another node. It frees them through its transport, with one request per execution and node.
+     * with the same id is another node. It frees them through its transport, with one call per node.
      */
     public void testFreesTheContextsOfEachClusterAndNodeThroughItsTransport() {
         RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
         FetchContextLease lease = leaseThrough(rootTask(), transport);
-        FetchContextLease.Execution execution = lease.newExecution(LOCAL_AND_REMOTE_INDICES);
+        FetchContextLease.Execution execution = lease.newExecution();
         Map<FetchNode, List<ShardSearchContextId>> held = Map.of(
             FetchNode.local("n1"),
             List.of(contextId(1), contextId(2)),
@@ -646,36 +327,34 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
             new FetchNode("remote", "n1"),
             List.of(contextId(4), contextId(5))
         );
-        held.forEach((node, ids) -> execution.add(node, ids, NODE_KEEP_ALIVE));
+        held.forEach((node, ids) -> ids.forEach(id -> execution.arrived(node, id)));
 
         lease.close();
 
         assertThat(transport.frees, hasSize(held.size()));
         for (RecordingFetchContextTransport.Sent free : transport.frees) {
             assertThat(free.ids(), containsInAnyOrder(held.get(free.node()).toArray()));
-            assertThat(free.indices(), sameInstance(free.node().isLocal() ? QUERY_INDICES : REMOTE_INDICES));
         }
     }
 
     /**
-     * A refresh reaches every cluster and node that holds contexts of the lease through its transport.
+     * A node frees a context once it answered the fetch that read it for the last time. The lease doesn't free it again.
      */
-    public void testRefreshesTheContextsOfEachClusterAndNodeThroughItsTransport() {
+    public void testTheLeaseDoesntFreeTheContextsTheirNodeFreed() {
         RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
         FetchContextLease lease = leaseThrough(rootTask(), transport);
-        FetchContextLease.Execution execution = lease.newExecution(LOCAL_AND_REMOTE_INDICES);
-        execution.add(FetchNode.local("n1"), List.of(contextId(1)), NODE_KEEP_ALIVE);
-        execution.add(new FetchNode("remote", "n1"), List.of(contextId(2)), NODE_KEEP_ALIVE);
+        FetchContextLease.Execution execution = lease.newExecution();
+        FetchNode node = FetchNode.local("n1");
+        List<ShardSearchContextId> kept = List.of(contextId(1), contextId(2), contextId(3));
+        kept.forEach(id -> execution.arrived(node, id));
+        List<ShardSearchContextId> freedByTheNode = randomSubsetOf(between(1, kept.size()), kept);
 
-        lease.refresh();
+        execution.freedByTheirNode(node, freedByTheNode);
+        execution.fetchEnded();
 
-        assertThat(
-            transport.keepAlives,
-            containsInAnyOrder(
-                new RecordingFetchContextTransport.Sent(FetchNode.local("n1"), QUERY_INDICES, List.of(contextId(1))),
-                new RecordingFetchContextTransport.Sent(new FetchNode("remote", "n1"), REMOTE_INDICES, List.of(contextId(2)))
-            )
-        );
+        Set<ShardSearchContextId> stillHeld = new HashSet<>(kept);
+        freedByTheNode.forEach(stillHeld::remove);
+        assertThat(transport.freed(), equalTo(stillHeld));
         lease.close();
     }
 
@@ -686,16 +365,16 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testANodeThatFreedItsContextsLetsGoOfItsOwnOnly() {
         RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
         FetchContextLease lease = leaseThrough(rootTask(), transport);
-        FetchContextLease.Execution execution = lease.newExecution(LOCAL_AND_REMOTE_INDICES);
+        FetchContextLease.Execution execution = lease.newExecution();
         FetchNode local = FetchNode.local("n1");
         FetchNode remote = new FetchNode("remote", "n1");
-        execution.add(local, List.of(contextId(1)), NODE_KEEP_ALIVE);
-        execution.add(remote, List.of(contextId(1)), NODE_KEEP_ALIVE);
+        execution.arrived(local, contextId(1));
+        execution.arrived(remote, contextId(1));
 
         execution.freedByTheirNode(local, List.of(contextId(1)));
         execution.fetchEnded();
 
-        assertThat(transport.frees, contains(new RecordingFetchContextTransport.Sent(remote, REMOTE_INDICES, List.of(contextId(1)))));
+        assertThat(transport.frees, contains(new RecordingFetchContextTransport.Sent(remote, List.of(contextId(1)))));
         lease.close();
     }
 
@@ -705,33 +384,17 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
      */
     public void testAFreeForANodeThatLeftTheClusterSendsNothing() throws Exception {
         createIndexWithDocs(INDEX);
-        List<ShardSearchContextId> open = respond(INDEX);
+        List<ShardSearchContextId> kept = keepEveryShard(INDEX);
         AtomicInteger freeRequests = countFreeRequests();
 
-        leases.free(FetchNode.local("a-node-that-left"), QUERY_INDICES, open);
-        leases.free(localFetchNode(), QUERY_INDICES, open.subList(0, 1));
+        leases.free(FetchNode.local("a-node-that-left"), kept);
+        leases.free(localFetchNode(), kept.subList(0, 1));
 
-        assertBusy(() -> assertFalse(isOpen(open.getFirst())));
+        assertBusy(() -> assertFalse(isOpen(kept.getFirst())));
         assertThat("only the free of this node", freeRequests.get(), equalTo(1));
-        assertTrue("the free for the node that left reached no node", isOpen(open.get(1)));
-        open.forEach(id -> searchService().freeReaderContext(id));
+        assertTrue("the free for the node that left reached no node", isOpen(kept.get(1)));
+        kept.forEach(id -> searchService().freeReaderContext(id));
         assertAllFreed();
-    }
-
-    /**
-     * A node that left the cluster took its contexts with it, so refreshing them sends nothing, and fails nothing. A
-     * refresh of this node after it is the only request any node gets.
-     */
-    public void testAKeepAliveForANodeThatLeftTheClusterSendsNothing() throws Exception {
-        List<ReceivedKeepAlive> keepAlives = captureKeepAlives();
-        TimeValue keepAlive = TimeValue.timeValueMinutes(5);
-
-        leases.keepAlive(FetchNode.local("a-node-that-left"), QUERY_INDICES, List.of(contextId(1)), keepAlive, rootTask());
-        leases.keepAlive(localFetchNode(), QUERY_INDICES, List.of(contextId(2)), keepAlive, rootTask());
-
-        assertBusy(() -> assertThat(keepAlives, not(empty())));
-        assertThat(keepAlives, hasSize(1));
-        assertThat(keepAlives.getFirst().request().contextIds(), contains(contextId(2)));
     }
 
     /**
@@ -739,81 +402,45 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
      */
     public void testFreeingAMissingContextDoesNothing() throws Exception {
         createIndexWithDocs(INDEX);
-        List<ShardSearchContextId> open = respond(INDEX);
-        leases.free(localFetchNode(), QUERY_INDICES, open);
+        List<ShardSearchContextId> kept = keepEveryShard(INDEX);
+        leases.free(localFetchNode(), kept);
         assertAllFreed();
 
         AtomicInteger freeRequests = countFreeRequests();
-        leases.free(localFetchNode(), QUERY_INDICES, open);
-        assertBusy(() -> assertThat(freeRequests.get(), equalTo(1)));
+        leases.free(localFetchNode(), kept);
+        assertBusy(() -> assertThat(freeRequests.get(), equalTo(SHARDS)));
         assertAllFreed();
     }
 
     /**
-     * A node of a cluster the execution doesn't read never opens contexts for it, and a request for them would carry no
-     * index expressions, which is authorized for every index.
+     * The coordinator of a remote cluster frees the contexts of its data nodes that no row which left the cluster reads. The
+     * querying cluster finds the others in the origins of those rows.
      */
-    public void testAContextOfAClusterTheExecutionDoesNotReadIsRefused() {
+    public void testHandOverFreesTheContextsNoLeavingRowRead() {
         RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
         FetchContextLease lease = leaseThrough(rootTask(), transport);
-        FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
+        FetchContextLease.Execution execution = lease.newExecution();
+        execution.arrived(FetchNode.local("n1"), contextId(1));
+        execution.arrived(FetchNode.local("n1"), contextId(2));
+        execution.arrived(FetchNode.local("n2"), contextId(3));
 
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> execution.add(new FetchNode("remote", "n1"), List.of(contextId(1)), NODE_KEEP_ALIVE)
-        );
+        execution.handOver(Set.of(contextId(1)));
 
-        assertThat(e.getMessage(), containsString("no index expressions for the cluster"));
-        lease.close();
-        assertThat(transport.frees, empty());
-    }
-
-    /**
-     * The coordinator of a remote cluster hands the contexts that the rows which left read over to the querying cluster,
-     * and frees the others of its data nodes.
-     */
-    public void testHandOverFreesTheContextsNoLeavingRowReadAndReturnsTheOthers() {
-        RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
-        FetchContextLease lease = leaseThrough(rootTask(), transport);
-        FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
-        execution.add(FetchNode.local("n1"), List.of(contextId(1), contextId(2)), NODE_KEEP_ALIVE);
-        execution.add(FetchNode.local("n2"), List.of(contextId(3)), NODE_KEEP_ALIVE);
-
-        FetchContextLease.HandedOver handedOver = execution.handOver(Set.of(contextId(1)));
-
-        assertThat(handedOver.contexts(), equalTo(Map.of(FetchNode.local("n1"), List.of(contextId(1)))));
         assertThat(transport.freed(), equalTo(Set.of(contextId(2), contextId(3))));
         lease.close();
-        assertThat("the querying cluster frees what it got", transport.freed(), equalTo(Set.of(contextId(2), contextId(3))));
+        assertThat("the querying cluster frees what the rows read", transport.freed(), equalTo(Set.of(contextId(2), contextId(3))));
     }
 
     /**
-     * The querying cluster refreshes the contexts it got within the shortest keep-alive their nodes gave them.
+     * Rows that arrive after the hand-over name contexts no row can read anymore, so they go at once.
      */
-    public void testHandOverNamesTheShortestKeepAliveANodeGave() {
+    public void testAContextThatArrivesAfterTheHandOverIsFreedAtOnce() {
         RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
         FetchContextLease lease = leaseThrough(rootTask(), transport);
-        FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
-        TimeValue shorter = TimeValue.timeValueSeconds(30);
-        execution.add(FetchNode.local("n1"), List.of(contextId(1)), NODE_KEEP_ALIVE);
-        execution.add(FetchNode.local("n2"), List.of(contextId(2)), shorter);
-
-        FetchContextLease.HandedOver handedOver = execution.handOver(Set.of(contextId(1), contextId(2)));
-
-        assertThat(handedOver.keepAlive(), equalTo(shorter));
-        lease.close();
-    }
-
-    /**
-     * A data node response that arrives after the hand-over names contexts no row can read anymore, so they go at once.
-     */
-    public void testAContextListedAfterTheHandOverIsFreedAtOnce() {
-        RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
-        FetchContextLease lease = leaseThrough(rootTask(), transport);
-        FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
+        FetchContextLease.Execution execution = lease.newExecution();
         execution.handOver(Set.of());
 
-        execution.add(FetchNode.local("n1"), List.of(contextId(1)), NODE_KEEP_ALIVE);
+        execution.arrived(FetchNode.local("n1"), contextId(1));
 
         assertThat(transport.freed(), equalTo(Set.of(contextId(1))));
         lease.close();
@@ -825,8 +452,8 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     public void testALeaseThatHandedItsContextsOverFreesNothingWhenItCloses() {
         RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
         FetchContextLease lease = leaseThrough(rootTask(), transport);
-        FetchContextLease.Execution execution = lease.newExecution(EXECUTION_INDICES);
-        execution.add(FetchNode.local("n1"), List.of(contextId(1)), NODE_KEEP_ALIVE);
+        FetchContextLease.Execution execution = lease.newExecution();
+        execution.arrived(FetchNode.local("n1"), contextId(1));
         execution.handOver(Set.of(contextId(1)));
 
         lease.close();
@@ -835,15 +462,22 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * A remote request opens its contexts with the keep-alive of the query it serves, not with the one of its own node.
+     * A remote request keeps its contexts for the keep-alive of the query it serves, not for the one of its own node.
      */
     public void testALeaseForARemoteRequestKeepsTheKeepAliveOfTheQuery() {
         TimeValue queryKeepAlive = TimeValue.timeValueSeconds(between(1, 600));
 
         FetchContextLease lease = leases.leaseFor(rootTask(), queryKeepAlive);
 
-        assertThat(lease.newExecution(EXECUTION_INDICES).keepAlive(), equalTo(queryKeepAlive));
+        assertThat(lease.newExecution().keepAlive(), equalTo(queryKeepAlive));
         lease.close();
+    }
+
+    /**
+     * Rows read through each of {@code ids} on this node reached the coordinator.
+     */
+    private void arrive(FetchContextLease.Execution execution, List<ShardSearchContextId> ids) {
+        ids.forEach(id -> execution.arrived(localFetchNode(), id));
     }
 
     private static ShardSearchContextId contextId(long id) {
@@ -855,14 +489,6 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * A lease that isn't registered for its task, with a keep-alive short enough for a test to see it refresh.
-     */
-    private FetchContextLease leaseWithKeepAlive(CancellableTask task, TimeValue keepAlive) {
-        ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
-        return new FetchContextLease(leases, leases, task, threadContext.newRestorableContext(false), keepAlive);
-    }
-
-    /**
      * A lease that isn't registered for its task, and sends its requests to {@code transport}.
      */
     private FetchContextLease leaseThrough(CancellableTask task, FetchContextTransport transport) {
@@ -871,61 +497,21 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * A keep-alive request this node received, the user it came as, and when it arrived.
+     * The users that the free requests this node receives from now on come as. It serves them as usual.
      *
-     * @param authentication the encoded authentication header of the request, {@code null} without one
+     * @return the encoded authentication header of each request, {@code null} for one without it
      */
-    private record ReceivedKeepAlive(FetchContextKeepAliveRequest request, @Nullable String authentication, long nanos) {}
-
-    /**
-     * The keep-alive requests that this node receives from now on. It serves them as usual.
-     */
-    private List<ReceivedKeepAlive> captureKeepAlives() {
-        List<ReceivedKeepAlive> received = new CopyOnWriteArrayList<>();
+    private List<String> captureFreeAuthentications() {
+        List<String> received = new CopyOnWriteArrayList<>();
         ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
-        ((MockTransportService) getInstanceFromNode(TransportService.class)).<FetchContextKeepAliveRequest>addRequestHandlingBehavior(
-            FetchContextService.KEEP_ALIVE_ACTION_NAME,
-            (handler, request, channel, task) -> {
-                received.add(
-                    new ReceivedKeepAlive(request, threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY), System.nanoTime())
-                );
-                handler.messageReceived(request, channel, task);
-            }
-        );
-        return received;
-    }
-
-    /**
-     * A free request this node received, and the user it came as.
-     *
-     * @param authentication the encoded authentication header of the request, {@code null} without one
-     */
-    private record ReceivedFree(FetchContextFreeRequest request, @Nullable String authentication) {}
-
-    /**
-     * The free requests that this node receives from now on. It serves them as usual.
-     */
-    private List<ReceivedFree> captureFrees() {
-        List<ReceivedFree> received = new CopyOnWriteArrayList<>();
-        ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
-        ((MockTransportService) getInstanceFromNode(TransportService.class)).<FetchContextFreeRequest>addRequestHandlingBehavior(
-            FetchContextService.FREE_ACTION_NAME,
-            (handler, request, channel, task) -> {
-                received.add(new ReceivedFree(request, threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY)));
-                handler.messageReceived(request, channel, task);
-            }
-        );
-        return received;
-    }
-
-    /**
-     * Answers every free request with a failure, and frees nothing.
-     */
-    private void loseFreeRequests() {
         ((MockTransportService) getInstanceFromNode(TransportService.class)).<TransportRequest>addRequestHandlingBehavior(
-            FetchContextService.FREE_ACTION_NAME,
-            (handler, request, channel, task) -> channel.sendResponse(new ElasticsearchException("the free got lost"))
+            SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
+            (handler, request, channel, task) -> {
+                received.add(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY));
+                handler.messageReceived(request, channel, task);
+            }
         );
+        return received;
     }
 
     /**
@@ -934,7 +520,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     private AtomicInteger countFreeRequests() {
         AtomicInteger freeRequests = new AtomicInteger();
         ((MockTransportService) getInstanceFromNode(TransportService.class)).<TransportRequest>addRequestHandlingBehavior(
-            FetchContextService.FREE_ACTION_NAME,
+            SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
             (handler, request, channel, task) -> {
                 freeRequests.incrementAndGet();
                 handler.messageReceived(request, channel, task);

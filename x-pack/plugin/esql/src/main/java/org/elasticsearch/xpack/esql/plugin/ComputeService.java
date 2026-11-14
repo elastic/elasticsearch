@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -49,6 +51,7 @@ import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.RemoteSink;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.Assertions;
@@ -74,7 +77,9 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -106,9 +111,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.fetch.ArrivingDocumentsSource;
 import org.elasticsearch.xpack.esql.fetch.FetchContextLease;
 import org.elasticsearch.xpack.esql.fetch.FetchContextLeases;
-import org.elasticsearch.xpack.esql.fetch.FetchContextService;
 import org.elasticsearch.xpack.esql.fetch.FetchFailures;
 import org.elasticsearch.xpack.esql.fetch.FetchNodeDirectory;
 import org.elasticsearch.xpack.esql.fetch.FetchPhaseServices;
@@ -153,7 +158,6 @@ import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -272,7 +276,8 @@ public class ComputeService {
         Client client,
         NamedWriteableRegistry namedWriteableRegistry,
         ExternalWorkerReadiness externalWorkerReadiness,
-        OpenFetchContexts openFetchContexts
+        OpenFetchContexts openFetchContexts,
+        SearchTransportService searchTransportService
     ) {
         this.externalWorkerReadiness = externalWorkerReadiness;
         this.searchService = transportActionServices.searchService();
@@ -286,12 +291,10 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        FetchContextService fetchContextService = new FetchContextService(searchService, transportService, openFetchContexts);
-        fetchContextService.registerHandlers();
-        fetchContextService.registerProxyActions(namedWriteableRegistry);
         FetchContextLeases fetchContextLeases = new FetchContextLeases(
             searchService,
             transportService,
+            searchTransportService,
             FetchNodeDirectory.create(
                 transportService,
                 threadPool.getThreadContext(),
@@ -341,7 +344,7 @@ public class ComputeService {
             this::fetchPlanner
         );
         fetchService.registerHandlers();
-        this.fetchPhaseServices = FetchPhaseServices.create(fetchContextService, fetchContextLeases, fetchService, clusterService);
+        this.fetchPhaseServices = FetchPhaseServices.create(openFetchContexts, fetchContextLeases, fetchService, clusterService);
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */
@@ -355,6 +358,32 @@ public class ComputeService {
 
     FetchPhaseServices fetchPhaseServices() {
         return fetchPhaseServices;
+    }
+
+    /**
+     * Options for a request that carries a plan to another node. The plan can hold large local data, such as the result of an
+     * INLINE STATS sub-plan, and the transport layer keeps one serialized copy per target until it has been written, so that
+     * copy is charged to the request breaker and a trip fails the request instead of running the node out of memory.
+     */
+    TransportRequestOptions planRequestOptions() {
+        return TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
+    }
+
+    /**
+     * Wraps the listener of a plan request whose target already holds the exchange that {@code remoteSink} reads from. When the
+     * request fails before it is sent, for example because serializing it trips the breaker, nothing runs on the target to finish
+     * that exchange, and once the failure cancels the request's task the coordinator can no longer tell the target to finish it.
+     * So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the target until
+     * its inactive-sink reaper removes it.
+     */
+    static <T> ActionListener<T> finishRemoteSinkIfNotSent(RemoteSink remoteSink, ActionListener<T> listener) {
+        return listener.delegateResponse((l, e) -> {
+            if (e instanceof SendRequestTransportException) {
+                remoteSink.close(ActionListener.running(() -> l.onFailure(e)));
+            } else {
+                l.onFailure(e);
+            }
+        });
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -1193,6 +1222,12 @@ public class ComputeService {
             || (exchange.child() instanceof FragmentExec fragment && fragment.fragment().anyMatch(ExternalRelation.class::isInstance));
     }
 
+    /**
+     * Executes {@code physicalPlan} and collects its result pages on the coordinator.
+     *
+     * @param maxResultSize limit on the collected result pages, or {@code null} for no limit. The execution fails as soon as the
+     *                      pages exceed it, see {@link BoundedPageCollector}.
+     */
     public void execute(
         String sessionId,
         CancellableTask rootTask,
@@ -1202,6 +1237,7 @@ public class ComputeService {
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
         PlanTimeProfile planTimeProfile,
+        @Nullable ByteSizeValue maxResultSize,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -1244,7 +1280,10 @@ public class ComputeService {
                     null,
                     initialClusterStatuses,
                     planTimeProfile,
-                    warnIndexCoordinatorOnce
+                    warnIndexCoordinatorOnce,
+                    SiblingPlacement.SINGLE,
+                    maxResultSize,
+                    null
                 );
                 case SubPlan.Merge merge -> new SubPlansExecutor(
                     this,
@@ -1259,6 +1298,7 @@ public class ComputeService {
                     warnIndexCoordinatorOnce,
                     planTimeProfile,
                     merge,
+                    maxResultSize,
                     dispatchListener
                 ).executePlan();
             }
@@ -1270,44 +1310,12 @@ public class ComputeService {
         }
     }
 
-    public void executePlan(
-        String sessionId,
-        CancellableTask rootTask,
-        EsqlFlags flags,
-        PhysicalPlan physicalPlan,
-        Configuration configuration,
-        FoldContext foldContext,
-        EsqlExecutionInfo execInfo,
-        String profileQualifier,
-        ActionListener<Result> listener,
-        Supplier<ExchangeSink> exchangeSinkSupplier,
-        Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
-        PlanTimeProfile planTimeProfile,
-        Runnable warnIndexCoordinatorOnce
-    ) {
-        executePlan(
-            sessionId,
-            rootTask,
-            flags,
-            physicalPlan,
-            configuration,
-            foldContext,
-            execInfo,
-            profileQualifier,
-            listener,
-            exchangeSinkSupplier,
-            initialClusterStatuses,
-            planTimeProfile,
-            warnIndexCoordinatorOnce,
-            SiblingPlacement.SINGLE,
-            null
-        );
-    }
-
     /**
      * Runs one producer after split discovery, placing it with {@code placement} so sibling
      * UNION leaves rotate and hop instead of stacking on the coordinator.
      *
+     * @param maxResultSize      limit on the result pages collected when {@code exchangeSinkSupplier} is {@code null}, or
+     *                           {@code null} for no limit, see {@link BoundedPageCollector}
      * @param mergeFetchContexts the reader contexts of a {@code FORK} whose fetch runs after the merge, which every branch
      *                           keeps in the same execution. {@code null} when the plan opens its own, if it keeps any.
      */
@@ -1326,6 +1334,7 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
         SiblingPlacement placement,
+        @Nullable ByteSizeValue maxResultSize,
         @Nullable FetchContextLease.Execution mergeFetchContexts
     ) {
         final long splitDiscoveryStart = System.nanoTime();
@@ -1361,6 +1370,7 @@ public class ComputeService {
                     warnIndexCoordinatorOnce,
                     splitDiscoveryStart + waitedNanos,
                     placement,
+                    maxResultSize,
                     mergeFetchContexts
                 ),
                 releasing
@@ -1475,6 +1485,7 @@ public class ComputeService {
         Runnable warnIndexCoordinatorOnce,
         long splitDiscoveryStart,
         SiblingPlacement placement,
+        @Nullable ByteSizeValue maxResultSize,
         @Nullable FetchContextLease.Execution mergeFetchContexts
     ) {
         final ExternalDistributionResult distributionResult;
@@ -1498,7 +1509,8 @@ public class ComputeService {
             return;
         }
         final PhysicalPlan resolvedPlan = distributionResult.plan();
-        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        final BoundedPageCollector pageCollector = new BoundedPageCollector(maxResultSize);
+        final List<Page> collectedPages = pageCollector.pages();
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
             l.onFailure(e);
@@ -1512,7 +1524,7 @@ public class ComputeService {
             ? streaming.pageStream()
             : null;
         if (exchangeSinkSupplier == null && coordinatorPlan instanceof StreamingOutputExec == false) {
-            coordinatorPlan = new OutputExec(coordinatorPlan, collectedPages::add);
+            coordinatorPlan = new OutputExec(coordinatorPlan, pageCollector);
         }
 
         PhysicalPlan dataNodePlan = coordinatorAndDataNode.v2();
@@ -1593,9 +1605,7 @@ public class ComputeService {
         // frees once it no longer reads them, and the query once it ends. The nodes of every cluster the query reads keep them.
         final FetchContextLease.Execution fetchContexts;
         if (dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)) {
-            fetchContexts = mergeFetchContexts != null
-                ? mergeFetchContexts
-                : fetchPhaseServices.leases().leaseFor(rootTask).newExecution(withIndexExpressions(clusterToOriginalIndices));
+            fetchContexts = mergeFetchContexts != null ? mergeFetchContexts : fetchPhaseServices.leases().leaseFor(rootTask).newExecution();
             for (Map.Entry<String, OriginalIndices> cluster : clusterToConcreteIndices.entrySet()) {
                 if (cluster.getKey().equals(LOCAL_CLUSTER) == false && cluster.getValue().indices().length > 0) {
                     // the fetch finds the nodes of a remote cluster once it has its documents, so they are collected meanwhile
@@ -1690,7 +1700,14 @@ public class ComputeService {
                             EmptyIndexedByShardId.instance(),
                             configuration,
                             foldContext,
-                            exchangeSource::createExchangeSource,
+                            fetchContexts == null
+                                ? exchangeSource::createExchangeSource
+                                // the execution learns which contexts the nodes keep from the documents that arrive
+                                : () -> new ArrivingDocumentsSource(
+                                    exchangeSource.createExchangeSource(),
+                                    fetchContexts,
+                                    ArrivingDocumentsSource::nodeInItsCluster
+                                ),
                             exchangeSinkSupplier,
                             false,
                             null,
@@ -1716,7 +1733,7 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
-                            fetchContexts,
+                            fetchContexts == null ? null : fetchContexts.keepAlive(),
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
@@ -1783,7 +1800,7 @@ public class ComputeService {
                         cancelQueryOnFailure,
                         execInfo,
                         exchangeSinkSupplier != null,
-                        fetchContexts,
+                        fetchContexts == null ? null : fetchContexts.keepAlive(),
                         computeListener.acquireCompute().delegateResponse((l, ex) -> {
                             /*
                              * At various points, when collecting failures before sending a response, we manually check
@@ -2668,14 +2685,4 @@ public class ComputeService {
      * The clusters of {@code clusterToOriginalIndices} with index expressions. A request without any is authorized for
      * every index, so a fetch context request never goes to a cluster that has none.
      */
-    private static Map<String, OriginalIndices> withIndexExpressions(Map<String, OriginalIndices> clusterToOriginalIndices) {
-        Map<String, OriginalIndices> withExpressions = new HashMap<>();
-        clusterToOriginalIndices.forEach((clusterAlias, indices) -> {
-            if (indices.indices().length > 0) {
-                withExpressions.put(clusterAlias, indices);
-            }
-        });
-        return withExpressions;
-    }
-
 }

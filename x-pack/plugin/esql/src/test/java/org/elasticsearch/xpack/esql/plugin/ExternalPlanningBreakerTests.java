@@ -693,7 +693,8 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             new NamedWriteableRegistry(List.of()),
             // Holds no node back, so every node of a state is a worker.
             new ExternalWorkerReadiness(clusterService, null, threadPool, false),
-            new OpenFetchContexts(MeterRegistry.NOOP)
+            new OpenFetchContexts(MeterRegistry.NOOP),
+            null
         );
     }
 

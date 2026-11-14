@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -22,7 +23,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.fetch.FetchContextService;
 import org.elasticsearch.xpack.esql.fetch.FetchRequest;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
@@ -119,7 +119,7 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
         }
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             ((MockTransportService) transportService).<TransportRequest>addRequestHandlingBehavior(
-                FetchContextService.FREE_ACTION_NAME,
+                SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
                 (handler, request, channel, task) -> {
                     freeRequests.incrementAndGet();
                     handler.messageReceived(request, channel, task);

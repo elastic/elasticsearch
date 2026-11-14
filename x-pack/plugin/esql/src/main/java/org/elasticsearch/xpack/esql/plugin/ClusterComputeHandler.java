@@ -30,18 +30,16 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
+import org.elasticsearch.xpack.esql.fetch.ArrivingDocumentsSource;
 import org.elasticsearch.xpack.esql.fetch.FetchContextLease;
-import org.elasticsearch.xpack.esql.fetch.FetchNode;
 import org.elasticsearch.xpack.esql.fetch.LeavingDocumentsSink;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -50,7 +48,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -85,9 +82,9 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     }
 
     /**
-     * @param fetchContexts set when documents leave the data nodes: the data nodes of the remote cluster keep fetch contexts
-     *                      open, the remote cluster lists the ones its rows read in its response, and the execution frees
-     *                      them from then on
+     * @param readerContextKeepAlive set when documents leave the data nodes: the data nodes of the remote cluster keep the
+     *                               fetch contexts of the rows that leave the cluster for this long, and the execution of
+     *                               the query finds them in the origins of those rows and frees them from then on
      */
     void startComputeOnRemoteCluster(
         String sessionId,
@@ -99,7 +96,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         Runnable cancelQueryOnFailure,
         EsqlExecutionInfo executionInfo,
         boolean accumulateShardStats,
-        @Nullable FetchContextLease.Execution fetchContexts,
+        @Nullable TimeValue readerContextKeepAlive,
         ActionListener<DriverCompletionInfo> listener
     ) {
         var queryPragmas = configuration.pragmas();
@@ -151,28 +148,26 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         childSessionId,
                         configuration,
                         remotePlan,
-                        fetchContexts == null ? null : fetchContexts.keepAlive()
+                        readerContextKeepAlive
                     );
                     final ActionListener<ComputeResponse> clusterListener = computeListener.acquireCompute().map(r -> {
-                        if (fetchContexts != null) {
-                            r.fetchContexts()
-                                .forEach(
-                                    (nodeId, ids) -> fetchContexts.add(new FetchNode(clusterAlias, nodeId), ids, r.fetchContextsKeepAlive())
-                                );
-                        }
                         finalResponse.set(r);
                         return r.getCompletionInfo();
                     });
                     ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     transportService.sendChildRequest(
                         cluster.connection,
                         ComputeService.CLUSTER_ACTION_NAME,
                         clusterRequest,
                         groupTask,
-                        TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(clusterListener, in -> new ComputeResponse(in, threadContext), searchExecutor)
+                        computeService.planRequestOptions(),
+                        new ActionListenerResponseHandler<>(
+                            ComputeService.finishRemoteSinkIfNotSent(remoteSink, clusterListener),
+                            in -> new ComputeResponse(in, threadContext),
+                            searchExecutor
+                        )
                     );
-                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     exchangeSource.addRemoteSink(
                         remoteSink,
                         failFast,
@@ -307,7 +302,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             (ExchangeSinkExec) plan,
             Set.of(remoteClusterPlan.targetIndices()),
             remoteClusterPlan.originalIndices(),
-            request.fetchContextsKeepAlive(),
+            request.readerContextKeepAlive(),
             listener
         );
     }
@@ -321,12 +316,13 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
      * to minimize data transfers across clusters but may require additional CPU resources for operations like
      * aggregations.
      * <p>
-     * When the querying cluster fetches documents of this cluster, the data nodes keep a fetch context per shard, and the
-     * rows leave with their documents. Once the compute ended, this coordinator frees the contexts that no row which left
-     * reads, and its response lists the others, which the querying cluster refreshes and frees from then on. It holds no
-     * context after its response, and frees them all when the compute fails.
+     * When the querying cluster fetches documents of this cluster, the data nodes keep the fetch contexts of the rows that
+     * leave them, and the rows leave the cluster with their documents. This coordinator learns of the contexts from the
+     * documents that arrive from its data nodes. Once the compute ended, it frees the contexts that no row which left the
+     * cluster reads. The querying cluster finds the others in the origins of those rows, and frees them from then on. This
+     * coordinator holds no context after its response, and frees them all when the compute fails.
      *
-     * @param fetchContextsKeepAlive the keep-alive of the fetch contexts, {@code null} when documents never leave the cluster
+     * @param readerContextKeepAlive the keep-alive of the fetch contexts, {@code null} when documents never leave the cluster
      */
     void runComputeOnRemoteCluster(
         String clusterAlias,
@@ -336,7 +332,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         ExchangeSinkExec plan,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
-        @Nullable TimeValue fetchContextsKeepAlive,
+        @Nullable TimeValue readerContextKeepAlive,
         ActionListener<ComputeResponse> listener
     ) {
         final ExchangeSinkHandler exchangeSink;
@@ -372,12 +368,9 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         final EsqlFlags flags = computeService.createFlags();
         final long startTimeInNanos = System.nanoTime();
         final Runnable cancelQueryOnFailure = computeService.cancelQueryOnFailure(parentTask);
-        final FetchContextLease.Execution fetchContexts = fetchContextsKeepAlive == null
+        final FetchContextLease.Execution fetchContexts = readerContextKeepAlive == null
             ? null
-            : computeService.fetchPhaseServices()
-                .leases()
-                .leaseFor(parentTask, fetchContextsKeepAlive)
-                .newExecution(Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, originalIndices));
+            : computeService.fetchPhaseServices().leases().leaseFor(parentTask, readerContextKeepAlive).newExecution();
         final Set<ShardSearchContextId> leftTheCluster = ConcurrentCollections.newConcurrentSet();
         if (fetchContexts != null) {
             listener = listener.delegateResponse((l, e) -> {
@@ -388,22 +381,10 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(profiles -> {
             final TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
             final ComputeResponse r = finalResponse.get();
-            ComputeResponse response = new ComputeResponse(
-                profiles,
-                took,
-                r.totalShards,
-                r.successfulShards,
-                r.skippedShards,
-                r.failedShards,
-                r.failures
-            );
-            if (fetchContexts == null) {
-                return response;
+            if (fetchContexts != null) {
+                fetchContexts.handOver(leftTheCluster);
             }
-            FetchContextLease.HandedOver handedOver = fetchContexts.handOver(leftTheCluster);
-            Map<String, List<ShardSearchContextId>> byNodeId = new HashMap<>();
-            handedOver.contexts().forEach((node, ids) -> byNodeId.put(node.nodeId(), ids));
-            return response.withFetchContexts(byNodeId, handedOver.keepAlive());
+            return new ComputeResponse(profiles, took, r.totalShards, r.successfulShards, r.skippedShards, r.failedShards, r.failures);
         }))) {
             var exchangeSource = new ExchangeSourceHandler(
                 configuration.pragmas().exchangeBufferSize(),
@@ -422,7 +403,13 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         EmptyIndexedByShardId.instance(),
                         configuration,
                         configuration.newFoldContext(),
-                        exchangeSource::createExchangeSource,
+                        fetchContexts == null
+                            ? exchangeSource::createExchangeSource
+                            : () -> new ArrivingDocumentsSource(
+                                exchangeSource.createExchangeSource(),
+                                fetchContexts,
+                                ArrivingDocumentsSource::nodeInThisCluster
+                            ),
                         fetchContexts == null
                             ? () -> exchangeSink.createExchangeSink(() -> {})
                             : () -> new LeavingDocumentsSink(exchangeSink.createExchangeSink(() -> {}), leftTheCluster),
@@ -450,7 +437,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     concreteIndices,
                     originalIndices,
                     exchangeSource,
-                    fetchContexts,
+                    readerContextKeepAlive,
                     cancelQueryOnFailure,
                     computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);

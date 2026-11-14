@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -29,7 +30,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.fetch.FetchContextService;
 import org.elasticsearch.xpack.esql.fetch.FetchRequest;
 import org.elasticsearch.xpack.esql.fetch.FetchResponse;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -164,7 +165,8 @@ public class EsqlFetchDisruptionIT extends AbstractEsqlIntegTestCase {
                 if (action.startsWith(FetchService.FETCH_ACTION_NAME)) {
                     actionsSentToTheLostNode.add(action);
                 }
-                if (action.equals(FetchContextService.FREE_ACTION_NAME)) {
+                if (action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME)) {
+                    actionsSentToTheLostNode.add(action);
                     freeSent.countDown();
                     safeAwait(nodeStopped);
                 }
@@ -184,7 +186,9 @@ public class EsqlFetchDisruptionIT extends AbstractEsqlIntegTestCase {
             assertFalse(response.isPartial());
             assertThat(response.getExecutionInfo().getCluster(LOCAL).getFailures(), empty());
         }
-        assertThat(actionsSentToTheLostNode, contains(FetchContextService.FREE_ACTION_NAME));
+        // one free for each of its contexts, and no fetch
+        assertThat(actionsSentToTheLostNode, not(empty()));
+        assertThat(actionsSentToTheLostNode, everyItem(equalTo(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME)));
     }
 
     /**

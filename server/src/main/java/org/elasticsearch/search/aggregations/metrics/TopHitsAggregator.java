@@ -16,6 +16,7 @@ import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
@@ -60,7 +61,7 @@ import java.util.function.IntConsumer;
 
 class TopHitsAggregator extends MetricsAggregator {
 
-    private static class Collectors {
+    static class Collectors {
         public final TopDocsCollector<?> topDocsCollector;
         public final MaxScoreCollector maxScoreCollector;
         public final Collector collector;
@@ -72,6 +73,57 @@ class TopHitsAggregator extends MetricsAggregator {
         }
     }
 
+    /**
+     * Builds the Lucene collectors of a bucket. It is package-private so tests can measure the estimates against what the aggregator
+     * really builds.
+     */
+    static Collectors newCollectors(@Nullable SortAndFormats sort, int topN, boolean trackScores) {
+        if (sort == null) {
+            return new Collectors(new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE).newCollector(), null);
+        }
+        // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
+        // Note that this would require to catch CollectionTerminatedException
+        return new Collectors(
+            new TopFieldCollectorManager(sort.sort, topN, null, Integer.MAX_VALUE).newCollector(),
+            trackScores ? new MaxScoreCollector() : null
+        );
+    }
+
+    /*
+     * Estimates of the heap a bucket's Lucene collectors hold. BigArrays does not track it, so these are all the request breaker sees.
+     * The collectors were measured with their queues full, and the leaf collectors in heap dumps.
+     */
+    /** A {@code Collectors} with a {@link TopScoreDocCollector}, without its queue. */
+    static final long SCORE_COLLECTOR_BYTES = 136;
+    /** A slot of the queue of a {@link TopScoreDocCollector}, which is allocated for every hit up front. */
+    static final long SCORE_SLOT_BYTES = Long.BYTES;
+    /** A {@code Collectors} with a {@link TopFieldCollector} and its queue, without its comparators and slots. */
+    static final long FIELD_COLLECTOR_BYTES = 344;
+    /** The comparator of one sort field, without its slots. */
+    static final long FIELD_COMPARATOR_BYTES = 192;
+    /** A slot of the queue of a {@link TopFieldCollector}, with the entry it holds once filled. */
+    static final long FIELD_QUEUE_SLOT_BYTES = 40;
+    /**
+     * One slot of a sort field's comparator once filled. A keyword comparator copies the term and measured 88 bytes for a 10 byte term,
+     * but about 360 bytes for a 256 byte term, so long terms are under-charged. A numeric one measured 8 bytes. Both are charged this,
+     * which over-charges the few numeric sorts that get here.
+     */
+    static final long FIELD_COMPARATOR_SLOT_BYTES = 96;
+    /** What {@code track_scores} adds to a field sort: a {@link MaxScoreCollector} and the {@link MultiCollector} around both. */
+    static final long TRACK_SCORES_COLLECTOR_BYTES = 72;
+    /** What {@code track_scores} adds to a leaf collector: the leaf collector of the {@link MultiCollector}. */
+    static final long TRACK_SCORES_LEAF_COLLECTOR_BYTES = 48;
+    /** A leaf collector that does not read doc values, which measured 56 bytes. */
+    static final long LEAF_COLLECTOR_BYTES = 64;
+    /**
+     * What the leaf comparator of a field adds to a leaf collector: its own doc values reader with its input clones and buffers. For a
+     * keyword field it measured 8 KB with the time series doc values format and 6.7 KB with the default one, and for a long field about
+     * 5 KB with the time series format.
+     */
+    static final long LEAF_DOC_VALUES_BYTES = 8 * 1024;
+    /** Charges for the collectors are sent to the breaker once at least this many bytes are pending, not once per bucket. */
+    static final long CHARGE_BATCH_BYTES = 16 * 1024;
+
     private final BigArrays bigArrays;
     private final SubSearchContext subSearchContext;
     /**
@@ -82,11 +134,22 @@ class TopHitsAggregator extends MetricsAggregator {
     private final BucketedTopHits bucketedTopHits;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
     private final List<ProfileResult> fetchProfiles;
-    // this must be mutable so it can be closed/replaced on each call to getLeafCollector
+    // this must be mutable so it can be closed/replaced on each call to getLeafCollector, and closed when collection is done
     private LongObjectPagedHashMap<LeafCollector> leafCollectors;
     private final boolean isNested;
     private final SearchExecutionContext forkedSearchExecutionContext;
     private final InnerHitsContext forkedInnerHitsContext;
+    /** The estimated bytes of a bucket's {@link Collectors}, charged when it is created and held until the aggregator closes. */
+    private final long collectorBytes;
+    /**
+     * The estimated bytes of a bucket's leaf collector, charged when it is created and released when the next segment starts or
+     * collection is done.
+     */
+    private final long leafCollectorBytes;
+    /** Estimated bytes not yet sent to the request breaker. */
+    private long pendingBytes;
+    /** The estimated bytes of the leaf collectors of the segment being collected. */
+    private long leafCollectorsBytes;
 
     TopHitsAggregator(
         SubSearchContext subSearchContext,
@@ -120,6 +183,74 @@ class TopHitsAggregator extends MetricsAggregator {
                 getForkedInnerHits(subSearchContext.innerHits().getInnerHits(), forkedSearchExecutionContext)
             );
         }
+        if (bucketedTopHits == null) {
+            this.collectorBytes = collectorBytes(subSearchContext.sort(), topN(), subSearchContext.trackScores());
+            this.leafCollectorBytes = leafCollectorBytes(subSearchContext.sort(), subSearchContext.trackScores());
+        } else {
+            this.collectorBytes = 0;
+            this.leafCollectorBytes = 0;
+        }
+    }
+
+    /**
+     * The number of hits each bucket's Lucene collector keeps.
+     */
+    private int topN() {
+        int topN = subSearchContext.from() + subSearchContext.size();
+        if (subSearchContext.sort() == null) {
+            for (RescoreContext rescoreContext : subSearchContext.rescore()) {
+                topN = Math.max(rescoreContext.getWindowSize(), topN);
+            }
+        }
+        // In the QueryPhase we don't need this protection, because it is build into the IndexSearcher,
+        // but here we create collectors ourselves and we need prevent OOM because of crazy an offset and size.
+        return Math.min(topN, subSearchContext.searcher().getIndexReader().maxDoc());
+    }
+
+    /**
+     * Estimates what a bucket's {@link Collectors} hold for the life of the aggregator: the collector, its comparators, and a slot in
+     * its queue and in each comparator for every hit.
+     */
+    static long collectorBytes(@Nullable SortAndFormats sort, int topN, boolean trackScores) {
+        if (sort == null) {
+            return SCORE_COLLECTOR_BYTES + topN * SCORE_SLOT_BYTES;
+        }
+        int sortFields = sort.sort.getSort().length;
+        long perHit = FIELD_QUEUE_SLOT_BYTES + sortFields * FIELD_COMPARATOR_SLOT_BYTES;
+        long bytes = FIELD_COLLECTOR_BYTES + sortFields * FIELD_COMPARATOR_BYTES + topN * perHit;
+        return trackScores ? bytes + TRACK_SCORES_COLLECTOR_BYTES : bytes;
+    }
+
+    /**
+     * Estimates what a bucket's leaf collector holds while its segment is collected. Each leaf comparator of a field opens its own
+     * doc values reader, so a leaf collector that sorts on fields holds a reader per field. Sorting on the score or the doc id reads
+     * no doc values.
+     */
+    static long leafCollectorBytes(@Nullable SortAndFormats sort, boolean trackScores) {
+        long bytes = LEAF_COLLECTOR_BYTES;
+        if (sort != null) {
+            if (trackScores) {
+                bytes += TRACK_SCORES_LEAF_COLLECTOR_BYTES;
+            }
+            for (SortField sortField : sort.sort.getSort()) {
+                if (sortField.getType() != SortField.Type.SCORE && sortField.getType() != SortField.Type.DOC) {
+                    bytes += LEAF_DOC_VALUES_BYTES;
+                }
+            }
+        }
+        return bytes;
+    }
+
+    /**
+     * Adds to the estimated bytes, which are sent to the request breaker in batches. Negative bytes are released once the bytes
+     * still pending cannot cover them.
+     */
+    private void charge(long bytes) {
+        pendingBytes += bytes;
+        if (pendingBytes >= CHARGE_BATCH_BYTES || pendingBytes < 0) {
+            addRequestCircuitBreakerBytes(pendingBytes);
+            pendingBytes = 0;
+        }
     }
 
     boolean usesBucketedSort() {
@@ -142,14 +273,11 @@ class TopHitsAggregator extends MetricsAggregator {
         if (usesBucketedSort()) {
             return bucketedTopHits.getLeafCollector(aggCtx, sub);
         }
-        // Create leaf collectors here instead of at the aggregator level. Otherwise in case this collector get invoked
-        // when post collecting then we have already replaced the leaf readers on the aggregator level have already been
-        // replaced with the next leaf readers and then post collection pushes docids of the previous segment, which
-        // then causes assertions to trip or incorrect top docs to be computed.
-        if (leafCollectors != null) {
-            leafCollectors.close();
-            leafCollectors = null; // set to null, just in case the new allocation below fails
-        }
+        // Releases the leaf collectors of the previous segment. Those of the last segment are released when collection is done.
+        releaseLeafCollectors();
+        // Leaf collectors are created per leaf and not on the aggregator. A replay during post-collection pushes the doc ids of an
+        // earlier segment, when an aggregator-level reader would already point at the next one, which trips assertions or gives
+        // wrong top docs.
         leafCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         return new LeafBucketCollectorBase(sub, null) {
 
@@ -174,33 +302,15 @@ class TopHitsAggregator extends MetricsAggregator {
             public void collect(int docId, long bucket) throws IOException {
                 Collectors collectors = topDocsCollectors.get(bucket);
                 if (collectors == null) {
-                    SortAndFormats sort = subSearchContext.sort();
-                    int topN = subSearchContext.from() + subSearchContext.size();
-                    if (sort == null) {
-                        for (RescoreContext rescoreContext : subSearchContext.rescore()) {
-                            topN = Math.max(rescoreContext.getWindowSize(), topN);
-                        }
-                    }
-                    // In the QueryPhase we don't need this protection, because it is build into the IndexSearcher,
-                    // but here we create collectors ourselves and we need prevent OOM because of crazy an offset and size.
-                    topN = Math.min(topN, subSearchContext.searcher().getIndexReader().maxDoc());
-                    if (sort == null) {
-                        TopScoreDocCollector topScoreDocCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE)
-                            .newCollector();
-                        collectors = new Collectors(topScoreDocCollector, null);
-                    } else {
-                        // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
-                        // Note that this would require to catch CollectionTerminatedException
-                        collectors = new Collectors(
-                            new TopFieldCollectorManager(sort.sort, topN, null, Integer.MAX_VALUE).newCollector(),
-                            subSearchContext.trackScores() ? new MaxScoreCollector() : null
-                        );
-                    }
+                    charge(collectorBytes);
+                    collectors = newCollectors(subSearchContext.sort(), topN(), subSearchContext.trackScores());
                     topDocsCollectors.put(bucket, collectors);
                 }
 
                 LeafCollector leafCollector = leafCollectors.get(bucket);
                 if (leafCollector == null) {
+                    charge(leafCollectorBytes);
+                    leafCollectorsBytes += leafCollectorBytes;
                     leafCollector = collectors.collector.getLeafCollector(aggCtx.getLeafReaderContext());
                     if (scorer != null) {
                         leafCollector.setScorer(scorer);
@@ -210,6 +320,25 @@ class TopHitsAggregator extends MetricsAggregator {
                 leafCollector.collect(docId);
             }
         };
+    }
+
+    /**
+     * Releases the leaf collectors of the last segment before the hits of every bucket are fetched. A parent that replays the
+     * documents of its buckets, like a breadth first {@code terms}, post-collects this aggregator after the replay.
+     */
+    @Override
+    protected void doPostCollection() {
+        releaseLeafCollectors();
+    }
+
+    /** Closes the leaf collectors of the segment collected last, and releases their charge. */
+    private void releaseLeafCollectors() {
+        if (leafCollectors != null) {
+            leafCollectors.close();
+            leafCollectors = null; // set to null, so doClose does not close it again
+        }
+        charge(-leafCollectorsBytes);
+        leafCollectorsBytes = 0;
     }
 
     private TopDocsAndMaxScore luceneTopDocs(long owningBucketOrdinal) throws IOException {

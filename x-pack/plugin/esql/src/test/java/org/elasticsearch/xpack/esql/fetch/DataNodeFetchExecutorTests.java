@@ -785,7 +785,6 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             contexts.originOf(searchContext);
             shards.add(new OpenShard(searchContext.shardTarget().getShardId(), searchContext.readerContext().id(), locate(searchContext)));
         }
-        contexts.responded();
         endRequest(contexts);
         return shards;
     }
@@ -815,7 +814,6 @@ public class DataNodeFetchExecutorTests extends FetchContextsTestCase {
             contexts.originOf(searchContext);
             open.add(new OpenShard(searchContext.shardTarget().getShardId(), searchContext.readerContext().id(), locate(searchContext)));
         }
-        contexts.responded();
         endRequest(contexts);
         return open;
     }

@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.fetch.FetchContextService;
 import org.elasticsearch.xpack.esql.fetch.FetchRequest;
 import org.elasticsearch.xpack.esql.fetch.FetchResponse;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
@@ -213,13 +212,9 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
      */
     private List<OpenShard> openEveryShard(String node, int shards) throws IOException {
         SearchService searchService = internalCluster().getInstance(SearchService.class, node);
-        TransportService transportService = internalCluster().getInstance(TransportService.class, node);
-        FetchContextService contextService = new FetchContextService(
+        NodeFetchContexts contexts = new NodeFetchContexts(
             searchService,
-            transportService,
-            new OpenFetchContexts(MeterRegistry.NOOP)
-        );
-        NodeFetchContexts contexts = contextService.newNodeContexts(
+            new OpenFetchContexts(MeterRegistry.NOOP),
             null,
             TimeValue.timeValueMillis(searchService.getDefaultKeepAliveInMillis())
         );
@@ -235,7 +230,6 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
                 contexts.originOf(searchContext);
                 open.add(new OpenShard(shardId, searchContext.readerContext().id(), locate(searchContext)));
             }
-            contexts.responded();
         } finally {
             opened.forEach(SearchContext::close);
             contexts.close();

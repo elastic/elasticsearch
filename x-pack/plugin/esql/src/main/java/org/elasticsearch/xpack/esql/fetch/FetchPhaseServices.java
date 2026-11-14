@@ -23,9 +23,9 @@ public interface FetchPhaseServices {
     FetchOperatorProvider operatorProvider(QueryFetchScope scope);
 
     /**
-     * The reader contexts this node keeps open for the fetch phase as a data node.
+     * Counts the fetch contexts this node keeps open as a data node.
      */
-    FetchContextService contextService();
+    OpenFetchContexts openContexts();
 
     /**
      * The leases of the fetch contexts of the queries this node coordinates.
@@ -34,10 +34,10 @@ public interface FetchPhaseServices {
 
     /**
      * The runtime of this node: a {@link FetchOperator} for each {@link FetchExec} that sends its requests through
-     * {@code fetchService}, the reader contexts of {@code contextService} and the leases of {@code leases}.
+     * {@code fetchService} and the leases of {@code leases}.
      */
     static FetchPhaseServices create(
-        FetchContextService contextService,
+        OpenFetchContexts openContexts,
         FetchContextLeases leases,
         FetchService fetchService,
         ClusterService clusterService
@@ -71,8 +71,8 @@ public interface FetchPhaseServices {
             }
 
             @Override
-            public FetchContextService contextService() {
-                return contextService;
+            public OpenFetchContexts openContexts() {
+                return openContexts;
             }
 
             @Override

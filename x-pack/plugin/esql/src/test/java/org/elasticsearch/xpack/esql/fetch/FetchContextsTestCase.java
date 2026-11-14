@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.fetch;
 
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -30,17 +28,13 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
-import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -51,20 +45,6 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
     static final String INDEX = "fetch-contexts";
     protected static final int SHARDS = 3;
-    /**
-     * The index expressions of the query that opened the contexts.
-     */
-    protected static final OriginalIndices QUERY_INDICES = new OriginalIndices(
-        new String[] { INDEX },
-        SearchRequest.DEFAULT_INDICES_OPTIONS
-    );
-    /**
-     * The index expressions of an execution that reads this node's cluster only.
-     */
-    protected static final Map<String, OriginalIndices> EXECUTION_INDICES = Map.of(
-        RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-        QUERY_INDICES
-    );
 
     /**
      * Any request that looks a context up, like a fetch request.
@@ -72,19 +52,11 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
     static class LookupRequest extends AbstractTransportRequest {}
 
     private final List<SearchContext> querySearchContexts = new ArrayList<>();
-    protected FetchContextService service;
     protected final OpenFetchContexts openContexts = new OpenFetchContexts(MeterRegistry.NOOP);
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(MockSearchService.TestPlugin.class);
-    }
-
-    @Before
-    public void createService() {
-        TransportService transportService = getInstanceFromNode(TransportService.class);
-        service = new FetchContextService(searchService(), transportService, openContexts);
-        registerHandlers();
     }
 
     @After
@@ -115,7 +87,12 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
      * The contexts of a request from a query that this node coordinates, so they get the default keep-alive of the node.
      */
     protected NodeFetchContexts newNodeContexts() {
-        return service.newNodeContexts(null, TimeValue.timeValueMillis(searchService().getDefaultKeepAliveInMillis()));
+        return new NodeFetchContexts(
+            searchService(),
+            openContexts,
+            null,
+            TimeValue.timeValueMillis(searchService().getDefaultKeepAliveInMillis())
+        );
     }
 
     /**
@@ -136,16 +113,16 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
     }
 
     /**
-     * What a data node does for a request whose every shard has rows that survive the node cut: opens a context per shard,
-     * responds with all of them, and lets go of them.
+     * What a data node does for a request whose every shard has rows that leave the node: opens a context per shard, names
+     * each one in the origins of the rows, and keeps them all when the request ends.
+     *
+     * @return the kept contexts, which the coordinator finds in the origins of the rows
      */
-    protected List<ShardSearchContextId> respond(String index) throws IOException {
+    protected List<ShardSearchContextId> keepEveryShard(String index) throws IOException {
         NodeFetchContexts contexts = newNodeContexts();
-        openEveryShard(contexts, index).forEach(contexts::originOf);
-        List<ShardSearchContextId> open = contexts.listOpenContributing();
-        contexts.responded();
+        List<ShardSearchContextId> kept = openEveryShard(contexts, index).stream().map(c -> contexts.originOf(c).contextId()).toList();
         endRequest(contexts);
-        return open;
+        return kept;
     }
 
     protected void createIndexWithDocs(String index) {
@@ -168,16 +145,6 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
      */
     protected FetchNode localFetchNode() {
         return FetchNode.local(localNode().getId());
-    }
-
-    /**
-     * Serves keep-alive and free requests on this node, as the ES|QL plugin does on a real one. The node outlives a test, so
-     * the first test registers them, with the same search service and transport as every later one.
-     */
-    private void registerHandlers() {
-        if (getInstanceFromNode(TransportService.class).getRequestHandler(FetchContextService.KEEP_ALIVE_ACTION_NAME) == null) {
-            service.registerHandlers();
-        }
     }
 
     /**

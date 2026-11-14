@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
@@ -159,7 +160,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         QueryMetricsListener metricsCollector,
         FederationLicense federationLicense,
         ExternalWorkerReadiness externalWorkerReadiness,
-        OpenFetchContexts openFetchContexts
+        OpenFetchContexts openFetchContexts,
+        SearchTransportService searchTransportService
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -268,7 +270,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             client,
             registry,
             externalWorkerReadiness,
-            openFetchContexts
+            openFetchContexts,
+            searchTransportService
         );
 
         var queryLogger = new QueryLogger<>(
@@ -414,17 +417,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
-        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, resultListener) -> computeService.execute(
-            sessionId,
-            (CancellableTask) task,
-            flags,
-            plan,
-            configuration,
-            foldCtx,
-            executionInfo,
-            planTimeProfile,
-            resultListener
-        );
+        PlanRunner planRunner = (role, plan, configuration, foldCtx, planTimeProfile, maxResultSize, resultListener) -> computeService
+            .execute(
+                sessionId,
+                (CancellableTask) task,
+                flags,
+                plan,
+                configuration,
+                foldCtx,
+                executionInfo,
+                planTimeProfile,
+                maxResultSize,
+                resultListener
+            );
         planExecutor.esql(
             request,
             sessionId,

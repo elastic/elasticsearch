@@ -75,10 +75,10 @@ public class ShardAccessTests extends ESTestCase {
     }
 
     /**
-     * The fetch and the keep-alive each report their own action.
+     * The error names the action it refused.
      */
     public void testTheErrorNamesTheAction() {
-        String action = randomFrom(FetchService.FETCH_ACTION_NAME, FetchContextService.KEEP_ALIVE_ACTION_NAME);
+        String action = randomFrom(FetchService.FETCH_ACTION_NAME, ACTION);
         ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
             () -> ShardAccess.check(logsOnly(), SECRET, action)

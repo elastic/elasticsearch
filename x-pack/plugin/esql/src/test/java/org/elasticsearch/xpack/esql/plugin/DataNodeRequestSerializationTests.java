@@ -134,7 +134,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
      */
     public void testClusterStateVersionAcrossTheReadinessVersions() throws IOException {
         // a request for fetch contexts never reaches a node that old
-        DataNodeRequest request = withFetchContextsKeepAlive(createTestInstance(), null);
+        DataNodeRequest request = withReaderContextKeepAlive(createTestInstance(), null);
         DataNodeRequest old = copyInstance(
             request,
             TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_READINESS)
@@ -151,15 +151,15 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         assertThat(current.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
     }
 
-    public void testFetchContextsKeepAliveRoundTrips() throws IOException {
+    public void testReaderContextKeepAliveRoundTrips() throws IOException {
         TimeValue keepAlive = randomPositiveTimeValue();
-        DataNodeRequest request = withFetchContextsKeepAlive(createTestInstance(), keepAlive);
+        DataNodeRequest request = withReaderContextKeepAlive(createTestInstance(), keepAlive);
 
         DataNodeRequest copy = copyInstance(request, TransportVersion.current());
 
         assertTrue(copy.keepFetchContexts());
-        assertThat(copy.fetchContextsKeepAlive(), equalTo(keepAlive));
-        assertThat(copy.getDescription(), containsString("fetchContextsKeepAlive=" + keepAlive));
+        assertThat(copy.readerContextKeepAlive(), equalTo(keepAlive));
+        assertThat(copy.getDescription(), containsString("readerContextKeepAlive=" + keepAlive));
     }
 
     /**
@@ -168,15 +168,15 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
      */
     public void testFetchContextsNeverReachAnOlderNode() throws IOException {
         TransportVersion older = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_FETCH_CONTEXTS);
-        DataNodeRequest withoutContexts = withFetchContextsKeepAlive(createTestInstance(), null);
+        DataNodeRequest withoutContexts = withReaderContextKeepAlive(createTestInstance(), null);
         assertFalse(copyInstance(withoutContexts, older).keepFetchContexts());
 
-        DataNodeRequest withContexts = withFetchContextsKeepAlive(withoutContexts, randomPositiveTimeValue());
+        DataNodeRequest withContexts = withReaderContextKeepAlive(withoutContexts, randomPositiveTimeValue());
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> copyInstance(withContexts, older));
         assertThat(e.getMessage(), containsString("for fetch contexts"));
     }
 
-    private static DataNodeRequest withFetchContextsKeepAlive(DataNodeRequest in, @Nullable TimeValue fetchContextsKeepAlive) {
+    private static DataNodeRequest withReaderContextKeepAlive(DataNodeRequest in, @Nullable TimeValue readerContextKeepAlive) {
         DataNodeRequest request = new DataNodeRequest(
             in.sessionId(),
             in.queryId(),
@@ -192,7 +192,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             in.singleNodeOptimizations(),
             in.externalSplits(),
             in.requiredClusterStateVersion(),
-            fetchContextsKeepAlive
+            readerContextKeepAlive
         );
         request.setParentTask(in.getParentTask());
         return request;
@@ -205,7 +205,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
      */
     public void testTheDeclineFlagIsWrittenFalseAndIgnoredAtTheReadinessVersion() throws IOException {
         // a request for fetch contexts never reaches a node that old
-        DataNodeRequest request = withFetchContextsKeepAlive(createTestInstance(), null);
+        DataNodeRequest request = withReaderContextKeepAlive(createTestInstance(), null);
         TransportVersion withFlag = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING);
         byte[] flagged = serialize(request, withFlag);
         byte[] current = serialize(request, DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING);
@@ -309,7 +309,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var reductionLateMaterialization = in.reductionLateMaterialization();
         var singleNodeOptimizations = in.singleNodeOptimizations();
         var requiredClusterStateVersion = in.requiredClusterStateVersion();
-        var fetchContextsKeepAlive = in.fetchContextsKeepAlive();
+        var readerContextKeepAlive = in.readerContextKeepAlive();
         TaskId parentTask = in.getParentTask();
 
         switch (between(0, 13)) {
@@ -366,8 +366,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                 randomValueOtherThan(queryId.getNodeId(), () -> randomAlphaOfLength(10)),
                 randomNonNegativeLong()
             );
-            case 13 -> fetchContextsKeepAlive = randomValueOtherThan(
-                fetchContextsKeepAlive,
+            case 13 -> readerContextKeepAlive = randomValueOtherThan(
+                readerContextKeepAlive,
                 () -> randomBoolean() ? randomPositiveTimeValue() : null
             );
             default -> throw new AssertionError("invalid value");
@@ -388,7 +388,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             singleNodeOptimizations,
             List.of(),
             requiredClusterStateVersion,
-            fetchContextsKeepAlive
+            readerContextKeepAlive
         );
         request.setParentTask(parentTask);
         return request;

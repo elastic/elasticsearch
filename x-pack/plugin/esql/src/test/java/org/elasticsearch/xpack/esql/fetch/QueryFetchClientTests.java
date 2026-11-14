@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
@@ -25,9 +24,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -42,8 +38,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * One fetch request as the coordinator sends it: what it carries, and that the drivers of the fetch reach the query
@@ -62,10 +56,6 @@ public class QueryFetchClientTests extends ComputeTestCase {
      * {@link #NODE}, as the lease names the node of its contexts.
      */
     private static final FetchNode FETCH_NODE = FetchNode.local("n1");
-    /**
-     * The keep-alive {@link #NODE} gives its contexts, longer than the one of the query.
-     */
-    private static final TimeValue NODE_KEEP_ALIVE = TimeValue.timeValueDays(1);
     private static final FetchRequest.ShardDocs SHARD = new FetchRequest.ShardDocs(
         new ShardId("logs", "uuid", 0),
         new ShardSearchContextId("session", 7),
@@ -229,29 +219,24 @@ public class QueryFetchClientTests extends ComputeTestCase {
      * cut frees the context no row read, and the end of the fetch the one they read.
      */
     public void testTheEndsOfTheCutAndTheFetchReachTheLeaseOfItsExecution() {
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        try {
-            RecordedLease recorded = leaseThatRecordsFrees(threadPool);
-            QueryFetchClient client = new QueryFetchClient(
-                (node, target, request, parentTask, listener) -> fail("nothing to send"),
-                threadContext,
-                directory(),
-                scope(recorded.execution()),
-                Map.of("", List.of("logs-*"))
-            );
-            ShardSearchContextId read = new ShardSearchContextId("session", 1);
-            ShardSearchContextId unread = new ShardSearchContextId("session", 2);
-            recorded.execution().add(FETCH_NODE, List.of(read, unread), NODE_KEEP_ALIVE);
+        RecordedLease recorded = leaseThatRecordsFrees();
+        QueryFetchClient client = new QueryFetchClient(
+            (node, target, request, parentTask, listener) -> fail("nothing to send"),
+            threadContext,
+            directory(),
+            scope(recorded.execution()),
+            Map.of("", List.of("logs-*"))
+        );
+        ShardSearchContextId read = new ShardSearchContextId("session", 1);
+        ShardSearchContextId unread = new ShardSearchContextId("session", 2);
+        recorded.arrived(read, unread);
 
-            client.cutEnded(Set.of(read));
-            assertThat(recorded.transport().freed(), equalTo(Set.of(unread)));
+        client.cutEnded(Set.of(read));
+        assertThat(recorded.transport().freed(), equalTo(Set.of(unread)));
 
-            client.fetchEnded();
-            assertThat(recorded.transport().freed(), equalTo(Set.of(unread, read)));
-            recorded.lease().close();
-        } finally {
-            terminate(threadPool);
-        }
+        client.fetchEnded();
+        assertThat(recorded.transport().freed(), equalTo(Set.of(unread, read)));
+        recorded.lease().close();
     }
 
     /**
@@ -259,11 +244,10 @@ public class QueryFetchClientTests extends ComputeTestCase {
      * lease of the execution no longer frees it.
      */
     public void testTheLeaseLetsGoOfTheContextsTheNodeFreedAfterTheirLastFetch() {
-        ThreadPool threadPool = new TestThreadPool(getTestName());
         List<FetchResponse.ShardResult> loaded = List.of(FetchResponse.ShardResult.succeeded(SHARD.shardId(), SHARD.docCount()));
         FetchResponse response = new FetchResponse(blockFactory(), loaded, List.of(), FETCH_DRIVERS, 0, 0);
         try {
-            RecordedLease recorded = leaseThatRecordsFrees(threadPool);
+            RecordedLease recorded = leaseThatRecordsFrees();
             QueryFetchClient client = new QueryFetchClient(
                 (node, target, request, parentTask, listener) -> listener.onResponse(response),
                 threadContext,
@@ -273,7 +257,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
             );
             FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
             ShardSearchContextId readAgain = new ShardSearchContextId("session", 8);
-            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId(), readAgain), NODE_KEEP_ALIVE);
+            recorded.arrived(lastRead.contextId(), readAgain);
 
             client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
             client.fetchEnded();
@@ -282,7 +266,6 @@ public class QueryFetchClientTests extends ComputeTestCase {
             recorded.lease().close();
         } finally {
             response.decRef();
-            terminate(threadPool);
         }
     }
 
@@ -291,13 +274,12 @@ public class QueryFetchClientTests extends ComputeTestCase {
      * node frees nothing. The lease still frees the context of a shard that failed.
      */
     public void testAShardThatFailedLeavesItsContextToTheLease() {
-        ThreadPool threadPool = new TestThreadPool(getTestName());
         List<FetchResponse.ShardResult> failed = List.of(
             FetchResponse.ShardResult.failed(SHARD.shardId(), new IllegalStateException("unauthorized"))
         );
         FetchResponse response = new FetchResponse(blockFactory(), failed, List.of(), FETCH_DRIVERS, 0, 0);
         try {
-            RecordedLease recorded = leaseThatRecordsFrees(threadPool);
+            RecordedLease recorded = leaseThatRecordsFrees();
             QueryFetchClient client = new QueryFetchClient(
                 (node, target, request, parentTask, listener) -> listener.onResponse(response),
                 threadContext,
@@ -306,7 +288,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
                 Map.of("", List.of("logs-*"))
             );
             FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
-            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId()), NODE_KEEP_ALIVE);
+            recorded.arrived(lastRead.contextId());
 
             client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
             client.fetchEnded();
@@ -315,7 +297,6 @@ public class QueryFetchClientTests extends ComputeTestCase {
             recorded.lease().close();
         } finally {
             response.decRef();
-            terminate(threadPool);
         }
     }
 
@@ -324,55 +305,48 @@ public class QueryFetchClientTests extends ComputeTestCase {
      * the last time.
      */
     public void testAFailedLastFetchLeavesItsContextsToTheLease() {
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        try {
-            RecordedLease recorded = leaseThatRecordsFrees(threadPool);
-            QueryFetchClient client = new QueryFetchClient(
-                (node, target, request, parentTask, listener) -> listener.onFailure(new IllegalStateException("not connected")),
-                threadContext,
-                directory(),
-                scope(recorded.execution()),
-                Map.of("", List.of("logs-*"))
-            );
-            FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
-            recorded.execution().add(FETCH_NODE, List.of(lastRead.contextId()), NODE_KEEP_ALIVE);
+        RecordedLease recorded = leaseThatRecordsFrees();
+        QueryFetchClient client = new QueryFetchClient(
+            (node, target, request, parentTask, listener) -> listener.onFailure(new IllegalStateException("not connected")),
+            threadContext,
+            directory(),
+            scope(recorded.execution()),
+            Map.of("", List.of("logs-*"))
+        );
+        FetchRequest.ShardDocs lastRead = withAfterFetch(SHARD, FetchRequest.ContextAfterFetch.FREE);
+        recorded.arrived(lastRead.contextId());
 
-            client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
-            client.fetchEnded();
+        client.fetch(NODE, "", List.of(lastRead), null, ActionListener.noop());
+        client.fetchEnded();
 
-            assertThat(recorded.transport().freed(), equalTo(Set.of(lastRead.contextId())));
-            recorded.lease().close();
-        } finally {
-            terminate(threadPool);
-        }
+        assertThat(recorded.transport().freed(), equalTo(Set.of(lastRead.contextId())));
+        recorded.lease().close();
     }
 
     /**
      * A lease and its execution, and the transport that records what the lease frees.
      */
-    private record RecordedLease(
-        FetchContextLease lease,
-        FetchContextLease.Execution execution,
-        RecordingFetchContextTransport transport
-    ) {}
+    private record RecordedLease(FetchContextLease lease, FetchContextLease.Execution execution, RecordingFetchContextTransport transport) {
+        /**
+         * Rows read through the contexts {@code ids} of {@link #FETCH_NODE} reached the coordinator.
+         */
+        void arrived(ShardSearchContextId... ids) {
+            for (ShardSearchContextId id : ids) {
+                execution.arrived(FETCH_NODE, id);
+            }
+        }
+    }
 
-    private RecordedLease leaseThatRecordsFrees(ThreadPool threadPool) {
-        // the service only schedules the refresh of the held contexts on this thread pool, which never comes within the
-        // keep-alive of a test. A real one would need a node.
-        TransportService transportService = mock(TransportService.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
+    private RecordedLease leaseThatRecordsFrees() {
         RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
         FetchContextLease lease = new FetchContextLease(
-            new FetchContextLeases(null, transportService, directory()),
+            new FetchContextLeases(null, null, null, directory()),
             transport,
             rootTask,
             threadContext.newRestorableContext(false),
             TimeValue.timeValueMinutes(5)
         );
-        FetchContextLease.Execution execution = lease.newExecution(
-            Map.of("", new OriginalIndices(new String[] { "logs-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS))
-        );
-        return new RecordedLease(lease, execution, transport);
+        return new RecordedLease(lease, lease.newExecution(), transport);
     }
 
     private static FetchRequest.ShardDocs withAfterFetch(FetchRequest.ShardDocs shard, FetchRequest.ContextAfterFetch afterFetch) {
@@ -450,12 +424,12 @@ public class QueryFetchClientTests extends ComputeTestCase {
         // the client holds no context in these tests, so the lease never sends a request
         return scope(
             new FetchContextLease(
-                new FetchContextLeases(null, null, directory()),
+                new FetchContextLeases(null, null, null, directory()),
                 new RecordingFetchContextTransport(),
                 rootTask,
                 threadContext.newRestorableContext(false),
                 TimeValue.timeValueMinutes(5)
-            ).newExecution(Map.of("", new OriginalIndices(new String[] { "logs-*" }, SearchRequest.DEFAULT_INDICES_OPTIONS)))
+            ).newExecution()
         );
     }
 

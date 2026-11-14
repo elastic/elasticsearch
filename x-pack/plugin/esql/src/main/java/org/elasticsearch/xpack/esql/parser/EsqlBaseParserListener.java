@@ -1603,15 +1603,25 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitJoinCommand(EsqlBaseParser.JoinCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#joinTarget}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#subqueryJoinTarget}.
    * @param ctx the parse tree
    */
-  void enterJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
+  void enterSubqueryJoinTarget(EsqlBaseParser.SubqueryJoinTargetContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#joinTarget}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#subqueryJoinTarget}.
    * @param ctx the parse tree
    */
-  void exitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
+  void exitSubqueryJoinTarget(EsqlBaseParser.SubqueryJoinTargetContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#lookupJoinTarget}.
+   * @param ctx the parse tree
+   */
+  void enterLookupJoinTarget(EsqlBaseParser.LookupJoinTargetContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#lookupJoinTarget}.
+   * @param ctx the parse tree
+   */
+  void exitLookupJoinTarget(EsqlBaseParser.LookupJoinTargetContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#joinCondition}.
    * @param ctx the parse tree

@@ -84,7 +84,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             sessionId,
             randomConfiguration(query, randomTables()),
             new RemoteClusterPlan(physicalPlan, targetIndices, originalIndices),
-            randomFetchContextsKeepAlive()
+            randomReaderContextKeepAlive()
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -99,7 +99,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                     in.sessionId(),
                     in.configuration(),
                     in.remoteClusterPlan(),
-                    in.fetchContextsKeepAlive()
+                    in.readerContextKeepAlive()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -110,7 +110,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                     randomValueOtherThan(in.sessionId(), () -> randomAlphaOfLength(10)),
                     in.configuration(),
                     in.remoteClusterPlan(),
-                    in.fetchContextsKeepAlive()
+                    in.readerContextKeepAlive()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -121,7 +121,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                     in.sessionId(),
                     randomValueOtherThan(in.configuration(), ConfigurationTestUtils::randomConfiguration),
                     in.remoteClusterPlan(),
-                    in.fetchContextsKeepAlive()
+                    in.readerContextKeepAlive()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -137,7 +137,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                         randomArrayOtherThan(plan.targetIndices(), () -> generateRandomStringArray(10, 10, false, false)),
                         plan.originalIndices()
                     ),
-                    in.fetchContextsKeepAlive()
+                    in.readerContextKeepAlive()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -159,7 +159,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                             )
                         )
                     ),
-                    in.fetchContextsKeepAlive()
+                    in.readerContextKeepAlive()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -170,7 +170,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
                     in.sessionId(),
                     in.configuration(),
                     in.remoteClusterPlan(),
-                    randomValueOtherThan(in.fetchContextsKeepAlive(), ClusterRequestTests::randomFetchContextsKeepAlive)
+                    randomValueOtherThan(in.readerContextKeepAlive(), ClusterRequestTests::randomReaderContextKeepAlive)
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -180,7 +180,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
     }
 
     @Nullable
-    private static TimeValue randomFetchContextsKeepAlive() {
+    private static TimeValue randomReaderContextKeepAlive() {
         return randomBoolean() ? null : TimeValue.timeValueSeconds(between(1, 600));
     }
 
@@ -197,7 +197,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             request.remoteClusterPlan(),
             TimeValue.timeValueMinutes(5)
         );
-        TransportVersion older = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_FETCH_CONTEXTS);
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(ClusterComputeRequest.ESQL_REMOTE_FETCH_CONTEXTS);
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> copyInstance(withContexts, older));
 
@@ -217,11 +217,11 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             null
         );
         withoutContexts.setParentTask(request.getParentTask());
-        TransportVersion older = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_FETCH_CONTEXTS);
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(ClusterComputeRequest.ESQL_REMOTE_FETCH_CONTEXTS);
 
         ClusterComputeRequest copy = copyInstance(withoutContexts, older);
 
-        assertThat(copy.fetchContextsKeepAlive(), nullValue());
+        assertThat(copy.readerContextKeepAlive(), nullValue());
     }
 
     private static String randomQuery() {

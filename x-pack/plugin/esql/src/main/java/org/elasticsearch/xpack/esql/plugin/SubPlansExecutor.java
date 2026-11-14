@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -38,8 +37,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -126,6 +123,10 @@ final class SubPlansExecutor {
      */
     private final FetchFailures fetchFailures;
 
+    /**
+     * @param maxResultSize limit on the root's collected result pages, or {@code null} for no limit, see
+     *                      {@link BoundedPageCollector}
+     */
     SubPlansExecutor(
         ComputeService computeService,
         ExchangeService exchangeService,
@@ -139,6 +140,7 @@ final class SubPlansExecutor {
         Runnable warnIndexCoordinatorOnce,
         PlanTimeProfile planTimeProfile,
         SubPlan.Merge rootPlan,
+        @Nullable ByteSizeValue maxResultSize,
         ActionListener<Result> listener
     ) {
         this.computeService = computeService;
@@ -156,7 +158,8 @@ final class SubPlansExecutor {
         this.rootPlanTimeProfile = planTimeProfile;
         this.fetchContexts = fetchContextsOf(computeService, rootTask, rootPlan.plan());
         this.fetchFailures = new FetchFailures(configuration.allowPartialResults(), execInfo::shouldSkipOnFailure);
-        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        final BoundedPageCollector pageCollector = new BoundedPageCollector(maxResultSize);
+        final List<Page> collectedPages = pageCollector.pages();
         final PageStreamPublisher streamPublisher = rootPlan.plan() instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
             : null;
@@ -175,7 +178,7 @@ final class SubPlansExecutor {
         this.rootExecution = new ExecutionMerge(
             null,
             rootPlan,
-            rootPlan.plan() instanceof StreamingOutputExec ? rootPlan.plan() : new OutputExec(rootPlan.plan(), collectedPages::add),
+            rootPlan.plan() instanceof StreamingOutputExec ? rootPlan.plan() : new OutputExec(rootPlan.plan(), pageCollector),
             "main.final",
             rootPlanTimeProfile,
             null,
@@ -189,25 +192,14 @@ final class SubPlansExecutor {
     }
 
     /**
-     * One execution for the reader contexts of every branch when the root plan fetches after the merge. The planner fetches
-     * through a {@code FORK} only when every branch reads the same indices of the same clusters, the ones the fetch names.
+     * One execution for the reader contexts of every branch when the root plan fetches after the merge.
      */
     @Nullable
     private static FetchContextLease.Execution fetchContextsOf(ComputeService computeService, CancellableTask rootTask, PhysicalPlan root) {
-        List<FetchExec> fetches = root.collect(FetchExec.class);
-        if (fetches.isEmpty()) {
+        if (root.anyMatch(FetchExec.class::isInstance) == false) {
             return null;
         }
-        Map<String, OriginalIndices> indices = new HashMap<>();
-        fetches.getFirst()
-            .originalIndices()
-            .forEach(
-                (clusterAlias, expressions) -> indices.put(
-                    clusterAlias,
-                    new OriginalIndices(expressions.toArray(String[]::new), SearchRequest.DEFAULT_INDICES_OPTIONS)
-                )
-            );
-        return computeService.fetchPhaseServices().leases().leaseFor(rootTask).newExecution(indices);
+        return computeService.fetchPhaseServices().leases().leaseFor(rootTask).newExecution();
     }
 
     /**
@@ -495,6 +487,7 @@ final class SubPlansExecutor {
                     configuration.profile() ? new PlanTimeProfile() : null,
                     warnIndexCoordinatorOnce,
                     SiblingPlacement.forMerge(mergeKind, siblingIndex, siblingCount),
+                    null,
                     fetchContexts
                 );
             } catch (Exception e) {

@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -19,6 +22,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -3406,4 +3410,204 @@ public class RetryableStorageObjectTests extends ESTestCase {
             return n;
         }
     }
+
+    private static final String CONTEXT_HEADER = AuthenticationField.AUTHENTICATION_KEY;
+    private static final String NON_SECURITY_HEADER = "X-Opaque-Id";
+
+    /**
+     * Async-read stub that completes on a separate thread with an empty {@link ThreadContext}, as a storage SDK callback
+     * thread does. The first {@code failuresBeforeSuccess} attempts fail with a retryable error. Real classes are not
+     * usable here because the point is to control the completing thread.
+     */
+    private static StorageObject sdkThreadObject(ExecutorService sdkThread, ThreadContext threadContext, int failuresBeforeSuccess) {
+        return sdkThreadObject(sdkThread, threadContext, failuresBeforeSuccess, null);
+    }
+
+    private static StorageObject sdkThreadObject(
+        ExecutorService sdkThread,
+        ThreadContext threadContext,
+        int failuresBeforeSuccess,
+        String staleIdentity
+    ) {
+        AtomicInteger attempts = new AtomicInteger();
+        return new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("s3://bucket/key");
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                boolean fail = attempts.getAndIncrement() < failuresBeforeSuccess;
+                sdkThread.execute(() -> {
+                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                        if (staleIdentity != null) {
+                            threadContext.putHeader(CONTEXT_HEADER, staleIdentity);
+                            threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, "stale-project");
+                            threadContext.putHeader(NON_SECURITY_HEADER, "stale-opaque");
+                        }
+                        if (fail) {
+                            listener.onFailure(
+                                new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L)
+                            );
+                        } else {
+                            listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(0, 0, 0, 0);
+            }
+        };
+    }
+
+    /** Issues an async read and returns the header the listener sees; a failure fails the test unless {@code expectFailure}. */
+    private String readAndObserveHeader(RetryableStorageObject obj, ThreadContext threadContext, boolean expectFailure) throws Exception {
+        threadContext.putHeader(CONTEXT_HEADER, "issuing-user");
+        PlainActionFuture<String> observed = new PlainActionFuture<>();
+        obj.startReadBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(buffer -> {
+                if (expectFailure) {
+                    observed.onFailure(new IllegalStateException("expected the read to fail"));
+                } else {
+                    observed.onResponse(threadContext.getHeader(CONTEXT_HEADER));
+                }
+            }, e -> {
+                if (expectFailure) {
+                    observed.onResponse(threadContext.getHeader(CONTEXT_HEADER));
+                } else {
+                    observed.onFailure(e);
+                }
+            })
+        );
+        return observed.get(10, TimeUnit.SECONDS);
+    }
+
+    public void testAsyncReadCompletionRestoresIssuingThreadContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 0),
+                new RetryPolicy(3, 1, 10),
+                RetryScheduler.DIRECT,
+                threadContext
+            );
+            assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadFailureRestoresIssuingThreadContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, Integer.MAX_VALUE),
+                RetryPolicy.NONE,
+                RetryScheduler.DIRECT,
+                threadContext
+            );
+            assertThat(readAndObserveHeader(obj, threadContext, true), equalTo("issuing-user"));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadAfterRetryRestoresIssuingThreadContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryScheduler onSdkThread = (command, delayMillis, executor) -> sdkThread.execute(() -> {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    command.run();
+                }
+            });
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 1),
+                new RetryPolicy(3, 1, 10),
+                onSdkThread,
+                threadContext
+            );
+            assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadWithoutThreadContextDoesNotRestore() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 0),
+                new RetryPolicy(3, 1, 10),
+                RetryScheduler.DIRECT
+            );
+            assertNull(readAndObserveHeader(obj, threadContext, false));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadReplacesStaleIdentityOnCompletingThread() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 0, "another-querys-user"),
+                new RetryPolicy(3, 1, 10),
+                RetryScheduler.DIRECT,
+                threadContext
+            );
+            assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
 }

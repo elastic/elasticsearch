@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -67,6 +69,8 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     private final RetryPolicy retryPolicy;
     /** Schedules the async read-retry continuation after a backoff delay without parking a thread on the wait. */
     private final RetryScheduler retryScheduler;
+    @Nullable
+    private final ThreadContext threadContext;
     /**
      * Local counter for retries observed at this decorator boundary, merged into {@link #metrics()}
      * via {@link StorageObjectMetrics#add}.
@@ -150,6 +154,20 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     }
 
     RetryableStorageObject(StorageObject delegate, RetryPolicy retryPolicy, RetryScheduler retryScheduler) {
+        this(delegate, retryPolicy, retryScheduler, null);
+    }
+
+    /**
+     * @param threadContext when non-null, an async read runs the caller's listener under the security headers of the thread that
+     *                      issued it, and under nothing else, so a completion arriving on a storage-SDK thread does not carry
+     *                      that thread's (empty or stale) identity into whatever the listener runs next
+     */
+    RetryableStorageObject(
+        StorageObject delegate,
+        RetryPolicy retryPolicy,
+        RetryScheduler retryScheduler,
+        @Nullable ThreadContext threadContext
+    ) {
         if (delegate == null) {
             throw new IllegalArgumentException("delegate cannot be null");
         }
@@ -162,6 +180,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         this.delegate = delegate;
         this.retryPolicy = retryPolicy;
         this.retryScheduler = retryScheduler;
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -346,7 +365,11 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     ) {
         AtomicBoolean cancelled = new AtomicBoolean();
         AtomicReference<InflightSlot> inflight = new AtomicReference<>(InflightSlot.NONE);
-        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L, 0L, inflight, cancelled);
+        ActionListener<DirectReadBuffer> callerListener = listener;
+        if (threadContext != null) {
+            callerListener = SecurityHeadersListener.wrap(threadContext, listener);
+        }
+        readBytesAsyncWithRetry(position, length, factory, executor, callerListener, 0, System.nanoTime(), 0L, 0L, inflight, cancelled);
         return () -> {
             cancelled.set(true);
             inflight.get().handle().close();

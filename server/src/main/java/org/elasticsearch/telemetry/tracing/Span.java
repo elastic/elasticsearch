@@ -20,6 +20,9 @@ public interface Span {
         return NoopSpan.INSTANCE;
     }
 
+    /** Returns {@code true} if this span is recording tracing events. */
+    boolean isRecording();
+
     /**
      * Sets an attribute on this span. Setting a key that is already set replaces its value.
      *

@@ -14,6 +14,7 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.ContextPropagators;
@@ -109,7 +110,7 @@ public class APMTracerTests extends ESTestCase {
 
     public void testTracingCanBeEnabledAfterStartingDisabled() {
         final APMTracer tracer = tracer(disabledSettings());
-        assertThat(isRecorded(tracer.spanBuilder("name1").startSpan()), is(false));
+        assertThat(tracer.spanBuilder("name1").startSpan().isRecording(), is(false));
         assertThat(finishedSpanNames(), empty());
 
         updateSettings(Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true));
@@ -131,7 +132,7 @@ public class APMTracerTests extends ESTestCase {
         updateSettings(Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false));
         exporter.reset();
         final Span disabled = tracer.spanBuilder("resume-test-2").startSpan();
-        assertThat(isRecorded(disabled), is(false));
+        assertThat(disabled.isRecording(), is(false));
         disabled.end();
         assertThat(finishedSpanNames(), empty());
 
@@ -145,10 +146,11 @@ public class APMTracerTests extends ESTestCase {
 
         final Span span = tracer.spanBuilder("name1").startSpan();
         assertThat(span, instanceOf(APMSpan.class));
-        assertThat(isRecorded(span), is(true));
+        assertThat(span.isRecording(), is(true));
         assertThat(finishedSpanNames(), empty()); // not ended yet
 
         span.end();
+        assertThat(span.isRecording(), is(false));
 
         final SpanData data = finishedSpan("name1");
         assertThat(data.getKind(), is(SpanKind.INTERNAL));
@@ -316,7 +318,7 @@ public class APMTracerTests extends ESTestCase {
         try (var ignored = root.storeInThreadContext()) {
             // a root, so it is at depth 0 and is not dropped by the limit, which would drop a child of the current span
             final Span span = tracer.spanBuilder("new-root").setNoParent().startSpan();
-            assertThat(isRecorded(span), is(true));
+            assertThat(span.isRecording(), is(true));
             span.end();
         }
         root.end();
@@ -340,14 +342,14 @@ public class APMTracerTests extends ESTestCase {
         final APMTracer tracer = tracer(enabledSettings(), 5, false, Sampler.parentBased(Sampler.alwaysOn()));
         threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, UNSAMPLED_TRACE_PARENT);
         final Span entry = tracer.spanBuilder("entry").startSpan();
-        assertThat(isRecorded(entry), is(false));
+        assertThat(entry.isRecording(), is(false));
 
         try (var ignored = entry.storeInThreadContext()) {
             // a child of the current span is dropped with it, but a new trace is sampled on its own
-            assertThat(isRecorded(tracer.spanBuilder("child").startSpan()), is(false));
+            assertThat(tracer.spanBuilder("child").startSpan().isRecording(), is(false));
 
             final Span newRoot = tracer.spanBuilder("new-root").setNoParent().startSpan();
-            assertThat(isRecorded(newRoot), is(true));
+            assertThat(newRoot.isRecording(), is(true));
             newRoot.end();
         }
 
@@ -419,7 +421,7 @@ public class APMTracerTests extends ESTestCase {
         final APMTracer tracer = tracer(enabledSettings());
         settingsUpdater.update(disabledSettings());
 
-        assertThat(isRecorded(tracer.spanBuilder("name1").setNoParent().startSpan()), is(false));
+        assertThat(tracer.spanBuilder("name1").setNoParent().startSpan().isRecording(), is(false));
     }
 
     /**
@@ -492,8 +494,8 @@ public class APMTracerTests extends ESTestCase {
             span.end();
 
             final Span current = tracer.currentSpan();
-            assertThat(current, instanceOf(APMSpan.class));
-            assertThat(isRecorded(current), is(false));
+            assertThat(current, instanceOf(PropagatedSpan.class));
+            assertThat(current.isRecording(), is(false));
 
             tracer.spanBuilder("child").setParent(current).startSpan().end();
         }
@@ -507,13 +509,112 @@ public class APMTracerTests extends ESTestCase {
 
         try (var ignored = span.storeInThreadContext()) {
             final Span current = tracer.currentSpan();
-            assertThat(current, instanceOf(APMSpan.class));
-            assertThat(isRecorded(current), is(false));
+            assertThat(current, instanceOf(PropagatedSpan.class));
+            assertThat(current.isRecording(), is(false));
 
-            assertThat(isRecorded(tracer.spanBuilder("child").setParent(current).startSpan()), is(false));
+            assertThat(tracer.spanBuilder("child").setParent(current).startSpan().isRecording(), is(false));
         }
 
         assertThat(finishedSpanNames(), empty());
+    }
+
+    /**
+     * The current span is wrapped by the same kind of span that starting it gives: a span that records, while tracing is enabled, and a
+     * propagated span for anything else, including the spans that are live, but the tracer is disabled.
+     */
+    public void testCurrentSpanIsAPropagatedSpanOnceTracingIsDisabled() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Span span = tracer.spanBuilder("name1").startSpan();
+
+        try (var ignored = span.storeInThreadContext()) {
+            assertThat(tracer.currentSpan(), instanceOf(APMSpan.class));
+            assertThat(tracer.currentSpan().isRecording(), is(true));
+
+            updateSettings(Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false));
+
+            assertThat(tracer.currentSpan(), instanceOf(PropagatedSpan.class));
+            assertThat(tracer.currentSpan().isRecording(), is(false));
+        }
+        span.end();
+    }
+
+    public void testSpanThatIsNotRecordedIsAPropagatedSpan() {
+        final APMTracer tracer = tracer(enabledSettings());
+
+        final Span recorded = tracer.spanBuilder("name1").startSpan();
+        final Span notRecorded = tracer.spanBuilder("name2_discard").startSpan();
+
+        assertThat(recorded, instanceOf(APMSpan.class));
+        assertThat(recorded.isRecording(), is(true));
+        assertThat(notRecorded, instanceOf(PropagatedSpan.class));
+        assertThat(notRecorded.isRecording(), is(false));
+    }
+
+    public void testPropagatedSpanDoesNotRecordAnything() {
+        final APMTracer tracer = tracer(enabledSettings());
+        final Span span = tracer.spanBuilder("name1_discard").startSpan();
+
+        assertThat(span.isRecording(), is(false));
+        assertThat(span.setAttribute("a.boolean", true), sameInstance(span));
+        assertThat(span.setAttribute("a.double", 1.5d), sameInstance(span));
+        assertThat(span.setAttribute("a.long", 1L), sameInstance(span));
+        assertThat(span.setAttribute("a.string", "value"), sameInstance(span));
+        assertThat(span.recordException(new IllegalStateException("boom")), sameInstance(span));
+        ((PropagatedSpan) span).setAllAttributes(Attributes.of(stringKey("another.string"), "value"));
+        assertThat(((PropagatedSpan) span).setStatus(StatusCode.ERROR, "failed"), sameInstance(span));
+        span.end();
+
+        assertThat(span.isRecording(), is(false));
+        assertThat(finishedSpanNames(), empty());
+    }
+
+    public void testPropagatedSpanIsStoredInThreadContextAndPropagated() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span span = tracer.spanBuilder("name1_discard").startSpan();
+        threadContext.putHeader(Task.TRACE_STATE, "vendor=value");
+
+        try (var ignored = span.storeInThreadContext()) {
+            final SpanContext current = currentSpanContext();
+            assertThat(current.isValid(), is(true));
+            assertThat(current.isSampled(), is(false));
+            assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), equalTo(traceParent(current)));
+            assertThat(tracer.currentSpan().isRecording(), is(false));
+        }
+
+        // restored
+        assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), nullValue());
+        assertThat(threadContext.getHeader(Task.TRACE_PARENT_HTTP_HEADER), nullValue());
+        assertThat(threadContext.getHeader(Task.TRACE_STATE), equalTo("vendor=value"));
+    }
+
+    /** A propagated span that is given as the parent of a span takes the span out of the trace, as it does for any other child. */
+    public void testPropagatedSpanGivenAsTheParentDropsTheChild() {
+        final APMTracer tracer = tracer(enabledSettings(), 5);
+        final Span parent = tracer.spanBuilder("name1_discard").startSpan();
+
+        final Span child = tracer.spanBuilder("child").setParent(parent).startSpan();
+
+        assertThat(child, instanceOf(PropagatedSpan.class));
+        assertThat(child.isRecording(), is(false));
+        try (var ignored = child.storeInThreadContext()) {
+            assertThat(currentSpanContext().getTraceId(), equalTo(spanContextOf(((PropagatedSpan) parent).context()).getTraceId()));
+            assertThat(currentSpanContext().isSampled(), is(false));
+        }
+        child.end();
+        assertThat(finishedSpanNames(), empty());
+    }
+
+    /** A span that ends does not record any more, but it is still a parent that the spans under it can be started with. */
+    public void testSpanStopsRecordingWhenItEnds() {
+        final APMTracer tracer = tracer(enabledSettings(), 1);
+        final Span span = tracer.spanBuilder("name1").startSpan();
+        assertThat(span.isRecording(), is(true));
+
+        span.end();
+
+        assertThat(span.isRecording(), is(false));
+        tracer.spanBuilder("child").setParent(span).startSpan().end();
+        assertThat(finishedSpan("child").getParentSpanId(), equalTo(finishedSpan("name1").getSpanId()));
     }
 
     public void testDisabledTracerDropsTheLocalTrace() {
@@ -522,7 +623,7 @@ public class APMTracerTests extends ESTestCase {
         threadContext.putHeader(Task.TRACE_STATE, "vendor=value");
 
         final Span span = tracer.spanBuilder("name1").startSpan();
-        assertThat(isRecorded(span), is(false));
+        assertThat(span.isRecording(), is(false));
         try (var ignored = span.storeInThreadContext()) {
             assertTraceIsDropped();
         }
@@ -543,7 +644,7 @@ public class APMTracerTests extends ESTestCase {
 
             // not even the spans of the current trace are recorded
             final Span span = tracer.spanBuilder("name1").setParent(root).startSpan();
-            assertThat(isRecorded(span), is(false));
+            assertThat(span.isRecording(), is(false));
             try (var ignored2 = span.storeInThreadContext()) {
                 assertTraceIsDropped();
                 // it is still the trace of the span that was current when tracing was disabled
@@ -565,9 +666,10 @@ public class APMTracerTests extends ESTestCase {
         // even though tracing is now enabled, the parent is sampled out, and will not allow to start a new child span
         final Span child = tracer.spanBuilder("child").setParent(span).startSpan();
 
-        assertThat(span, instanceOf(APMSpan.class));
-        assertThat(isRecorded(span), is(false));
-        assertThat(isRecorded(child), is(false));
+        assertThat(span, instanceOf(PropagatedSpan.class));
+        assertThat(span.isRecording(), is(false));
+        assertThat(child, instanceOf(PropagatedSpan.class));
+        assertThat(child.isRecording(), is(false));
         child.end();
         span.end();
         assertThat(finishedSpanNames(), empty());
@@ -579,8 +681,8 @@ public class APMTracerTests extends ESTestCase {
 
         try (var ignored = span.storeInThreadContext()) {
             final Span current = tracer.currentSpan();
-            assertThat(current, instanceOf(APMSpan.class));
-            assertThat(isRecorded(current), is(false));
+            assertThat(current, instanceOf(PropagatedSpan.class));
+            assertThat(current.isRecording(), is(false));
         }
     }
 
@@ -591,7 +693,7 @@ public class APMTracerTests extends ESTestCase {
     public void testRootSpanThatIsNotRecordedPropagatesTheDecision() {
         final APMTracer tracer = tracer(enabledSettings());
         final Span span = tracer.spanBuilder("name1_discard").startSpan();
-        assertThat(isRecorded(span), is(false));
+        assertThat(span.isRecording(), is(false));
 
         try (var ignored = span.storeInThreadContext()) {
             final SpanContext current = currentSpanContext();
@@ -616,7 +718,7 @@ public class APMTracerTests extends ESTestCase {
 
                 // the sampler would record this one, but it is part of a dropped trace
                 final Span grandchild = tracer.spanBuilder("grandchild").startSpan();
-                assertThat(isRecorded(grandchild), is(false));
+                assertThat(grandchild.isRecording(), is(false));
                 try (var ignored3 = grandchild.storeInThreadContext()) {
                     // the decision is the one of the trace
                     assertThat(currentSpanContext().getTraceId(), equalTo(discardedContext.getTraceId()));
@@ -634,10 +736,10 @@ public class APMTracerTests extends ESTestCase {
         threadContext.putHeader(Task.TRACE_PARENT_HTTP_HEADER, UNSAMPLED_TRACE_PARENT);
 
         final Span entry = tracer.spanBuilder("entry").startSpan();
-        assertThat(isRecorded(entry), is(false));
+        assertThat(entry.isRecording(), is(false));
 
         try (var ignored = entry.storeInThreadContext()) {
-            assertThat(isRecorded(tracer.spanBuilder("child").startSpan()), is(false));
+            assertThat(tracer.spanBuilder("child").startSpan().isRecording(), is(false));
 
             final SpanContext current = currentSpanContext();
             assertThat(current.getTraceId(), equalTo(TRACE_ID));
@@ -922,11 +1024,6 @@ public class APMTracerTests extends ESTestCase {
 
     private static void startAndEnd(Tracer tracer, String name) {
         tracer.spanBuilder(name).startSpan().end();
-    }
-
-    /** Whether the span is recorded, which is not the case for the spans that are dropped, nor once they have ended. */
-    private static boolean isRecorded(Span span) {
-        return span instanceof APMSpan apmSpan && spanOf(apmSpan.context()).isRecording();
     }
 
     private List<String> finishedSpanNames() {

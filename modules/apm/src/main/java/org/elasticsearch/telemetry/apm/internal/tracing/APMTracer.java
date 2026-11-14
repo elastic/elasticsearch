@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.telemetry.apm.internal.tracing.AbstractSpan.isSpanRecording;
 
 /**
  * {@link Tracer} implementation provided by the Elasticsearch {@code apm} module ({@code modules/apm}). It records spans using the
@@ -58,8 +59,7 @@ public class APMTracer implements Tracer {
         if (context == null) {
             return Span.noop();
         }
-        // always return the APMSpan wrapper, even if it's ended or not sampled: other spans might want to set it as the parent span
-        return new APMSpan(this, context);
+        return enabled.get() && isSpanRecording(context) ? new APMSpan(this, context) : new PropagatedSpan(this, context);
     }
 
     ThreadContext threadContext() {

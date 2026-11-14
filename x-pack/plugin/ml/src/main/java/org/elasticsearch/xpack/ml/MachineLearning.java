@@ -597,8 +597,15 @@ public class MachineLearning extends Plugin
             machineLearningExtension.set(new DefaultMachineLearningExtension());
         }
         if (loader != null) {
-            // The ES|QL plugin provides the analyzer; a second provider fails node startup on the SetOnce.
-            loader.loadExtensions(EsqlQueryAnalyzer.class).forEach(esqlQueryAnalyzer::set);
+            List<EsqlQueryAnalyzer> analyzers = loader.loadExtensions(EsqlQueryAnalyzer.class);
+            // With a shared classpath (internal cluster tests) every plugin extending ML finds the ES|QL services file,
+            // and the test composite plugin calls loadExtensions more than once.
+            if (analyzers.stream().map(Object::getClass).distinct().count() > 1) {
+                throw new IllegalStateException("Expected one ES|QL query analyzer provider but found " + analyzers);
+            }
+            if (analyzers.isEmpty() == false) {
+                esqlQueryAnalyzer.trySet(analyzers.getFirst());
+            }
         }
         if (esqlQueryAnalyzer.get() == null) {
             esqlQueryAnalyzer.set(new UnavailableEsqlQueryAnalyzer());

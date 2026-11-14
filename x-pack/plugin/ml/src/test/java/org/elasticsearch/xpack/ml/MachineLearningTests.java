@@ -36,6 +36,8 @@ import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.NodeRealAvailabilityZoneMapper;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryStructure;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.dataframe.RestGetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
@@ -338,6 +340,46 @@ public class MachineLearningTests extends ESTestCase {
             return new NodeRealAvailabilityZoneMapper(settings, clusterSettings);
         }
     }
+
+    public void testSameEsqlQueryAnalyzerLoadedRepeatedlyShouldNotFail() throws IOException {
+        try (MachineLearning machineLearning = new MachineLearning(Settings.EMPTY)) {
+            ExtensiblePlugin.ExtensionLoader loader = esqlAnalyzerLoader(new FirstTestAnalyzer(), new FirstTestAnalyzer());
+            machineLearning.loadExtensions(loader);
+            machineLearning.loadExtensions(loader);
+        }
+    }
+
+    public void testDifferentEsqlQueryAnalyzersShouldFailToLoad() throws IOException {
+        try (MachineLearning machineLearning = new MachineLearning(Settings.EMPTY)) {
+            ExtensiblePlugin.ExtensionLoader loader = esqlAnalyzerLoader(new FirstTestAnalyzer(), new SecondTestAnalyzer());
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> machineLearning.loadExtensions(loader));
+            assertThat(e.getMessage(), containsString("Expected one ES|QL query analyzer provider"));
+        }
+    }
+
+    private static ExtensiblePlugin.ExtensionLoader esqlAnalyzerLoader(EsqlQueryAnalyzer... analyzers) {
+        return new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                return extensionPointType == EsqlQueryAnalyzer.class ? (List<T>) List.of(analyzers) : List.of();
+            }
+        };
+    }
+
+    private static class FirstTestAnalyzer implements EsqlQueryAnalyzer {
+        @Override
+        public EsqlQueryStructure analyze(String query) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isDateType(String outputType) {
+            return false;
+        }
+    }
+
+    private static class SecondTestAnalyzer extends FirstTestAnalyzer {}
 
     public static class MlTestExtensionLoader implements ExtensiblePlugin.ExtensionLoader {
 

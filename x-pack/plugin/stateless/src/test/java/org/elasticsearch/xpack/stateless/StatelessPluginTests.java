@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.engine.StatelessReaderHeapBreaker;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
 import java.io.IOException;
@@ -65,7 +66,7 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testValidLicense() throws Exception {
-        final var settings = Settings.builder().put(STATELESS_ENABLED.getKey(), true).build();
+        final var settings = statelessEnabledSettings().build();
         final var licenseActive = randomBoolean();
         final Runnable runnable = () -> createStatelessPlugin(
             settings,
@@ -80,7 +81,7 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testInvalidLicense() throws Exception {
-        final var settings = Settings.builder().put(STATELESS_ENABLED.getKey(), true).build();
+        final var settings = statelessEnabledSettings().build();
         final License.OperationMode invalidMode = randomFrom(
             License.OperationMode.PLATINUM,
             License.OperationMode.GOLD,
@@ -92,21 +93,18 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testSettingsWithValidStatelessRole() throws Exception {
-        final var nodeSettings = Settings.builder()
-            .put(STATELESS_ENABLED.getKey(), true)
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of(randomFrom(STATELESS_ROLES).roleName()))
-            .build();
+        final var nodeSettings = statelessEnabledSettings().putList(
+            NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+            List.of(randomFrom(STATELESS_ROLES).roleName())
+        ).build();
         createStatelessPlugin(nodeSettings);
     }
 
     public void testSettingsWithBothIndexAndSearchRolesFail() throws Exception {
-        final var nodeSettings = Settings.builder()
-            .put(STATELESS_ENABLED.getKey(), true)
-            .putList(
-                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                List.of(DiscoveryNodeRole.INDEX_ROLE.roleName(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
-            )
-            .build();
+        final var nodeSettings = statelessEnabledSettings().putList(
+            NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+            List.of(DiscoveryNodeRole.INDEX_ROLE.roleName(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+        ).build();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeSettings));
         assertThat(ex.getMessage(), containsString("does not support a node with more than 1 role of"));
     }
@@ -116,22 +114,19 @@ public class StatelessPluginTests extends ESTestCase {
             .stream()
             .filter(r -> r.canContainData() && STATELESS_ROLES.contains(r) == false)
             .collect(Collectors.toSet());
-        final var nodeSettings = Settings.builder()
-            .put(STATELESS_ENABLED.getKey(), true)
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of(randomFrom(nonStatelessRoles).roleName()))
-            .build();
+        final var nodeSettings = statelessEnabledSettings().putList(
+            NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+            List.of(randomFrom(nonStatelessRoles).roleName())
+        ).build();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeSettings));
         assertThat(ex.getMessage(), containsString("does not support node roles"));
     }
 
     public void testSettingsWithDefaultDiskThresholdEnabled() throws Exception {
-        final var nodeSettings = Settings.builder()
-            .put(STATELESS_ENABLED.getKey(), true)
-            .putList(
-                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
-            )
-            .build();
+        final var nodeSettings = statelessEnabledSettings().putList(
+            NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+            randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
+        ).build();
         final var plugin = createStatelessPlugin(nodeSettings);
         assertThat(
             plugin.additionalSettings().get(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()),
@@ -147,10 +142,10 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testReaderHeapBreakerWiring() throws Exception {
-        final var settings = Settings.builder()
-            .put(STATELESS_ENABLED.getKey(), true)
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of(DiscoveryNodeRole.SEARCH_ROLE.roleName()))
-            .build();
+        final var settings = statelessEnabledSettings().putList(
+            NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+            List.of(DiscoveryNodeRole.SEARCH_ROLE.roleName())
+        ).build();
         final var plugin = createStatelessPlugin(settings);
 
         // Setting must be registered so cluster settings recognises it.
@@ -174,13 +169,10 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testDataStreamLifecycleSettings() throws Exception {
-        final var nodeSettings = Settings.builder()
-            .put(STATELESS_ENABLED.getKey(), true)
-            .putList(
-                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
-            )
-            .build();
+        final var nodeSettings = statelessEnabledSettings().putList(
+            NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+            randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
+        ).build();
         final var plugin = createStatelessPlugin(nodeSettings);
         assertThat(plugin.additionalSettings().get(StatelessPlugin.DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey()), equalTo("true"));
         assertThat(plugin.additionalSettings().get(StatelessPlugin.FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey()), equalTo("30s"));
@@ -194,7 +186,7 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testBloomFilterForDataStreamTimestampIndicesIsEnabled() {
-        final var plugin = createStatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build());
+        final var plugin = createStatelessPlugin(statelessEnabledSettings().build());
         assertThat(
             plugin.additionalSettings().get(StatelessPlugin.BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED.getKey()),
             equalTo("true")
@@ -203,20 +195,18 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testIdLookupPrewarmEnabledSettingIsRegistered() {
-        final var plugin = createStatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build());
+        final var plugin = createStatelessPlugin(statelessEnabledSettings().build());
         assertThat(plugin.getSettings(), hasItem(TransportStatelessPrimaryRelocationAction.ID_LOOKUP_PREWARM_MAX_SEGMENTS_SETTING));
     }
 
     public void testAllDataNodeRecoveryThrottlingSettingsAreRegistered() {
-        final var plugin = createStatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build());
+        final var plugin = createStatelessPlugin(statelessEnabledSettings().build());
         assertThat(plugin.getSettings(), hasItems(DataNodeRecoveryThrottlingSettings.settings().toArray(new Setting<?>[0])));
     }
 
     public void testEvictionPolicyFactoryIsInstalledOnTheCache() throws IOException {
         final long regionSize = SharedBytes.PAGE_SIZE;
-        final var settings = Settings.builder()
-            .put(STATELESS_ENABLED.getKey(), true)
-            .put(NODE_NAME_SETTING.getKey(), "node")
+        final var settings = statelessEnabledSettings().put(NODE_NAME_SETTING.getKey(), "node")
             .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
@@ -254,12 +244,16 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testDuplicateEvictionPolicyFactoryIsRejected() {
-        final var plugin = createStatelessPlugin(Settings.builder().put(STATELESS_ENABLED.getKey(), true).build());
+        final var plugin = createStatelessPlugin(statelessEnabledSettings().build());
         final EvictionPolicyFactory factory = (nodeSettings, clusterService, indicesService, timeProvider) -> {
             throw new AssertionError("factory should not create a policy");
         };
         final var e = expectThrows(IllegalStateException.class, () -> plugin.loadExtensions(evictionPolicyLoader(factory, factory)));
         assertThat(e.getMessage(), containsString(EvictionPolicyFactory.class.getName()));
+    }
+
+    private static Settings.Builder statelessEnabledSettings() {
+        return Settings.builder().put(STATELESS_ENABLED.getKey(), true).put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket");
     }
 
     private static ExtensiblePlugin.ExtensionLoader evictionPolicyLoader(EvictionPolicyFactory... factories) {

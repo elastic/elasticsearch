@@ -17,6 +17,7 @@ import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.indices.recovery.RecoveryGateMonitor;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -84,6 +85,7 @@ public class DNRTRolloutTests extends ESTestCase {
     private static ClusterSettings statelessClusterSettings() {
         final Settings nodeSettings = Settings.builder()
             .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket")
             .put(
                 NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
                 randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()

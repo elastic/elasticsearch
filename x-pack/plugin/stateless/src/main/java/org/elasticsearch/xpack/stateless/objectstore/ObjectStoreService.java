@@ -413,6 +413,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
     static final String GCS_MULTIPART_THRESHOLD_SETTING_KEY = "multipart_upload_chunk_size";
     static final String AZURE_MULTIPART_THRESHOLD_SETTING_KEY = "max_single_part_upload_size";
     static final String AZURE_MULTIPART_PART_SIZE_SETTING_KEY = "multipart_upload_part_size";
+    static final String AZURE_CLIENT_SETTING_PREFIX = "azure.client";
+    static final String S3_CLIENT_SETTING_PREFIX = "s3.client";
+    static final String MAX_CONNECTIONS_SETTING_KEY = "max_connections";
 
     private static final int UPLOAD_PERMITS = Integer.MAX_VALUE;
 
@@ -516,6 +519,33 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             "milliseconds",
             UploadDurationBuckets.BOUNDARIES_IN_MILLIS
         );
+    }
+
+    /// Returns a set of settings that are needed to configure connection pools of object store client used.
+    /// Note this assumes that `stateless.object_store.type` and `stateless.object_store.client` is available.
+    public static Settings connectionPoolSettings(Settings settings, StatelessThreadPools.ThreadPoolConfig threadPoolConfig) {
+        ObjectStoreType type = TYPE_SETTING.get(settings);
+        if (type != ObjectStoreType.S3 && type != ObjectStoreType.AZURE) {
+            return Settings.EMPTY;
+        }
+
+        String client = CLIENT_SETTING.get(settings);
+
+        // Add a 10% buffer to account for possible miscalculations.
+        // This is translated into the maximum size of a connection pool, and we will only use as much as we need.
+        // We only bump the ceiling.
+        int objectStoreAccessConcurrency = threadPoolConfig.expectedBlobStoreConcurrency() + threadPoolConfig.expectedBlobStoreConcurrency()
+            / 10;
+
+        if (type == ObjectStoreType.S3) {
+            return Settings.builder()
+                .put(S3_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY, objectStoreAccessConcurrency)
+                .build();
+        } else {
+            return Settings.builder()
+                .put(AZURE_CLIENT_SETTING_PREFIX + "." + client + "." + MAX_CONNECTIONS_SETTING_KEY, objectStoreAccessConcurrency)
+                .build();
+        }
     }
 
     @Override

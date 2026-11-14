@@ -190,12 +190,15 @@ abstract class ColumnWindow {
             // free the budget that abandoned scans hold before asking for more
             ScanRegistry.INSTANCE.beforeOpen(this);
             scanThread = Thread.currentThread();
-            pages = reader.scanRowGroup(column, group, windowSize);
+            // The scan starts at the document that the iterator asks for, not at the start of the row group: a slice of a segment
+            // starts in the middle of a group, and the file has no column index, so a scan from the start of the group would decode
+            // every page up to the slice. From the row, the reader skips the pages before it without decompressing them.
+            pages = reader.scanRowGroup(column, group, row - layout.firstRowOf(group), windowSize);
             if (owner != null) {
                 owner.scanOpened();
             }
             scanGroup = group;
-            scanNextRow = layout.firstRowOf(group);
+            scanNextRow = row;
         }
         ScanRegistry.INSTANCE.touch(this);
         while (true) {

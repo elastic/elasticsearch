@@ -178,13 +178,26 @@ public final class ParquetPositionalReader implements Closeable {
      * @param rowGroup the index of the row group in {@link #footer()}
      */
     public CloseableIterator<Page> scanRowGroup(String column, int rowGroup, int batchSize) throws IOException {
+        return scanRowGroup(column, rowGroup, 0L, batchSize);
+    }
+
+    /**
+     * Like {@link #scanRowGroup(String, int, int)}, but the scan starts at the row {@code startRow} of the group: the pages before it
+     * are not decoded and not returned, and the pages that lie wholly before it are not even decompressed. The first page holds the row
+     * {@code startRow} as its first row. A reader that serves a slice of a row group from a file without a column index uses this, so
+     * that the start of the group costs a header for each page and not a decode.
+     *
+     * @param startRow the row of the group to start at, {@code 0} for the first row; a row beyond the group gives an empty scan
+     */
+    public CloseableIterator<Page> scanRowGroup(String column, int rowGroup, long startRow, int batchSize) throws IOException {
         BlockMetaData block = footer.getBlocks().get(rowGroup);
         // The reader reads the row groups whose midpoint is in the byte range, so the range of the group's own bytes selects exactly it.
         long start = block.getStartingPos();
         long end = start + block.getCompressedSize();
         return formatReader.readRange(
             storageObject,
-            new RangeReadContext(List.of(column), batchSize, start, end, List.of(), ErrorPolicy.PERMISSIVE, warningSink)
+            new RangeReadContext(List.of(column), batchSize, start, end, List.of(), ErrorPolicy.PERMISSIVE, warningSink),
+            startRow
         );
     }
 

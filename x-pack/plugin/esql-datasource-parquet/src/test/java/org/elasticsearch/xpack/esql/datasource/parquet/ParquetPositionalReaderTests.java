@@ -27,6 +27,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
@@ -39,6 +41,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -92,7 +96,76 @@ public class ParquetPositionalReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A scan that starts at a row of the group returns that row first and the rest of the group after it, the same values as a scan
+     * from the start of the group, whatever the codec and however many pages lie before the row. The group has several pages of a
+     * few dozen rows, and the starts include the first row, a page boundary that the pages decide, the last row and the end.
+     */
+    public void testScanRowGroupFromARowReturnsTheRestOfTheGroup() throws IOException {
+        for (CompressionCodecName codec : new CompressionCodecName[] { CompressionCodecName.UNCOMPRESSED, CompressionCodecName.SNAPPY }) {
+            try (
+                ParquetPositionalReader reader = ParquetPositionalReader.open(
+                    file(codec, 1024L * 1024, 256),
+                    blockFactory,
+                    Settings.EMPTY,
+                    null
+                )
+            ) {
+                assertThat("one group, several pages", reader.footer().getBlocks().size(), equalTo(1));
+                for (long start : new long[] { 0, 1, 37, 100, 101, 299, ROWS - 1, ROWS }) {
+                    assertThat(scanIds(reader, 0, start, 25), equalTo(expectedIds(start, ROWS)));
+                }
+            }
+        }
+    }
+
+    /** The same, in a file of several row groups: the row is relative to the group, and the ids carry the file-global row. */
+    public void testScanRowGroupFromARowInLaterGroups() throws IOException {
+        try (ParquetPositionalReader reader = ParquetPositionalReader.open(file(), blockFactory, Settings.EMPTY, null)) {
+            long groupFirstRow = 0;
+            for (int group = 0; group < reader.footer().getBlocks().size(); group++) {
+                long rows = reader.footer().getBlocks().get(group).getRowCount();
+                long start = randomLongBetween(0, rows - 1);
+                assertThat(scanIds(reader, group, start, 16), equalTo(expectedIds(groupFirstRow + start, groupFirstRow + rows)));
+                groupFirstRow += rows;
+            }
+            assertThat(groupFirstRow, equalTo((long) ROWS));
+        }
+    }
+
+    private List<Long> scanIds(ParquetPositionalReader reader, int group, long startRow, int batchSize) throws IOException {
+        List<Long> ids = new ArrayList<>();
+        try (CloseableIterator<Page> pages = reader.scanRowGroup("id", group, startRow, batchSize)) {
+            while (pages.hasNext()) {
+                Page page = pages.next();
+                try {
+                    LongBlock block = page.getBlock(0);
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        ids.add(block.getLong(block.getFirstValueIndex(i)));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        return ids;
+    }
+
+    /** The ids of the rows {@code [from, to)} of the file: the id of a row is seven times its position. */
+    private static List<Long> expectedIds(long from, long to) {
+        List<Long> ids = new ArrayList<>();
+        for (long row = from; row < to; row++) {
+            ids.add(row * 7);
+        }
+        return ids;
+    }
+
     private static StorageObject file() throws IOException {
+        // a tiny row group budget forces several row groups out of 600 rows
+        return file(CompressionCodecName.UNCOMPRESSED, 1024L, ParquetWriter.DEFAULT_PAGE_SIZE);
+    }
+
+    private static StorageObject file(CompressionCodecName codec, long rowGroupSize, int pageSize) throws IOException {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
             .named("id")
@@ -107,9 +180,9 @@ public class ParquetPositionalReaderTests extends ESTestCase {
                 .withConf(new PlainParquetConfiguration())
                 .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
-                // a tiny row group budget forces several row groups out of 600 rows
-                .withRowGroupSize(1024L)
+                .withCompressionCodec(codec)
+                .withRowGroupSize(rowGroupSize)
+                .withPageSize(pageSize)
                 .build()
         ) {
             for (long i = 0; i < ROWS; i++) {

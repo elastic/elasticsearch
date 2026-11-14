@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -1791,39 +1792,54 @@ public class IndexSettingsTests extends ESTestCase {
         );
     }
 
-    public void testBatchIndexingDefaultsToStrictColumnarMode() {
+    public void testBatchIndexingDefaultsToStrictColumnarAndTimeSeriesMode() {
         for (IndexMode mode : IndexMode.values()) {
             Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), mode);
             if (mode == IndexMode.TIME_SERIES) {
                 builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim");
             }
             Settings settings = builder.build();
+            boolean expectedForMode = mode.isStrictColumnar()
+                || (mode == IndexMode.TIME_SERIES && BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled());
             assertThat(
                 "mode " + mode,
                 IndexSettings.BATCH_INDEXING.get(settings),
-                equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && mode.isStrictColumnar())
+                equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && expectedForMode)
             );
         }
         assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.EMPTY));
     }
 
     public void testBatchIndexingFallsBackToDeprecatedTimeSeriesSetting() {
+        boolean flagsEnabled = BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled();
+        Settings tsdbOptOut = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), false)
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(tsdbOptOut));
+
         Settings tsdbOptIn = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
             .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
             .build();
-        assertThat(IndexSettings.BATCH_INDEXING.get(tsdbOptIn), equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled()));
+        assertThat(IndexSettings.BATCH_INDEXING.get(tsdbOptIn), equalTo(flagsEnabled));
+        // without the flags the default is false, so the deprecated setting is only read with both of them
+        if (flagsEnabled) {
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
+        }
+    }
 
-        // an explicit opt-out through the old key overrides the strict-columnar default
+    public void testDeprecatedTimeSeriesBatchIndexingIgnoredOutsideTimeSeries() {
         Settings columnarOptOut = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)
             .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), false)
             .build();
-        assertFalse(IndexSettings.BATCH_INDEXING.get(columnarOptOut));
-        // with the feature flag off the default resolves to false without reading the deprecated setting
-        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexSettings.TIME_SERIES_BATCH_INDEXING });
-        }
+        assertThat(IndexSettings.BATCH_INDEXING.get(columnarOptOut), equalTo(BatchIndexingEnabled.FEATURE_FLAG.isEnabled()));
+
+        Settings standardOptIn = Settings.builder().put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true).build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(standardOptIn));
     }
 
     public void testBatchIndexingExplicitSettingWinsOverFallback() {
@@ -1844,6 +1860,14 @@ public class IndexSettingsTests extends ESTestCase {
         // defaults resolve to false rather than tripping the validator
         assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR).build()));
         assertFalse(
+            IndexSettings.BATCH_INDEXING.get(
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+                    .build()
+            )
+        );
+        assertFalse(
             IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true).build())
         );
         assertFalse(IndexSettings.BATCH_INDEXING.get(Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), false).build()));
@@ -1861,5 +1885,54 @@ public class IndexSettingsTests extends ESTestCase {
         );
         assertTrue(enabled.isBatchIndexingEnabled());
         assertFalse(IndexSettingsModule.newIndexSettings("index", Settings.EMPTY).isBatchIndexingEnabled());
+    }
+
+    public void testBatchIndexingDefaultsToFalseForStoredSource() {
+        Settings tsdbStored = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(tsdbStored));
+        assertFalse(IndexSettings.isBatchIndexingEnabled(tsdbStored));
+        assertFalse(IndexSettingsModule.newIndexSettings("index", tsdbStored).isBatchIndexingEnabled());
+    }
+
+    public void testDeprecatedBatchIndexingIgnoredForStoredSource() {
+        Settings tsdbStored = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+            .put(IndexSettings.TIME_SERIES_BATCH_INDEXING.getKey(), true)
+            .build();
+        assertFalse(IndexSettings.BATCH_INDEXING.get(tsdbStored));
+        assertFalse(IndexSettings.isBatchIndexingEnabled(tsdbStored));
+    }
+
+    public void testExplicitBatchIndexingRejectedForStoredSource() {
+        assumeTrue("setting can only be enabled with the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        Settings stored = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+            .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+            .build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.BATCH_INDEXING.get(stored));
+        assertThat(
+            e.getMessage(),
+            equalTo("[index.batch_indexing] can't be enabled for [index.mode=time_series] indices with [index.mapping.source.mode=stored]")
+        );
+        expectThrows(IllegalArgumentException.class, () -> IndexSettingsModule.newIndexSettings("index", stored));
+    }
+
+    public void testExplicitBatchIndexingHonoredForStoredSourceOutsideTimeSeries() {
+        assumeTrue("setting can only be enabled with the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        Settings stored = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB))
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+            .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+            .build();
+        assertTrue(IndexSettings.isBatchIndexingEnabled(stored));
+        assertTrue(IndexSettingsModule.newIndexSettings("index", stored).isBatchIndexingEnabled());
     }
 }

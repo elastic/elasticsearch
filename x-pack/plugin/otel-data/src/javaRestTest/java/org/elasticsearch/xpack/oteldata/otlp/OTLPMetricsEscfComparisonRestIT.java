@@ -250,7 +250,7 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
         // The ESCF path only applies to an existing data stream, so both are created before the first export.
         createDataStream(DOCMODE_STREAM);
         createDataStream(ESCF_STREAM);
-        // The doc-mode template has no index.batch_indexing setting, so its exports take the
+        // The doc-mode template sets index.batch_indexing to false, so its exports take the
         // XContent path even though indices.batch_indexing is enabled cluster-wide.
         populate(sender, DOCMODE_DATASET, workload, timestamps, numTimestampsPerMsg, numSplits);
         int escfBatchesBefore = countEscfBatches();
@@ -724,15 +724,15 @@ public class OTLPMetricsEscfComparisonRestIT extends ESRestTestCase {
      * pattern at priority 200. Uses the same {@code composed_of} list as the managed OTel template so field
      * mappings are identical.
      *
-     * @param batchIndexing when {@code true}, adds {@code index.batch_indexing: true} to the
-     *                      template settings so that backing indices opt in to the ESCF columnar path.
+     * @param batchIndexing the explicit {@code index.batch_indexing} value of the template, so that backing indices opt in to or
+     *                      out of the ESCF columnar path regardless of its TSDB default.
      */
     private static void installTemplate(String name, String pattern, boolean batchIndexing) throws IOException {
         // Disable ILM to prevent lazy rollover during the test window (which would switch the
         // write index and cause past timestamps to be rejected as out-of-range for the new index).
-        String batchIndexingSetting = batchIndexing ? """
+        String batchIndexingSetting = """
             ,
-                  "index.batch_indexing": true""" : "";
+                  "index.batch_indexing": $VALUE""".replace("$VALUE", Boolean.toString(batchIndexing));
         Request request = new Request("PUT", "_index_template/" + name);
         request.setJsonEntity("""
             {

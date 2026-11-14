@@ -76,6 +76,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Set<String> AFFECTED_SETTINGS = Set.of(
         IndexSettings.MODE.getKey(),
         IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+        IndexSettings.BATCH_INDEXING.getKey(),
         IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(),
         IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(),
         IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE.getKey(),
@@ -211,6 +212,10 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
                     fallbackSourceMode(resolvedIndexMode).toString()
                 );
+                // time series indices with stored source reject an explicit index.batch_indexing: true
+                if (resolvedIndexMode == IndexMode.TIME_SERIES && settings.getAsBoolean(IndexSettings.BATCH_INDEXING.getKey(), false)) {
+                    additionalSettings.put(IndexSettings.BATCH_INDEXING.getKey(), false);
+                }
             }
         }
 

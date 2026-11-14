@@ -727,7 +727,8 @@ public final class IndexSettings {
      * rather than individual XContent blobs, provided the cluster-level {@code indices.batch_indexing}
      * setting and its feature flag are also active.
      *
-     * @deprecated use {@link #BATCH_INDEXING}. This setting is only kept registered as a fallback for {@link #BATCH_INDEXING}'s default.
+     * @deprecated use {@link #BATCH_INDEXING}. This setting is only kept registered as a fallback for {@link #BATCH_INDEXING}'s default
+     * of time series indices, and only read when the {@code tsdb_batch_indexing} feature flag is enabled.
      */
     @Deprecated
     public static final Setting<Boolean> TIME_SERIES_BATCH_INDEXING = Setting.boolSetting(
@@ -770,7 +771,7 @@ public final class IndexSettings {
 
     /**
      * Returns {@code true} if this index opted in to batch indexing. Always {@code false} when the
-     * {@code batch_indexing} feature flag is off, because the setting cannot be enabled then.
+     * {@code batch_indexing} feature flag is off.
      */
     public boolean isBatchIndexingEnabled() {
         return batchIndexingEnabled;
@@ -1128,33 +1129,88 @@ public final class IndexSettings {
     );
 
     /**
-     * Per-index switch for batch indexing. Defaults to the value of the deprecated
-     * {@link #TIME_SERIES_BATCH_INDEXING} when that is explicitly set, otherwise to whether the index mode is strictly columnar.
+     * Per-index switch for batch indexing. Defaults to {@code true} for strictly columnar index modes. Time series indices default
+     * to {@code true} when the {@code tsdb_batch_indexing} feature flag is enabled ({@link BatchIndexingEnabled#TSDB_FEATURE_FLAG}),
+     * unless the deprecated {@link #TIME_SERIES_BATCH_INDEXING} is explicitly set, in which case they take its value. Other index
+     * modes default to {@code false}.
      * The setting is inert unless the cluster-level {@code indices.batch_indexing} kill switch and the feature flag are active.
      * It is always registered so that it is a known setting on every build, but it defaults to {@code false} and rejects an
      * explicit {@code true} when the feature flag is off.
+     * <p>
+     * Time series indices with {@link SourceFieldMapper.Mode#STORED stored} source don't support batch indexing: it rebuilds
+     * {@code _source} from the batch schema, which reorders its keys, while stored source promises to return the original document.
+     * The setting defaults to {@code false} for them, even when the deprecated setting is set, and an explicit {@code true} is
+     * rejected. The synthetic source license fallback, which forces stored source after the fact, also turns an explicit
+     * {@code true} off, so that it doesn't fail index creation.
      */
     public static final Setting<Boolean> BATCH_INDEXING = Setting.boolSetting("index.batch_indexing", settings -> {
         if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
             return Boolean.FALSE.toString();
         }
-        if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
-            return Boolean.toString(TIME_SERIES_BATCH_INDEXING.get(settings));
+        IndexMode mode = IndexSettings.MODE.get(settings);
+        if (mode.isStrictColumnar()) {
+            return Boolean.TRUE.toString();
+        } else if (mode == IndexMode.TIME_SERIES) {
+            return Boolean.toString(defaultBatchIndexingForTimeSeries(settings));
         }
-        return Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar());
-    }, value -> {
-        if (value && BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException(
-                "[index.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"
-            );
+        return Boolean.FALSE.toString();
+    }, new Setting.Validator<>() {
+        @Override
+        public void validate(Boolean value) {
+            if (value && BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException(
+                    "[index.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"
+                );
+            }
+        }
+
+        @Override
+        public void validate(Boolean value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            // batch indexing reorders the keys of _source, so it can't keep the promise of stored source
+            if (value
+                && settings.get(MODE) == IndexMode.TIME_SERIES
+                && settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING) == SourceFieldMapper.Mode.STORED) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "[%s] can't be enabled for [%s=%s] indices with [%s=%s]",
+                        BATCH_INDEXING.getKey(),
+                        MODE.getKey(),
+                        IndexMode.TIME_SERIES.getName(),
+                        INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                        SourceFieldMapper.Mode.STORED.name().toLowerCase(Locale.ROOT)
+                    )
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            List<Setting<?>> settings = List.of(MODE, INDEX_MAPPER_SOURCE_MODE_SETTING);
+            return settings.iterator();
         }
     }, Property.Final, Property.IndexScope);
 
+    private static boolean defaultBatchIndexingForTimeSeries(Settings settings) {
+        assert MODE.get(settings) == IndexMode.TIME_SERIES;
+        if (BatchIndexingEnabled.TSDB_FEATURE_FLAG.isEnabled() == false) {
+            return false;
+        }
+        // checked before the deprecated setting, because the validator rejects true for stored source
+        if (INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings) == SourceFieldMapper.Mode.STORED) {
+            return false;
+        }
+        if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
+            return TIME_SERIES_BATCH_INDEXING.get(settings);
+        }
+        return true;
+    }
+
     /**
-     * Whether an index with the given settings is eligible for batch indexing: the feature flag is on and
-     * {@link #BATCH_INDEXING} resolves to {@code true}. Coordinators use this to decide whether to build a batch, so that their
-     * decision matches {@link #isBatchIndexingEnabled()} on the shard. The cluster-level kill switch is not included because it
-     * is node-local and dynamic; callers check it via {@link BatchIndexingEnabled}.
+     * Whether an index with the given settings is eligible for batch indexing: the feature flag is on and {@link #BATCH_INDEXING}
+     * resolves to {@code true}. Coordinators use this to decide whether to build a batch, so that their decision matches
+     * {@link #isBatchIndexingEnabled()} on the shard. The cluster-level kill switch is not included because it is node-local and
+     * dynamic; callers check it via {@link BatchIndexingEnabled}.
      */
     public static boolean isBatchIndexingEnabled(Settings indexSettings) {
         return BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && BATCH_INDEXING.get(indexSettings);

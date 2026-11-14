@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.internal;
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.test.BwcSnapshotBuildsService;
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.DefaultTask;
@@ -25,7 +26,6 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.repositories.UrlArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
-import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
@@ -35,10 +35,8 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
-import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.TaskProvider;
@@ -48,22 +46,30 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.http.HttpClient;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
@@ -83,6 +89,9 @@ import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams
 public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     private static final String WRAPPER_DISTS_RELATIVE_PATH = "wrapper/dists";
+    // TODO: placeholder until the known-good bucket is provisioned; CI's BWC_KNOWN_GOOD_BUCKET overrides it
+    static final String DEFAULT_KNOWN_GOOD_BUCKET = "elasticsearch-ci-bwc-known-good";
+    static final String DEFAULT_KNOWN_GOOD_PREFIX = "elasticsearch/bwc-known-good";
     static final Attribute<Boolean> BWC_DISTRIBUTION_ATTRIBUTE = Attribute.of("bwc-distribution", Boolean.class);
 
     private final ObjectFactory objectFactory;
@@ -191,8 +200,16 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Provider<String> remote = providerFactory.systemProperty("bwc.remote").orElse("elastic");
         Provider<String> draBaseUrl = providerFactory.systemProperty("tests.bwc.dra.base.url")
             .orElse("https://artifacts-snapshot.elastic.co");
-        Provider<String> mavenSnapshotsBaseUrl = providerFactory.systemProperty("tests.bwc.mavensnapshot.base.url")
-            .orElse("https://snapshots.elastic.co/maven");
+        // The public store of known-good builds read in dra mode. CI's pipelines read and write the same location.
+        Provider<String> knownGoodUrl = providerFactory.systemProperty("tests.bwc.dra.known.good.url")
+            .orElse(
+                providerFactory.environmentVariable("BWC_KNOWN_GOOD_BUCKET")
+                    .orElse(DEFAULT_KNOWN_GOOD_BUCKET)
+                    .zip(
+                        providerFactory.environmentVariable("BWC_KNOWN_GOOD_PREFIX").orElse(DEFAULT_KNOWN_GOOD_PREFIX),
+                        (bucket, prefix) -> "https://storage.googleapis.com/" + bucket + "/" + prefix.replaceAll("/+$", "")
+                    )
+            );
         String bwcMode = providerFactory.systemProperty("tests.bwc.mode").getOrElse("gradle");
         validateBwcMode(bwcMode);
         Provider<String> bwcHashOverride = versionInfoProvider.map(info -> info.branch())
@@ -209,8 +226,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             // allowing the pre-built snapshot fast path on stale or absent refs.
             spec.getParameters().getHashOverride().set(bwcHashOverride);
             spec.getParameters().getBaseUrl().set(draBaseUrl);
+            spec.getParameters().getKnownGoodUrl().set(knownGoodUrl);
         });
         bwcGitPlugin.configureDraBuildId(draBuildId);
+        // so that the test JVMs of bwc tasks in other projects can name the build in their reproduce lines
+        BwcSnapshotBuildsService.register(project.getGradle()).get().register(versionInfo.version().toString(), draBuildId);
 
         // we want basic lifecycle tasks like `clean` here.
         project.getPlugins().apply(LifecycleBasePlugin.class);
@@ -247,9 +267,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 ),
                 buildBwcTaskProvider,
                 draBuildId,
-                bwcHashOverride,
-                draBaseUrl,
-                mavenSnapshotsBaseUrl
+                draBaseUrl
             );
 
             registerBwcDistributionArtifacts(project, distributionProject);
@@ -279,9 +297,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             ),
             buildBwcTaskProvider,
             draBuildId,
-            bwcHashOverride,
-            draBaseUrl,
-            mavenSnapshotsBaseUrl
+            draBaseUrl
         );
 
         // for versions before 8.7.0, we do not need to set up stable API bwc
@@ -324,9 +340,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 ),
                 buildBwcTaskProvider,
                 draBuildId,
-                bwcHashOverride,
-                draBaseUrl,
-                mavenSnapshotsBaseUrl
+                draBaseUrl
             );
         }
     }
@@ -596,9 +610,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         BwcArtifact artifact,
         TaskProvider<Task> bwcTaskProvider,
         Provider<String> draBuildId,
-        Provider<String> bwcHashOverride,
-        Provider<String> draBaseUrl,
-        Provider<String> mavenSnapshotsBaseUrl
+        Provider<String> draBaseUrl
     ) {
         String bwcTaskName = buildBwcTaskName(artifact.projectName());
         File expectedOutputFile = artifact.expectedOutputFile(bwcVersion.get(), isReleaseBuild());
@@ -613,9 +625,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 artifact,
                 bwcTaskName,
                 draBaseUrl.get(),
-                mavenSnapshotsBaseUrl.get(),
                 buildId,
-                bwcHashOverride.get().isEmpty() == false,
                 bwcVersion,
                 project.getExtensions().getByType(BwcGitExtension.class).getBwcBranch().get(),
                 bwcMode,
@@ -688,9 +698,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         BwcArtifact artifact,
         String bwcTaskName,
         String draBaseUrl,
-        String mavenSnapshotsBaseUrl,
         String buildId,
-        boolean hasHashOverride,
         Provider<Version> bwcVersion,
         String bwcBranch,
         BwcMode bwcMode,
@@ -698,30 +706,18 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         BuildParameterExtension buildParams,
         TaskProvider<Task> bwcTaskProvider
     ) {
-        Configuration prebuiltConfig = createPrebuiltResolvableConfiguration(project, artifact, bwcVersion.get());
-        String dependencyNotation = artifact.dependencyNotation(bwcVersion.get());
-        project.getDependencies().add(prebuiltConfig.getName(), dependencyNotation);
-        // Resolve leniently so a missing artifact does not surface as an opaque "Could not find ..." resolution failure.
-        // The verify task below turns any failure into an actionable error instead. There is deliberately no source-build
-        // fallback: once a pre-built snapshot was chosen, every artifact is expected to be published with it.
-        ArtifactCollection prebuiltArtifacts = prebuiltConfig.getIncoming().artifactView(view -> view.lenient(true)).getArtifacts();
-
-        UrlArtifactRepository repository;
+        // There is deliberately no source-build fallback in either branch below: once a pre-built snapshot was chosen,
+        // every artifact is expected to be published with it, and a missing one fails with an actionable error.
         if (artifact.isMavenArtifact()) {
-            repository = registerMavenSnapshotsRepository(project, mavenSnapshotsBaseUrl);
-            registerMavenSnapshotDownloadTask(
-                project,
-                artifact,
-                bwcTaskName,
-                buildId,
-                hasHashOverride,
-                bwcVersion,
-                dependencyNotation,
-                prebuiltArtifacts,
-                buildParams
-            );
+            registerDraMavenJarTask(project, artifact, bwcTaskName, draBaseUrl, buildId, bwcVersion.get(), bwcBranch, bwcMode, buildParams);
         } else {
-            repository = registerDraIvyRepository(project, artifact, draBaseUrl, buildId, bwcVersion.get());
+            Configuration prebuiltConfig = createPrebuiltResolvableConfiguration(project, artifact, bwcVersion.get());
+            String dependencyNotation = artifact.dependencyNotation(bwcVersion.get());
+            project.getDependencies().add(prebuiltConfig.getName(), dependencyNotation);
+            // Resolve leniently so a missing artifact does not surface as an opaque "Could not find ..." resolution failure.
+            // The verify task below turns any failure into an actionable error instead.
+            ArtifactCollection prebuiltArtifacts = prebuiltConfig.getIncoming().artifactView(view -> view.lenient(true)).getArtifacts();
+            UrlArtifactRepository repository = registerDraIvyRepository(project, artifact, draBaseUrl, buildId, bwcVersion.get());
             registerDistributionDraDownloadTask(
                 project,
                 artifact,
@@ -732,27 +728,29 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 prebuiltArtifacts,
                 buildParams
             );
+            TaskProvider<VerifyPrebuiltBwcArtifactTask> verifyTask = project.getTasks()
+                .register(
+                    "verifyPrebuilt" + bwcTaskName.substring(0, 1).toUpperCase(Locale.ROOT) + bwcTaskName.substring(1),
+                    VerifyPrebuiltBwcArtifactTask.class,
+                    t -> {
+                        t.setPrebuiltArtifacts(prebuiltArtifacts);
+                        t.getArtifactNotation().set(dependencyNotation);
+                        t.getBwcVersion().set(bwcVersion.get().toString());
+                        t.getBwcBranch().set(bwcBranch);
+                        t.getBwcMode().set(bwcMode.value());
+                        t.getDraBuildId().set(buildId);
+                        // The repository URL is read lazily so that later repository reconfiguration is reflected in the message.
+                        t.getArtifactUrl()
+                            .set(
+                                project.getProviders()
+                                    .provider(
+                                        () -> artifact.distributionArtifactUrl(repository.getUrl().toString(), bwcVersion.get(), buildId)
+                                    )
+                            );
+                    }
+                );
+            project.getTasks().named(bwcTaskName).configure(t -> t.dependsOn(verifyTask));
         }
-        TaskProvider<VerifyPrebuiltBwcArtifactTask> verifyTask = project.getTasks()
-            .register(
-                "verifyPrebuilt" + bwcTaskName.substring(0, 1).toUpperCase(Locale.ROOT) + bwcTaskName.substring(1),
-                VerifyPrebuiltBwcArtifactTask.class,
-                t -> {
-                    t.setPrebuiltArtifacts(prebuiltArtifacts);
-                    t.getArtifactNotation().set(dependencyNotation);
-                    t.getBwcVersion().set(bwcVersion.get().toString());
-                    t.getBwcBranch().set(bwcBranch);
-                    t.getBwcMode().set(bwcMode.value());
-                    t.getDraBuildId().set(buildId);
-                    // The repository URL is read lazily so that later repository reconfiguration is reflected in the message.
-                    t.getArtifactUrl()
-                        .set(
-                            project.getProviders()
-                                .provider(() -> artifact.artifactUrl(repository.getUrl().toString(), bwcVersion.get(), buildId))
-                        );
-                }
-            );
-        project.getTasks().named(bwcTaskName).configure(t -> t.dependsOn(verifyTask));
         bwcTaskProvider.configure(t -> t.dependsOn(bwcTaskName));
     }
 
@@ -772,58 +770,30 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         return prebuiltConfig;
     }
 
-    private static UrlArtifactRepository registerMavenSnapshotsRepository(Project project, String mavenSnapshotsBaseUrl) {
-        String repoName = "maven-snapshots-elasticsearch";
-        if (project.getRepositories().findByName(repoName) == null) {
-            project.getRepositories().maven(repo -> {
-                repo.setName(repoName);
-                repo.setUrl(mavenSnapshotsBaseUrl);
-                repo.metadataSources(s -> s.artifact());
-                repo.content(c -> c.includeGroupAndSubgroups("org.elasticsearch"));
-            });
-        }
-        return (UrlArtifactRepository) project.getRepositories().getByName(repoName);
-    }
-
-    private static void registerMavenSnapshotDownloadTask(
+    private static void registerDraMavenJarTask(
         Project project,
         BwcArtifact artifact,
         String bwcTaskName,
+        String draBaseUrl,
         String buildId,
-        boolean hasHashOverride,
-        Provider<Version> bwcVersion,
-        String dependencyNotation,
-        ArtifactCollection prebuiltArtifacts,
+        Version bwcVersion,
+        String bwcBranch,
+        BwcMode bwcMode,
         BuildParameterExtension buildParams
     ) {
-        // Maven JAR artifacts (JDBC, stable API): use a dedicated task type so that
-        // getOutputs().getFiles() contains exactly the downloaded JAR. A Copy task's
-        // implicit @OutputDirectory would also appear in the output file set, causing
-        // JarApiComparisonTask's single-jar assertion to fail with both the JAR name
-        // and the parent directory name ("distributions") in the set.
-        // A typed task class also avoids Configuration Cache issues: a plain
-        // DefaultTask doLast lambda cannot capture a Configuration object.
-        project.getTasks().register(bwcTaskName, DownloadMavenJarTask.class, task -> {
-            task.doFirst(t -> {
-                if (hasHashOverride) {
-                    t.getLogger()
-                        .warn(
-                            "BWC [{}]: tests.bwc.dra.hash is set, but Maven snapshot artifact [{}] still resolves the mutable version-SNAPSHOT coordinate from snapshots.elastic.co/maven; the pinned build ID [{}] does not pin this JAR",
-                            bwcVersion.get(),
-                            dependencyNotation,
-                            buildId
-                        );
-                }
-                t.getLogger()
-                    .lifecycle(
-                        "BWC [{}]: downloading pre-built Maven snapshot artifact [{}] from snapshots.elastic.co (DRA snapshot {}) — skipping source build",
-                        bwcVersion.get(),
-                        dependencyNotation,
-                        buildId
-                    );
-            });
-            task.getDraJar().from(prebuiltArtifacts.getArtifactFiles());
+        // Maven JAR artifacts (JDBC, stable API): snapshots.elastic.co/maven only serves the mutable
+        // version-SNAPSHOT coordinate, so take the JAR from the maven aggregation zip of the same DRA build
+        // as the distribution. A dedicated task type keeps getOutputs().getFiles() to exactly the one JAR
+        // (JarApiComparisonTask asserts a single jar), which a Copy task's output directory would break.
+        project.getTasks().register(bwcTaskName, DownloadDraMavenJarTask.class, task -> {
             task.getDraBuildId().set(buildId);
+            task.getAggregationZipUrl().set(artifact.mavenAggregationZipUrl(draBaseUrl, buildId, bwcVersion));
+            task.getEntryDirectory().set(artifact.mavenEntryDirectory(bwcVersion));
+            task.getModule().set(artifact.effectiveMavenModule());
+            task.getBwcVersion().set(bwcVersion.toString());
+            task.getBwcBranch().set(bwcBranch);
+            task.getBwcMode().set(bwcMode.value());
+            task.getCoordinates().set(artifact.dependencyNotation(bwcVersion));
             task.getOutputJar().set(artifact.projectArtifact().distFile);
             task.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", t -> buildParams.getCi() == false);
         });
@@ -1026,27 +996,16 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 : effectiveMavenGroup() + ":" + effectiveMavenModule() + ":" + versionString + ":" + gradleClassifier + "@" + extension;
         }
 
-        /** The URL this artifact is expected at in the given repository; must stay in line with the repository layouts above. */
-        String artifactUrl(String repositoryUrl, Version bwcVersion, String buildId) {
+        /** The URL this distribution is expected at in the DRA Ivy repository; must stay in line with the pattern above. */
+        String distributionArtifactUrl(String repositoryUrl, Version bwcVersion, String buildId) {
             String baseUrl = repositoryUrl.endsWith("/") ? repositoryUrl.substring(0, repositoryUrl.length() - 1) : repositoryUrl;
-            String versionString = bwcVersion + "-SNAPSHOT";
             String fileName = effectiveMavenModule()
                 + "-"
-                + versionString
+                + bwcVersion
+                + "-SNAPSHOT"
                 + (gradleClassifier.isEmpty() ? "" : "-" + gradleClassifier)
                 + "."
                 + extension;
-            if (isMavenArtifact()) {
-                return baseUrl
-                    + "/"
-                    + effectiveMavenGroup().replace('.', '/')
-                    + "/"
-                    + effectiveMavenModule()
-                    + "/"
-                    + versionString
-                    + "/"
-                    + fileName;
-            }
             return baseUrl + "/elasticsearch/" + buildId + "/downloads/elasticsearch/" + fileName;
         }
 
@@ -1056,6 +1015,21 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         String draRepositoryName(Version bwcVersion) {
             return "dra-bwc-elasticsearch-" + bwcVersion + "-" + projectName;
+        }
+
+        /** The DRA build's zip of its Maven repository, the only build-addressable copy of the Maven JARs. */
+        String mavenAggregationZipUrl(String draBaseUrl, String buildId, Version bwcVersion) {
+            return draBaseUrl
+                + "/elasticsearch/"
+                + buildId
+                + "/downloads/elasticsearch/elasticsearch-maven-aggregation-"
+                + bwcVersion
+                + "-SNAPSHOT.zip";
+        }
+
+        /** Directory of this artifact's snapshot versions inside the maven aggregation zip. */
+        String mavenEntryDirectory(Version bwcVersion) {
+            return effectiveMavenGroup().replace('.', '/') + "/" + effectiveMavenModule() + "/" + bwcVersion + "-SNAPSHOT/";
         }
 
         String distributionDraArtifactPattern(String buildId) {
@@ -1087,7 +1061,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 case "prebuilt", "dra" -> PREBUILT;
                 case "auto" -> AUTO;
                 default -> throw new InvalidUserDataException(
-                    "Invalid tests.bwc.mode value [" + value + "]. Must be one of: gradle, prebuilt, auto"
+                    "Invalid tests.bwc.mode value [" + value + "]. Must be one of: gradle, prebuilt, auto, dra"
                 );
             };
         }
@@ -1201,35 +1175,106 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     }
 
     /**
-     * Downloads a single pre-built Maven JAR artifact into the declared output file location.
+     * Extracts a single Maven JAR from a DRA snapshot build's maven aggregation zip, reading only the zip's central
+     * directory and the JAR entry over HTTP.
      *
-     * <p>Using a dedicated task type (rather than {@link Copy}) ensures that
-     * {@code getOutputs().getFiles()} contains exactly the one downloaded JAR, without the
-     * implicit {@code @OutputDirectory} that a {@code Copy} task registers, which would break
-     * {@link JarApiComparisonTask}'s single-jar assertion.
-     *
-     * <p>Declaring inputs as abstract properties (rather than capturing a
-     * {@link org.gradle.api.artifacts.Configuration} in a lambda) keeps this task compatible
-     * with Gradle's Configuration Cache and enables up-to-date checking via {@code draBuildId}.
+     * <p>The zip holds unique timestamped snapshots ({@code <module>-<version>-<yyyyMMdd.HHmmss>-<n>.jar}); the newest
+     * is taken and checked against its {@code .sha1} entry. A missing JAR fails the task: there is no fallback to the
+     * mutable snapshot repository or a source build, since either would test something other than the pinned build.
      */
-    public abstract static class DownloadMavenJarTask extends DefaultTask {
+    public abstract static class DownloadDraMavenJarTask extends DefaultTask {
 
         @Input
         public abstract Property<String> getDraBuildId();
 
-        @InputFiles
-        @PathSensitive(PathSensitivity.NONE)
-        public abstract ConfigurableFileCollection getDraJar();
+        @Input
+        public abstract Property<String> getAggregationZipUrl();
+
+        @Input
+        public abstract Property<String> getEntryDirectory();
+
+        @Input
+        public abstract Property<String> getModule();
+
+        @Input
+        public abstract Property<String> getBwcVersion();
+
+        @Input
+        public abstract Property<String> getCoordinates();
+
+        @Input
+        public abstract Property<String> getBwcBranch();
+
+        @Input
+        public abstract Property<String> getBwcMode();
 
         @OutputFile
         public abstract RegularFileProperty getOutputJar();
 
         @TaskAction
         public void download() throws IOException {
-            File src = getDraJar().getSingleFile();
+            String version = getBwcVersion().get();
+            String url = getAggregationZipUrl().get();
+            getLogger().lifecycle(
+                "BWC [{}]: extracting pre-built Maven artifact [{}] from DRA snapshot {} — skipping source build",
+                version,
+                getCoordinates().get(),
+                getDraBuildId().get()
+            );
+            HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+            RemoteZipEntryReader zip;
+            List<String> entryNames;
+            try {
+                zip = RemoteZipEntryReader.open(client, url);
+                entryNames = zip.entryNames();
+            } catch (IOException e) {
+                // The cause is included as text, not chained: Gradle's failure summary would report it in place of this message.
+                throw new GradleException(missingArtifactMessage(url + " (" + e.getMessage() + ")"));
+            }
+            String entry = selectJarEntry(entryNames, getEntryDirectory().get(), getModule().get(), version);
+            if (entry == null) {
+                throw new GradleException(missingArtifactMessage(url + " under [" + getEntryDirectory().get() + "]"));
+            }
+            byte[] jar = zip.read(entry);
+            if (entryNames.contains(entry + ".sha1")) {
+                String expected = new String(zip.read(entry + ".sha1"), StandardCharsets.US_ASCII).trim().split("\\s+")[0];
+                String actual = HexFormat.of().formatHex(sha1(jar));
+                if (actual.equalsIgnoreCase(expected) == false) {
+                    throw new GradleException(
+                        "BWC [" + version + "]: SHA-1 of [" + entry + "] in " + url + " is " + actual + ", expected " + expected
+                    );
+                }
+            }
             File dest = getOutputJar().getAsFile().get();
             dest.getParentFile().mkdirs();
-            Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            Files.write(dest.toPath(), jar);
+        }
+
+        private String missingArtifactMessage(String searched) {
+            return buildMissingPrebuiltArtifactMessage(
+                getCoordinates().get(),
+                getBwcVersion().get(),
+                getBwcBranch().get(),
+                getBwcMode().get(),
+                getDraBuildId().get(),
+                searched
+            );
+        }
+
+        /** Returns the newest snapshot JAR (not sources or javadoc) of {@code module} in {@code directory}, or null. */
+        static String selectJarEntry(List<String> entryNames, String directory, String module, String version) {
+            Pattern jar = Pattern.compile(
+                Pattern.quote(directory + module + "-" + version + "-") + "(\\d{8}\\.\\d{6}-\\d+|SNAPSHOT)\\.jar"
+            );
+            return entryNames.stream().filter(name -> jar.matcher(name).matches()).max(Comparator.naturalOrder()).orElse(null);
+        }
+
+        private static byte[] sha1(byte[] content) {
+            try {
+                return MessageDigest.getInstance("SHA-1").digest(content);
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException(e);
+            }
         }
     }
 

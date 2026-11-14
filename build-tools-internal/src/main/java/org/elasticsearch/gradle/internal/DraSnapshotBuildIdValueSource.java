@@ -45,13 +45,20 @@ import java.time.Duration;
  *       endpoint is unreachable (the caller will then fall back to a source build).</li>
  * </ul>
  *
- * <p>For backwards compatibility, {@code dra} is accepted as an alias for {@code prebuilt}.
+ * <ul>
+ *   <li>{@code dra} — resolves the branch's <em>known-good</em> build: the last DRA build that passed bwc tests in CI,
+ *       read from the public known-good store ({@link Params#getKnownGoodUrl()}). The record is used only when it is
+ *       for this exact version and the build is still in DRA; otherwise this behaves like {@code prebuilt}. Locally
+ *       this runs the same snapshots CI does, without credentials.</li>
+ * </ul>
  *
- * <p>In both prebuilt modes an optional commit-hash override can be supplied via
+ * <p>In all prebuilt modes an optional build hash override can be supplied via
  * {@code -Dtests.bwc.dra.hash.{branch}}.  When set, the build ID is constructed directly as
  * {@code {version}-{hash}} and its existence is verified against the manifest endpoint — the
  * "latest" lookup and remote-tracking ref comparison are both skipped.  This lets you pin to a
- * specific DRA snapshot even after the branch tip has moved.
+ * specific DRA snapshot even after the branch tip has moved; CI uses it to test the last snapshot
+ * that passed bwc tests rather than the moving tip.  A pin is strict: when the pinned build cannot be
+ * found the build fails instead of falling back, so a pinned run never silently tests something else.
  */
 public abstract class DraSnapshotBuildIdValueSource implements ValueSource<String, DraSnapshotBuildIdValueSource.Params> {
 
@@ -74,19 +81,20 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
          * BWC mode that controls how pre-built snapshot artifacts are resolved. Accepted values:
          * {@code "gradle"} (default — always build from source),
          * {@code "prebuilt"} (always download the latest pre-built snapshot artifacts, no hash check), or
-         * {@code "auto"} (download pre-built snapshot artifacts if the commit hash matches, otherwise build from source).
-         * The legacy value {@code "dra"} is also accepted as an alias for {@code "prebuilt"}.
+         * {@code "auto"} (download pre-built snapshot artifacts if the commit hash matches, otherwise build from source), or
+         * {@code "dra"} (download the branch's known-good build, or the latest one when there is none).
          *
          * <p>Set via the {@code tests.bwc.mode} system property.
          */
         Property<String> getMode();
 
         /**
-         * Optional abbreviated commit hash supplied via {@code -Dtests.bwc.dra.hash.{branch}}.
-         * When set the DRA build ID is constructed directly as {@code {version}-{hash}}
-         * (e.g. {@code 9.4.2-1a738181}) and its existence is verified against the manifest
-         * endpoint — the "latest" lookup and remote-tracking ref comparison are both skipped.
-         * This lets you pin to a specific DRA snapshot even after the branch tip has moved.
+         * Optional DRA build hash (the suffix of the DRA build ID, not a git commit) supplied via
+         * {@code -Dtests.bwc.dra.hash.{branch}}. When set the DRA build ID is constructed directly as
+         * {@code {version}-{hash}} (e.g. {@code 9.4.2-1a738181}) and its existence is verified against the
+         * manifest endpoint — the "latest" lookup and remote-tracking ref comparison are both skipped.
+         * This lets you pin to a specific DRA snapshot even after the branch tip has moved. If the pinned
+         * build cannot be verified the build fails.
          */
         Property<String> getHashOverride();
 
@@ -96,6 +104,12 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
          * {@code -Dtests.bwc.dra.base.url} in tests to redirect calls to a local mock server.
          */
         Property<String> getBaseUrl();
+
+        /**
+         * Base URL of the known-good store read in {@code dra} mode: one {@code <branch>.txt} object per branch holding the
+         * build ID, written by CI when a bwc run on that DRA build passes. It is a public bucket, read without credentials.
+         */
+        Property<String> getKnownGoodUrl();
     }
 
     @Override
@@ -104,6 +118,20 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
         if (mode.equals("gradle")) {
             return "";
         }
+        String hashOverride = getParameters().getHashOverride().getOrElse("");
+        if (hashOverride.isEmpty() == false) {
+            // Build ID is deterministic: {version}-{hash}. Skip the "latest" lookup and commit
+            // comparison — just verify the specific build exists in DRA. Not caught below: a
+            // pinned build that cannot be resolved must fail the build.
+            HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+            return resolvePinned(
+                client,
+                getParameters().getBaseUrl().get(),
+                getParameters().getVersion().get(),
+                getParameters().getBranch().get(),
+                hashOverride
+            );
+        }
         try {
             String version = getParameters().getVersion().get();
             String branch = getParameters().getBranch().get();
@@ -111,13 +139,12 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
             HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
             ObjectMapper mapper = new ObjectMapper();
 
-            String hashOverride = getParameters().getHashOverride().getOrElse("");
-            if (hashOverride.isEmpty() == false) {
-                // Build ID is deterministic: {version}-{hash}. Skip the "latest" lookup and
-                // commit comparison — just verify the specific build exists in DRA.
-                return resolveByHash(client, baseUrl, version, hashOverride);
+            if (mode.equals("dra")) {
+                String knownGood = resolveKnownGood(client, getParameters().getKnownGoodUrl().get(), baseUrl, version, branch);
+                if (knownGood.isEmpty() == false) {
+                    return knownGood;
+                }
             }
-
             if (mode.equals("prebuilt") || mode.equals("dra")) {
                 // Always use the latest pre-built snapshot artifacts: return the latest build ID
                 // without checking the commit hash.
@@ -141,14 +168,92 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
         }
     }
 
-    static String resolveByHash(HttpClient client, String baseUrl, String version, String hash) throws Exception {
+    /**
+     * Resolves a build pinned via {@code -Dtests.bwc.dra.hash.{branch}}, failing with a message that names the pin
+     * when the build is missing or the snapshot server is unreachable.
+     */
+    static String resolvePinned(HttpClient client, String baseUrl, String version, String branch, String hash) {
         String buildId = version + "-" + hash;
+        String pin = "-Dtests.bwc.dra.hash." + branch + "=" + hash;
+        int status;
+        try {
+            status = fetchManifestStatus(client, baseUrl, version, buildId);
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                "BWC [" + version + "]: could not verify pinned DRA snapshot build [" + buildId + "] (" + pin + ") at " + baseUrl,
+                e
+            );
+        }
+        if (status != 200) {
+            throw new IllegalStateException(
+                "BWC ["
+                    + version
+                    + "]: pinned DRA snapshot build ["
+                    + buildId
+                    + "] ("
+                    + pin
+                    + ") is not available: manifest returned HTTP "
+                    + status
+                    + ". The pin is not replaced by the latest snapshot or a source build; update or remove it."
+            );
+        }
+        return buildId;
+    }
+
+    /**
+     * Reads the branch's known-good build from the store and returns it when the record is for {@code version} and the
+     * build is still in DRA. Returns {@code ""} otherwise, including when the store cannot be read, so that {@code dra}
+     * mode falls back to the latest build.
+     */
+    static String resolveKnownGood(HttpClient client, String knownGoodUrl, String baseUrl, String version, String branch) {
+        String recordUrl = knownGoodUrl + "/" + branch + ".txt";
+        try {
+            HttpResponse<String> response = client.send(
+                HttpRequest.newBuilder().uri(URI.create(recordUrl)).timeout(Duration.ofSeconds(10)).GET().build(),
+                HttpResponse.BodyHandlers.ofString()
+            );
+            if (response.statusCode() != 200) {
+                logger.info(
+                    "BWC DRA [{}]: no known-good build at {} (HTTP {}); using the latest build",
+                    version,
+                    recordUrl,
+                    response.statusCode()
+                );
+                return "";
+            }
+            String buildId = response.body().trim();
+            if (buildId.startsWith(version + "-") == false) {
+                logger.info(
+                    "BWC DRA [{}]: known-good build [{}] of [{}] is for another version; using the latest build",
+                    version,
+                    buildId,
+                    branch
+                );
+                return "";
+            }
+            if (fetchManifestStatus(client, baseUrl, version, buildId) != 200) {
+                logger.info("BWC DRA [{}]: known-good build [{}] is no longer in DRA; using the latest build", version, buildId);
+                return "";
+            }
+            return buildId;
+        } catch (Exception e) {
+            logger.info(
+                "BWC DRA [{}]: could not read the known-good build from {}; using the latest build: {}",
+                version,
+                recordUrl,
+                e.getMessage()
+            );
+            return "";
+        }
+    }
+
+    private static int fetchManifestStatus(HttpClient client, String baseUrl, String version, String buildId) throws Exception {
         String manifestUrl = baseUrl + "/elasticsearch/" + buildId + "/manifest-" + version + "-SNAPSHOT.json";
         HttpResponse<String> response = client.send(
             HttpRequest.newBuilder().uri(URI.create(manifestUrl)).timeout(Duration.ofSeconds(10)).GET().build(),
             HttpResponse.BodyHandlers.ofString()
         );
-        return response.statusCode() == 200 ? buildId : "";
+        return response.statusCode();
     }
 
     /**

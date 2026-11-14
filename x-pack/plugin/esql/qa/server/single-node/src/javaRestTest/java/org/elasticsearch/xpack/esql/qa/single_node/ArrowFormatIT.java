@@ -15,6 +15,7 @@ import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.elasticsearch.client.Request;
@@ -182,6 +183,55 @@ public class ArrowFormatIT extends ESRestTestCase {
 
             assertDescription(root);
             assertValues(root);
+        }
+    }
+
+    /**
+     * {@code _source} and {@code flattened} values are emitted as JSON text in a VARCHAR, tagged with the {@code arrow.json}
+     * extension type.
+     */
+    public void testJsonExtensionType() throws Exception {
+        Request request = new Request("PUT", "/arrow-json-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value": { "type": "integer" },
+                  "flat": { "type": "flattened" }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-json-test&refresh=true");
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "flat": {"a": "x"}}
+            {"index": {"_id": "2"}}
+            {"value": 2}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-json-test METADATA _source | SORT value | LIMIT 100 | KEEP _source, flat"
+            }""")) {
+            for (String name : List.of("_source", "flat")) {
+                Field field = root.getSchema().findField(name);
+                assertEquals("arrow.json", field.getMetadata().get("ARROW:extension:name"));
+                assertEquals(ArrowType.Utf8.INSTANCE, field.getType());
+            }
+
+            var source = (VarCharVector) root.getVector("_source");
+            assertEquals("{\"value\": 1, \"flat\": {\"a\": \"x\"}}", source.getObject(0).toString());
+            assertEquals("{\"value\": 2}", source.getObject(1).toString());
+
+            var flat = (VarCharVector) root.getVector("flat");
+            assertEquals("{\"a\":\"x\"}", flat.getObject(0).toString());
+            assertTrue(flat.isNull(1));
+        } finally {
+            client().performRequest(new Request("DELETE", "/arrow-json-test"));
         }
     }
 

@@ -759,6 +759,15 @@ public abstract class FieldMapper extends Mapper {
                 if (mappers.isObjectField(copyTo)) {
                     throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
                 }
+                if (mappers.getMapper(copyTo) == null
+                    && mappers.getFieldType(copyTo) == null
+                    && ObjectMapper.Dynamic.getRootDynamic(mappers) == ObjectMapper.Dynamic.FALSE) {
+                    // With dynamic mappings disabled the target field can never be created, so the copied value would
+                    // silently disappear. Fail fast so the user knows the mapping is invalid.
+                    throw new IllegalArgumentException(
+                        "Cannot copy to non-existent field [" + copyTo + "] because dynamic mappings are disabled"
+                    );
+                }
 
                 final String targetScope = mappers.nestedLookup().getNestedParent(copyTo);
                 checkNestedScopeCompatibility(sourceScope, targetScope);

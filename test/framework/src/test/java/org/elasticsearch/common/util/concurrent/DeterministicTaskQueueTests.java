@@ -197,7 +197,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
         @Override
         Random createPriorityRandom() {
-            return new Random() {
+            return new Random(0) {
                 @Override
                 public double nextDouble() {
                     return priorities.nextDouble();

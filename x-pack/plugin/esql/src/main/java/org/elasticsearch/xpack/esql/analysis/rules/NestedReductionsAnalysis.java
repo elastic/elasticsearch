@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -246,7 +247,7 @@ public final class NestedReductionsAnalysis {
                     }
                 });
                 List<Alias> reductions = new ArrayList<>();
-                LogicalPlan lowered = p.transformExpressionsOnlyUp(Nested.class, nested -> {
+                Function<Nested, Attribute> reduce = nested -> {
                     if (nested instanceof NestedJson && p instanceof Eval == false) {
                         throw error(nested, "NESTED_JSON is supported in EVAL");
                     }
@@ -259,15 +260,24 @@ public final class NestedReductionsAnalysis {
                     var reduction = nested instanceof NestedJson json
                         ? bindJson(json, p.children().getFirst())
                         : bind(nested, p.children().getFirst(), context);
+                    // Named by its id: an EVAL keeps only the last of equally named columns, and equal reductions are common.
+                    NameId id = new NameId();
                     Alias result = new Alias(
                         nested.source(),
-                        Attribute.rawTemporaryName("nested_result", nested.hashCode() + ""),
+                        Attribute.rawTemporaryName("nested_result", id.toString()),
                         reduction,
-                        null,
+                        id,
                         true
                     );
                     reductions.add(result);
                     return result.toAttribute();
+                };
+                LogicalPlan lowered = p.transformExpressionsOnlyUp(Nested.class, nested -> {
+                    if (nested instanceof NestedStats && nested.keys().isEmpty() && nested.body() instanceof Avg avg) {
+                        // AVG is SUM / COUNT, as STATS computes it. Each half is a reduction of its own; they share one read.
+                        return avg.surrogate().transformUp(AggregateFunction.class, half -> reduce.apply(withBody(nested, half)));
+                    }
+                    return reduce.apply(nested);
                 });
                 if (reductions.isEmpty() == false) {
                     lowered = lowered.replaceChildren(List.of(new NestedReduce(p.source(), lowered.children().getFirst(), reductions)));
@@ -286,6 +296,13 @@ public final class NestedReductionsAnalysis {
                 return lowered;
             });
         }
+    }
+
+    /** {@code nested} reducing {@code body} instead of its own expression. */
+    private static Nested withBody(Nested nested, Expression body) {
+        List<Expression> children = new ArrayList<>(nested.children());
+        children.set(nested.collection() == null ? 0 : 1, body);
+        return nested.replaceChildren(children);
     }
 
     private static boolean inPath(String name, String path) {
@@ -341,18 +358,21 @@ public final class NestedReductionsAnalysis {
             if (collection == null && count.field().foldable()) {
                 throw error(nested, "NESTED(COUNT(*)) needs the collection to count, such as NESTED(items, COUNT(*))");
             }
-        } else if (body instanceof Sum == false && body instanceof Last == false) {
-            if (body.anyMatch(AggregateFunction.class::isInstance)) {
-                throw error(nested, "NESTED supports COUNT, SUM and LAST only, not [" + body.sourceText() + "]");
+        } else if (body instanceof Sum == false
+            && body instanceof Min == false
+            && body instanceof Max == false
+            && body instanceof Last == false) {
+                if (body.anyMatch(AggregateFunction.class::isInstance)) {
+                    throw error(nested, "NESTED supports COUNT, SUM, MIN, MAX, AVG and LAST only, not [" + body.sourceText() + "]");
+                }
+                if (body.dataType() == DataType.SOURCE || body.dataType() == DataType.OBJECT) {
+                    throw error(nested, "NESTED requires a scalar reduction, not an object collection");
+                }
+                if (body.dataType() == DataType.BOOLEAN) {
+                    throw error(nested, "NESTED takes a reduction; use NESTED_ANY or NESTED_ALL for a predicate");
+                }
+                throw error(nested, "NESTED requires a reduction such as SUM, COUNT or LAST, not [" + body.sourceText() + "]");
             }
-            if (body.dataType() == DataType.SOURCE || body.dataType() == DataType.OBJECT) {
-                throw error(nested, "NESTED requires a scalar reduction, not an object collection");
-            }
-            if (body.dataType() == DataType.BOOLEAN) {
-                throw error(nested, "NESTED takes a reduction; use NESTED_ANY or NESTED_ALL for a predicate");
-            }
-            throw error(nested, "NESTED requires a reduction such as SUM, COUNT or LAST, not [" + body.sourceText() + "]");
-        }
         if (body instanceof AggregateFunction aggregate) {
             if (aggregate.filter().equals(Literal.TRUE) == false || aggregate.window().equals(AggregateFunction.NO_WINDOW) == false) {
                 throw error(nested, name + " does not support inner aggregate filters or windows");
@@ -423,11 +443,6 @@ public final class NestedReductionsAnalysis {
                 throw error(at, function + " reads each row's nested documents, so it cannot follow [" + plan.sourceText() + "]");
             }
             plan = plan instanceof Join join ? join.left() : plan.children().getFirst();
-        }
-        for (EsRelation relation : primarySources(input)) {
-            if (relation.concreteQualifiedIndices().stream().anyMatch(index -> index.contains(":"))) {
-                throw error(at, function + " cross-cluster loading is not supported by this PoC");
-            }
         }
     }
 

@@ -25,7 +25,7 @@ public final class NestedStats extends Nested implements OptionalArgument {
 
     @FunctionInfo(
         preview = true,
-        returnType = { "integer", "long", "double", "keyword", "text" },
+        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text" },
         briefSummary = "Reduces the nested objects of each parent with an aggregate.",
         description = "Returns one completed reduction for each input parent row. "
             + "With `BY`, returns a keyword holding a JSON object of the aggregate for each group of nested objects."
@@ -34,7 +34,7 @@ public final class NestedStats extends Nested implements OptionalArgument {
         Source source,
         @Param(
             name = "expression",
-            type = { "integer", "long", "double", "keyword", "text", "_source" },
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "_source" },
             description = "Aggregate over fields from one nested path, or the nested collection the next expression reads."
         ) Expression child,
         @Param(

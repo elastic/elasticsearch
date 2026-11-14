@@ -1373,11 +1373,11 @@ unsupported inner aggregate is not enabled automatically:
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM nr_orders | EVAL total = NESTED(AVG(items.price))
+        query: FROM nr_orders | EVAL total = NESTED(MEDIAN(items.price))
 - match:
     error.type: verification_exception
 - contains:
-    error.reason: AVG
+    error.reason: MEDIAN
 ---
 bare scalar function is still unreduced:
 - do:

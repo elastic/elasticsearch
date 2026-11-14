@@ -50,6 +50,8 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -277,7 +279,8 @@ public final class NestedReduction extends EsqlScalarFunction {
             return new ReducerFactory(List.of(), null, null);
         }
         Expression value = prepareScalar(
-            groupings.isEmpty() == false || body instanceof Sum || body instanceof Count ? ((UnaryAggregateFunction) body).field()
+            groupings.isEmpty() == false || body instanceof Sum || body instanceof Count || body instanceof Min || body instanceof Max
+                ? ((UnaryAggregateFunction) body).field()
                 : body instanceof Last last ? last.field()
                 : body
         );

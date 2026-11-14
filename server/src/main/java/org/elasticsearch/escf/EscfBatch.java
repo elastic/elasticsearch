@@ -29,6 +29,9 @@ import org.elasticsearch.sourcebatch.SourceSchema;
  */
 public final class EscfBatch implements SourceBatch {
 
+    /** What a batch holds besides its columns. */
+    static final long BASE_RAM_BYTES_USED = 64L;
+
     private final SourceSchema schema;
     private final int docCount;
     /** Original column data, kept for RAM accounting. {@code null} for slice views. */
@@ -37,6 +40,8 @@ public final class EscfBatch implements SourceBatch {
     private final EscfColumn[] columns;
     private final Releasable releasable;
     private BytesReference serialized;
+    // computed once, since a batch does not change
+    private final long ramBytesUsed;
     private boolean closed;
 
     /** In-memory construction path used by {@link EscfEncoder#buildPartition(int)}. */
@@ -52,6 +57,7 @@ public final class EscfBatch implements SourceBatch {
         this.columns = buildColumns(columnData);
         this.releasable = releasable;
         this.serialized = serialized;
+        this.ramBytesUsed = serialized != null ? serialized.length() + BASE_RAM_BYTES_USED : columnsRamBytes(columnData);
     }
 
     /** Slice construction — shares backing data with the parent via adjusted column bases. */
@@ -62,6 +68,7 @@ public final class EscfBatch implements SourceBatch {
         this.columns = columns;
         this.releasable = () -> {};
         this.serialized = serialized;
+        this.ramBytesUsed = BASE_RAM_BYTES_USED;
     }
 
     private static EscfColumn[] buildColumns(EscfColumnData[] data) {
@@ -241,20 +248,21 @@ public final class EscfBatch implements SourceBatch {
         return size;
     }
 
+    /**
+     * The memory of the batch: its columns when built, its bytes when received. A slice shares its parent's memory and only
+     * counts its base.
+     */
     @Override
     public long ramBytesUsed() {
-        if (serialized != null) {
-            return serialized.length() + 64L;
+        return ramBytesUsed;
+    }
+
+    private static long columnsRamBytes(EscfColumnData[] columnData) {
+        long total = BASE_RAM_BYTES_USED;
+        for (EscfColumnData col : columnData) {
+            total += columnRamBytes(col);
         }
-        if (columnData != null) {
-            long total = 64L;
-            for (EscfColumnData col : columnData) {
-                total += columnRamBytes(col);
-            }
-            return total;
-        }
-        // Slice views share the parent's backing; the parent already accounts for all RAM.
-        return 64L;
+        return total;
     }
 
     /** Sums a column's own live storage plus, for ARRAY, its nested {@code child} column's storage. */

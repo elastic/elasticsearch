@@ -15,6 +15,7 @@ import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
+import io.opentelemetry.sdk.trace.SpanProcessor;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
@@ -179,6 +180,11 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
     }
 
     private static OtelSdkExportTracerSupplier supplier(Settings settings, Supplier<MeterProvider> meterProvider) {
-        return new OtelSdkExportTracerSupplier(settings, meterProvider, new ElasticTracestateSampler(new AtomicBoolean(true), settings));
+        return new OtelSdkExportTracerSupplier(
+            settings,
+            meterProvider,
+            SpanProcessor.composite(),
+            new ElasticTracestateSampler(new AtomicBoolean(true), settings)
+        );
     }
 }

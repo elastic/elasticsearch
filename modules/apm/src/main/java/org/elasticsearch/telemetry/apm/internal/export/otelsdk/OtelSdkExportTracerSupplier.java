@@ -19,6 +19,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.SpanProcessor;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 
@@ -41,6 +42,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
     private final Settings settings;
     private final Supplier<MeterProvider> meterProvider;
+    private final SpanProcessor spanProcessor;
     private final Sampler sampler;
     final String authHeader;
     private final Object mutex = new Object();
@@ -49,9 +51,15 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     @Nullable
     private volatile OpenTelemetry openTelemetry;
 
-    public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider, Sampler sampler) {
+    public OtelSdkExportTracerSupplier(
+        Settings settings,
+        Supplier<MeterProvider> meterProvider,
+        SpanProcessor spanProcessor,
+        Sampler sampler
+    ) {
         this.settings = settings;
         this.meterProvider = meterProvider;
+        this.spanProcessor = spanProcessor;
         this.sampler = sampler;
         this.authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
     }
@@ -134,6 +142,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
         SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
             .setResource(OtelSdkResource.get(settings))
             .setSampler(sampler)
+            .addSpanProcessor(spanProcessor)
             .addSpanProcessor(processor)
             .build();
 

@@ -882,7 +882,7 @@ public class APMTracerTests extends ESTestCase {
             .put(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH.getKey(), maxTraceDepth)
             .put(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.getKey(), recordExceptionStacks)
             .build();
-        final APMTracingService service = new APMTracingService(threadContext, allSampled, serviceSampler -> () -> {
+        final APMTracingService service = new APMTracingService(threadContext, allSampled, (processor, serviceSampler) -> () -> {
             final SdkTracerProvider tracerProvider = SdkTracerProvider.builder().setSampler(new Sampler() {
                 @Override
                 public SamplingResult shouldSample(
@@ -903,7 +903,7 @@ public class APMTracerTests extends ESTestCase {
                 public String getDescription() {
                     return "test sampler in front of " + serviceSampler.getDescription();
                 }
-            }).addSpanProcessor(SimpleSpanProcessor.create(exporter)).build();
+            }).addSpanProcessor(processor).addSpanProcessor(SimpleSpanProcessor.create(exporter)).build();
             final OpenTelemetrySdk sdk = OpenTelemetrySdk.builder()
                 .setTracerProvider(tracerProvider)
                 .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))

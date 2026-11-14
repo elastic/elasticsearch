@@ -1,0 +1,5 @@
+area: Aggregations
+issues: []
+pr: 166047
+summary: Fix duplicate word in terms aggregation docs
+type: bug

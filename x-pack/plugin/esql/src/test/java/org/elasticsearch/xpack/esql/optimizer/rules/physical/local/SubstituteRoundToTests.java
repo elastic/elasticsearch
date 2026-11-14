@@ -483,7 +483,7 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
             nullTags.add(null);
             var expectedQueryBuilderAndTags = List.of(
                 new EsQueryExec.QueryBuilderAndTags(existsQuery("date").boost(0), List.of(dateTimeToLong("2023-10-01"))),
-                new EsQueryExec.QueryBuilderAndTags(boolQuery().mustNot(existsQuery("date").boost(0)), nullTags)
+                new EsQueryExec.QueryBuilderAndTags(boolQuery().mustNot(existsQuery("date").boost(0)).boost(0), nullTags)
             );
             verifyQueryAndTags(expectedQueryBuilderAndTags, queryBuilderAndTags);
         }
@@ -964,11 +964,11 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
             expected.add(new EsQueryExec.QueryBuilderAndTags(qb, List.of(tag)));
         }
         // add null bucket
-        BoolQueryBuilder isNullQueryBuilder = boolQuery().mustNot(existsQuery(fieldName).boost(0));
+        BoolQueryBuilder isNullQueryBuilder = boolQuery().mustNot(existsQuery(fieldName).boost(0)).boost(0);
         List<Object> nullTags = new ArrayList<>(1);
         nullTags.add(null);
         if (mainQueryBuilder != null) {
-            isNullQueryBuilder = boolQuery().filter(mainQueryBuilder).filter(isNullQueryBuilder.boost(0));
+            isNullQueryBuilder = boolQuery().filter(mainQueryBuilder).filter(isNullQueryBuilder);
         }
         expected.add(new EsQueryExec.QueryBuilderAndTags(isNullQueryBuilder, nullTags));
         return expected;

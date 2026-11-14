@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165913
+summary: Keep disjunctions when combining pushed filters
+type: bug

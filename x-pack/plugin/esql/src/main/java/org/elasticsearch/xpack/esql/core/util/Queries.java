@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.core.util;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -22,9 +23,7 @@ public class Queries {
 
     public enum Clause {
         FILTER(BoolQueryBuilder::filter),
-        MUST(BoolQueryBuilder::must),
-        MUST_NOT(BoolQueryBuilder::mustNot),
-        SHOULD(BoolQueryBuilder::should);
+        MUST(BoolQueryBuilder::must);
 
         final Function<BoolQueryBuilder, List<QueryBuilder>> innerQueries;
 
@@ -34,44 +33,32 @@ public class Queries {
     }
 
     /**
-     * Combines the given queries while attempting to NOT create a new bool query and avoid
-     * unnecessary nested queries.
-     * The method tries to detect if the first query is a bool query - if that is the case it will
-     * reuse that for adding the rest of the clauses.
+     * Combines the given queries as clauses of a new bool query, or returns the only one, ignoring nulls and the queries that
+     * another one already requires, so combining a combination with one of its queries again changes nothing.
+     * Lucene flattens nested bool queries on the shard when that keeps their meaning.
      */
     public static QueryBuilder combine(Clause clause, List<QueryBuilder> queries) {
-        QueryBuilder firstQuery = null;
-        BoolQueryBuilder bool = null;
-
+        List<QueryBuilder> clauses = new ArrayList<>();
         for (QueryBuilder query : queries) {
-            if (query == null) {
-                continue;
-            }
-            if (firstQuery == null) {
-                firstQuery = query;
-                if (firstQuery instanceof BoolQueryBuilder bqb) {
-                    bool = bqb.shallowCopy();
-                }
-            }
-            // at least two entries, start copying
-            else if (query.equals(firstQuery) == false) {
-                // lazy init the root bool
-                if (bool == null) {
-                    bool = combine(clause, boolQuery(), firstQuery);
-                }
-                // keep adding queries to it
-                bool = combine(clause, bool, query);
+            if (query != null && clauses.stream().noneMatch(c -> requires(clause, c, query))) {
+                clauses.add(query);
             }
         }
-
-        return bool == null ? firstQuery : bool;
+        return switch (clauses.size()) {
+            case 0 -> null;
+            case 1 -> clauses.getFirst();
+            default -> {
+                BoolQueryBuilder bool = boolQuery();
+                clause.innerQueries.apply(bool).addAll(clauses);
+                yield bool;
+            }
+        };
     }
 
-    private static BoolQueryBuilder combine(Clause clause, BoolQueryBuilder bool, QueryBuilder query) {
-        var list = clause.innerQueries.apply(bool);
-        if (list.contains(query) == false) {
-            list.add(query);
-        }
-        return bool;
+    /** Whether {@code query} is {@code required} or holds it as a clause of this kind, at any depth. */
+    private static boolean requires(Clause clause, QueryBuilder query, QueryBuilder required) {
+        return query.equals(required)
+            || query instanceof BoolQueryBuilder bool
+                && clause.innerQueries.apply(bool).stream().anyMatch(q -> requires(clause, q, required));
     }
 }

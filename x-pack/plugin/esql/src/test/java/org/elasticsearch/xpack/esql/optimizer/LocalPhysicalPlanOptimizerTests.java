@@ -613,7 +613,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
-        var expected = boolQuery().mustNot(unscore(existsQuery("emp_no")));
+        var expected = unscore(boolQuery().mustNot(unscore(existsQuery("emp_no"))));
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -662,7 +662,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMvInRangeNotPushdown() {
         var plan = plannerOptimizer.plan("from test | where not mv_in_range(salary, 25000, 30000)");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
-        var expected = boolQuery().mustNot(unscore(rangeQuery("salary").from(25000, true).to(30000, true)));
+        var expected = unscore(boolQuery().mustNot(unscore(rangeQuery("salary").from(25000, true).to(30000, true))));
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
 
         var analyzer = makeAnalyzer("mapping-all-types.json");
@@ -670,14 +670,14 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
         assertThat(
             pushedQuery(kw).toString(),
-            equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").from("a", true).to("m", true))).toString())
+            equalTo(unscore(boolQuery().mustNot(unscore(rangeQuery("keyword").from("a", true).to("m", true)))).toString())
         );
 
         var ip = plannerOptimizer.plan("from test | where not mv_in_range(ip, \"1.1.1.1\"::ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
         assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
         assertThat(
             pushedQuery(ip).toString(),
-            equalTo(boolQuery().mustNot(unscore(rangeQuery("ip").from("1.1.1.1", true).to("2.2.2.2", true))).toString())
+            equalTo(unscore(boolQuery().mustNot(unscore(rangeQuery("ip").from("1.1.1.1", true).to("2.2.2.2", true)))).toString())
         );
 
         var version = plannerOptimizer.plan(
@@ -688,7 +688,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(version.anyMatch(FilterExec.class::isInstance), is(false));
         assertThat(
             pushedQuery(version).toString(),
-            equalTo(boolQuery().mustNot(unscore(rangeQuery("version").from("1.0.0", true).to("2.0.0", true))).toString())
+            equalTo(unscore(boolQuery().mustNot(unscore(rangeQuery("version").from("1.0.0", true).to("2.0.0", true)))).toString())
         );
     }
 
@@ -913,7 +913,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMvGreaterNotPushdown() {
         var plan = plannerOptimizer.plan("from test | where not mv_greater(salary, 25000)");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
-        var expected = boolQuery().mustNot(unscore(rangeQuery("salary").from(25000, false)));
+        var expected = unscore(boolQuery().mustNot(unscore(rangeQuery("salary").from(25000, false))));
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
     }
 
@@ -972,7 +972,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMvLessNotPushdown() {
         var plan = plannerOptimizer.plan("from test | where not mv_less(salary, 30000)");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
-        var expected = boolQuery().mustNot(unscore(rangeQuery("salary").to(30000, false)));
+        var expected = unscore(boolQuery().mustNot(unscore(rangeQuery("salary").to(30000, false))));
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
     }
 
@@ -1022,11 +1022,17 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var kw = plannerOptimizer.plan("from test | where not mv_greater(keyword, \"m\")", IS_SV_STATS, analyzer);
         assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
-        assertThat(pushedQuery(kw).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").from("m", false))).toString()));
+        assertThat(
+            pushedQuery(kw).toString(),
+            equalTo(unscore(boolQuery().mustNot(unscore(rangeQuery("keyword").from("m", false)))).toString())
+        );
 
         var ip = plannerOptimizer.plan("from test | where not mv_greater(ip, \"1.1.1.1\"::ip)", IS_SV_STATS, analyzer);
         assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
-        assertThat(pushedQuery(ip).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("ip").from("1.1.1.1", false))).toString()));
+        assertThat(
+            pushedQuery(ip).toString(),
+            equalTo(unscore(boolQuery().mustNot(unscore(rangeQuery("ip").from("1.1.1.1", false)))).toString())
+        );
     }
 
     /** NOT of a RECHECK-typed (double-family) mv_greater is not pushed at all. */
@@ -1044,11 +1050,17 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var kw = plannerOptimizer.plan("from test | where not mv_less(keyword, \"m\")", IS_SV_STATS, analyzer);
         assertThat(kw.anyMatch(FilterExec.class::isInstance), is(false));
-        assertThat(pushedQuery(kw).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("keyword").to("m", false))).toString()));
+        assertThat(
+            pushedQuery(kw).toString(),
+            equalTo(unscore(boolQuery().mustNot(unscore(rangeQuery("keyword").to("m", false)))).toString())
+        );
 
         var ip = plannerOptimizer.plan("from test | where not mv_less(ip, \"2.2.2.2\"::ip)", IS_SV_STATS, analyzer);
         assertThat(ip.anyMatch(FilterExec.class::isInstance), is(false));
-        assertThat(pushedQuery(ip).toString(), equalTo(boolQuery().mustNot(unscore(rangeQuery("ip").to("2.2.2.2", false))).toString()));
+        assertThat(
+            pushedQuery(ip).toString(),
+            equalTo(unscore(boolQuery().mustNot(unscore(rangeQuery("ip").to("2.2.2.2", false)))).toString())
+        );
     }
 
     /** NOT of a RECHECK-typed (double-family) mv_less is not pushed at all. */
@@ -1104,7 +1116,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMvLikeNotPushdown() {
         var plan = plannerOptimizer.plan("from test | where not mv_like(first_name, \"Ann*\")");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
-        var expected = boolQuery().mustNot(unscore(wildcardQuery("first_name", "Ann*")));
+        var expected = unscore(boolQuery().mustNot(unscore(wildcardQuery("first_name", "Ann*"))));
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
     }
 
@@ -1148,7 +1160,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMvRLikeNotPushdown() {
         var plan = plannerOptimizer.plan("from test | where not mv_rlike(first_name, \"Ann.*\")");
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(false));
-        var expected = boolQuery().mustNot(unscore(regexpQuery("first_name", "Ann.*")));
+        var expected = unscore(boolQuery().mustNot(unscore(regexpQuery("first_name", "Ann.*"))));
         assertThat(pushedQuery(plan).toString(), equalTo(expected.toString()));
     }
 
@@ -1312,7 +1324,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var query = as(fieldExtract.child(), EsQueryExec.class);
-        var expected = boolQuery().mustNot(unscore(existsQuery(textField)));
+        var expected = unscore(boolQuery().mustNot(unscore(existsQuery(textField))));
         assertThat(query.query().toString(), is(expected.toString()));
     }
 

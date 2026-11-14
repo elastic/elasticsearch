@@ -156,6 +156,18 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
     }
 
     @Override
+    public void testDisjunctionFilterWithPushedFilter() throws IOException {
+        assumeTrue(
+            "requires the fix on the remote cluster",
+            RestEsqlTestCase.hasCapabilities(
+                remoteClient,
+                List.of(EsqlCapabilities.Cap.FIX_DISJUNCTION_COMBINED_WITH_PUSHED_FILTER.capabilityName())
+            )
+        );
+        super.testDisjunctionFilterWithPushedFilter();
+    }
+
+    @Override
     public void testIndicesDontExist() throws IOException {
         assumeFalse("skip_unavailable=true causes partial result with corresponding remote being skipped", isCCSRequest);
         super.testIndicesDontExist();

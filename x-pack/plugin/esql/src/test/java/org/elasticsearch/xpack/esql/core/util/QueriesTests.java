@@ -12,21 +12,21 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class QueriesTests extends ESTestCase {
 
-    private static QueryBuilder randomNonBoolQuery() {
+    private static QueryBuilder randomQuery() {
         return randomFrom(
             random(),
             QueryBuilders::matchAllQuery,
@@ -34,117 +34,53 @@ public class QueriesTests extends ESTestCase {
             () -> QueryBuilders.rangeQuery(randomRealisticUnicodeOfLength(5)),
             () -> QueryBuilders.termQuery(randomAlphaOfLength(5), randomAlphaOfLength(5)),
             () -> QueryBuilders.existsQuery(randomAlphaOfLength(5)),
-            () -> QueryBuilders.geoBoundingBoxQuery(randomAlphaOfLength(5))
+            () -> QueryBuilders.boolQuery().filter(QueryBuilders.existsQuery(randomAlphaOfLength(5))),
+            () -> QueryBuilders.boolQuery()
+                .should(QueryBuilders.termQuery(randomAlphaOfLength(5), 1))
+                .should(QueryBuilders.termQuery(randomAlphaOfLength(5), 2))
         );
     }
 
-    private static BoolQueryBuilder randomBoolQuery() {
-        var bool = QueryBuilders.boolQuery();
-        if (randomBoolean()) {
-            bool.filter(randomNonBoolQuery());
-        }
-        if (randomBoolean()) {
-            bool.must(randomNonBoolQuery());
-        }
-        if (randomBoolean()) {
-            bool.mustNot(randomNonBoolQuery());
-        }
-        if (randomBoolean()) {
-            bool.should(randomNonBoolQuery());
-        }
-        return bool;
+    public void testCombineNothing() {
+        var clause = randomFrom(Queries.Clause.values());
+        assertThat(Queries.combine(clause, asList(null, null)), nullValue());
     }
 
-    private static QueryBuilder[] randomDistinctQueries(Supplier<QueryBuilder> supplier) {
-        Set<QueryBuilder> queries = new LinkedHashSet<>();
+    public void testCombineOneQuery() {
+        var clause = randomFrom(Queries.Clause.values());
+        var query = randomQuery();
+        assertThat(Queries.combine(clause, asList(null, query, null, query)), sameInstance(query));
+    }
+
+    /** Each query is a clause of its own, so a bool query keeps its meaning, as one with should clauses that must match one. */
+    public void testCombineQueries() {
+        Set<QueryBuilder> distinct = new LinkedHashSet<>();
         int size = between(2, 10);
-        while (queries.size() < size) {
-            queries.add(supplier.get());
+        while (distinct.size() < size) {
+            distinct.add(randomQuery());
         }
-        return queries.toArray(QueryBuilder[]::new);
-    }
-
-    public void testCombineNotCreatingBool() {
-        var clause = randomFrom(Queries.Clause.values());
-        var nonBool = randomNonBoolQuery();
-        assertThat(nonBool, sameInstance(Queries.combine(clause, asList(null, null, nonBool, null))));
-    }
-
-    public void testCombineNonBoolQueries() {
-        var queries = randomDistinctQueries(QueriesTests::randomNonBoolQuery);
+        List<QueryBuilder> queries = new ArrayList<>(distinct);
+        List<QueryBuilder> withNullsAndDuplicates = new ArrayList<>(queries);
+        withNullsAndDuplicates.add(null);
+        withNullsAndDuplicates.add(randomFrom(queries));
 
         var clause = randomFrom(Queries.Clause.values());
-        var list = asList(queries);
-        var combination = Queries.combine(clause, list);
+        var combination = Queries.combine(clause, withNullsAndDuplicates);
 
         assertThat(combination, instanceOf(BoolQueryBuilder.class));
         var bool = (BoolQueryBuilder) combination;
-        var clauseList = clause.innerQueries.apply(bool);
-        assertThat(list, everyItem(in(clauseList)));
+        assertThat(clause.innerQueries.apply(bool), equalTo(queries));
+        assertThat(bool.should(), empty());
     }
 
-    public void testCombineBoolQueries() {
-        var queries = randomDistinctQueries(QueriesTests::randomBoolQuery);
-
+    /** Combining a combination with queries it already holds changes nothing, as a rule pushing the same filters again needs. */
+    public void testCombineAgainChangesNothing() {
         var clause = randomFrom(Queries.Clause.values());
-        var list = asList(queries);
-        var combination = Queries.combine(clause, list);
+        var queries = List.of(randomQuery(), QueryBuilders.existsQuery("a"), QueryBuilders.existsQuery("b"));
+        var combination = Queries.combine(clause, queries);
+        var nested = Queries.combine(clause, List.of(combination, QueryBuilders.existsQuery("c")));
 
-        assertThat(combination, instanceOf(BoolQueryBuilder.class));
-        var bool = (BoolQueryBuilder) combination;
-        assertBoolQueryMerge(queries, bool, clause);
-    }
-
-    public void testCombineEqualNonBoolQueries() {
-        var clause = randomFrom(Queries.Clause.values());
-        var query = randomNonBoolQuery();
-        assertThat(Queries.combine(clause, asList(query, query)), sameInstance(query));
-    }
-
-    public void testCombineEqualBoolQueries() {
-        var clause = randomFrom(Queries.Clause.values());
-        var query = QueryBuilders.boolQuery().should(QueryBuilders.termQuery("a", 1)).should(QueryBuilders.termQuery("b", 2));
-        assertThat(Queries.combine(clause, asList(query, query)), equalTo(query));
-    }
-
-    private void assertBoolQueryMerge(QueryBuilder[] queries, BoolQueryBuilder bool, Queries.Clause clause) {
-        BoolQueryBuilder first = (BoolQueryBuilder) queries[0];
-        for (QueryBuilder b : first.must()) {
-            assertThat(bool.must(), hasItem(b));
-        }
-        for (QueryBuilder b : first.mustNot()) {
-            assertThat(bool.mustNot(), hasItem(b));
-        }
-        for (QueryBuilder b : first.should()) {
-            assertThat(bool.should(), hasItem(b));
-        }
-        for (QueryBuilder b : first.filter()) {
-            assertThat(bool.filter(), hasItem(b));
-        }
-
-        var clauseList = clause.innerQueries.apply(bool);
-        for (int i = 1; i < queries.length; i++) {
-            assertThat(queries[i], in(clauseList));
-        }
-    }
-
-    public void testCombineMixedBoolAndNonBoolQueries() {
-        var queries = randomDistinctQueries(() -> randomBoolean() ? randomBoolQuery() : randomNonBoolQuery());
-
-        var clause = randomFrom(Queries.Clause.values());
-        var list = asList(queries);
-        var combination = Queries.combine(clause, list);
-
-        assertThat(combination, instanceOf(BoolQueryBuilder.class));
-        var bool = (BoolQueryBuilder) combination;
-
-        if (queries[0] instanceof BoolQueryBuilder) {
-            assertBoolQueryMerge(queries, bool, clause);
-        } else {
-            var clauseList = clause.innerQueries.apply(bool);
-            for (QueryBuilder query : queries) {
-                assertThat(query, in(clauseList));
-            }
-        }
+        assertThat(Queries.combine(clause, List.of(combination, randomFrom(queries))), sameInstance(combination));
+        assertThat(Queries.combine(clause, List.of(nested, randomFrom(queries))), sameInstance(nested));
     }
 }

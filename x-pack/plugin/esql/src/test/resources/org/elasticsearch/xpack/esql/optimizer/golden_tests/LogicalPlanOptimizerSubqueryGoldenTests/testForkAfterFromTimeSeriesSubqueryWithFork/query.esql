@@ -1,0 +1,2 @@
+FROM employees, (TS k8s | STATS m = MAX(network.bytes_in) BY cluster | FORK (WHERE m > 0) (WHERE m <= 0))
+| FORK (WHERE m > 5) (WHERE m <= 5)

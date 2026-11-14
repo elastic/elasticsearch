@@ -1594,9 +1594,10 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
 
         /**
-         * EVAL fields overwritten by an IN subquery are appended at the end of the output, matching ordinary EVAL shadowing.
+         * A FORK may follow a subquery, a view or a LET binding that itself contains a FORK. Each of them is its own FORK scope, so the
+         * two FORKs are not consecutive on one pipeline. Two FORKs the user wrote on the same pipeline are still rejected while parsing.
          */
-        EVAL_IN_SUBQUERY_OVERWRITE_APPENDED,
+        ALLOW_FORK_ACROSS_SUBQUERY_VIEW_LET_BOUNDARY,
 
         /**
          * Support IN non-correlated subqueries in WHERE command.
@@ -1690,6 +1691,11 @@ public class EsqlCapabilities {
          * Support non-correlated IN subqueries in the {@code EVAL} command.
          */
         EVAL_IN_SUBQUERY,
+
+        /**
+         * EVAL fields overwritten by an IN subquery are appended at the end of the output, matching ordinary EVAL shadowing.
+         */
+        EVAL_IN_SUBQUERY_OVERWRITE_APPENDED,
 
         /**
          * Support IN non-correlated subqueries inside the STATS command's per-aggregate WHERE filter, e.g.
@@ -4860,6 +4866,13 @@ public class EsqlCapabilities {
          * {@code TS k8s METADATA _tsid | STATS BY _tsid}, failed with an {@link IllegalStateException}.
          */
         FIX_TS_STATS_BY_TSID,
+
+        /**
+         * A {@code FORK} between the {@code TS} source and the first aggregation is rejected with a clear error. Before, the
+         * {@code STATS} failed in the planner with "optimized incorrectly due to missing references [_tsid]".
+         * See <a href="https://github.com/elastic/elasticsearch/issues/160269">#160269</a>.
+         */
+        TS_FORK_BEFORE_STATS_NOT_SUPPORTED,
 
         /**
          * Fixes a bug in the planner where aggregations over columns produced by earlier {@code STATS} or {@code INLINE STATS},

@@ -633,3 +633,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRecoveryMetricPublicationOnIndexingShardRelocation
   issue: https://github.com/elastic/elasticsearch/issues/166001
+- class: org.elasticsearch.index.query.IntervalQueryBuilderTests
+  tasks:
+  - :server:test
+  method: testToQueryChargesBreakerOnce
+  issue: https://github.com/elastic/elasticsearch/issues/166038

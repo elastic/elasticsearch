@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166013
+summary: Fix INLINE STATS splitting its join output into tiny pages
+type: bug

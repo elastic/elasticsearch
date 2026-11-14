@@ -51,15 +51,20 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
         this.values = values;
     }
 
+    static final long MIN_TARGET_BLOCK_BYTES = ByteSizeValue.ofKb(10).getBytes();
+
     /**
-     * The target size of each loaded block.
-     * TODO target the size more intelligently
+     * The target size of each loaded block. Each loaded block gets an equal share of the page
+     * budget, so pages the source already sized to fit {@link Operator#TARGET_PAGE_SIZE} pass
+     * through whole. The floor keeps pages with many columns from being cut into minimum-size pages.
      */
-    static final ByteSizeValue TARGET_BLOCK_SIZE = ByteSizeValue.ofKb(10);
+    static ByteSizeValue targetBlockSize(int inputBlockCount) {
+        return ByteSizeValue.ofBytes(Math.max(MIN_TARGET_BLOCK_BYTES, Operator.TARGET_PAGE_SIZE / (inputBlockCount + 1)));
+    }
 
     @Override
     protected ReleasableIterator<Page> receive(Page page) {
-        return appendBlocks(page, values.block.lookup(page.getBlock(positionsOrd), TARGET_BLOCK_SIZE));
+        return appendBlocks(page, values.block.lookup(page.getBlock(positionsOrd), targetBlockSize(page.getBlockCount())));
     }
 
     @Override

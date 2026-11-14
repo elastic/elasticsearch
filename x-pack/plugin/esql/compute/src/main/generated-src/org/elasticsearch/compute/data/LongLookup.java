@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.ReleasableIterator;
@@ -19,9 +20,11 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-Lookup.java.st} instead.
  */
 public final class LongLookup implements ReleasableIterator<LongBlock> {
+    private static final int PREALLOCATED_BYTES_PER_VALUE = Long.BYTES;
     private final LongBlock values;
     private final IntBlock positions;
     private final long targetByteSize;
+    private final int initialPositions;
     private int position;
 
     private long first;
@@ -33,6 +36,9 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
         this.values = values;
         this.positions = positions;
         this.targetByteSize = targetBlockSize.getBytes();
+        // The builder counts its preallocated array in estimatedBytes, so preallocate only as many positions as fit under the target.
+        long fittingPositions = (targetByteSize - RamUsageEstimator.NUM_BYTES_ARRAY_HEADER - 1) / PREALLOCATED_BYTES_PER_VALUE;
+        this.initialPositions = (int) Math.min(Integer.MAX_VALUE, Math.max(1, fittingPositions));
     }
 
     @Override
@@ -42,7 +48,8 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
 
     @Override
     public LongBlock next() {
-        try (LongBlock.Builder builder = positions.blockFactory().newLongBlockBuilder(positions.getTotalValueCount())) {
+        int initialSize = Math.min(positions.getPositionCount() - position, initialPositions);
+        try (LongBlock.Builder builder = positions.blockFactory().newLongBlockBuilder(initialSize)) {
             int count = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
@@ -58,7 +65,7 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
                 }
                 position++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() >= targetByteSize) {
                     break;
                 }
             }

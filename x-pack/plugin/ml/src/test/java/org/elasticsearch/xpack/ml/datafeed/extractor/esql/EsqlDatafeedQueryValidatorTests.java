@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -1270,7 +1271,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
-    public void testLimitBeforeStatsShouldAddWarning() {
+    public void testLimitBeforeStatsShouldOnlyWarnAboutLimitBeforeStats() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         HeaderWarning.setThreadContext(threadContext);
         try {
@@ -1278,16 +1279,45 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
                 "datafeed-1",
                 EsqlDatafeedQuery.parse(ANALYZER, "FROM logs | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour)"),
                 TIME_FIELD,
-                false
+                true
             );
 
             assertWarnings(
                 false,
                 List.of(
-                    containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT clause"),
                     allOf(
                         containsString("ES|QL datafeed [datafeed-1] query applies a LIMIT before an aggregation (STATS)"),
-                        containsString("use SAMPLE or remove the LIMIT")
+                        containsString("Use SAMPLE or remove the LIMIT"),
+                        containsString("The delayed data check applies the LIMIT to the whole check window")
+                    )
+                )
+            );
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+    }
+
+    public void testLimitBeforeAndAfterStatsShouldWarnAboutBoth() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            EsqlDatafeedQueryValidator.warnForConflictingOuterClauses(
+                "datafeed-1",
+                EsqlDatafeedQuery.parse(ANALYZER, "FROM logs | LIMIT 500 | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour) | LIMIT 10"),
+                TIME_FIELD,
+                true
+            );
+
+            assertWarnings(
+                false,
+                List.of(
+                    allOf(
+                        containsString("ES|QL datafeed [datafeed-1] query contains an outer LIMIT clause"),
+                        containsString("The delayed data check applies the LIMIT to the whole check window")
+                    ),
+                    allOf(
+                        containsString("ES|QL datafeed [datafeed-1] query applies a LIMIT before an aggregation (STATS)"),
+                        not(containsString("The delayed data check"))
                     )
                 )
             );

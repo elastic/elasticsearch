@@ -255,6 +255,11 @@ tests:
   tasks:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/165497
+- class: org.elasticsearch.xpack.ccr.CcrAliasesIT
+  tasks:
+  - :x-pack:plugin:ccr:internalClusterTest
+  method: testStress
+  issue: https://github.com/elastic/elasticsearch/issues/163486
 
 # Examples:
 #

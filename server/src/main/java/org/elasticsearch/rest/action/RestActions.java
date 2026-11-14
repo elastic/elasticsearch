@@ -21,6 +21,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -93,7 +94,7 @@ public class RestActions {
         int successful,
         int skipped,
         int failed,
-        ShardOperationFailedException[] shardFailures
+        @Nullable ShardOperationFailedException[] shardFailures
     ) throws IOException {
         builder.startObject(_SHARDS_FIELD.getPreferredName());
         builder.field(TOTAL_FIELD.getPreferredName(), total);
@@ -104,7 +105,7 @@ public class RestActions {
         builder.field(FAILED_FIELD.getPreferredName(), failed);
         if (CollectionUtils.isEmpty(shardFailures) == false) {
             builder.startArray(FAILURES_FIELD.getPreferredName());
-            for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(shardFailures)) {
+            for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(Arrays.asList(shardFailures))) {
                 shardFailure.toXContent(builder, params);
             }
             builder.endArray();

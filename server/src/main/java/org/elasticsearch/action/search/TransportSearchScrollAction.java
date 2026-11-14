@@ -25,6 +25,8 @@ import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
+
 import static org.elasticsearch.action.search.ParsedScrollId.QUERY_AND_FETCH_TYPE;
 import static org.elasticsearch.action.search.ParsedScrollId.QUERY_THEN_FETCH_TYPE;
 import static org.elasticsearch.action.search.TransportSearchHelper.parseScrollId;
@@ -64,7 +66,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                         SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                     if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-                        ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                        List<ShardOperationFailedException> groupedFailures = ExceptionsHelper.groupBy(searchResponse.shardFailuresList());
                         for (ShardOperationFailedException f : groupedFailures) {
                             Throwable cause = f.getCause() == null ? f : f.getCause();
                             if (ExceptionsHelper.status(cause).getStatus() >= 500

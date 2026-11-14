@@ -104,7 +104,6 @@ import java.util.function.ToLongFunction;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -410,7 +409,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             SearchPhaseExecutionException e = (SearchPhaseExecutionException) failures.getFirst();
             assertThat(e.getPhaseName(), equalTo("query"));
             assertThat(e.getCause(), sameInstance(trip.get()));
-            assertThat(e.shardFailures(), emptyArray());
+            assertThat(e.shardFailures(), empty());
             // Shard 2 has a replica, but a retry would only add work to a search that has failed
             assertThat(requestsPerShard, equalTo(Map.of(0, 1, 1, 1, 2, 1)));
             assertThat(freedContexts, contains(new ShardSearchContextId("late", 1)));
@@ -519,7 +518,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             SearchPhaseExecutionException e = (SearchPhaseExecutionException) failures.getFirst();
             assertThat(e.getPhaseName(), equalTo("query"));
             assertThat(e.getCause(), sameInstance(trip));
-            assertThat(e.shardFailures(), emptyArray());
+            assertThat(e.shardFailures(), empty());
             assertThat("a shard was retried on another copy", retries.get(), equalTo(0));
         }
     }

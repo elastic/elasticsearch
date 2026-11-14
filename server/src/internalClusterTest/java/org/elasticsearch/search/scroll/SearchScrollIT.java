@@ -752,11 +752,11 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
         SearchScrollRequestBuilder searchScrollRequestBuilder = client().prepareSearchScroll(respFromDemoIndexScrollId);
         SearchPhaseExecutionException error = expectThrows(SearchPhaseExecutionException.class, searchScrollRequestBuilder);
-        assertEquals(1, error.shardFailures().length);
+        assertEquals(1, error.shardFailures().size());
         ParsedScrollId parsedScrollId = searchScrollRequestBuilder.request().parseScrollId();
         ShardSearchContextId shardSearchContextId = parsedScrollId.getContext()[0].getSearchContextId();
         assertThat(
-            error.shardFailures()[0].getCause().getMessage(),
+            error.shardFailures().getFirst().getCause().getMessage(),
             containsString("No search context found for id [" + shardSearchContextId + "]")
         );
         client().prepareSearchScroll(respFromProdIndexScrollId).get().decRef();

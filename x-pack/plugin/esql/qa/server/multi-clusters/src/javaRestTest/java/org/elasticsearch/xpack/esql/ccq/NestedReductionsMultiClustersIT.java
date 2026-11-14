@@ -147,27 +147,24 @@ public class NestedReductionsMultiClustersIT extends ESRestTestCase {
 
     public void testRemoteReductions() throws IOException {
         assumeRemoteIsCurrent();
-        assertValues(
-            query("""
-                FROM %s:nr_ccs
-                | EVAL n = NESTED(COUNT(items.price)), total = NESTED(SUM(items.price)), hi = NESTED(MAX(items.price)),
-                       avg = NESTED(AVG(items.price)), a = NESTED_ANY(items.sku == "a")
-                | KEEP id, n, total, hi, avg, a
-                | SORT id
-                | LIMIT 10""".formatted(REMOTE_CLUSTER_NAME)),
-            List.of(List.of("r1", 1, 10, 10, 10.0, false), List.of("r2", 2, 8, 5, 4.0, true))
-        );
+        assertValues(query(Strings.format("""
+            FROM %s:nr_ccs
+            | EVAL n = NESTED(COUNT(items.price)), total = NESTED(SUM(items.price)), hi = NESTED(MAX(items.price)),
+                   avg = NESTED(AVG(items.price)), a = NESTED_ANY(items.sku == "a")
+            | KEEP id, n, total, hi, avg, a
+            | SORT id
+            | LIMIT 10""", REMOTE_CLUSTER_NAME)), List.of(List.of("r1", 1, 10, 10, 10.0, false), List.of("r2", 2, 8, 5, 4.0, true)));
     }
 
     public void testLocalAndRemoteReductions() throws IOException {
         assumeRemoteIsCurrent();
         assertValues(
-            query("""
+            query(Strings.format("""
                 FROM nr_ccs,%s:nr_ccs
                 | EVAL n = NESTED(COUNT(items.price)), total = NESTED(SUM(items.price))
                 | KEEP id, n, total
                 | SORT id
-                | LIMIT 10""".formatted(REMOTE_CLUSTER_NAME)),
+                | LIMIT 10""", REMOTE_CLUSTER_NAME)),
             List.of(List.of("l1", 2, 3), Arrays.asList("l2", 0, null), List.of("r1", 1, 10), List.of("r2", 2, 8))
         );
     }
@@ -175,13 +172,13 @@ public class NestedReductionsMultiClustersIT extends ESRestTestCase {
     public void testFilterThenExpand() throws IOException {
         assumeRemoteIsCurrent();
         assertValues(
-            query("""
+            query(Strings.format("""
                 FROM nr_ccs,%s:nr_ccs
                 | WHERE NESTED_ANY(items.sku == "a")
                 | NESTED_EXPAND items
                 | KEEP id, items.price, items.sku
                 | SORT id, items.price
-                | LIMIT 10""".formatted(REMOTE_CLUSTER_NAME)),
+                | LIMIT 10""", REMOTE_CLUSTER_NAME)),
             List.of(List.of("l1", 1, "a"), List.of("l1", 2, "b"), List.of("r2", 3, "d"), List.of("r2", 5, "a"))
         );
     }
@@ -189,12 +186,12 @@ public class NestedReductionsMultiClustersIT extends ESRestTestCase {
     public void testFlatten() throws IOException {
         assumeRemoteIsCurrent();
         assertValues(
-            query("""
+            query(Strings.format("""
                 FROM nr_ccs,%s:nr_ccs
                 | NESTED_FLATTEN items
                 | KEEP id, items.price
                 | SORT id
-                | LIMIT 10""".formatted(REMOTE_CLUSTER_NAME)),
+                | LIMIT 10""", REMOTE_CLUSTER_NAME)),
             List.of(List.of("l1", List.of(1, 2)), Arrays.asList("l2", null), List.of("r1", 10), List.of("r2", List.of(3, 5)))
         );
     }
@@ -205,19 +202,21 @@ public class NestedReductionsMultiClustersIT extends ESRestTestCase {
      */
     public void testRemoteIndexWithoutTheCollection() throws IOException {
         assumeRemoteIsCurrent();
-        assertValues(query("""
+        assertValues(query(Strings.format("""
             FROM nr_ccs,%s:nr_ccs_unmapped
             | WHERE id == "r3"
             | EVAL hit = NESTED_ANY(items.price > 0), total = NESTED(SUM(items.price))
             | KEEP id, hit, total
-            | LIMIT 10""".formatted(REMOTE_CLUSTER_NAME)), List.of(Arrays.asList("r3", false, null)));
+            | LIMIT 10""", REMOTE_CLUSTER_NAME)), List.of(Arrays.asList("r3", false, null)));
     }
 
     public void testCollectionNestedLocallyAndObjectRemotely() throws IOException {
         assumeRemoteIsCurrent();
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> query("FROM nr_ccs,%s:nr_ccs_object | EVAL total = NESTED(SUM(items.price)) | LIMIT 10".formatted(REMOTE_CLUSTER_NAME))
+            () -> query(
+                Strings.format("FROM nr_ccs,%s:nr_ccs_object | EVAL total = NESTED(SUM(items.price)) | LIMIT 10", REMOTE_CLUSTER_NAME)
+            )
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(
@@ -230,7 +229,7 @@ public class NestedReductionsMultiClustersIT extends ESRestTestCase {
         assumeTrue("the remote cluster is current", Clusters.remoteClusterVersion().before(Version.CURRENT));
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> query("FROM nr_ccs,%s:nr_ccs | EVAL total = NESTED(SUM(items.price)) | LIMIT 10".formatted(REMOTE_CLUSTER_NAME))
+            () -> query(Strings.format("FROM nr_ccs,%s:nr_ccs | EVAL total = NESTED(SUM(items.price)) | LIMIT 10", REMOTE_CLUSTER_NAME))
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString("NESTED requires all nodes to support nested reductions"));

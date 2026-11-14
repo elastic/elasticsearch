@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor.DataSummary;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQuery;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -839,7 +839,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         ChunkedDataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(0L, windowEnd));
         stubSummary(0L, windowEnd, new DataSummary(0L, windowEnd - 1, 2_000L));
         List<InputStream> streams = new ArrayList<>();
-        long truncated = EsqlDataExtractor.INJECTED_ROW_LIMIT;
+        long truncated = EsqlDatafeedQuery.INJECTED_ROW_LIMIT;
         for (long end : lengths) {
             InputStream stream = mock(InputStream.class);
             streams.add(stream);
@@ -908,7 +908,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         for (int i = 0; i < lengths.length - 1; i++) {
             InputStream stream = mock(InputStream.class);
             truncatedStreams.add(stream);
-            stubTruncatedChunk(0L, lengths[i], EsqlDataExtractor.INJECTED_ROW_LIMIT, stream);
+            stubTruncatedChunk(0L, lengths[i], EsqlDatafeedQuery.INJECTED_ROW_LIMIT, stream);
         }
         InputStream completeStream = mock(InputStream.class);
         stubTruncatedChunk(0L, lengths[lengths.length - 1], 500L, completeStream);
@@ -935,7 +935,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         for (long length : lengths) {
             InputStream stream = mock(InputStream.class);
             streams.add(stream);
-            stubTruncatedChunk(0L, length, EsqlDataExtractor.INJECTED_ROW_LIMIT, stream);
+            stubTruncatedChunk(0L, length, EsqlDatafeedQuery.INJECTED_ROW_LIMIT, stream);
         }
 
         DataExtractor.Result result = extractor.next();
@@ -962,7 +962,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         ChunkedDataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(0L, windowEnd));
         stubSummary(0L, windowEnd, new DataSummary(0L, windowEnd - 1, 1_000_000L));
         for (int i = 0; i < lengths.length - 1; i++) {
-            stubTruncatedChunk(0L, lengths[i], EsqlDataExtractor.INJECTED_ROW_LIMIT, mock(InputStream.class));
+            stubTruncatedChunk(0L, lengths[i], EsqlDatafeedQuery.INJECTED_ROW_LIMIT, mock(InputStream.class));
         }
         InputStream firstChunkStream = mock(InputStream.class);
         stubTruncatedChunk(0L, firstChunkEnd, 500L, firstChunkStream);
@@ -984,7 +984,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream firstStream = mock(InputStream.class);
         InputStream secondStream = mock(InputStream.class);
         InputStream thirdStream = mock(InputStream.class);
-        stubTruncatedChunk(0L, chunkEnd, EsqlDataExtractor.INJECTED_ROW_LIMIT, firstStream);
+        stubTruncatedChunk(0L, chunkEnd, EsqlDatafeedQuery.INJECTED_ROW_LIMIT, firstStream);
         stubTruncatedChunk(0L, shrunkEnd, 2_500L, secondStream);
         stubTruncatedChunk(shrunkEnd, chunkEnd, 100L, thirdStream);
 
@@ -1005,7 +1005,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream firstStream = mock(InputStream.class);
         InputStream secondStream = mock(InputStream.class);
         InputStream thirdStream = mock(InputStream.class);
-        stubTruncatedChunk(0L, chunkEnd, EsqlDataExtractor.INJECTED_ROW_LIMIT, mock(InputStream.class));
+        stubTruncatedChunk(0L, chunkEnd, EsqlDatafeedQuery.INJECTED_ROW_LIMIT, mock(InputStream.class));
         stubTruncatedChunk(0L, shrunkEnd, 500L, firstStream);
         stubTruncatedChunk(shrunkEnd, chunkEnd, 100L, secondStream);
         stubTruncatedChunk(chunkEnd, regrownChunkEnd, 50L, thirdStream);
@@ -1025,7 +1025,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         stubSummary(0L, windowEnd, new DataSummary(0L, windowEnd - 1, 2_000L));
         InputStream firstStream = mock(InputStream.class);
         InputStream secondStream = mock(InputStream.class);
-        stubTruncatedChunk(0L, chunkEnd, EsqlDataExtractor.INJECTED_ROW_LIMIT, mock(InputStream.class));
+        stubTruncatedChunk(0L, chunkEnd, EsqlDatafeedQuery.INJECTED_ROW_LIMIT, mock(InputStream.class));
         stubTruncatedChunk(0L, shrunkEnd, 500L, firstStream);
         stubTruncatedChunk(shrunkEnd, chunkEnd, 100L, secondStream);
 
@@ -1041,7 +1041,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream floorStream = mock(InputStream.class);
         InputStream middleStream = mock(InputStream.class);
         InputStream lastFloorStream = mock(InputStream.class);
-        long truncated = EsqlDataExtractor.INJECTED_ROW_LIMIT;
+        long truncated = EsqlDatafeedQuery.INJECTED_ROW_LIMIT;
         stubTruncatedChunk(0L, 1_000L, truncated, floorStream);
         stubTruncatedChunk(1_000L, 2_000L, 500L, middleStream);
         stubTruncatedChunk(2_000L, 3_000L, truncated, lastFloorStream);
@@ -1061,7 +1061,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         stubSummary(0L, windowEnd, new DataSummary(0L, windowEnd - 1, 2_000L));
         InputStream truncatedStream = mock(InputStream.class);
         InputStream completeStream = mock(InputStream.class);
-        stubTruncatedChunk(0L, chunkEnd, EsqlDataExtractor.INJECTED_ROW_LIMIT, truncatedStream);
+        stubTruncatedChunk(0L, chunkEnd, EsqlDatafeedQuery.INJECTED_ROW_LIMIT, truncatedStream);
         when(dataExtractorFactory.newExtractor(0L, shrunkEnd)).thenReturn(new StubSubExtractor(new SearchInterval(0L, shrunkEnd)));
         stubTruncatedChunk(shrunkEnd, chunkEnd, 500L, completeStream);
 
@@ -1073,7 +1073,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
 
     public void testEsqlCompleteResultBelowInjectedLimitShouldBeAcceptedWithoutRetry() throws IOException {
         // Only the injected LIMIT truncates a result, so 1,000 to 9,999 rows are complete and must not be re-queried smaller.
-        long rowCount = randomLongBetween(1_000L, EsqlDataExtractor.INJECTED_ROW_LIMIT - 1);
+        long rowCount = randomLongBetween(1_000L, EsqlDatafeedQuery.INJECTED_ROW_LIMIT - 1);
         long chunkEnd = esqlChunkSpanMillis();
         long windowEnd = esqlWindowSpanMillis();
         chunkSpan = TimeValue.timeValueMillis(chunkEnd);
@@ -1129,7 +1129,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     }
 
     public void testEsqlUserLimitAtOrAboveInjectedLimitShouldNotShrinkOrMarkWindowIncomplete() throws IOException {
-        long rowCount = randomFrom(EsqlDataExtractor.INJECTED_ROW_LIMIT, 2 * EsqlDataExtractor.INJECTED_ROW_LIMIT);
+        long rowCount = randomFrom(EsqlDatafeedQuery.INJECTED_ROW_LIMIT, 2 * EsqlDatafeedQuery.INJECTED_ROW_LIMIT);
         long chunkEnd = esqlChunkSpanMillis();
         long windowEnd = esqlWindowSpanMillis();
         chunkSpan = TimeValue.timeValueMillis(chunkEnd);
@@ -1159,7 +1159,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         InputStream stream = mock(InputStream.class);
         // cancel() lands while the delegate's next() is in flight, which then returns a truncated result
         when(dataExtractorFactory.newExtractor(0L, chunkEnd)).thenReturn(
-            new StubSubExtractor(new SearchInterval(0L, chunkEnd), EsqlDataExtractor.INJECTED_ROW_LIMIT, stream) {
+            new StubSubExtractor(new SearchInterval(0L, chunkEnd), EsqlDatafeedQuery.INJECTED_ROW_LIMIT, stream) {
                 @Override
                 public Result next() {
                     extractor.cancel();
@@ -1182,7 +1182,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = TimeValue.timeValueMillis(chunkEnd);
         ChunkedDataExtractor extractor = new ChunkedDataExtractor(dataExtractorFactory, createEsqlContext(0L, windowEnd));
         stubSummary(0L, windowEnd, new DataSummary(0L, windowEnd - 1, 2_000L));
-        stubTruncatedChunk(0L, chunkEnd, EsqlDataExtractor.INJECTED_ROW_LIMIT, mock(InputStream.class));
+        stubTruncatedChunk(0L, chunkEnd, EsqlDatafeedQuery.INJECTED_ROW_LIMIT, mock(InputStream.class));
         AtomicBoolean replacementCancelled = new AtomicBoolean();
         StubSubExtractor replacement = new StubSubExtractor(new SearchInterval(0L, shrunkEnd), 500L, mock(InputStream.class)) {
             @Override
@@ -1246,7 +1246,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
             return new StubSubExtractor(new SearchInterval(start, end), new DataSummary(0L, windowEnd - 1, 50_000L));
         }
         if (start == 0L && end == lengths[0]) {
-            return new StubSubExtractor(new SearchInterval(start, end), EsqlDataExtractor.INJECTED_ROW_LIMIT, mock(InputStream.class));
+            return new StubSubExtractor(new SearchInterval(start, end), EsqlDatafeedQuery.INJECTED_ROW_LIMIT, mock(InputStream.class));
         }
         if (start == 0L && end == lengths[1]) {
             return new StubSubExtractor(new SearchInterval(start, end), 500L, mock(InputStream.class));

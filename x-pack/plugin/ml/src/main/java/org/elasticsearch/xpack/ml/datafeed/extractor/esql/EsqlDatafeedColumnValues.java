@@ -18,12 +18,6 @@ final class EsqlDatafeedColumnValues {
 
     private EsqlDatafeedColumnValues() {}
 
-    // MUST FIX before production: use ES|QL DataType.isDate instead of matching type names.
-    // See https://github.com/elastic/elasticsearch/issues/161207
-    static boolean isDateColumnType(String outputType) {
-        return "date".equals(outputType) || "date_nanos".equals(outputType);
-    }
-
     static Long toEpochMillisOrNull(Object value, boolean isDate) {
         if (value == null) {
             return null;

@@ -48,12 +48,12 @@ public class EsqlBucketEventCounterTests extends ESTestCase {
 
     public void testUserQueryEndingInLineCommentShouldKeepSuffixOnNewLine() {
         String userQuery = "FROM logs // trailing";
-        assertThat(EsqlBucketEventCounter.bucketEventCountQuery(userQuery), equalTo(userQuery + "\n" + expectedSuffix()));
+        assertThat(EsqlBucketEventCounter.bucketEventCountQuery(userQuery), equalTo(userQuery + expectedSuffix()));
     }
 
-    public void testUserQueryWithoutTrailingCommentShouldNotGetExtraNewline() {
+    public void testGeneratedSuffixShouldStartOnNewLine() {
         assertThat(EsqlBucketEventCounter.bucketEventCountQuery("FROM logs"), equalTo("FROM logs" + expectedSuffix()));
-        assertThat(expectedSuffix().startsWith(" | STATS"), is(true));
+        assertThat(expectedSuffix().startsWith("\n| STATS"), is(true));
     }
 
     public void testRowsShouldMapBucketIndexToBucketStartAndSkipNullKeys() {

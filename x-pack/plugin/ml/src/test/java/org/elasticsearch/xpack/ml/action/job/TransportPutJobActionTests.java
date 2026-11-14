@@ -55,10 +55,12 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
+import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -444,7 +446,8 @@ public class TransportPutJobActionTests extends ESTestCase {
             mock(MachineLearningExtension.class),
             mock(AnomalyDetectionAuditor.class),
             mock(AnnotationPersister.class),
-            mock(JobResultsProvider.class)
+            mock(JobResultsProvider.class),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
         ProjectResolver projectResolver = mock(ProjectResolver.class);
         when(projectResolver.getProjectId()).thenReturn(ProjectId.DEFAULT);

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
@@ -25,7 +26,14 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 /** Builds and runs ES|QL requests on behalf of the datafeed validator and extractor, with stored datafeed headers. */
 final class EsqlQueryExecutor {
 
+    private static final String EPOCH_MILLIS = "epoch_millis";
+
     private EsqlQueryExecutor() {}
+
+    /** Source-level {@code [start, end)} filter on {@code timeField}, in epoch millis. */
+    static QueryBuilder timeRangeFilter(String timeField, long start, long end) {
+        return new RangeQueryBuilder(timeField).gte(start).lt(end).format(EPOCH_MILLIS);
+    }
 
     @SuppressWarnings("unchecked")
     static EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> newRequest(

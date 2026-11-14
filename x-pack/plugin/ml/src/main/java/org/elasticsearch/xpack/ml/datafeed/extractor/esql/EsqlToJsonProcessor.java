@@ -11,6 +11,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -26,12 +27,12 @@ class EsqlToJsonProcessor implements Releasable {
     private final XContentBuilder jsonBuilder;
     private long writtenDocumentCount;
 
-    EsqlToJsonProcessor(List<? extends ColumnInfo> columns, OutputStream outputStream) throws IOException {
+    EsqlToJsonProcessor(List<? extends ColumnInfo> columns, EsqlQueryAnalyzer analyzer, OutputStream outputStream) throws IOException {
         this.columns = Objects.requireNonNull(columns);
         this.outputStream = Objects.requireNonNull(outputStream);
         this.isDateColumn = new boolean[columns.size()];
         for (int i = 0; i < columns.size(); i++) {
-            isDateColumn[i] = EsqlDatafeedColumnValues.isDateColumnType(columns.get(i).outputType());
+            isDateColumn[i] = analyzer.isDateType(columns.get(i).outputType());
         }
         this.jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
     }
@@ -46,8 +47,8 @@ class EsqlToJsonProcessor implements Releasable {
             columnIndex++;
         }
         jsonBuilder.endObject();
+        // No newline: preview turns the "} {" root separator into "},{" to build a JSON array.
         jsonBuilder.flush();
-        outputStream.write('\n');
         writtenDocumentCount++;
     }
 

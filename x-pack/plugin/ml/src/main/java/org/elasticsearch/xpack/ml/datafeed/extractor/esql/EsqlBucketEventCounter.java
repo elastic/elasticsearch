@@ -33,7 +33,7 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
 
     // Without a LIMIT, ES|QL truncates at result_truncation_default_size (1000) rows and reports it only in a Warning header.
     // A custom check_window can span up to MAX_NUMBER_SPANABLE_BUCKETS buckets (one row each). A dropped bucket hides its delayed data.
-    private static final String BUCKET_EVENT_COUNT_SUFFIX = " " + Strings.format("""
+    private static final String BUCKET_EVENT_COUNT_SUFFIX = "\n" + Strings.format("""
         | STATS %s = SUM(??countField) BY %s = TO_LONG(TO_DATETIME(??timeField)) / ?bucketSpan
         | LIMIT %d""", ML_COUNT_COLUMN, ML_BUCKET_COLUMN, MAX_NUMBER_SPANABLE_BUCKETS);
 
@@ -95,13 +95,13 @@ public final class EsqlBucketEventCounter implements BucketEventCounter {
     }
 
     static String bucketEventCountQuery(String userQuery) {
-        return EsqlQueryClauseScanner.appendGeneratedPipeline(userQuery, BUCKET_EVENT_COUNT_SUFFIX);
+        return userQuery + BUCKET_EVENT_COUNT_SUFFIX;
     }
 
     @Override
     public Map<Long, Long> currentBucketEventCounts(long start, long end) {
         String query = bucketEventCountQuery(esqlQuery);
-        QueryBuilder filter = EsqlDataExtractorQueryUtils.timeRangeFilter(sourceTimeField, start, end);
+        QueryBuilder filter = EsqlQueryExecutor.timeRangeFilter(sourceTimeField, start, end);
         List<EsqlQueryParam> params = List.of(
             new EsqlQueryParam("countField", summaryCountFieldName, IDENTIFIER),
             new EsqlQueryParam("timeField", emittedTimeField, IDENTIFIER),

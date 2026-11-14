@@ -476,7 +476,7 @@ setup:
           }
 
   - do:
-      catch: /require the UTC time zone, but esql_query sets time_zone to \[Europe\/Berlin\]/
+      catch: /require the UTC time zone. The esql_query sets time_zone to \[Europe\/Berlin\]/
       ml.put_datafeed:
         datafeed_id: esql-datafeed-time-zone
         body: >
@@ -500,7 +500,7 @@ setup:
           }
 
   - do:
-      catch: /require an esql_query that starts with a FROM or TS source command/
+      catch: /require a FROM or TS source command in esql_query/
       ml.put_datafeed:
         datafeed_id: esql-datafeed-row-source
         body: >
@@ -538,7 +538,6 @@ setup:
   - do:
       warnings_regex:
         - ".*applies a LIMIT before an aggregation.*"
-        - ".*query contains an outer LIMIT clause.*"
       ml.put_datafeed:
         datafeed_id: esql-datafeed-limit-stats
         body: >

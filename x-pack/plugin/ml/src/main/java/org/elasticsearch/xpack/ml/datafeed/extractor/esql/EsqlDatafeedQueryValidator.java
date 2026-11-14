@@ -296,15 +296,19 @@ public class EsqlDatafeedQueryValidator {
         if (query.hasOuterTimeSort(timeField)) {
             HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_TIME_SORT_WARNING, queryContext, timeField));
         }
-        if (query.hasOuterLimit()) {
-            String limitWarning = Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, queryContext);
-            HeaderWarning.addWarning(
-                delayedDataCheckEnabled ? limitWarning + " " + Messages.DATAFEED_ESQL_OUTER_LIMIT_DELAYED_DATA_WARNING : limitWarning
-            );
+        // A LIMIT before the first STATS does not cap the output, so ML still injects its row cap.
+        boolean outerLimitCapsOutput = query.hasOuterLimit() && query.injectsRowLimit() == false;
+        if (outerLimitCapsOutput) {
+            addLimitWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, queryContext), delayedDataCheckEnabled);
         }
         if (query.hasLimitBeforeAggregation()) {
-            HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_LIMIT_BEFORE_STATS_WARNING, queryContext));
+            String warning = Messages.getMessage(Messages.DATAFEED_ESQL_LIMIT_BEFORE_STATS_WARNING, queryContext);
+            addLimitWarning(warning, delayedDataCheckEnabled && outerLimitCapsOutput == false);
         }
+    }
+
+    private static void addLimitWarning(String warning, boolean withDelayedDataNote) {
+        HeaderWarning.addWarning(withDelayedDataNote ? warning + " " + Messages.DATAFEED_ESQL_OUTER_LIMIT_DELAYED_DATA_WARNING : warning);
     }
 
     /**

@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+  - 162465
+pr: 164476
+summary: Correct nested HNSW kNN post-filter selectivity estimation
+type: bug

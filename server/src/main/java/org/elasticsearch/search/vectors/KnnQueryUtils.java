@@ -10,9 +10,12 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -28,14 +31,22 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.SplittableRandom;
+import java.util.TreeSet;
 
 public final class KnnQueryUtils {
+    private static final int MAX_SAMPLES = 500;
 
     public record FilterWeight(@Nullable Weight weight) {
         static final FilterWeight MATCH_NO_DOCS = new FilterWeight(null);
@@ -216,4 +227,106 @@ public final class KnnQueryUtils {
         return out;
     }
 
+    /**
+     * A half-open range of vector ordinals in one leaf. Callers supplying multiple ranges must avoid overlapping ordinals
+     * within a leaf, so sliced queries can sample only their searchable vector population.
+     */
+    record VectorRange(LeafReaderContext leaf, KnnVectorValues vectors, int fromOrd, int toOrd) {
+        VectorRange {
+            if (fromOrd < 0 || toOrd < fromOrd || toOrd > vectors.size()) {
+                throw new IllegalArgumentException("invalid vector ordinal range");
+            }
+        }
+
+        int size() {
+            return toOrd - fromOrd;
+        }
+    }
+
+    /** Estimates filter selectivity among the indexed vectors of {@code field} across all leaves. */
+    static float estimateFilterSelectivityBySampling(Weight filterWeight, List<LeafReaderContext> leaves, String field) throws IOException {
+        List<KnnQueryUtils.VectorRange> ranges = new ArrayList<>();
+        for (LeafReaderContext leaf : leaves) {
+            FieldInfo info = leaf.reader().getFieldInfos().fieldInfo(field);
+            if (info == null || info.getVectorDimension() == 0) {
+                continue;
+            }
+            KnnVectorValues vectors = switch (info.getVectorEncoding()) {
+                case BYTE -> leaf.reader().getByteVectorValues(field);
+                case FLOAT32 -> leaf.reader().getFloatVectorValues(field);
+            };
+            if (vectors != null && vectors.size() > 0) {
+                ranges.add(new KnnQueryUtils.VectorRange(leaf, vectors, 0, vectors.size()));
+            }
+        }
+        return estimateFilterSelectivityBySampling(filterWeight, ranges);
+    }
+
+    /** Uses a finite-population adjustment and caps the sample count at the population size and {@code MAX_SAMPLES}. */
+    static int sampleSize(long totalVectors) {
+        if (totalVectors <= 0) {
+            return 0;
+        }
+        // Evaluate N * B / (N + B - 1) in floating point to avoid long overflow.
+        double size = MAX_SAMPLES / (1.0 + (MAX_SAMPLES - 1.0) / totalVectors);
+        return (int) Math.min(Math.min(totalVectors, MAX_SAMPLES), Math.ceil(size));
+    }
+
+    /**
+     * Samples ordinal positions uniformly without replacement across the combined vector population.
+     * The fixed seed gives the same ordinals for the same total vector count. The sampled documents also remain the same
+     * when the ranges and reader are unchanged, including across query-cache warming.
+     */
+    static long[] sampleOrdinals(long totalVectors) {
+        SplittableRandom random = new SplittableRandom(0x746172676574L);
+        TreeSet<Long> ordinals = new TreeSet<>();
+        // Floyd's algorithm: bounded work and storage even for very large vector populations.
+        for (long i = totalVectors - sampleSize(totalVectors); i < totalVectors; i++) {
+            if (ordinals.add(random.nextLong(i + 1)) == false) {
+                ordinals.add(i);
+            }
+        }
+        return ordinals.stream().mapToLong(Long::longValue).toArray();
+    }
+
+    /**
+     * Estimates the fraction of sampled live vector documents that match the filter. Deleted samples are excluded from
+     * both numerator and denominator, without replenishment or a full live-vector scan. Returns zero when no live samples
+     * remain. The sample budget bounds membership checks, although creating a filter scorer may materialize query results.
+     */
+    static float estimateFilterSelectivityBySampling(Weight filterWeight, List<KnnQueryUtils.VectorRange> ranges) throws IOException {
+        long totalVectors = ranges.stream().mapToLong(KnnQueryUtils.VectorRange::size).sum();
+        if (totalVectors == 0) {
+            return 0f;
+        }
+        Map<LeafReaderContext, IntArrayList> perLeafDocs = new LinkedHashMap<>();
+        int rangeIndex = 0;
+        long rangeStart = 0;
+        for (long ordinal : sampleOrdinals(totalVectors)) {
+            KnnQueryUtils.VectorRange range = ranges.get(rangeIndex);
+            while (ordinal >= rangeStart + range.size()) {
+                rangeStart += range.size();
+                range = ranges.get(++rangeIndex);
+            }
+            int doc = range.vectors().ordToDoc(range.fromOrd() + Math.toIntExact(ordinal - rangeStart));
+            Bits liveDocs = range.leaf().reader().getLiveDocs();
+            if (liveDocs == null || liveDocs.get(doc)) {
+                perLeafDocs.computeIfAbsent(range.leaf(), ignored -> new IntArrayList()).add(doc);
+            }
+        }
+        int sampled = 0;
+        int matched = 0;
+        for (Map.Entry<LeafReaderContext, IntArrayList> entry : perLeafDocs.entrySet()) {
+            LeafReaderContext leaf = entry.getKey();
+            int[] docs = entry.getValue().sort().toArray();
+            Bits matches = Lucene.asSequentialAccessBits(leaf.reader().maxDoc(), filterWeight.scorerSupplier(leaf), docs.length);
+            sampled += docs.length;
+            for (int doc : docs) {
+                if (matches.get(doc)) {
+                    matched++;
+                }
+            }
+        }
+        return sampled == 0 ? 0f : (float) matched / sampled;
+    }
 }

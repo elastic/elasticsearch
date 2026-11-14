@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
@@ -60,6 +61,46 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertFalse(taskQueue.hasRunnableTasks());
     }
 
+    public void testLowPriorityTasksRunLast() {
+        final var taskQueue = new DeterministicTaskQueue(random(), true);
+        final var threadPool = taskQueue.getThreadPool(r -> DeterministicTaskQueue.onNodeLog(DiscoveryNodeUtils.create("node"), r));
+        final List<String> results = new ArrayList<>();
+
+        taskQueue.scheduleNow((LowPriorityRunnable) () -> results.add("direct"));
+        threadPool.generic().execute((LowPriorityRunnable) () -> results.add("wrapped"));
+        taskQueue.scheduleAt(10, (LowPriorityRunnable) () -> results.add("scheduled"));
+        taskQueue.scheduleAt(10, () -> {
+            results.add("ordinary");
+            taskQueue.scheduleNow(() -> results.add("follow-up"));
+        });
+        taskQueue.advanceTime();
+
+        taskQueue.runRandomTask();
+        taskQueue.runRandomTask();
+        assertThat(results, contains("ordinary", "follow-up"));
+        taskQueue.runAllRunnableTasks();
+        assertThat(results.subList(2, results.size()), containsInAnyOrder("direct", "wrapped", "scheduled"));
+        assertFalse(taskQueue.hasAnyTasks());
+    }
+
+    public void testUniformSelectionIncludesLowPriorityTasks() {
+        boolean lowPriorityRanFirst = false;
+        boolean ordinaryRanFirst = false;
+        for (int i = 0; i < 100; i++) {
+            final var taskQueue = new DeterministicTaskQueue(random(), false);
+            final List<String> results = new ArrayList<>();
+            taskQueue.scheduleNow((LowPriorityRunnable) () -> results.add("low"));
+            taskQueue.scheduleNow(() -> results.add("ordinary"));
+            taskQueue.runRandomTask();
+            lowPriorityRanFirst |= results.getFirst().equals("low");
+            ordinaryRanFirst |= results.getFirst().equals("ordinary");
+            taskQueue.runAllRunnableTasks();
+            assertThat(results, containsInAnyOrder("low", "ordinary"));
+        }
+        assertTrue(lowPriorityRanFirst);
+        assertTrue(ordinaryRanFirst);
+    }
+
     public void testRunRandomTaskVariesOrder() {
         final List<String> strings1 = getResultsOfRunningRandomly(new Random(4520795446362137264L));
         final List<String> strings2 = getResultsOfRunningRandomly(new Random(266504691902226821L));
@@ -67,7 +108,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     private List<String> getResultsOfRunningRandomly(Random random) {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(random);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(random, randomBoolean());
         final List<String> strings = new ArrayList<>(4);
 
         taskQueue.scheduleNow(() -> strings.add("foo"));

@@ -45,7 +45,8 @@ import java.util.function.Function;
  * letting each task spawn future tasks, and simulating the passage of time. Tasks can be scheduled directly via {@link #scheduleNow} and
  * {@link #scheduleAt}, or can be executed using the thread pool returned from {@link #getThreadPool}. The scheduling of tasks can be
  * made more variable with {@link #setExecutionDelayVariabilityMillis} to simulate a system that is not running tasks in a timely fashion
- * e.g. due to overload or network delays.
+ * e.g. due to overload or network delays. By default the queue randomly chooses whether to select uniformly from all
+ * runnable tasks or to defer {@link LowPriorityRunnable}s until no ordinary runnable tasks remain.
  */
 public class DeterministicTaskQueue {
 
@@ -55,18 +56,23 @@ public class DeterministicTaskQueue {
 
     private final List<Runnable> runnableTasks = new ArrayList<>();
     private final Random random;
+    private final boolean deferLowPriorityTasks;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
     private long currentTimeMillis;
     private long nextDeferredTaskExecutionTimeMillis = Long.MAX_VALUE;
     private long executionDelayVariabilityMillis;
     private long latestDeferredExecutionTime;
 
-    public DeterministicTaskQueue(Random random) {
+    /**
+     * Allows tests to choose whether low-priority tasks are deferred, while retaining deterministic random task selection.
+     */
+    public DeterministicTaskQueue(Random random, boolean deferLowPriorityTasks) {
         this.random = random;
+        this.deferLowPriorityTasks = deferLowPriorityTasks;
     }
 
     public DeterministicTaskQueue() {
-        this(ESTestCase.random());
+        this(ESTestCase.random(), ESTestCase.randomBoolean());
     }
 
     public long getExecutionDelayVariabilityMillis() {
@@ -150,7 +156,27 @@ public class DeterministicTaskQueue {
      */
     public void runRandomTask() {
         assert hasRunnableTasks();
-        runTask(RandomNumbers.randomIntBetween(random, 0, runnableTasks.size() - 1));
+        runTask(
+            ESTestCase.randomValueOtherThanMany(
+                i -> deferLowPriorityTasks
+                    && isLowPriority(runnableTasks.get(i))
+                    && runnableTasks.stream().allMatch(DeterministicTaskQueue::isLowPriority) == false,
+                () -> RandomNumbers.randomIntBetween(random, 0, runnableTasks.size() - 1)
+            )
+        );
+    }
+
+    private static boolean isLowPriority(Runnable task) {
+        while (true) {
+            if (task instanceof LowPriorityRunnable) {
+                return true;
+            }
+            if (task instanceof WrappedRunnable wrappedRunnable) {
+                task = wrappedRunnable.unwrap();
+            } else {
+                return false;
+            }
+        }
     }
 
     private void runTask(final int index) {
@@ -621,7 +647,12 @@ public class DeterministicTaskQueue {
 
     public static Runnable onNodeLog(DiscoveryNode node, Runnable runnable) {
         final String nodeId = getNodeIdForLogContext(node);
-        return new Runnable() {
+        return new WrappedRunnable() {
+            @Override
+            public Runnable unwrap() {
+                return runnable;
+            }
+
             @Override
             public void run() {
                 try (var ignored = getLogContext(nodeId)) {

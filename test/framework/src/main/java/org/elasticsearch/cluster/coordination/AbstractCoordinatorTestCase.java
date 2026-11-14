@@ -62,6 +62,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.WrappedRunnable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -1316,7 +1317,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             Runnable onNode(Runnable runnable) {
                 final Runnable wrapped = DeterministicTaskQueue.onNodeLog(localNode, runnable);
-                return new Runnable() {
+                return new WrappedRunnable() {
+                    @Override
+                    public Runnable unwrap() {
+                        return runnable;
+                    }
+
                     @Override
                     public void run() {
                         if (clusterNodes.contains(ClusterNode.this)) {

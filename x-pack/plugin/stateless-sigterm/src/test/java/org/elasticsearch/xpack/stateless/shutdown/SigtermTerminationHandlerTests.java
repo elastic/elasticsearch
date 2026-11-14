@@ -269,7 +269,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
     }
 
     public void testMigrationMetricUsesMigrationCompleteTimeBeforeOverallComplete() throws Exception {
-        final var taskQueue = new DeterministicTaskQueue(new Random(random().nextLong()));
+        final var taskQueue = new DeterministicTaskQueue(new Random(random().nextLong()), randomBoolean());
         taskQueue.setExecutionDelayVariabilityMillis(0);
         final var deterministicThreadPool = taskQueue.getThreadPool();
         final TimeValue pollInterval = TimeValue.timeValueMillis(5);

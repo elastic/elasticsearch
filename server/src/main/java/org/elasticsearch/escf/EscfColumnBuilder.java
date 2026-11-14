@@ -12,6 +12,7 @@ package org.elasticsearch.escf;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
@@ -124,6 +125,13 @@ public final class EscfColumnBuilder implements Releasable {
             backfillLeadingAbsents(union);
             current = union;
         }
+    }
+
+    /**
+     * The memory this column holds until it is finished or closed: heap and recycled pages.
+     */
+    public long ramBytesUsed() {
+        return finished || current == null ? 0 : current.ramBytesUsed(recycler.pageSize());
     }
 
     private boolean canHint() {
@@ -906,12 +914,19 @@ public final class EscfColumnBuilder implements Releasable {
         EscfColumnData finish(int docCount);
 
         void discard();
+
+        /** The memory held, with recycled pages of {@code pageSize} bytes. */
+        long ramBytesUsed(int pageSize);
     }
 
     private abstract static class BaseBuilder implements TypedBuilder {
 
         int count;
         FixedBitSet validity;
+
+        final long validityBytes() {
+            return validity == null ? 0 : validity.ramBytesUsed();
+        }
 
         @Override
         public int rowsConsumed() {
@@ -1003,6 +1018,11 @@ public final class EscfColumnBuilder implements Releasable {
      * kept in lockstep (one row per document, zero-length where there is none) from then on.
      */
     private static final class FixedNumericBuilder extends BaseBuilder {
+        @Override
+        public long ramBytesUsed(int pageSize) {
+            return pagesBytes(data, pageSize) + (lexicalForms == null ? 0 : lexicalForms.ramBytesUsed(pageSize)) + validityBytes();
+        }
+
         private final byte kind;
         private final Recycler<BytesRef> recycler;
         private RecyclerBytesStreamOutput data;
@@ -1164,6 +1184,10 @@ public final class EscfColumnBuilder implements Releasable {
 
     /** BOOL: a value bitset (bit set = true). */
     private static final class BoolBuilder extends BaseBuilder {
+        @Override
+        public long ramBytesUsed(int pageSize) {
+            return (values == null ? 0 : values.ramBytesUsed()) + validityBytes();
+        }
 
         private FixedBitSet values;
 
@@ -1224,6 +1248,11 @@ public final class EscfColumnBuilder implements Releasable {
 
     /** STRING / BINARY: raw bytes plus an offset vector. */
     private static final class VarBuilder extends BaseBuilder {
+        @Override
+        public long ramBytesUsed(int pageSize) {
+            return pagesBytes(data, pageSize) + arrayBytes(offsets) + validityBytes();
+        }
+
         private final byte kind;
         private RecyclerBytesStreamOutput data;
         private int[] offsets = new int[16];
@@ -1354,6 +1383,11 @@ public final class EscfColumnBuilder implements Releasable {
      * bitset distinguishes a present empty array from absent; under MERGE an absent row is an empty range.
      */
     private static final class ArrayBuilder extends BaseBuilder {
+        @Override
+        public long ramBytesUsed(int pageSize) {
+            return (consumed ? 0 : pagesBytes(childData, pageSize)) + arrayBytes(childOffsets) + arrayBytes(rowOffsets) + validityBytes();
+        }
+
         private byte childKind;
         /** Whether to emit the validity bitset (SPLIT: distinguishes {@code []} from absent). */
         private final boolean splitValidity;
@@ -1558,6 +1592,12 @@ public final class EscfColumnBuilder implements Releasable {
 
     /** UNION: a per-document {@link SourceValueType} vector, an offset vector, and a dense value buffer. */
     private static final class UnionBuilder extends BaseBuilder {
+        @Override
+        public long ramBytesUsed(int pageSize) {
+            return pagesBytes(data, pageSize) + arrayBytes(offsets) + (typeVec == null ? 0 : RamUsageEstimator.sizeOf(typeVec))
+                + validityBytes();
+        }
+
         private final RecyclerBytesStreamOutput data;
         private int[] offsets;
         private byte[] typeVec;
@@ -1724,6 +1764,20 @@ public final class EscfColumnBuilder implements Releasable {
         public void discard() {
             data.close();
         }
+    }
+
+    /**
+     * The pages a stream holds. It starts with one and grows a page at a time.
+     */
+    private static long pagesBytes(RecyclerBytesStreamOutput out, int pageSize) {
+        if (out == null) {
+            return 0;
+        }
+        return Math.max(1, (out.position() + pageSize - 1) / pageSize) * pageSize;
+    }
+
+    private static long arrayBytes(int[] array) {
+        return array == null ? 0 : RamUsageEstimator.sizeOf(array);
     }
 
     private static RecyclerBytesStreamOutput newStream(Recycler<BytesRef> recycler) {

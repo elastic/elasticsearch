@@ -120,6 +120,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             forceSyntheticSource,
             splitShardCountSummary,
             refresh,
+            true,
             indexShard::get
         );
     }
@@ -150,6 +151,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             forceSyntheticSource,
             splitShardCountSummary,
             refresh,
+            true,
             mget::get
         );
     }
@@ -183,6 +185,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean forceSyntheticSource,
         SplitShardCountSummary splitShardCountSummary,
         boolean refresh,
+        boolean includeIgnoredByDefault,
         BiFunction<Engine.Get, SplitShardCountSummary, Engine.GetResult> engineGetOperator
     ) throws IOException {
         currentMetric.inc();
@@ -213,7 +216,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                         gFields,
                         normalizeFetchSourceContent(fetchSourceContext, gFields),
                         get,
-                        forceSyntheticSource
+                        forceSyntheticSource,
+                        includeIgnoredByDefault
                     );
                 }
             }
@@ -288,6 +292,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             forceSyntheticSource,
             splitShardCountSummary,
             refresh,
+            true,
             indexShard::getFromTranslog
         );
     }
@@ -312,6 +317,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fetchSourceContext,
             false,
             splitShardCountSummary,
+            false,
             false,
             (get, summary) -> indexShard.getForUpdate(get)
         );
@@ -354,6 +360,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fetchSourceContext,
             false,
             splitShardCountSummary,
+            false,
             false,
             // ownership transfers inside doGet's try-with-resources: a throw before this point leaves the get result
             // with the PreResolved, whose owner releases it
@@ -431,7 +438,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         try {
             long now = System.nanoTime();
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
-            GetResult getResult = innerGetFetch(id, fields, fetchSourceContext, engineGetResult, false);
+            GetResult getResult = innerGetFetch(id, fields, fetchSourceContext, engineGetResult, false, false);
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -466,7 +473,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         String[] storedFields,
         FetchSourceContext fetchSourceContext,
         Engine.GetResult get,
-        boolean forceSyntheticSource
+        boolean forceSyntheticSource,
+        boolean includeIgnoredByDefault
     ) throws IOException {
         assert get.exists() : "method should only be called if document could be retrieved";
         // check first if stored fields to be loaded don't contain an object field
@@ -507,6 +515,17 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 mappingLookup.getMapping().ignoredSourceFormat()
             )
             : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics(), null);
+        // _ignored is returned like _routing whenever the document has it, matching the default metadata fields of search hits,
+        // so a GET reports the same ignored fields before and after a refresh. A realtime get on a stored-source index that is
+        // served from the translog indexes the operation into an in-memory segment to read it.
+        // Internal callers that never expose it (get-for-update, term vectors) skip it unless it is requested via stored_fields.
+        final boolean includeIgnored = storedFieldSet.contains(IgnoredFieldMapper.NAME) || includeIgnoredByDefault;
+        final boolean supportDocValuesForIgnoredMetaField = indexSettings.getIndexVersionCreated()
+            .onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD);
+        if (includeIgnored && supportDocValuesForIgnoredMetaField == false) {
+            // indices with a created version older than DOC_VALUES_FOR_IGNORED_META_FIELD keep _ignored as a stored field
+            storedFieldSet.add(IgnoredFieldMapper.NAME);
+        }
         StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFieldSet, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {
@@ -515,9 +534,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             throw new ElasticsearchException("Failed to get id [" + id + "]", e);
         }
 
-        final boolean supportDocValuesForIgnoredMetaField = indexSettings.getIndexVersionCreated()
-            .onOrAfter(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD);
-
         // put stored fields into result objects
         if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
             Set<String> needed = new HashSet<>();
@@ -525,6 +541,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 Collections.addAll(needed, storedFields);
             }
             needed.add(RoutingFieldMapper.NAME); // we always return _routing if we see it, even if you don't ask for it.....
+            if (includeIgnored) {
+                needed.add(IgnoredFieldMapper.NAME);
+            }
             documentFields = new HashMap<>();
             metadataFields = new HashMap<>();
             for (Map.Entry<String, List<Object>> entry : leafStoredFieldLoader.storedFields().entrySet()) {
@@ -547,10 +566,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        // NOTE: when _ignored is requested via `stored_fields` we need to load it from doc values instead of loading it from stored fields.
-        // The _ignored field used to be stored, but as a result of supporting aggregations on it, it moved from using a stored field to
-        // using doc values.
-        if (supportDocValuesForIgnoredMetaField && storedFields != null && Arrays.asList(storedFields).contains(IgnoredFieldMapper.NAME)) {
+        // Indices created on or after DOC_VALUES_FOR_IGNORED_META_FIELD keep _ignored in doc values (so it can be aggregated on), not
+        // as a stored field.
+        if (includeIgnored && supportDocValuesForIgnoredMetaField) {
             final DocumentField ignoredDocumentField = loadIgnoredMetadataField(docIdAndVersion);
             if (ignoredDocumentField != null) {
                 if (metadataFields == null) {

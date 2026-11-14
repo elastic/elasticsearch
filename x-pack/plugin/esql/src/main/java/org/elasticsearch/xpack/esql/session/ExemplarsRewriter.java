@@ -491,8 +491,7 @@ public final class ExemplarsRewriter {
             timeSeriesIndices,
             esIndex.originalIndices(),
             concreteIndices,
-            esIndex.fieldSemantics(),
-            esIndex.nestedFields()
+            esIndex.fieldSemantics()
         );
     }
 }

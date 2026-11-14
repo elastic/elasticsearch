@@ -5,9 +5,9 @@
 # NESTED_EXPAND <nested field> turns one parent row into one row per object of that nested field.
 # Parent columns repeat on every row. The child fields become ordinary columns named by their full path.
 # A parent with no objects (empty, null or missing) keeps one row whose child columns are null, as MV_EXPAND does.
-# On a data node, child values come from doc values, like an ordinary field. The expansion reads _source instead
-# when it runs on the coordinator or when a child field has no doc values. The nested_loader pragma
-# (index by default, or source) can force _source.
+# The expansion runs on the data nodes, so it can't follow a command that runs on the coordinator, such as a LIMIT.
+# Child values come from doc values, like an ordinary field. The expansion reads _source instead when a child field has
+# no doc values. The nested_loader pragma (index by default, or source) can force _source.
 ---
 setup:
 - requires:
@@ -21,7 +21,6 @@ setup:
       parameters: []
       capabilities:
       - nested_expand
-      - nested_flattened_leaves
     reason: "Nested expansion; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
 - do:
     indices.create:
@@ -186,8 +185,7 @@ one row per object repeats the parent columns:
     - [g, west, null, null, null]
 
 ---
-without KEEP the expanded columns replace the flattened ones:
-# The fields under events, which is not expanded, stay flattened columns.
+without KEEP only the parent and expanded columns are returned:
 - do:
     esql.query:
       allow_partial_results: false
@@ -195,10 +193,6 @@ without KEEP the expanded columns replace the flattened ones:
         query: FROM ne_orders | NESTED_EXPAND items | SORT order_id, items.sku | LIMIT 1
 - match:
     columns:
-    - name: events.end
-      type: long
-    - name: events.start
-      type: long
     - name: order_id
       type: keyword
     - name: region
@@ -217,7 +211,7 @@ without KEEP the expanded columns replace the flattened ones:
       type: keyword
 - match:
     values:
-    - [10, 20, a, west, book, blue, 10, 3, a1, [new, sale]]
+    - [a, west, book, blue, 10, 3, a1, [new, sale]]
 
 ---
 parents without objects keep one row:
@@ -407,16 +401,18 @@ limit after expansion counts expanded rows:
     - [b1]
 
 ---
-limit before expansion counts parents:
+expansion after a limit is rejected:
+# The data nodes can't tell which expanded rows belong to the parents the limit keeps.
 - do:
+    catch: bad_request
     esql.query:
       allow_partial_results: false
       body:
         query: FROM ne_orders | SORT order_id | LIMIT 1 | NESTED_EXPAND items | SORT items.sku | KEEP order_id, items.sku
 - match:
-    values:
-    - [a, a1]
-    - [a, a2]
+    error.type: verification_exception
+- contains:
+    error.reason: NESTED_EXPAND must run on the data nodes
 
 ---
 document metadata repeats on every expanded row:
@@ -558,42 +554,17 @@ the source loader pragma reads source order on the data node:
 - match: { values_loaded: 2 }
 
 ---
-expansion after a coordinator sort reads source order:
+expansion after a limit without a sort is rejected:
 - do:
-    indices.create:
-      index: ne_tags
-      body:
-        settings:
-          number_of_shards: 1
-          number_of_replicas: 0
-        mappings:
-          dynamic: strict
-          properties:
-            id:
-              type: keyword
-            items:
-              type: nested
-              properties:
-                tags:
-                  type: keyword
-- do:
-    bulk:
-      refresh: true
-      body:
-      - index:
-          _index: ne_tags
-          _id: x
-      - id: x
-        items:
-        - tags: [sale, new, sale]
-- do:
+    catch: bad_request
     esql.query:
       allow_partial_results: false
       body:
-        query: FROM ne_tags | SORT id | LIMIT 1 | NESTED_EXPAND items | KEEP items.tags
+        query: FROM ne_orders | LIMIT 1 | NESTED_EXPAND items | KEEP items.sku
 - match:
-    values:
-    - [[sale, new, sale]]
+    error.type: verification_exception
+- contains:
+    error.reason: NESTED_EXPAND must run on the data nodes
 
 ---
 a child field without doc values makes the expansion read source:

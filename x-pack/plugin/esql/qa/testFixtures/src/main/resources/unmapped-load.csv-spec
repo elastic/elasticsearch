@@ -4671,10 +4671,10 @@ all_types_unmapped_synthetic | key2            | false           | 2            
 ;
 
 // order.items.qty is not in nested_paths_mapped's mapping, so it loads from _source even though its parent is nested; the declared
-// order.items.name is read from the child documents there. The decision is per shard, so nested_paths_unmapped loads both.
+// order.items.name does not load there. The decision is per shard, so nested_paths_unmapped loads both.
 nestedPathsUndeclaredLeafLoads
 required_capability: optional_fields_v5
-required_capability: nested_flattened_leaves
+required_capability: fix_nested_subfield_extraction
 
 SET unmapped_fields="LOAD"\;
 FROM nested_paths_mapped, nested_paths_unmapped
@@ -4683,7 +4683,7 @@ FROM nested_paths_mapped, nested_paths_unmapped
 ;
 
 id:keyword | order.items.name:keyword | order.items.qty:keyword
-m | [a, b] | [1, 2]
+m | null | [1, 2]
 u | [a, b] | [1, 2]
 ;
 

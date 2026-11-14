@@ -307,7 +307,7 @@ mvExpandCommand
     ;
 
 nestedExpandCommand
-    : DEV_NESTED_EXPAND qualifiedName
+    : kind=(DEV_NESTED_EXPAND | DEV_NESTED_FLATTEN) qualifiedName
     ;
 
 explainCommand

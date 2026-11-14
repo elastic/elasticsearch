@@ -5850,11 +5850,11 @@ FROM partial_mapping_sample_data
 2024-10-23T13:55:01.543Z | 173.21.3.15  | 1756466             | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a""}" | Connected
 ;
 
-// A leaf declared under a nested parent is a column, read from the child documents of the shard that maps it, so it is not discovered
-// there. The same path is a plain unmapped field on a shard that does not map it.
-nestedPathsMappedLeavesAreColumnsPerShard
+// A leaf declared under a nested parent is a field of the shard that maps it, so it is not discovered there. The same path is a plain
+// unmapped field on a shard that does not map it. Nothing is hidden across the FROM just because another index maps the path as nested.
+nestedPathsMappedLeavesAreHiddenPerShard
 required_capability: optional_fields_load_all_single_source_column
-required_capability: nested_flattened_leaves
+required_capability: fix_nested_subfield_extraction
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM nested_paths_mapped, nested_paths_unmapped
@@ -5862,22 +5862,22 @@ FROM nested_paths_mapped, nested_paths_unmapped
 | SORT id
 ;
 
-id:keyword | order.items.name:keyword | order.items.parts.pn:keyword | _unmapped_fields:_source
-m          | [a, b]                   | [p1, p2]                     | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""red"",""blue""]}"
-u          | [a, b]                   | [p1, p2]                     | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""red"",""blue""]}"
+id:keyword | _unmapped_fields:_source
+m          | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""red"",""blue""]}"
+u          | "{""order.items.name"":[""a"",""b""],""order.items.qty"":[""1"",""2""],""order.items.parts.pn"":[""p1"",""p2""],""order.items.parts.color"":[""red"",""blue""]}"
 ;
 
 nestedPathsMappedIndexAlone
 required_capability: optional_fields_load_all_single_source_column
-required_capability: nested_flattened_leaves
+required_capability: fix_nested_subfield_extraction
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM nested_paths_mapped
 | KEEP id, order.items.*
 ;
 
-id:keyword | order.items.name:keyword | order.items.parts.pn:keyword | _unmapped_fields:_source
-m          | [a, b]                   | [p1, p2]                     | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""red"",""blue""]}"
+id:keyword | _unmapped_fields:_source
+m          | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""red"",""blue""]}"
 ;
 
 // A DISSECT output column named like an unmapped field (language_code) shadows it: the column holds the GROK value and language_code is

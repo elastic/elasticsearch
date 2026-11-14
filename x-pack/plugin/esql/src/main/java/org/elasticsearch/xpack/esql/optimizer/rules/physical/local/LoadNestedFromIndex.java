@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Lets NESTED_EXPAND and NESTED reductions on a data node read each parent's child documents from the index. It keeps
+ * Lets NESTED_EXPAND, NESTED_FLATTEN and NESTED reductions on a data node read each parent's child documents from the index. It keeps
  * {@code _doc} through the projections below them; without it they read {@code _source}, which is also what the
  * {@code nested_loader: source} pragma asks for. When every child field has doc values on this node, the index is
  * certain to serve them, so {@code _source} is not loaded either.
@@ -58,6 +58,7 @@ public final class LoadNestedFromIndex extends PhysicalOptimizerRules.Parameteri
             return new NestedExpandExec(
                 expand.source(),
                 expand.child(),
+                expand.flatten(),
                 expand.metadata().subList(1, expand.metadata().size()),
                 expand.path(),
                 expand.indices(),

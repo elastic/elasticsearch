@@ -409,7 +409,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx) {
         UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
-        return child -> new NestedExpand(src, child, field);
+        boolean flatten = ctx.kind.getType() == EsqlBaseParser.DEV_NESTED_FLATTEN;
+        return child -> new NestedExpand(src, child, flatten, field);
     }
 
     @Override

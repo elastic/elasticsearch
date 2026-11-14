@@ -225,6 +225,7 @@ public class MapperUtils {
             return new NestedExpandExec(
                 expand.source(),
                 child,
+                expand.flatten(),
                 expand.metadata(),
                 expand.path(),
                 expand.indices(),

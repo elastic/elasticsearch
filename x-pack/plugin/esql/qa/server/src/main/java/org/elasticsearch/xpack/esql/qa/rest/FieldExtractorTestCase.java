@@ -1283,10 +1283,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             }
             """);
 
-        if (clusterHasCapability(EsqlCapabilities.Cap.NESTED_FLATTENED_LEAVES)) {
-            assertNestedSubFieldIsAColumn();
-            return;
-        }
         Map<String, Object> result = runEsql("FROM test");
         assertResultMap(
             result,
@@ -1324,38 +1320,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             """));
         err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(err, containsString("line 2:8: Unknown column [Responses.process.pid]"));
-    }
-
-    /** Where every node reads the fields under a nested object, {@code Responses.process.pid} is a column; the nested object isn't. */
-    private void assertNestedSubFieldIsAColumn() throws IOException {
-        List<Map<String, Object>> columns = List.of(
-            columnInfo("Responses.process.pid", "long"),
-            columnInfo("process.parent.command_line", "keyword"),
-            columnInfo("process.parent.command_line.text", "text")
-        );
-        assertResultMap(runEsql("FROM test"), columns, Collections.EMPTY_LIST);
-
-        index("test", """
-            {"Responses.process.pid": 123,"process.parent.command_line":"run.bat"}""");
-
-        assertResultMap(runEsql("FROM test"), columns, List.of(matchesList().item(123).item("run.bat").item("run.bat")));
-        assertResultMap(
-            runEsql("FROM test | WHERE process.parent.command_line == \"run.bat\""),
-            columns,
-            List.of(matchesList().item(123).item("run.bat").item("run.bat"))
-        );
-        assertResultMap(
-            runEsql("FROM test | SORT Responses.process.pid"),
-            columns,
-            List.of(matchesList().item(123).item("run.bat").item("run.bat"))
-        );
-
-        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("""
-            FROM test
-            | SORT Responses.process.pid
-            | WHERE Responses.process IS NULL
-            """));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("line 3:9: Unknown column [Responses.process]"));
     }
 
     public void testOneNestedSubField_AndSameNameSupportedField_TwoIndices() throws IOException {
@@ -1400,30 +1364,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             {"Responses.process.pid": 123}""");
         index("test2", """
             {"process.parent.command_line":"run.bat"}""");
-
-        if (clusterHasCapability(EsqlCapabilities.Cap.NESTED_FLATTENED_LEAVES)) {
-            List<Map<String, Object>> columns = List.of(
-                columnInfo("Responses.process.pid", "long"),
-                columnInfo("process.parent.command_line", "keyword"),
-                columnInfo("process.parent.command_line.text", "text")
-            );
-            assertResultMap(
-                runEsql("FROM test* | SORT process.parent.command_line ASC NULLS FIRST"),
-                columns,
-                List.of(matchesList().item(123).item(null).item(null), matchesList().item(null).item("run.bat").item("run.bat"))
-            );
-            assertResultMap(
-                runEsql("FROM test* | WHERE process.parent.command_line == \"run.bat\""),
-                columns,
-                List.of(matchesList().item(null).item("run.bat").item("run.bat"))
-            );
-            assertResultMap(
-                runEsql("FROM test* | SORT Responses.process.pid"),
-                columns,
-                List.of(matchesList().item(123).item(null).item(null), matchesList().item(null).item("run.bat").item("run.bat"))
-            );
-            return;
-        }
 
         Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line ASC NULLS FIRST");
         assertResultMap(
@@ -1525,11 +1465,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"Responses.process": 222,"process.parent.command_line":"run2.bat"}""");
 
-        // Where every node reads the fields under a nested object, test1's pid is a column like test2's; elsewhere it is hidden
-        // from field caps, so extraction must be null even for STORED/_source.
-        boolean flattened = clusterHasCapability(EsqlCapabilities.Cap.NESTED_FLATTENED_LEAVES);
-        Matcher<Integer> pid = flattened ? equalTo(111) : pidMatcher();
         Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line");
+        // Nested pid is hidden from field caps; extraction must be null even for STORED/_source.
         assertResultMap(
             result,
             List.of(
@@ -1539,7 +1476,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 columnInfo("process.parent.command_line.text", "text")
             ),
             List.of(
-                matchesList().item(null).item(pid).item("run1.bat").item("run1.bat"),
+                matchesList().item(null).item(pidMatcher()).item("run1.bat").item("run1.bat"),
                 matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
             )
         );
@@ -1555,7 +1492,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 columnInfo("process.parent.command_line", "keyword"),
                 columnInfo("process.parent.command_line.text", "text")
             ),
-            flattened ? List.of(matchesList().item(null).item(111).item("run1.bat").item("run1.bat")) : List.of()
+            List.of()
         );
 
         result = runEsql("FROM test* | SORT process.parent.command_line");
@@ -1568,7 +1505,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 columnInfo("process.parent.command_line.text", "text")
             ),
             List.of(
-                matchesList().item(null).item(pid).item("run1.bat").item("run1.bat"),
+                matchesList().item(null).item(pidMatcher()).item("run1.bat").item("run1.bat"),
                 matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
             )
         );
@@ -1586,7 +1523,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 columnInfo("process.parent.command_line", "keyword"),
                 columnInfo("process.parent.command_line.text", "text")
             ),
-            List.of(matchesList().item(null).item(pid).item("run1.bat").item("run1.bat"))
+            List.of(matchesList().item(null).item(pidMatcher()).item("run1.bat").item("run1.bat"))
         );
     }
 

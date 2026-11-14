@@ -83,7 +83,6 @@ import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -91,9 +90,6 @@ import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedFlattenOperator;
-import org.elasticsearch.xpack.esql.index.NestedField;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -283,8 +279,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean reuseColumnLoaders = fieldExtractExec.attributesToExtract().size() <= plannerSettings.reuseColumnLoadersThreshold();
         int docSequenceThreshold = context.queryPragmas()
             .docSequenceBytesRefFieldThreshold(plannerSettings.docSequenceBytesRefFieldThreshold());
-        Layout extracted = layout.build();
-        PhysicalOperation operation = source.with(
+        return source.with(
             new ValuesSourceReaderOperator.Factory(
                 plannerSettings.valuesLoadingJumboSize(),
                 fields,
@@ -295,31 +290,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 docSequenceThreshold,
                 directoryBytesRead
             ),
-            extracted
+            layout.build()
         );
-        if (NestedField.FLATTENED_LEAVES) {
-            for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-                // An unsupported field, such as one whose indices disagree on its type, is null everywhere
-                if (attr instanceof FieldAttribute == false
-                    || attr.dataType() == DataType.UNSUPPORTED
-                    || fieldExtractExec.mayBeNested(attr) == false) {
-                    continue;
-                }
-                EsField field = ((FieldAttribute) attr).field();
-                // A union type or a fused function is converted as it is loaded, which the child values are not
-                boolean converted = field instanceof UnionTypeEsField || field instanceof FunctionEsField;
-                // IndexResolver reports the fields under a nested object as not aggregatable. Which shards nest the field is
-                // only known as their pages arrive.
-                if (field.isAggregatable() && converted == false) {
-                    continue;
-                }
-                var children = NestedChildren.flattened(shardContexts, getFieldName(attr), attr.dataType(), converted);
-                int channel = extracted.get(attr.id()).channel();
-                ElementType elementType = PlannerUtils.toElementType(attr.dataType());
-                operation = operation.with(new NestedFlattenOperator.Factory(docChannel, channel, elementType, children), extracted);
-            }
-        }
-        return operation;
     }
 
     @Override
@@ -1038,8 +1010,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
             // Exclude fields that field caps hides from the coordinator so the shard does not load a differently-typed block:
             // - flattened sub-keys: fieldType() is non-null but the key is not in the mapping (#154508)
-            // - nested subfields: mapped, but the parent document holds none of their values (#154011). Where ES|QL reads them,
-            // NestedFlattenOperator replaces these nulls with the values of the child documents.
+            // - nested subfields: mapped, but IndexResolver applies -nested on the field-caps request (#154011)
             // Only dotted names can be either, so gating the extra probes on the dot keeps flat names (the common case)
             // at a single resolution.
             if (name.indexOf('.') > 0 && isExtractableMappedField(name) == false) {
@@ -1068,7 +1039,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         /**
          * Loads a child field of a nested field from its hidden child documents. {@link #blockLoader} loads nulls for such a
-         * field, as the parent document holds none of its values.
+         * field, as field caps hides it from ordinary columns.
          */
         public BlockLoader nestedChildBlockLoader(
             String name,

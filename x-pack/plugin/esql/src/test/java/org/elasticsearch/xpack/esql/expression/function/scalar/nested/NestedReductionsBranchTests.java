@@ -144,6 +144,35 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
         );
     }
 
+    public void testUserCannotReuseSchemaNamesDuringNestedQuery() {
+        String name = "$$nested_reductions.items.price";
+        for (String command : List.of(
+            "EVAL `" + name + "` = 1",
+            "RENAME id AS `" + name + "`",
+            "EVAL text = \"forged\" | DISSECT text \"%{" + name + "}\""
+        )) {
+            var error = assertThrows(
+                VerificationException.class,
+                () -> NestedReductionsTestSupport.analyze(
+                    "FROM alpha | " + command + " | EVAL quantity = NESTED(SUM(items.quantity))",
+                    schemas(List.of(alpha())),
+                    Map.of()
+                )
+            );
+            assertTrue(error.getMessage(), error.getMessage().contains("reserved internal"));
+        }
+    }
+
+    public void testOrdinaryQueryCanUseSchemaLikeColumnName() throws Exception {
+        assertEquals(
+            List.of(row("ordinary")),
+            run(
+                "FROM alpha | EVAL `$$nested_reductions.items.price` = \"ordinary\" | KEEP `$$nested_reductions.items.price`",
+                List.of(fixture("alpha", false, false, "long", "[]"))
+            )
+        );
+    }
+
     public void testNestedArraysPreserveObjectCorrelationForEveryReduction() throws Exception {
         var fixtures = List.of(
             fixture("nr_nested_arrays", true, true, "long", "[null,[{\"price\":5,\"quantity\":4},null],[{\"price\":3,\"quantity\":2}]]")
@@ -237,7 +266,7 @@ public class NestedReductionsBranchTests extends LuceneTestCase {
                 if (attribute.name().equals("id")) {
                     return new BytesRef(f.index());
                 }
-                return NestedReductionsTestSupport.sourceValue(attribute, f.source());
+                throw new AssertionError(attribute);
             }).toList(),
             true,
             mode.equals("minimal") == false

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -15,8 +14,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -27,7 +24,6 @@ import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -211,11 +207,11 @@ final class NestedReductionsTestSupport {
                             for (var row : values) {
                                 List<Object> ordered = new ArrayList<>();
                                 for (Attribute attr : merge.output()) {
-                                    // A branch without the column contributes nulls
-                                    var c = IntStream.range(0, branch.output().size())
+                                    int c = IntStream.range(0, branch.output().size())
                                         .filter(i -> branch.output().get(i).name().equals(attr.name()))
-                                        .findFirst();
-                                    ordered.add(c.isPresent() ? row.get(c.getAsInt()) : null);
+                                        .findFirst()
+                                        .orElseThrow();
+                                    ordered.add(row.get(c));
                                 }
                                 merged.add(ordered);
                             }
@@ -396,32 +392,6 @@ final class NestedReductionsTestSupport {
         } finally {
             sourcePages.forEach(Page::releaseBlocks);
         }
-    }
-
-    /**
-     * The value of a mapped column for a parent document with this source, as ES|QL reads it: one value, a multivalue
-     * flattening every array on the way to the field (as for a leaf under a nested field), or null.
-     */
-    static Object sourceValue(Attribute attr, String source) {
-        List<Object> values = new ArrayList<>();
-        for (Object value : XContentMapValues.extractRawValues(
-            attr.name(),
-            XContentHelper.convertToMap(JsonXContent.jsonXContent, source, false)
-        )) {
-            values.add(switch (attr.dataType()) {
-                case LONG -> ((Number) value).longValue();
-                case INTEGER -> ((Number) value).intValue();
-                case DOUBLE -> ((Number) value).doubleValue();
-                case BOOLEAN -> (Boolean) value;
-                case KEYWORD, TEXT -> new BytesRef(value.toString());
-                default -> throw new AssertionError("unhandled column " + attr);
-            });
-        }
-        return switch (values.size()) {
-            case 0 -> null;
-            case 1 -> values.getFirst();
-            default -> values;
-        };
     }
 
     private static int column(List<Attribute> schema, Attribute attr) {

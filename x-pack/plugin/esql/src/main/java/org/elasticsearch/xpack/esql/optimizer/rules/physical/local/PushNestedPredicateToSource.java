@@ -119,7 +119,7 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
     }
 
     /** The scan below row-preserving steps, if a filter there keeps the same rows; not once a limit is pushed into it. */
-    private static EsQueryExec scan(PhysicalPlan plan) {
+    static EsQueryExec scan(PhysicalPlan plan) {
         while (plan instanceof ProjectExec || plan instanceof EvalExec) {
             plan = ((UnaryExec) plan).child();
         }
@@ -136,7 +136,7 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
         return reduction.childPredicate();
     }
 
-    private static PhysicalPlan withQuery(PhysicalPlan plan, List<QueryBuilder> queries) {
+    static PhysicalPlan withQuery(PhysicalPlan plan, List<QueryBuilder> queries) {
         if (plan instanceof EsQueryExec scan) {
             List<QueryBuilder> all = new ArrayList<>();
             all.add(scan.query());
@@ -148,7 +148,7 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
     }
 
     /** Child fields reach here only once every shard can search them and read their doc values. */
-    private static LucenePushdownPredicates childFields(EsqlFlags flags) {
+    static LucenePushdownPredicates childFields(EsqlFlags flags) {
         return new LucenePushdownPredicates() {
             @Override
             public TransportVersion minTransportVersion() {

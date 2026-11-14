@@ -184,11 +184,9 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
         String prefix = "SET unmapped_fields=\"" + cell.mode + "\"; ";
         String nestedKeep = keepStar ? "*" : "id, item.extra";
         String unsupportedKeep = keepStar ? "*" : "id, extra";
-        // Where the fields under a nested object are columns, the nested index reads a leaf it declares from its children
-        boolean readsChildren = EsqlCapabilities.Cap.NESTED_FLATTENED_LEAVES.isEnabled() && extraMappedOnSpecial;
         assertThat(
             presence(prefix + "FROM " + nested[0] + ", " + nested[1] + " | KEEP " + nestedKeep + " | SORT id", "item.extra"),
-            equalTo(readsChildren ? LOADED : cell.nested)
+            equalTo(cell.nested)
         );
         assertThat(
             presence(prefix + "FROM " + nestedNoField[0] + ", " + nestedNoField[1] + " | KEEP " + nestedKeep + " | SORT id", "item.extra"),

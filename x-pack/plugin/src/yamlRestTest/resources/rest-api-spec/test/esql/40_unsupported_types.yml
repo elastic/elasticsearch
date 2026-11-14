@@ -453,15 +453,6 @@ unsupported with sort:
 
 ---
 nested declared inline:
-  - requires:
-      test_runner_features: [ capabilities ]
-  - skip:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: []
-          capabilities: [ nested_flattened_leaves ]
-      reason: "Snapshot builds read the fields under a nested object as flattened columns; see 302_nested_flattened_leaves"
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
@@ -476,15 +467,6 @@ nested declared inline:
 
 ---
 nested declared in mapping:
-  - requires:
-      test_runner_features: [ capabilities ]
-  - skip:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: []
-          capabilities: [ nested_flattened_leaves ]
-      reason: "Snapshot builds read the fields under a nested object as flattened columns; see 302_nested_flattened_leaves"
   - do:
       indices.create:
         index: test_nested
@@ -516,15 +498,6 @@ nested declared in mapping:
 
 ---
 double nested declared in mapping:
-  - requires:
-      test_runner_features: [ capabilities ]
-  - skip:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: []
-          capabilities: [ nested_flattened_leaves ]
-      reason: "Snapshot builds read the fields under a nested object as flattened columns; see 302_nested_flattened_leaves"
   - do:
       indices.create:
         index: test_nested

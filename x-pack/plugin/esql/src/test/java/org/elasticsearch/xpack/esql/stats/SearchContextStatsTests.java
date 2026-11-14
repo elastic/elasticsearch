@@ -42,7 +42,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.index.NestedField;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.junit.After;
 import org.junit.Before;
@@ -833,11 +832,12 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     /**
-     * Nested subfields are in the mapping, but their values are in hidden child documents. Release builds apply
-     * {@code -nested} on the field-caps request, so stats must treat them as absent to match extraction. Snapshot
-     * builds read them as flattened multivalued columns: they exist, but the parent documents can't count them.
+     * Nested subfields are in the mapping but {@code IndexResolver} applies {@code -nested}
+     * on the field-caps request. Stats must treat them as absent so {@code exists}/{@code count}
+     * match extraction.
+     * If ES|QL later supports nested fields, these expectations will need updating.
      */
-    public void testNestedSubfieldStats() throws IOException {
+    public void testNestedSubfieldIsNotExtractable() throws IOException {
         final List<Closeable> toClose = new ArrayList<>();
         try {
             final MapperService nestedMapper = createMapperService("""
@@ -860,8 +860,8 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
 
             SearchStats nestedOnly = SearchContextStats.from(List.of(nestedContext));
             FieldAttribute.FieldName field = new FieldAttribute.FieldName("item.value");
-            assertEquals(NestedField.FLATTENED_LEAVES, nestedOnly.exists(field));
-            assertEquals(NestedField.FLATTENED_LEAVES ? -1L : 0L, nestedOnly.count(field));
+            assertFalse("nested-only shard: field caps hides the field, so exists is false", nestedOnly.exists(field));
+            assertEquals(0L, nestedOnly.count(field));
 
             final MapperService objectMapper = createMapperService("""
                 { "doc": { "properties": {
@@ -881,7 +881,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
 
             SearchStats mixed = SearchContextStats.from(List.of(nestedContext, objectContext));
             assertTrue("object shard maps the field, so exists is true across mixed shards", mixed.exists(field));
-            assertEquals(NestedField.FLATTENED_LEAVES ? -1L : 1L, mixed.count(field));
+            assertEquals("count must ignore the nested shard", 1L, mixed.count(field));
         } finally {
             IOUtils.close(toClose);
         }

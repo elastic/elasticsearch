@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressio
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushNestedExpandFilterToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushNestedPredicateToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource;
@@ -86,6 +87,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new PushLimitToSource(),
             new PushLimitToExternalSource(),
             new PushNestedPredicateToSource(),
+            new PushNestedExpandFilterToSource(),
             new PushFiltersToSource(),
             new PushSampleToSource(),
             new ReplaceSampledStatsByExactStats(),

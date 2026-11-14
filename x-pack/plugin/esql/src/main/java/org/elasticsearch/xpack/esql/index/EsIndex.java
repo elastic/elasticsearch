@@ -18,26 +18,13 @@ public record EsIndex(
     Map<String, IndexProperties> indexProperties, // keyed by concrete index name
     Map<String, List<String>> originalIndices, // keyed by cluster alias
     Map<String, List<String>> concreteIndices, // keyed by cluster alias
-    Map<String, FieldSemantics> fieldSemantics, // keyed by full field name; coordinator only
-    Map<String, NestedField> nestedFields // keyed by full field name; coordinator only
+    Map<String, FieldSemantics> fieldSemantics // keyed by full field name; coordinator only
 ) {
 
     public EsIndex {
         assert name != null;
         assert mapping != null;
         assert fieldSemantics != null;
-        assert nestedFields != null;
-    }
-
-    public EsIndex(
-        String name,
-        Map<String, EsField> mapping,
-        Map<String, IndexProperties> indexProperties,
-        Map<String, List<String>> originalIndices,
-        Map<String, List<String>> concreteIndices,
-        Map<String, FieldSemantics> fieldSemantics
-    ) {
-        this(name, mapping, indexProperties, originalIndices, concreteIndices, fieldSemantics, Map.of());
     }
 
     public EsIndex(

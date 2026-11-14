@@ -217,26 +217,6 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/180_match_operator/match on eval column", "Match works now with non-mapped columns")
     task.skipTest("esql/180_match_operator/match on overwritten column", "Match works now with non-mapped columns")
     task.skipTest("esql/100_bug_fix/unsupported and invalid mapped fields", "An object is not a leaf")
-    for (String test : [
-      "double nested declared in mapping",
-      "nested declared in mapping",
-      "nested declared inline"
-    ]) {
-      task.skipTest("esql/40_unsupported_types/" + test, "Snapshot builds read the fields under a nested object as columns")
-    }
-    for (String test : [
-      "DOUBLE vs LONG nested conflict",
-      "BYTES_REF vs LONG nested conflict",
-      "KEEP and SORT: nested integer vs object long",
-      "explicit long cast still nullifies the nested shard",
-      "deep path: nested parent with intermediate object",
-      "aggregation: SUM and COUNT skip nested values",
-      "include_in_root does not leak nested values",
-      "nested-only index does not resolve the nested subfield",
-      "WHERE IS NOT NULL keeps only the object-index rows"
-    ]) {
-      task.skipTest("esql/162_nested_field_conflicts/" + test, "Snapshot builds read the fields under a nested object as columns")
-    }
     task.skipTest("deprecation/10_basic/Test Deprecations", "node_settings depends on the JVM version, see NodeSettingsDeprecationIT")
     task.skipTest(
       "data_streams/10_data_stream_resolvability/Verify data stream resolvability in migrations API",

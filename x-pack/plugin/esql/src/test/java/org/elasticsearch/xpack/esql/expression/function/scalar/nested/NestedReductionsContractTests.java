@@ -20,12 +20,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -72,13 +74,25 @@ public class NestedReductionsContractTests extends LuceneTestCase {
         "synthetic source expands doc values on the data node"
     );
 
+    /**
+     * This harness reads every row on one node from one index, so nothing runs on the coordinator after an exchange and
+     * no shard maps a field differently from another. The REST tests check those cases.
+     */
+    private static final Set<String> REST_ONLY = Set.of(
+        "expansion after a limit is rejected",
+        "expansion after a limit without a sort is rejected",
+        "every index must copy the objects into the parent"
+    );
+
     @ParametersFactory
     public static Iterable<Object[]> contracts() throws IOException {
         LogConfigurator.configureESLogging();
         List<Object[]> parameters = new ArrayList<>();
         parameters.addAll(contracts("292_nested_reductions.yml", 68));
-        parameters.addAll(contracts("295_nested_expand.yml", 27));
+        parameters.addAll(contracts("295_nested_expand.yml", 25));
         parameters.addAll(contracts("296_nested_reductions_pushdown.yml", 8));
+        parameters.addAll(contracts("302_nested_flatten.yml", 13));
+        parameters.addAll(contracts("304_nested_expand_pushdown.yml", 8));
         return parameters;
     }
 
@@ -101,7 +115,9 @@ public class NestedReductionsContractTests extends LuceneTestCase {
                 setup = (List<Map<String, Object>>) parsed.get("setup");
             } else {
                 for (var entry : parsed.entrySet()) {
-                    if (entry.getKey().equals(FIELD_RESOLUTION_ONLY) == false && INDEXED_ONLY.contains(entry.getKey()) == false) {
+                    if (entry.getKey().equals(FIELD_RESOLUTION_ONLY) == false
+                        && INDEXED_ONLY.contains(entry.getKey()) == false
+                        && REST_ONLY.contains(entry.getKey()) == false) {
                         parameters.add(new Object[] { new Contract(entry.getKey(), setup, (List<Map<String, Object>>) entry.getValue()) });
                     }
                 }
@@ -295,7 +311,17 @@ public class NestedReductionsContractTests extends LuceneTestCase {
                 default -> throw new AssertionError(attr.name());
             });
         }
-        return NestedReductionsTestSupport.sourceValue(attr, json(document.source()));
+        Object value = XContentMapValues.extractValue(attr.name(), document.source());
+        if (value == null) {
+            return null;
+        }
+        if (attr.dataType() == DataType.KEYWORD || attr.dataType() == DataType.TEXT) {
+            return new BytesRef(value.toString());
+        }
+        if (attr.dataType() == DataType.LONG) {
+            return ((Number) value).longValue();
+        }
+        throw new AssertionError("unhandled parent input " + attr);
     }
 
     private static String json(Object value) {

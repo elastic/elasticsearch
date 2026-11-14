@@ -4847,12 +4847,18 @@ public class EsqlCapabilities {
         NESTED_EXPAND(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
 
         /**
-         * A field under a {@code nested} object reads, outside the nested functions, as a multivalued column holding the values
-         * of all of the parent's objects, like a field under a plain object. The nested object itself is still not a column.
-         * Before, ES|QL hid such fields (<a href="https://github.com/elastic/elasticsearch/issues/154011">#154011</a>). Snapshot
-         * only, with the nested functions.
+         * Test-only execution of the {@code NESTED_FLATTEN} command, which reads each child field of a mapped nested field as
+         * one multivalued column per parent. Stays unadvertised under the same switch as {@link #NESTED_REDUCTIONS}.
          */
-        NESTED_FLATTENED_LEAVES(Build.current().isSnapshot()),
+        NESTED_FLATTEN(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
+
+        /**
+         * A {@code WHERE} on the columns {@code NESTED_EXPAND} adds narrows the parents Lucene returns where the nested field
+         * is copied into the parent with {@code include_in_parent} or {@code include_in_root}; {@code NESTED_EXPAND} and
+         * {@code NESTED_FLATTEN} only run on the data nodes. Stays unadvertised under the same switch as
+         * {@link #NESTED_REDUCTIONS}.
+         */
+        NESTED_EXPAND_PUSHDOWN(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
 
         /**
          * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which

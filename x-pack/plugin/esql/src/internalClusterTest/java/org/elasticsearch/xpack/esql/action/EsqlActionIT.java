@@ -2332,18 +2332,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     private void assertNoNestedDocuments(String query, int docsCount, long minValue, long maxValue) {
         try (EsqlQueryResponse results = run(query)) {
-            // Where the fields under a nested object are columns, nested.foo holds each parent's child values, still one row per parent
-            if (EsqlCapabilities.Cap.NESTED_FLATTENED_LEAVES.isEnabled()) {
-                assertThat(
-                    results.columns(),
-                    contains(new ColumnInfoImpl("data", "long", null), new ColumnInfoImpl("nested.foo", "long", null))
-                );
-            } else {
-                assertThat(results.columns(), contains(new ColumnInfoImpl("data", "long", null)));
-            }
+            assertThat(results.columns(), contains(new ColumnInfoImpl("data", "long", null)));
+            assertThat(results.columns().size(), is(1));
             assertThat(getValuesList(results).size(), is(docsCount));
             for (List<Object> row : getValuesList(results)) {
-                assertThat(row.size(), is(results.columns().size()));
+                assertThat(row.size(), is(1));
                 // check that all the values returned are the regular ones
                 assertThat((Long) row.get(0), allOf(greaterThanOrEqualTo(minValue), lessThanOrEqualTo(maxValue)));
             }

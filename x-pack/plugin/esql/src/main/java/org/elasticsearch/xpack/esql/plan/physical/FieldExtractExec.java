@@ -69,15 +69,6 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
      */
     protected final Set<Attribute> centroidAttributes;
 
-    /**
-     * Attributes that a shard here may map under a nested object, read from the child documents, or {@code null} if
-     * that wasn't determined and any of them may be.
-     * <p>
-     * This is never serialized between nodes and only used locally.
-     * </p>
-     */
-    protected final @Nullable Set<Attribute> nestedAttributes;
-
     private List<Attribute> lazyOutput;
 
     public FieldExtractExec(
@@ -86,7 +77,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         List<Attribute> attributesToExtract,
         MappedFieldType.FieldExtractPreference defaultPreference
     ) {
-        this(source, child, attributesToExtract, defaultPreference, Set.of(), Set.of(), Set.of(), null);
+        this(source, child, attributesToExtract, defaultPreference, Set.of(), Set.of(), Set.of());
     }
 
     protected FieldExtractExec(
@@ -96,8 +87,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         MappedFieldType.FieldExtractPreference defaultPreference,
         Set<Attribute> docValuesAttributes,
         Set<Attribute> boundsAttributes,
-        Set<Attribute> centroidAttributes,
-        @Nullable Set<Attribute> nestedAttributes
+        Set<Attribute> centroidAttributes
     ) {
         super(source, child);
         this.attributesToExtract = attributesToExtract;
@@ -105,7 +95,6 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         this.docValuesAttributes = docValuesAttributes;
         this.boundsAttributes = boundsAttributes;
         this.centroidAttributes = centroidAttributes;
-        this.nestedAttributes = nestedAttributes;
         this.defaultPreference = defaultPreference;
     }
 
@@ -162,8 +151,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
             defaultPreference,
             docValuesAttributes,
             boundsAttributes,
-            centroidAttributes,
-            nestedAttributes
+            centroidAttributes
         );
     }
 
@@ -175,8 +163,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
             defaultPreference,
             docValuesAttributes,
             boundsAttributes,
-            centroidAttributes,
-            nestedAttributes
+            centroidAttributes
         );
     }
 
@@ -188,8 +175,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
             defaultPreference,
             docValuesAttributes,
             boundsAttributes,
-            centroidAttributes,
-            nestedAttributes
+            centroidAttributes
         );
     }
 
@@ -201,8 +187,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
             defaultPreference,
             docValuesAttributes,
             boundsAttributes,
-            centroidAttributes,
-            nestedAttributes
+            centroidAttributes
         );
     }
 
@@ -214,21 +199,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
             defaultPreference,
             docValuesAttributes,
             boundsAttributes,
-            centroidAttributes,
-            nestedAttributes
-        );
-    }
-
-    public FieldExtractExec withNestedAttributes(@Nullable Set<Attribute> nestedAttributes) {
-        return new FieldExtractExec(
-            source(),
-            child(),
-            attributesToExtract,
-            defaultPreference,
-            docValuesAttributes,
-            boundsAttributes,
-            centroidAttributes,
-            nestedAttributes
+            centroidAttributes
         );
     }
 
@@ -252,11 +223,6 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         return centroidAttributes;
     }
 
-    /** Whether {@code attr} may be read from the child documents of a nested object. */
-    public boolean mayBeNested(Attribute attr) {
-        return nestedAttributes == null || nestedAttributes.contains(attr);
-    }
-
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
@@ -277,7 +243,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(attributesToExtract, docValuesAttributes, boundsAttributes, centroidAttributes, nestedAttributes, child());
+        return Objects.hash(attributesToExtract, docValuesAttributes, boundsAttributes, centroidAttributes, child());
     }
 
     @Override
@@ -295,7 +261,6 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
             && Objects.equals(docValuesAttributes, other.docValuesAttributes)
             && Objects.equals(boundsAttributes, other.boundsAttributes)
             && Objects.equals(centroidAttributes, other.centroidAttributes)
-            && Objects.equals(nestedAttributes, other.nestedAttributes)
             && Objects.equals(child(), other.child());
     }
 

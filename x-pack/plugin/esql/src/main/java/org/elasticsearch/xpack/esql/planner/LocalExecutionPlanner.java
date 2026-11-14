@@ -2906,7 +2906,8 @@ public class LocalExecutionPlanner {
                 expand.expanded().stream().map(Attribute::dataType).toList(),
                 expand.paths(),
                 expand.mappedIndices(),
-                expand.sourceFailures()
+                expand.sourceFailures(),
+                expand.flatten()
             ),
             layout.build()
         );

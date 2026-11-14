@@ -10,7 +10,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -41,7 +40,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 
@@ -54,15 +52,8 @@ public final class NestedChildren implements Releasable {
     /** Children per page, so a parent with many objects does not need them all in memory at once. */
     static final int PAGE_SIZE = 1024;
 
-    /**
-     * One shard's filters selecting parents and the children of this nested field, {@code null} where it is not mapped.
-     * {@code parents} is only read with {@code children}. {@code warning} is added to each driver that reads the shard.
-     */
-    public record Shard(IndexReader reader, @Nullable BitSetProducer parents, @Nullable BitSetProducer children, @Nullable String warning) {
-        public Shard(IndexReader reader, @Nullable BitSetProducer parents, @Nullable BitSetProducer children) {
-            this(reader, parents, children, null);
-        }
-    }
+    /** One shard's filters selecting parents and the children of this nested field, {@code null} where it is not mapped. */
+    public record Shard(IndexReader reader, BitSetProducer parents, @Nullable BitSetProducer children) {}
 
     /** @param reader loads the child fields; {@code null} when no child field is read, as for {@code COUNT(*)} */
     public record Factory(IndexedByShardId<Shard> shards, @Nullable ValuesSourceReaderOperator.Factory reader) {
@@ -88,95 +79,31 @@ public final class NestedChildren implements Releasable {
         List<String> paths,
         List<DataType> types
     ) {
-        return factory(shardContexts, context -> path, paths.stream().map(p -> path + "." + p).toList(), types);
-    }
-
-    /**
-     * Reads {@code field} from the child documents of each parent on the shards that map it under a nested object. Each
-     * shard decides when its first page arrives, as the shards of a data node are opened and closed while it computes.
-     * Where the children can't be read, because the field has no doc values there, {@code converted} says its values are
-     * converted as they are loaded, or values of {@code type} can't be flattened, the field reads as null with a warning.
-     */
-    public static Factory flattened(
-        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
-        String field,
-        DataType type,
-        boolean converted
-    ) {
-        boolean readable = converted == false && NestedFlattenOperator.canFlatten(PlannerUtils.toElementType(type));
-        IndexedByShardId<Shard> shards = shardContexts.map(shard -> {
-            if (shard instanceof EsPhysicalOperationProviders.DefaultShardContext == false) {
-                return new Shard(shard.searcher().getIndexReader(), null, null);
-            }
-            SearchExecutionContext context = ((EsPhysicalOperationProviders.DefaultShardContext) shard).executionContext();
-            NestedObjectMapper nested = nested(shard, pathFor(field));
-            if (nested != null && (readable == false || withoutDocValues(shard, List.of(field)) != null)) {
-                return new Shard(
-                    shard.searcher().getIndexReader(),
-                    null,
-                    null,
-                    Strings.format("Field [%s] cannot be retrieved, it is unsupported or not indexed; returning null", field)
-                );
-            }
-            if (nested == null) {
-                return new Shard(shard.searcher().getIndexReader(), null, null);
-            }
-            return new Shard(
-                shard.searcher().getIndexReader(),
-                context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated())),
-                context.bitsetFilter(nested.nestedTypeFilter())
-            );
-        });
-        return new Factory(shards, readable ? reader(shardContexts, List.of(field), List.of(type)) : null);
-    }
-
-    /** A field the shard doesn't map, such as one loaded from {@code _source}, has no child values even under a nested path. */
-    private static Function<SearchExecutionContext, String> pathFor(String field) {
-        return context -> context.getMappingLookup().getFieldType(field) != null ? context.nestedLookup().getNestedParent(field) : null;
-    }
-
-    /** @param pathFor the nested object to read the children of on the shard, {@code null} where there is none */
-    @Nullable
-    private static Factory factory(
-        @Nullable IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
-        Function<SearchExecutionContext, String> pathFor,
-        List<String> fields,
-        List<DataType> types
-    ) {
         if (shardContexts == null || shardContexts.isEmpty()) {
             return null;
         }
+        List<String> fields = paths.stream().map(p -> path + "." + p).toList();
         for (var shard : shardContexts.iterable()) {
-            if (shard instanceof EsPhysicalOperationProviders.DefaultShardContext == false) {
-                return null;
-            }
-            if (nested(shard, pathFor) != null && withoutDocValues(shard, fields) != null) {
+            if (shard instanceof EsPhysicalOperationProviders.DefaultShardContext == false || withoutDocValues(shard, fields) != null) {
                 return null;
             }
         }
         IndexedByShardId<Shard> shards = shardContexts.map(shard -> {
-            SearchExecutionContext context = ((EsPhysicalOperationProviders.DefaultShardContext) shard).executionContext();
-            NestedObjectMapper nested = nested(shard, pathFor);
-            if (nested != null) {
-                String missing = withoutDocValues(shard, fields);
-                if (missing != null) {
-                    throw new IllegalStateException("nested child field [" + missing + "] has no doc values on a later shard");
-                }
+            String missing = withoutDocValues(shard, fields);
+            if (missing != null) {
+                throw new IllegalStateException("nested child field [" + missing + "] has no doc values on a later shard");
             }
+            SearchExecutionContext context = ((EsPhysicalOperationProviders.DefaultShardContext) shard).executionContext();
+            NestedObjectMapper nested = context.nestedLookup().getNestedMappers().get(path);
             return new Shard(
                 shard.searcher().getIndexReader(),
                 context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated())),
                 nested == null ? null : context.bitsetFilter(nested.nestedTypeFilter())
             );
         });
-        return new Factory(shards, fields.isEmpty() ? null : reader(shardContexts, fields, types));
-    }
-
-    private static ValuesSourceReaderOperator.Factory reader(
-        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts,
-        List<String> fields,
-        List<DataType> types
-    ) {
+        if (fields.isEmpty()) {
+            return new Factory(shards, null);
+        }
         PlannerSettings settings = PlannerSettings.DEFAULTS;
         List<ValuesSourceReaderOperator.FieldInfo> infos = new ArrayList<>(fields.size());
         for (int f = 0; f < fields.size(); f++) {
@@ -204,26 +131,19 @@ public final class NestedChildren implements Releasable {
                 s.storedFieldsSequentialProportion()
             )
         );
-        // Pages are bounded by PAGE_SIZE already.
-        return new ValuesSourceReaderOperator.Factory(
-            ByteSizeValue.ofBytes(Long.MAX_VALUE),
-            infos,
-            readers,
-            true,
-            0,
-            settings.sourceReservationFactor(),
-            () -> 0
+        return new Factory(
+            shards,
+            // Pages are bounded by PAGE_SIZE already.
+            new ValuesSourceReaderOperator.Factory(
+                ByteSizeValue.ofBytes(Long.MAX_VALUE),
+                infos,
+                readers,
+                true,
+                0,
+                settings.sourceReservationFactor(),
+                () -> 0
+            )
         );
-    }
-
-    @Nullable
-    private static NestedObjectMapper nested(
-        EsPhysicalOperationProviders.ShardContext shard,
-        Function<SearchExecutionContext, String> pathFor
-    ) {
-        SearchExecutionContext context = ((EsPhysicalOperationProviders.DefaultShardContext) shard).executionContext();
-        String path = pathFor.apply(context);
-        return path == null ? null : context.nestedLookup().getNestedMappers().get(path);
     }
 
     @Nullable
@@ -260,15 +180,6 @@ public final class NestedChildren implements Releasable {
         this.shards = shards;
         this.reader = reader;
         this.projection = IntStream.range(1, 2 + fields).toArray();
-    }
-
-    /** Whether the shard maps the nested object, so its parents have children to read. */
-    boolean hasChildren(int shard) {
-        Shard s = shards.get(shard);
-        if (s.warning() != null && context.warningsMode() == DriverContext.WarningsMode.COLLECT) {
-            context.addWarning(s.warning());
-        }
-        return s.children() != null;
     }
 
     /**

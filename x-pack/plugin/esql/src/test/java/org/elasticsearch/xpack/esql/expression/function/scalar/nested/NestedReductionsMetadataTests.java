@@ -114,17 +114,9 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
-    /** The fields under a nested object are columns, so KEEP drops them like any other column. */
-    public void testKeepBeforeReductionDropsChildFields() {
-        var error = assertThrows(
-            VerificationException.class,
-            () -> NestedReductionsTestSupport.analyze(
-                "FROM orders | KEEP order_id | EVAL total = NESTED(SUM(items.price * items.quantity))",
-                schema(),
-                Map.of()
-            )
-        );
-        assertTrue(error.getMessage(), error.getMessage().contains("Unknown column [items.price]"));
+    public void testKeepBeforeReductionRetainsOnlyPrivateDependencies() throws Exception {
+        var rows = run("FROM orders | KEEP order_id | EVAL total = NESTED(SUM(items.price * items.quantity)) | SORT order_id");
+        assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
     public void testForkCanChangePublicMetadataIndependently() throws Exception {
@@ -135,17 +127,13 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
         assertEquals(List.of(row(4L, 48L)), rows);
     }
 
-    /** The lookup's columns replace the FROM columns of the same name, and they are not under a nested field of the FROM. */
-    public void testLookupColumnsReplaceChildFields() {
-        var error = assertThrows(
-            VerificationException.class,
-            () -> NestedReductionsTestSupport.analyze(
-                "FROM orders | LOOKUP JOIN prices ON order_id | EVAL total = NESTED(SUM(items.price * items.quantity))",
-                schema(),
-                lookup("items")
-            )
+    public void testNestedLookupMappingCannotRedirectLeftReduction() throws Exception {
+        var rows = run(
+            "FROM orders | LOOKUP JOIN prices ON order_id "
+                + "| EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, total | SORT order_id",
+            lookup("items")
         );
-        assertTrue(error.getMessage(), error.getMessage().contains("NESTED requires a mapped nested field"));
+        assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
     public void testLaterLookupMappingCannotChangeEarlierReduction() throws Exception {
@@ -175,7 +163,16 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
                 lookup("offers")
             )
         );
-        assertTrue(error.getMessage(), error.getMessage().contains("NESTED requires a mapped nested field"));
+        assertTrue(error.getMessage(), error.getMessage().contains("lookup-side nested scope"));
+    }
+
+    public void testLookupMappingTypeCannotChangeLeftArithmetic() throws Exception {
+        var rows = run(
+            "FROM orders | LOOKUP JOIN prices ON order_id "
+                + "| EVAL total = NESTED(SUM(items.price * items.quantity)) | KEEP order_id, total | SORT order_id",
+            lookup("items", "keyword")
+        );
+        assertEquals(List.of(row("a", 24L), row("b", null)), rows);
     }
 
     public void testLookupCannotProvideScopeWhenFromHasNoNestedMapping() {
@@ -195,7 +192,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
                 lookup("offers")
             )
         );
-        assertTrue(error.getMessage(), error.getMessage().contains("NESTED requires a mapped nested field"));
+        assertTrue(error.getMessage(), error.getMessage().contains("lookup-side nested scope"));
     }
 
     public void testAggregationDoesNotRecreateParentAssociation() {
@@ -241,15 +238,20 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
             analyzed = NestedReductionsTestSupport.roundTrip(query, analyzed);
         }
         return NestedReductionsTestSupport.runLocal(query, analyzed, relation -> 2, (relation, attr) -> {
-            List<String> sources = relation.indexProperties().containsKey("prices")
-                ? List.of(
-                    "{\"items\":[{\"price\":999,\"quantity\":2}],\"offers\":[{\"price\":999}]}",
-                    "{\"items\":[{\"price\":999,\"quantity\":2}],\"offers\":[{\"price\":999}]}"
-                )
-                : List.of("{\"items\":[{\"price\":3,\"quantity\":2},{\"price\":9,\"quantity\":2}]}", "{\"items\":[]}");
             if (attr instanceof MetadataAttribute) {
                 return switch (attr.name()) {
-                    case "_source" -> sources.stream().map(BytesRef::new).toList();
+                    case "_source" -> List.of(
+                        new BytesRef(
+                            relation.indexProperties().containsKey("prices")
+                                ? "{\"items\":[{\"price\":999,\"quantity\":2}],\"offers\":[{\"price\":999}]}"
+                                : "{\"items\":[{\"price\":3,\"quantity\":2},{\"price\":9,\"quantity\":2}]}"
+                        ),
+                        new BytesRef(
+                            relation.indexProperties().containsKey("prices")
+                                ? "{\"items\":[{\"price\":999,\"quantity\":2}],\"offers\":[{\"price\":999}]}"
+                                : "{\"items\":[]}"
+                        )
+                    );
                     case "_index" -> List.of(
                         new BytesRef(relation.indexProperties().keySet().iterator().next()),
                         new BytesRef(relation.indexProperties().keySet().iterator().next())
@@ -260,7 +262,7 @@ public class NestedReductionsMetadataTests extends LuceneTestCase {
             if (attr.name().equals("order_id")) {
                 return List.of(new BytesRef("a"), new BytesRef("b"));
             }
-            return sources.stream().map(source -> NestedReductionsTestSupport.sourceValue(attr, source)).toList();
+            throw new AssertionError(attr);
         }, true, mode.equals("minimal") == false);
     }
 

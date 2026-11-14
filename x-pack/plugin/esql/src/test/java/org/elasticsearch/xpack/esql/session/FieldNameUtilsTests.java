@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.index.NestedField;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -94,14 +94,14 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testNestedReductionAsksForItsFieldsAndTheirParents() {
         assertFieldNames(
             "from test | eval t = nested(sum(items.price)) | keep t",
-            Set.of("items.price", "items.price.*", "items", "_index", NestedField.REQUEST_MARKER)
+            Set.of("items.price", "items.price.*", "items", "_index", NestedScopeField.REQUEST_MARKER)
         );
     }
 
     public void testNestedPredicateAsksForItsFieldsAndTheParentFields() {
         assertFieldNames(
             "from test | where nested_any(items.price > 1) | keep id",
-            Set.of("id", "id.*", "items.price", "items.price.*", "items", "_index", NestedField.REQUEST_MARKER)
+            Set.of("id", "id.*", "items.price", "items.price.*", "items", "_index", NestedScopeField.REQUEST_MARKER)
         );
     }
 
@@ -109,7 +109,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testNestedJsonAsksForTheWholeCollection() {
         assertFieldNames(
             "from test | eval j = nested_json(items) | keep j",
-            Set.of("items", "items.*", "_index", NestedField.REQUEST_MARKER)
+            Set.of("items", "items.*", "_index", NestedScopeField.REQUEST_MARKER)
         );
     }
 
@@ -118,13 +118,13 @@ public class FieldNameUtilsTests extends ESTestCase {
         assumeTrue("NESTED_EXPAND is snapshot-only", Build.current().isSnapshot());
         assertFieldNames(
             "from test | nested_expand items | keep items.price",
-            Set.of("items.price", "items.price.*", "items", "items.*", "_index", NestedField.REQUEST_MARKER)
+            Set.of("items.price", "items.price.*", "items", "items.*", "_index", NestedScopeField.REQUEST_MARKER)
         );
     }
 
     /** A query that needs every field still asks for all of them. */
     public void testNestedWithoutNarrowingAsksForAllFields() {
-        assertFieldNames("from test | where nested_any(items.price > 1)", Set.of("*", NestedField.REQUEST_MARKER));
+        assertFieldNames("from test | where nested_any(items.price > 1)", Set.of("*", NestedScopeField.REQUEST_MARKER));
     }
 
     public void testSimple1() {

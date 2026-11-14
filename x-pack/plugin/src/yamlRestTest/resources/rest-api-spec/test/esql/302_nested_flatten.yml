@@ -1,0 +1,381 @@
+# Contract for NESTED_FLATTEN.
+# nested_flatten stays unadvertised. A capability skip is not a passing feature test.
+# To execute these cases, start the node with -Desql.nested_reductions.test_execution=true.
+# NESTED_FLATTEN <nested field> keeps one row per parent. Each child field becomes an ordinary multivalued column, named
+# by its full path, holding the values of all of the parent's objects in document order. A parent with no objects gets
+# null child columns. It runs on the data nodes: a LIMIT or SORT before it moves after it, as it keeps every row.
+# Nothing it adds is pushed to Lucene.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    - allowed_warnings_regex
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_flatten
+    reason: "Nested flattening; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: nf_orders
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            order_id:
+              type: keyword
+            region:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                sku:
+                  type: keyword
+                category:
+                  type: keyword
+                price:
+                  type: long
+                quantity:
+                  type: long
+                tags:
+                  type: keyword
+                details:
+                  properties:
+                    color:
+                      type: keyword
+            events:
+              type: nested
+              properties:
+                start:
+                  type: long
+                end:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nf_orders
+          _id: a
+      - order_id: a
+        region: west
+        items:
+        - sku: a1
+          category: book
+          price: 10
+          quantity: 3
+          tags:
+          - new
+          - sale
+          details:
+            color: blue
+        - sku: a2
+          category: game
+          price: 40
+          quantity: 5
+          details:
+            color: red
+        events:
+        - start: 20
+          end: 10
+      - index:
+          _index: nf_orders
+          _id: b
+      - order_id: b
+        region: east
+        items:
+        - sku: b1
+          category: book
+          price: 70
+          quantity: 2
+        - sku: b2
+          category: game
+          price: 90
+          quantity: 2
+        events:
+        - start: 1
+          end: 2
+        - start: 3
+          end: 4
+      - index:
+          _index: nf_orders
+          _id: c
+      - order_id: c
+        region: west
+        items:
+        - sku: c1
+          category: book
+          price: 9
+        - sku: c2
+          category: game
+          price: 3
+          quantity: 2
+      - index:
+          _index: nf_orders
+          _id: d
+      - order_id: d
+        region: east
+        items:
+        - sku: dup
+          price: 1
+          quantity: 2
+        - sku: dup
+          price: 1
+          quantity: 2
+      - index:
+          _index: nf_orders
+          _id: e
+      - order_id: e
+        region: west
+        items: []
+      - index:
+          _index: nf_orders
+          _id: f
+      - order_id: f
+        region: east
+        items: null
+      - index:
+          _index: nf_orders
+          _id: g
+      - order_id: g
+        region: west
+
+---
+one row per parent holds the values of every object:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | NESTED_FLATTEN items | KEEP order_id, items.sku, items.price, items.quantity | SORT order_id
+          | LIMIT 100
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: items.sku
+      type: keyword
+    - name: items.price
+      type: long
+    - name: items.quantity
+      type: long
+- match:
+    values:
+    - [a, [a1, a2], [10, 40], [3, 5]]
+    - [b, [b1, b2], [70, 90], [2, 2]]
+    - [c, [c1, c2], [9, 3], 2]
+    - [d, [dup, dup], [1, 1], [2, 2]]
+    - [e, null, null, null]
+    - [f, null, null, null]
+    - [g, null, null, null]
+
+---
+without KEEP only the parent and flattened columns are returned:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | WHERE order_id == "a" | NESTED_FLATTEN items | LIMIT 10
+- match:
+    columns:
+    - name: order_id
+      type: keyword
+    - name: region
+      type: keyword
+    - name: items.category
+      type: keyword
+    - name: items.details.color
+      type: keyword
+    - name: items.price
+      type: long
+    - name: items.quantity
+      type: long
+    - name: items.sku
+      type: keyword
+    - name: items.tags
+      type: keyword
+- match:
+    values:
+    - [a, west, [book, game], [blue, red], [10, 40], [3, 5], [a1, a2], [new, sale]]
+
+---
+flattened values reduce like any multivalue:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | NESTED_FLATTEN items | EVAL total = MV_SUM(items.price), n = MV_COUNT(items.sku)
+          | KEEP order_id, total, n | SORT order_id | LIMIT 100
+- match:
+    values:
+    - [a, 50, 2]
+    - [b, 160, 2]
+    - [c, 12, 2]
+    - [d, 2, 2]
+    - [e, null, null]
+    - [f, null, null]
+    - [g, null, null]
+
+---
+a sort and limit before flattening still count parents:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | SORT order_id DESC | LIMIT 5 | NESTED_FLATTEN items | KEEP order_id, items.sku
+- match:
+    values:
+    - [g, null]
+    - [f, null]
+    - [e, null]
+    - [d, [dup, dup]]
+    - [c, [c1, c2]]
+
+---
+a limit before flattening still counts parents:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | WHERE order_id == "b" | LIMIT 1 | NESTED_FLATTEN items | KEEP order_id, items.sku
+- match:
+    values:
+    - [b, [b1, b2]]
+
+---
+stats over flattened columns count parents:
+# COUNT of a multivalued column counts its values.
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | NESTED_FLATTEN items | STATS parents = COUNT(*), skus = COUNT(items.sku) BY region
+          | SORT region | LIMIT 10
+- match:
+    values:
+    - [3, 4, east]
+    - [4, 4, west]
+
+---
+two nested fields flatten independently:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | WHERE order_id == "b" | NESTED_FLATTEN items | NESTED_FLATTEN events
+          | KEEP order_id, items.sku, events.start | LIMIT 10
+- match:
+    values:
+    - [b, [b1, b2], [1, 3]]
+
+---
+another nested field still reduces after flattening:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | WHERE order_id == "b" | NESTED_FLATTEN items | EVAL spans = NESTED(SUM(events.end - events.start))
+          | KEEP items.sku, spans | LIMIT 10
+- match:
+    values:
+    - [[b1, b2], 2]
+
+---
+a child field without doc values reads source on the data node:
+- do:
+    indices.create:
+      index: nf_text
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                tags:
+                  type: keyword
+                note:
+                  type: text
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: nf_text
+          _id: x
+      - id: x
+        items:
+        - tags: [sale, new]
+          note: hello
+        - note: world
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_text | NESTED_FLATTEN items | KEEP items.tags, items.note | LIMIT 10
+- match:
+    values:
+    - [[sale, new], [hello, world]]
+
+---
+ordinary keyword field cannot be flattened:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | NESTED_FLATTEN region
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: NESTED_FLATTEN requires a mapped nested field
+
+---
+unknown field cannot be flattened:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | NESTED_FLATTEN nothing
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: Unknown column [nothing]
+
+---
+flattened field is no longer nested:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | NESTED_FLATTEN items | NESTED_FLATTEN items
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: mapped nested field
+
+---
+flattening needs the source rows:
+- do:
+    catch: bad_request
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nf_orders | STATS c = COUNT(*) BY order_id | NESTED_FLATTEN items
+- match:
+    error.type: verification_exception
+- contains:
+    error.reason: Unknown column [items]

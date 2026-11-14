@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,7 +33,8 @@ import java.util.Set;
 /**
  * Emits one row per object of a mapped nested field. Parent blocks are repeated once per object; one block per child
  * field is appended. A parent without objects keeps one row with null child values. Each input page becomes one output
- * page, so its size grows with the number of objects.
+ * page, so its size grows with the number of objects. With {@code flatten} each parent keeps its one row instead, and each
+ * child block holds the values of all of its objects.
  * <p>
  * The objects are read from the index when {@code children} is set, and from each parent's stored source otherwise.
  */
@@ -46,7 +49,8 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
         List<DataType> types,
         List<String> paths,
         List<Set<String>> mappedIndices,
-        Map<String, String> sourceFailures
+        Map<String, String> sourceFailures,
+        boolean flatten
     ) implements Operator.OperatorFactory {
         @Override
         public Operator get(DriverContext context) {
@@ -55,7 +59,12 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
 
         @Override
         public String describe() {
-            return "NestedExpandOperator[path=" + path + ", loader=" + (children == null ? "source" : "index") + "]";
+            return "NestedExpandOperator[path="
+                + path
+                + ", loader="
+                + (children == null ? "source" : "index")
+                + (flatten ? ", flatten" : "")
+                + "]";
         }
     }
 
@@ -87,7 +96,6 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
         int columns = factory.types().size();
         Block.Builder[] built = new Block.Builder[columns];
         Block[] blocks = new Block[columns];
-        Page parents = null;
         try {
             for (int c = 0; c < columns; c++) {
                 built[c] = PlannerUtils.toElementType(factory.types().get(c))
@@ -138,18 +146,13 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
             for (int c = 0; c < columns; c++) {
                 blocks[c] = built[c].build();
             }
-            parents = page.filter(true, rows.positions, 0, rows.count);
-            Page expanded = parents.appendBlocks(blocks);
-            parents = null;
+            Block[] owned = blocks;
             blocks = null;
-            return expanded;
+            return output(page, rows.positions, rows.count, owned);
         } finally {
             Releasables.closeExpectNoException(built);
             if (blocks != null) {
                 Releasables.closeExpectNoException(blocks);
-            }
-            if (parents != null) {
-                parents.releaseBlocks();
             }
         }
     }
@@ -166,7 +169,6 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
         int columns = factory.types().size();
         BlockUtils.BuilderWrapper[] children = new BlockUtils.BuilderWrapper[columns];
         Block[] built = new Block[columns];
-        Page parents = null;
         try {
             for (int c = 0; c < columns; c++) {
                 children[c] = BlockUtils.wrapperFor(
@@ -223,18 +225,79 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
             for (int c = 0; c < columns; c++) {
                 built[c] = children[c].builder().build();
             }
-            parents = page.filter(true, positions, 0, rows);
-            Page expanded = parents.appendBlocks(built);
-            parents = null;
+            Block[] owned = built;
             built = null;
-            return expanded;
+            return output(page, positions, rows, owned);
         } finally {
             Releasables.closeExpectNoException(children);
             if (built != null) {
                 Releasables.closeExpectNoException(built);
             }
+        }
+    }
+
+    /**
+     * Appends {@code blocks}, which hold one row per object of the parent at the same index of {@code positions}, to the
+     * parents. Takes ownership of {@code blocks}.
+     */
+    private Page output(Page page, int[] positions, int count, Block[] blocks) {
+        Page parents = null;
+        try {
+            if (factory.flatten()) {
+                Block[] collapsed = collapse(blocks, positions, count, page.getPositionCount());
+                Releasables.closeExpectNoException(blocks);
+                blocks = collapsed;
+                parents = page.shallowCopy();
+            } else {
+                parents = page.filter(true, positions, 0, count);
+            }
+            Page result = parents.appendBlocks(blocks);
+            parents = null;
+            blocks = null;
+            return result;
+        } finally {
+            if (blocks != null) {
+                Releasables.closeExpectNoException(blocks);
+            }
             if (parents != null) {
                 parents.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * Merges the rows of each parent into one multivalued position. {@code parents} is ascending and names every parent
+     * at least once.
+     */
+    private Block[] collapse(Block[] perObject, int[] parents, int count, int positionCount) {
+        Block[] result = new Block[perObject.length];
+        boolean success = false;
+        try {
+            List<Object> values = new ArrayList<>();
+            for (int c = 0; c < perObject.length; c++) {
+                ElementType type = PlannerUtils.toElementType(factory.types().get(c));
+                try (BlockUtils.BuilderWrapper builder = BlockUtils.wrapperFor(context.blockFactory(), type, positionCount)) {
+                    int row = 0;
+                    for (int parent = 0; parent < positionCount; parent++) {
+                        values.clear();
+                        for (; row < count && parents[row] == parent; row++) {
+                            Object value = BlockUtils.toJavaObject(perObject[c], row);
+                            if (value instanceof List<?> list) {
+                                values.addAll(list);
+                            } else if (value != null) {
+                                values.add(value);
+                            }
+                        }
+                        builder.accept(values.isEmpty() ? null : values.size() == 1 ? values.getFirst() : values);
+                    }
+                    result[c] = builder.builder().build();
+                }
+            }
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(result);
             }
         }
     }

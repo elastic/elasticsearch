@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.planner.mapper;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -233,10 +236,34 @@ public class Mapper {
             return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL, tsInfo.limit());
         }
 
+        // The objects are read from the index or _source of the shard that holds the parent, which the coordinator lacks
+        // once the rows came through an exchange.
+        if (unary instanceof NestedExpand expand && mappedChild.anyMatch(p -> p instanceof ExchangeExec || p instanceof FragmentExec)) {
+            throw new VerificationException(
+                List.of(
+                    Failure.fail(
+                        expand,
+                        "{} must run on the data nodes, so it cannot follow [{}], which runs on the coordinator",
+                        expand.commandName(),
+                        coordinatorCommand(unary.child())
+                    )
+                )
+            );
+        }
+
         //
         // Pipeline operators
         //
         return MapperUtils.mapUnary(unary, mappedChild);
+    }
+
+    /** The command that moved {@code plan} to the coordinator: the nearest pipeline breaker below it. */
+    private static String coordinatorCommand(LogicalPlan plan) {
+        LogicalPlan breaker = plan;
+        while (breaker instanceof UnaryPlan unary && breaker instanceof PipelineBreaker == false) {
+            breaker = unary.child();
+        }
+        return breaker.sourceText();
     }
 
     private PhysicalPlan mapBinary(BinaryPlan bp) {

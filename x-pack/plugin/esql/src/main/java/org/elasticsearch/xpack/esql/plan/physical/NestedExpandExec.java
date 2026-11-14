@@ -24,7 +24,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Physical form of {@link NestedExpand}: appends one column per child field and repeats each parent once per object. */
+/**
+ * Physical form of {@link NestedExpand}: appends one column per child field and repeats each parent once per object, or,
+ * with {@link #flatten()}, keeps one row per parent with multivalued child columns.
+ */
 public final class NestedExpandExec extends UnaryExec {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
@@ -32,6 +35,7 @@ public final class NestedExpandExec extends UnaryExec {
         NestedExpandExec::new
     );
 
+    private final boolean flatten;
     private final List<Attribute> metadata;
     private final String path;
     private final Set<String> indices;
@@ -43,6 +47,7 @@ public final class NestedExpandExec extends UnaryExec {
     public NestedExpandExec(
         Source source,
         PhysicalPlan child,
+        boolean flatten,
         List<Attribute> metadata,
         String path,
         Set<String> indices,
@@ -52,6 +57,7 @@ public final class NestedExpandExec extends UnaryExec {
         Map<String, String> sourceFailures
     ) {
         super(source, child);
+        this.flatten = flatten;
         this.metadata = List.copyOf(metadata);
         this.path = path;
         this.indices = Set.copyOf(indices);
@@ -65,6 +71,7 @@ public final class NestedExpandExec extends UnaryExec {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
+            in.readBoolean(),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readString(),
             in.readCollectionAsImmutableSet(StreamInput::readString),
@@ -80,6 +87,7 @@ public final class NestedExpandExec extends UnaryExec {
         NestedExpand.checkVersion(out);
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
+        out.writeBoolean(flatten);
         out.writeNamedWriteableCollection(metadata);
         out.writeString(path);
         out.writeStringCollection(indices);
@@ -92,6 +100,10 @@ public final class NestedExpandExec extends UnaryExec {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    public boolean flatten() {
+        return flatten;
     }
 
     public List<Attribute> metadata() {
@@ -140,6 +152,7 @@ public final class NestedExpandExec extends UnaryExec {
             this,
             NestedExpandExec::new,
             child(),
+            flatten,
             metadata,
             path,
             indices,
@@ -152,12 +165,12 @@ public final class NestedExpandExec extends UnaryExec {
 
     @Override
     public NestedExpandExec replaceChild(PhysicalPlan newChild) {
-        return new NestedExpandExec(source(), newChild, metadata, path, indices, expanded, paths, mappedIndices, sourceFailures);
+        return new NestedExpandExec(source(), newChild, flatten, metadata, path, indices, expanded, paths, mappedIndices, sourceFailures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), metadata, path, indices, expanded, paths, mappedIndices, sourceFailures);
+        return Objects.hash(child(), flatten, metadata, path, indices, expanded, paths, mappedIndices, sourceFailures);
     }
 
     @Override
@@ -170,6 +183,7 @@ public final class NestedExpandExec extends UnaryExec {
         }
         NestedExpandExec other = (NestedExpandExec) obj;
         return child().equals(other.child())
+            && flatten == other.flatten
             && metadata.equals(other.metadata)
             && path.equals(other.path)
             && indices.equals(other.indices)

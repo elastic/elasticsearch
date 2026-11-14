@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
@@ -327,6 +328,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveIpLocation(),
                 new ResolveLookupTables(),
                 new ResolveFunctions(),
+                new NestedReductionsAnalysis.ValidateNames(),
                 new ResolvePromqlFunctions(),
                 new ResolveTimestampBoundsAware(),
                 new ResolveInference(),
@@ -383,7 +385,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ResolveHighlightFieldMappings(),
                 // Must run before UnionTypesCleanup, which drops the synthetic key from the output.
                 new ResolveHighlightIndexKey(),
-                new UnionTypesCleanup()
+                new UnionTypesCleanup(),
+                new NestedReductionsAnalysis.Cleanup()
             )
         );
     }
@@ -625,7 +628,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
                     attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
                 } else {
-                    attribute = new FieldAttribute(source, parentName, null, name, t);
+                    attribute = new FieldAttribute(source, parentName, null, name, t, t instanceof NestedScopeField);
                 }
                 // primitive branch
                 if (DataType.isPrimitive(type)) {

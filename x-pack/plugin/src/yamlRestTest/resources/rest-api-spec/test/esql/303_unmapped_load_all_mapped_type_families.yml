@@ -204,13 +204,6 @@ teardown:
           parameters: [ method, path, parameters, capabilities ]
           capabilities: [ fix_nested_subfield_extraction ]
       reason: "A leaf declared under a nested parent stays null under LOAD_ALL"
-  - skip:
-      capabilities:
-        - method: POST
-          path: /_query
-          parameters: []
-          capabilities: [ nested_flattened_leaves ]
-      reason: "Snapshot builds read the fields under a nested object as flattened columns; see 302_nested_flattened_leaves"
   - do:
       esql.query:
         body:

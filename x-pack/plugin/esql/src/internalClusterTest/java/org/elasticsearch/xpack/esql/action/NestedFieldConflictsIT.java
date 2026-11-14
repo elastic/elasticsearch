@@ -14,29 +14,24 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.VerificationException;
 
 import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Cross-index nested-vs-object type skew (#154011): {@code IndexResolver} applies
  * {@code -nested} on the field-caps request, so the coordinator plans the object type
  * and the nested shard must contribute nulls.
- * Where the fields under a nested object are columns ({@link EsqlCapabilities.Cap#NESTED_FLATTENED_LEAVES}), the nested
- * shard reads them from its children instead: two types conflict like they do between any two indices, and a cast across
- * them reads null on the nested shard.
+ * If ES|QL later supports nested fields, these expectations will need updating.
  * <p>
  *     Each scenario randomly pins both indices to the same node or to different nodes.
  * </p>
  */
 public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
-    private static final boolean FLATTENED_LEAVES = EsqlCapabilities.Cap.NESTED_FLATTENED_LEAVES.isEnabled();
 
     /**
      * {@code item.value} is {@code integer} under nested in one index and
@@ -99,7 +94,6 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         String from = "FROM " + nested + ", " + object;
-        assertConflict(from + " | STATS s = SUM(item.value)");
         String value = itemValue();
         assertThat(esql(from + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"), equalTo(List.of(List.of(210L, 20L))));
         // KEEP does not accept casts; EVAL covers the convert-on-extract path.
@@ -154,7 +148,6 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         }
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-        assertConflict("FROM " + nested + ", " + object + " | STATS s = SUM(item.value)");
         String value = itemValue();
         assertThat(
             esql("FROM " + nested + ", " + object + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"),
@@ -210,12 +203,7 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
         }
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
-        String query = "FROM " + nested + ", " + object + " | STATS c = COUNT(item.value)";
-        if (FLATTENED_LEAVES) {
-            assertConflict(query);
-            return;
-        }
-        assertThat(esql(query), equalTo(List.of(List.of(20L))));
+        assertThat(esql("FROM " + nested + ", " + object + " | STATS c = COUNT(item.value)"), equalTo(List.of(List.of(20L))));
     }
 
     /**
@@ -283,16 +271,6 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
 
         String from = "FROM " + nested + ", " + object;
         String value = itemValue();
-        if (FLATTENED_LEAVES) {
-            // Each child value once, from the children rather than from the copy on the root
-            assertThat(esql(from + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"), equalTo(List.of(List.of(2400L, 40L))));
-            assertThat(esql(from + " | STATS c = COUNT(item.value)"), equalTo(List.of(List.of(40L))));
-            assertThat(
-                esql(from + " | " + keepIdAndValue() + " | SORT id | LIMIT 2"),
-                equalTo(List.of(List.of("n00", 100L), List.of("n01", 101L)))
-            );
-            return;
-        }
         // Pre-fix leaked nested 100..119 and summed to 2400 with count 40.
         assertThat(esql(from + " | STATS s = SUM(" + value + "), c = COUNT(" + value + ")"), equalTo(List.of(List.of(210L, 20L))));
         // COUNT-only is Lucene EXISTS pushdown (EsStatsQueryExec). Leave the field uncast so
@@ -305,18 +283,9 @@ public class NestedFieldConflictsIT extends AbstractEsqlIntegTestCase {
     /**
      * Nested is hidden from field caps, so {@code item.value} is the object index's {@code long},
      * not a union type. A {@code ::long} cast must not start reading nested values.
-     * Where the nested leaves are columns, the types conflict, so only the cast can be read.
      */
     private static String itemValue() {
-        return FLATTENED_LEAVES || randomBoolean() ? "item.value::long" : "item.value";
-    }
-
-    /** Where the nested leaves are columns, a leaf of two types can't be used without a cast, as between any two indices. */
-    private void assertConflict(String query) {
-        if (FLATTENED_LEAVES) {
-            var e = expectThrows(VerificationException.class, () -> run(query).close());
-            assertThat(e.getMessage(), containsString("Cannot use field [item.value] due to ambiguities"));
-        }
+        return randomBoolean() ? "item.value::long" : "item.value";
     }
 
     /**

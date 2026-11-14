@@ -14,9 +14,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -31,6 +33,8 @@ import java.util.Set;
  * Turns each parent row into one row per object of a mapped nested field, repeating the parent columns.
  * A parent without objects keeps one row with null child columns, as MV_EXPAND does. The parser only knows the
  * field name; analysis binds the private source metadata, the mapped indices and one column per child field.
+ * With {@link #flatten()} ({@code NESTED_FLATTEN}) each parent keeps one row instead, and each child column holds the
+ * values of all of its objects.
  */
 public final class NestedExpand extends UnaryPlan implements SortAgnostic {
     /** Ships with NESTED in the same unreleased change, so it shares that transport version. */
@@ -41,6 +45,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
         NestedExpand::new
     );
 
+    private final boolean flatten;
     @Nullable
     private final NamedExpression target;
     private final List<Attribute> metadata;
@@ -55,13 +60,14 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
     private List<Attribute> output;
 
     /** The parsed, unbound command. */
-    public NestedExpand(Source source, LogicalPlan child, NamedExpression target) {
-        this(source, child, target, List.of(), null, Set.of(), List.of(), List.of(), List.of(), Map.of());
+    public NestedExpand(Source source, LogicalPlan child, boolean flatten, NamedExpression target) {
+        this(source, child, flatten, target, List.of(), null, Set.of(), List.of(), List.of(), List.of(), Map.of());
     }
 
     public NestedExpand(
         Source source,
         LogicalPlan child,
+        boolean flatten,
         @Nullable NamedExpression target,
         List<Attribute> metadata,
         @Nullable String path,
@@ -72,6 +78,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
         Map<String, String> sourceFailures
     ) {
         super(source, child);
+        this.flatten = flatten;
         this.target = target;
         this.metadata = List.copyOf(metadata);
         this.path = path;
@@ -86,6 +93,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
+            in.readBoolean(),
             null,
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readString(),
@@ -100,7 +108,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
     /** Reject older peers before writing the expansion. */
     public static void checkVersion(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(VERSION) == false) {
-            throw new IOException("NESTED_EXPAND requires nested expansion transport support");
+            throw new IOException("NESTED_EXPAND and NESTED_FLATTEN require nested expansion transport support");
         }
     }
 
@@ -108,10 +116,11 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
     public void writeTo(StreamOutput out) throws IOException {
         checkVersion(out);
         if (bound() == false) {
-            throw new IllegalStateException("NESTED_EXPAND must be bound before serialization");
+            throw new IllegalStateException(commandName() + " must be bound before serialization");
         }
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
+        out.writeBoolean(flatten);
         out.writeNamedWriteableCollection(metadata);
         out.writeString(path);
         out.writeStringCollection(indices);
@@ -124,6 +133,19 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    /** One row per parent with multivalued child columns, rather than one row per object. */
+    public boolean flatten() {
+        return flatten;
+    }
+
+    public String commandName() {
+        return commandName(flatten);
+    }
+
+    public static String commandName(boolean flatten) {
+        return flatten ? "NESTED_FLATTEN" : "NESTED_EXPAND";
     }
 
     public boolean bound() {
@@ -190,8 +212,8 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
         if (output == null) {
             List<Attribute> result = new ArrayList<>();
             for (Attribute attribute : child().output()) {
-                // The expanded columns replace the flattened ones, which hold the values of all of the parent's objects.
-                if (bound() == false || attribute.name().startsWith(path + ".") == false) {
+                // The expanded collection stops being a nested scope: its children are ordinary columns now.
+                if (bound() == false || expandedScope(attribute) == false) {
                     result.add(attribute);
                 }
             }
@@ -201,9 +223,27 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
         return output;
     }
 
+    private boolean expandedScope(Attribute attribute) {
+        return attribute instanceof FieldAttribute field
+            && field.field() instanceof NestedScopeField scope
+            && (scope.path().equals(path) || scope.path().startsWith(path + "."));
+    }
+
     @Override
     public NestedExpand replaceChild(LogicalPlan newChild) {
-        return new NestedExpand(source(), newChild, target, metadata, path, indices, expanded, paths, mappedIndices, sourceFailures);
+        return new NestedExpand(
+            source(),
+            newChild,
+            flatten,
+            target,
+            metadata,
+            path,
+            indices,
+            expanded,
+            paths,
+            mappedIndices,
+            sourceFailures
+        );
     }
 
     @Override
@@ -212,6 +252,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
             this,
             NestedExpand::new,
             child(),
+            flatten,
             target,
             metadata,
             path,
@@ -231,7 +272,7 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), target, metadata, path, indices, expanded, paths, mappedIndices, sourceFailures);
+        return Objects.hash(super.hashCode(), flatten, target, metadata, path, indices, expanded, paths, mappedIndices, sourceFailures);
     }
 
     @Override
@@ -240,7 +281,8 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic {
             return false;
         }
         NestedExpand other = (NestedExpand) obj;
-        return Objects.equals(target, other.target)
+        return flatten == other.flatten
+            && Objects.equals(target, other.target)
             && metadata.equals(other.metadata)
             && Objects.equals(path, other.path)
             && indices.equals(other.indices)

@@ -1,6 +1,8 @@
 #!/bin/bash
 
-if [[ -z "${BUILDKITE_PULL_REQUEST:-}" ]]; then
+# Buildkite sets BUILDKITE_PULL_REQUEST to "false" on builds that aren't for a pull request, such as merge queue
+# builds, which have no pull request branch to push fixes to
+if [[ -z "${BUILDKITE_PULL_REQUEST:-}" || "${BUILDKITE_PULL_REQUEST}" == "false" ]]; then
   echo "Not a pull request, skipping spotless"
   exit 0
 fi

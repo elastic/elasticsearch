@@ -522,7 +522,8 @@ async function run(): Promise<void> {
   // One verdict drives both the message and the exit code, so the log cannot claim one thing while the
   // step does another.
   const verdict = shouldBlock(payloads, {
-    pullRequest: process.env.BUILDKITE_PULL_REQUEST ?? "",
+    // a merge queue build is for the queued pull request, which the queue passes, so pull request rules apply
+    pullRequest: process.env.MERGE_QUEUE_PULL_REQUEST || process.env.BUILDKITE_PULL_REQUEST || "",
     labels: process.env.GITHUB_PR_LABELS ?? "",
   });
   if (proven.length > 0) {

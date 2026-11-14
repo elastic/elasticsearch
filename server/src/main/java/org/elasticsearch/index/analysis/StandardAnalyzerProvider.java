@@ -9,15 +9,16 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardAnalyzer> {
+public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
-    private final StandardAnalyzer standardAnalyzer;
+    private final Analyzer standardAnalyzer;
     private final Object sharingKey;
 
     public StandardAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
@@ -25,8 +26,15 @@ public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stan
         final CharArraySet defaultStopwords = CharArraySet.EMPTY_SET;
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
         int maxTokenLength = settings.getAsInt("max_token_length", StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
-        standardAnalyzer = new StandardAnalyzer(stopWords);
-        standardAnalyzer.setMaxTokenLength(maxTokenLength);
+        if (stopWords.isEmpty()) {
+            // The default recipe, which is what nearly all log analytics uses, has a much faster implementation for ASCII text
+            // that produces exactly the same tokens.
+            standardAnalyzer = new AsciiStandardAnalyzer(maxTokenLength);
+        } else {
+            StandardAnalyzer withStopWords = new StandardAnalyzer(stopWords);
+            withStopWords.setMaxTokenLength(maxTokenLength);
+            standardAnalyzer = withStopWords;
+        }
         // stopwords_case is not documented for the standard analyzer but is honoured in practice
         // (parseStopWords reads it and the stop filter respects it for uppercase stopwords), so fold
         // it into the sharing key — two recipes differing only in case handling must not share.
@@ -34,7 +42,7 @@ public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stan
     }
 
     @Override
-    public StandardAnalyzer get() {
+    public Analyzer get() {
         return this.standardAnalyzer;
     }
 

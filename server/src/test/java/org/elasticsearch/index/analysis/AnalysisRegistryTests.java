@@ -16,7 +16,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.tests.analysis.MockTokenFilter;
@@ -340,9 +339,9 @@ public class AnalysisRegistryTests extends ESTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         IndexAnalyzers indexAnalyzers = emptyRegistry.build(IndexCreationContext.CREATE_INDEX, idxSettings);
-        assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
-        assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
-        assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
+        assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(AsciiStandardAnalyzer.class));
+        assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(AsciiStandardAnalyzer.class));
+        assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(AsciiStandardAnalyzer.class));
         assertThat(indexAnalyzers.get(AnalysisRegistry.DEFAULT_ANALYZER_NAME).name(), equalTo("default"));
     }
 
@@ -464,7 +463,7 @@ public class AnalysisRegistryTests extends ESTestCase {
             emptyMap(),
             emptyMap()
         );
-        assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
+        assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(AsciiStandardAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
     }

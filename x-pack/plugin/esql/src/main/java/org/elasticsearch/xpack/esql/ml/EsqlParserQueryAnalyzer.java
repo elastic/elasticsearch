@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryStructure;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryStructure.SourceKind;
@@ -120,7 +123,8 @@ public class EsqlParserQueryAnalyzer implements EsqlQueryAnalyzer {
         for (int line = 1; line < source.source().getLineNumber(); line++) {
             lineStart = query.indexOf('\n', lineStart) + 1;
         }
-        return lineStart + source.source().getColumnNumber() - 1 + source.text().length();
+        // The parser counts columns in code points, not UTF-16 chars.
+        return query.offsetByCodePoints(lineStart, source.source().getColumnNumber() - 1) + source.text().length();
     }
 
     /** The relation (or the FROM with subqueries) the top-level pipeline reads, or the leaf when there is none. */
@@ -251,9 +255,12 @@ public class EsqlParserQueryAnalyzer implements EsqlQueryAnalyzer {
             return TimeValue.timeValueMillis(duration.toMillis());
         }
         if (literal.dataType() == DataType.KEYWORD && literal.value() != null) {
+            // Parse as ES|QL does: "1d" is a calendar period there, not 24 hours.
             try {
-                return TimeValue.parseTimeValue(BytesRefs.toString(literal.value()), "BUCKET span");
-            } catch (IllegalArgumentException e) {
+                return EsqlDataTypeConverter.maybeParseTemporalAmount(BytesRefs.toString(literal.value())) instanceof Duration duration
+                    ? TimeValue.timeValueMillis(duration.toMillis())
+                    : null;
+            } catch (ParsingException | InvalidArgumentException | ArithmeticException e) {
                 return null;
             }
         }

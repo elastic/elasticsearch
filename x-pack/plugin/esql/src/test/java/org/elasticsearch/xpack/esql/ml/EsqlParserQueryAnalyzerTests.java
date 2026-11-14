@@ -73,6 +73,12 @@ public class EsqlParserQueryAnalyzerTests extends ESTestCase {
         assertThat(structure.sourcePatterns(), contains("idx"));
     }
 
+    public void testSupplementaryCharacterBeforeSetShouldNotShiftSettingsText() {
+        String settingsText = "/* \uD83D\uDE00 */ SET time_zone=\"UTC\";";
+        EsqlQueryStructure structure = analyzer.analyze(settingsText + " FROM idx");
+        assertThat(structure.settingsText(), equalTo(settingsText));
+    }
+
     public void testNoSetStatementsShouldGiveEmptySettings() {
         EsqlQueryStructure structure = analyzer.analyze("FROM idx");
         assertThat(structure.settings().isEmpty(), is(true));
@@ -143,7 +149,8 @@ public class EsqlParserQueryAnalyzerTests extends ESTestCase {
         TimeValue hour = TimeValue.timeValueHours(1);
         assertBucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour)", "@timestamp", hour);
         assertBucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1h)", "@timestamp", hour);
-        assertBucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, \"1h\")", "@timestamp", hour);
+        assertBucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, \"1 hour\")", "@timestamp", hour);
+        assertBucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, \"30 minutes\")", "@timestamp", TimeValue.timeValueMinutes(30));
         assertBucket("FROM x | STATS c = COUNT(*) BY BUCKET(`@timestamp`, 15 minutes)", "@timestamp", TimeValue.timeValueMinutes(15));
         assertBucket("FROM x | STATS c = COUNT(*) BY d = DATE_TRUNC(1 hour, @timestamp)", "@timestamp", hour);
         assertBucket("TS m | STATS max(cpu) BY TBUCKET(1 hour)", null, hour);
@@ -152,6 +159,9 @@ public class EsqlParserQueryAnalyzerTests extends ESTestCase {
     public void testAutoOrCalendarBucketShouldNotBeReported() {
         assertNoBucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 20, \"2024-01-01\", \"2024-01-02\")");
         assertNoBucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 month)");
+        assertNoBucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, \"1d\")");
+        // ES|QL only converts a string span with a space between value and unit.
+        assertNoBucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, \"1h\")");
         assertNoBucket("FROM x | STATS c = COUNT(*) BY h");
         assertNoBucket("FROM x | STATS c = COUNT(*) BY a = BUCKET(@timestamp, 1 hour), b = BUCKET(event.ingested, 1 hour)");
     }

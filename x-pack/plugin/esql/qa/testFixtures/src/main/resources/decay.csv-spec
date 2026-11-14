@@ -397,6 +397,28 @@ decay_result:double
 0.625
 ;
 
+cartesianPointIntegerScaleAndOffset
+required_capability: fn_decay_fix_mixed_type_parameters
+
+ROW value = TO_CARTESIANPOINT("POINT(5 0)")
+| EVAL decay_result = decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10, {"offset": 0, "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+cartesianPointUnsignedLongScale
+required_capability: fn_decay_fix_mixed_type_parameters
+
+ROW value = TO_CARTESIANPOINT("POINT(5 0)")
+| EVAL decay_result = decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10::unsigned_long)
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
 
 geoPointLinear
 required_capability: decay_function
@@ -480,6 +502,28 @@ required_capability: decay_function
 
 ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z") 
 | EVAL decay_result = decay(value, TO_DATE_NANOS("2023-01-01T00:00:00Z"), 24 hours, {"offset": 0 seconds, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+datetimeWithDateNanosOrigin
+required_capability: fn_decay_fix_mixed_type_parameters
+
+ROW value = TO_DATETIME("2023-01-01T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATE_NANOS("2023-01-01T00:00:00Z"), 24 hours, {"offset": 0 seconds, "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+dateNanosWithDatetimeOrigin
+required_capability: fn_decay_fix_mixed_type_parameters
+
+ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 24 hours)
 | KEEP decay_result;
 
 decay_result:double

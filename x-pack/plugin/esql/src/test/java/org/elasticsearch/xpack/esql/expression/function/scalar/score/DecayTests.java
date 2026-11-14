@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -629,12 +630,256 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         // Datenanos random
         testCaseSuppliers.addAll(dateNanosRandomTestCases());
 
+        // Mixed numeric types, and every numeric type without options
+        testCaseSuppliers.addAll(numericMixedTypeTestCases());
+
+        // Mixed date and date_nanos, and both without options
+        testCaseSuppliers.addAll(temporalMixedTypeTestCases());
+
+        // Spatial points without options, and cartesian scales and offsets of every numeric type
+        testCaseSuppliers.addAll(spatialMixedTypeTestCases());
+
         return parameterSuppliersFromTypedData(testCaseSuppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Decay(source, args.get(0), args.get(1), args.get(2), args.get(3) != null ? args.get(3) : null);
+        return new Decay(source, args.get(0), args.get(1), args.get(2), args.size() > 3 ? args.get(3) : null);
+    }
+
+    private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.UNSIGNED_LONG);
+
+    /**
+     * Every combination of numeric value, origin and scale types, with and without options.
+     * Origin, scale and offset are converted to the type of the value, so a {@code double} parameter is rounded
+     * (or truncated, for {@code unsigned_long}) when the value isn't a {@code double}.
+     */
+    private static List<TestCaseSupplier> numericMixedTypeTestCases() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (DataType valueType : NUMERIC_TYPES) {
+            for (DataType originType : NUMERIC_TYPES) {
+                for (DataType scaleType : NUMERIC_TYPES) {
+                    suppliers.add(numericMixedTypeTestCase(valueType, originType, scaleType, false));
+                    if (valueType != originType || valueType != scaleType) {
+                        suppliers.add(numericMixedTypeTestCase(valueType, originType, scaleType, true));
+                    }
+                }
+            }
+        }
+        return suppliers;
+    }
+
+    private static TestCaseSupplier numericMixedTypeTestCase(
+        DataType valueType,
+        DataType originType,
+        DataType scaleType,
+        boolean withOptions
+    ) {
+        List<DataType> types = withOptions
+            ? List.of(valueType, originType, scaleType, DataType.SOURCE)
+            : List.of(valueType, originType, scaleType);
+        return new TestCaseSupplier(types, () -> {
+            double value = randomNumericParam(valueType, 0, 1000);
+            double origin = randomNumericParam(originType, 0, 1000);
+            // scale must be > 0 after the conversion
+            double scale = randomNumericParam(scaleType, 1, 1000);
+            DataType offsetType = randomFrom(NUMERIC_TYPES);
+            double offset = withOptions ? randomNumericParam(offsetType, 0, 100) : 0;
+            double decay = withOptions ? randomDecayOpenUnitInterval() : 0.5;
+            String functionType = withOptions ? randomDecayType() : "linear";
+
+            double expected = doubleDecayWithScoreScript(
+                value,
+                convertToValueType(origin, originType, valueType),
+                convertToValueType(scale, scaleType, valueType),
+                convertToValueType(offset, offsetType, valueType),
+                decay,
+                functionType
+            );
+
+            List<TestCaseSupplier.TypedData> data = new ArrayList<>();
+            data.add(new TestCaseSupplier.TypedData(numericTypedValue(value, valueType), valueType, "value"));
+            data.add(new TestCaseSupplier.TypedData(numericTypedValue(origin, originType), originType, "origin").forceLiteral());
+            data.add(new TestCaseSupplier.TypedData(numericTypedValue(scale, scaleType), scaleType, "scale").forceLiteral());
+            if (withOptions) {
+                data.add(
+                    new TestCaseSupplier.TypedData(
+                        createOptionsMap(numericTypedValue(offset, offsetType), decay, functionType),
+                        DataType.SOURCE,
+                        "options"
+                    ).forceLiteral()
+                );
+            }
+            return new TestCaseSupplier.TestCase(
+                data,
+                startsWith("Decay" + numericEvaluatorName(valueType) + "Evaluator["),
+                DataType.DOUBLE,
+                closeTo(expected, 1e-12)
+            );
+        });
+    }
+
+    /**
+     * A random number in {@code [min, max]}, with decimals only for {@code double}.
+     */
+    private static double randomNumericParam(DataType type, int min, int max) {
+        return type == DataType.DOUBLE ? randomDoubleBetween(min, max, true) : randomIntBetween(min, max);
+    }
+
+    private static Object numericTypedValue(double value, DataType type) {
+        return switch (type) {
+            case INTEGER -> (int) value;
+            case LONG -> (long) value;
+            case DOUBLE -> value;
+            case UNSIGNED_LONG -> BigInteger.valueOf((long) value);
+            default -> throw new IllegalArgumentException("Unexpected numeric type [" + type + "]");
+        };
+    }
+
+    /**
+     * Mirrors the conversion of numeric parameters to the type of the value: {@code double} is rounded to
+     * {@code integer} and {@code long}, and truncated to {@code unsigned_long}.
+     */
+    private static double convertToValueType(double param, DataType paramType, DataType valueType) {
+        if (paramType != DataType.DOUBLE || valueType == DataType.DOUBLE) {
+            return param;
+        }
+        return valueType == DataType.UNSIGNED_LONG ? Math.floor(param) : Math.round(param);
+    }
+
+    private static String numericEvaluatorName(DataType type) {
+        return switch (type) {
+            case INTEGER -> "Int";
+            case LONG -> "Long";
+            case DOUBLE -> "Double";
+            case UNSIGNED_LONG -> "UnsignedLong";
+            default -> throw new IllegalArgumentException("Unexpected numeric type [" + type + "]");
+        };
+    }
+
+    /**
+     * Every combination of date and date_nanos value and origin without options, and the mixed ones with options.
+     * The origin is converted to the unit of the value.
+     */
+    private static List<TestCaseSupplier> temporalMixedTypeTestCases() {
+        List<DataType> temporalTypes = List.of(DataType.DATETIME, DataType.DATE_NANOS);
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (DataType valueType : temporalTypes) {
+            for (DataType originType : temporalTypes) {
+                suppliers.add(temporalMixedTypeTestCase(valueType, originType, false));
+                if (valueType != originType) {
+                    suppliers.add(temporalMixedTypeTestCase(valueType, originType, true));
+                }
+            }
+        }
+        return suppliers;
+    }
+
+    private static TestCaseSupplier temporalMixedTypeTestCase(DataType valueType, DataType originType, boolean withOptions) {
+        List<DataType> types = withOptions
+            ? List.of(valueType, originType, DataType.TIME_DURATION, DataType.SOURCE)
+            : List.of(valueType, originType, DataType.TIME_DURATION);
+        return new TestCaseSupplier(types, () -> {
+            // Between 1970-01-01 and 2070-01-01
+            long valueMillis = randomLongBetween(0L, 3155673600000L);
+            long originMillis = randomLongBetween(0L, 3155673600000L);
+            // Between 1 millisecond and 1 year
+            Duration scale = Duration.ofMillis(randomLongBetween(1L, 365L * 24 * 60 * 60 * 1000));
+            Duration offset = withOptions ? Duration.ofMillis(randomLongBetween(0L, 30L * 24 * 60 * 60 * 1000)) : Duration.ZERO;
+            double decay = withOptions ? randomDecayOpenUnitInterval() : 0.5;
+            String functionType = withOptions ? randomDecayType() : "linear";
+
+            boolean nanos = valueType == DataType.DATE_NANOS;
+            double expected = decayFunctionForType(functionType).temporalDecay(
+                nanos ? DateUtils.toNanoSeconds(valueMillis) : valueMillis,
+                nanos ? DateUtils.toNanoSeconds(originMillis) : originMillis,
+                nanos ? scale.toNanos() : scale.toMillis(),
+                nanos ? offset.toNanos() : offset.toMillis(),
+                decay
+            );
+
+            long value = nanos ? DateUtils.toNanoSeconds(valueMillis) : valueMillis;
+            long origin = originType == DataType.DATE_NANOS ? DateUtils.toNanoSeconds(originMillis) : originMillis;
+            List<TestCaseSupplier.TypedData> data = new ArrayList<>();
+            data.add(new TestCaseSupplier.TypedData(value, valueType, "value"));
+            data.add(new TestCaseSupplier.TypedData(origin, originType, "origin").forceLiteral());
+            data.add(new TestCaseSupplier.TypedData(scale, DataType.TIME_DURATION, "scale").forceLiteral());
+            if (withOptions) {
+                data.add(
+                    new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options").forceLiteral()
+                );
+            }
+            return new TestCaseSupplier.TestCase(
+                data,
+                startsWith(nanos ? "DecayDateNanosEvaluator[" : "DecayDatetimeEvaluator["),
+                DataType.DOUBLE,
+                closeTo(expected, 1e-12)
+            );
+        });
+    }
+
+    /**
+     * Geo points without options, and cartesian points with scales and offsets of every numeric type, with and without options.
+     */
+    private static List<TestCaseSupplier> spatialMixedTypeTestCases() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (DataType scaleType : List.of(DataType.KEYWORD, DataType.TEXT)) {
+            suppliers.add(
+                new TestCaseSupplier(
+                    List.of(DataType.GEO_POINT, DataType.GEO_POINT, scaleType),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(GEO.wktToWkb("POINT (12.3 45.6)"), DataType.GEO_POINT, "value"),
+                            new TestCaseSupplier.TypedData(GEO.wktToWkb("POINT (1 1)"), DataType.GEO_POINT, "origin").forceLiteral(),
+                            new TestCaseSupplier.TypedData("10000km", scaleType, "scale").forceLiteral()
+                        ),
+                        startsWith("DecayGeoPointEvaluator["),
+                        DataType.DOUBLE,
+                        closeTo(0.7459413262379005, Math.ulp(0.7459413262379005))
+                    )
+                )
+            );
+        }
+        for (DataType scaleType : NUMERIC_TYPES) {
+            suppliers.add(
+                new TestCaseSupplier(
+                    List.of(DataType.CARTESIAN_POINT, DataType.CARTESIAN_POINT, scaleType),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(CARTESIAN.wktToWkb("POINT (1000 2000)"), DataType.CARTESIAN_POINT, "value"),
+                            new TestCaseSupplier.TypedData(CARTESIAN.wktToWkb("POINT (0 0)"), DataType.CARTESIAN_POINT, "origin")
+                                .forceLiteral(),
+                            new TestCaseSupplier.TypedData(numericTypedValue(10000, scaleType), scaleType, "scale").forceLiteral()
+                        ),
+                        startsWith("DecayCartesianPointEvaluator["),
+                        DataType.DOUBLE,
+                        closeTo(0.8881966011250104, Math.ulp(0.8881966011250104))
+                    )
+                )
+            );
+            suppliers.add(
+                new TestCaseSupplier(List.of(DataType.CARTESIAN_POINT, DataType.CARTESIAN_POINT, scaleType, DataType.SOURCE), () -> {
+                    DataType offsetType = randomFrom(NUMERIC_TYPES);
+                    return new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(CARTESIAN.wktToWkb("POINT (1000 2000)"), DataType.CARTESIAN_POINT, "value"),
+                            new TestCaseSupplier.TypedData(CARTESIAN.wktToWkb("POINT (1 1)"), DataType.CARTESIAN_POINT, "origin")
+                                .forceLiteral(),
+                            new TestCaseSupplier.TypedData(numericTypedValue(10000, scaleType), scaleType, "scale").forceLiteral(),
+                            new TestCaseSupplier.TypedData(
+                                createOptionsMap(numericTypedValue(10, offsetType), 0.33, "linear"),
+                                DataType.SOURCE,
+                                "options"
+                            ).forceLiteral()
+                        ),
+                        startsWith("DecayCartesianPointEvaluator["),
+                        DataType.DOUBLE,
+                        closeTo(0.8509433324420796, Math.ulp(0.8509433324420796))
+                    );
+                })
+            );
+        }
+        return suppliers;
     }
 
     @Override

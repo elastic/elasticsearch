@@ -465,7 +465,11 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testVectorMatchingRequiresInstantVectors() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         // Mirrors Prometheus: on/ignoring describe how two labelsets match, and a scalar operand has no labelset.
-        tsdb.error("PROMQL index=test step=5m foo / on(bar) 1", containsString("vector matching only allowed between instant vectors"));
+        tsdb.error(
+            "PROMQL index=test step=5m foo / on(bar) 1",
+            ParsingException.class,
+            containsString("Vector matching only allowed between instant vectors")
+        );
     }
 
     public void testNonScalarComparison() {

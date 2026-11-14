@@ -396,14 +396,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         this.verifier = verifier;
     }
 
+    /**
+     * Analyzes and verifies {@code plan}. Leaves emitting the deferred warnings to the caller, through {@link #warnings()}.
+     * Rules that call {@code HeaderWarning} directly, such as {@code AddImplicitLimit}, still write to the thread context.
+     */
     public LogicalPlan analyze(LogicalPlan plan) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
         LogicalPlan analyzed = execute(plan);
-        LogicalPlan verified = verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
-        // verify throws on failure, so we only reach here once the plan is valid: flush the warnings deferred during analysis.
-        context().deferredHeaderWarnings().forEach(HeaderWarning::addWarning);
-        viewBoundaryNullFillWarnings(context().viewBoundaryNullFills()).forEach(HeaderWarning::addWarning);
-        return verified;
+        return verify(analyzed, gatherPreAnalysisMetrics(plan, partialMetrics));
+    }
+
+    /**
+     * Warnings deferred during every {@link #analyze} call on this analyzer. Read only after {@link #analyze} returns: verification
+     * records warnings before it can fail, and a query that fails verification must produce none.
+     */
+    public List<String> warnings() {
+        List<String> warnings = new ArrayList<>(context().deferredHeaderWarnings());
+        warnings.addAll(viewBoundaryNullFillWarnings(context().viewBoundaryNullFills()));
+        return List.copyOf(warnings);
     }
 
     /**

@@ -60,7 +60,9 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
@@ -74,6 +76,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -104,6 +107,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -737,6 +741,41 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             long afterSetClause2 = usageService.getProjectRoutingUsageHolder().getSnapshot().getEsqlWithSet();
             assertEquals("Should not increment when no linked projects", 1L, afterSetClause2);
             assertThat(usageService.getProjectRoutingUsageHolder().getSnapshot().getEsqlQueriesTotal(), equalTo(2L));
+        }
+    }
+
+    private static final String ANALYSIS_WARNING_QUERY = "SET unmapped_fields=\"load_all\"; FROM test | EVAL "
+        + UnmappedFieldsAttribute.ATTRIBUTE_NAME
+        + " = 1";
+
+    /**
+     * Analysis warnings ride the query result rather than the thread context. A warning left in this test's thread context
+     * would also fail the test's warning check.
+     */
+    public void testAnalysisWarningsCarriedInCompletionInfo() throws Exception {
+        var request = new EsqlQueryRequest();
+        request.query(ANALYSIS_WARNING_QUERY);
+        assertAnalysisWarningCarried(request);
+    }
+
+    /**
+     * The analyze-only response, used to validate views, builds its result separately from a regular query's.
+     */
+    public void testAnalyzeOnlyCarriesAnalysisWarnings() throws Exception {
+        assertAnalysisWarningCarried(PreparedEsqlQueryRequest.analyzeOnly(TEST_PARSER.createStatement(ANALYSIS_WARNING_QUERY), "test"));
+    }
+
+    private void assertAnalysisWarningCarried(EsqlQueryRequest request) throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            var planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            request.allowPartialResults(false);
+            var executionInfo = createEsqlExecutionInfo(randomBoolean());
+            PlainActionFuture<Versioned<Result>> future = new PlainActionFuture<>();
+            executeEsql(planExecutor, request, executionInfo, planRunnerFor(executionInfo), future);
+            assertThat(
+                safeGet(future).inner().completionInfo().warnings(),
+                contains(DetermineUnmappedFieldsToKeep.UNMAPPED_FIELDS_NAME_TAKEN_WARNING)
+            );
         }
     }
 

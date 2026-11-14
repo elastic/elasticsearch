@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
@@ -44,8 +47,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Splitting the label container of a translated PromQL plan, on plans built the way translation builds them: a collapse keyed by the
- * source's labels, and operations over its container above it.
+ * Splitting the label container of a translated PromQL plan, on plans built the way translation builds them: a time-series
+ * aggregate keyed by the source's labels, and operations over its container above it.
  */
 public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
 
@@ -55,63 +58,72 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
     private final FieldAttribute value = new FieldAttribute(SOURCE, "value", new EsField("value", DataType.DOUBLE, Map.of(), true, null));
     private final EsRelation relation = EsqlTestUtils.relation(IndexMode.TIME_SERIES).withAttributes(List.of(pod, value));
 
-    /** A collapse whose series only read a label above it keys by the series id and the label: the source reads no view. */
-    public void testLabelReadAboveCollapseIsAColumn() {
+    /**
+     * A label read by name above the time-series aggregate is one more key of it. The aggregate returns what it groups by, so the
+     * container stays its key, whole, though nothing above uses it.
+     */
+    public void testLabelReadByNameIsAKeyNextToTheContainer() {
         Alias labels = sourceLabels();
-        TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Alias read = new Alias(SOURCE, "pod", new TimeSeriesMetadataPath(SOURCE, labels.toAttribute(), Literal.keyword(SOURCE, "pod")));
-        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(new Eval(SOURCE, collapse, List.of(read)), EsqlTestUtils.TEST_CFG);
+        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(new Eval(SOURCE, aggregate, List.of(read)), EsqlTestUtils.TEST_CFG);
 
         TimeSeriesAggregate pushed = plan.collect(TimeSeriesAggregate.class).getFirst();
-        // the keyword view of every label keys the collapse
-        var views = pushed.groupings().stream().map(Alias::unwrap).filter(TimeSeriesWithout.class::isInstance).toList();
-        assertThat(views, hasSize(1));
-        assertThat(views.getFirst().children(), empty());
-        assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
+        assertEquals(List.of(MetadataAttribute.TIMESERIES, "pod"), names(pushed.groupings()));
+        Expression container = Alias.unwrap(pushed.groupings().getFirst());
+        assertThat(container, instanceOf(ToTimeSeriesMetadata.class));
+        assertThat(container.children().getFirst().children(), empty());
+        assertEquals(pod, Alias.unwrap(pushed.groupings().getLast()));
         assertThat(expressions(plan, AbstractTimeSeriesMetadataFunction.class), empty());
         Eval eval = as(plan, Eval.class);
         assertThat(Alias.unwrap(eval.fields().getFirst()), instanceOf(Attribute.class));
     }
 
-    /** A collapse whose container is rendered without a label carries the view that leaves it out. */
-    public void testRenderedContainerIsAView() {
+    /** A container rendered without a label is loaded without it. */
+    public void testRenderedContainerIsLoadedWithoutWhatItLeavesOut() {
         Alias labels = sourceLabels();
-        TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Expression without = new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "pod")), true);
         Alias rendered = new Alias(SOURCE, MetadataAttribute.TIMESERIES, new ToString(SOURCE, without, EsqlTestUtils.TEST_CFG));
-        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(new Eval(SOURCE, collapse, List.of(rendered)), EsqlTestUtils.TEST_CFG);
+        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(
+            new Eval(SOURCE, aggregate, List.of(rendered)),
+            EsqlTestUtils.TEST_CFG
+        );
 
-        List<Expression> views = expressions(plan, TimeSeriesWithout.class);
-        assertThat(views, hasSize(1));
-        assertEquals(List.of(pod), views.getFirst().children());
+        List<Expression> loads = expressions(plan, TimeSeriesWithout.class);
+        assertThat(loads, hasSize(1));
+        assertEquals(List.of(pod), loads.getFirst().children());
         assertThat(expressions(plan, AbstractTimeSeriesMetadataFunction.class), empty());
     }
 
-    /** A label the source has no field for is in no series: the view leaves out no field for it. */
-    public void testLabelWithoutFieldIsNotLeftOutOfTheView() {
+    /** A label the source has no field for is in no series: the load leaves out no field for it. */
+    public void testLabelWithoutFieldIsNotLeftOutOfTheLoad() {
         Alias labels = sourceLabels();
-        TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Expression without = new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "__name__")), true);
         Alias rendered = new Alias(SOURCE, MetadataAttribute.TIMESERIES, new ToString(SOURCE, without, EsqlTestUtils.TEST_CFG));
-        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(new Eval(SOURCE, collapse, List.of(rendered)), EsqlTestUtils.TEST_CFG);
+        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(
+            new Eval(SOURCE, aggregate, List.of(rendered)),
+            EsqlTestUtils.TEST_CFG
+        );
 
-        List<Expression> views = expressions(plan, TimeSeriesWithout.class);
-        assertThat(views, hasSize(1));
-        assertThat(views.getFirst().children(), empty());
+        List<Expression> loads = expressions(plan, TimeSeriesWithout.class);
+        assertThat(loads, hasSize(1));
+        assertThat(loads.getFirst().children(), empty());
     }
 
     /** An aggregate keyed by labels packs them: a label of several values keys as a whole. */
     public void testAggregateKeysByPackedLabels() {
         Alias labels = sourceLabels();
-        TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
         Alias key = new Alias(
             SOURCE,
             MetadataAttribute.TIMESERIES,
             new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "pod")), false)
         );
-        Alias sum = new Alias(SOURCE, "value", new Values(SOURCE, collapse.aggregates().getFirst().toAttribute()));
-        Aggregate aggregate = new Aggregate(SOURCE, collapse, List.of(key), List.of(sum, key.toAttribute()));
-        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(aggregate, EsqlTestUtils.TEST_CFG);
+        Alias sum = new Alias(SOURCE, "value", new Values(SOURCE, aggregate.aggregates().getFirst().toAttribute()));
+        Aggregate regroup = new Aggregate(SOURCE, aggregate, List.of(key), List.of(sum, key.toAttribute()));
+        LogicalPlan plan = ScalarizeTimeSeriesMetadataPaths.pushDown(regroup, EsqlTestUtils.TEST_CFG);
 
         Aggregate pushed = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).findFirst().get();
         assertThat(pushed.child(), instanceOf(PackDims.class));
@@ -122,18 +134,113 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
     /** A label container a user's time-series query computes is theirs: nothing is split. */
     public void testUserContainerIsKept() {
         Alias labels = sourceLabels();
-        TimeSeriesAggregate collapse = collapse(labels, TimeSeriesAggregate.Origin.TS_COMMAND);
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.TS_COMMAND);
         Alias read = new Alias(SOURCE, "pod", new TimeSeriesMetadataPath(SOURCE, labels.toAttribute(), Literal.keyword(SOURCE, "pod")));
-        LogicalPlan plan = new Eval(SOURCE, collapse, List.of(read));
+        LogicalPlan plan = new Eval(SOURCE, aggregate, List.of(read));
 
         assertThat(ScalarizeTimeSeriesMetadataPaths.pushDown(plan, EsqlTestUtils.TEST_CFG), sameInstance(plan));
+    }
+
+    /** A label read by name is needed off its container, and nothing uses the container as a whole. */
+    public void testDemandOfLabelReadByName() {
+        Alias labels = sourceLabels();
+        Alias read = new Alias(SOURCE, "pod", path(labels.toAttribute(), "pod"));
+        var demand = demand(labels, read);
+
+        assertEquals(Set.of("pod"), demand.need(labels.id()));
+        assertNull(demand.tolerated(labels.id()));
+    }
+
+    /** A label read through a TS_UNSET that leaves it out is null: nothing is needed off the container. */
+    public void testDemandOfLabelReadThroughItsUnset() {
+        Alias labels = sourceLabels();
+        Alias read = new Alias(SOURCE, "pod", path(unset(labels.toAttribute(), "pod"), "pod"));
+
+        assertEquals(Set.of(), demand(labels, read).need(labels.id()));
+    }
+
+    /** A use of the container as a whole tolerates what it leaves out. */
+    public void testDemandOfWholeUse() {
+        Alias labels = sourceLabels();
+        Alias rendered = new Alias(SOURCE, "tags", new ToString(SOURCE, unset(labels.toAttribute(), "pod"), EsqlTestUtils.TEST_CFG));
+        var demand = demand(labels, rendered);
+
+        assertEquals(Set.of("pod"), demand.tolerated(labels.id()));
+        assertEquals(Set.of(), demand.need(labels.id()));
+    }
+
+    /** Two uses tolerate only what both leave out. */
+    public void testDemandOfTwoWholeUses() {
+        Alias labels = sourceLabels();
+        Alias narrow = new Alias(SOURCE, "narrow", new ToString(SOURCE, unset(labels.toAttribute(), "pod"), EsqlTestUtils.TEST_CFG));
+        Alias whole = new Alias(SOURCE, "whole", new ToString(SOURCE, labels.toAttribute(), EsqlTestUtils.TEST_CFG));
+
+        assertEquals(Set.of(), demand(labels, narrow, whole).tolerated(labels.id()));
+    }
+
+    /** TS_KEEP reads the labels it names, by name: nothing uses its container as a whole. */
+    public void testDemandOfKeep() {
+        Alias labels = sourceLabels();
+        Alias kept = new Alias(
+            SOURCE,
+            "tags",
+            new ToString(
+                SOURCE,
+                new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(Literal.keyword(SOURCE, "pod")), false),
+                EsqlTestUtils.TEST_CFG
+            )
+        );
+        var demand = demand(labels, kept);
+
+        assertEquals(Set.of("pod"), demand.need(labels.id()));
+        assertNull(demand.tolerated(labels.id()));
+    }
+
+    /** TS_SET tolerates the label it writes: the container under it may leave the label out. */
+    public void testDemandOfSet() {
+        Alias labels = sourceLabels();
+        Alias written = new Alias(
+            SOURCE,
+            MetadataAttribute.TIMESERIES,
+            new TimeSeriesMetadataSet(SOURCE, labels.toAttribute(), Literal.keyword(SOURCE, "pod"), Literal.keyword(SOURCE, "p"))
+        );
+        Alias rendered = new Alias(SOURCE, "tags", new ToString(SOURCE, written.toAttribute(), EsqlTestUtils.TEST_CFG));
+
+        assertEquals(Set.of("pod"), demand(labels, written, rendered).tolerated(labels.id()));
+    }
+
+    /** A label read by name off a container that no node of the plan defines cannot be replaced: the plan is rejected. */
+    public void testLabelReadThatCannotBeReplacedFails() {
+        Alias labels = sourceLabels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
+        Attribute other = new ReferenceAttribute(SOURCE, null, "other", DataType.TIME_SERIES_METADATA_DATA_TYPE);
+        Alias read = new Alias(SOURCE, "pod", path(other, "pod"));
+        LogicalPlan plan = new Eval(SOURCE, aggregate, List.of(read));
+
+        expectThrows(IllegalStateException.class, () -> ScalarizeTimeSeriesMetadataPaths.pushDown(plan, EsqlTestUtils.TEST_CFG));
+    }
+
+    /** Step 1 of the rule alone, over the given fields evaluated above a time-series aggregate keyed by {@code labels}. */
+    private ScalarizeTimeSeriesMetadataPaths.Pushdown demand(Alias labels, Alias... fields) {
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, TimeSeriesAggregate.Origin.PROMQL_COMMAND);
+        var pushdown = new ScalarizeTimeSeriesMetadataPaths.Pushdown(EsqlTestUtils.TEST_CFG);
+        pushdown.demand(new Eval(SOURCE, aggregate, List.of(fields)));
+        return pushdown;
+    }
+
+    private static Expression path(Expression container, String label) {
+        return new TimeSeriesMetadataPath(SOURCE, container, Literal.keyword(SOURCE, label));
+    }
+
+    private static Expression unset(Expression container, String label) {
+        return new TimeSeriesMetadataFilter(SOURCE, container, List.of(Literal.keyword(SOURCE, label)), true);
     }
 
     private static Alias sourceLabels() {
         return new Alias(SOURCE, MetadataAttribute.TIMESERIES, new ToTimeSeriesMetadata(SOURCE, new TimeSeriesWithout(SOURCE)));
     }
 
-    private TimeSeriesAggregate collapse(Alias labels, TimeSeriesAggregate.Origin origin) {
+    private TimeSeriesAggregate timeSeriesAggregate(Alias labels, TimeSeriesAggregate.Origin origin) {
         Alias last = new Alias(SOURCE, "value", new Values(SOURCE, value));
         return new TimeSeriesAggregate(SOURCE, relation, List.of(labels), List.of(last, labels.toAttribute()), null, null, origin, false);
     }

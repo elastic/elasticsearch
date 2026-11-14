@@ -698,7 +698,7 @@ abstract class AbstractSemanticMapperTestCase<T extends SemanticFieldMapper, U e
                         BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(leaf)
                             .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))
                     ) {
-                        final TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+                        final TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0), 0, false, null);
                         assertThat(block.get(0), equalTo(List.of(new BytesRef("b"), new BytesRef("a"), new BytesRef("b"))));
                     }
                 }

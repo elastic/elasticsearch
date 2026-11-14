@@ -274,11 +274,11 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
                 for (int from = 0; from < docs.length; from += page) {
                     final int count = Math.min(page, docs.length - from);
                     final BlockLoader.Docs wanted = docs(from, count);
-                    final TestBlock asPage = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), wanted, 0, false);
+                    final TestBlock asPage = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), wanted, 0, false, null);
                     assertEquals("positions at " + from + " in pages of " + page, count, asPage.size());
                     for (int i = 0; i < count; i++) {
                         final TestBlock alone = (TestBlock) loader.reader(NOOP, leaf)
-                            .read(TestBlock.factory(), docs(from + i, 1), 0, false);
+                            .read(TestBlock.factory(), docs(from + i, 1), 0, false, null);
                         assertEquals("page of " + page + " document " + (from + i), alone.get(0), asPage.get(i));
                     }
                 }
@@ -317,7 +317,7 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
                     return true;
                 }
             };
-            final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), asked, 0, false);
+            final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), asked, 0, false, null);
             assertEquals("positions", wanted.length, block.size());
             for (int i = 0; i < wanted.length; i++) {
                 final String[] slots = docs[wanted[i]];
@@ -377,7 +377,8 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
                 final LeafReaderContext leaf = reader.leaves().get(0);
                 assertThat("the field is a column", leaf.reader().getBinaryDocValues(FIELD), instanceOf(StringColumnSource.class));
                 final var loader = loaders.apply(FIELD);
-                final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), docs(0, docs.length), 0, false);
+                final TestBlock block = (TestBlock) loader.reader(NOOP, leaf)
+                    .read(TestBlock.factory(), docs(0, docs.length), 0, false, null);
                 assertEquals("positions", docs.length, block.size());
                 for (int d = 0; d < docs.length; d++) {
                     assertEquals("document " + d + " of " + Arrays.toString(docs[d]), expected.get(d), block.get(d));
@@ -410,7 +411,8 @@ public class ColumnarKeywordFunctionTests extends ESTestCase {
                 final LeafReaderContext leaf = reader.leaves().get(0);
                 assertThat("the field is a column", leaf.reader().getBinaryDocValues(FIELD), instanceOf(StringColumnSource.class));
                 final var loader = loaders.apply(FIELD);
-                final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), docs(0, docs.length), 0, false);
+                final TestBlock block = (TestBlock) loader.reader(NOOP, leaf)
+                    .read(TestBlock.factory(), docs(0, docs.length), 0, false, null);
                 assertEquals("positions", docs.length, block.size());
                 for (int d = 0; d < docs.length; d++) {
                     assertEquals(loader + " document " + d + " of " + Arrays.toString(docs[d]), expected.get(d), block.get(d));

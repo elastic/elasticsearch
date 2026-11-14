@@ -2281,7 +2281,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             BlockLoader.ColumnAtATimeReader unmappedReader = unmappedBlockLoader.columnAtATimeReader(leaf)
                 .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
             try {
-                TestBlock block = (TestBlock) unmappedReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false);
+                TestBlock block = (TestBlock) unmappedReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false, null);
                 assertThat(block.size(), equalTo(2));
                 assertThat(block.get(0), equalTo(new BytesRef("some_value")));
                 assertNull("doc without the unmapped key should be null", block.get(1));
@@ -2292,7 +2292,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             BlockLoader.ColumnAtATimeReader statusReader = statusBlockLoader.columnAtATimeReader(leaf)
                 .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
             try {
-                TestBlock block = (TestBlock) statusReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false);
+                TestBlock block = (TestBlock) statusReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false, null);
                 assertThat(block.size(), equalTo(2));
                 assertThat(block.get(0), equalTo(new BytesRef("ok")));
                 assertThat(block.get(1), equalTo(new BytesRef("active")));
@@ -2303,7 +2303,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             BlockLoader.ColumnAtATimeReader codeReader = codeBlockLoader.columnAtATimeReader(leaf)
                 .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)));
             try {
-                TestBlock block = (TestBlock) codeReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false);
+                TestBlock block = (TestBlock) codeReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false, null);
                 assertThat(block.size(), equalTo(2));
                 assertThat(block.get(0), equalTo(200L));
                 assertThat(block.get(1), equalTo(201L));

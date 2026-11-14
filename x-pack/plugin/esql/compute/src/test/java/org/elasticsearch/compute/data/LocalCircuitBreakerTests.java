@@ -12,14 +12,20 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.nullValue;
 
 public class LocalCircuitBreakerTests extends ESTestCase {
 
@@ -125,6 +131,29 @@ public class LocalCircuitBreakerTests extends ESTestCase {
         verifyBreaker(localBreaker, trackingBreaker);
         service.close();
         assertThat(trackingBreaker.getUsed(), equalTo(30L));
+    }
+
+    public void testLimitsPools() {
+        TrackingCircuitBreaker breaker = newTestBreaker(10_000);
+        LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(breaker, 0, 0);
+        List<SingleArrayPool> pools = new ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            SingleArrayPool pool = localBreaker.arrayPool();
+            assertThat(pool.getOrAllocateLongs(10).length, equalTo(10));
+            pools.add(pool);
+        }
+        long used = breaker.getUsed();
+        assertThat(used, greaterThan(0L));
+        assertThat(localBreaker.arrayPool(), nullValue());
+
+        pools.remove(0).close();
+        assertThat(breaker.getUsed(), lessThan(used));
+        pools.add(localBreaker.arrayPool());
+        assertThat(localBreaker.arrayPool(), nullValue());
+
+        Releasables.close(pools);
+        assertThat(breaker.getUsed(), equalTo(0L));
+        localBreaker.close();
     }
 
     private static void verifyBreaker(LocalCircuitBreaker localBreaker, TrackingCircuitBreaker trackingBreaker) {

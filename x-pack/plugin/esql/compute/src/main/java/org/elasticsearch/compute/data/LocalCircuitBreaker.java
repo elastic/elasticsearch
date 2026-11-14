@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
@@ -27,6 +28,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @see Block#allowPassingToDifferentDriver()
  */
 public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
+    private static final int MAX_POOLS = 30;
+
+    private int pools;
+
     private final CircuitBreaker breaker;
     private final long overReservedBytes;
     private final long maxOverReservedBytes;
@@ -96,6 +101,16 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
 
     public CircuitBreaker parentBreaker() {
         return breaker;
+    }
+
+    @Nullable
+    public SingleArrayPool arrayPool() {
+        assert assertSingleThread();
+        if (pools >= MAX_POOLS) {
+            return null;
+        }
+        pools++;
+        return new SingleArrayPool(this, () -> pools--);
     }
 
     /**

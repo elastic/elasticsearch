@@ -573,6 +573,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         BlockLoader.ColumnAtATimeReader columnAtATime;
         @Nullable
         BlockLoader.RowStrideReader rowStride;
+        @Nullable
+        private BlockLoader.ArrayPool pool;
 
         FieldWork(FieldInfo info, int fieldIdx) {
             this.info = info;
@@ -624,6 +626,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             return columnAtATime;
         }
 
+        @Nullable
+        BlockLoader.ArrayPool pool() {
+            if (pool == null && fieldIdx < 10) {
+                pool = driverContext.blockFactory().arrayPool();
+            }
+            return pool;
+        }
+
         BlockLoader.RowStrideReader rowStride(LeafReaderContext ctx) throws IOException {
             if (rowStride == null) {
                 rowStride = loader.rowStrideReader(driverContext.breaker(), ctx);
@@ -638,7 +648,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         @Override
         public void close() {
-            closeReaders();
+            Releasables.close(this::closeReaders, pool);
         }
 
         private void closeReaders() {

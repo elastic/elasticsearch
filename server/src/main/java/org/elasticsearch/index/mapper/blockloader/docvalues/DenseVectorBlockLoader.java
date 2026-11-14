@@ -141,8 +141,13 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
 
         @Override
         @SuppressWarnings("unchecked")
-        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-            throws IOException {
+        public BlockLoader.Block read(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockLoader.ArrayPool pool
+        ) throws IOException {
             try (B builder = processor.createBuilder(factory, docs.count() - offset, dimensions)) {
                 for (int i = offset; i < docs.count(); i++) {
                     read(docs.get(i), builder);

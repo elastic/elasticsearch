@@ -19,6 +19,7 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
@@ -66,7 +67,7 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
             try (IndexReader reader = DirectoryReader.open(directory)) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     var docValues = ctx.reader().getNumericDocValues("field");
-                    try (var builder = new SingletonDoubleBuilder(ctx.reader().numDocs(), factory)) {
+                    try (var builder = new SingletonDoubleBuilder(ctx.reader().numDocs(), factory, null)) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             assertThat(docValues.advanceExact(i), equalTo(true));
                             builder.appendLongs(Double::longBitsToDouble, new long[] { docValues.longValue() }, 0, 1);
@@ -105,7 +106,7 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
                 LeafReader leafReader = reader.leaves().get(0).reader();
                 var docValues = leafReader.getNumericDocValues("field");
                 int offset = 850;
-                try (var builder = new SingletonDoubleBuilder(count - offset, blockFactory())) {
+                try (var builder = new SingletonDoubleBuilder(count - offset, blockFactory(), null)) {
                     for (int i = offset; i < leafReader.maxDoc(); i++) {
                         assertThat(docValues.advanceExact(i), equalTo(true));
                         builder.appendLongs(Double::longBitsToDouble, new long[] { docValues.longValue() }, 0, 1);
@@ -128,4 +129,29 @@ public class SingletonDoubleBuilderTests extends ComputeTestCase {
         return new IndexWriter(directory, iwc);
     }
 
+    public void testNulls() {
+        BlockFactory factory = blockFactory();
+        int count = between(1, 100);
+        boolean[] nulls = new boolean[count];
+        try (SingletonDoubleBuilder builder = new SingletonDoubleBuilder(count, factory, null)) {
+            for (int i = 0; i < count; i++) {
+                nulls[i] = randomBoolean();
+                if (nulls[i]) {
+                    builder.appendNull();
+                } else {
+                    builder.appendDouble(i);
+                }
+            }
+            try (DoubleBlock block = (DoubleBlock) builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(count));
+                for (int i = 0; i < count; i++) {
+                    assertThat(block.isNull(i), equalTo(nulls[i]));
+                    if (nulls[i] == false) {
+                        assertThat(block.getDouble(block.getFirstValueIndex(i)), equalTo((double) i));
+                    }
+                }
+            }
+        }
+        assertThat(factory.breaker().getUsed(), equalTo(0L));
+    }
 }

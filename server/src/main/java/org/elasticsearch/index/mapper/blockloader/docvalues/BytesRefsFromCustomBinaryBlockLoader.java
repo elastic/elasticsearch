@@ -55,15 +55,16 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool)
+            throws IOException {
             // Attempt a fast path through OptionalColumnAtATimeReader
             if (docValues.docValues() instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, true);
+                BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, true, null);
                 if (block != null) {
                     return block;
                 }
             }
-            return super.read(factory, docs, offset, nullsFiltered);
+            return super.read(factory, docs, offset, nullsFiltered, pool);
         }
 
         @Override

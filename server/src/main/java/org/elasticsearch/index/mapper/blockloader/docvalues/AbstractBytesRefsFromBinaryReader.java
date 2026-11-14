@@ -30,8 +30,13 @@ public abstract class AbstractBytesRefsFromBinaryReader extends BlockDocValuesRe
      * Column-at-a-time read: loads all docs in one pass and returns a fully-built {@link BlockLoader.Block} for the batch.
      */
     @Override
-    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-        throws IOException {
+    public BlockLoader.Block read(
+        BlockLoader.BlockFactory factory,
+        BlockLoader.Docs docs,
+        int offset,
+        boolean nullsFiltered,
+        BlockLoader.ArrayPool pool
+    ) throws IOException {
         try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
             for (int i = offset; i < docs.count(); i++) {
                 int doc = docs.get(i);

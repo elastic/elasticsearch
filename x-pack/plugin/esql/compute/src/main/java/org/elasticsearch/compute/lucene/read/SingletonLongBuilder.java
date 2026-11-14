@@ -9,29 +9,44 @@ package org.elasticsearch.compute.lucene.read;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.SingleArrayPool;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 
+import java.util.BitSet;
+
 /**
- * Like {@link org.elasticsearch.compute.data.LongBlockBuilder} but optimized for collecting dense single valued values.
+ * Like {@link org.elasticsearch.compute.data.LongBlockBuilder} but optimized for collecting single valued values, which may be null.
  * Additionally, this builder doesn't grow its array.
  */
 public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuilder, Releasable, Block.Builder {
 
     private final long[] values;
+    private final int expectedCount;
     private final BlockFactory blockFactory;
+    private final SingleArrayPool pool;
 
     private int count;
+    private BitSet nulls;
 
-    public SingletonLongBuilder(int expectedCount, BlockFactory blockFactory) {
+    public SingletonLongBuilder(int expectedCount, BlockFactory blockFactory, @Nullable SingleArrayPool pool) {
         this.blockFactory = blockFactory;
+        this.pool = pool;
+        this.expectedCount = expectedCount;
+        final long[] pooled = pool != null ? pool.getOrAllocateLongs(expectedCount) : null;
         blockFactory.adjustBreaker(valuesSize(expectedCount));
-        this.values = new long[expectedCount];
+        this.values = pooled != null ? pooled : new long[expectedCount];
     }
 
     @Override
     public Block.Builder appendNull() {
-        throw new UnsupportedOperationException();
+        if (nulls == null) {
+            nulls = new BitSet();
+        }
+        nulls.set(count);
+        values[count++] = 0;
+        return this;
     }
 
     @Override
@@ -60,15 +75,21 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
 
     @Override
     public long estimatedBytes() {
-        return valuesSize(values.length);
+        return valuesSize(expectedCount);
     }
 
     @Override
     public Block build() {
-        if (values.length != count) {
-            throw new IllegalStateException("expected [" + values.length + "] values but got [" + count + "]");
+        if (expectedCount != count) {
+            throw new IllegalStateException("expected [" + expectedCount + "] values but got [" + count + "]");
         }
-        return blockFactory.newLongArrayVector(values, count).asBlock();
+        Block block = nulls == null
+            ? blockFactory.newLongArrayVector(values, count).asBlock()
+            : blockFactory.newLongArrayBlock(values, count, null, nulls, Block.MvOrdering.SORTED_ASCENDING);
+        if (pool != null) {
+            block.attachReleasable(() -> pool.putLongs(values));
+        }
+        return block;
     }
 
     @Override
@@ -86,7 +107,7 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
 
     @Override
     public void close() {
-        blockFactory.adjustBreaker(-valuesSize(values.length));
+        blockFactory.adjustBreaker(-valuesSize(expectedCount));
     }
 
     static long valuesSize(int count) {

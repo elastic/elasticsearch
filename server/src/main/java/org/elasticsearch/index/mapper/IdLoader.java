@@ -273,8 +273,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             }
 
             @Override
-            public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-                throws IOException {
+            public BlockLoader.Block read(
+                BlockLoader.BlockFactory factory,
+                BlockLoader.Docs docs,
+                int offset,
+                boolean nullsFiltered,
+                BlockLoader.ArrayPool pool
+            ) throws IOException {
                 try (var builder = factory.bytesRefs(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {
                         read(docs.get(i), builder);
@@ -361,8 +366,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             }
 
             @Override
-            public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-                throws IOException {
+            public BlockLoader.Block read(
+                BlockLoader.BlockFactory factory,
+                BlockLoader.Docs docs,
+                int offset,
+                boolean nullsFiltered,
+                BlockLoader.ArrayPool pool
+            ) throws IOException {
                 try (var builder = factory.bytesRefs(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {
                         read(docs.get(i), builder);
@@ -694,8 +704,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
 
         @Override
-        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-            throws IOException {
+        public BlockLoader.Block read(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockLoader.ArrayPool pool
+        ) throws IOException {
             try (var builder = factory.bytesRefs(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     read(docs.get(i), builder);

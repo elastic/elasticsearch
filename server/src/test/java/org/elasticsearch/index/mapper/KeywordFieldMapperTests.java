@@ -1521,7 +1521,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             assertNotNull("ByteLengthFromBytesRefDocValuesBlockLoader must support column-at-a-time reading", columnReaderSource);
             CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
             try (BlockLoader.ColumnAtATimeReader columnReader = columnReaderSource.apply(breaker)) {
-                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false, null);
                 assertThat(block.size(), equalTo(3));
                 assertThat(block.get(0), equalTo("foo".length()));
                 assertThat(block.get(1), nullValue());

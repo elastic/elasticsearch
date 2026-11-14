@@ -200,7 +200,7 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
                         final int count = Math.min(page, docs.length - from);
                         final BlockLoader.Docs wanted = docs(from, count);
 
-                        final TestBlock asPage = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), wanted, 0, false);
+                        final TestBlock asPage = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), wanted, 0, false, null);
                         final TestBlock perDocument = readOneAtATime(loader, leaf, wanted);
 
                         assertEquals("positions at " + from + " of " + page, perDocument.size(), asPage.size());
@@ -280,7 +280,7 @@ public class ColumnarKeywordBlockLoaderTests extends ESTestCase {
                         return true;
                     }
                 };
-                final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), repeated, 0, false);
+                final TestBlock block = (TestBlock) loader.reader(NOOP, leaf).read(TestBlock.factory(), repeated, 0, false, null);
                 assertEquals("positions", wanted.length, block.size());
                 for (int i = 0; i < wanted.length; i++) {
                     assertEquals("position " + i + " (doc " + wanted[i] + ")", new BytesRef(docs[wanted[i]][0]), block.get(i));

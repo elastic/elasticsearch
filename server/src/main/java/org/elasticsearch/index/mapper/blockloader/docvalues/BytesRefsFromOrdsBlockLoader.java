@@ -167,12 +167,12 @@ public class BytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValues
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             if (docs.count() - offset == 1) {
                 return readSingleDoc(factory, docs.get(offset));
             }
             if (ordinals.docValues() instanceof OptionalColumnAtATimeReader direct) {
-                Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
+                Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false, null);
                 if (block != null) {
                     return block;
                 }
@@ -216,7 +216,7 @@ public class BytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValues
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             if (docs.count() - offset == 1) {
                 return readSingleDoc(factory, docs.get(offset));
             }
@@ -301,7 +301,7 @@ public class BytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValues
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             try (var builder = factory.arrayOrderOrdinalsBuilder(ordinals.docValues(), docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     readDoc(docs.get(i), builder);

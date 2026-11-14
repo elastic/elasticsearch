@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
+import org.elasticsearch.compute.data.SingleArrayPool;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
@@ -128,19 +129,21 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
         return factory.newLongBlockBuilder(expectedCount);
     }
 
+    // The pool casts below are safe because SingleArrayPool is the only pool the compute engine passes to a reader.
+
     @Override
-    public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
-        return new SingletonLongBuilder(expectedCount, factory);
+    public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount, BlockLoader.ArrayPool pool) {
+        return new SingletonLongBuilder(expectedCount, factory, (SingleArrayPool) pool);
     }
 
     @Override
-    public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount) {
-        return new SingletonIntBuilder(expectedCount, factory);
+    public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount, BlockLoader.ArrayPool pool) {
+        return new SingletonIntBuilder(expectedCount, factory, (SingleArrayPool) pool);
     }
 
     @Override
-    public BlockLoader.SingletonDoubleBuilder singletonDoubles(int expectedCount) {
-        return new SingletonDoubleBuilder(expectedCount, factory);
+    public BlockLoader.SingletonDoubleBuilder singletonDoubles(int expectedCount, BlockLoader.ArrayPool pool) {
+        return new SingletonDoubleBuilder(expectedCount, factory, (SingleArrayPool) pool);
     }
 
     @Override

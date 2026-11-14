@@ -54,7 +54,7 @@ public class BooleansBlockLoader extends AbstractNumericBlockLoader {
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             NumericDocValues docValues = numericDocValues.docValues();
             try (BooleanBuilder builder = factory.booleansFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
@@ -76,7 +76,7 @@ public class BooleansBlockLoader extends AbstractNumericBlockLoader {
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             try (BooleanBuilder builder = factory.booleansFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     readSortedDoc(docs.get(i), builder);

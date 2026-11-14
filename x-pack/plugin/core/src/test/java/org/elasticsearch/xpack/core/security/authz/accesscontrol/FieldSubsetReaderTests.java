@@ -1402,7 +1402,7 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                     BlockLoader.ColumnAtATimeReader visible = sinkKeyLoader(mapper, "visible").columnAtATimeReader(leaf)
                         .apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))
                 ) {
-                    TestBlock block = (TestBlock) visible.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
+                    TestBlock block = (TestBlock) visible.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false, null);
                     assertThat(block.get(0), equalTo(Stream.of(first, second).sorted().map(BytesRef::new).toList()));
                     assertNull(block.get(1));
                     assertThat(block.get(2), equalTo(new BytesRef(only)));

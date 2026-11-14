@@ -125,7 +125,7 @@ public class ArrayOrderInlineNullFnBlockLoaderTests extends ESTestCase {
     }
 
     private static TestBlock read(BlockLoader.ColumnAtATimeReader reader, BlockLoader.Docs docs) throws IOException {
-        return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
+        return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false, null);
     }
 
     private static BlockLoader.ColumnAtATimeReader referenceReader(CircuitBreaker breaker, LeafReaderContext ctx) throws IOException {

@@ -66,7 +66,7 @@ public class AggregateMetricDoubleAvgBlockLoaderTests extends ESTestCase {
                 // case is hit many times over.
                 for (int attempt = 0; attempt < 2000; attempt++) {
                     try (BlockLoader.ColumnAtATimeReader r = loader.reader(cranky, ctx)) {
-                        try (TestBlock ignored = (TestBlock) r.read(TestBlock.factory(), docs, 0, false)) {
+                        try (TestBlock ignored = (TestBlock) r.read(TestBlock.factory(), docs, 0, false, null)) {
                             // reading exercises the reader; the block is built with the test factory, not the cranky breaker
                         }
                     } catch (CircuitBreakingException e) {
@@ -99,7 +99,7 @@ public class AggregateMetricDoubleAvgBlockLoaderTests extends ESTestCase {
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
 
                 try (BlockLoader.ColumnAtATimeReader r = loader.reader(breaker, ctx)) {
-                    try (TestBlock block = (TestBlock) r.read(TestBlock.factory(), docs, 0, false)) {
+                    try (TestBlock block = (TestBlock) r.read(TestBlock.factory(), docs, 0, false, null)) {
                         assertNull("expected null for zero-count doc", block.get(0));
                     }
                 }
@@ -133,7 +133,7 @@ public class AggregateMetricDoubleAvgBlockLoaderTests extends ESTestCase {
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
 
                 try (BlockLoader.ColumnAtATimeReader r = loader.reader(breaker, ctx)) {
-                    try (TestBlock block = (TestBlock) r.read(TestBlock.factory(), docs, 0, false)) {
+                    try (TestBlock block = (TestBlock) r.read(TestBlock.factory(), docs, 0, false, null)) {
                         assertNull("expected null for zero-count doc", block.get(0));
                     }
                 }

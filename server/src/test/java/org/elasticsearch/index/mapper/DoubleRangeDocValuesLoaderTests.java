@@ -53,7 +53,7 @@ public class DoubleRangeDocValuesLoaderTests extends ESTestCase {
                 var context = getOnlyLeafReader(dr).getContext();
                 var loader = new DoubleRangeDocValuesLoader(FIELD_NAME);
                 try (var reader = loader.columnAtATimeReader(context).apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))) {
-                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false);
+                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false, null);
 
                     assertThat(block.size(), equalTo(2));
                     assertThat(List.of(block.get(0), block.get(1)), hasItem(List.of(List.of(10.0, 30.0), List.of(20.0, 40.0))));
@@ -79,7 +79,7 @@ public class DoubleRangeDocValuesLoaderTests extends ESTestCase {
                 var context = getOnlyLeafReader(dr).getContext();
                 var loader = new DoubleRangeDocValuesLoader(FIELD_NAME);
                 try (var reader = loader.columnAtATimeReader(context).apply(newLimitedBreaker(ByteSizeValue.ofMb(1)))) {
-                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
+                    var block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false, null);
 
                     assertThat(block.size(), equalTo(3));
                     List<Object> values = Arrays.asList(block.get(0), block.get(1), block.get(2));

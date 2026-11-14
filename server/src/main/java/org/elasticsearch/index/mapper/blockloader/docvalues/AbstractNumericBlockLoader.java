@@ -182,7 +182,7 @@ public abstract class AbstractNumericBlockLoader extends BlockDocValuesReader.Do
          * type-specific code and compiles monomorphically rather than going through a megamorphic callback.
          */
         @Override
-        public final Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public final Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             try (B builder = newBuilder(factory, docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     readDoc(docs.get(i), builder);

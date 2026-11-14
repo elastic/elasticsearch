@@ -29,7 +29,7 @@ public class MvMinLongsFromDocValuesBlockLoader extends LongsBlockLoader {
         // Own read loop so the per-document append compiles monomorphically rather than going megamorphic through a shared reader.
         return new AbstractNumericBlockLoader.Sorted("MvMinLongsFromDocValues", docValues) {
             @Override
-            public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
                 SortedNumericDocValues docValues = values.docValues();
                 try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {

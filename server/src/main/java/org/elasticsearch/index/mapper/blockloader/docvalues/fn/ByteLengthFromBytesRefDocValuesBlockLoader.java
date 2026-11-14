@@ -115,9 +115,10 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool)
+            throws IOException {
             if (docValues.docValues() instanceof BlockLoader.OptionalLengthReader direct) {
-                BlockLoader.Block block = direct.tryReadLength(factory, docs, offset, nullsFiltered);
+                BlockLoader.Block block = direct.tryReadLength(factory, docs, offset, nullsFiltered, pool);
                 if (block != null) {
                     return block;
                 }
@@ -170,7 +171,8 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool)
+            throws IOException {
             return pages.read(columnar, factory, docs, offset);
         }
 

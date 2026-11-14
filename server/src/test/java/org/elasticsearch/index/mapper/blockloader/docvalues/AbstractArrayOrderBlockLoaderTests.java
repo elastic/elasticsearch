@@ -128,7 +128,7 @@ public abstract class AbstractArrayOrderBlockLoaderTests<V extends Comparable<V>
                         "dispatcher must elide ArrayOrder for single-valued segments, got " + r,
                         r instanceof AbstractNumericBlockLoader.ArrayOrder<?> || r instanceof BytesRefsFromOrdsBlockLoader.ArrayOrder
                     );
-                    TestBlock block = (TestBlock) r.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false);
+                    TestBlock block = (TestBlock) r.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false, null);
                     assertEquals(val1, block.get(0));
                     assertEquals(val2, block.get(1));
                 }
@@ -156,7 +156,7 @@ public abstract class AbstractArrayOrderBlockLoaderTests<V extends Comparable<V>
             try (DirectoryReader reader = DirectoryReader.open(iw)) {
                 LeafReaderContext ctx = getOnlyLeafReader(reader).getContext();
                 try (var r = newLoader(FIELD).reader(BREAKER, ctx)) {
-                    TestBlock block = (TestBlock) r.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
+                    TestBlock block = (TestBlock) r.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false, null);
                     assertEquals(val1, block.get(0));
                     assertNull(block.get(1));
                     assertEquals(val2, block.get(2));
@@ -187,7 +187,7 @@ public abstract class AbstractArrayOrderBlockLoaderTests<V extends Comparable<V>
             try (DirectoryReader reader = iw.getReader()) {
                 LeafReaderContext ctx = getOnlyLeafReader(reader).getContext();
                 try (var r = newLoader(FIELD).reader(BREAKER, ctx)) {
-                    TestBlock block = (TestBlock) r.read(TestBlock.factory(), TestBlock.docs(0), 0, false);
+                    TestBlock block = (TestBlock) r.read(TestBlock.factory(), TestBlock.docs(0), 0, false, null);
                     if (expectedBlockEntry == null) {
                         assertNull(block.get(0));
                     } else {

@@ -87,7 +87,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
 
                         try (
                             var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx).apply(breaker);
-                            BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)
+                            BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false, null)
                         ) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             BytesRef scratch = new BytesRef();
@@ -244,7 +244,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                         BlockLoader.Docs docs = TestBlock.docsUpTo(end);
                         try (
                             var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx).apply(breaker);
-                            BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)
+                            BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false, null)
                         ) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             assertNotNull(result.asVector());

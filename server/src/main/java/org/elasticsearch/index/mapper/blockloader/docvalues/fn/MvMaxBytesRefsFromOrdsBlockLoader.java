@@ -64,7 +64,7 @@ public class MvMaxBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             if (docs.count() - offset == 1) {
                 return readSingleDoc(factory, docs.get(offset));
             }

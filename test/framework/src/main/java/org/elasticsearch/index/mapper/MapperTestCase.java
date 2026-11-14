@@ -2252,7 +2252,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         instanceOf(BlockLoader.OptionalColumnAtATimeReader.class)
                     );
                     var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, randomBoolean());
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, randomBoolean(), null);
                     for (int i = 0; i < block.size(); i++) {
                         assertThat(block.get(i), equalTo(expectedSampleValues[i]));
                     }
@@ -2279,7 +2279,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 try (BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context).apply(breaker))) {
                     var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false, null);
                     assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                     assertThat(block.get(1), nullValue());
                     assertThat(block.get(2), equalTo(expectedSampleValues[2]));
@@ -2291,8 +2291,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                     var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
                     boolean toInt = supportsBulkIntBlockReading();
-                    assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt, false));
-                    var block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt, false);
+                    assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt, false, null));
+                    var block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt, false, null);
                     assertNotNull(block);
                     assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                     assertThat(block.get(1), equalTo(expectedSampleValues[2]));
@@ -2324,7 +2324,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 try (BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(context).apply(breaker)) {
                     var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                    var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false, null);
                     assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                     assertThat(block.get(1), equalTo(List.of(expectedSampleValues[0], expectedSampleValues[1])));
                     assertThat(block.get(2), equalTo(expectedSampleValues[2]));
@@ -3025,7 +3025,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
             CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
             try (BlockLoader.ColumnAtATimeReader columnReader = columnReaderSource.apply(breaker)) {
-                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false);
+                TestBlock block = (TestBlock) columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1, 2), 0, false, null);
                 assertThat(block.size(), equalTo(3));
                 result[0] = block.get(0);
                 result[1] = block.get(1);

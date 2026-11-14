@@ -78,7 +78,7 @@ public class GeoGridFromShapeDocValuesBlockLoader extends BlockDocValuesReader.D
         }
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) throws IOException {
             // Cells are in tiler order, neither sorted nor unique across documents, so use the unconstrained builder
             try (LongBuilder builder = factory.longs(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {

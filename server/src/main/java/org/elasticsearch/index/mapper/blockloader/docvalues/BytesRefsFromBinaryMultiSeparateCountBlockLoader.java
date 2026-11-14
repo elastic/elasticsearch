@@ -131,15 +131,20 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
          * has its payloads decoded a document at a time.
          */
         @Override
-        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-            throws IOException {
+        public BlockLoader.Block read(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockLoader.ArrayPool pool
+        ) throws IOException {
             if (docValues.docValues() instanceof StringColumnSource columnar) {
                 final BlockLoader.Block block = pages.read(columnar, factory, docs, offset);
                 if (block != null) {
                     return block;
                 }
             }
-            return super.read(factory, docs, offset, nullsFiltered);
+            return super.read(factory, docs, offset, nullsFiltered, pool);
         }
 
         @Override

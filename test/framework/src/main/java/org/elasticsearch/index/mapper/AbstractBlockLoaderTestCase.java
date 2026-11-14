@@ -98,7 +98,7 @@ public abstract class AbstractBlockLoaderTestCase extends ESTestCase {
      */
     protected final TestBlock read(BlockLoader.ColumnAtATimeReader reader, BlockLoader.Docs docs) throws IOException {
         if (randomBoolean()) {
-            return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
+            return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false, null);
         }
         List<Object> results = new ArrayList<>(docs.count());
         int step = randomBoolean() ? 1 : between(2, 100);
@@ -120,7 +120,7 @@ public abstract class AbstractBlockLoaderTestCase extends ESTestCase {
                     return docs.mayContainDuplicates();
                 }
             };
-            TestBlock subResults = (TestBlock) reader.read(TestBlock.factory(), subDocs, offset, false);
+            TestBlock subResults = (TestBlock) reader.read(TestBlock.factory(), subDocs, offset, false, null);
             for (int r = 0; r < subResults.size(); r++) {
                 results.add(subResults.get(r));
             }

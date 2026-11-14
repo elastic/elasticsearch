@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -256,13 +257,14 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount) {
+            public BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount, BlockLoader.ArrayPool pool) {
                 final long[] values = new long[expectedCount];
 
                 return new BlockLoader.SingletonLongBuilder() {
 
                     private int count;
                     private BlockDocValuesReader.ToDouble toDouble = null;
+                    private BitSet nulls;
 
                     @Override
                     public BlockLoader.Block build() {
@@ -271,7 +273,7 @@ public class TestBlock implements BlockLoader.Block {
                                 Arrays.stream(values).mapToDouble(toDouble::convert).boxed().collect(Collectors.toUnmodifiableList())
                             );
                         }
-                        return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
+                        return new TestBlock(withNulls(Arrays.stream(values).boxed().collect(Collectors.toList()), nulls));
                     }
 
                     @Override
@@ -289,7 +291,11 @@ public class TestBlock implements BlockLoader.Block {
 
                     @Override
                     public BlockLoader.Builder appendNull() {
-                        throw new UnsupportedOperationException();
+                        if (nulls == null) {
+                            nulls = new BitSet();
+                        }
+                        nulls.set(count++);
+                        return this;
                     }
 
                     @Override
@@ -308,16 +314,23 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount) {
+            public BlockLoader.SingletonIntBuilder singletonInts(int expectedCount, BlockLoader.ArrayPool pool) {
                 final int[] values = new int[expectedCount];
 
                 return new BlockLoader.SingletonIntBuilder() {
 
                     private int count;
+                    private BitSet nulls;
 
                     @Override
                     public BlockLoader.Block build() {
-                        return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
+                        return new TestBlock(withNulls(Arrays.stream(values).boxed().collect(Collectors.toList()), nulls));
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonIntBuilder appendInt(int value) {
+                        values[count++] = value;
+                        return this;
                     }
 
                     @Override
@@ -338,7 +351,11 @@ public class TestBlock implements BlockLoader.Block {
 
                     @Override
                     public BlockLoader.Builder appendNull() {
-                        throw new UnsupportedOperationException();
+                        if (nulls == null) {
+                            nulls = new BitSet();
+                        }
+                        nulls.set(count++);
+                        return this;
                     }
 
                     @Override
@@ -357,15 +374,22 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
-            public BlockLoader.SingletonDoubleBuilder singletonDoubles(int expectedCount) {
+            public BlockLoader.SingletonDoubleBuilder singletonDoubles(int expectedCount, BlockLoader.ArrayPool pool) {
                 final double[] values = new double[expectedCount];
 
                 return new BlockLoader.SingletonDoubleBuilder() {
                     private int count;
+                    private BitSet nulls;
 
                     @Override
                     public BlockLoader.Block build() {
-                        return new TestBlock(Arrays.stream(values).boxed().collect(Collectors.toUnmodifiableList()));
+                        return new TestBlock(withNulls(Arrays.stream(values).boxed().collect(Collectors.toList()), nulls));
+                    }
+
+                    @Override
+                    public BlockLoader.SingletonDoubleBuilder appendDouble(double value) {
+                        values[count++] = value;
+                        return this;
                     }
 
                     @Override
@@ -384,7 +408,11 @@ public class TestBlock implements BlockLoader.Block {
 
                     @Override
                     public BlockLoader.Builder appendNull() {
-                        throw new UnsupportedOperationException();
+                        if (nulls == null) {
+                            nulls = new BitSet();
+                        }
+                        nulls.set(count++);
+                        return this;
                     }
 
                     @Override
@@ -699,6 +727,14 @@ public class TestBlock implements BlockLoader.Block {
 
     private final List<Object> values;
     private final boolean constant;
+
+    private static <T> List<Object> withNulls(List<T> values, BitSet nulls) {
+        List<Object> result = new ArrayList<>(values);
+        if (nulls != null) {
+            nulls.stream().forEach(i -> result.set(i, null));
+        }
+        return Collections.unmodifiableList(result);
+    }
 
     public TestBlock(List<Object> values) {
         this(values, false);

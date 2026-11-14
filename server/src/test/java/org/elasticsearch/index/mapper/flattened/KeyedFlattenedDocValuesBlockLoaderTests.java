@@ -73,7 +73,7 @@ public class KeyedFlattenedDocValuesBlockLoaderTests extends ESTestCase {
                 );
 
                 // Read docs [0, 1] in a single page. This positions the reader at doc 1.
-                columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false).close();
+                columnReader.read(TestBlock.factory(), TestBlock.docs(0, 1), 0, false, null).close();
 
                 // Going forward (or staying put) must be reusable; the previous implementation
                 // threw UnsupportedOperationException here on the sorted-set path because it
@@ -90,7 +90,7 @@ public class KeyedFlattenedDocValuesBlockLoaderTests extends ESTestCase {
                 // A second read advances the tracked docId so canReuse keeps moving forward,
                 // matching what ValuesSourceReaderOperator expects when a new page lands on
                 // the same segment after a previous page positioned the reader.
-                columnReader.read(TestBlock.factory(), TestBlock.docs(2), 0, false).close();
+                columnReader.read(TestBlock.factory(), TestBlock.docs(2), 0, false, null).close();
                 assertFalse("reader must not be reused for a doc strictly before last read", columnReader.canReuse(1));
                 assertTrue("reader should still be reusable for doc == last read after another read", columnReader.canReuse(2));
 

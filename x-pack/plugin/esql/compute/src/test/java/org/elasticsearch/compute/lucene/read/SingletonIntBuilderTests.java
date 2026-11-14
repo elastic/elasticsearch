@@ -19,6 +19,7 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
@@ -66,7 +67,7 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
             try (IndexReader reader = DirectoryReader.open(directory)) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     var docValues = ctx.reader().getNumericDocValues("field");
-                    try (SingletonIntBuilder builder = new SingletonIntBuilder(ctx.reader().numDocs(), factory)) {
+                    try (SingletonIntBuilder builder = new SingletonIntBuilder(ctx.reader().numDocs(), factory, null)) {
                         for (int i = 0; i < ctx.reader().maxDoc(); i++) {
                             assertThat(docValues.advanceExact(i), equalTo(true));
                             long value = docValues.longValue();
@@ -103,7 +104,7 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
                 LeafReader leafReader = reader.leaves().get(0).reader();
                 var docValues = leafReader.getNumericDocValues("field");
                 int offset = 850;
-                try (SingletonIntBuilder builder = new SingletonIntBuilder(count - offset, blockFactory())) {
+                try (SingletonIntBuilder builder = new SingletonIntBuilder(count - offset, blockFactory(), null)) {
                     for (int i = offset; i < leafReader.maxDoc(); i++) {
                         assertThat(docValues.advanceExact(i), equalTo(true));
                         long value = docValues.longValue();
@@ -127,6 +128,32 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
      * {@code values} field, so {@link System#arraycopy} copied the source onto itself and left the builder's
      * array full of zeros. Uses a non-zero {@code from} offset because that shadowing bug also mishandled it.
      */
+    public void testNulls() {
+        BlockFactory factory = blockFactory();
+        int count = between(1, 100);
+        boolean[] nulls = new boolean[count];
+        try (SingletonIntBuilder builder = new SingletonIntBuilder(count, factory, null)) {
+            for (int i = 0; i < count; i++) {
+                nulls[i] = randomBoolean();
+                if (nulls[i]) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(i);
+                }
+            }
+            try (IntBlock block = (IntBlock) builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(count));
+                for (int i = 0; i < count; i++) {
+                    assertThat(block.isNull(i), equalTo(nulls[i]));
+                    if (nulls[i] == false) {
+                        assertThat(block.getInt(block.getFirstValueIndex(i)), equalTo(i));
+                    }
+                }
+            }
+        }
+        assertThat(factory.breaker().getUsed(), equalTo(0L));
+    }
+
     public void testAppendInts() {
         int count = 1000;
         int[] source = new int[count + 5];
@@ -134,7 +161,7 @@ public class SingletonIntBuilderTests extends ComputeTestCase {
             source[i] = i * 7 + 3;
         }
         int from = 5;
-        try (SingletonIntBuilder builder = new SingletonIntBuilder(count, blockFactory())) {
+        try (SingletonIntBuilder builder = new SingletonIntBuilder(count, blockFactory(), null)) {
             int appended = 0;
             while (appended < count) {
                 int length = Math.min(randomIntBetween(1, 64), count - appended);

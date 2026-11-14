@@ -65,7 +65,7 @@ public class ConstantBytes implements BlockLoader {
 
     private class Reader implements ColumnAtATimeReader {
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool) {
             return factory.constantBytes(value, docs.count() - offset);
         }
 

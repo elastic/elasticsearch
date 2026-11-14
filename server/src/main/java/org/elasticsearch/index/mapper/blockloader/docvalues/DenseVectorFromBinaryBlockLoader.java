@@ -78,7 +78,8 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered, ArrayPool pool)
+            throws IOException {
             try (BlockLoader.FloatBuilder builder = factory.denseVectors(docs.count() - offset, dimensions)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);

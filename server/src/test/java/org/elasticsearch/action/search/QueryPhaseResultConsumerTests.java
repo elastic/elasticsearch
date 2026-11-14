@@ -351,6 +351,124 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         assertFalse("a result arriving after close must be released too", lateHits.hasReferences());
     }
 
+    /**
+     * Old-connection batches whose estimate trips the breaker while {@code reduce()} polls them: the batches polled up to
+     * and including the tripping one, and the ones still queued, all release their pooled top_hits.
+     */
+    public void testBatchedTopHitsFromOldConnectionAreReleasedWhenBatchEstimateTripsBreaker() throws IOException {
+        ByteSizeValue limit = ByteSizeValue.ofMb(1);
+        CircuitBreaker circuitBreaker = newLimitedBreaker(limit);
+        QueryPhaseResultConsumer consumer = topHitsConsumer(circuitBreaker);
+
+        int batchCount = randomIntBetween(2, 5);
+        int trippingBatch = randomIntBetween(0, batchCount - 1);
+        List<SearchHits> allHits = new ArrayList<>();
+        for (int i = 0; i < batchCount; i++) {
+            long estimatedSize = i == trippingBatch ? limit.getBytes() + 1 : 0;
+            allHits.add(addOldConnectionBatch(consumer, estimatedSize));
+        }
+
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, consumer::reduce);
+        assertThat(e.getBytesWanted(), equalTo(limit.getBytes() + 1));
+        consumer.close();
+
+        for (int i = 0; i < batchCount; i++) {
+            assertFalse("hits of batch [" + i + "] must be released", allHits.get(i).hasReferences());
+        }
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Old-connection batches that all fit the breaker, followed by a final-reduce estimate that trips it: every batch has
+     * been polled and none was expanded, so all of them release their pooled top_hits.
+     */
+    public void testBatchedTopHitsFromOldConnectionAreReleasedWhenFinalReduceEstimateTripsBreaker() throws IOException {
+        ByteSizeValue limit = ByteSizeValue.ofMb(1);
+        CircuitBreaker circuitBreaker = newLimitedBreaker(limit);
+        QueryPhaseResultConsumer consumer = topHitsConsumer(circuitBreaker);
+
+        int batchCount = randomIntBetween(2, 5);
+        // the batches fit, the extra 0.5x final-reduce estimate does not
+        long estimatedSize = (long) (limit.getBytes() * 0.75 / batchCount);
+        List<SearchHits> allHits = new ArrayList<>();
+        for (int i = 0; i < batchCount; i++) {
+            allHits.add(addOldConnectionBatch(consumer, estimatedSize));
+        }
+
+        CircuitBreakingException e = expectThrows(CircuitBreakingException.class, consumer::reduce);
+        assertThat(e.getBytesWanted(), equalTo(Math.round(estimatedSize * batchCount * 0.5)));
+        consumer.close();
+
+        for (int i = 0; i < batchCount; i++) {
+            assertFalse("hits of batch [" + i + "] must be released", allHits.get(i).hasReferences());
+        }
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The aggregation reduce fails after it expanded the first old-connection batch: that batch's top_hits are released once,
+     * through the reduce context's release list, and the batch it never reached releases its own.
+     */
+    public void testBatchedTopHitsFromOldConnectionAreReleasedOnceWhenAggregationReduceFails() throws IOException {
+        QueryPhaseResultConsumer consumer = topHitsConsumer(NoopCircuitBreaker.INSTANCE);
+
+        SearchHits expandedHits = addOldConnectionBatch(consumer, 0);
+        var failingAggs = new DelegatingDelayableWriteable<InternalAggregations>(() -> { throw new IllegalStateException("boom"); });
+        consumer.addBatchedPartialResult(
+            new SearchPhaseController.TopDocsStats(0),
+            new QueryPhaseResultConsumer.MergeResult(List.of(), null, failingAggs, 0L)
+        );
+        SearchHits unreachedHits = addOldConnectionBatch(consumer, 0);
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, consumer::reduce);
+        assertThat(e.getMessage(), equalTo("boom"));
+        assertTrue("the expanded batch's hits are owned by the consumer until it closes", expandedHits.hasReferences());
+        assertFalse("the batch the reduce never reached must be released", unreachedHits.hasReferences());
+
+        // releasing the expanded batch's hits a second time would trip the ref-count assertions here
+        consumer.close();
+        assertFalse("close must release the hits the reduce expanded", expandedHits.hasReferences());
+    }
+
+    private QueryPhaseResultConsumer topHitsConsumer(CircuitBreaker circuitBreaker) {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new TopHitsAggregationBuilder("th").size(1)).size(0));
+        // reduces with the request's real aggregation builders, so a top_hits reduce runs as it does in production
+        SearchPhaseController controller = new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+
+            @Override
+            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
+            }
+        });
+        return new QueryPhaseResultConsumer(
+            searchRequest,
+            executor,
+            circuitBreaker,
+            controller,
+            () -> false,
+            SearchProgressListener.NOOP,
+            10,
+            e -> {
+                throw new AssertionError("unexpected partial merge failure", e);
+            }
+        );
+    }
+
+    private SearchHits addOldConnectionBatch(QueryPhaseResultConsumer consumer, long estimatedSize) throws IOException {
+        QueryPhaseResultConsumer.MergeResult fromWire = mergeResultFromOldConnection();
+        SearchHits hits = topHitsOf(fromWire);
+        consumer.addBatchedPartialResult(
+            new SearchPhaseController.TopDocsStats(0),
+            new QueryPhaseResultConsumer.MergeResult(List.of(), null, fromWire.reducedAggs(), estimatedSize)
+        );
+        return hits;
+    }
+
     // MergeResult.readFrom below batched_query_execution_delayable_writeable is the only production site that
     // produces a referencing wrapper, so the fixture goes through the wire rather than building one by hand
     private QueryPhaseResultConsumer.MergeResult mergeResultFromOldConnection() throws IOException {

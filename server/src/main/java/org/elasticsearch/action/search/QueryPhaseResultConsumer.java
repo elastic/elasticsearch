@@ -27,6 +27,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -299,6 +300,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             ? new ArrayDeque<>(mergeResult != null ? 1 : 0)
             : null;
         final Deque<DelayableWriteable<InternalAggregations>> remoteAggsList = hasAggs ? new ArrayDeque<>(batchedResults.size()) : null;
+        // remote entries leave remoteAggsList in order, so the ones aggregate() pulled are always the first remoteAggsPulled[0]
+        final int[] remoteAggsPulled = { 0 };
 
         SearchPhaseController.ReducedQueryPhase reducePhase;
         long breakerSize = circuitBreakerBytes;
@@ -332,7 +335,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     ? aggReduceContextBuilder.forFinalReduction(topHitsToRelease)
                     : aggReduceContextBuilder.forPartialReduction(topHitsToRelease);
                 aggReduceContext.setHasBatchedResult(hasBatchedResults);
-                aggs = aggregate(buffer.iterator(), localAggsList.iterator(), remoteAggsList.iterator(), resultSize, aggReduceContext);
+                Iterator<DelayableWriteable<InternalAggregations>> remoteAggs = Iterators.map(remoteAggsList.iterator(), r -> {
+                    remoteAggsPulled[0]++;
+                    return r;
+                });
+                aggs = aggregate(buffer.iterator(), localAggsList.iterator(), remoteAggs, resultSize, aggReduceContext);
             } else {
                 aggs = null;
             }
@@ -356,7 +363,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 Releasables.close(localAggsList);
             }
             if (remoteAggsList != null) {
-                Releasables.close(remoteAggsList);
+                // aggregate() registered the top_hits of the entries it pulled in topHitsToRelease; the others still own theirs
+                List<Releasable> toRelease = new ArrayList<>(remoteAggsList.size());
+                int pulled = remoteAggsPulled[0];
+                for (DelayableWriteable<InternalAggregations> remoteAggs : remoteAggsList) {
+                    if (pulled > 0) {
+                        pulled--;
+                        toRelease.add(remoteAggs);
+                    } else {
+                        toRelease.add(() -> releaseBatchedAggs(remoteAggs));
+                    }
+                }
+                Releasables.close(toRelease);
             }
         }
         if (hasAggs
@@ -681,7 +699,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * Releases the aggregations of a wire-received {@link MergeResult} that will not be reduced. A serialized one frees
      * its buffer on close, but a connection older than {@code batched_query_execution_delayable_writeable} sends the
      * tree expanded and {@code readFrom} wraps it in a referencing {@link DelayableWriteable} whose close does nothing,
-     * so its pooled top_hits are dropped here. Not for a {@link #partialReduce} result: {@code topHitsToRelease} owns those.
+     * so its pooled top_hits are dropped here. {@link #reduce} also uses it for a batch it polled but never passed to
+     * {@code aggregate()}. Not for a {@link #partialReduce} result or a batch {@code aggregate()} expanded:
+     * {@code topHitsToRelease} owns those.
      */
     static void releaseBatchedAggs(@Nullable DelayableWriteable<InternalAggregations> reducedAggs) {
         if (reducedAggs != null && reducedAggs.isSerialized() == false) {

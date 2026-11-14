@@ -261,7 +261,8 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                         remoteClusterAlias,
                         connection.getTransportVersion(),
                         authentication.getEffectiveSubject(),
-                        ActionListener.wrap(roleDescriptorsIntersection -> {
+                        // the request is sent from this listener, after our caller may have released it, so hold it until then
+                        ActionListener.withRef(ActionListener.wrap(roleDescriptorsIntersection -> {
                             logger.trace(
                                 () -> format(
                                     "Subject [%s] has role descriptors intersection [%s] for action [%s] towards remote cluster [%s]",
@@ -295,7 +296,7 @@ public class CrossClusterAccessTransportInterceptor implements RemoteClusterTran
                            // uses a context preserving listener internally, and `sendWithCrossClusterAccessHeaders` uses a context restore
                            // handler
                             e -> handler.handleException(new SendRequestTransportException(connection.getNode(), action, e))
-                        )
+                        ), request)
                     );
                 }
             }

@@ -827,6 +827,11 @@ public class TransportService extends AbstractLifecycleComponent
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
      * <p>
+     * If {@code request} is ref-counted then the caller must hold a reference to it for the duration of this call. This method takes its
+     * own reference while it sends the request, so the caller may release its reference as soon as this method returns, or from within
+     * {@code handler}, even if {@code handler} completes before the request was sent or dispatched. A handler for a request sent to the
+     * local node runs on the same instance, and must take its own reference if it uses the request after it returns.
+     * <p>
      * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
      * connections by default so all such network disruptions are detected within bounded time.
      */
@@ -858,6 +863,11 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * If {@code request} is ref-counted then the caller must hold a reference to it for the duration of this call. This method takes its
+     * own reference while it sends the request, so the caller may release its reference as soon as this method returns, or from within
+     * {@code handler}, even if {@code handler} completes before the request was sent or dispatched. A handler for a request sent to the
+     * local node runs on the same instance, and must take its own reference if it uses the request after it returns.
      * <p>
      * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
      * connections by default so all such network disruptions are detected within bounded time.
@@ -932,6 +942,11 @@ public class TransportService extends AbstractLifecycleComponent
      * remote node, but it could also be that the request timed out, or that the remote disconnected, or that there was some kind of failure
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
+     * <p>
+     * If {@code request} is ref-counted then the caller must hold a reference to it for the duration of this call. This method takes its
+     * own reference while it sends the request, so the caller may release its reference as soon as this method returns, or from within
+     * {@code handler}, even if {@code handler} completes before the request was sent or dispatched. A handler for a request sent to the
+     * local node runs on the same instance, and must take its own reference if it uses the request after it returns.
      * <p>
      * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
      * connections by default so all such network disruptions are detected within bounded time.
@@ -1032,6 +1047,11 @@ public class TransportService extends AbstractLifecycleComponent
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
      * <p>
+     * If {@code request} is ref-counted then the caller must hold a reference to it for the duration of this call. This method takes its
+     * own reference while it sends the request, so the caller may release its reference as soon as this method returns, or from within
+     * {@code handler}, even if {@code handler} completes before the request was sent or dispatched. A handler for a request sent to the
+     * local node runs on the same instance, and must take its own reference if it uses the request after it returns.
+     * <p>
      * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
      * connections by default so all such network disruptions are detected within bounded time.
      */
@@ -1067,6 +1087,11 @@ public class TransportService extends AbstractLifecycleComponent
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
      * <p>
+     * If {@code request} is ref-counted then the caller must hold a reference to it for the duration of this call. This method takes its
+     * own reference while it sends the request, so the caller may release its reference as soon as this method returns, or from within
+     * {@code handler}, even if {@code handler} completes before the request was sent or dispatched. A handler for a request sent to the
+     * local node runs on the same instance, and must take its own reference if it uses the request after it returns.
+     * <p>
      * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
      * connections by default so all such network disruptions are detected within bounded time.
      */
@@ -1100,6 +1125,11 @@ public class TransportService extends AbstractLifecycleComponent
      * when sending the request or receiving the response. Callers must ensure that {@code handler} does not unnecessarily retain excessive
      * resources.
      * <p>
+     * If {@code request} is ref-counted then the caller must hold a reference to it for the duration of this call. This method takes its
+     * own reference while it sends the request, so the caller may release its reference as soon as this method returns, or from within
+     * {@code handler}, even if {@code handler} completes before the request was sent or dispatched. A handler for a request sent to the
+     * local node runs on the same instance, and must take its own reference if it uses the request after it returns.
+     * <p>
      * The listener is completed even if the network connection is silently dropped: Elasticsearch enables TCP keepalives on all transport
      * connections by default so all such network disruptions are detected within bounded time.
      */
@@ -1116,6 +1146,23 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private <T extends TransportResponse> void sendRequestInternal(
+        final Transport.Connection connection,
+        final String action,
+        final TransportRequest request,
+        final TransportRequestOptions options,
+        TransportResponseHandler<T> handler
+    ) {
+        // Hold the request until it has been serialized or dispatched: the response handler is registered first, and from then on a
+        // timeout, a disconnect or doStop may complete it and its owner may release the request before we have finished with it.
+        request.mustIncRef();
+        try {
+            sendRequestInternalReferenced(connection, action, request, options, handler);
+        } finally {
+            request.decRef();
+        }
+    }
+
+    private <T extends TransportResponse> void sendRequestInternalReferenced(
         final Transport.Connection connection,
         final String action,
         final TransportRequest request,

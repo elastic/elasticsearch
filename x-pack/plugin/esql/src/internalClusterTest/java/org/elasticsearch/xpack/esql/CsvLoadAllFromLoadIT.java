@@ -67,6 +67,8 @@ public class CsvLoadAllFromLoadIT extends CsvIT {
      * {@code LOAD}, which null-fills it in the others, and in all of them by {@code LOAD_ALL}.
      */
     private static final Set<String> DIFFERS_BY_DESIGN = Set.of(
+        "flattened-keys.keyInSubqueryUnderLoadNotNamedByMainBranch",
+        "flattened-keys.keyUnderLoadNotNamedBySubquery",
         "unmapped-load.fillNullAllColumnsInSubqueryBranchWithDifferentColumnsUnderLoad",
         "unmapped-load.loadSubquerySortRefInOneBranchTrailingWildcardKeepSurfacesUnmapped",
         "unmapped-load.loadUnmappedFieldInOneSubqueryBranchNoOuterKeep"

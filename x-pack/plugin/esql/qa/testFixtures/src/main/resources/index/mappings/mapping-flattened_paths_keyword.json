@@ -1,0 +1,17 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "id": { "type": "keyword" },
+        "attributes": {
+            "properties": {
+                "host": { "type": "keyword" }
+            }
+        },
+        "notes": {
+            "type": "text",
+            "fields": {
+                "text": { "type": "keyword" }
+            }
+        }
+    }
+}

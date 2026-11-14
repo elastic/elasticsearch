@@ -56,6 +56,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT_AND_BLOCK;
 
 /// Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task to the executor and
 /// released when the recovery's [RecoveryListener] completes. The max number of concurrent recovery slots is controlled
@@ -268,7 +269,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 .onRecoveryFailure(
                     state,
                     new RecoveryCancelledException(state.getShardId(), state.getSourceNode(), state.getTargetNode()),
-                    FAIL_SILENT
+                    // The master learns of this via the returned set (cancelledInQueue), so there is no need to send a shard failure
+                    // straight away. But we want to stop the shard being recreated by a cluster state which still assigns it.
+                    FAIL_SILENT_AND_BLOCK
                 );
             schedulingListener.onQueuedRecoveryCancelledOnTarget(state.getRecoverySource().getType(), pendingRecovery.priorityGroup());
             cancelledInQueue.add(pendingRecovery.allocationId());

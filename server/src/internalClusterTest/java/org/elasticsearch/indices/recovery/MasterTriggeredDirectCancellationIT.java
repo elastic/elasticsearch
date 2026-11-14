@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.allocation.DesiredBalanceRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -61,9 +63,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -82,7 +86,12 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
         plugins.addAll(
-            List.of(TestTelemetryPlugin.class, TestRecoveryBlockerPlugin.class, TestDesiredBalanceComputationBlockerPlugin.class)
+            List.of(
+                TestTelemetryPlugin.class,
+                TestRecoveryBlockerPlugin.class,
+                TestDesiredBalanceComputationBlockerPlugin.class,
+                TestShardCreationCounterPlugin.class
+            )
         );
         return plugins;
     }
@@ -102,6 +111,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
     public void resetPluginGates() {
         TestRecoveryBlockerPlugin.reset();
         TestDesiredBalanceComputationBlockerPlugin.reset();
+        TestShardCreationCounterPlugin.reset();
     }
 
     @After
@@ -189,6 +199,111 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
         ensureGreen(indexName, blockingIndex);
         awaitReplicaReassigned(indexName, 0, getNodeId(desiredReplicaNode));
+    }
+
+    /// A queued recovery removed by a direct cancellation must not be recreated by a later cluster state which still assigns
+    /// it, because it would be enqueued again and rejected, and the cancellation would be counted twice. The master only learns
+    /// that the recovery was cancelled in the queue from the response to the cancellation request. This holds that response back,
+    /// as if it were lost, so the routing table is unchanged when further cluster states are applied. The data node should then
+    /// report the failure itself, so that the allocation is not stuck, and the master should reassign the replica.
+    public void testQueuedRecoveryCancellationWithLostResponseFailsAllocationWithoutRecreatingShard() throws Exception {
+        final var primaryNode = internalCluster().startNode();
+        final var initialReplicaNode = internalCluster().startDataOnlyNode();
+        final var desiredReplicaNode = internalCluster().startDataOnlyNode();
+        final var indexName = randomIndexName();
+        final var blockingIndex = randomIndexName();
+        final var otherIndex = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.include._name", primaryNode).build());
+        ensureGreen(indexName);
+
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
+        // Only block the recovery which takes the slot, so that otherIndex (created later) can recover
+        TestRecoveryBlockerPlugin.shouldBlock = shard -> shard.shardId().getIndexName().equals(blockingIndex);
+        // Takes the only recovery slot on initialReplicaNode
+        assertAcked(
+            prepareCreate(blockingIndex).setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", initialReplicaNode))
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+        );
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
+        TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
+        updateSettings(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.routing.allocation.include._name", primaryNode + "," + initialReplicaNode)
+        );
+        awaitRecoveryCountStats(Map.of(initialReplicaNode, stats -> stats.currentFromStore() == 1 && stats.currentAsTargetQueued() == 1));
+        waitNoPendingTasksOnAll();
+
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        final var allocationId = getInitializingAllocationId(indexName, 0, getNodeId(initialReplicaNode));
+        assertThat(TestShardCreationCounterPlugin.creations(allocationId), equalTo(1));
+
+        // Hold back the response to the cancellation request, so that the master does not learn that the recovery was cancelled in
+        // the queue and does not change the routing table.
+        final var releaseResponse = new SubscribableListener<Void>();
+        final var responseHeld = new CountDownLatch(1);
+        final var cancelledInQueue = new AtomicReference<Set<CancelRecoveriesAction.CancelledInQueue>>();
+        MockTransportService.getInstance(initialReplicaNode)
+            .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
+                handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        if (response instanceof CancelRecoveriesAction.Response cancelResponse) {
+                            cancelledInQueue.compareAndSet(null, cancelResponse.cancelledInQueue());
+                        }
+                        responseHeld.countDown();
+                        releaseResponse.addListener(ActionListener.running(() -> channel.sendResponse(response)));
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        channel.sendResponse(exception);
+                    }
+                }, task);
+            });
+        final var shardFailureReceivedByMaster = shardCancelledFailureReceivedLatch(internalCluster().getMasterName(), shardId);
+
+        try {
+            // Switch the desired node to desiredReplicaNode, so the master cancels the queued recovery
+            updateSettings(
+                indexName,
+                Settings.builder().put("index.routing.allocation.include._name", primaryNode + "," + desiredReplicaNode)
+            );
+            safeAwait(responseHeld);
+            assertThat(cancelledInQueue.get(), equalTo(Set.of(new CancelRecoveriesAction.CancelledInQueue(shardId, allocationId))));
+
+            // The data node removes the cancelled shard as soon as it receives the cancellation
+            final var indicesService = internalCluster().getInstance(IndicesService.class, initialReplicaNode);
+            assertBusy(() -> assertNull(indicesService.getShardOrNull(shardId)));
+
+            // Apply more cluster states which, as the master has not heard back, still assign the cancelled allocation to
+            // initialReplicaNode. The data node must not recreate the shard.
+            createIndex(otherIndex, indexSettings(1, 0).put("index.routing.allocation.include._name", primaryNode).build());
+            ensureGreen(otherIndex);
+
+            // Instead, as the master has not acted, the data node reports the failure itself.
+            safeAwait(shardFailureReceivedByMaster);
+            assertThat("the cancelled shard must not be recreated", TestShardCreationCounterPlugin.creations(allocationId), equalTo(1));
+            assertNull(indicesService.getShardOrNull(shardId));
+
+            // The master fails the allocation on receiving that, without ever having received the response, and reassigns the replica
+            awaitReplicaReassigned(indexName, 0, getNodeId(desiredReplicaNode));
+        } finally {
+            // The (now stale) response arrives late, which must do no harm
+            releaseResponse.onResponse(null);
+        }
+
+        TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
+        ensureGreen(indexName, blockingIndex, otherIndex);
+        awaitDirectCancellationMetric(initialReplicaNode, 1);
     }
 
     /// A desired balance computation that keeps yielding to newer input never converges, but its intermediate balance
@@ -1191,6 +1306,33 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
                     safeAwait(releaseLaterComputations);
                 }
             }
+        }
+    }
+
+    /// Counts how many times the shard of each allocation is created on any node, to detect a shard being recreated.
+    public static class TestShardCreationCounterPlugin extends Plugin {
+
+        private static final Map<String, AtomicInteger> creationsByAllocationId = new ConcurrentHashMap<>();
+
+        static void reset() {
+            creationsByAllocationId.clear();
+        }
+
+        static int creations(String allocationId) {
+            final var creations = creationsByAllocationId.get(allocationId);
+            return creations == null ? 0 : creations.get();
+        }
+
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            indexModule.addIndexEventListener(new IndexEventListener() {
+                @Override
+                public void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
+                    assert routing.allocationId() != null;
+                    creationsByAllocationId.computeIfAbsent(routing.allocationId().getId(), ignored -> new AtomicInteger())
+                        .incrementAndGet();
+                }
+            });
         }
     }
 

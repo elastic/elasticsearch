@@ -51,6 +51,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.recovery.FailureStrategy;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryCancelledException;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
@@ -71,11 +72,13 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.SHARD
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT_AND_BLOCK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -352,6 +355,140 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
         assertTrue(isFailureReported(shardRouting));
         verify(shardStateAction, times(2)).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
+    public void testFailSilentAndBlockDoesNotNotifyMasterImmediately() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SILENT_AND_BLOCK,
+            primaryTerm(shardRouting),
+            new Exception("master will find out another way"),
+            currentInFlight(shardRouting)
+        );
+
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertTrue(isFailureReported(shardRouting));
+        verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
+    }
+
+    public void testFailSilentAndBlockReportsFailureIfClusterStateStillAssignsAllocation() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SILENT_AND_BLOCK,
+            primaryTerm(shardRouting),
+            new RecoveryCancelledException(shardRouting.shardId(), null, state.nodes().getLocalNode()),
+            currentInFlight(shardRouting)
+        );
+        assertTrue(isFailureReported(shardRouting));
+        verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
+        int createsBefore = indicesService.createShardCalls.get();
+
+        // Same allocation and primary term: master has not acted (e.g. the response telling it was lost), so the failure is sent
+        // now, rather than the shard being recreated.
+        applyState(stateWithShardRouting(shardRouting));
+
+        assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertTrue(isFailureReported(shardRouting));
+        verify(shardStateAction, times(1)).localShardFailed(
+            eq(shardRouting),
+            anyString(),
+            argThat(failure -> failure instanceof RecoveryCancelledException),
+            any(),
+            any()
+        );
+
+        // It is re-sent while master still hasn't acted, and the shard is still not recreated.
+        applyState(stateWithShardRouting(shardRouting));
+
+        assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore));
+        assertTrue(isFailureReported(shardRouting));
+        verify(shardStateAction, times(2)).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
+    public void testFailSilentDoesNotBlockRecreation() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SILENT,
+            primaryTerm(shardRouting),
+            new Exception("master will find out another way"),
+            currentInFlight(shardRouting)
+        );
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
+
+        int createsBefore = indicesService.createShardCalls.get();
+        applyState(stateWithShardRouting(shardRouting));
+
+        assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore + 1));
+        verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
+    }
+
+    public void testFailSilentAndBlockEvictedWhenPrimaryTermBumped() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SILENT_AND_BLOCK,
+            primaryTerm(shardRouting),
+            new Exception("master already knows"),
+            currentInFlight(shardRouting)
+        );
+        assertTrue(isFailureReported(shardRouting));
+
+        // Master has acted on the failure, bumping the primary term of the same allocation, so the entry is stale, and there is no
+        // need to report the failure.
+        applyState(stateWithPrimaryTermBumped(shardRouting));
+
+        assertFalse(isFailureReported(shardRouting));
+        verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
+    }
+
+    public void testFailSilentAndBlockEvictedWhenAllocationIdChanges() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SILENT_AND_BLOCK,
+            primaryTerm(shardRouting),
+            new Exception("master already knows"),
+            currentInFlight(shardRouting)
+        );
+        assertTrue(isFailureReported(shardRouting));
+
+        ShardRouting newAllocation = TestShardRouting.newShardRouting(
+            shardRouting.shardId(),
+            shardRouting.currentNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        applyState(stateWithShardRouting(newAllocation));
+
+        // Master has already replaced the allocation, so the entry is stale, and there is no need to report the failure.
+        assertFalse(isFailureReported(shardRouting));
+        verify(shardStateAction, never()).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
+    public void testFailSilentAndBlockSurvivesWhenStatePersistenceDisabled() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SILENT_AND_BLOCK,
+            primaryTerm(shardRouting),
+            new Exception("master already knows"),
+            currentInFlight(shardRouting)
+        );
+        assertTrue(isFailureReported(shardRouting));
+
+        applyState(
+            ClusterState.builder(state)
+                .blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
+                .build()
+        );
+
+        // Like any FailureReported, this doesn't describe a local shard, so it must survive the teardown of every index.
+        assertTrue(isFailureReported(shardRouting));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
     }
 
     public void testInFlightTicketResetWhenPrimaryTermBumpedDuringLockWait() {

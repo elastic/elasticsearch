@@ -54,13 +54,17 @@ public class HttpServerTracing implements HttpServerInstrumentation {
     }
 
     @Override
-    public void start(RestRequest request, @Nullable String matchedRoute) {
+    public InstrumentedHttpOperation start(RestRequest request, @Nullable String matchedRoute) {
         var req = new RequestAndRoute(request, matchedRoute);
+        // The trace context of the client (the remote parent of the span) is already in the thread context at this point, as it is
+        // copied from the request headers before the request is dispatched, see ActionModule#copyRequestHeadersToThreadContext.
         tracer.startTrace(request, spanNameExtractor.extract(req), legacyRequestAttributes(req));
 
         var attributes = Attributes.builder();
         httpServerAttributesExtractor.onStart(attributes, /* we don't care about the context in this case */ Context.root(), req);
         tracer.setAttributes(request, attributes.build());
+
+        return () -> tracer.storeSpanInThreadContext(request);
     }
 
     private Map<String, Object> legacyRequestAttributes(RequestAndRoute req) {

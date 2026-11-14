@@ -44,6 +44,7 @@ import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation.InstrumentedHttpOperation;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
@@ -514,13 +515,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestChannel restChannel,
         RestHandler handler,
         MethodHandlers methodHandlers,
-        ThreadContext threadContext
+        ThreadContext threadContext,
+        InstrumentedHttpOperation operation
     ) throws Exception {
         if (handler.supportsContentStream()) {
             dispatchRequest(restRequest, restChannel, handler, methodHandlers, threadContext);
         } else {
             RestContentAggregator.aggregate(restRequest, (aggregatedRequest) -> {
-                try {
+                // the request is dispatched once all of its content has arrived, which is after the caller of this method has returned
+                try (var ignored = operation.storeInThreadContext()) {
                     dispatchRequest(aggregatedRequest, restChannel, handler, methodHandlers, threadContext);
                 } catch (Exception e) {
                     throw new ElasticsearchException(e);
@@ -671,28 +674,30 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
         if (validMethodSet.contains(method) == false) {
             if (method == RestRequest.Method.OPTIONS) {
-                startInstrumentation(channel);
-                handleOptionsRequest(channel, validMethodSet);
-                return true;
+                try (var ignored = startInstrumentation(channel).storeInThreadContext()) {
+                    handleOptionsRequest(channel, validMethodSet);
+                    return true;
+                }
             }
             if (validMethodSet.isEmpty() == false) {
                 // If an alternative handler for an explicit path is registered to a
                 // different HTTP method than the one supplied - return a 405 Method
                 // Not Allowed error.
-                startInstrumentation(channel);
-                handleUnsupportedHttpMethod(uri, method, channel, validMethodSet, null);
-                return true;
+                try (var ignored = startInstrumentation(channel).storeInThreadContext()) {
+                    handleUnsupportedHttpMethod(uri, method, channel, validMethodSet, null);
+                    return true;
+                }
             }
         }
         return false;
     }
 
-    private void startInstrumentation(RestChannel channel) {
-        startInstrumentation(channel, null);
+    private InstrumentedHttpOperation startInstrumentation(RestChannel channel) {
+        return startInstrumentation(channel, null);
     }
 
-    private void startInstrumentation(RestChannel channel, @Nullable String restPath) {
-        this.instrumentation.start(channel.request(), restPath);
+    private InstrumentedHttpOperation startInstrumentation(RestChannel channel, @Nullable String restPath) {
+        return this.instrumentation.start(channel.request(), restPath);
     }
 
     private void recordInstrumentationException(RestChannel channel, Throwable e) {
@@ -714,10 +719,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         try {
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
-            startInstrumentation(channel);
-            channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
-            recordRequestMetric(BAD_REQUEST, requestsCounter);
-            return;
+            try (var ignored = startInstrumentation(channel).storeInThreadContext()) {
+                channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
+                recordRequestMetric(BAD_REQUEST, requestsCounter);
+                return;
+            }
         }
 
         final String rawPath = request.rawPath();
@@ -743,21 +749,30 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
-                    startInstrumentation(channel, handlers.getPath());
-                    var decoratedChannel = new MeteringRestChannelDecorator(channel, requestsCounter, handler.getConcreteRestHandler());
-                    maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext);
-                    return;
+                    final var operation = startInstrumentation(channel, handlers.getPath());
+                    try (var ignored = operation.storeInThreadContext()) {
+                        var instrumentedChannel = new InstrumentedRestChannelDecorator(channel, operation);
+                        var decoratedChannel = new MeteringRestChannelDecorator(
+                            instrumentedChannel,
+                            requestsCounter,
+                            handler.getConcreteRestHandler()
+                        );
+                        maybeAggregateAndDispatchRequest(request, decoratedChannel, handler, handlers, threadContext, operation);
+                        return;
+                    }
                 }
             }
         } catch (final IllegalArgumentException e) {
-            startInstrumentation(channel);
-            recordInstrumentationException(channel, e);
-            handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
-            return;
+            try (var ignored = startInstrumentation(channel).storeInThreadContext()) {
+                recordInstrumentationException(channel, e);
+                handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
+                return;
+            }
         }
         // If request has not been handled, fallback to a bad request error.
-        startInstrumentation(channel);
-        handleBadRequest(uri, requestMethod, channel);
+        try (var ignored = startInstrumentation(channel).storeInThreadContext()) {
+            handleBadRequest(uri, requestMethod, channel);
+        }
     }
 
     private static void validateErrorTrace(RestRequest request, RestChannel channel) {
@@ -982,6 +997,24 @@ public class RestController implements HttpServerTransport.Dispatcher {
         @Override
         public void sendResponse(RestResponse response) {
             delegate.sendResponse(response);
+        }
+    }
+
+    /** Makes the instrumented operation of the request current in the thread context while the response is sent. */
+    private static final class InstrumentedRestChannelDecorator extends DelegatingRestChannel {
+
+        private final InstrumentedHttpOperation operation;
+
+        private InstrumentedRestChannelDecorator(RestChannel delegate, InstrumentedHttpOperation operation) {
+            super(delegate);
+            this.operation = operation;
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            try (var ignored = operation.storeInThreadContext()) {
+                super.sendResponse(response);
+            }
         }
     }
 

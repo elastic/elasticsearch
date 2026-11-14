@@ -7,15 +7,12 @@
 
 package org.elasticsearch.xpack.inference.action.task;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -33,7 +30,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.only;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class StreamingTaskManagerTests extends ESTestCase {
     private static final String taskType = "taskType";
@@ -45,10 +41,8 @@ public class StreamingTaskManagerTests extends ESTestCase {
     @Before
     public void createStreamingTaskManager() throws Exception {
         taskManager = mock();
-        ThreadPool threadPool = mock();
-        streamingTaskManager = new StreamingTaskManager(taskManager, threadPool);
+        streamingTaskManager = new StreamingTaskManager(taskManager);
 
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         doAnswer(ans -> {
             TaskAwareRequest taskAwareRequest = ans.getArgument(2);
             return taskAwareRequest.createTask(1L, taskType, taskAction, TaskId.EMPTY_TASK_ID, Map.of());

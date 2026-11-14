@@ -9,12 +9,14 @@
 
 package org.elasticsearch.telemetry.apm.internal.instrumentation;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public final class HttpServerInstrumentations implements HttpServerInstrumentation {
@@ -26,9 +28,29 @@ public final class HttpServerInstrumentations implements HttpServerInstrumentati
     }
 
     @Override
-    public void start(RestRequest request, String matchedRoute) {
+    public InstrumentedHttpOperation start(RestRequest request, String matchedRoute) {
+        final List<InstrumentedHttpOperation> operations = new ArrayList<>(instrumentations.size());
         for (HttpServerInstrumentation instrumentation : instrumentations) {
-            instrumentation.start(request, matchedRoute);
+            operations.add(instrumentation.start(request, matchedRoute));
+        }
+        return () -> {
+            final List<ThreadContext.StoredContext> storedContexts = new ArrayList<>(operations.size());
+            try {
+                for (InstrumentedHttpOperation operation : operations) {
+                    storedContexts.add(operation.storeInThreadContext());
+                }
+            } catch (Exception e) {
+                closeBackwards(storedContexts);
+                throw e;
+            }
+            return () -> closeBackwards(storedContexts);
+        };
+    }
+
+    /** Each of the stored contexts restores the state it found, which includes what the ones before it set up, so undo them backwards. */
+    private static void closeBackwards(List<ThreadContext.StoredContext> storedContexts) {
+        for (ThreadContext.StoredContext storedContext : storedContexts.reversed()) {
+            storedContext.close();
         }
     }
 

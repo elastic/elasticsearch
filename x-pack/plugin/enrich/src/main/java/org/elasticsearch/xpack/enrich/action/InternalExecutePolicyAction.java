@@ -138,7 +138,7 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 return;
             }
 
-            try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
+            try (var ignored = transportService.getThreadPool().getThreadContext().newStoredContextPreservingResponseHeaders()) {
                 // Can't use provided task, because in the case wait_for_completion=false then
                 // as soon as actionListener#onResponse is invoked then the provided task get unregistered and
                 // then there no way to see the policy execution in the list tasks or get task APIs.

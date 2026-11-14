@@ -244,7 +244,7 @@ public class IncrementalBulkService {
                 throw e;
             }
 
-            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            try (var ignored = threadPool.getThreadContext().newStoredContextPreservingResponseHeaders()) {
                 bulkSessionTask = (CancellableTask) taskManager.register(
                     BULK_SESSION_TASK_TYPE,
                     BULK_SESSION_ACTION,

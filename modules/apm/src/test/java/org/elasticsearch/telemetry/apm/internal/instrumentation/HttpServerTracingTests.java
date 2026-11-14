@@ -14,9 +14,11 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.instrumentation.api.instrumenter.SpanStatusBuilder;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -27,8 +29,12 @@ import java.util.Map;
 import static io.opentelemetry.api.common.AttributeKey.longKey;
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static java.util.Map.entry;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -37,6 +43,33 @@ public class HttpServerTracingTests extends ESTestCase {
     final SpanStatusBuilder spanStatusBuilder = mock(SpanStatusBuilder.class);
     final APMTracer tracer = mock(APMTracer.class);
     final HttpServerTracing instrumentation = new HttpServerTracing(tracer);
+
+    public void test_start_doesNotChangeTheThreadContext() {
+        final String traceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .withHeaders(Map.of(Task.TRACE_PARENT_HTTP_HEADER, List.of(traceParent), Task.TRACE_STATE, List.of("vendor=value")))
+            .build();
+
+        instrumentation.start(request, "/{index}/_search");
+
+        verify(tracer, never()).storeSpanInThreadContext(any());
+    }
+
+    public void test_storeInThreadContext_storesTheSpanOfTheRequestAndReturnsItsStoredContext() {
+        final ThreadContext.StoredContext storedContext = mock(ThreadContext.StoredContext.class);
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            .withPath("/my-index/_search")
+            .build();
+        when(tracer.storeSpanInThreadContext(request)).thenReturn(storedContext);
+
+        final var operation = instrumentation.start(request, "/{index}/_search");
+
+        assertSame(storedContext, operation.storeInThreadContext());
+        // it can be stored any number of times: it is done by whoever dispatches the request, and by whoever sends the response
+        assertSame(storedContext, operation.storeInThreadContext());
+        verify(tracer, times(2)).storeSpanInThreadContext(request);
+    }
 
     public void test_start_setsRequestAttributes_minimal() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)

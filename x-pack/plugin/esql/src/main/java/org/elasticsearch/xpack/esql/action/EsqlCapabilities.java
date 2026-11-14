@@ -4597,6 +4597,12 @@ public class EsqlCapabilities {
         FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
 
         /**
+         * TS null filtering follows aliases through null-propagating expressions, such as casts and arithmetic, to the metric
+         * fields they read. Converted or computed metrics receive the same null filtering as mapped metric fields.
+         */
+        TS_NULL_FILTER_THROUGH_EXPRESSIONS,
+
+        /**
          * {@code DEDUP} ignores the synthetic {@code $$<field>$converted_to$<type>} attributes that a conversion pushed into
          * {@code UnionAll} branches leaves in its input. Older nodes rejected such queries when the converted type, e.g.
          * {@code date_range}, cannot be grouped on, even though the column is never part of the output.

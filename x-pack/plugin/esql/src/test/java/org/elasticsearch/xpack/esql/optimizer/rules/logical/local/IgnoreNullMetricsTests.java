@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -30,8 +31,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -113,29 +116,16 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         Filter filter = as(tsAgg.child(), Filter.class);
         Or or = as(filter.expressions().getFirst(), Or.class);
 
-        // For reasons beyond my comprehension, the ordering of the conditionals inside the OR is nondeterministic.
-        IsNotNull condition;
-        FieldAttribute attribute;
-
-        condition = as(or.left(), IsNotNull.class);
-        attribute = as(condition.field(), FieldAttribute.class);
-        if (attribute.fieldName().string().equals("metric_1")) {
-            condition = as(or.right(), IsNotNull.class);
-            attribute = as(condition.field(), FieldAttribute.class);
-            assertEquals("metric_2", attribute.fieldName().string());
-        } else if (attribute.fieldName().string().equals("metric_2")) {
-            condition = as(or.right(), IsNotNull.class);
-            attribute = as(condition.field(), FieldAttribute.class);
-            assertEquals("metric_1", attribute.fieldName().string());
-        } else {
-            // something weird happened
-            assert false;
-        }
+        // Null checks follow the order of metrics in the aggregate expressions.
+        IsNotNull left = as(or.left(), IsNotNull.class);
+        assertEquals("metric_1", as(left.field(), FieldAttribute.class).fieldName().string());
+        IsNotNull right = as(or.right(), IsNotNull.class);
+        assertEquals("metric_2", as(right.field(), FieldAttribute.class).fieldName().string());
     }
 
     /**
-     * The reference attribute metric_2 doesn't inherit the metric property from the original field. Filtering on metric_1 alone would
-     * drop the rows that only have a value for metric_2, so no filter is added.
+     * {@code COALESCE} can be non-null when its inputs are null, so its result can't be traced back to the metric it reads. Filtering
+     * on metric_1 alone would drop the rows that only have a value for the computed input, so no filter is added.
      */
     public void testSkipFilterForComputedInputs() {
         LogicalPlan actual = metrics().localPlan("""
@@ -153,21 +143,193 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
     }
 
     /**
-     * A converted metric doesn't carry the metric property. Filtering on metric_1 alone would drop the rows that only have a value for
-     * metric_2, so no filter is added.
+     * Inputs computed from metrics through null-propagating expressions are filtered on the metrics they read.
      */
-    public void testSkipFilterForConvertedMetrics() {
-        LogicalPlan actual = metrics().localPlan("""
+    public void testFilterNullPropagatingExpressions() {
+        for (String computed : new String[] {
+            "metric_2::double",
+            "(metric_2 + 1)::double",
+            "(metric_2 + 1)::gauge",
+            "(metric_2 + 1)::counter::long",
+            "metric_2::string::double",
+            "to_degrees(metric_2::double)",
+            "metric_2 * 8 / 1000" }) {
+            LogicalPlan actual = new IgnoreNullMetrics().apply(metrics().coordinatorPlan(Strings.format("""
+                TS test
+                | EVAL converted = metric_1::double::long, computed = %s
+                | STATS max(max_over_time(converted)), min(min_over_time(computed)) BY BUCKET(@timestamp, 1 min)
+                | LIMIT 10
+                """, computed)));
+            assertEquals(computed + "\n" + actual, List.of("metric_1", "metric_2"), filteredFields(actual));
+        }
+    }
+
+    /**
+     * An input reading several metrics is null as soon as one of them is null. Each metric it reads is filtered on once, in the order
+     * the input reads them, so every row with a value for the input is kept.
+     */
+    public void testFilterExpressionsOverMultipleMetrics() {
+        Map<String, List<String>> evals = Map.of(
+            "total = metric_1 + metric_2",
+            List.of("metric_1", "metric_2"),
+            "x = metric_1::double, total = x + metric_2 * 2",
+            List.of("metric_1", "metric_2"),
+            "total = metric_2 + metric_1::double",
+            List.of("metric_2", "metric_1"),
+            "total = metric_1 + metric_1::double",
+            List.of("metric_1")
+        );
+        for (var eval : evals.entrySet()) {
+            LogicalPlan actual = new IgnoreNullMetrics().apply(metrics().coordinatorPlan(Strings.format("""
+                TS test
+                | EVAL %s
+                | STATS max(max_over_time(total)) BY BUCKET(@timestamp, 1 min)
+                | LIMIT 10
+                """, eval.getKey())));
+            assertEquals(eval.getKey() + "\n" + actual, eval.getValue(), filteredFields(actual));
+        }
+    }
+
+    public void testSkipFilterForNonNullPropagatingExpressions() {
+        for (String computed : new String[] {
+            "coalesce(metric_2, 0)::double",
+            "coalesce(metric_2::double, 0)",
+            "(coalesce(metric_2, 0) + 1)::gauge",
+            "case(metric_2 > 0, metric_2, 0)" }) {
+            LogicalPlan actual = metrics().localPlan(Strings.format("""
+                TS test
+                | EVAL converted = metric_1::double::long, computed = %s
+                | STATS max(max_over_time(converted)), min(min_over_time(computed)) BY BUCKET(@timestamp, 1 min)
+                | LIMIT 10
+                """, computed));
+            assertFalse(computed + "\n" + actual, actual.anyMatch(Filter.class::isInstance));
+        }
+    }
+
+    /**
+     * Fields that are neither metrics, dimensions nor the timestamp have never been null-filtered. Inputs reading them disable the filter.
+     */
+    public void testSkipFilterForExpressionsReadingNonMetricFields() {
+        EsIndex index = new EsIndex(
+            "test",
+            Map.of(
+                "@timestamp",
+                new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                "metric",
+                new EsField("metric", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.METRIC),
+                "plain",
+                new EsField("plain", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Map.of("test", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
+        for (String computed : new String[] { "metric + plain", "plain::double" }) {
+            LogicalPlan actual = EsqlTestUtils.optimizer().addIndex(index).localPlan(Strings.format("""
+                TS test
+                | EVAL computed = %s
+                | STATS max(max_over_time(metric)), max(max_over_time(computed)) BY BUCKET(@timestamp, 1 min)
+                | LIMIT 10
+                """, computed));
+            assertFalse(computed + "\n" + actual, actual.anyMatch(Filter.class::isInstance));
+        }
+    }
+
+    /**
+     * Every aggregation, apart from the ones carrying the grouping keys, must read at least one metric and nothing but metrics.
+     * Otherwise the filter would drop rows that aggregation counts, like the ones without metrics for a count over a dimension or a
+     * constant.
+     */
+    public void testSkipFilterForAggregationsNotReadingOnlyMetrics() {
+        for (String eval : new String[] { "d = length(dimension_1)", "d = 1", "d = dimension_1" }) {
+            LogicalPlan actual = metrics().localPlan(Strings.format("""
+                TS test
+                | EVAL %s
+                | STATS max(max_over_time(metric_1)), n = max(count_over_time(d)) BY dimension_1
+                | LIMIT 10
+                """, eval));
+            assertFalse(eval + "\n" + actual, actual.anyMatch(Filter.class::isInstance));
+        }
+    }
+
+    public void testFilterAliasedAndOverwrittenMetrics() {
+        for (String eval : new String[] {
+            "converted = metric_1::double",
+            "intermediate = metric_1::double, converted = intermediate::long",
+            "metric_1 = metric_1::double, converted = metric_1" }) {
+            LogicalPlan actual = new IgnoreNullMetrics().apply(metrics().coordinatorPlan(Strings.format("""
+                TS test
+                | EVAL %s
+                | STATS max(max_over_time(converted)) BY BUCKET(@timestamp, 1 min)
+                | LIMIT 10
+                """, eval)));
+            assertEquals(eval + "\n" + actual, List.of("metric_1"), filteredFields(actual));
+        }
+    }
+
+    /**
+     * A {@code WHERE} between the {@code EVAL} and the {@code STATS} doesn't hide the metric an input is computed from.
+     */
+    public void testFilterThroughWhere() {
+        LogicalPlan actual = new IgnoreNullMetrics().apply(metrics().coordinatorPlan("""
             TS test
-            | STATS max(max_over_time(metric_1)), max(max_over_time(metric_2::double))
+            | EVAL converted = metric_1::double
+            | WHERE dimension_1 == "a"
+            | STATS max(max_over_time(converted)) BY BUCKET(@timestamp, 1 min)
             | LIMIT 10
-            """);
-        Limit limit = as(actual, Limit.class);
-        Aggregate agg = as(limit.child(), Aggregate.class);
-        // The optimizer expands the STATS out into two STATS steps
-        Aggregate tsAgg = as(agg.child(), Aggregate.class);
-        Eval eval = as(tsAgg.child(), Eval.class);
-        as(eval.child(), EsRelation.class);
+            """));
+        assertEquals(List.of("metric_1"), filteredFields(actual));
+    }
+
+    public void testFilterAcrossUnionConversions() {
+        for (EsField.TimeSeriesFieldType fieldType : List.of(EsField.TimeSeriesFieldType.METRIC, EsField.TimeSeriesFieldType.NONE)) {
+            EsIndex index = unionIndex(DataType.LONG, DataType.DOUBLE, fieldType);
+            for (String conversion : List.of(
+                "value::double",
+                "value::string::double",
+                "value::double::gauge",
+                "value::double::counter::double",
+                "value::double * 2"
+            )) {
+                LogicalPlan actual = EsqlTestUtils.optimizer().addIndex(index).localPlan(Strings.format("""
+                    TS test-1,test-2
+                    | EVAL converted = %s
+                    | STATS max(max_over_time(converted)) BY BUCKET(@timestamp, 1 min)
+                    | LIMIT 10
+                    """, conversion));
+                assertEquals(
+                    conversion + "\n" + actual,
+                    fieldType == EsField.TimeSeriesFieldType.METRIC,
+                    actual.anyMatch(Filter.class::isInstance)
+                );
+            }
+        }
+    }
+
+    /**
+     * The names of the fields in the null filter this rule added below the time-series aggregation, in order.
+     */
+    private static List<String> filteredFields(LogicalPlan plan) {
+        TimeSeriesAggregate tsAgg = as(plan.collect(TimeSeriesAggregate.class).getFirst(), TimeSeriesAggregate.class);
+        Filter filter = as(tsAgg.child(), Filter.class);
+        List<String> fields = new ArrayList<>();
+        filter.condition().forEachDown(IsNotNull.class, isNotNull -> fields.add(as(isNotNull.field(), FieldAttribute.class).name()));
+        return fields;
+    }
+
+    private static EsIndex unionIndex(DataType first, DataType second, EsField.TimeSeriesFieldType fieldType) {
+        return new EsIndex(
+            "test-1,test-2",
+            Map.of(
+                "@timestamp",
+                new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                "value",
+                new InvalidMappedField("value", Map.of(first.typeName(), Set.of("test-1"), second.typeName(), Set.of("test-2")), fieldType)
+            ),
+            Map.of("test-1", new IndexProperties(IndexMode.TIME_SERIES, 0), "test-2", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
     }
 
     public void testFilterMixedAggregateMetricDoubleAndDoubleMetric() {

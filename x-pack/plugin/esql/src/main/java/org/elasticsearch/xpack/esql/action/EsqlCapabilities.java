@@ -2785,6 +2785,11 @@ public class EsqlCapabilities {
         FIX_PROMQL_WITHOUT_OUTPUT,
 
         /**
+         * PromQL WITHOUT drops the metric name while retaining every other grouping label, including for WITHOUT ().
+         */
+        FIX_PROMQL_WITHOUT_METRIC_NAME,
+
+        /**
          * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
          * also match time series where the label is absent ({@code NULL}), per PromQL spec.
          */

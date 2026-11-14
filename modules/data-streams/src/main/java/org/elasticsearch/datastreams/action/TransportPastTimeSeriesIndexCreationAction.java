@@ -411,8 +411,22 @@ public class TransportPastTimeSeriesIndexCreationAction extends TransportMasterN
                 while (stack.isEmpty() == false && stack.peek().end() <= ts) {
                     previousIndex = stack.pop();
                 }
-                CoveredTimeWindow nextIndex = stack.isEmpty() ? null : stack.peek();
-                assert nextIndex != null : "there should always be a next index, ultimately the write index";
+                if (stack.isEmpty()) {
+                    // The timestamp is at or after the end of the newest time window, for example because the write index's end time
+                    // lags behind the wall-clock time. Past backing indices only cover time ranges older than the existing indices.
+                    // Timestamps are sorted, so every remaining timestamp of this task is rejected here as well.
+                    assert previousIndex != null : "the stack is only empty after at least one time window was popped";
+                    rejectedTimestamps.put(
+                        timestampInstant,
+                        "the document timestamp ["
+                            + timestampInstant
+                            + "] is not earlier than the end time ["
+                            + Instant.ofEpochMilli(previousIndex.end())
+                            + "] of the most recent backing index, past backing indices are only created for older timestamps"
+                    );
+                    continue;
+                }
+                CoveredTimeWindow nextIndex = stack.peek();
                 if (nextIndex.start() <= ts) {
                     coveredTimestamps.add(timestampInstant);
                     continue;

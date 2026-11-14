@@ -215,6 +215,36 @@ public class PastTimeSeriesIndexCreationActionTests extends ESTestCase {
         }
     }
 
+    /**
+     * The write index's time series range ends before the request start time. Timestamps at or after its end time are not covered by
+     * any backing index, and they are rejected because past backing indices are only created for time ranges before the existing ones.
+     * Older timestamps in the same task are still covered by a new past backing index.
+     */
+    public void testTimestampAtOrAfterNewestEndTimeIsRejected() throws Exception {
+        Instant writeIndexStart = Instant.now().minus(5, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MILLIS);
+        ClusterState clusterState = stateWithExisting(List.of(), writeIndexStart);
+        ProjectMetadata project = clusterState.projectState(projectId).metadata();
+        Instant writeIndexEnd = project.index(project.dataStreams().get(DATA_STREAM).getWriteIndex()).getTimeSeriesEnd();
+        assertThat(writeIndexEnd.isBefore(Instant.now()), is(true));
+
+        Instant historical = writeIndexStart.minus(randomIntBetween(1, 23), ChronoUnit.HOURS);
+        Instant atEnd = writeIndexEnd;
+        Instant afterEnd = writeIndexEnd.plus(randomIntBetween(1, 23), ChronoUnit.HOURS);
+
+        TaskResult result = run(clusterState, afterEnd.toEpochMilli(), historical.toEpochMilli(), atEnd.toEpochMilli());
+        assertThat(result.covered(), containsInAnyOrder(historical));
+        assertThat(result.createdNames(), hasSize(1));
+        IndexMetadata created = result.state().projectState(projectId).metadata().index(result.createdNames().getFirst());
+        assertThat(created.getTimeSeriesEnd(), is(writeIndexStart));
+        assertThat(result.rejectedTimestamps().keySet(), containsInAnyOrder(atEnd, afterEnd));
+        for (Instant rejected : List.of(atEnd, afterEnd)) {
+            assertThat(
+                result.rejectedTimestamps().get(rejected),
+                containsString("is not earlier than the end time [" + writeIndexEnd + "] of the most recent backing index")
+            );
+        }
+    }
+
     public void testFillGapBetweenIndices() throws Exception {
         Instant now = Instant.now();
         // Smaller gap than index interval

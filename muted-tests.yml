@@ -605,3 +605,8 @@ tests:
   - :x-pack:plugin:stateless-sigterm:test
   method: testMigrationMetricUsesMigrationCompleteTimeBeforeOverallComplete
   issue: https://github.com/elastic/elasticsearch/issues/165876
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSourceSearchShardNotAwareOfSplit
+  issue: https://github.com/elastic/elasticsearch/issues/166034

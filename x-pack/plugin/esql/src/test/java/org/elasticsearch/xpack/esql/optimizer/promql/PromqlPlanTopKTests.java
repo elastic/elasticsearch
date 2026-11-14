@@ -195,6 +195,25 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(Alias.unwrap(valueAgg), instanceOf(Sum.class));
     }
 
+    /**
+     * An aggregate keyed by labels packs them into one key, and so does the {@code topk by} under it. The key of the {@code topk}
+     * stays in its output, so it has a name of its own: two attributes of one name in the output of a node fail the plan when
+     * the optimizer verifies it.
+     */
+    public void testSumByOverTopkByPlans() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (topk by (cluster) (2, network.bytes_in)))");
+
+        var topNBy = as(plan.collect(TopNBy.class).getFirst(), TopNBy.class);
+        assertThat(partitionLabels(topNBy), hasItem("cluster"));
+    }
+
+    /** As above, for a {@code topk by} over another one: both key by packed labels. */
+    public void testTopkByOverTopkByPlans() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(topk by (cluster) (2, topk by (cluster, pod) (3, network.bytes_in)))");
+
+        assertThat(plan.collect(TopNBy.class), hasSize(2));
+    }
+
     public void testLimitkProducesEmptyOrderTopNBy() {
         assumeTrue("Requires PROMQL_LIMITK capability", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
 

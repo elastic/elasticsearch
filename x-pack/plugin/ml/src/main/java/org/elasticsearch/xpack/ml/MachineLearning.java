@@ -319,7 +319,9 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.UnavailableEsqlQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -593,6 +595,20 @@ public class MachineLearning extends Plugin
         }
         if (machineLearningExtension.get() == null) {
             machineLearningExtension.set(new DefaultMachineLearningExtension());
+        }
+        if (loader != null) {
+            List<EsqlQueryAnalyzer> analyzers = loader.loadExtensions(EsqlQueryAnalyzer.class);
+            // With a shared classpath (internal cluster tests) every plugin extending ML finds the ES|QL services file,
+            // and the test composite plugin calls loadExtensions more than once.
+            if (analyzers.stream().map(Object::getClass).distinct().count() > 1) {
+                throw new IllegalStateException("Expected one ES|QL query analyzer provider but found " + analyzers);
+            }
+            if (analyzers.isEmpty() == false) {
+                esqlQueryAnalyzer.trySet(analyzers.getFirst());
+            }
+        }
+        if (esqlQueryAnalyzer.get() == null) {
+            esqlQueryAnalyzer.set(new UnavailableEsqlQueryAnalyzer());
         }
     }
 
@@ -953,6 +969,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterService = new SetOnce<>();
 
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
+    private final SetOnce<EsqlQueryAnalyzer> esqlQueryAnalyzer = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
         this.settings = settings;

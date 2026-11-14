@@ -280,6 +280,7 @@ public class ViewServiceTests extends ESTestCase {
         validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu))");
         validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | WHERE cpu_avg > 1 | KEEP cpu_avg");
         validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | STATS max(cpu_avg)");
+        validatePutView("promql-view", "PROMQL index=metrics step=1m cpu");
     }
 
     public void testIgnoresTsInSubquery() {

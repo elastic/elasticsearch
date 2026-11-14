@@ -116,7 +116,7 @@ public class RestCountAction extends BaseRestHandler {
                     response.getSuccessfulShards(),
                     0,
                     response.getFailedShards(),
-                    response.getShardFailures()
+                    response.shardFailuresList()
                 );
 
                 builder.endObject();

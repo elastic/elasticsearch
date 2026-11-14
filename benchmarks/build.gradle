@@ -174,6 +174,10 @@ tasks.named('test').configure {
   if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 21) {
     jvmArgs '--add-modules=jdk.incubator.vector', '--add-opens=java.base/java.nio=ALL-UNNAMED'
   }
+  // The shape catalog pins the columnar stage each shape reaches with the simdjson ESCF encoder, which is
+  // on by default only in snapshot builds. Without it, release-tests encode with Jackson, which does not
+  // split float-exact array elements into a UNION, so the floating mv1to4 shapes map instead of falling back.
+  systemProperty 'es.simdjson_escf_feature_flag_enabled', 'true'
 }
 
 spotless {

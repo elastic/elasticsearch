@@ -15,6 +15,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.CandidateValues;
 import org.elasticsearch.index.mapper.TokenStreamMatching;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
@@ -210,10 +211,16 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
         }
 
+        final TokenStreamMatching.Matcher matcher = matcherBuilder.apply(queryTerms);
+        // The prefilter only applies to analyzers whose tokens are substrings of their input.
+        final CandidateValues candidates = CandidateValues.valuesSpellTheirTokens(analyzer)
+            ? matcher.candidates().readingTokensOf(analyzer)
+            : CandidateValues.ANY;
         return new RuntimeSearchTextEvaluator.Factory(
             source(),
             toEvaluator.apply(field()),
-            matcherBuilder.apply(queryTerms),
+            matcher,
+            candidates,
             analyzer,
             context -> new BytesRef()
         );
@@ -464,7 +471,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         Holder<FieldAttribute> mappedField,
         Set<String> branchAnalyzers
     ) {
-        // Branches are name-aligned by the time the merge resolves, so the name is what identifies the same
+        // Branches line up with the merge's output by name, so the name is what identifies the same
         // column across them. The merge gives its output new ids, so no branch column shares the merged column's id.
         for (LogicalPlan branch : merge.children()) {
             Predicate<Attribute> onlyNull = Fork.producesOnlyNull(branch);

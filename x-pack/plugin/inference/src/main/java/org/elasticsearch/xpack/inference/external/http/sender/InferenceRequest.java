@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 
-import java.util.function.Supplier;
-
 /**
  * A contract for defining a request sent to a 3rd party service.
  */
@@ -38,7 +36,8 @@ public interface InferenceRequest {
     boolean hasCompleted();
 
     /**
-     * Returns a {@link Supplier} to determine if the request has completed.
+     * Returns the {@link TimedListener} wrapping {@link #getListener()}, which tracks the completion and timeout of the request and
+     * lets senders register abort handlers for the work they start on its behalf.
      */
-    Supplier<Boolean> getRequestCompletedFunction();
+    TimedListener<InferenceServiceResults> getTimedListener();
 }

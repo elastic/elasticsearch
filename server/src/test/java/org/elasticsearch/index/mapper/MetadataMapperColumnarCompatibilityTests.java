@@ -319,7 +319,7 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
             try (
                 EscfBatch escfBatch = encoder.buildPartition(0);
                 BatchMappingContext ctx = new BatchMappingContext(
-                    IndexOperationBatch.initFromBulk(items, 0, items.length, escfBatch, Engine.Operation.Origin.PRIMARY, 0L, 0L),
+                    IndexOperationBatch.initFromBulk(items, 0, items.length, escfBatch, Engine.Operation.Origin.PRIMARY, 0L, 0L, null),
                     mapperService.mappingLookup(),
                     mapperService.getIndexSettings(),
                     new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))

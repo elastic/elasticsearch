@@ -46,6 +46,24 @@ public class MapperTestUtils {
     }
 
     public static MapperService newMapperService(
+        NamedXContentRegistry xContentRegistry,
+        Path tempDir,
+        Settings indexSettings,
+        Settings nodeSettings,
+        String indexName
+    ) throws IOException {
+        return newMapperService(
+            xContentRegistry,
+            tempDir,
+            indexSettings,
+            nodeSettings,
+            new IndicesModule(List.of()),
+            indexName,
+            new Setting<?>[0]
+        );
+    }
+
+    public static MapperService newMapperService(
         List<MapperPlugin> extraMappers,
         NamedXContentRegistry xContentRegistry,
         Path tempDir,

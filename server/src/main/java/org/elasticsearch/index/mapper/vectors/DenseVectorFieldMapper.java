@@ -19,6 +19,8 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FilterLeafReader;
@@ -39,13 +41,17 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.escf.EscfColumn;
+import org.elasticsearch.escf.LuceneLongColumn;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -72,6 +78,7 @@ import org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectors
 import org.elasticsearch.index.codec.vectors.es94.ES94ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -119,6 +126,8 @@ import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.sourcebatch.ArrayReader;
+import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -338,7 +347,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     );
                 }
                 return elementType;
-            }, m -> toType(m).fieldType().element.elementType(), XContentBuilder::field, Objects::toString);
+            }, XContentBuilder::field, Objects::toString);
             if (this.indexMode.isVectorDb()) {
                 this.elementType.alwaysSerialize();
             }
@@ -350,7 +359,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
 
                 return XContentMapValues.nodeIntegerValue(o);
-            }, m -> toType(m).fieldType().dims, XContentBuilder::field, Objects::toString).setSerializerCheck((id, ic, v) -> v != null)
+            }, XContentBuilder::field, Objects::toString).setSerializerCheck((id, ic, v) -> v != null)
                 .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current))
                 .addValidator(dims -> {
                     if (dims == null) {
@@ -377,25 +386,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
             final boolean defaultBBQHnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
             final boolean defaultBBQDisk = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK);
             this.indexed = Parameter.indexParam(
-                m -> toType(m).fieldType().indexed,
                 indexedByDefaultVersionCheck && (indexDisabledByDefault == false || this.indexMode.isSearchOptimizedColumnar())
             );
             if (indexedByDefaultVersionCheck) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading
                 this.indexed.alwaysSerialize();
             }
-            this.similarity = Parameter.enumParam(
-                "similarity",
-                false,
-                m -> toType(m).fieldType().similarity,
-                (Supplier<VectorSimilarity>) () -> {
-                    if (indexedByDefaultVersionCheck && indexed.getValue()) {
-                        return elementType.getValue().defaultSimilarity();
-                    }
-                    return null;
-                },
-                VectorSimilarity.class
-            ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null).addValidator(vectorSim -> {
+            this.similarity = Parameter.enumParam("similarity", false, (Supplier<VectorSimilarity>) () -> {
+                if (indexedByDefaultVersionCheck && indexed.getValue()) {
+                    return elementType.getValue().defaultSimilarity();
+                }
+                return null;
+            }, VectorSimilarity.class).acceptsNull().setSerializerCheck((id, ic, v) -> v != null).addValidator(vectorSim -> {
                 if (vectorSim == null) {
                     return;
                 }
@@ -410,7 +412,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 true,
                 () -> defaultIndexOptions(defaultInt8Hnsw, defaultBBQHnsw, defaultBBQDisk),
                 (n, c, o) -> o == null ? null : parseIndexOptions(n, o, c, experimentalFeaturesEnabled),
-                m -> toType(m).indexOptions,
                 (b, n, v) -> {
                     if (v != null) {
                         b.field(n, v);
@@ -563,6 +564,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
+        /**
+         * Sets dimensions inferred from a Document. Throws an error if the dimensions have been previously
+         * set to a different value.
+         */
+        public void dimensionsFromDocument(int dimensions) {
+            if (dims.isSet() && Objects.equals(dims.getValue(), dimensions) == false) {
+                throw new IllegalArgumentException(
+                    "Field [" + leafName() + "] of type [dense_vector] cannot be indexed with vectors of different dimensions"
+                );
+            }
+            dimensions(dimensions);
+        }
+
         public Builder elementType(ElementType elementType) {
             this.elementType.setValue(elementType);
             return this;
@@ -600,7 +614,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexVersionCreated,
-                indexMode,
                 isExcludeSourceVectors,
                 isExcludeSourceVectorsFinal,
                 experimentalFeaturesEnabled,
@@ -4187,7 +4200,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private final DenseVectorIndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
-    private final IndexMode indexMode;
     private final boolean excludeSourceVectorsSetting;
     private final boolean excludeSourceVectors;
     private final boolean experimentalFeaturesEnabled;
@@ -4200,7 +4212,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         BuilderParams params,
         DenseVectorIndexOptions indexOptions,
         IndexVersion indexCreatedVersion,
-        IndexMode indexMode,
         boolean excludeSourceVectorsSetting,
         boolean excludeSourceVectors,
         boolean experimentalFeaturesEnabled,
@@ -4210,7 +4221,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
-        this.indexMode = indexMode;
         this.excludeSourceVectorsSetting = excludeSourceVectorsSetting;
         this.excludeSourceVectors = excludeSourceVectors;
         this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
@@ -4244,9 +4254,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
         if (fieldType().dims == null) {
             int dims = fieldType().element.parseDimensionCount(context);
-            DenseVectorFieldMapper.Builder builder = (Builder) getMergeBuilder();
-            builder.dimensions(dims);
-            context.addDynamicMapper(builder, fullPath());
+            context.updateMapping(fullPath(), builder -> ((Builder) builder).dimensionsFromDocument(dims));
             return ParseResult.INDEXED;
         }
         if (fieldType().indexed) {
@@ -4325,6 +4333,154 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
+    /**
+     * The columnar batch path supports indexed {@code float} and {@code bfloat16} vectors whose dimensions are known from the
+     * mapping. Both element types index a {@link KnnFloatVectorField}: {@code bfloat16} differs only in how the codec stores the
+     * values. Every other configuration keeps the row path: byte and bit vectors, unindexed vectors (stored as binary doc values),
+     * and mappings still waiting for their dimensions.
+     */
+    @Override
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        final DenseVectorFieldType ft = fieldType();
+        final ElementType elementType = ft.element.elementType();
+        return ft.indexed && ft.dims != null && (elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16);
+    }
+
+    /**
+     * Columnar counterpart of {@link #parse} for the configurations {@link #doSupportsColumnarParse} accepts. Each document's
+     * vector is read from the batch's ESCF source column, as an array of numbers or a base64-encoded string, and validated as the
+     * row path validates it. A document the batch path cannot handle the same way, such as a vector of the wrong length or an
+     * invalid value, throws, which makes the whole batch fall back to the row path; the row path then reports the same
+     * per-document error it always has.
+     *
+     * <p>For a normalized {@code cosine} field, a vector that is not unit length is indexed normalized and its original length is
+     * kept in the {@code ._magnitude} doc values field, as the row path does; that field is a sparse column holding a value for the
+     * normalized documents only.
+     */
+    @Override
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+        final DenseVectorFieldType ft = fieldType();
+        final int dims = ft.dims;
+        final Element element = ft.element;
+        final boolean normalize = ft.isNormalized();
+        final int docCount = source.docCount();
+        final float[][] vectors = new float[docCount][];
+        // One little-endian slot per document for the raw bits of the magnitude of normalized cosine vectors; allocated on the
+        // first document that needs it, since unit vectors and every other similarity store none.
+        byte[] magnitudes = null;
+        FixedBitSet hasMagnitude = null;
+        for (int doc = 0; doc < docCount; doc++) {
+            final byte type = source.getTypeByte(doc);
+            final float[] vector;
+            final float squaredMagnitude;
+            switch (type) {
+                case SourceValueType.ABSENT, SourceValueType.NULL -> {
+                    // no vector, as on the row path
+                    continue;
+                }
+                case SourceValueType.FIXED_ARRAY, SourceValueType.UNION_ARRAY -> {
+                    vector = new float[dims];
+                    // Accumulated in float, element by element, exactly as FloatElement#parseVectorArray does on the row path, so
+                    // that the unit-length check of dot_product accepts and rejects the same vectors on both paths.
+                    // TODO: only dot_product and cosine need the magnitude (l2_norm and max_inner_product use it only to guard
+                    // against overflow), and it could be computed after the loop with the SIMD ESVectorUtil#dotProduct, as the
+                    // query path does.
+                    float sum = 0;
+                    final ArrayReader array = source.getArrayValue(doc);
+                    int index = 0;
+                    while (array.next()) {
+                        if (index >= dims) {
+                            throw new UnsupportedOperationException(
+                                "mapColumnBatch: [" + fullPath() + "] has more dimensions than defined in the mapping [" + dims + "]"
+                            );
+                        }
+                        final float value = vectorElementValue(array);
+                        vector[index++] = value;
+                        sum += value * value;
+                    }
+                    if (index != dims) {
+                        throw new UnsupportedOperationException(
+                            "mapColumnBatch: [" + fullPath() + "] has [" + index + "] dimensions, the mapping defines [" + dims + "]"
+                        );
+                    }
+                    squaredMagnitude = sum;
+                }
+                case SourceValueType.STRING -> {
+                    // A base64-encoded vector, decoded and measured exactly as FloatElement#parseBase64EncodedVector does on the
+                    // row path. A string that does not decode to a vector of the mapped dimensions falls back to the row path,
+                    // which reports the error.
+                    try {
+                        vector = DecodedVector.decode(source.getStringValue(doc).bytes(), element.elementType(), dims, false)
+                            .toFloatArray();
+                    } catch (IllegalArgumentException e) {
+                        throw new UnsupportedOperationException("mapColumnBatch: [" + fullPath() + "] " + e.getMessage(), e);
+                    }
+                    squaredMagnitude = (float) element.computeSquaredMagnitude(VectorData.fromFloats(vector));
+                }
+                default -> throw new UnsupportedOperationException(
+                    "mapColumnBatch: [" + fullPath() + "] value of source type [" + type + "] is not supported by the batch path"
+                );
+            }
+            element.checkVectorBounds(vector);
+            element.checkVectorMagnitude(ft.similarity, FloatElement.errorElementsAppender(vector), squaredMagnitude);
+            // Same arithmetic as FloatElement#parseKnnVectorAndIndex, so both paths index identical vectors.
+            if (normalize && element.isUnitVector(squaredMagnitude) == false) {
+                final float length = (float) Math.sqrt(squaredMagnitude);
+                for (int i = 0; i < dims; i++) {
+                    vector[i] /= length;
+                }
+                if (magnitudes == null) {
+                    magnitudes = new byte[docCount * Long.BYTES];
+                    hasMagnitude = new FixedBitSet(docCount);
+                }
+                // FloatDocValuesField stores the float's raw bits as a numeric doc value.
+                ByteUtils.writeLongLE(Float.floatToRawIntBits(length), magnitudes, doc * Long.BYTES);
+                hasMagnitude.set(doc);
+            }
+            vectors[doc] = vector;
+        }
+        final FieldType vectorFieldType = new FieldType();
+        vectorFieldType.setVectorAttributes(
+            dims,
+            VectorEncoding.FLOAT32,
+            ft.similarity.vectorSimilarityFunction(indexCreatedVersion, element.elementType())
+        );
+        vectorFieldType.freeze();
+        ctx.addColumn(DenseVectorColumn.floats(ft.name(), vectorFieldType, vectors));
+        if (magnitudes != null) {
+            ctx.addColumn(
+                LuceneLongColumn.sparseLongColumn(
+                    magnitudes,
+                    hasMagnitude,
+                    docCount,
+                    ft.name() + COSINE_MAGNITUDE_FIELD_SUFFIX,
+                    NumericDocValuesField.TYPE,
+                    LongColumn.NumericKind.LONG
+                )
+            );
+        }
+    }
+
+    /**
+     * The value of the vector element {@code array} is positioned on, converted to a float the way the row path's
+     * {@code XContentParser#floatValue} converts a JSON number. Anything but a number is left for the row path to reject.
+     *
+     * <p>TODO: a {@code DOUBLE} element was parsed from JSON as a double and is narrowed here, so it is rounded twice and may differ
+     * by an ulp from the row path, which parses straight to float; it also takes twice the bytes of a float in the batch. Read
+     * float elements once the ESCF encoder produces them for float vectors: https://github.com/elastic/elasticsearch/issues/165790
+     */
+    private float vectorElementValue(ArrayReader array) {
+        return switch (array.type()) {
+            case SourceValueType.DOUBLE -> (float) array.doubleValue();
+            case SourceValueType.FLOAT -> array.floatValue();
+            case SourceValueType.LONG -> (float) array.longValue();
+            case SourceValueType.INT -> (float) array.intValue();
+            default -> throw new UnsupportedOperationException(
+                "mapColumnBatch: [" + fullPath() + "] has a non-numeric vector element of source type [" + array.type() + "]"
+            );
+        };
+    }
+
     @Override
     protected void parseCreateField(DocumentParserContext context) {
         throw new AssertionError("parse is implemented directly");
@@ -4333,19 +4489,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            indexMode,
-            excludeSourceVectorsSetting,
-            experimentalFeaturesEnabled,
-            extraVectorsFormatProviders,
-            indexDisabledByDefault
-        ).init(this);
     }
 
     private static DenseVectorIndexOptions parseIndexOptions(

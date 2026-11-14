@@ -26,7 +26,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.junit.After;
@@ -37,7 +36,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -94,62 +92,65 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Only the contexts whose rows survived the node cut go to the coordinator. The request frees the others when it ends.
+     * When the request ends, it keeps the contexts some rows that left the node read, and frees the others.
      */
-    public void testHandsOffTheContributingContexts() throws Exception {
+    public void testKeepsTheContextsOfTheRowsThatLeftTheNode() throws Exception {
         createIndexWithDocs();
         NodeFetchContexts contexts = newNodeContexts(randomKeepAlive());
         List<SearchContext> opened = openEveryShard(contexts);
         List<SearchContext> contributing = randomSubsetOf(between(1, SHARDS - 1), opened);
         contributing.forEach(contexts::originOf);
+        AtomicInteger closedReaders = countClosedReaders(opened);
 
-        List<ShardSearchContextId> handedOff = contexts.handOffContributing();
-
-        assertThat(handedOff, containsInAnyOrder(contributing.stream().map(c -> c.readerContext().id()).toArray()));
         endRequest(contexts);
-        assertBusy(() -> assertThat(searchService().getActiveContexts(), equalTo(contributing.size())));
-        freeAll(handedOff);
+
+        assertBusy(() -> assertThat(closedReaders.get(), equalTo(SHARDS - contributing.size())));
+        List<ShardSearchContextId> kept = contributing.stream().map(c -> c.readerContext().id()).toList();
+        for (SearchContext searchContext : opened) {
+            ShardSearchContextId id = searchContext.readerContext().id();
+            assertThat("[" + id + "] is kept", isOpen(id), equalTo(kept.contains(id)));
+        }
+        freeAll(kept);
         assertAllFreed();
     }
 
     /**
-     * A context the coordinator takes over gets the keep-alive of the request, but never less than the default keep-alive
-     * it opened with.
+     * A kept context gets the keep-alive of the request, but never less than the default keep-alive it opened with.
      */
-    public void testHandOffGivesTheKeepAliveOfTheRequest() throws Exception {
+    public void testKeptContextsGetTheKeepAliveOfTheRequest() throws Exception {
         createIndexWithDocs();
         long nodeDefault = searchService().getDefaultKeepAliveInMillis();
         long requested = randomBoolean() ? nodeDefault + between(1, 3600) * 1000L : between(1, (int) nodeDefault);
         NodeFetchContexts contexts = newNodeContexts(TimeValue.timeValueMillis(requested));
         List<SearchContext> opened = openEveryShard(contexts);
         opened.forEach(contexts::originOf);
+        List<ReaderContext> readerContexts = opened.stream().map(SearchContext::readerContext).toList();
 
-        List<ShardSearchContextId> handedOff = contexts.handOffContributing();
-
-        for (SearchContext searchContext : opened) {
-            assertThat(searchContext.readerContext().keepAlive(), equalTo(Math.max(nodeDefault, requested)));
-        }
         endRequest(contexts);
-        freeAll(handedOff);
+
+        assertBusy(() -> {
+            for (ReaderContext readerContext : readerContexts) {
+                assertThat(readerContext.keepAlive(), equalTo(Math.max(nodeDefault, requested)));
+            }
+        });
+        freeAll(readerContexts.stream().map(ReaderContext::id).toList());
         assertAllFreed();
     }
 
     /**
-     * The request lets go of the contexts it handed off, so their readers close as soon as the coordinator frees them.
+     * The request lets go of the contexts it keeps, so their readers close as soon as the coordinator frees them.
      */
-    public void testHandOffDropsTheReferenceOfTheRequest() throws Exception {
+    public void testTheRequestLetsGoOfTheKeptContexts() throws Exception {
         createIndexWithDocs();
         NodeFetchContexts contexts = newNodeContexts(randomKeepAlive());
         List<SearchContext> opened = openEveryShard(contexts);
         opened.forEach(contexts::originOf);
         AtomicInteger closedReaders = countClosedReaders(opened);
 
-        List<ShardSearchContextId> handedOff = contexts.handOffContributing();
-        closeQuerySearchContexts();
-        freeAll(handedOff);
+        endRequest(contexts);
+        freeAll(opened.stream().map(c -> c.readerContext().id()).toList());
 
         assertBusy(() -> assertThat(closedReaders.get(), equalTo(SHARDS)));
-        contexts.close();
         assertAllFreed();
     }
 
@@ -173,14 +174,12 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * A request that fails or is cancelled never hands its contexts off, so it frees every one of them when it ends, also
-     * the contributing ones.
+     * A request whose rows never left the node keeps nothing.
      */
-    public void testEndWithoutHandOffFreesEveryContext() throws Exception {
+    public void testFreesEveryContextWhenNoRowLeftTheNode() throws Exception {
         createIndexWithDocs();
         NodeFetchContexts contexts = newNodeContexts(randomKeepAlive());
         List<SearchContext> opened = openEveryShard(contexts);
-        randomSubsetOf(opened).forEach(contexts::originOf);
         AtomicInteger closedReaders = countClosedReaders(opened);
 
         endRequest(contexts);
@@ -204,6 +203,8 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
         assertThat(origin.shardId(), equalTo(new ShardId(resolveIndex(INDEX), 0)));
         assertThat(origin.contextId(), equalTo(searchContext.readerContext().id()));
         endRequest(contexts);
+        // asking for the origin kept the context, so the test frees it like the coordinator would
+        freeAll(List.of(origin.contextId()));
         assertAllFreed();
     }
 
@@ -249,13 +250,12 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Deleting the index frees the contexts the coordinator took over.
+     * Deleting the index frees the contexts the request kept.
      */
-    public void testIndexDeletionFreesTheHandedOffContexts() throws Exception {
+    public void testIndexDeletionFreesTheKeptContexts() throws Exception {
         createIndexWithDocs();
         NodeFetchContexts contexts = newNodeContexts(randomKeepAlive());
         openEveryShard(contexts).forEach(contexts::originOf);
-        contexts.handOffContributing();
         endRequest(contexts);
         assertThat(searchService().getActiveContexts(), equalTo(SHARDS));
 
@@ -270,7 +270,16 @@ public class NodeFetchContextsTests extends ESSingleNodeTestCase {
     private static class LookupRequest extends AbstractTransportRequest {}
 
     private NodeFetchContexts newNodeContexts(TimeValue keepAlive) {
-        return new NodeFetchContexts(searchService(), getInstanceFromNode(ThreadPool.class).generic(), null, keepAlive);
+        return new NodeFetchContexts(searchService(), null, keepAlive);
+    }
+
+    private boolean isOpen(ShardSearchContextId id) {
+        try {
+            searchService().findReaderContext(id, new LookupRequest(), null);
+            return true;
+        } catch (SearchContextMissingException e) {
+            return false;
+        }
     }
 
     private static TimeValue randomKeepAlive() {

@@ -81,7 +81,6 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
-import org.elasticsearch.xpack.esql.fetch.DocOriginResolver;
 import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -974,14 +973,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
                 ActionListener.runAfter(
-                    listener.map(
-                        profiles -> new DataNodeComputeResponse(
-                            profiles,
-                            shardLevelFailures,
-                            // the coordinator owns these from now on
-                            fetchContexts == null ? List.of() : fetchContexts.handOffContributing()
-                        )
-                    ),
+                    listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures)),
                     () -> Releasables.close(sortBound)
                 )
             )
@@ -1270,10 +1262,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false;
         final NodeFetchContexts fetchContexts = request.keepFetchContexts() ? newFetchContexts(task, request) : null;
-        var computeSearchContexts = new AcquiredSearchContexts(
-            request.shards().size(),
-            fetchContexts == null ? DocOriginResolver.NONE : fetchContexts
-        );
+        var computeSearchContexts = new AcquiredSearchContexts(request.shards().size());
         runComputeOnDataNode(
             task,
             sessionId,
@@ -1284,14 +1273,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             fetchContexts,
             computeService.plannerSettings().get(),
             planTimeProfile,
-            // the search contexts of the query phase close before the fetch contexts free the ones the coordinator didn't take
+            // the search contexts of the query phase close before the fetch contexts free the ones no row reads
             ActionListener.releaseAfter(listener, Releasables.wrap(computeSearchContexts, fetchContexts))
         );
     }
 
     private NodeFetchContexts newFetchContexts(Task task, DataNodeRequest request) {
         TimeValue keepAlive = readerContextKeepAlive(request, clusterService.getClusterSettings());
-        return new NodeFetchContexts(searchService, threadPool.generic(), task, keepAlive);
+        return new NodeFetchContexts(searchService, task, keepAlive);
     }
 
     /**
@@ -1337,7 +1326,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     /**
      * The sink of the pages that leave this node. A query with a fetch phase sends {@code _doc} to the coordinator, which
      * loads the other columns of the winners later, so the documents get the origin of their shard. Asking for the origin
-     * marks the reader context as one the response lists.
+     * marks the reader context as one the node keeps after the request.
      */
     private static ExchangeSink leavingTheNode(
         ExchangeSink sink,
@@ -1348,7 +1337,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             return sink;
         }
         IndexedByShardId<ComputeSearchContext> contexts = searchContexts.globalView();
-        return new DetachingExchangeSink(sink, slot -> contexts.get(slot).origin());
+        return new DetachingExchangeSink(sink, slot -> fetchContexts.originOf(contexts.get(slot).searchContext()));
     }
 
     /**

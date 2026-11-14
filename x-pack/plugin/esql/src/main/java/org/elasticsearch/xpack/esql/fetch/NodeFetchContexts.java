@@ -30,7 +30,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 
 /**
  * The reader contexts that one data node request opens for the fetch phase, one per shard.
@@ -39,13 +38,12 @@ import java.util.concurrent.Executor;
  * {@code _search} opens, so the reaper, index removal and node shutdown free it if nobody else does. The request holds its
  * own reference on each context, so none expires while the drivers run or while the coordinator drains the exchange.
  * <p>
- * When the request responds, {@link #handOffContributing} hands the contexts whose rows survived the node cut to the
- * coordinator. {@link #close} frees the rest, which is every context when the request failed or was cancelled.
- * <p>
- * Both drop the request's references on the generic pool. Dropping the last reference to a reader can unmap files and
- * block, and a request can end on a transport thread, for example when the coordinator drained the exchange.
+ * When the request ends, {@link #close} keeps the contexts some rows that left the node read, and frees the others. The
+ * coordinator finds the kept ones in the origins of those rows, and frees them once it fetched, or the reaper does once their
+ * keep-alive passed. A failed request keeps them too: with partial results, the rows that left the node before the failure
+ * can still need their fetch.
  */
-public final class NodeFetchContexts implements DocOriginResolver, Releasable {
+public final class NodeFetchContexts implements Releasable {
     private static final Logger logger = LogManager.getLogger(NodeFetchContexts.class);
 
     /**
@@ -59,7 +57,7 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
          */
         private final Releasable lease;
         /**
-         * Some rows read through the context survived the node cut. Set by the drivers.
+         * Some rows read through the context left the node. Set by the drivers.
          */
         private volatile boolean contributing;
 
@@ -71,36 +69,31 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
     }
 
     private final SearchService searchService;
-    private final Executor generic;
     /**
      * The creator of the contexts, logged when they open and close.
      */
     @Nullable
     private final Task task;
     /**
-     * The keep-alive each context gets when the coordinator takes it over.
+     * The keep-alive of each context the request keeps.
      */
     private final TimeValue keepAlive;
-    /**
-     * The contexts this request still owns.
-     */
     private final Map<ShardSearchContextId, OpenContext> contexts = new ConcurrentHashMap<>();
     /**
-     * Guards against a context that opens after {@link #close}, which nobody would free.
+     * Guards against a context that opens after {@link #close}, which nobody would release.
      */
     private boolean closed;
 
     /**
-     * @param keepAlive the keep-alive each context gets when the coordinator takes it over. A context never gets less than
+     * @param keepAlive the keep-alive of each context the request keeps. A context never gets less than
      *                  {@code search.default_keep_alive}, the keep-alive it opens with.
      */
-    public NodeFetchContexts(SearchService searchService, Executor generic, @Nullable Task task, TimeValue keepAlive) {
+    public NodeFetchContexts(SearchService searchService, @Nullable Task task, TimeValue keepAlive) {
         if (keepAlive.millis() <= 0) {
             // reader contexts keep their keep-alive in milliseconds
             throw new IllegalArgumentException("the keep-alive must be at least a millisecond but was [" + keepAlive + "]");
         }
         this.searchService = searchService;
-        this.generic = generic;
         this.task = task;
         this.keepAlive = keepAlive;
     }
@@ -118,7 +111,7 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
             readerContext = searchService.createOrGetReaderContext(shardRequest, task);
             querySearchContext = searchService.createSearchContext(readerContext, shardRequest, SearchService.NO_TIMEOUT);
             // taken last: the query search context already holds a reference, so the context can't be gone.
-            // -1 leaves the keep-alive as it is, the hand-off sets it.
+            // -1 leaves the keep-alive as it is, close sets it.
             lease = readerContext.markAsUsed(-1L);
             register(new OpenContext(readerContext, origin(querySearchContext), lease));
             success = true;
@@ -147,9 +140,9 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
     }
 
     /**
-     * Marks the context of {@code searchContext} as contributing, because some of its rows are leaving the node.
+     * The origin of the rows read through {@code searchContext}, for the rows that leave the node. Asking marks the context
+     * as one the request keeps.
      */
-    @Override
     public DocOrigin originOf(SearchContext searchContext) {
         ShardSearchContextId id = searchContext.readerContext().id();
         OpenContext open = contexts.get(id);
@@ -161,72 +154,39 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
     }
 
     /**
-     * Hands the contexts whose rows survived the node cut to the coordinator and returns their ids, for the response. Each
-     * gets the keep-alive of the request, which starts once the request dropped its reference. From then on the
-     * coordinator frees them, or the reaper once their keep-alive passed.
-     */
-    public List<ShardSearchContextId> handOffContributing() {
-        List<OpenContext> handedOff = new ArrayList<>();
-        List<ShardSearchContextId> ids = new ArrayList<>();
-        for (OpenContext context : contexts.values()) {
-            if (context.contributing && contexts.remove(context.readerContext.id(), context)) {
-                // the request still holds its own reference, so this one is never the last
-                context.readerContext.markAsUsed(keepAlive.millis()).close();
-                handedOff.add(context);
-                ids.add(context.readerContext.id());
-            }
-        }
-        if (handedOff.isEmpty() == false) {
-            onGeneric(() -> handedOff.forEach(NodeFetchContexts::dropLease));
-        }
-        return ids;
-    }
-
-    /**
-     * Frees the contexts this request still owns: those whose rows didn't survive the node cut, or every context when the
-     * request failed or was cancelled. Called last, once the request closed the search contexts of its query phase.
+     * Keeps the contexts some rows that left the node read, with the keep-alive of the request, and frees the others. Called
+     * last, once the request closed the search contexts of its query phase.
+     * <p>
+     * Runs on the free context executor of {@link SearchService}, like the frees of {@code _search}. Dropping the last
+     * reference to a reader can unmap files and block, and a request can end on a transport thread, for example when the
+     * coordinator drained the exchange.
      */
     @Override
     public void close() {
-        List<OpenContext> owned;
+        List<OpenContext> opened;
         synchronized (this) {
             if (closed) {
                 return;
             }
             closed = true;
-            owned = new ArrayList<>(contexts.values());
+            opened = new ArrayList<>(contexts.values());
             contexts.clear();
         }
-        if (owned.isEmpty() == false) {
-            onGeneric(() -> owned.forEach(this::free));
+        if (opened.isEmpty()) {
+            return;
         }
-    }
-
-    private void free(OpenContext context) {
-        assert Transports.assertNotTransportThread("freeing a fetch context can close its reader");
-        try {
-            boolean found = searchService.freeReaderContext(context.readerContext.id());
-            logger.debug(
-                "freed fetch context [{}] of shard [{}]{}",
-                context.readerContext.id(),
-                context.origin.shardId(),
-                found ? "" : ", it was already gone"
-            );
-        } finally {
-            dropLease(context);
-        }
-    }
-
-    private static void dropLease(OpenContext context) {
-        assert Transports.assertNotTransportThread("dropping the last reference to a fetch context closes its reader");
-        context.lease.close();
-    }
-
-    private void onGeneric(Runnable run) {
-        generic.execute(new AbstractRunnable() {
+        searchService.getFreeContextExecutor().execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
-                run.run();
+                assert Transports.assertNotTransportThread("releasing a fetch context can close its reader");
+                for (OpenContext context : opened) {
+                    try {
+                        release(context);
+                    } catch (Exception e) {
+                        // the others still need their release
+                        logger.warn(() -> "failed to release fetch context [" + context.readerContext.id() + "]", e);
+                    }
+                }
             }
 
             @Override
@@ -234,5 +194,22 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
                 logger.warn("failed to release fetch contexts", e);
             }
         });
+    }
+
+    private void release(OpenContext context) {
+        try (context.lease) {
+            if (context.contributing) {
+                // the request still holds its own reference, so this one is never the last
+                context.readerContext.markAsUsed(keepAlive.millis()).close();
+            } else {
+                boolean found = searchService.freeReaderContext(context.readerContext.id());
+                logger.debug(
+                    "freed fetch context [{}] of shard [{}], no row read it{}",
+                    context.readerContext.id(),
+                    context.origin.shardId(),
+                    found ? "" : ", it was already gone"
+                );
+            }
+        }
     }
 }

@@ -24,6 +24,7 @@ import org.elasticsearch.telemetry.apm.internal.export.otelsdk.CommonAttributesS
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.ElasticTracestateSampler;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportTracerSupplier;
 import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.RedactingSpanExporter;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.util.concurrent.TimeUnit;
@@ -40,6 +41,7 @@ public class APMTracingService extends AbstractLifecycleComponent {
 
     private final AtomicBoolean enabled = new AtomicBoolean(); // instance shared with sampler and tracer
     private final AtomicBoolean recordExceptionStacks = new AtomicBoolean();
+    private final RedactingSpanExporter.Factory redactingExporterFactory;
     private final CommonAttributesSpanProcessor commonAttributes;
     private final ElasticTracestateSampler sampler;
     private final TraceSupplier traceSupplier;
@@ -49,7 +51,13 @@ public class APMTracingService extends AbstractLifecycleComponent {
         this(
             threadContext,
             settings,
-            (spanProcessor, sampler) -> new OtelSdkExportTracerSupplier(settings, meterProvider, spanProcessor, sampler)
+            (exporterDecorator, spanProcessor, sampler) -> new OtelSdkExportTracerSupplier(
+                settings,
+                meterProvider,
+                exporterDecorator,
+                spanProcessor,
+                sampler
+            )
         );
     }
 
@@ -57,11 +65,11 @@ public class APMTracingService extends AbstractLifecycleComponent {
     public APMTracingService(ThreadContext threadContext, Settings settings, TraceSupplier.Factory traceSupplierFactory) {
         this.enabled.set(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings));
         this.recordExceptionStacks.set(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS.get(settings));
+        this.redactingExporterFactory = new RedactingSpanExporter.Factory(settings);
         this.commonAttributes = new CommonAttributesSpanProcessor(threadContext);
         this.sampler = new ElasticTracestateSampler(enabled, settings);
-        this.traceSupplier = traceSupplierFactory.create(commonAttributes, sampler);
+        this.traceSupplier = traceSupplierFactory.create(redactingExporterFactory::create, commonAttributes, sampler);
         this.tracer = new APMTracer(threadContext, traceSupplier, enabled, recordExceptionStacks);
-        this.tracer.setLabelFilters(APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings));
     }
 
     public APMTracer tracer() {
@@ -85,7 +93,10 @@ public class APMTracingService extends AbstractLifecycleComponent {
         clusterSettings.addSettingsUpdateConsumer(APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING, sampler::setExcludeNames);
         clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_MAX_DEPTH, sampler::setMaxTraceDepth);
         clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS, sampler::setMaxSpansInTrace);
-        clusterSettings.addSettingsUpdateConsumer(APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES, tracer::setLabelFilters);
+        clusterSettings.addSettingsUpdateConsumer(
+            APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
+            redactingExporterFactory::setSensitiveKeyPatterns
+        );
         clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_TRACING_RECORD_EXCEPTION_STACKS, recordExceptionStacks::set);
     }
 

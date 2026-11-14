@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.search.QueryParserHelper;
+import org.elasticsearch.index.search.QueryTokenCacheAccountingFilter;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -385,7 +386,9 @@ public final class CombinedFieldsQueryBuilder extends LeafQueryBuilder<CombinedF
                 setEnableGraphQueries(false);
             }
             try {
-                return super.createFieldQuery(source, operator, field, quoted, phraseSlop);
+                // Lucene wraps the stream in a CachingTokenFilter, whose close releases the accounting filter's charge.
+                TokenStream accounted = new QueryTokenCacheAccountingFilter(source, context.getCircuitBreaker(), field);
+                return super.createFieldQuery(accounted, operator, field, quoted, phraseSlop);
             } finally {
                 setEnableGraphQueries(true);
             }

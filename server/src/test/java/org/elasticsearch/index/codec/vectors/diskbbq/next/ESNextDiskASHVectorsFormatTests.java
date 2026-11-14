@@ -15,12 +15,15 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -50,7 +53,12 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
 
@@ -112,7 +120,10 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
     @Override
     protected Codec getCodec() {
         if (format == null) {
-            if (rarely()) {
+            if (random().nextInt(4) == 0) {
+                // the configuration the mapping uses by default, which mostly means 1 bit and no reduction at these sizes
+                format = ashDimsDerivedFormat();
+            } else if (rarely()) {
                 int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
                 format = new ESNextDiskASHVectorsFormat(
                     vectorPerCluster,
@@ -231,6 +242,187 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
                 }
             }
         }
+    }
+
+    /**
+     * With a dims-derived configuration the writer picks the bits and projected dimensions per field from the
+     * dimension it writes, on flush and on merge, and the reader scores with whatever the segment recorded.
+     */
+    public void testDimsDerivedConfigFollowsFieldDimension() throws IOException {
+        Codec ashCodec = TestUtil.alwaysKnnVectorsFormat(ashDimsDerivedFormat());
+        int[] fieldDims = { random().nextInt(64, 512), random().nextInt(512, 2049), 2049 };
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(ashCodec);
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                int numDocs = random().nextInt(100, 200);
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    for (int f = 0; f < fieldDims.length; f++) {
+                        doc.add(new KnnFloatVectorField("f" + f, randomVector(fieldDims[f]), VectorSimilarityFunction.DOT_PRODUCT));
+                    }
+                    w.addDocument(doc);
+                    if (rarely()) {
+                        w.commit();
+                    }
+                }
+                w.commit();
+                assertDimsDerivedSegments(w, fieldDims);
+                w.forceMerge(1);
+                assertDimsDerivedSegments(w, fieldDims);
+            }
+        }
+    }
+
+    private void assertDimsDerivedSegments(IndexWriter w, int[] fieldDims) throws IOException {
+        try (IndexReader reader = DirectoryReader.open(w)) {
+            for (LeafReaderContext ctx : reader.leaves()) {
+                LeafReader leafReader = ctx.reader();
+                for (int f = 0; f < fieldDims.length; f++) {
+                    String field = "f" + f;
+                    int dims = fieldDims[f];
+                    var expected = IvfSegmentConfig.AshConfig.forDims(dims, null, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
+                    ESNextDiskASHVectorsReader ashReader = ashReader(leafReader, field);
+                    FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
+                    assertEquals("bits for dims [" + dims + "]", expected.bitsPerDim(), ashReader.getBitsPerDimForTest(fieldInfo));
+                    assertEquals(
+                        "projected dims for dims [" + dims + "]",
+                        expected.projectedDims(dims),
+                        ashReader.getProjectionMatrix(fieldInfo).nDims()
+                    );
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        field,
+                        randomVector(dims),
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
+                    assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), 10)));
+                }
+            }
+        }
+    }
+
+    /**
+     * Changing the bits of a field mixes segments written with different bits but the same projection shape. Each
+     * segment is read with the bits it recorded, and merging them writes the bits currently configured.
+     */
+    public void testMixedBitsSegments() throws IOException {
+        int dims = random().nextInt(512, 1024);
+        int oldBits = 2;
+        // not 8: scoring needs at least as many query bits as document bits, and the query bits are 4
+        int newBits = randomFrom(1, 3, 4);
+        try (Directory dir = newDirectory()) {
+            int docsPerWriter = random().nextInt(50, 100);
+            for (int bits : new int[] { oldBits, newBits }) {
+                IndexWriterConfig iwc = newIndexWriterConfig();
+                iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(ashDimsDerivedFormat(bits)));
+                iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+                try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                    for (int i = 0; i < docsPerWriter; i++) {
+                        Document doc = new Document();
+                        doc.add(new KnnFloatVectorField("f", randomVector(dims), VectorSimilarityFunction.DOT_PRODUCT));
+                        w.addDocument(doc);
+                    }
+                    w.commit();
+                }
+            }
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                Set<Integer> bitsSeen = new HashSet<>();
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    LeafReader leafReader = ctx.reader();
+                    FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo("f");
+                    ESNextDiskASHVectorsReader ashReader = ashReader(leafReader, "f");
+                    bitsSeen.add(ashReader.getBitsPerDimForTest(fieldInfo));
+                    assertEquals(
+                        IvfSegmentConfig.AshConfig.forDims(dims, null, 4).projectedDims(dims),
+                        ashReader.getProjectionMatrix(fieldInfo).nDims()
+                    );
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "f",
+                        randomVector(dims),
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
+                    assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(leafReader.maxDoc(), 10)));
+                }
+                assertEquals(Set.of(oldBits, newBits), bitsSeen);
+            }
+
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(ashDimsDerivedFormat(newBits)));
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                w.forceMerge(1);
+                try (IndexReader reader = DirectoryReader.open(w)) {
+                    LeafReader leafReader = getOnlyLeafReader(reader);
+                    FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo("f");
+                    assertEquals(newBits, ashReader(leafReader, "f").getBitsPerDimForTest(fieldInfo));
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "f",
+                        randomVector(dims),
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
+                    assertThat(topDocs.scoreDocs, arrayWithSize(10));
+                }
+            }
+        }
+    }
+
+    /**
+     * Byte vectors are not ASH-encoded, but the writer still resolves the dims-derived configuration for them and
+     * records its bits, on flush and on merge.
+     */
+    public void testDimsDerivedConfigWithByteVectors() throws IOException {
+        Codec ashCodec = TestUtil.alwaysKnnVectorsFormat(ashDimsDerivedFormat());
+        int dims = randomFrom(random().nextInt(64, 512), random().nextInt(512, 2049), 2049);
+        var expected = IvfSegmentConfig.AshConfig.forDims(dims, null, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(ashCodec);
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                int numDocs = random().nextInt(100, 200);
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(new KnnByteVectorField("b", randomVector8(dims), VectorSimilarityFunction.EUCLIDEAN));
+                    w.addDocument(doc);
+                    if (rarely()) {
+                        w.commit();
+                    }
+                }
+                w.forceMerge(1);
+                try (IndexReader reader = DirectoryReader.open(w)) {
+                    LeafReader leafReader = getOnlyLeafReader(reader);
+                    FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo("b");
+                    ESNextDiskASHVectorsReader ashReader = ashReader(leafReader, "b");
+                    assertEquals(expected.bitsPerDim(), ashReader.getBitsPerDimForTest(fieldInfo));
+                    assertNull(ashReader.getProjectionMatrix(fieldInfo));
+                    ByteVectorValues values = leafReader.getByteVectorValues("b");
+                    assertEquals(numDocs, values.size());
+                    assertEquals(dims, values.dimension());
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "b",
+                        randomVector8(dims),
+                        10,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
+                    assertThat(topDocs.scoreDocs, arrayWithSize(Math.min(numDocs, 10)));
+                }
+            }
+        }
+    }
+
+    private static ESNextDiskASHVectorsReader ashReader(LeafReader leafReader, String field) {
+        KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
+        if (vectorReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+            vectorReader = fieldsReader.getFieldReader(field);
+        }
+        assertThat(vectorReader, instanceOf(ESNextDiskASHVectorsReader.class));
+        return (ESNextDiskASHVectorsReader) vectorReader;
     }
 
     /**
@@ -519,6 +711,28 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
             MIN_VECTORS_PER_CLUSTER,
             ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
             null
+        );
+    }
+
+    private static ESNextDiskASHVectorsFormat ashDimsDerivedFormat() {
+        return ashDimsDerivedFormat(null);
+    }
+
+    private static ESNextDiskASHVectorsFormat ashDimsDerivedFormat(Integer bits) {
+        return new ESNextDiskASHVectorsFormat(
+            AshConfigResolver.dimsDerived(bits, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM),
+            MIN_VECTORS_PER_CLUSTER,
+            ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            null,
+            -1,
+            null,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
         );
     }
 

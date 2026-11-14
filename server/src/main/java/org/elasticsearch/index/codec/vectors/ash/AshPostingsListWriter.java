@@ -148,6 +148,8 @@ public class AshPostingsListWriter {
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroidSupplier.centroid(assignments[i]);
         final AsymmetricHashingQuantizer.TrainedProjection trained;
         if (pretrainedWT != null) {
+            // Callers only pass a matrix of the expected shape (ESNextDiskASHVectorsWriter#selectInheritedProjectionMatrix
+            // skips any other), so a mismatch here is a bug rather than input to recover from
             if (pretrainedWT.length != originalDim * nDims) {
                 throw new IllegalArgumentException(
                     "inherited projection matrix has length ["

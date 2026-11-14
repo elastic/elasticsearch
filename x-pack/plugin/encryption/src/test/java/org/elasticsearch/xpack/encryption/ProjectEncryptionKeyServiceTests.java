@@ -171,8 +171,7 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
             keyId,
             PASSWORD_ID,
             NO_OP_ENCRYPTION,
-            "wrong password",
-            new ProjectEncryptionKeyMetadata.DegradedBlobHolder()
+            "wrong password"
         );
         visibleState.set(stateWithKey(degraded));
 

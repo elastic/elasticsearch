@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.encryption;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
@@ -33,6 +34,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
@@ -115,6 +117,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     private KeyRotationCoordinator coordinator;
     private MasterServiceTaskQueue<KeyRotationCoordinator.KeyRotationTask> taskQueue;
     private AtomicReference<Settings> settingsRef;
+    private ProjectEncryptionKeyMetadata.PekEncryption pekEncryption = NO_OP_ENCRYPTION;
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private void setup(
@@ -149,7 +152,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             encryptionService,
             handlers,
             settingsRef::get,
-            NO_OP_ENCRYPTION
+            pekEncryption
         );
     }
 
@@ -208,6 +211,171 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         coordinator.onClusterStateChanged(new ClusterChangedEvent("test", clusterStateWith(null, true), clusterStateWith(null, true)));
 
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+    }
+
+    public void testInstallSkippedForMissingPasswordWarnsOnceUntilPasswordConfigured() {
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        MockSecureSettings secure = new MockSecureSettings();
+        secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, PASSWORD_ID);
+        setup(
+            clusterStateWith(null, true),
+            0L,
+            TimeValue.timeValueDays(30),
+            TimeValue.timeValueMinutes(1),
+            featureService,
+            List.of(),
+            Settings.builder().setSecureSettings(secure).build()
+        );
+        ClusterChangedEvent event = new ClusterChangedEvent("test", clusterStateWith(null, true), clusterStateWith(null, true));
+        String logger = KeyRotationCoordinator.class.getName();
+        String message = "project encryption key install skipped*";
+
+        MockLog.assertThatLogger(
+            () -> coordinator.onClusterStateChanged(event),
+            KeyRotationCoordinator.class,
+            new MockLog.SeenEventExpectation("first skip", logger, Level.WARN, message)
+        );
+        MockLog.assertThatLogger(() -> {
+            coordinator.onClusterStateChanged(event);
+            coordinator.onClusterStateChanged(event);
+        }, KeyRotationCoordinator.class, new MockLog.UnseenEventExpectation("repeated skip", logger, Level.WARN, message));
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+
+        coordinator.offMaster();
+        MockLog.assertThatLogger(
+            () -> coordinator.onClusterStateChanged(event),
+            KeyRotationCoordinator.class,
+            new MockLog.SeenEventExpectation("skip after re-election", logger, Level.WARN, message)
+        );
+
+        settingsRef.set(Settings.builder().put(settingsRef.get(), false).setSecureSettings(passwordSettings()).build());
+        coordinator.onClusterStateChanged(event);
+        verify(taskQueue).submitTask(eq("install-project-encryption-key"), isA(KeyRotationCoordinator.InstallKeyTask.class), any());
+    }
+
+    private static MockSecureSettings passwordSettings() {
+        MockSecureSettings secure = new MockSecureSettings();
+        secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, PASSWORD_ID);
+        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD_VALUE);
+        return secure;
+    }
+
+    private ProjectEncryptionKeyMetadata degraded(String activeKeyId) {
+        return ProjectEncryptionKeyMetadata.degraded(activeKeyId, PASSWORD_ID, pekEncryption, "no key material found on disk");
+    }
+
+    /** Makes this node's {@link #pekEncryption} use {@code delegate}, after it persisted {@code keys} to its disk. */
+    private void onNodeThatPersisted(Map<String, KeyEntry> keys, String activeKeyId, ProjectEncryptionKeyMetadata.PekEncryption delegate) {
+        pekEncryption = TestPekEncryption.onNode(delegate, new ProjectEncryptionKeyMetadata.GatewayKeys());
+        TestPekEncryption.persist(new ProjectEncryptionKeyMetadata(keys, activeKeyId, PASSWORD_ID, Map.of(), pekEncryption));
+    }
+
+    public void testRestoreRetriesFailedUnwrapOnlyAfterReload() {
+        AtomicInteger unwraps = new AtomicInteger();
+        AtomicReference<RuntimeException> unwrapFailure = new AtomicReference<>(new IllegalStateException("wrong password"));
+        AtomicReference<Runnable> duringUnwrap = new AtomicReference<>(() -> {});
+        onNodeThatPersisted(Map.of("k1", entry(0L)), "k1", new ProjectEncryptionKeyMetadata.PekEncryption() {
+            @Override
+            public String activePasswordId() {
+                return PASSWORD_ID;
+            }
+
+            @Override
+            public WrappedKey wrap(byte[] plaintextPek) {
+                return NO_OP_ENCRYPTION.wrap(plaintextPek);
+            }
+
+            @Override
+            public byte[] unwrap(byte[] wrappedPek, String passwordId) {
+                unwraps.incrementAndGet();
+                duringUnwrap.get().run();
+                RuntimeException failure = unwrapFailure.getAndSet(null);
+                if (failure != null) {
+                    throw failure;
+                }
+                return NO_OP_ENCRYPTION.unwrap(wrappedPek, passwordId);
+            }
+        });
+        ClusterState state = clusterStateWith(degraded("k1"), true);
+        setup(state, 0L, TimeValue.timeValueDays(30));
+        ClusterChangedEvent event = new ClusterChangedEvent("test", state, clusterStateWith(null, true));
+
+        MockLog.assertThatLogger(
+            () -> coordinator.onClusterStateChanged(event),
+            KeyRotationCoordinator.class,
+            new MockLog.SeenEventExpectation(
+                "restore failed",
+                KeyRotationCoordinator.class.getName(),
+                Level.WARN,
+                "the elected master cannot restore project encryption key [k1] from its own disk*"
+            )
+        );
+        coordinator.onClusterStateChanged(event);
+        coordinator.tick();
+        assertEquals("no retry with the same settings", 1, unwraps.get());
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+
+        // a reload retries, and a second reload during that attempt gets its own attempt
+        unwrapFailure.set(new IllegalStateException("still the wrong password"));
+        duringUnwrap.set(() -> {
+            duringUnwrap.set(() -> {});
+            settingsRef.set(Settings.builder().put(settingsRef.get(), false).setSecureSettings(passwordSettings()).build());
+            coordinator.reload();
+        });
+        settingsRef.set(Settings.builder().put(settingsRef.get(), false).build());
+        coordinator.reload();
+
+        assertEquals(3, unwraps.get());
+
+        coordinator.onClusterStateChanged(event);
+        ArgumentCaptor<KeyRotationCoordinator.KeyRotationTask> task = ArgumentCaptor.forClass(KeyRotationCoordinator.KeyRotationTask.class);
+        verify(taskQueue).submitTask(eq("restore-project-encryption-keys"), task.capture(), any());
+        ProjectEncryptionKeyMetadata restored = ((KeyRotationCoordinator.RestoreKeysTask) task.getValue()).keys();
+        assertFalse(restored.isUnwrapFailed());
+        assertEquals("k1", restored.getActiveKeyId());
+    }
+
+    /** Any node forgets its copy of a key that a reset removed, but keeps a copy of a newer key it may already have persisted. */
+    public void testResetForgetsGatewayCopyOfRemovedKey() {
+        onNodeThatPersisted(Map.of("k1", entry(0L)), "k1", NO_OP_ENCRYPTION);
+        ClusterState reset = clusterStateWith(null, false);
+        setup(reset, 0L, TimeValue.timeValueDays(30));
+        ProjectEncryptionKeyMetadata.GatewayKeys gatewayKeys = pekEncryption.gatewayKeys();
+
+        ProjectEncryptionKeyMetadata other = new ProjectEncryptionKeyMetadata(
+            Map.of("k0", entry(0L)),
+            "k0",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", reset, clusterStateWith(other, false)));
+        assertEquals(Boolean.TRUE, gatewayKeys.holdsKeys());
+
+        ProjectEncryptionKeyMetadata removed = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(0L)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", reset, clusterStateWith(removed, false)));
+        assertNull(gatewayKeys.holdsKeys());
+        assertNull("the reload guard no longer protects the removed key's password", gatewayKeys.passwordId());
+    }
+
+    public void testNothingSubmittedOnDegradedStateWithoutOwnCopyOfActiveKey() {
+        onNodeThatPersisted(Map.of("k1", entry(0L)), "k1", NO_OP_ENCRYPTION);
+        ClusterState state = clusterStateWith(degraded("k2"), TestCustom.encryptedUnder("old-key"), true);
+        AtomicInteger calls = new AtomicInteger();
+        setup(state, Long.MAX_VALUE, TimeValue.timeValueDays(30), List.of(captureHandler(calls, "k2")));
+
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, clusterStateWith(null, true)));
+        coordinator.tick();
+
+        assertEquals("no re-encryption against a degraded instance", 0, calls.get());
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
     }
 
@@ -460,6 +628,33 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             isA(KeyRotationCoordinator.BeginRotationTask.class),
             any()
         );
+    }
+
+    public void testTickDoesNotBeginRotationWhenActivePasswordMissing() {
+        long generatedAt = 1_000_000_000L;
+        long now = generatedAt + TimeValue.timeValueDays(30).millis() + 1;
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(generatedAt)),
+            "k1",
+            PASSWORD_ID,
+            Map.of(),
+            NO_OP_ENCRYPTION
+        );
+        MockSecureSettings activeIdOnly = new MockSecureSettings();
+        activeIdOnly.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, PASSWORD_ID);
+        setup(
+            clusterStateWith(metadata, true),
+            now,
+            TimeValue.timeValueDays(30),
+            TimeValue.timeValueMinutes(1),
+            mock(FeatureService.class),
+            List.of(),
+            Settings.builder().setSecureSettings(activeIdOnly).build()
+        );
+
+        coordinator.tick();
+
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
     }
 
     public void testTickDoesNotBeginRotationWhenActiveKeyIsYoung() {

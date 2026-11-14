@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.hamcrest.Matchers.containsString;
@@ -44,6 +43,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 /**
  * The fetch phase with security, on a cluster where the fetch crosses the network. The REST client talks to a coordinating
@@ -51,10 +51,11 @@ import static org.hamcrest.Matchers.hasItem;
  * profile that the coordinator fetched from the {@link #DATA} node, so the fetch went through the transport authorization of
  * that node. Every query allows partial results, so a query that fails here fails even then.
  * <p>
- * The data node authorizes each fetch, keep-alive and free like an index read of the query, with the roles of the user at
- * that time. FLS applies again at the fetch. DLS applies when the query phase selects the documents and is not checked again
- * for the documents the fetch reads, like {@code _search}. A user who lost read on an index between the phases fails the
- * query.
+ * The data node authorizes each fetch like an index read of the query, with the roles of the user at that time. FLS applies
+ * again at the fetch. DLS applies when the query phase selects the documents and is not checked again for the documents the
+ * fetch reads, like {@code _search}. A user who lost read on an index between the phases fails the query. The coordinator
+ * frees the contexts with the free action of {@code _search}, which a node allows for the user who opened the context,
+ * whatever that user may read by then.
  * <p>
  * The tests that change a role between the phases stall the query phase of {@link #SLOW_INDEX} on the {@link #SLOW} node
  * with {@code error_query}. The data node holds the contexts of its winners meanwhile, and the coordinator fetches once the
@@ -91,8 +92,9 @@ public class EsqlFetchPhaseSecurityIT extends ESRestTestCase {
     /** Long enough to change a role, short enough for a test. */
     private static final int STALL_SECONDS = 5;
 
-    /** The fetch, and the prefix of its keep-alive and free actions. */
     private static final String FETCH_ACTION = "indices:data/read/esql/fetch";
+    /** The free action of {@code _search}, which frees the contexts of the fetch phase too. */
+    private static final String FREE_ACTION = "indices:data/read/search[free_context/scroll]";
 
     private static final String A_AND_B = "FROM " + INDEX_A + "," + INDEX_B + " | SORT value DESC | LIMIT 3 | KEEP value, org";
     private static final String A_AND_SLOW = "FROM " + INDEX_A + "," + SLOW_INDEX + " | SORT value DESC | LIMIT 2 | KEEP value, org";
@@ -104,8 +106,6 @@ public class EsqlFetchPhaseSecurityIT extends ESRestTestCase {
         .withNode(node -> node.name(DATA).setting("node.roles", "[master, data]"))
         .withNode(node -> node.name(SLOW).setting("node.roles", "[data]"))
         .module("test-error-query")
-        // frees an expired context within a second, for the contexts that a user who lost read can't free
-        .setting("search.keep_alive_interval", "1s")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.audit.enabled", "true")
@@ -248,31 +248,30 @@ public class EsqlFetchPhaseSecurityIT extends ESRestTestCase {
 
     /**
      * A user who loses read on the index of the winners between the phases fails the query with 403, even with
-     * {@code allow_partial_results}: the data node denies the fetch. It denies the keep-alives and the free of the contexts
-     * of that index too, so they stay open until their keep-alive passes.
+     * {@code allow_partial_results}: the data node denies the fetch. The coordinator still frees the contexts of that index,
+     * since the free action of {@code _search} only checks that the user opened them. They don't wait for their keep-alive,
+     * five minutes by default.
      */
-    public void testReadRevokedBetweenThePhasesFailsTheQuery() throws Exception {
+    public void testReadRevokedBetweenThePhasesFailsTheQueryAndFreesItsContexts() throws Exception {
         putRole(indexPrivileges(List.of(INDEX_A, SLOW_INDEX), null, null));
-        // longer than the stall, so the data node still holds the contexts when it denies the fetch
-        updateClusterSettings(Settings.builder().put("search.default_keep_alive", (STALL_SECONDS * 2) + "s").build());
-        try {
-            ResponseException e = expectThrows(
-                ResponseException.class,
-                () -> queryWhileTheRoleChanges(indexPrivileges(List.of(SLOW_INDEX), null, null))
-            );
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(errorType(e), equalTo("security_exception"));
-            assertThat(e.getMessage(), containsString(FETCH_ACTION));
-            assertThat("the contexts the user may no longer free", openContexts(DATA), greaterThan(0));
-            assertBusy(() -> assertThat(openContexts(DATA), equalTo(0)), STALL_SECONDS * 6, TimeUnit.SECONDS);
-        } finally {
-            updateClusterSettings(Settings.builder().putNull("search.default_keep_alive").build());
-        }
+        String opaqueId = randomAlphaOfLength(10);
+        RequestOptions options = userOptions().toBuilder().addHeader("X-Opaque-Id", opaqueId).build();
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> queryWhileTheRoleChanges(options, indexPrivileges(List.of(SLOW_INDEX), null, null))
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(errorType(e), equalTo("security_exception"));
+        assertThat(e.getMessage(), containsString(FETCH_ACTION));
+        assertBusy(() -> {
+            assertThat(openContexts(DATA), equalTo(0));
+            assertThat("the coordinator freed them", grantedEventsOf(DATA_NODE_INDEX, FREE_ACTION, opaqueId), not(empty()));
+        });
     }
 
     /**
-     * The data node audits the fetch of the winners as an index read of the user, and the node of the losers audits the
-     * free of their contexts the same way.
+     * The data node audits the fetch of the winners as an index read of the user. The node of the losers audits the free of
+     * their contexts as the free action of {@code _search}, granted to the user.
      */
     public void testTheFetchAndTheFreeAreAuditedAsTheUser() throws Exception {
         putRole(indexPrivileges(List.of(INDEX_A, SLOW_INDEX), null, null));
@@ -282,29 +281,8 @@ public class EsqlFetchPhaseSecurityIT extends ESRestTestCase {
         assertThat(fetchedFrom(response), equalTo(List.of(DATA)));
         assertBusy(() -> {
             assertThat(grantedIndicesOf(DATA_NODE_INDEX, FETCH_ACTION, opaqueId), hasItem(INDEX_A));
-            assertThat(grantedIndicesOf(SLOW_NODE_INDEX, FETCH_ACTION + "/free", opaqueId), hasItem(SLOW_INDEX));
+            assertThat(grantedEventsOf(SLOW_NODE_INDEX, FREE_ACTION, opaqueId), not(empty()));
         });
-    }
-
-    /**
-     * While the query waits for a stalled shard, the coordinator keeps the contexts of the winners alive, and the data node
-     * audits each keep-alive as an index read of the user.
-     */
-    public void testTheKeepAlivesAreAuditedAsTheUser() throws Exception {
-        putRole(indexPrivileges(List.of(INDEX_A, SLOW_INDEX), null, null));
-        createIndicesAAndSlow();
-        // the coordinator refreshes the contexts every third of the keep-alive, so several times during the stall
-        updateClusterSettings(Settings.builder().put("search.default_keep_alive", "1s").build());
-        try {
-            String opaqueId = randomAlphaOfLength(10);
-            RequestOptions options = userOptions().toBuilder().addHeader("X-Opaque-Id", opaqueId).build();
-            String id = startAsyncQueryWithStall(options, A_AND_SLOW);
-            Map<String, Object> response = awaitAsyncQuery(options, id);
-            assertThat(fetchedFrom(response), equalTo(List.of(DATA)));
-            assertBusy(() -> assertThat(grantedIndicesOf(DATA_NODE_INDEX, FETCH_ACTION + "/keep_alive", opaqueId), hasItem(INDEX_A)));
-        } finally {
-            updateClusterSettings(Settings.builder().putNull("search.default_keep_alive").build());
-        }
     }
 
     /**
@@ -313,11 +291,15 @@ public class EsqlFetchPhaseSecurityIT extends ESRestTestCase {
      * and returns the response.
      */
     private Map<String, Object> queryWhileTheRoleChanges(String indexPrivilegesAfter) throws Exception {
+        return queryWhileTheRoleChanges(userOptions(), indexPrivilegesAfter);
+    }
+
+    private Map<String, Object> queryWhileTheRoleChanges(RequestOptions options, String indexPrivilegesAfter) throws Exception {
         createIndicesAAndSlow();
-        String id = startAsyncQueryWithStall(userOptions(), A_AND_SLOW);
+        String id = startAsyncQueryWithStall(options, A_AND_SLOW);
         assertBusy(() -> assertThat(openContexts(DATA), greaterThan(0)));
         putRole(indexPrivilegesAfter);
-        return awaitAsyncQuery(userOptions(), id);
+        return awaitAsyncQuery(options, id);
     }
 
     private void createIndicesAAndB() throws IOException {
@@ -479,6 +461,20 @@ public class EsqlFetchPhaseSecurityIT extends ESRestTestCase {
      */
     private static List<String> grantedIndicesOf(int nodeIndex, String action, String opaqueId) throws IOException {
         List<String> indices = new ArrayList<>();
+        for (Map<String, Object> event : grantedEventsOf(nodeIndex, action, opaqueId)) {
+            for (Object index : (List<?>) event.get("indices")) {
+                indices.add((String) index);
+            }
+        }
+        return indices;
+    }
+
+    /**
+     * Every {@code access_granted} event for {@code action} of {@link #USER} in the audit log of the node at
+     * {@code nodeIndex}, for the requests of the query with {@code opaqueId}. The free action names no index.
+     */
+    private static List<Map<String, Object>> grantedEventsOf(int nodeIndex, String action, String opaqueId) throws IOException {
+        List<Map<String, Object>> events = new ArrayList<>();
         try (InputStream log = cluster.getNodeLog(nodeIndex, LogType.AUDIT)) {
             for (String line : Streams.readAllLines(log)) {
                 Map<String, Object> event = XContentHelper.convertToMap(XContentType.JSON.xContent(), line, false);
@@ -486,13 +482,11 @@ public class EsqlFetchPhaseSecurityIT extends ESRestTestCase {
                     && action.equals(event.get("action"))
                     && USER.equals(event.get("user.name"))
                     && opaqueId.equals(event.get("opaque_id"))) {
-                    for (Object index : (List<?>) event.get("indices")) {
-                        indices.add((String) index);
-                    }
+                    events.add(event);
                 }
             }
         }
-        return indices;
+        return events;
     }
 
     private static RequestOptions userOptions() {

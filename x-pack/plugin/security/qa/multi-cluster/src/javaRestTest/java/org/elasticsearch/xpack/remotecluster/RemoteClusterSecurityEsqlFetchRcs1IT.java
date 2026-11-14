@@ -32,8 +32,6 @@ public class RemoteClusterSecurityEsqlFetchRcs1IT extends AbstractRemoteClusterS
             .module("test-error-query")
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")
-            // frees an expired context within a second, for the contexts that a user who lost read can't free
-            .setting("search.keep_alive_interval", "1s")
             .setting("xpack.security.audit.enabled", "true")
             .setting("xpack.security.audit.logfile.events.include", "[\"access_granted\", \"access_denied\"]")
             .build();

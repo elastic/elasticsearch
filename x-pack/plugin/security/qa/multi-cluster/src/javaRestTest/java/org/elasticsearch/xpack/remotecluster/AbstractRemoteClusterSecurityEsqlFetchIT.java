@@ -13,7 +13,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.cluster.LogType;
@@ -30,7 +29,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -43,9 +41,10 @@ import static org.hamcrest.Matchers.not;
  * The ES|QL fetch phase over a remote cluster with security, under one of the two security models of remote clusters.
  * <p>
  * The fulfilling cluster has three nodes. The coordinator of the querying cluster reaches it through {@link #GATEWAY_NODE},
- * which holds no index, so every fetch, keep-alive and free of the coordinator goes through that gateway node to the node
- * that holds the contexts. The gateway authorizes the forwarded request by its action, and the target node authorizes the
- * request like an index read of the query, with the roles the user has on the fulfilling cluster at that time.
+ * which holds no index, so every fetch and free of the coordinator goes through that gateway node to the node that holds
+ * the contexts. The gateway authorizes the forwarded request by its action. The target node authorizes a fetch like an index
+ * read of the query, with the roles the user has on the fulfilling cluster at that time. Contexts are freed with the free
+ * action of {@code _search}, which a node allows for the user who opened the context.
  * <p>
  * The tests that change a role between the phases stall the query phase of {@link #SLOW_INDEX} on the querying cluster with
  * {@code error_query}. The remote data node answered meanwhile and holds the contexts of its winners, and the coordinator
@@ -87,6 +86,8 @@ public abstract class AbstractRemoteClusterSecurityEsqlFetchIT extends AbstractR
     private static final int STALL_SECONDS = 5;
 
     private static final String FETCH_ACTION = "indices:data/read/esql/fetch";
+    /** The free action of {@code _search}, which frees the contexts of the fetch phase too. */
+    private static final String FREE_ACTION = "indices:data/read/search[free_context/scroll]";
     private static final String PROXY_ACTION_PREFIX = "internal:transport/proxy/";
 
     private static final String A_AND_B = "FROM "
@@ -186,7 +187,7 @@ public abstract class AbstractRemoteClusterSecurityEsqlFetchIT extends AbstractR
 
     /**
      * The coordinator of the remote cluster, the gateway node here, frees the contexts that no row leaving its cluster reads
-     * before it answers, as an index read of the user. The querying cluster never holds them, so no free of theirs goes
+     * before it answers, as the user who opened them. The querying cluster never learns of them, so no free of theirs goes
      * through the gateway.
      */
     public void testTheRemoteCoordinatorFreesTheContextsOfItsLosers() throws Exception {
@@ -200,8 +201,8 @@ public abstract class AbstractRemoteClusterSecurityEsqlFetchIT extends AbstractR
 
         assertThat(rows(response), equalTo(List.of(List.of(40, "engineering"), List.of(30, "sales"))));
         assertThat(fetchedFrom(response), equalTo(List.of(DATA_NODE)));
-        assertBusy(() -> assertThat(grantedIndicesOf(SLOW_NODE_INDEX, FETCH_ACTION + "/free", opaqueId), hasItem(INDEX_C)));
-        assertThat(grantedActionsOf(GATEWAY_NODE_INDEX, opaqueId), not(hasItem(PROXY_ACTION_PREFIX + FETCH_ACTION + "/free")));
+        assertBusy(() -> assertThat(grantedActionsOf(SLOW_NODE_INDEX, opaqueId), hasItem(FREE_ACTION)));
+        assertThat(grantedActionsOf(GATEWAY_NODE_INDEX, opaqueId), not(hasItem(PROXY_ACTION_PREFIX + FREE_ACTION)));
     }
 
     /**
@@ -262,27 +263,25 @@ public abstract class AbstractRemoteClusterSecurityEsqlFetchIT extends AbstractR
 
     /**
      * A user who loses read on the index of the winners between the phases fails the query, even with
-     * {@code allow_partial_results}: the remote data node denies the fetch. It denies the keep-alives and the free of those
-     * contexts too, so they stay open until their keep-alive passes.
+     * {@code allow_partial_results}: the remote data node denies the fetch. The coordinator of the querying cluster still
+     * frees the contexts of that index through the gateway, since the free action of {@code _search} only checks that the
+     * user opened them. They don't wait for their keep-alive, five minutes by default.
      */
-    public void testReadRevokedBetweenThePhasesFailsTheQuery() throws Exception {
+    public void testReadRevokedBetweenThePhasesFailsTheQueryAndFreesItsContexts() throws Exception {
         putRole(indexPrivileges(List.of(INDEX_A, SLOW_INDEX), null, null));
-        // longer than the stall, so the data node still holds the contexts when it denies the fetch
-        updateFulfillingClusterSettings(Settings.builder().put("search.default_keep_alive", (STALL_SECONDS * 2) + "s").build());
-        updateClusterSettings(Settings.builder().put("search.default_keep_alive", (STALL_SECONDS * 2) + "s").build());
-        try {
-            ResponseException e = expectThrows(
-                ResponseException.class,
-                () -> queryWhileTheRoleChanges(indexPrivileges(List.of(SLOW_INDEX), null, null))
-            );
+        String opaqueId = randomAlphaOfLength(10);
+        RequestOptions options = userOptions().toBuilder().addHeader("X-Opaque-Id", opaqueId).build();
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> queryWhileTheRoleChanges(options, indexPrivileges(List.of(SLOW_INDEX), null, null))
+        );
 
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(e.getMessage(), containsString(FETCH_ACTION));
-            assertBusy(() -> assertThat(openContexts(DATA_NODE), equalTo(0)), STALL_SECONDS * 6, TimeUnit.SECONDS);
-        } finally {
-            updateFulfillingClusterSettings(Settings.builder().putNull("search.default_keep_alive").build());
-            updateClusterSettings(Settings.builder().putNull("search.default_keep_alive").build());
-        }
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString(FETCH_ACTION));
+        assertBusy(() -> {
+            assertThat(openContexts(DATA_NODE), equalTo(0));
+            assertThat("the coordinator freed them", grantedActionsOf(DATA_NODE_INDEX, opaqueId), hasItem(FREE_ACTION));
+        });
     }
 
     /**
@@ -309,11 +308,15 @@ public abstract class AbstractRemoteClusterSecurityEsqlFetchIT extends AbstractR
      * and returns the response.
      */
     private Map<String, Object> queryWhileTheRoleChanges(String indexPrivilegesAfter) throws Exception {
+        return queryWhileTheRoleChanges(userOptions(), indexPrivilegesAfter);
+    }
+
+    private Map<String, Object> queryWhileTheRoleChanges(RequestOptions options, String indexPrivilegesAfter) throws Exception {
         createIndicesAAndSlow();
-        String id = startAsyncQueryWithStall(userOptions(), A_AND_SLOW);
+        String id = startAsyncQueryWithStall(options, A_AND_SLOW);
         assertBusy(() -> assertThat(openContexts(DATA_NODE), greaterThan(0)));
         putRole(indexPrivilegesAfter);
-        return awaitAsyncQuery(userOptions(), id);
+        return awaitAsyncQuery(options, id);
     }
 
     private void createIndicesAAndB() throws IOException {
@@ -463,12 +466,6 @@ public abstract class AbstractRemoteClusterSecurityEsqlFetchIT extends AbstractR
             open += (Integer) ObjectPath.evaluate(stats, "indices.search.open_contexts");
         }
         return open;
-    }
-
-    private static void updateFulfillingClusterSettings(Settings settings) throws IOException {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity("{\"persistent\": " + Strings.toString(settings) + "}");
-        assertOK(performRequestAgainstFulfillingCluster(request));
     }
 
     /**

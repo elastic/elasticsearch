@@ -44,8 +44,6 @@ public class RemoteClusterSecurityEsqlFetchRcs2IT extends AbstractRemoteClusterS
             .setting("xpack.security.remote_cluster_server.ssl.key", "remote-cluster.key")
             .setting("xpack.security.remote_cluster_server.ssl.certificate", "remote-cluster.crt")
             .keystore("xpack.security.remote_cluster_server.ssl.secure_key_passphrase", "remote-cluster-password")
-            // frees an expired context within a second, for the contexts that a user who lost read can't free
-            .setting("search.keep_alive_interval", "1s")
             .setting("xpack.security.audit.enabled", "true")
             .setting("xpack.security.audit.logfile.events.include", "[\"access_granted\", \"access_denied\"]")
             .node(GATEWAY_NODE_INDEX, spec -> spec.setting("remote_cluster_server.enabled", "true"))

@@ -357,19 +357,21 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             byte[] binary = new byte[effectiveQuantEncoding.getDocPackedLength(fieldInfo.getVectorDimension())];
             float[] scratch = new float[fieldInfo.getVectorDimension()];
             final boolean isByte = vectorValues instanceof ByteVectorValues;
+            final LeafCentredCorrection leafCorrection = isByte ? null : new LeafCentredCorrection(fieldInfo.getVectorDimension());
             for (int i = 0; i < assignments.length; i++) {
                 // record where this vector's centroid data starts
                 vectorCentroidOffsets.add(quantizedVectorsTemp.getFilePointer());
                 int c = assignments[i];
                 float[] parentCentroid = centroidClusters.getCentroid(c);
                 OptimizedScalarQuantizer.QuantizationResult result;
+                float[] floatCentroid = null;
                 if (isByte) {
                     byte[] vector = ((ByteVectorValues) vectorValues).vectorValue(i);
                     byte[] centroid = centroidSupplier.byteCentroid(c);
                     result = quantizer.scalarQuantize(vector, scratch, quantized, effectiveQuantEncoding.bits(), centroid);
                 } else {
                     float[] vector = ((FloatVectorValues) vectorValues).vectorValue(i);
-                    float[] centroid = centroidSupplier.centroid(c);
+                    float[] centroid = floatCentroid = centroidSupplier.centroid(c);
                     result = quantizer.scalarQuantize(vector, scratch, quantized, effectiveQuantEncoding.bits(), centroid);
                 }
                 if (parentCentroid != null) {
@@ -382,7 +384,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                                 yield ESVectorUtil.squareDistance(((FloatVectorValues) vectorValues).vectorValue(i), parentCentroid);
                             }
                         }
-                        case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> ESVectorUtil.dotProduct(scratch, parentCentroid);
+                        case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> {
+                            if (isByte) {
+                                yield ESVectorUtil.dotProduct(scratch, parentCentroid);
+                            }
+                            leafCorrection.prepare(floatCentroid, parentCentroid);
+                            yield leafCorrection.compute(result, quantized, effectiveQuantEncoding.bits());
+                        }
                         default -> throw new AssertionError(vectorSimilarityFunction);
                     };
                     result = new OptimizedScalarQuantizer.QuantizationResult(
@@ -399,13 +407,14 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 for (var it = overspillAssignments.getAssignmentsFor(i); it.hasNext();) {
                     int s = it.nextInt();
                     float[] overspillParentCentroid = centroidClusters.getCentroid(s);
+                    float[] overspillFloatCentroid = null;
                     if (isByte) {
                         byte[] vector = ((ByteVectorValues) vectorValues).vectorValue(i);
                         byte[] overspillCentroid = centroidSupplier.byteCentroid(s);
                         result = quantizer.scalarQuantize(vector, scratch, quantized, effectiveQuantEncoding.bits(), overspillCentroid);
                     } else {
                         float[] vector = ((FloatVectorValues) vectorValues).vectorValue(i);
-                        float[] overspillCentroid = centroidSupplier.centroid(s);
+                        float[] overspillCentroid = overspillFloatCentroid = centroidSupplier.centroid(s);
                         result = quantizer.scalarQuantize(vector, scratch, quantized, effectiveQuantEncoding.bits(), overspillCentroid);
                     }
                     if (overspillParentCentroid != null) {
@@ -421,7 +430,13 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                                     );
                                 }
                             }
-                            case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> ESVectorUtil.dotProduct(scratch, overspillParentCentroid);
+                            case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> {
+                                if (isByte) {
+                                    yield ESVectorUtil.dotProduct(scratch, overspillParentCentroid);
+                                }
+                                leafCorrection.prepare(overspillFloatCentroid, overspillParentCentroid);
+                                yield leafCorrection.compute(result, quantized, effectiveQuantEncoding.bits());
+                            }
                             default -> throw new AssertionError(vectorSimilarityFunction);
                         };
                         result = new OptimizedScalarQuantizer.QuantizationResult(
@@ -1227,6 +1242,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         private final QuantEncoding encoding;
         private OptimizedScalarQuantizer.QuantizationResult corrections;
         private final VectorSimilarityFunction similarityFunction;
+        private final LeafCentredCorrection leafCorrection;
         private float[] currentCentroid, currentParentCentroid;
         private IntToIntFunction ordTransformer = null;
         private int currOrd = -1;
@@ -1246,6 +1262,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             this.quantizedVector = new byte[encoding.getDocPackedLength(dimension)];
             this.floatVectorScratch = new float[dimension];
             this.quantizedVectorScratch = new int[encoding.discretizedDimensions(dimension)];
+            this.leafCorrection = new LeafCentredCorrection(dimension);
             this.corrections = null;
             this.currentParentCentroid = null;
         }
@@ -1256,6 +1273,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             this.currOrd = -1;
             this.count = count;
             this.currentParentCentroid = currentParentCentroid;
+            if (currentParentCentroid != null && similarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
+                leafCorrection.prepare(centroid, currentParentCentroid);
+            }
         }
 
         @Override
@@ -1276,7 +1296,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             if (currentParentCentroid != null) {
                 float additionalCorrection = switch (similarityFunction) {
                     case EUCLIDEAN -> ESVectorUtil.squareDistance(vector, currentParentCentroid);
-                    case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> ESVectorUtil.dotProduct(floatVectorScratch, currentParentCentroid);
+                    case DOT_PRODUCT, MAXIMUM_INNER_PRODUCT -> leafCorrection.compute(corrections, quantizedVectorScratch, encoding.bits());
                     default -> throw new AssertionError(similarityFunction);
                 };
                 corrections = new OptimizedScalarQuantizer.QuantizationResult(

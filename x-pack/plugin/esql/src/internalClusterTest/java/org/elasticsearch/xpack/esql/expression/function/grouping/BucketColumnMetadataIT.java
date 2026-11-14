@@ -217,7 +217,10 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             | SORT number
             | STATS count() BY date
             """))) {
-            assertThat(response.columns().stream().allMatch(c -> c.meta() == null), equalTo(true));
+            assertThat(
+                response.columns().stream().allMatch(c -> c.meta() == null || c.meta().containsKey("bucket") == false),
+                equalTo(true)
+            );
         }
         // retaining bucket in subsequent aggregation
         try (var response = runAfterRefreshCompleted(enableMetadata("""

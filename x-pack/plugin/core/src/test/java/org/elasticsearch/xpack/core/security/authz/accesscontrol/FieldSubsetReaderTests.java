@@ -1417,23 +1417,15 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
      */
     public void testUnmappedFieldsInsideNestedObjects() throws Exception {
         assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
-            .build();
-        DocumentMapper mapper = createMapperService(
-            settings,
-            mapping(
-                b -> b.startObject("n")
-                    .field("type", "nested")
-                    .startObject("properties")
-                    .startObject("k")
-                    .field("type", "keyword")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-        ).documentMapper();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, topMapping(b -> {
+            b.field("dynamic", "flattened");
+            b.startObject("properties");
+            b.startObject("n").field("type", "nested");
+            b.startObject("properties").startObject("k").field("type", "keyword").endObject().endObject();
+            b.endObject();
+            b.endObject();
+        })).documentMapper();
         var filter = new CharacterRunAutomaton(
             FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "n.secret", "top_secret" })
         );
@@ -1558,11 +1550,11 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     private DocumentMapper unmappedFieldsMapper() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
-            .build();
-        return createMapperService(settings, mapping(b -> b.startObject("name").field("type", "keyword").endObject())).documentMapper();
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(settings, topMapping(b -> {
+            b.field("dynamic", "flattened");
+            b.startObject("properties").startObject("name").field("type", "keyword").endObject().endObject();
+        })).documentMapper();
     }
 
     /** The keys of the {@code count} slots of {@code slots}, in the order they are stored. */
@@ -1805,6 +1797,49 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     /**
+     * An array that holds only nulls writes the field's {@code .offsets} companion but nothing under the field itself, so a segment made
+     * only of such documents has the companion without its parent. The companion must still follow the parent's FLS decision.
+     */
+    public void testOffsetsWithoutTheirFieldInTheSegment() throws Exception {
+        String type = randomFrom("keyword", "long", "ip", "boolean");
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("keep").field("type", type).endObject();
+            b.startObject("secret").field("type", type).endObject();
+        })).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startArray("keep").nullValue().endArray();
+            b.startArray("secret").nullValue().nullValue().endArray();
+        }));
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                doc.updateSeqID(0, 0);
+                doc.version().setLongValue(0);
+                iw.addDocuments(doc.docs());
+            }
+            var deny = new CharacterRunAutomaton(
+                FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "secret" })
+            );
+            var grant = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
+            for (CharacterRunAutomaton filter : List.of(deny, grant)) {
+                try (
+                    DirectoryReader reader = FieldSubsetReader.wrap(
+                        wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                        filter,
+                        mapper.mapping().ignoredSourceFormat(),
+                        fieldName -> mapper.mappers().getFieldType(fieldName) != null
+                    )
+                ) {
+                    assertEquals("{\"keep\":[null]}", syntheticSource(mapper, reader, doc.docs().size() - 1));
+                }
+            }
+        }
+    }
+
+    /**
      * When a field survives an exact FLS grant, its {@code ._ignore_malformed} companion is re-mapped to the parent name so it survives
      * too, but the companion's own {@code .counts} field is not - an exact grant of {@code keep} matches {@code keep} but not
      * {@code keep._ignore_malformed.counts}, so the counts get dropped while the binary blob stays visible. The modern reader then decodes
@@ -1894,6 +1929,41 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
     }
 
     /**
+     * A field that keeps array order inline writes only its {@code .counts} companion for an array that holds only nulls, so a segment
+     * made only of such documents has the companion without its parent. The companion must still follow the parent's FLS decision.
+     */
+    public void testCountsWithoutTheirFieldInTheSegment() throws Exception {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                Document doc = new Document();
+                doc.add(new NumericDocValuesField("keep" + counts, 1));
+                doc.add(new NumericDocValuesField("secret" + counts, 2));
+                iw.addDocument(doc);
+
+                var deny = new CharacterRunAutomaton(
+                    FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "secret" })
+                );
+                var grant = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "keep" }, null));
+                for (CharacterRunAutomaton filter : List.of(deny, grant)) {
+                    try (
+                        DirectoryReader ir = FieldSubsetReader.wrap(
+                            wrapInMockESDirectoryReader(DirectoryReader.open(iw)),
+                            filter,
+                            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                            fieldName -> fieldName.equals("keep") || fieldName.equals("secret")
+                        )
+                    ) {
+                        LeafReader leaf = ir.leaves().get(0).reader();
+                        assertNotNull(leaf.getNumericDocValues("keep" + counts));
+                        assertNull(leaf.getNumericDocValues("secret" + counts));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * A user-mapped field whose name happens to end like a companion's counts (".counts") must be filtered under its own name, never
      * truncated to a parent. The isMapped guard already covers this: a real mapped field reports isMapped == true, so the companion
      * re-mapping is skipped.
@@ -1918,6 +1988,206 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
                 ) {
                     LeafReader leaf = ir.leaves().get(0).reader();
                     assertNotNull("a mapped field ending in .counts must not be truncated", leaf.getNumericDocValues(mapped));
+                }
+            }
+        }
+    }
+
+    /**
+     * Every name under a flattened field resolves to a keyed field type, so the companions of a flattened field's mapped sub-field
+     * ({@code f.host._ignore_malformed} and its {@code .counts}) look mapped too. They must still follow the sub-field's FLS decision,
+     * or a role granting the sub-field loses its malformed values from synthetic source.
+     */
+    public void testFlattenedMappedSubFieldCompanionsFollowSubField() throws Exception {
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
+
+        MapperService mapperService = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("f").field("type", "flattened").startObject("properties");
+            b.startObject("host").field("type", "long").field("ignore_malformed", true).endObject();
+            b.endObject().endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startObject("f");
+                b.array("host", "aa", "bb");
+                b.endObject();
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+
+            var grant = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "f", "f.host" }, null));
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    grant,
+                    format,
+                    SecurityIndexReaderWrapper.isMapped(mapperService.mappingLookup())
+                )
+            ) {
+                assertEquals("{\"f\":{\"host\":[\"aa\",\"bb\"]}}", syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+            }
+        }
+    }
+
+    /**
+     * Every name under a flattened field resolves to a keyed field type, so the flattened field's own companions ({@code f._keyed.counts},
+     * {@code f.offsets}) look mapped. They must still follow their parent's FLS decision: a role that grants {@code f} and
+     * {@code f._keyed} but not {@code f._keyed.counts} would otherwise hide the counts, and the keyed doc values would be decoded in the
+     * wrong layout, corrupting or failing synthetic source.
+     */
+    /**
+     * The {@code .offsets} sidecar of a flattened field points into its keyed values, not into its root. A role that grants only the root
+     * sees no keyed values, so it must not see the offsets either: otherwise synthetic source rebuilds the arrays with {@code null}s in
+     * place of the hidden values.
+     */
+    public void testFlattenedOffsetsHiddenWithKeyedValues() throws Exception {
+        String source = flattenedSyntheticSource(b -> {}, "exact", b -> b.array("tags", "web", "api"), "labels");
+        assertEquals("{}", source);
+    }
+
+    /**
+     * A role that grants the keys of a flattened field ({@code labels.*}) sees its keyed values, so it must see the {@code .offsets}
+     * sidecar too. Otherwise synthetic source loses array order and duplicates.
+     */
+    public void testFlattenedOffsetsVisibleWithKeyedValues() throws Exception {
+        CheckedConsumer<XContentBuilder, IOException> labels = b -> b.array("tags", "web", "api", "web");
+        assertEquals("{\"labels\":{\"tags\":[\"web\",\"api\",\"web\"]}}", flattenedSyntheticSource(b -> {}, "exact", labels, "labels.*"));
+    }
+
+    /**
+     * Values of a flattened field that trip {@code ignore_above} are kept in {@code <f>._keyed._ignored}, and its {@code .offsets} point
+     * into them as well as into the keyed values. A role that grants the keyed values must see the ignored ones too, or synthetic source
+     * drops them, or fails when the offsets point at a value it cannot see.
+     */
+    public void testFlattenedIgnoredValuesFollowKeyedValues() throws Exception {
+        String preserveLeafArrays = randomFrom("lossy", "exact");
+        CheckedConsumer<XContentBuilder, IOException> mapping = b -> b.field("ignore_above", 3);
+        CheckedConsumer<XContentBuilder, IOException> labels = b -> b.array("key1", "aaaa", "b");
+        assertEquals(
+            flattenedSyntheticSource(mapping, preserveLeafArrays, labels, "*"),
+            flattenedSyntheticSource(mapping, preserveLeafArrays, labels, "labels", "labels._keyed")
+        );
+    }
+
+    /**
+     * Indexes one document with a flattened field {@code labels} and returns its synthetic source as seen by a role granting
+     * {@code grantedFields}. Randomly uses the time-series doc values format, which changes how the keyed and ignored values are stored.
+     */
+    private String flattenedSyntheticSource(
+        CheckedConsumer<XContentBuilder, IOException> mappingParams,
+        String preserveLeafArrays,
+        CheckedConsumer<XContentBuilder, IOException> labels,
+        String... grantedFields
+    ) throws IOException {
+        IndexVersion indexVersion = IndexVersion.current();
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.use_time_series_doc_values_format", randomBoolean())
+            .build();
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(createIndexSettings(indexVersion, mapperSettings));
+        MapperService mapperService = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("labels").field("type", "flattened").field("preserve_leaf_arrays", preserveLeafArrays);
+            mappingParams.accept(b);
+            b.endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startObject("labels");
+                labels.accept(b);
+                b.endObject();
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+
+            var filter = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(grantedFields, null));
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    filter,
+                    format,
+                    SecurityIndexReaderWrapper.isMapped(mapperService.mappingLookup())
+                )
+            ) {
+                return syntheticSource(mapper, indexReader, doc.docs().size() - 1);
+            }
+        }
+    }
+
+    public void testFlattenedCompanionsFollowParent() throws Exception {
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        String keyed = "f" + FlattenedFieldMapper.KEYED_FIELD_SUFFIX;
+        IndexVersion indexVersion = IndexVersion.current();
+        // The time-series doc values format (as in logsdb) makes f._keyed binary doc values with a f._keyed.counts companion.
+        Settings mapperSettings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.use_time_series_doc_values_format", true)
+            .build();
+        var indexSettings = createIndexSettings(indexVersion, mapperSettings);
+        var format = IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings);
+        String preserveLeafArrays = randomFrom("lossy", "exact");
+
+        MapperService mapperService = createMapperService(indexVersion, mapperSettings, mapping(b -> {
+            b.startObject("f").field("type", "flattened").field("preserve_leaf_arrays", preserveLeafArrays).endObject();
+        }));
+        DocumentMapper mapper = mapperService.documentMapper();
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
+            ParsedDocument doc = mapper.parse(source(b -> {
+                b.startObject("f");
+                b.field("key1", "value1");
+                b.array("key2", "value3", "value2");
+                b.field("key3", "value4");
+                b.endObject();
+            }));
+            doc.updateSeqID(0, 0);
+            doc.version().setLongValue(0);
+            iw.addDocuments(doc.docs());
+            iw.close();
+
+            String expected = "exact".equals(preserveLeafArrays)
+                ? "{\"f\":{\"key1\":\"value1\",\"key2\":[\"value3\",\"value2\"],\"key3\":\"value4\"}}"
+                : "{\"f\":{\"key1\":\"value1\",\"key2\":[\"value2\",\"value3\"],\"key3\":\"value4\"}}";
+            var grant = new CharacterRunAutomaton(FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "f", keyed }, null));
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    grant,
+                    format,
+                    SecurityIndexReaderWrapper.isMapped(mapperService.mappingLookup())
+                )
+            ) {
+                assertEquals(expected, syntheticSource(mapper, indexReader, doc.docs().size() - 1));
+                LeafReader leaf = indexReader.leaves().get(0).reader();
+                assertNotNull("counts should follow the keyed field", leaf.getNumericDocValues(keyed + counts));
+            }
+
+            var deny = new CharacterRunAutomaton(
+                FieldPermissions.buildPermittedFieldsAutomaton(new String[] { "*" }, new String[] { "f", keyed })
+            );
+            try (
+                DirectoryReader indexReader = FieldSubsetReader.wrap(
+                    wrapInMockESDirectoryReader(DirectoryReader.open(directory)),
+                    deny,
+                    format,
+                    SecurityIndexReaderWrapper.isMapped(mapperService.mappingLookup())
+                )
+            ) {
+                for (FieldInfo fi : indexReader.leaves().get(0).reader().getFieldInfos()) {
+                    assertFalse(fi.name + " should follow the denied flattened field", fi.name.startsWith("f."));
                 }
             }
         }

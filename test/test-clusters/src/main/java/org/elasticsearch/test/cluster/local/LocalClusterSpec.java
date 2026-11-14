@@ -33,6 +33,7 @@ public class LocalClusterSpec implements ClusterSpec {
     private final List<Resource> roleFiles;
     private final boolean shared;
     private List<LocalNodeSpec> nodes;
+    private boolean batchIndexingDisabled;
 
     public LocalClusterSpec(String name, List<User> users, List<Resource> roleFiles, boolean shared) {
         this.name = name;
@@ -61,8 +62,20 @@ public class LocalClusterSpec implements ClusterSpec {
         return shared;
     }
 
+    /**
+     * Whether all nodes of this cluster start with {@code indices.batch_indexing: false}. This is randomized once per cluster, rather
+     * than per node, so that the nodes coordinating a bulk request and the nodes holding the target shards agree on the setting.
+     */
+    public boolean isBatchIndexingDisabled() {
+        return batchIndexingDisabled;
+    }
+
     public void setNodes(List<LocalNodeSpec> nodes) {
         this.nodes = nodes;
+    }
+
+    void setBatchIndexingDisabled(boolean batchIndexingDisabled) {
+        this.batchIndexingDisabled = batchIndexingDisabled;
     }
 
     void validate() {
@@ -353,6 +366,7 @@ public class LocalClusterSpec implements ClusterSpec {
          */
         private LocalNodeSpec getFilteredSpec(SettingsProvider filteredProvider, SettingsProvider filteredKeystoreProvider) {
             LocalClusterSpec newCluster = new LocalClusterSpec(cluster.name, cluster.users, cluster.roleFiles, cluster.shared);
+            newCluster.setBatchIndexingDisabled(cluster.batchIndexingDisabled);
 
             List<LocalNodeSpec> nodeSpecs = cluster.nodes.stream()
                 .map(

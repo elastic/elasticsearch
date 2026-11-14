@@ -30,6 +30,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -39,6 +40,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,7 +63,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -69,7 +74,10 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Base test case for downsampling integration tests. It provides helper methods to:
@@ -84,6 +92,7 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
     static final String FIELD_DIMENSION_KEYWORD = "dimension_kw";
     static final String FIELD_DIMENSION_LONG = "dimension_long";
     static final String FIELD_METRIC_COUNTER_DOUBLE = "counter";
+    static final String FIELD_METRIC_GAUGE_DOUBLE = "gauge";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -344,6 +353,168 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
 
     private static boolean hasTimeSeriesDimensionTrue(Map<String, ?> fieldMapping) {
         return Boolean.TRUE.equals(fieldMapping.get(TIME_SERIES_DIMENSION_PARAM));
+    }
+
+    /**
+     * How the documents of {@link #createReadOnlyTimeSeriesIndex} are spread over time series and downsampling buckets.
+     */
+    enum TimeSeriesLayout {
+        /** A few time series, with many documents in each bucket. The downsample index is small. */
+        FEW_SERIES,
+        /**
+         * A time series per document, so every document ends up in a bucket of its own. The downsample index is as large as the
+         * source index, so a shard-level task sends several bulk requests whose time series do not overlap.
+         */
+        ONE_SERIES_PER_DOCUMENT,
+        /**
+         * A single time series with a document per hour, so every document ends up in a bucket of its own when downsampling to
+         * {@code 1h}. A shard-level task sends several bulk requests, all for the same time series.
+         */
+        ONE_SERIES_ONE_DOCUMENT_PER_HOUR
+    }
+
+    /**
+     * Creates a time series index with a counter and a gauge metric, indexes {@code docCount} documents into a few time series and
+     * makes the index read-only, ready to be downsampled.
+     */
+    void createReadOnlyTimeSeriesIndex(String index, int shards, int replicas, int docCount) throws IOException {
+        createReadOnlyTimeSeriesIndex(index, shards, replicas, docCount, TimeSeriesLayout.FEW_SERIES);
+    }
+
+    /**
+     * Creates a time series index with a counter and a gauge metric, indexes {@code docCount} documents laid out as {@code layout}
+     * describes and makes the index read-only, ready to be downsampled.
+     */
+    void createReadOnlyTimeSeriesIndex(String index, int shards, int replicas, int docCount, TimeSeriesLayout layout) throws IOException {
+        logger.info("-> creating time series index [{}] with [{}] shards and [{}] replicas", index, shards, replicas);
+        final Settings settings = indexSettings(shards, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_KEYWORD))
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "1990-09-01T00:00:00Z")
+            // Wide enough for a document per hour
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "1994-01-01T00:00:00Z")
+            .build();
+        final XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
+        mapping.startObject(FIELD_TIMESTAMP).field("type", "date").endObject();
+        mapping.startObject(FIELD_DIMENSION_KEYWORD).field("type", "keyword").field("time_series_dimension", true).endObject();
+        mapping.startObject(FIELD_DIMENSION_LONG).field("type", "long").field("time_series_dimension", true).endObject();
+        mapping.startObject(FIELD_METRIC_COUNTER_DOUBLE).field("type", "double").field("time_series_metric", "counter").endObject();
+        mapping.startObject(FIELD_METRIC_GAUGE_DOUBLE).field("type", "double").field("time_series_metric", "gauge").endObject();
+        mapping.endObject().endObject();
+        assertAcked(indicesAdmin().prepareCreate(index).setSettings(settings).setMapping(mapping));
+
+        final List<String> dimensionValues = randomList(1, 5, () -> randomAlphaOfLength(6));
+        final String singleSeries = randomAlphaOfLength(6);
+        final AtomicInteger series = new AtomicInteger();
+        final AtomicLong timestamp = new AtomicLong(
+            LocalDateTime.parse("1990-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli()
+        );
+        final Supplier<XContentBuilder> sourceSupplier = () -> {
+            final long ts = switch (layout) {
+                case FEW_SERIES, ONE_SERIES_PER_DOCUMENT -> timestamp.getAndAdd(randomIntBetween(0, 30) * 1000L);
+                case ONE_SERIES_ONE_DOCUMENT_PER_HOUR -> timestamp.getAndAdd(TimeValue.timeValueHours(1).millis());
+            };
+            final String dimension = switch (layout) {
+                case FEW_SERIES -> randomFrom(dimensionValues);
+                case ONE_SERIES_PER_DOCUMENT -> "series-" + series.getAndIncrement();
+                case ONE_SERIES_ONE_DOCUMENT_PER_HOUR -> singleSeries;
+            };
+            try {
+                return XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field(FIELD_TIMESTAMP, DATE_FORMATTER.formatMillis(ts))
+                    .field(FIELD_DIMENSION_KEYWORD, dimension)
+                    .field(FIELD_DIMENSION_LONG, layout == TimeSeriesLayout.FEW_SERIES ? randomIntBetween(1, 10) : 1)
+                    .field(FIELD_METRIC_COUNTER_DOUBLE, (double) ts)
+                    .field(FIELD_METRIC_GAUGE_DOUBLE, randomDouble())
+                    .endObject();
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        };
+        bulkIndex(index, sourceSupplier, docCount);
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true), index);
+        ensureGreen(index);
+    }
+
+    /**
+     * Waits until {@link DownsampleDisruptionPlugin} holds {@code expected} parked executions on nodes that are still running.
+     */
+    static void awaitParked(int expected) throws Exception {
+        assertBusy(() -> assertThat(DownsampleDisruptionPlugin.parkedOnNodes(), hasSize(expected)), 60, TimeUnit.SECONDS);
+    }
+
+    /**
+     * A document of a downsample index: its version tells whether it was indexed more than once.
+     */
+    record DocSnapshot(long version, Map<String, Object> source) {}
+
+    /**
+     * Asserts that {@code actualIndex} holds the same documents as {@code expectedIndex}, compared by {@code _id} and source.
+     * Disruption tests use it to compare a downsample index produced under disruption with one produced without disruption.
+     *
+     * @return every document of {@code actualIndex} keyed by {@code _id}
+     */
+    static Map<String, DocSnapshot> assertSameDocuments(String expectedIndex, String actualIndex) {
+        final Map<String, DocSnapshot> expected = fetchAllDocs(expectedIndex);
+        final Map<String, DocSnapshot> actual = fetchAllDocs(actualIndex);
+        assertThat(actual.keySet(), equalTo(expected.keySet()));
+        for (var entry : expected.entrySet()) {
+            assertThat("source of [" + entry.getKey() + "]", actual.get(entry.getKey()).source(), equalTo(entry.getValue().source()));
+        }
+        return actual;
+    }
+
+    /**
+     * Asserts that no document was indexed more than once, which would have bumped its version. A shard-level task that runs
+     * again after an interruption recomputes buckets the interrupted run already indexed, they must be skipped, not rewritten.
+     */
+    static void assertNoDocumentRewritten(Map<String, DocSnapshot> docs) {
+        final List<String> rewritten = docs.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().version() > 1)
+            .map(Map.Entry::getKey)
+            .sorted()
+            .toList();
+        assertThat(
+            "[" + rewritten.size() + "] documents indexed more than once, e.g. " + rewritten.stream().limit(5).toList(),
+            rewritten,
+            empty()
+        );
+    }
+
+    /**
+     * @return the number of documents of {@code index} that were rejected because a document with the same {@code _id} existed
+     */
+    static long versionConflicts(String index) {
+        return indicesAdmin().prepareStats(index).get().getPrimaries().getIndexing().getTotal().getIndexFailedDueToVersionConflictCount();
+    }
+
+    /**
+     * @return the number of searchable documents of {@code index}, after refreshing it
+     */
+    static long countDocuments(String index) {
+        indicesAdmin().prepareRefresh(index).get();
+        return SearchResponseUtils.getTotalHitsValue(prepareSearch(index).setSize(0).setTrackTotalHits(true));
+    }
+
+    private static Map<String, DocSnapshot> fetchAllDocs(String index) {
+        final int maxDocs = 100_000;
+        final long count = countDocuments(index);
+        assertThat(count, lessThan((long) maxDocs));
+        if (count > IndexSettings.MAX_RESULT_WINDOW_SETTING.getDefault(Settings.EMPTY)) {
+            updateIndexSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), maxDocs), index);
+        }
+        final var response = prepareSearch(index).setSize((int) count).setVersion(true).get();
+        try {
+            final Map<String, DocSnapshot> docs = new HashMap<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                docs.put(hit.getId(), new DocSnapshot(hit.getVersion(), hit.getSourceAsMap()));
+            }
+            assertThat(docs.size(), equalTo((int) count));
+            return docs;
+        } finally {
+            response.decRef();
+        }
     }
 
     public static DownsampleConfig.SamplingMethod randomSamplingMethod() {

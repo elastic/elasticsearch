@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,6 +32,7 @@ import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVE
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_TOTAL_METRIC;
+import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_HAS_PENDING_RECOVERIES_ATTRIBUTE_KEY;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_NAME_ATTRIBUTE_KEY;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.empty;
@@ -45,6 +47,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
             () -> null,
             () -> 0L,
+            () -> false,
             () -> 0L,
             ClusterSettings.createBuiltInClusterSettings(),
             Settings.EMPTY,
@@ -85,11 +88,13 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         final var blockedState = new AtomicReference<BlockedState>();
         final var relativeTimeMillis = new AtomicLong(randomLongBetween(-60_000, 60_000));
+        final var hasPendingRecoveries = new AtomicBoolean();
         try (
             var collector = new RecoveryMetricsCollector(
                 telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
                 blockedState::get,
                 () -> 0L,
+                hasPendingRecoveries::get,
                 relativeTimeMillis::get,
                 ClusterSettings.createBuiltInClusterSettings(),
                 Settings.EMPTY,
@@ -99,22 +104,25 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             collector.doStart();
             int blocks = between(2, 10);
             for (int i = 0; i < blocks; i++) {
-                assertCurrentGateMetrics(telemetryPlugin, 0L, 0L);
+                hasPendingRecoveries.set(randomBoolean());
+                assertCurrentGateMetrics(telemetryPlugin, 0L, 0L, hasPendingRecoveries.get());
                 // Gauges observe the authoritative state without needing scheduling callbacks.
                 blockedState.set(new BlockedState(randomIdentifier(), relativeTimeMillis.get()));
-                assertCurrentGateMetrics(telemetryPlugin, 1L, 0L);
+                assertCurrentGateMetrics(telemetryPlugin, 1L, 0L, hasPendingRecoveries.get());
 
                 final long elapsed = randomLongBetween(1, 60_000);
                 relativeTimeMillis.addAndGet(elapsed);
-                assertCurrentGateMetrics(telemetryPlugin, 1L, elapsed);
+                assertCurrentGateMetrics(telemetryPlugin, 1L, elapsed, hasPendingRecoveries.get());
+                // The queue may drain while still blocked, e.g. when the master cancels the queued recoveries.
+                hasPendingRecoveries.set(randomBoolean());
                 relativeTimeMillis.addAndGet(elapsed);
-                assertCurrentGateMetrics(telemetryPlugin, 1L, 2 * elapsed);
+                assertCurrentGateMetrics(telemetryPlugin, 1L, 2 * elapsed, hasPendingRecoveries.get());
 
                 blockedState.set(null);
                 // Time spent unblocked must not contribute to the next block's duration.
                 relativeTimeMillis.addAndGet(randomLongBetween(1, 60_000));
             }
-            assertCurrentGateMetrics(telemetryPlugin, 0L, 0L);
+            assertCurrentGateMetrics(telemetryPlugin, 0L, 0L, hasPendingRecoveries.get());
         }
     }
 
@@ -136,6 +144,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
                 () -> null,
                 () -> 0L,
+                () -> false,
                 () -> 0L,
                 clusterSettings,
                 nodeSettings,
@@ -149,7 +158,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             for (int i = 0; i < iterations; i++) {
                 final int maxConcurrent = between(1, 100);
                 final int perHeapGb = between(1, 10);
-                final int relocationPercent = between(1, 100);
+                final int nonCriticalPercent = between(1, 100);
                 clusterSettings.applySettings(
                     Settings.builder()
                         .put(
@@ -162,9 +171,9 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                             perHeapGb
                         )
                         .put(
-                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_INCOMING_RECOVERIES_MAX_RELOCATION_PROPORTION_SETTING
+                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING
                                 .getKey(),
-                            relocationPercent + "%"
+                            nonCriticalPercent + "%"
                         )
                         .build()
                 );
@@ -174,7 +183,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 assertIncomingRecoveryLimitsMetrics(
                     telemetryPlugin,
                     expectedMaxConcurrentRecoveries,
-                    (long) Math.ceil(expectedMaxConcurrentRecoveries * RatioValue.ofPercent(relocationPercent).getAsRatio())
+                    (long) Math.ceil(expectedMaxConcurrentRecoveries * RatioValue.ofPercent(nonCriticalPercent).getAsRatio())
                 );
             }
         }
@@ -189,6 +198,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
                 () -> null,
                 () -> 0L,
+                () -> false,
                 () -> 0L,
                 clusterSettings,
                 Settings.EMPTY,
@@ -227,6 +237,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 telemetryPlugin.getTelemetryProvider(Settings.EMPTY),
                 () -> null,
                 () -> 0L,
+                () -> false,
                 () -> 0L,
                 ClusterSettings.createBuiltInClusterSettings(),
                 Settings.EMPTY,
@@ -263,15 +274,22 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
         );
     }
 
-    private static void assertCurrentGateMetrics(TestTelemetryPlugin telemetryPlugin, long expectedBlocked, long expectedDuration) {
+    private static void assertCurrentGateMetrics(
+        TestTelemetryPlugin telemetryPlugin,
+        long expectedBlocked,
+        long expectedDuration,
+        boolean expectedHasPendingRecoveries
+    ) {
         telemetryPlugin.collect();
-        assertThat(
-            telemetryPlugin.getLongAsyncGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_METRIC).getLast().getLong(),
-            equalTo(expectedBlocked)
+        final Map<String, Object> expectedAttributes = Map.of(
+            RECOVERY_GATE_HAS_PENDING_RECOVERIES_ATTRIBUTE_KEY,
+            expectedHasPendingRecoveries
         );
-        assertThat(
-            telemetryPlugin.getLongAsyncGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC).getLast().getLong(),
-            equalTo(expectedDuration)
-        );
+        final var blocked = telemetryPlugin.getLongAsyncGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_METRIC).getLast();
+        assertThat(blocked.getLong(), equalTo(expectedBlocked));
+        assertThat(blocked.attributes(), equalTo(expectedAttributes));
+        final var duration = telemetryPlugin.getLongAsyncGaugeMeasurement(RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC).getLast();
+        assertThat(duration.getLong(), equalTo(expectedDuration));
+        assertThat(duration.attributes(), equalTo(expectedAttributes));
     }
 }

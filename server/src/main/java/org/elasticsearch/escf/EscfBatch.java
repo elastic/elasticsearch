@@ -14,6 +14,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceRow;
 import org.elasticsearch.sourcebatch.SourceSchema;
@@ -140,6 +141,24 @@ public final class EscfBatch implements SourceBatch {
         return sizes;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Each column is charged in one sweep, and whether its root field is excluded is decided once per column, from the leaf's
+     * full name, rather than once per row. A slice view meters only its own rows, as its columns are already windowed to the slice.
+     */
+    @Override
+    public long[] meteredRowSizes(MeteringModel model) {
+        assertOpen();
+        final long[] sizes = new long[docCount];
+        for (int c = 0; c < columns.length; c++) {
+            if (model.hasExcludedRootField(schema.getFullPath(c)) == false) {
+                columns[c].addMeteredSizes(sizes, model);
+            }
+        }
+        return sizes;
+    }
+
     /** The typed view for {@code columnIndex}. */
     public EscfColumn column(int columnIndex) {
         assertOpen();
@@ -201,8 +220,9 @@ public final class EscfBatch implements SourceBatch {
     /** Raw value bytes of one column: the payload ref length, or the kind-specific equivalent when there is no payload. */
     private static int valueBytes(EscfColumnData col) {
         return switch (col.kind()) {
-            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION ->
-                (int) refLen(col.data());
+            case EscfColumnKind.LONG, EscfColumnKind.STRING, EscfColumnKind.BINARY, EscfColumnKind.UNION -> (int) refLen(col.data());
+            // account for stored spellings too
+            case EscfColumnKind.DOUBLE -> (int) (refLen(col.data()) + (col.lexicalForms() == null ? 0 : refLen(col.lexicalForms().data())));
             // BOOL has no byte payload: values are one bit per document
             case EscfColumnKind.BOOL -> EscfBatchCodec.bitsetBytes(col.docCount());
             // ARRAY has no payload of its own: the elements live in the child column
@@ -243,6 +263,9 @@ public final class EscfBatch implements SourceBatch {
             .offsets() != null ? col.offsets().length * 4L : 0L) + refLen(col.data());
         if (col.child() != null) {
             total += columnRamBytes(col.child());
+        }
+        if (col.lexicalForms() != null) {
+            total += columnRamBytes(col.lexicalForms());
         }
         return total;
     }

@@ -115,6 +115,7 @@ delta_with_filtering_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fn_delta_fix_partial_merge_order
 
 PROMQL index=prometheus-k8s step=10m tx=(sum by (cluster) (delta(network.bytes_in{pod="one"}[10m])))
 | EVAL tx = ROUND(tx, 6)
@@ -138,6 +139,7 @@ eval_on_delta_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fn_delta_fix_partial_merge_order
 
 PROMQL index=prometheus-k8s step=10m avg_bytes=(avg by (cluster) (delta(network.bytes_in[10m])))
 | EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0
@@ -162,6 +164,7 @@ delta_all_value_types_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fn_delta_fix_partial_merge_order
 
 PROMQL index=prometheus-k8s step=10m events=(sum by (pod) (delta(events_received[10m])))
 | EVAL events = ROUND(events, 6)

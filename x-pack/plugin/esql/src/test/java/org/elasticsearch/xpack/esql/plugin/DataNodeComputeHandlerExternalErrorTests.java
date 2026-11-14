@@ -9,11 +9,18 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -41,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.hamcrest.Matchers.containsString;
@@ -141,16 +149,18 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
     }
 
     /**
-     * A worker's decline reaches the coordinator as a {@link RemoteTransportException} around the wire form of the
-     * {@link ExternalException}, which is not a registered exception and so arrives as a {@link NotSerializableExceptionWrapper}.
-     * The coordinator must still recognise it as a decline, by its condition, and must not take any other failure for one.
+     * A worker that gave up waiting for the cluster state fails the request with the {@link ExternalException}, which is not a
+     * registered exception and so reaches the coordinator as a {@link RemoteTransportException} around a
+     * {@link NotSerializableExceptionWrapper}. The typed condition must survive that, since it is what tells the client the
+     * failure is retryable, and no other failure must read as it.
      */
     public void testWorkerNotReadyIsRecognisedThroughTheTransportWrappers() throws IOException {
-        Exception declined = roundTrip(DataNodeComputeHandler.workerNotReady(""));
-        assertThat(declined, instanceOf(NotSerializableExceptionWrapper.class));
-        assertTrue(DataNodeComputeHandler.isWorkerNotReadyFailure(declined));
-        assertTrue(DataNodeComputeHandler.isWorkerNotReadyFailure(new RemoteTransportException("worker", declined)));
-        assertTrue(DataNodeComputeHandler.isWorkerNotReadyFailure(DataNodeComputeHandler.workerNotReady("waited [1s]")));
+        Exception notReady = roundTrip(DataNodeComputeHandler.workerNotReady("waited [1s]"));
+        assertThat(notReady, instanceOf(NotSerializableExceptionWrapper.class));
+        assertTrue(ExternalException.hasCondition(notReady, ExternalException.Condition.WORKER_NOT_READY));
+        assertTrue(
+            ExternalException.hasCondition(new RemoteTransportException("worker", notReady), ExternalException.Condition.WORKER_NOT_READY)
+        );
 
         Exception unavailable = roundTrip(
             new ExternalUnavailableException(
@@ -162,9 +172,63 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
                 0L
             )
         );
-        assertFalse(DataNodeComputeHandler.isWorkerNotReadyFailure(new RemoteTransportException("worker", unavailable)));
-        assertFalse(DataNodeComputeHandler.isWorkerNotReadyFailure(new RemoteTransportException("worker", new IOException("boom"))));
-        assertFalse(DataNodeComputeHandler.isWorkerNotReadyFailure(new NodeNotConnectedException(createNodes(1).get("node-0"), "gone")));
+        assertFalse(
+            ExternalException.hasCondition(
+                new RemoteTransportException("worker", unavailable),
+                ExternalException.Condition.WORKER_NOT_READY
+            )
+        );
+        assertFalse(
+            ExternalException.hasCondition(
+                new RemoteTransportException("worker", new IOException("boom")),
+                ExternalException.Condition.WORKER_NOT_READY
+            )
+        );
+        assertFalse(
+            ExternalException.hasCondition(
+                new NodeNotConnectedException(createNodes(1).get("node-0"), "gone"),
+                ExternalException.Condition.WORKER_NOT_READY
+            )
+        );
+    }
+
+    /**
+     * A worker that left after its request was sent is retried on another resolved worker only when it
+     * streamed no pages. Cancellation and circuit breaks are query-wide; a generic I/O error is not a
+     * leave and is not retried. Cluster-state lag is waited out on the worker, not hopped here.
+     */
+    public void testDisconnectWithoutPagesReroutesWhenAnotherWorkerRemains() {
+        DiscoveryNode node = createNodes(1).get("node-0");
+        Exception disconnected = new NodeDisconnectedException(node, "indices:data/read/esql/data");
+        Exception wrapped = new RemoteTransportException("worker", disconnected);
+
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 0, true));
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(wrapped, 0, true));
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(new NodeNotConnectedException(node, "gone"), 0, true));
+        assertTrue(DataNodeComputeHandler.shouldRerouteExternalWorker(new NodeClosedException(node), 0, true));
+        assertFalse(
+            "cluster-state lag waits on the worker, it is not a leave hop",
+            DataNodeComputeHandler.shouldRerouteExternalWorker(DataNodeComputeHandler.workerNotReady(""), 0, true)
+        );
+
+        assertFalse("pages already fetched cannot be replayed", DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 1, true));
+        assertFalse("last worker has nowhere to go", DataNodeComputeHandler.shouldRerouteExternalWorker(disconnected, 0, false));
+        assertFalse(DataNodeComputeHandler.shouldRerouteExternalWorker(new TaskCancelledException("cancelled"), 0, true));
+        assertFalse(
+            DataNodeComputeHandler.shouldRerouteExternalWorker(
+                new CircuitBreakingException("over limit", CircuitBreaker.Durability.TRANSIENT),
+                0,
+                true
+            )
+        );
+        assertFalse(DataNodeComputeHandler.shouldRerouteExternalWorker(new IOException("boom"), 0, true));
+    }
+
+    public void testRemainingExternalWorkersFailedKeepsTheDisconnect() {
+        NodeDisconnectedException disconnected = new NodeDisconnectedException(createNodes(1).get("node-0"), "indices:data/read/esql/data");
+        IllegalStateException failure = DataNodeComputeHandler.remainingExternalWorkersFailed(disconnected);
+        assertThat(failure.getMessage(), containsString("failed after dispatch"));
+        assertThat(failure.getCause(), instanceOf(NodeDisconnectedException.class));
     }
 
     private static Exception roundTrip(Exception e) throws IOException {
@@ -192,6 +256,44 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
             }
         }
         assertTrue("At least one node should become stale when cluster shrinks", staleNodeCount > 0);
+    }
+
+    /**
+     * The coordinator waits for a worker only when there are eligible workers and every one of them is held back: not with a
+     * ready worker, not without any worker, and never when the coordinator is itself an eligible worker, which is never held
+     * back.
+     */
+    public void testAllExternalWorkersJoining() {
+        DiscoveryNodes workers = createNodes(3);
+        DiscoveryNodes none = DiscoveryNodes.builder().build();
+        UnaryOperator<DiscoveryNodes> allHeldBack = nodes -> none;
+        UnaryOperator<DiscoveryNodes> oneReady = nodes -> createNodes(1);
+        UnaryOperator<DiscoveryNodes> noneHeldBack = UnaryOperator.identity();
+
+        assertTrue(ComputeService.allExternalWorkersJoining(workers, allHeldBack));
+        assertFalse("a ready worker", ComputeService.allExternalWorkersJoining(workers, oneReady));
+        assertFalse("nobody held back", ComputeService.allExternalWorkersJoining(workers, noneHeldBack));
+        assertFalse("no worker at all: the local fallback", ComputeService.allExternalWorkersJoining(none, allHeldBack));
+        // The coordinator is itself a worker: never held back, so always among the ready ones.
+        DiscoveryNodes workersAndLocal = DiscoveryNodes.builder(workers)
+            .add(DiscoveryNodeUtils.builder("local").roles(Set.of(DATA_HOT_NODE_ROLE)).build())
+            .localNodeId("local")
+            .build();
+        UnaryOperator<DiscoveryNodes> allButLocalHeldBack = nodes -> DiscoveryNodes.builder()
+            .add(nodes.getLocalNode())
+            .localNodeId("local")
+            .build();
+        assertFalse("a data-node coordinator", ComputeService.allExternalWorkersJoining(workersAndLocal, allButLocalHeldBack));
+    }
+
+    public void testPinnedToCoordinator() {
+        assertTrue(ComputeService.pinnedToCoordinator(pragmas(ComputeService.COORDINATOR_ONLY_DISTRIBUTION)));
+        assertFalse(ComputeService.pinnedToCoordinator(QueryPragmas.EMPTY));
+        assertFalse(ComputeService.pinnedToCoordinator(pragmas("round_robin")));
+    }
+
+    private static QueryPragmas pragmas(String externalDistribution) {
+        return new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), externalDistribution).build());
     }
 
     // -- helpers --

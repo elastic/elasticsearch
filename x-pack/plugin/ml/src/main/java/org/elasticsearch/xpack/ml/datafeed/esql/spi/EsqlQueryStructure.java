@@ -17,11 +17,13 @@ import java.util.Objects;
  * @param settings       {@code SET name=value;} statements before the query, in order
  * @param settingsText   the exact query text of those statements, empty when there are none
  * @param sourceCommand  the leading source command as written ({@code FROM ...} or {@code TS ...}). When the parser collapses a
- *                       single subquery such as {@code FROM (FROM a | WHERE x)}, this is the inner source command ({@code FROM a})
+ *                       single subquery such as {@code FROM (FROM a | WHERE x)}, this is the inner source command ({@code FROM a}).
+ *                       For a FROM with several subqueries it omits any {@code METADATA} clause
  * @param sourceKind     the kind of the leading source command
  * @param sourcePatterns every index pattern the query reads, including subqueries, one pattern per entry; lookup indices excluded
  * @param lookupIndices  indices read by {@code LOOKUP JOIN}
- * @param outerPipeline  the processing commands of the top-level pipeline, last command first
+ * @param outerPipeline  the processing commands of the top-level pipeline, last command first, including those of a collapsed
+ *                       single subquery
  */
 public record EsqlQueryStructure(
     Map<String, String> settings,

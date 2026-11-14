@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
@@ -45,6 +48,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.ALLOW_LEADING_WILDCARD_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.ANALYZE_WILDCARD_FIELD;
@@ -52,6 +56,7 @@ import static org.elasticsearch.index.query.QueryStringQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.DEFAULT_FIELD_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.DEFAULT_OPERATOR_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.ENABLE_POSITION_INCREMENTS_FIELD;
+import static org.elasticsearch.index.query.QueryStringQueryBuilder.FIELDS_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.FUZZINESS_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.FUZZY_MAX_EXPANSIONS_FIELD;
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.FUZZY_PREFIX_LENGTH_FIELD;
@@ -91,6 +96,8 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         entry(DEFAULT_FIELD_FIELD.getPreferredName(), KEYWORD),
         entry(DEFAULT_OPERATOR_FIELD.getPreferredName(), KEYWORD),
         entry(ENABLE_POSITION_INCREMENTS_FIELD.getPreferredName(), BOOLEAN),
+        // A keyword or a list of keywords. Validated and translated separately by fields().
+        entry(FIELDS_FIELD.getPreferredName(), KEYWORD),
         entry(FUZZINESS_FIELD.getPreferredName(), KEYWORD),
         entry(FUZZY_MAX_EXPANSIONS_FIELD.getPreferredName(), INTEGER),
         entry(FUZZY_PREFIX_LENGTH_FIELD.getPreferredName(), INTEGER),
@@ -112,6 +119,8 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(QueryString.class)
         .binaryConfig(QueryString::new)
+        // The documented "fields" option used to be rejected.
+        .capabilities("fields_option")
         .name("qstr");
 
     private final Configuration configuration;
@@ -354,12 +363,72 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
         Map<String, Object> queryStringOptions = new HashMap<>();
         if (options() != null) {
             Options.populateMap((MapExpression) options(), queryStringOptions, source(), SECOND, ALLOWED_OPTIONS);
+            // populateMap converts every value to a single string; the fields are passed to the query by fields()
+            queryStringOptions.remove(FIELDS_FIELD.getPreferredName());
         }
         queryStringOptions.putIfAbsent(
             TIME_ZONE_FIELD.getPreferredName(),
             QuerySettings.TIME_ZONE.get(configuration.resolvedSettings()).getId()
         );
         return queryStringOptions;
+    }
+
+    /**
+     * The {@code fields} option with its boosts, e.g. {@code ["title^2", "body"]} gives {@code {title=2.0, body=1.0}}, or an
+     * empty map if it isn't set. It is read from the option literal directly because {@link Options#populateMap} would flatten
+     * a list into one string. A boost that is itself non-finite or negative fails here, at verification, rather than
+     * when Lucene's {@code BoostQuery} rejects it on the shard.
+     */
+    public Map<String, Float> fields() throws InvalidArgumentException {
+        if (options() instanceof MapExpression map
+            && map.get(FIELDS_FIELD.getPreferredName()) instanceof Literal literal
+            && literal.value() != null) {
+            List<String> fields = literal.value() instanceof List<?> values
+                ? values.stream().map(BytesRefs::toString).toList()
+                : List.of(BytesRefs.toString(literal.value()));
+            for (String field : fields) {
+                Map<String, Float> parsed;
+                try {
+                    parsed = QueryParserHelper.parseFieldsAndWeights(List.of(field));
+                } catch (NumberFormatException e) {
+                    throw new InvalidArgumentException(invalidFieldsMessage("invalid boost in [{}]", field));
+                }
+                for (float boost : parsed.values()) {
+                    // Float.parseFloat accepts NaN, Infinity and values that overflow to Infinity
+                    if (Float.isFinite(boost) == false) {
+                        throw new InvalidArgumentException(invalidFieldsMessage("invalid boost in [{}]", field));
+                    }
+                    if (Float.compare(boost, 0f) < 0) {
+                        throw new InvalidArgumentException(invalidFieldsMessage("negative boost in [{}]", field));
+                    }
+                }
+            }
+            // parse the whole list at once so duplicate fields are handled the same way as in the query_string query
+            return QueryParserHelper.parseFieldsAndWeights(fields);
+        }
+        return Map.of();
+    }
+
+    private String invalidFieldsMessage(String reason, String field) {
+        return format(null, "Invalid option [{}] in [{}], " + reason, FIELDS_FIELD.getPreferredName(), source().text(), field);
+    }
+
+    /**
+     * Checks the options that {@link Options#resolve} can't: the {@code fields} values, and that {@code fields} and
+     * {@code default_field} aren't both set, which the query_string query rejects.
+     */
+    private void verifyOptions(Map<String, Object> options) throws InvalidArgumentException {
+        if (fields().isEmpty() == false && options.get(DEFAULT_FIELD_FIELD.getPreferredName()) != null) {
+            throw new InvalidArgumentException(
+                format(
+                    null,
+                    "Invalid options in [{}], cannot use option [{}] in conjunction with [{}]",
+                    source().text(),
+                    FIELDS_FIELD.getPreferredName(),
+                    DEFAULT_FIELD_FIELD.getPreferredName()
+                )
+            );
+        }
     }
 
     /** QSTR resolves the fields to search from the query string against the index, so it has no expression to search. */
@@ -370,7 +439,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
 
     @Override
     protected TypeResolution resolveParams() {
-        return resolveQuery().and(Options.resolve(options(), source(), SECOND, ALLOWED_OPTIONS));
+        return resolveQuery().and(Options.resolve(options(), source(), SECOND, ALLOWED_OPTIONS, this::verifyOptions));
     }
 
     @Override
@@ -391,7 +460,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument, C
 
     @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return new QueryStringQuery(source(), Foldables.queryAsString(query(), sourceText()), Map.of(), queryStringOptions());
+        return new QueryStringQuery(source(), Foldables.queryAsString(query(), sourceText()), fields(), queryStringOptions());
     }
 
     @Override

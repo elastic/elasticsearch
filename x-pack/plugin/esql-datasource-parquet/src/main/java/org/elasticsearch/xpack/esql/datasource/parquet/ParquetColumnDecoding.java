@@ -23,6 +23,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Utf8Sanitizer;
 import org.elasticsearch.core.Nullable;
@@ -1292,7 +1293,22 @@ final class ParquetColumnDecoding {
                 yield readListLongColumn(input, maxDef, rows, blockFactory, tally);
             }
             case UNSIGNED_LONG -> readListUnsignedLongColumn(input, maxDef, rows, blockFactory, tally);
-            case DOUBLE -> readListDoubleColumn(input, maxDef, rows, blockFactory, tally);
+            case DOUBLE -> readListDoubleColumn(
+                input,
+                maxDef,
+                rows,
+                blockFactory,
+                tally,
+                info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT
+            );
+            case DENSE_VECTOR -> readListFloatColumn(
+                input,
+                maxDef,
+                rows,
+                blockFactory,
+                tally,
+                info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT
+            );
             case BOOLEAN -> readListBooleanColumn(input, maxDef, rows, blockFactory, tally);
             case KEYWORD, TEXT -> readListBytesRefColumn(input, info, rows, blockFactory, tally);
             case DATETIME -> readListDatetimeColumn(input, info, rows, blockFactory, columnName, warnings, failedPositionSink, tally);
@@ -1451,15 +1467,79 @@ final class ParquetColumnDecoding {
         int maxDef,
         int rows,
         BlockFactory blockFactory,
-        NullElementTally tally
+        NullElementTally tally,
+        boolean physicalFloat
     ) {
         try (var builder = blockFactory.newDoubleBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendDouble(input.reader().getDouble());
+            // ES|QL represents both Parquet FLOAT and DOUBLE as doubles, but the physical reader requires the matching getter.
+            Runnable appender = physicalFloat
+                ? () -> builder.appendDouble(input.reader().getFloat())
+                : () -> builder.appendDouble(input.reader().getDouble());
             for (int row = 0; row < rows; row++) {
                 readListRow(input, maxDef, builder, appender, tally);
             }
             return builder.build();
         }
+    }
+
+    /**
+     * A {@code dense_vector} list decodes into the {@link FloatBlock} the vector functions read, with no widening to
+     * double. Vectors in a column share one dimension count, so the first row sizes the builder for the whole batch
+     * and the remaining rows append without growing it.
+     */
+    private static Block readListFloatColumn(
+        ListColumnReader input,
+        int maxDef,
+        int rows,
+        BlockFactory blockFactory,
+        NullElementTally tally,
+        boolean physicalFloat
+    ) {
+        if (rows == 0) {
+            try (var builder = blockFactory.newFloatBlockBuilder(0)) {
+                return builder.build();
+            }
+        }
+        try (var head = readListFloatRows(input, maxDef, 1, blockFactory, tally, physicalFloat, 1)) {
+            int dims = head.isNull(0) ? 0 : head.getValueCount(0);
+            int estimatedSize = dims == 0 ? rows : (int) Math.min(Integer.MAX_VALUE, (long) rows * dims);
+            if (rows == 1) {
+                head.incRef();
+                return head;
+            }
+            try (var builder = blockFactory.newFloatBlockBuilder(estimatedSize)) {
+                builder.copyFrom(head, 0, 1);
+                Runnable appender = floatAppender(input, builder, physicalFloat);
+                for (int row = 1; row < rows; row++) {
+                    readListRow(input, maxDef, builder, appender, tally);
+                }
+                return builder.build();
+            }
+        }
+    }
+
+    private static FloatBlock readListFloatRows(
+        ListColumnReader input,
+        int maxDef,
+        int rows,
+        BlockFactory blockFactory,
+        NullElementTally tally,
+        boolean physicalFloat,
+        int estimatedSize
+    ) {
+        try (var builder = blockFactory.newFloatBlockBuilder(estimatedSize)) {
+            Runnable appender = floatAppender(input, builder, physicalFloat);
+            for (int row = 0; row < rows; row++) {
+                readListRow(input, maxDef, builder, appender, tally);
+            }
+            return builder.build();
+        }
+    }
+
+    private static Runnable floatAppender(ListColumnReader input, FloatBlock.Builder builder, boolean physicalFloat) {
+        return physicalFloat
+            ? () -> builder.appendFloat(input.reader().getFloat())
+            : () -> builder.appendFloat((float) input.reader().getDouble());
     }
 
     private static Block readListBooleanColumn(

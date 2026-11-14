@@ -22,10 +22,8 @@ public final class SearchHitUtils {
     }
 
     public static void addShardFailures(Map<String, ShardSearchFailure> shardFailures, SearchResponse r) {
-        if (r.getShardFailures() != null) {
-            for (ShardSearchFailure shardFailure : r.getShardFailures()) {
-                shardFailures.put(shardFailure.toString(), shardFailure);
-            }
+        for (ShardSearchFailure shardFailure : r.shardFailuresList()) {
+            shardFailures.put(shardFailure.toString(), shardFailure);
         }
     }
 }

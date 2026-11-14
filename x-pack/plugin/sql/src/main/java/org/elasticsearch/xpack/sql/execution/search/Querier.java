@@ -776,8 +776,8 @@ public class Querier {
 
         private static void handleShardFailures(SearchResponse response) {
             int count = 0;
-            int shardFailuresCount = response.getShardFailures().length;
-            for (ShardSearchFailure shardFailure : response.getShardFailures()) {
+            int shardFailuresCount = response.shardFailuresList().size();
+            for (ShardSearchFailure shardFailure : response.shardFailuresList()) {
                 HeaderWarning.addWarning(shardFailure.getCause().toString());
                 if (++count >= MAX_WARNING_HEADERS - 1 && shardFailuresCount > count) {
                     int remaining = shardFailuresCount - count;

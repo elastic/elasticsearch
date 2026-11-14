@@ -287,7 +287,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
 
     /**
      * Encodes the probed keys into a scratch buffer of its own rather than {@link #bytes} and probes with
-     * {@link BytesRefHashTable#concurrentSafeFind}, so it doesn't modify the hash and a hash that is no longer
+     * {@link BytesRefHashTable#find}, so it doesn't modify the hash and a hash that is no longer
      * added to can be probed from several threads at once. The scratch buffer and the results are made with
      * {@code resultFactory}, so each caller charges its own breaker rather than the one the hash was built on.
      */
@@ -358,7 +358,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
 
         private void lookupSingleEntry(IntBlock.Builder ords) {
             fillBytesSv(groups, bytes);
-            long found = bytesRefHash.concurrentSafeFind(bytes.bytesRefView());
+            long found = bytesRefHash.find(bytes.bytesRefView());
             if (found < 0) {
                 ords.appendNull();
             } else {
@@ -375,7 +375,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                 fillBytesMv(groups, g, bytes);
 
                 // emit ords
-                long found = bytesRefHash.concurrentSafeFind(bytes.bytesRefView());
+                long found = bytesRefHash.find(bytes.bytesRefView());
                 if (found >= 0) {
                     if (firstFound < 0) {
                         firstFound = found;

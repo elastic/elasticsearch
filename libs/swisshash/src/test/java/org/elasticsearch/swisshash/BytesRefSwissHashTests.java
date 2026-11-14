@@ -265,14 +265,10 @@ public class BytesRefSwissHashTests extends ESTestCase {
         }
     }
 
-    public void testConcurrentSafeFind() {
+    public void testConcurrentFind() {
         Set<BytesRef> values = randomValues(count);
         BytesRef[] v = values.toArray(new BytesRef[0]);
-        BytesRef missing = new BytesRef("not_in_set");
-        while (values.contains(missing)) {
-            missing = new BytesRef(missing.utf8ToString() + "_");
-        }
-        BytesRef notFound = missing;
+        BytesRef notFound = randomValueOtherThanMany(values::contains, () -> new BytesRef(randomByteArrayOfLength(between(1, 20))));
 
         TestRecycler recycler = new TestRecycler();
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
@@ -282,9 +278,9 @@ public class BytesRefSwissHashTests extends ESTestCase {
             }
             startInParallel(between(2, 8), t -> {
                 for (int i = 0; i < v.length; i++) {
-                    assertThat(hash.concurrentSafeFind(v[i]), equalTo((long) i));
+                    assertThat(hash.find(v[i]), equalTo((long) i));
                 }
-                assertThat(hash.concurrentSafeFind(notFound), equalTo(-1L));
+                assertThat(hash.find(notFound), equalTo(-1L));
             });
         }
     }

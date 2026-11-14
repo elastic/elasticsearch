@@ -334,7 +334,7 @@ public class BytesRefHashTests extends ESTestCase {
         hash.close();
     }
 
-    public void testConcurrentSafeFind() {
+    public void testConcurrentFind() {
         Set<String> strings = new HashSet<>();
         while (strings.size() < 5000) {
             strings.add(TestUtil.randomRealisticUnicodeString(random(), 1, 1000));
@@ -353,10 +353,10 @@ public class BytesRefHashTests extends ESTestCase {
             }
             startInParallel(between(2, 8), t -> {
                 for (int i = 0; i < keys.size(); i++) {
-                    assertThat(hash.concurrentSafeFind(keys.get(i)), equalTo((long) i));
+                    assertThat(hash.find(keys.get(i)), equalTo((long) i));
                 }
                 for (BytesRef key : missing) {
-                    assertThat(hash.concurrentSafeFind(key), equalTo(-1L));
+                    assertThat(hash.find(key), equalTo(-1L));
                 }
             });
         }

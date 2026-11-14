@@ -136,7 +136,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
 
     /**
      * Get the id associated with <code>key</code>. Reads only, comparing keys in place with
-     * {@link BytesRefArray#bytesEqual}: {@link #concurrentSafeFind} and {@link Finder} rely on it.
+     * {@link BytesRefArray#bytesEqual}: {@link #find(BytesRef)} and {@link Finder} rely on it.
      */
     public long find(BytesRef key, int code) {
         final long slot = slot(rehash(code), mask);
@@ -151,11 +151,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     /** Sugar for {@link #find(BytesRef, int) find(key, key.hashCode()} */
     @Override
     public long find(BytesRef key) {
-        return find(key, key.hashCode());
-    }
-
-    @Override
-    public long concurrentSafeFind(BytesRef key) {
         return find(key, key.hashCode());
     }
 
@@ -296,7 +291,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
 
     public class Finder {
         public long find(BytesRef key) {
-            return concurrentSafeFind(key);
+            return BytesRefHash.this.find(key);
         }
     }
 

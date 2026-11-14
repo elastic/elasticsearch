@@ -26,16 +26,11 @@ public interface BytesRefHashTable extends Accountable, Releasable {
 
     /**
      * Finds the id associated with the given key, or -1 is the key is
-     * not contained in the hash.
+     * not contained in the hash. Safe to call from several threads at once
+     * as long as no thread adds to or clears the table meanwhile, so
+     * implementations must not write any state here, scratch buffers included.
      */
     long find(BytesRef key);
-
-    /**
-     * Same as {@link #find(BytesRef)}, but safe to call from several threads at once as long as no
-     * thread adds to or clears the table meanwhile. Implementations must not write any state here,
-     * scratch buffers included.
-     */
-    long concurrentSafeFind(BytesRef key);
 
     /**
      * Adds the given key to the table. Return its newly allocated id if

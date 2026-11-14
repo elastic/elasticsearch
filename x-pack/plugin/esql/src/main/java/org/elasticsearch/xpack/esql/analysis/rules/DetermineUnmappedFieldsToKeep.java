@@ -280,13 +280,11 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             .filter(attr -> attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false)
             .toList();
         List<Attribute> newOutput = CollectionUtils.combine(
-            withChildren.withScoreAttributeFromChildren(
-                withChildren.children(),
-                keepExistingUnsupportedAttributes(toReferenceAttributesPreservingIds(withoutUnmapped, unionAll.output()), unionAll.output())
-            ),
+            keepExistingUnsupportedAttributes(toReferenceAttributesPreservingIds(withoutUnmapped, unionAll.output()), unionAll.output()),
             unmapped
         );
-        return newOutput.equals(unionAll.output()) ? unionAll : unionAll.replaceSubPlansAndOutput(unionAll.children(), newOutput);
+        return newOutput.equals(unionAll.output()) ? unionAll : unionAll.replaceSubPlansAndOutput(unionAll.children(),
+            unionAll.withScoreAttributeFromChildren(unionAll.children(), newOutput));
     }
 
     /** {@code null} when no branch exposes {@code _unmapped_fields}. */

@@ -9,15 +9,19 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -35,8 +39,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.geometry.utils.Geohash.addNeighborsAtLevel;
+import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.search.suggest.completion.CategoryContextMappingTests.assertContextSuggestFields;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -240,6 +246,72 @@ public class GeoContextMappingTests extends MapperServiceTestCase {
             .parse(new SourceToParse("1", BytesReference.bytes(builder), XContentType.JSON));
         List<IndexableField> fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
         assertContextSuggestFields(fields, 3);
+    }
+
+    public void testIndexingWithStoredOnlyGeoPointPath() throws Exception {
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("completion")
+            .field("type", "completion")
+            .startArray("contexts")
+            .startObject()
+            .field("name", "location")
+            .field("type", "geo")
+            .field("path", "loc")
+            .endObject()
+            .endArray()
+            .endObject()
+            .startObject("loc")
+            .field("type", "geo_point")
+            .field("index", false)
+            .field("doc_values", false)
+            .field("store", true)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+        MappedFieldType completionFieldType = mapperService.fieldType("completion");
+        ParsedDocument parsedDocument = mapperService.documentMapper()
+            .parse(
+                new SourceToParse(
+                    "1",
+                    BytesReference.bytes(
+                        jsonBuilder().startObject()
+                            .startObject("completion")
+                            .field("input", "suggestion")
+                            .endObject()
+                            .startObject("loc")
+                            .field("lat", 43.6624803)
+                            .field("lon", -79.3863353)
+                            .endObject()
+                            .endObject()
+                    ),
+                    XContentType.JSON
+                )
+            );
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(completionFieldType.name());
+        assertContextSuggestFields(fields, 1);
+
+        try (TokenStream tokenStream = fields.get(0).tokenStream(Lucene.WHITESPACE_ANALYZER, null)) {
+            tokenStream.reset();
+            while (tokenStream.incrementToken()) {
+            }
+            tokenStream.end();
+        }
+    }
+
+    public void testParsingStoredGeoPointField() {
+        GeoContextMapping mapping = ContextBuilder.geo("location").field("loc").build();
+        LuceneDocument document = new LuceneDocument();
+        document.add(new StoredField("loc", "43.6624803, -79.3863353"));
+
+        assertThat(
+            mapping.parseContext(document),
+            equalTo(Set.of(stringEncode(-79.3863353, 43.6624803, GeoContextMapping.DEFAULT_PRECISION)))
+        );
     }
 
     public void testMalformedGeoField() throws Exception {

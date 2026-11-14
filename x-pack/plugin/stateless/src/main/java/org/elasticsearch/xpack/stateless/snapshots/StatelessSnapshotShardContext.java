@@ -231,22 +231,46 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
             );
         }
 
+        /**
+         * Reads a range of the file from the object store that holds the commit blobs, and supports mark and reset so that the
+         * snapshot repository can retry an upload.
+         * <p>
+         * The stream opens a GET request on the commit blob only when the first byte is read, not when the stream is created.
+         * A reset with nothing read since the mark keeps the current GET request. Both matter because the Azure and S3
+         * repositories call {@link #reset()} before they read anything. If the stream opened its GET request when it was
+         * created, every uploaded file part would issue two GET requests, and the first would be thrown away.
+         * <p>
+         * Keeping the GET request is safe because every read moves {@code readPosition} and skip is not supported, so an open
+         * GET request is always at {@code readPosition}. After a reset to an earlier position, the current GET request is
+         * closed, and the next read opens a new GET request at the marked position.
+         */
         private class ResettableBlobStoreInputStream extends FilterInputStream {
             private final long streamStartPosition; // relative to the start of the file
             private final long limit;
             private long markPosition; // relative to the start of the file
             private boolean closed;
 
-            ResettableBlobStoreInputStream(long streamStartPosition, long limit) throws IOException {
-                super(openInputStreamForBlob(0, limit));
+            ResettableBlobStoreInputStream(long streamStartPosition, long limit) {
+                super(null); // the GET request is opened on the first read, see openIfNeeded()
                 this.streamStartPosition = streamStartPosition;
                 this.limit = limit;
                 this.markPosition = streamStartPosition;
             }
 
+            /**
+             * Opens a GET request at the current read position if none is open, either because nothing has been read yet
+             * or because a reset closed the previous one.
+             */
+            private void openIfNeeded() throws IOException {
+                if (in == null) {
+                    in = openInputStreamForBlob(readPosition - streamStartPosition, limit);
+                }
+            }
+
             @Override
             public int read() throws IOException {
                 ensureOpen();
+                openIfNeeded();
                 final int b = super.read();
                 if (b != -1) {
                     fileChecksum.update(b, readPosition);
@@ -258,6 +282,7 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
             @Override
             public int read(byte[] b, int off, int len) throws IOException {
                 ensureOpen();
+                openIfNeeded();
                 final int n = super.read(b, off, len);
                 if (n != -1) {
                     fileChecksum.update(b, off, n, readPosition);
@@ -282,15 +307,24 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
                 markPosition = readPosition;
             }
 
+            @Override
+            public int available() throws IOException {
+                return in == null ? 0 : super.available();
+            }
+
             /**
-             * Reset closes the current input stream and reopens a new one at the marked position
+             * Moves the read position back to the marked position. If nothing has been read since the mark, the current
+             * GET request (if any) is already at that position and is kept. Otherwise the current GET request is closed, and
+             * the next read opens a new GET request at the marked position.
              */
             @Override
             public void reset() throws IOException {
                 ensureOpen();
+                if (readPosition == markPosition) {
+                    return;
+                }
                 final var oldIn = in;
-                final long bytesFromStreamStart = markPosition - streamStartPosition;
-                in = openInputStreamForBlob(bytesFromStreamStart, limit);
+                in = null;
                 readPosition = markPosition;
                 IOUtils.closeWhileHandlingException(oldIn);
             }
@@ -298,7 +332,9 @@ public class StatelessSnapshotShardContext extends SnapshotShardContext {
             @Override
             public void close() throws IOException {
                 if (closed == false) {
-                    super.close();
+                    if (in != null) {
+                        super.close();
+                    }
                     closed = true;
                     nextPositionInBlobFile += limit;
                 }

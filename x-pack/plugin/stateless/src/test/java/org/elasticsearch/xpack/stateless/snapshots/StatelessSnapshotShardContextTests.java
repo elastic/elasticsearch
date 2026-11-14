@@ -343,6 +343,52 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
         }
     }
 
+    /**
+     * Some repositories, such as Azure, mark the stream and reset it before they read anything. The reader must not open
+     * a GET request until the first read, and a reset to the position already read up to must keep the open request, so
+     * that a file read once from start to end costs a single GET request.
+     */
+    public void testResetWithoutReadingSinceMarkOpensNoExtraRequest() throws IOException {
+        final var setup = createMarkResetTestSetup();
+        try (var fileReader = setup.context.fileReader("file", mock(StoreFileMetadata.class))) {
+            final var stream = fileReader.openInput(setup.fileLength);
+            stream.mark(randomInt());
+            final int resetsBeforeRead = between(1, 3);
+            for (int i = 0; i < resetsBeforeRead; i++) {
+                stream.reset();
+            }
+            assertThat(stream.available(), equalTo(0));
+            assertThat(setup.allOpenedStreams.size(), equalTo(0));
+
+            final int markPosition = between(1, setup.fileLength - 1);
+            final byte[] head = readMixedBytes(stream, markPosition);
+            stream.mark(randomInt());
+            stream.reset();
+            final byte[] tail = readMixedBytes(stream, setup.fileLength - markPosition);
+
+            assertArrayEquals(Arrays.copyOfRange(setup.expectedContent, 0, markPosition), head);
+            assertArrayEquals(Arrays.copyOfRange(setup.expectedContent, markPosition, setup.fileLength), tail);
+            assertThat(setup.allOpenedStreams.size(), equalTo(1));
+
+            fileReader.verify();
+        }
+
+        for (CloseTrackingInputStream s : setup.allOpenedStreams) {
+            assertTrue("Expected all opened input streams to be closed", s.isClosed());
+        }
+    }
+
+    public void testOpenInputWithoutReadingOpensNoRequest() throws IOException {
+        final var setup = createMarkResetTestSetup();
+        try (var fileReader = setup.context.fileReader("file", mock(StoreFileMetadata.class))) {
+            final var stream = fileReader.openInput(setup.fileLength);
+            if (randomBoolean()) {
+                stream.close();
+            }
+        }
+        assertThat(setup.allOpenedStreams.size(), equalTo(0));
+    }
+
     private record MarkResetTestSetup(
         byte[] expectedContent,
         int fileLength,

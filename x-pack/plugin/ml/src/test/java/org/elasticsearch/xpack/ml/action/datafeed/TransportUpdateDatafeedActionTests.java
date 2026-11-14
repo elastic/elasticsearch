@@ -33,10 +33,12 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -121,7 +123,8 @@ public class TransportUpdateDatafeedActionTests extends ESTestCase {
                 mock(MachineLearningExtension.class),
                 mock(AnomalyDetectionAuditor.class),
                 mock(AnnotationPersister.class),
-                mock(JobResultsProvider.class)
+                mock(JobResultsProvider.class),
+                new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
             ),
             projectResolver
         );

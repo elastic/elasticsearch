@@ -48,11 +48,13 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
+import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Change;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.Intent;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.PutPersistentCallback;
 import org.elasticsearch.xpack.ml.datafeed.CredentialTransitions.TransitionContext;
 import org.elasticsearch.xpack.ml.datafeed.crossproject.NoMatchingProjectTestMessages;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.mockito.ArgumentCaptor;
@@ -225,7 +227,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             delegateClient,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build())
+            new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build()),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -278,7 +281,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build())
+            new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build()),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -333,7 +337,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -388,7 +393,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -439,7 +445,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -489,7 +496,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -541,7 +549,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -601,7 +610,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -654,7 +664,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -752,7 +763,8 @@ public class CredentialTransitionsTests extends ESTestCase {
                 delegateClient,
                 xContentRegistry,
                 datafeedConfigProvider,
-                new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build())
+                new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build()),
+                new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
             );
         }
 
@@ -840,7 +852,7 @@ public class CredentialTransitionsTests extends ESTestCase {
                 listener.onResponse(new PutDatafeedAction.Response(req.getDatafeed()));
             }, ActionTestUtils.assertNoFailureListener(response::set));
 
-            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + " | LIMIT 0")));
+            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + "\n| LIMIT 0")));
             assertThat(h.probeRouting, equalTo(List.of("_alias:_origin")));
             assertThat(h.events, equalTo(List.of("probe", "mint", "persist")));
             assertThat(response.get().getResponse().getCloudInternalCredential(), equalTo(h.minted));
@@ -896,7 +908,7 @@ public class CredentialTransitionsTests extends ESTestCase {
             AtomicReference<PutDatafeedAction.Response> response = new AtomicReference<>();
             h.executeUpdate(ActionTestUtils.assertNoFailureListener(response::set));
 
-            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + " | LIMIT 0")));
+            assertThat(h.probeQueries, equalTo(List.of(ESQL_QUERY + "\n| LIMIT 0")));
             assertThat(h.probeRouting, equalTo(List.of("_alias:_origin")));
             assertThat(h.probeAuthenticationHeaders, equalTo(List.of("caller-authentication")));
             assertThat(h.probeClients, equalTo(List.of(h.wrappedClient)));
@@ -1026,7 +1038,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
 
         ClusterState clusterState = mock(ClusterState.class);
@@ -1106,7 +1119,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             client,
             xContentRegistry(),
             mock(DatafeedConfigProvider.class),
-            new CrossProjectModeDecider(Settings.EMPTY)
+            new CrossProjectModeDecider(Settings.EMPTY),
+            new EsqlDatafeedQueryValidator(new EsqlParserQueryAnalyzer())
         );
 
         ClusterState clusterState = mock(ClusterState.class);

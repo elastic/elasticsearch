@@ -115,6 +115,7 @@ public class DatafeedManager {
     private final AnomalyDetectionAuditor auditor;
     private final AnnotationPersister annotationPersister;
     private final JobResultsProvider jobResultsProvider;
+    private final EsqlDatafeedQueryValidator esqlQueryValidator;
     private volatile boolean requireRollbackSnapshotBeforeScopeChange;
 
     public DatafeedManager(
@@ -127,7 +128,8 @@ public class DatafeedManager {
         MachineLearningExtension mlExtension,
         AnomalyDetectionAuditor auditor,
         AnnotationPersister annotationPersister,
-        JobResultsProvider jobResultsProvider
+        JobResultsProvider jobResultsProvider,
+        EsqlDatafeedQueryValidator esqlQueryValidator
     ) {
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobConfigProvider = jobConfigProvider;
@@ -139,6 +141,7 @@ public class DatafeedManager {
         this.auditor = Objects.requireNonNull(auditor);
         this.annotationPersister = Objects.requireNonNull(annotationPersister);
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
+        this.esqlQueryValidator = Objects.requireNonNull(esqlQueryValidator);
         this.credentialManagerSupplier = extension::getCloudCredentialManager;
         this.credentialTransitions = new CredentialTransitions(
             this.auditor,
@@ -147,7 +150,8 @@ public class DatafeedManager {
             client,
             xContentRegistry,
             datafeedConfigProvider,
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            esqlQueryValidator
         );
         requireRollbackSnapshotBeforeScopeChange = MachineLearning.REQUIRE_ROLLBACK_SNAPSHOT_BEFORE_SCOPE_CHANGE.get(settings);
         clusterService.getClusterSettings()
@@ -211,7 +215,7 @@ public class DatafeedManager {
         ActionListener<PutDatafeedAction.Response> listener
     ) {
         try {
-            EsqlDatafeedQueryValidator.rejectRemoteClusterSources(request.getDatafeed().getEsqlQuery(), crossProjectMlEnabled());
+            esqlQueryValidator.validateQueryStructure(request.getDatafeed().getEsqlQuery(), crossProjectMlEnabled());
         } catch (Exception e) {
             listener.onFailure(e);
             return;

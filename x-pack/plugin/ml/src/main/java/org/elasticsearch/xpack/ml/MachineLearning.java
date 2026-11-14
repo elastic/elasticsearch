@@ -1140,7 +1140,11 @@ public class MachineLearning extends Plugin
         if (enabled == false) {
             // Holders for @link(MachineLearningFeatureSetUsage) which needs access to job manager and ML extension,
             // both empty if ML is disabled
-            return List.of(new JobManagerHolder(), new MachineLearningExtensionHolder());
+            return List.of(
+                new JobManagerHolder(),
+                new MachineLearningExtensionHolder(),
+                new EsqlQueryAnalyzerHolder(esqlQueryAnalyzer.get())
+            );
         }
 
         machineLearningExtension.get().configure(environment.settings());
@@ -1198,12 +1202,13 @@ public class MachineLearning extends Plugin
             resultsPersisterService,
             anomalyDetectionAuditor
         );
+        EsqlDatafeedQueryValidator esqlDatafeedQueryValidator = new EsqlDatafeedQueryValidator(esqlQueryAnalyzer.get());
         JobConfigProvider jobConfigProvider = new JobConfigProvider(
             client,
             xContentRegistry,
             () -> machineLearningExtension.get().getCloudCredentialManager(),
             new CrossProjectModeDecider(settings),
-            new EsqlDatafeedQueryValidator()
+            esqlDatafeedQueryValidator
         );
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry, clusterService);
         this.datafeedConfigProvider.set(datafeedConfigProvider);
@@ -1230,7 +1235,8 @@ public class MachineLearning extends Plugin
             machineLearningExtension.get(),
             anomalyDetectionAuditor,
             anomalyDetectionAnnotationPersister,
-            jobResultsProvider
+            jobResultsProvider,
+            esqlDatafeedQueryValidator
         );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
@@ -1335,7 +1341,8 @@ public class MachineLearning extends Plugin
             settings,
             clusterService,
             () -> machineLearningExtension.get().getCloudCredentialManager(),
-            datafeedSearchTelemetry
+            datafeedSearchTelemetry,
+            esqlQueryAnalyzer.get()
         );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(
             jobConfigProvider,
@@ -1615,6 +1622,7 @@ public class MachineLearning extends Plugin
             deploymentManager.get(),
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
+            new EsqlQueryAnalyzerHolder(esqlQueryAnalyzer.get()),
             mlMetrics,
             mlConfigMetrics,
             deploymentPathUnsafeIdTelemetry

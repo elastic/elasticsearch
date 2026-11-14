@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
@@ -17,7 +19,9 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 
@@ -37,6 +41,8 @@ import static org.mockito.Mockito.mock;
 
 public class EsqlDataExtractorFactoryTests extends ESTestCase {
 
+    private static final EsqlQueryAnalyzer ANALYZER = new EsqlParserQueryAnalyzer();
+
     private static final String ESQL_QUERY =
         "FROM logs | STATS avg_bytes = AVG(bytes), doc_count = COUNT(*) BY ts = BUCKET(@timestamp, 1 hour)";
     private static final String TIME_FIELD = "ts";
@@ -55,7 +61,14 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     public void testNewExtractorShouldMapContextFields() {
         Job job = buildJob("job-1", TIME_FIELD, null);
         DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", null, null);
-        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(
+            client,
+            datafeed,
+            job,
+            timingStatsReporter,
+            ANALYZER,
+            EsqlDatafeedQuery.parse(ANALYZER, ESQL_QUERY)
+        );
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(1000L, 2000L);
 
@@ -63,7 +76,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         assertThat(extractor.getEndTime(), equalTo(2000L));
         EsqlDataExtractorContext context = extractor.getContext();
         assertThat(context.jobId(), equalTo("job-1"));
-        assertThat(context.esqlQuery(), equalTo(ESQL_QUERY));
+        assertThat(context.query().query(), equalTo(ESQL_QUERY));
         assertThat(context.sourceTimeField(), equalTo(SOURCE_TIME_FIELD));
         assertThat(context.emittedTimeField(), equalTo(TIME_FIELD));
         assertThat(context.sourceTimeField(), not(equalTo(context.emittedTimeField())));
@@ -77,7 +90,14 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     public void testDelayedDataCheckEnabledShouldSetRequiredSummaryCountFieldOnNewExtractor() {
         Job job = buildJob("job-1", TIME_FIELD, SUMMARY_COUNT_FIELD);
         DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", DelayedDataCheckConfig.defaultDelayedDataCheckConfig(), null);
-        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(
+            client,
+            datafeed,
+            job,
+            timingStatsReporter,
+            ANALYZER,
+            EsqlDatafeedQuery.parse(ANALYZER, ESQL_QUERY)
+        );
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
 
@@ -88,7 +108,14 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         Job job = buildJob("job-1", TIME_FIELD, null);
         Map<String, String> headers = Map.of("es-security-runas-user", "test-user");
         DatafeedConfig datafeed = buildDatafeed("datafeed-1", "job-1", null, headers);
-        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(
+            client,
+            datafeed,
+            job,
+            timingStatsReporter,
+            ANALYZER,
+            EsqlDatafeedQuery.parse(ANALYZER, ESQL_QUERY)
+        );
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
 
@@ -98,7 +125,14 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
     public void testProjectRoutingShouldBeCopiedIntoContextOnNewExtractor() {
         Job job = buildJob("job-1", TIME_FIELD, null);
         DatafeedConfig datafeed = buildDatafeedWithProjectRouting("datafeed-1", "job-1", "_alias:_origin");
-        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(client, datafeed, job, timingStatsReporter);
+        EsqlDataExtractorFactory factory = new EsqlDataExtractorFactory(
+            client,
+            datafeed,
+            job,
+            timingStatsReporter,
+            ANALYZER,
+            EsqlDatafeedQuery.parse(ANALYZER, ESQL_QUERY)
+        );
 
         EsqlDataExtractor extractor = (EsqlDataExtractor) factory.newExtractor(0L, 1000L);
 
@@ -113,7 +147,7 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         AtomicBoolean onFailureCalled = new AtomicBoolean(false);
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(onResponse::set, e -> onFailureCalled.set(true));
 
-        EsqlDataExtractorFactory.create(client, datafeed, job, timingStatsReporter, listener);
+        EsqlDataExtractorFactory.create(client, datafeed, job, timingStatsReporter, ANALYZER, listener);
 
         assertThat(onFailureCalled.get(), is(false));
         assertThat(onResponse.get(), instanceOf(EsqlDataExtractorFactory.class));
@@ -122,6 +156,27 @@ public class EsqlDataExtractorFactoryTests extends ESTestCase {
         assertThat(factory.datafeed(), equalTo(datafeed));
         assertThat(factory.job(), equalTo(job));
         assertThat(factory.timingStatsReporter(), equalTo(timingStatsReporter));
+    }
+
+    public void testInvalidQueryShouldFailFactoryCreation() {
+        Job job = buildJob("job-1", TIME_FIELD, null);
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed-1", "job-1");
+        builder.setEsqlQuery("FROM logs | NOT_A_COMMAND x");
+        builder.setSourceTimeField(SOURCE_TIME_FIELD);
+        builder.setGroupingInterval(TimeValue.timeValueMinutes(1));
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        EsqlDataExtractorFactory.create(
+            client,
+            builder.build(),
+            job,
+            timingStatsReporter,
+            ANALYZER,
+            ActionListener.wrap(f -> fail("expected a parse failure"), failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(ElasticsearchException.class));
+        assertThat(((ElasticsearchException) failure.get()).status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
     private static Job buildJob(String jobId, String timeField, String summaryCountFieldName) {

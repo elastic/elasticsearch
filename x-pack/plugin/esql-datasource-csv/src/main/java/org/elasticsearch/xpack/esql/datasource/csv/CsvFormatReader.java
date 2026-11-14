@@ -29,12 +29,8 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Booleans;
@@ -347,13 +343,35 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * the original parser, preserving the existing surface contract.
      */
     static long tryParseSpaceSeparatedDatetimeMillis(String value) {
+        return tryParseFixedDatetimeMillis(value, ' ', false);
+    }
+
+    /**
+     * The same fixed-width template with the ISO {@code T} separator and an optional trailing {@code Z}:
+     * {@code YYYY-MM-DDTHH:MM:SS[.fff][Z]}. {@code Iso8601Parser} (Stage 1 of {@code tryParseDatetime}) accepts
+     * these too, but through a {@code DateTime} accessor, {@code DateFormatters.from} and a {@code ZonedDateTime}
+     * per value, which on a 2,000,000-row scan with one datetime column was a sixth of the read; an input without
+     * a zone resolves to UTC there exactly as here, so the two agree on every value this accepts. Anything else
+     * (another zone, a non-millisecond fraction) misses and takes the Stage 1 parser as before.
+     */
+    static long tryParseIsoUtcDatetimeMillis(String value) {
+        return tryParseFixedDatetimeMillis(value, 'T', true);
+    }
+
+    private static long tryParseFixedDatetimeMillis(String value, char separator, boolean allowZ) {
         int len = value.length();
+        if (allowZ && (len == 20 || len == 24)) {
+            if (value.charAt(len - 1) != 'Z') {
+                return FAST_PATH_MISS;
+            }
+            len--;
+        }
         if (len != 19 && len != 23) {
             return FAST_PATH_MISS;
         }
         if (value.charAt(4) != '-'
             || value.charAt(7) != '-'
-            || value.charAt(10) != ' '
+            || value.charAt(10) != separator
             || value.charAt(13) != ':'
             || value.charAt(16) != ':') {
             return FAST_PATH_MISS;
@@ -364,30 +382,90 @@ public class CsvFormatReader implements SegmentableFormatReader {
         int hour = parseFixedDigits(value, 11, 2);
         int minute = parseFixedDigits(value, 14, 2);
         int second = parseFixedDigits(value, 17, 2);
-        if ((year | month | day | hour | minute | second) < 0) {
-            return FAST_PATH_MISS;
-        }
         int millis = 0;
         if (len == 23) {
             if (value.charAt(19) != '.') {
                 return FAST_PATH_MISS;
             }
             millis = parseFixedDigits(value, 20, 3);
-            if (millis < 0) {
+        }
+        return utcEpochMillis(year, month, day, hour, minute, second, millis);
+    }
+
+    /**
+     * The same template as {@link #tryParseFixedDatetimeMillis(String, char, boolean)} read straight from a record's
+     * characters, for the direct-to-block path: the {@code T} and space separators both, a trailing {@code Z} with
+     * {@code T} only. Agrees with {@code tryParseDatetime} on every value it accepts (Stage 0 for {@code T}, Stage 2
+     * for the space; the ISO parser between them never accepts a space-separated value) so staging its result
+     * directly skips the per-cell {@link String} and the boxed {@code Long} without changing any answer.
+     */
+    static long tryParseFixedDatetimeMillis(char[] buf, int start, int len) {
+        if (len == 20 || len == 24) {
+            if (buf[start + len - 1] != 'Z' || buf[start + 10] != 'T') {
+                return FAST_PATH_MISS;
+            }
+            len--;
+        }
+        if (len != 19 && len != 23) {
+            return FAST_PATH_MISS;
+        }
+        char separator = buf[start + 10];
+        if (buf[start + 4] != '-'
+            || buf[start + 7] != '-'
+            || (separator != 'T' && separator != ' ')
+            || buf[start + 13] != ':'
+            || buf[start + 16] != ':') {
+            return FAST_PATH_MISS;
+        }
+        int year = parseFixedDigits(buf, start, 4);
+        int month = parseFixedDigits(buf, start + 5, 2);
+        int day = parseFixedDigits(buf, start + 8, 2);
+        int hour = parseFixedDigits(buf, start + 11, 2);
+        int minute = parseFixedDigits(buf, start + 14, 2);
+        int second = parseFixedDigits(buf, start + 17, 2);
+        int millis = 0;
+        if (len == 23) {
+            if (buf[start + 19] != '.') {
+                return FAST_PATH_MISS;
+            }
+            millis = parseFixedDigits(buf, start + 20, 3);
+        }
+        return utcEpochMillis(year, month, day, hour, minute, second, millis);
+    }
+
+    /**
+     * Epoch milliseconds of a UTC civil date-time, or {@link #FAST_PATH_MISS} when any field is out of range. The
+     * ranges are those {@link LocalDateTime#of(int, int, int, int, int, int)} enforces (month 1-12, day within the
+     * month with the Gregorian leap rule, hour 0-23, minute and second 0-59; the year is four digits here) and the
+     * day count is the proleptic Gregorian calendar, so the result is {@code LocalDateTime.of(...).toInstant(UTC)}
+     * without the three objects and the exception on an invalid date: the caller falls through to the general
+     * parser for those, which keeps its "Failed to parse" message. A negative field is a digit-parse miss.
+     */
+    static long utcEpochMillis(int year, int month, int day, int hour, int minute, int second, int millis) {
+        if ((year | month | day | hour | minute | second | millis) < 0) {
+            return FAST_PATH_MISS;
+        }
+        if (month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59 || second > 59) {
+            return FAST_PATH_MISS;
+        }
+        if (day > 28) {
+            int lengthOfMonth = switch (month) {
+                case 2 -> ((year & 3) == 0 && (year % 100 != 0 || year % 400 == 0)) ? 29 : 28;
+                case 4, 6, 9, 11 -> 30;
+                default -> 31;
+            };
+            if (day > lengthOfMonth) {
                 return FAST_PATH_MISS;
             }
         }
-        // LocalDateTime.of validates calendar bounds (month 1..12, day-of-month per month, leap
-        // years etc.). Trapping the DateTimeException here keeps the fast path side-effect-free on
-        // invalid dates: the caller falls through to the general-purpose Stage 3 parser, which
-        // preserves the existing DateUtils.asDateTime semantics (including the user-facing
-        // "Failed to parse" error message it produces for genuinely invalid inputs).
-        try {
-            LocalDateTime ldt = LocalDateTime.of(year, month, day, hour, minute, second);
-            return ldt.toInstant(ZoneOffset.UTC).toEpochMilli() + millis;
-        } catch (DateTimeException e) {
-            return FAST_PATH_MISS;
-        }
+        // Days from 1970-01-01 (Howard Hinnant's days_from_civil), the same arithmetic as LocalDate.toEpochDay.
+        int y = month <= 2 ? year - 1 : year;
+        int era = Math.floorDiv(y, 400);
+        int yoe = y - era * 400;
+        int doy = (153 * (month > 2 ? month - 3 : month + 9) + 2) / 5 + day - 1;
+        int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        long epochDay = (long) era * 146097 + doe - 719468;
+        return (epochDay * 86400L + hour * 3600L + minute * 60L + second) * 1000L + millis;
     }
 
     /**
@@ -400,6 +478,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
         int result = 0;
         for (int i = 0; i < count; i++) {
             char c = value.charAt(offset + i);
+            if (c < '0' || c > '9') {
+                return -1;
+            }
+            result = result * 10 + (c - '0');
+        }
+        return result;
+    }
+
+    private static int parseFixedDigits(char[] buf, int offset, int count) {
+        int result = 0;
+        for (int i = 0; i < count; i++) {
+            char c = buf[offset + i];
             if (c < '0' || c > '9') {
                 return -1;
             }
@@ -2609,6 +2699,48 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return ib == ' ' || ib == '\t' || ib == '\f';
     }
 
+    /**
+     * {@link UnicodeUtil#UTF16toUTF8(char[], int, int, byte[])} writing at {@code outOffset}, which that overload has
+     * no form for: the same encoding byte for byte, an unpaired surrogate becoming U+FFFD. Returns the number of bytes
+     * written; {@code out} must have {@link UnicodeUtil#maxUTF8Length} bytes free at {@code outOffset}.
+     */
+    static int utf16ToUtf8(char[] source, int offset, int length, byte[] out, int outOffset) {
+        int upto = outOffset;
+        int i = offset;
+        final int end = offset + length;
+        while (i < end) {
+            final int code = source[i++];
+            if (code < 0x80) {
+                out[upto++] = (byte) code;
+            } else if (code < 0x800) {
+                out[upto++] = (byte) (0xC0 | (code >> 6));
+                out[upto++] = (byte) (0x80 | (code & 0x3F));
+            } else if (code < 0xD800 || code > 0xDFFF) {
+                out[upto++] = (byte) (0xE0 | (code >> 12));
+                out[upto++] = (byte) (0x80 | ((code >> 6) & 0x3F));
+                out[upto++] = (byte) (0x80 | (code & 0x3F));
+            } else {
+                if (code < 0xDC00 && i < end) {
+                    int low = source[i];
+                    if (low >= 0xDC00 && low <= 0xDFFF) {
+                        int utf32 = Character.toCodePoint((char) code, (char) low);
+                        i++;
+                        out[upto++] = (byte) (0xF0 | (utf32 >> 18));
+                        out[upto++] = (byte) (0x80 | ((utf32 >> 12) & 0x3F));
+                        out[upto++] = (byte) (0x80 | ((utf32 >> 6) & 0x3F));
+                        out[upto++] = (byte) (0x80 | (utf32 & 0x3F));
+                        continue;
+                    }
+                }
+                // An unpaired surrogate, or a low one first: the substitution character, as Lucene writes.
+                out[upto++] = (byte) 0xEF;
+                out[upto++] = (byte) 0xBF;
+                out[upto++] = (byte) 0xBD;
+            }
+        }
+        return upto - outOffset;
+    }
+
     @Override
     public String formatName() {
         return format;
@@ -4243,6 +4375,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private BytesRef[] stageRef;
         private boolean[] stageNull;
 
+        // Per-batch column arrays for the primitive-typed projected columns of the direct path. An accepted row's
+        // staged long/int/double/boolean goes into its column's array at the row's index (nulls into the column's
+        // bit set) and the batch ends with one array-backed block per column, instead of one builder call per
+        // cell: on a 2,000,000-row scan the builder dispatch was a seventh of the read without a JIT. The arrays
+        // are owned by the blocks once built, so they are allocated per batch, as a builder's would be.
+        private long[][] batchLong;
+        private int[][] batchInt;
+        private double[][] batchDouble;
+        private boolean[][] batchBool;
+        private BitSet[] batchNulls;
+        private int batchRow;
+
         // Current direct-path record view (a range into the record reader's reusable char[]), captured so
         // the cold error/warning paths can lazily materialize the raw row String without allocating one
         // on the accepted hot path. Set at the top of splitAndConvertDirect for each row.
@@ -5573,7 +5717,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * {@link #DIRECT_SKIP}ped (Jackson-compatible, first-cell-bounded comment detection on the raw
          * {@code char[]}, no row String); a per-record size-cap violation is routed through the error
          * policy and also skipped, mirroring the recovery contract of the String path. The record, when
-         * {@link #DIRECT_DATA}, is exposed via {@code recordReader.recordBuffer()/recordLength()}.
+         * {@link #DIRECT_DATA}, is exposed via {@code recordReader.recordBuffer()/recordOffset()/recordLength()}.
          */
         private int advanceDirectRecord() throws IOException {
             try {
@@ -5590,8 +5734,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return DIRECT_SKIP;
             }
             char[] recBuf = recordReader.recordBuffer();
-            int recLen = recordReader.recordLength();
-            if (isBlankOrCommentFirstCell(recBuf, 0, recLen, options.commentPrefix(), options.delimiter())) {
+            int recFrom = recordReader.recordOffset();
+            int recTo = recFrom + recordReader.recordLength();
+            if (isBlankOrCommentFirstCell(recBuf, recFrom, recTo, options.commentPrefix(), options.delimiter())) {
                 return DIRECT_SKIP;
             }
             // The raw first-cell comment check above is exact unless decoding could move the first
@@ -5601,8 +5746,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // example {@code "//x",a}) is skipped exactly as the Jackson bulk filter skips it.
             if (directBlockQuoted
                 && hasCommentFilter
-                && firstCellMayDecodeToComment(recBuf, recLen)
-                && decodedFirstCellIsComment(recBuf, recLen)) {
+                && firstCellMayDecodeToComment(recBuf, recFrom, recTo)
+                && decodedFirstCellIsComment(recBuf, recFrom, recTo)) {
                 return DIRECT_SKIP;
             }
             return DIRECT_DATA;
@@ -5616,9 +5761,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * For the common first cell (a plain id/keyword with no leading quote or escape) the raw check
          * in {@link #advanceDirectRecord} is exact and the decode is skipped.
          */
-        private boolean firstCellMayDecodeToComment(char[] buf, int to) {
+        private boolean firstCellMayDecodeToComment(char[] buf, int from, int to) {
             final char delim = options.delimiter();
-            int p = 0;
+            int p = from;
             while (p < to && buf[p] <= ' ' && buf[p] != delim) {
                 p++;
             }
@@ -5647,14 +5792,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * test. Only invoked on the quoted path for first cells {@link #firstCellMayDecodeToComment}
          * flags, so it is off the common hot path.
          */
-        private boolean decodedFirstCellIsComment(char[] buf, int to) {
+        private boolean decodedFirstCellIsComment(char[] buf, int from, int to) {
             final String prefix = options.commentPrefix();
             final char delim = options.delimiter();
             final char quote = options.quoteChar();
             final char esc = options.escapeChar();
             final boolean escapeAware = options.escaping();
             StringBuilder cell = resetQuotedBuf();
-            int p = 0;
+            int p = from;
             while (p < to && buf[p] <= ' ' && buf[p] != delim) {
                 p++;
             }
@@ -5757,7 +5902,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (captureStripeOffsets) {
                         directOffsets[dataIdx] = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
                     }
-                    if (splitAndConvertDirect(recordReader.recordBuffer(), 0, recordReader.recordLength())) {
+                    if (splitAndConvertDirect(
+                        recordReader.recordBuffer(),
+                        recordReader.recordOffset(),
+                        recordReader.recordOffset() + recordReader.recordLength()
+                    )) {
                         if (captureStripeOffsets) {
                             directSurvived[dataIdx] = true;
                         }
@@ -5778,8 +5927,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // are retained while parsing, then replayed into a builder sized with the exact byte total so
                 // the BytesRefArray byte storage is allocated once instead of regrowing, matching the
                 // byte-hinted Jackson path in convertRowsToPage (see buildRetainedByteHintColumns).
+                allocateBatchColumns(batchSize);
                 for (int i = 0; i < columnCount; i++) {
-                    if (useByteHint && columnToByteHintSlot[i] >= 0) {
+                    if ((useByteHint && columnToByteHintSlot[i] >= 0) || isBatchColumn(i)) {
                         continue;
                     }
                     builders[i] = BlockUtils.wrapperFor(blockFactory, DeclaredTypeCoercions.elementTypeFor(projectedTypes[i]), batchSize);
@@ -5802,7 +5952,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (captureStripeOffsets) {
                         directOffsets[dataIdx] = splitStartByte + recordReader.bytesRead() - recordReader.lastRecordBytes();
                     }
-                    if (splitAndConvertDirect(recordReader.recordBuffer(), 0, recordReader.recordLength())) {
+                    if (splitAndConvertDirect(
+                        recordReader.recordBuffer(),
+                        recordReader.recordOffset(),
+                        recordReader.recordOffset() + recordReader.recordLength()
+                    )) {
+                        batchRow = acceptedRows;
                         if (useByteHint) {
                             appendStagedRowDeferringByteHint(builders);
                         } else {
@@ -5825,11 +5980,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 Block[] blocks = new Block[columnCount];
                 for (int i = 0; i < columnCount; i++) {
-                    blocks[i] = builders[i].builder().build();
+                    blocks[i] = builders[i] != null ? builders[i].builder().build() : buildBatchColumn(i, acceptedRows);
                 }
                 return new Page(acceptedRows, blocks);
             } finally {
                 Releasables.closeExpectNoException(builders);
+                releaseBatchColumns();
             }
         }
 
@@ -5849,6 +6005,95 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             }
             acceptedRowStartBytes = survivors.finish();
+        }
+
+        /** Whether projected column {@code i} is staged into a per-batch array rather than a builder (see {@link #batchLong}). */
+        private boolean isBatchColumn(int i) {
+            return switch (directElements[i]) {
+                case LONG, INT, DOUBLE, BOOLEAN -> true;
+                default -> false;
+            };
+        }
+
+        private void allocateBatchColumns(int batchSize) {
+            if (batchNulls == null) {
+                batchLong = new long[columnCount][];
+                batchInt = new int[columnCount][];
+                batchDouble = new double[columnCount][];
+                batchBool = new boolean[columnCount][];
+                batchNulls = new BitSet[columnCount];
+            }
+            for (int i = 0; i < columnCount; i++) {
+                switch (directElements[i]) {
+                    case LONG -> batchLong[i] = new long[batchSize];
+                    case INT -> batchInt[i] = new int[batchSize];
+                    case DOUBLE -> batchDouble[i] = new double[batchSize];
+                    case BOOLEAN -> batchBool[i] = new boolean[batchSize];
+                    default -> {
+                    }
+                }
+                batchNulls[i] = null;
+            }
+        }
+
+        /** Drops the references to arrays that are now owned by blocks (or were abandoned by a failed batch). */
+        private void releaseBatchColumns() {
+            if (batchNulls == null) {
+                return;
+            }
+            for (int i = 0; i < columnCount; i++) {
+                batchLong[i] = null;
+                batchInt[i] = null;
+                batchDouble[i] = null;
+                batchBool[i] = null;
+                batchNulls[i] = null;
+            }
+        }
+
+        private void markBatchNull(int i) {
+            BitSet nulls = batchNulls[i];
+            if (nulls == null) {
+                nulls = new BitSet();
+                batchNulls[i] = nulls;
+            }
+            nulls.set(batchRow);
+        }
+
+        /** Builds the array-backed block of a primitive column from its batch array, trimmed to the accepted rows. */
+        private Block buildBatchColumn(int i, int rows) {
+            BitSet nulls = batchNulls[i];
+            Block.MvOrdering ordering = Block.MvOrdering.UNORDERED;
+            switch (directElements[i]) {
+                case LONG -> {
+                    long[] values = batchLong[i].length == rows ? batchLong[i] : Arrays.copyOf(batchLong[i], rows);
+                    batchLong[i] = null;
+                    return nulls == null
+                        ? blockFactory.newLongArrayVector(values, rows).asBlock()
+                        : blockFactory.newLongArrayBlock(values, rows, null, nulls, ordering);
+                }
+                case INT -> {
+                    int[] values = batchInt[i].length == rows ? batchInt[i] : Arrays.copyOf(batchInt[i], rows);
+                    batchInt[i] = null;
+                    return nulls == null
+                        ? blockFactory.newIntArrayVector(values, rows).asBlock()
+                        : blockFactory.newIntArrayBlock(values, rows, null, nulls, ordering);
+                }
+                case DOUBLE -> {
+                    double[] values = batchDouble[i].length == rows ? batchDouble[i] : Arrays.copyOf(batchDouble[i], rows);
+                    batchDouble[i] = null;
+                    return nulls == null
+                        ? blockFactory.newDoubleArrayVector(values, rows).asBlock()
+                        : blockFactory.newDoubleArrayBlock(values, rows, null, nulls, ordering);
+                }
+                case BOOLEAN -> {
+                    boolean[] values = batchBool[i].length == rows ? batchBool[i] : Arrays.copyOf(batchBool[i], rows);
+                    batchBool[i] = null;
+                    return nulls == null
+                        ? blockFactory.newBooleanArrayVector(values, rows).asBlock()
+                        : blockFactory.newBooleanArrayBlock(values, rows, null, nulls, ordering);
+                }
+                default -> throw new IllegalStateException("Not a batch column: " + directElements[i]);
+            }
         }
 
         /** Resets the per-batch byte-hint retain buffers, allocating them on first use and reusing them after. */
@@ -5895,12 +6140,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     byte[] data = kwRetainData[slot];
                     int used = kwRetainDataLen[slot];
                     int need = used + v.length;
-                    if (data == null || need > data.length) {
-                        int newCap = data == null ? Math.max(64, need) : Math.max(need, data.length * 2);
-                        data = data == null ? new byte[newCap] : Arrays.copyOf(data, newCap);
-                        kwRetainData[slot] = data;
+                    if (v.bytes != data || v.offset != used) {
+                        // Not encoded in place by keywordRef (an empty, converted or quoted value): copy it.
+                        if (data == null || need > data.length) {
+                            int newCap = data == null ? Math.max(64, need) : Math.max(need, data.length * 2);
+                            data = data == null ? new byte[newCap] : Arrays.copyOf(data, newCap);
+                            kwRetainData[slot] = data;
+                        }
+                        System.arraycopy(v.bytes, v.offset, data, used, v.length);
                     }
-                    System.arraycopy(v.bytes, v.offset, data, used, v.length);
                     valueLen[row] = v.length;
                     kwRetainDataLen[slot] = need;
                     if (stats) {
@@ -5959,12 +6207,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
 
-        /** Flushes one column's staged value into its builder (no boxing); feeds column stats when enabled. */
+        /**
+         * Flushes one column's staged value (no boxing): a primitive column's into its batch array at {@link #batchRow},
+         * a bytes column's into its builder. Feeds column stats when enabled.
+         */
         private void appendStagedColumn(BlockUtils.BuilderWrapper[] builders, int i) {
             final boolean stats = accumulateDirectStats;
-            Block.Builder builder = builders[i].builder();
             if (stageNull[i]) {
-                builder.appendNull();
+                if (builders[i] != null) {
+                    builders[i].builder().appendNull();
+                } else {
+                    markBatchNull(i);
+                }
                 if (stats) {
                     columnStats.acceptNullAt(i);
                 }
@@ -5972,31 +6226,31 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             switch (directElements[i]) {
                 case LONG -> {
-                    ((LongBlock.Builder) builder).appendLong(stageLong[i]);
+                    batchLong[i][batchRow] = stageLong[i];
                     if (stats) {
                         columnStats.acceptLongAt(i, stageLong[i]);
                     }
                 }
                 case INT -> {
-                    ((IntBlock.Builder) builder).appendInt(stageInt[i]);
+                    batchInt[i][batchRow] = stageInt[i];
                     if (stats) {
                         columnStats.acceptIntAt(i, stageInt[i]);
                     }
                 }
                 case DOUBLE -> {
-                    ((DoubleBlock.Builder) builder).appendDouble(stageDouble[i]);
+                    batchDouble[i][batchRow] = stageDouble[i];
                     if (stats) {
                         columnStats.acceptDoubleAt(i, stageDouble[i]);
                     }
                 }
                 case BOOLEAN -> {
-                    ((BooleanBlock.Builder) builder).appendBoolean(stageBool[i]);
+                    batchBool[i][batchRow] = stageBool[i];
                     if (stats) {
                         columnStats.acceptBooleanAt(i, stageBool[i]);
                     }
                 }
                 case BYTES_REF -> {
-                    ((BytesRefBlock.Builder) builder).appendBytesRef(stageRef[i]);
+                    ((BytesRefBlock.Builder) builders[i].builder()).appendBytesRef(stageRef[i]);
                     if (stats) {
                         columnStats.acceptBytesRefAt(i, stageRef[i]);
                     }
@@ -6175,10 +6429,53 @@ public class CsvFormatReader implements SegmentableFormatReader {
             directRecBuf = buf;
             directRecFrom = from;
             directRecTo = to;
+            // The record reader found the field ends while it was finding the record's end, when the record has no
+            // quote or escape character: then neither splitter would find anything else in a walk of its own.
+            int[] ends = recordReader.plainFieldEnds();
+            if (ends != null) {
+                return splitAndConvertPlainFields(buf, from, to, ends, recordReader.plainFieldEndCount());
+            }
             if (directBlockQuoted) {
                 return splitAndConvertOptimisticQuoted(buf, from, to);
             }
             return splitAndConvertPlain(buf, from, to);
+        }
+
+        /**
+         * {@link #splitAndConvertPlain} for a record whose field ends are already known: {@code ends} holds the
+         * offset within the record of each delimiter (see {@link CsvLogicalRecordReader#plainFieldEnds()}), so the
+         * fields are converted without a walk over the characters between them.
+         */
+        private boolean splitAndConvertPlainFields(char[] buf, int from, int to, int[] ends, int endCount) {
+            clearPendingErrors();
+            int fieldStart = from;
+            for (int fieldIndex = 0; fieldIndex <= endCount; fieldIndex++) {
+                int i = fieldIndex < endCount ? from + ends[fieldIndex] : to;
+                if (fieldIndex < sourceIndexBound && projectedFieldSet.get(fieldIndex)) {
+                    int bufIdx = sourceToBufferIndex[fieldIndex];
+                    if (emitPlainField(buf, fieldStart, i, bufIdx, projectedTypes[bufIdx]) == false) {
+                        return false;
+                    }
+                } else if (checkUnprojectedFieldCap(buf, fieldStart, i) == false) {
+                    return false;
+                }
+                fieldStart = i + 1;
+            }
+            int totalFields = endCount + 1;
+            if (totalFields > rowWidthLimit) {
+                clearPendingErrors();
+                onRowError(rowTooWideMessage(totalFields), null, directRawLine(), true);
+                return false;
+            }
+            if (hasPendingErrors && flushPendingErrors(directRawLine()) == false) {
+                return false;
+            }
+            for (int c = 0; c < columnCount; c++) {
+                if (projectedIdx[c] < 0 || projectedIdx[c] >= totalFields) {
+                    stageNullValue(c);
+                }
+            }
+            return true;
         }
 
         /**
@@ -6455,10 +6752,25 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
                     }
                 }
+                case DATETIME -> {
+                    // The fixed-width ISO/space template straight from the characters when no formatter (declared
+                    // for this column or file-wide) outranks it; tryParseDatetime would resolve such a value to the
+                    // same millisecond through Stage 0 or Stage 2 after building a String for it. Anything else,
+                    // including every error, takes that path unchanged.
+                    if (datetimeFormatter == null
+                        && (declaredFormatters == null || bufIdx >= declaredFormatters.length || declaredFormatters[bufIdx] == null)) {
+                        long millis = tryParseFixedDatetimeMillis(buf, start, len);
+                        if (millis != FAST_PATH_MISS) {
+                            stageLongValue(bufIdx, millis);
+                            return true;
+                        }
+                    }
+                    return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
+                }
                 // UNSIGNED_LONG must stay on this cold path: the LONG fast arm above accumulates a raw signed
                 // value and can neither sign-flip nor represent anything above Long.MAX_VALUE, so routing
                 // unsigned_long through it would silently corrupt exactly the (2^63, 2^64) values it exists for.
-                case UNSIGNED_LONG, DATETIME, DATE_NANOS, BOOLEAN, IP, VERSION, NULL -> {
+                case UNSIGNED_LONG, DATE_NANOS, BOOLEAN, IP, VERSION, NULL -> {
                     return emitConvertedStageField(new String(buf, start, len), bufIdx, dt);
                 }
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dt);
@@ -6553,6 +6865,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 keywordScratch[bufIdx] = ref;
             }
             int maxBytes = UnicodeUtil.maxUTF8Length(len);
+            int slot = kwRetainData == null ? -1 : columnToByteHintSlot[bufIdx];
+            if (slot >= 0) {
+                // A retained column: encode in place at the end of its retain buffer, where
+                // appendStagedRowDeferringByteHint would otherwise copy the value to once the row is accepted
+                // (it recognises the value is already there). A rejected row never advances the buffer's
+                // length, so the next row overwrites it.
+                byte[] data = kwRetainData[slot];
+                int used = kwRetainDataLen[slot];
+                if (data == null || used + maxBytes > data.length) {
+                    int newCap = data == null ? Math.max(64, used + maxBytes) : Math.max(used + maxBytes, data.length * 2);
+                    data = data == null ? new byte[newCap] : Arrays.copyOf(data, newCap);
+                    kwRetainData[slot] = data;
+                }
+                ref.bytes = data;
+                ref.offset = used;
+                ref.length = utf16ToUtf8(buf, start, len, data, used);
+                return ref;
+            }
             if (ref.bytes.length < maxBytes) {
                 ref.bytes = new byte[maxBytes];
             }
@@ -7364,6 +7694,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return epoch;
                 }
                 // Overflowed a long; fall through to the ISO stages, which will report the failure.
+            }
+            // Stage 0: the fixed-width ISO UTC template, decided with digit comparisons and no intermediate
+            // objects; agrees with Stage 1 on every value it accepts (see tryParseIsoUtcDatetimeMillis).
+            long isoMillis = tryParseIsoUtcDatetimeMillis(value);
+            if (isoMillis != FAST_PATH_MISS) {
+                return isoMillis;
             }
             // Stage 1: ES's hand-rolled ISO-8601 parser (T-separator, date-only, zones, fractions)
             // avoids the DateTimeFormatter Parsed-HashMap allocation that dominates DateUtils.asDateTime.

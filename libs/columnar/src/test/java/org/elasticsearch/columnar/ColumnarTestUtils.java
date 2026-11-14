@@ -148,6 +148,53 @@ public final class ColumnarTestUtils {
         };
     }
 
+    /**
+     * Returns a cursor over each document's values, in array order, where a {@code null} or empty entry means the document
+     * has no value. {@link NumericColumnValues#advance} is not supported.
+     */
+    public static NumericColumnValues multiValuedCursor(final long[][] docValues) {
+        return new NumericColumnValues() {
+            private int doc = -1;
+            private int valueIndex;
+
+            @Override
+            public int valueCount() {
+                return docValues[doc].length;
+            }
+
+            @Override
+            public long nextValue() {
+                return docValues[doc][valueIndex++];
+            }
+
+            @Override
+            public int docID() {
+                return doc;
+            }
+
+            @Override
+            public int nextDoc() {
+                for (doc = doc + 1; doc < docValues.length; doc++) {
+                    if (docValues[doc] != null && docValues[doc].length > 0) {
+                        valueIndex = 0;
+                        return doc;
+                    }
+                }
+                return doc = DocIdSetIterator.NO_MORE_DOCS;
+            }
+
+            @Override
+            public int advance(int target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long cost() {
+                return docValues.length;
+            }
+        };
+    }
+
     /** Records every temporary file the columnar writers ask the directory for, by suffix. */
     public static final class TempOutputRecorder extends FilterDirectory {
         public final Set<String> columnarSuffixes = ConcurrentHashMap.newKeySet();

@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+  - 138974
+pr: 164910
+summary: Fix nested knn search over indices that don't map the field
+type: bug

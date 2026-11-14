@@ -620,3 +620,17 @@ FROM employees
 emp_no:integer | first_name:keyword | last_name:keyword | c:keyword
 10001          | Georgi             | Facello           | Georgi
 ;
+
+casePartialFoldAllNullArms
+required_capability: fn_case_partial_fold_all_null_arms
+
+FROM employees
+| EVAL c = CASE(false, "a", salary > 50000, null)
+| KEEP emp_no, c
+| SORT emp_no
+| LIMIT 2;
+
+emp_no:integer | c:keyword
+10001          | null
+10002          | null
+;

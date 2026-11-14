@@ -214,6 +214,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     }
 
     public void verify(Failures failures) {
+        checkForkBeforeAggregation(child(), failures);
         if (origin != Origin.PROMQL_COMMAND) {
             // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
             groupings().forEach(g -> {
@@ -281,6 +282,30 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                         );
                 }));
             }
+        }
+    }
+
+    /**
+     * Rejects {@code TS metrics | FORK ... | STATS ...}. The aggregation groups by the {@code _tsid} of its source, which a {@code FORK}
+     * does not carry. Unlike {@link #checkCommandsBeforeAggregation}, this runs before the aggregation is translated, because the
+     * translation leaves the {@code FORK} unresolved, and the verifier does not check a plan over unresolved children. Like it, it skips
+     * the right branch of an {@link AbstractSubqueryJoin}, where a {@code FORK} only shapes the independently executed subquery.
+     */
+    private void checkForkBeforeAggregation(LogicalPlan p, Failures failures) {
+        if (p instanceof Fork fork) {
+            failures.add(
+                fail(
+                    fork,
+                    "fork [{}] in the time-series before the first aggregation [{}] is not supported",
+                    fork.sourceText(),
+                    this.sourceText()
+                )
+            );
+            return;
+        }
+        List<LogicalPlan> children = p instanceof AbstractSubqueryJoin subqueryJoin ? List.of(subqueryJoin.left()) : p.children();
+        for (LogicalPlan child : children) {
+            checkForkBeforeAggregation(child, failures);
         }
     }
 

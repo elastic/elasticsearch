@@ -1,0 +1,6 @@
+FROM books
+| WHERE MATCH(description, "ring")
+| SORT book_no
+| LIMIT 5
+| HIGHLIGHT ON description
+| KEEP book_no, title, highlight_description

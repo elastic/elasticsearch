@@ -1253,7 +1253,8 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new UnsupportedOperationException("ROUND_TO not supported for byte");
             }
 
-            private boolean isOutOfRange(Object value) {
+            @Override
+            boolean isOutOfRange(Object value) {
                 double doubleValue = objectToDouble(value);
                 return doubleValue < Byte.MIN_VALUE || doubleValue > Byte.MAX_VALUE;
             }
@@ -1414,7 +1415,8 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new UnsupportedOperationException("ROUND_TO not supported for short");
             }
 
-            private boolean isOutOfRange(Object value) {
+            @Override
+            boolean isOutOfRange(Object value) {
                 double doubleValue = objectToDouble(value);
                 return doubleValue < Short.MIN_VALUE || doubleValue > Short.MAX_VALUE;
             }
@@ -1435,6 +1437,11 @@ public class NumberFieldMapper extends FieldMapper {
                     return ((Number) value).intValue();
                 }
                 return (int) doubleValue;
+            }
+
+            @Override
+            boolean isOutOfRange(Object value) {
+                return isOutOfRange(objectToDouble(value));
             }
 
             private boolean isOutOfRange(double value) {
@@ -1917,7 +1924,8 @@ public class NumberFieldMapper extends FieldMapper {
                 return new RoundToLongsFromDocValuesBlockLoader(fieldName, points);
             }
 
-            private boolean isOutOfRange(Object value) {
+            @Override
+            boolean isOutOfRange(Object value) {
                 if (value instanceof Long) {
                     return false;
                 }
@@ -2181,6 +2189,14 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public abstract IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType);
+
+        /**
+         * Whether {@code value} lies outside the range of this whole-number type, so that no value of a field of this type can
+         * equal it. Floating-point types have no such range.
+         */
+        boolean isOutOfRange(Object value) {
+            throw new UnsupportedOperationException("[" + name + "] is not a whole-number type");
+        }
 
         public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
             String name,
@@ -2744,8 +2760,6 @@ public class NumberFieldMapper extends FieldMapper {
     private final FieldValues<Number> scriptValues;
     private final boolean dimension;
     private final boolean writeDimensionRouting;
-    private final ScriptCompiler scriptCompiler;
-    private final Script script;
     private final MetricType metricType;
     private boolean allowMultipleValues;
     private final boolean isSyntheticSource;
@@ -2781,8 +2795,6 @@ public class NumberFieldMapper extends FieldMapper {
         this.writeDimensionRouting = this.dimension
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
-        this.scriptCompiler = builder.scriptCompiler;
-        this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
         this.allowMultipleValues = builder.allowMultipleValues;
         this.isSyntheticSource = isSyntheticSource;
@@ -2837,6 +2849,12 @@ public class NumberFieldMapper extends FieldMapper {
     @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || nullValue != null;
+    }
+
+    @Override
+    protected boolean readsEmptyStringAsNull() {
+        // value(XContentParser) reads an empty string as null when coercing, and rejects it as malformed otherwise.
+        return coerce();
     }
 
     @Override

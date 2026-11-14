@@ -35,3 +35,23 @@ setup:
         index: index1
         rest_total_hits_as_int: true
         terminate_after: -1
+
+---
+"test script field without a script is a bad request":
+
+  - do:
+      catch: bad_request
+      search:
+        index: index1
+        body:
+          script_fields:
+            field: {}
+
+  - do:
+      catch: bad_request
+      search:
+        index: index1
+        body:
+          script_fields:
+            field:
+              ignore_failure: true

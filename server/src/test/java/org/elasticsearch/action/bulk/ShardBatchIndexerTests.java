@@ -100,7 +100,8 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
 
     private final ShardBatchIndexer shardBatchIndexer = new ShardBatchIndexer(
         new BatchIndexingEnabled(ClusterSettings.createBuiltInClusterSettings()),
-        new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY))
+        new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),
+        DocumentParsingProvider.EMPTY_INSTANCE
     );
 
     private final List<IndexShard> trackedShards = new ArrayList<>();

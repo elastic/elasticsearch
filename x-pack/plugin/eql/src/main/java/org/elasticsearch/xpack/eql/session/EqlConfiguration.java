@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ResolvedIndexExpressions;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -37,6 +38,11 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final String projectRouting;
     private final boolean crossProjectEnabled;
     private final ResolvedIndexExpressions resolvedIndexExpressions;
+    // A merged field-caps response the caller already resolved for these indices (e.g. the ES|QL EQL source command),
+    // letting the engine plan against it instead of issuing its own _field_caps. Coordinator-local like
+    // EqlSearchRequest.resolvedTargetProjects: never serialized, because a caller's resolution describes the caller's
+    // view of the mapping — a cross-cluster-proxied request must re-resolve on the executing cluster.
+    private final transient FieldCapabilitiesResponse preResolvedFieldCaps;
 
     @Nullable
     private final QueryBuilder filter;
@@ -85,6 +91,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
             taskId,
             task,
             false,
+            null,
             null
         );
     }
@@ -109,7 +116,8 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         TaskId taskId,
         EqlSearchTask task,
         boolean crossProjectEnabled,
-        ResolvedIndexExpressions resolvedIndexExpressions
+        ResolvedIndexExpressions resolvedIndexExpressions,
+        @Nullable FieldCapabilitiesResponse preResolvedFieldCaps
     ) {
         super(zi, username, clusterName);
 
@@ -130,6 +138,13 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.projectRouting = projectRouting;
         this.crossProjectEnabled = crossProjectEnabled;
         this.resolvedIndexExpressions = resolvedIndexExpressions;
+        this.preResolvedFieldCaps = preResolvedFieldCaps;
+    }
+
+    /** The caller-supplied merged field-caps for these indices, or {@code null} if the engine should self-resolve. */
+    @Nullable
+    FieldCapabilitiesResponse preResolvedFieldCaps() {
+        return preResolvedFieldCaps;
     }
 
     public boolean crossProjectEnabled() {

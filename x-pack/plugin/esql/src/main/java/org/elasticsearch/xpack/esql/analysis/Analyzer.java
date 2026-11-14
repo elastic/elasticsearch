@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -84,13 +85,13 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.UnmappedEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.eql.EqlPageConverter;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -175,6 +176,7 @@ import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
@@ -201,6 +203,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetadata;
@@ -317,6 +320,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 new ViewCompactionPostIndexResolution(),
                 new UnwrapNamedSubqueries(),
                 new ResolveExternalRelations(),
+                new ResolveEqlRelation(),
                 new PruneEmptyUnionAllBranch(),
                 new ResolveEnrich(),
                 new ResolveIpLocation(),
@@ -1010,12 +1014,166 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private String extractTablePath(Expression tablePath) {
             if (tablePath instanceof Literal literal && literal.value() != null) {
                 Object value = literal.value();
-                if (value instanceof org.apache.lucene.util.BytesRef) {
-                    return BytesRefs.toString((org.apache.lucene.util.BytesRef) value);
+                if (value instanceof BytesRef) {
+                    return BytesRefs.toString((BytesRef) value);
                 }
                 return value.toString();
             }
             return null;
+        }
+    }
+
+    /**
+     * Resolves the {@link UnresolvedEqlRelation} produced by the {@code EQL <indexPattern> "<query>"} source command into a
+     * fully-typed {@link EqlRelation}. Two independent facts fix the output schema:
+     * <ul>
+     *   <li>The result mode (event / sequence / sample) the parser derived from the EQL query string. Sequence and sample
+     *       queries prepend the synthetics {@code _sequence}, {@code _sequence_stage} and {@code join_keys}.</li>
+     *   <li>The index pattern's field-caps mapping — resolved through the SAME shared path {@code FROM} uses
+     *       ({@code IndexResolver} / {@link Analyzer#mappingAsAttributes}), carried in {@link AnalyzerContext#indexResolution()}
+     *       keyed by the pattern — becomes one typed column per mapped field. Mapped types the converter cannot extract
+     *       (anything outside {@link EqlPageConverter#CONVERTIBLE_TYPES}) surface as {@code unsupported}, same UX as
+     *       {@code FROM}.</li>
+     * </ul>
+     * If the index pattern did not resolve, the node is rewritten unresolved with the resolution message (the verifier turns
+     * it into the standard "Unknown index" failure).
+     *
+     * <p>A {@code METADATA} clause appends provenance columns (last, after the mapped fields). Only the fields the EQL
+     * response envelope carries — {@code _index}, {@code _id}, {@code _source} — are supported; anything else is rejected.
+     */
+    private static class ResolveEqlRelation extends ParameterizedAnalyzerRule<UnresolvedEqlRelation, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnresolvedEqlRelation plan, AnalyzerContext context) {
+            IndexResolution resolution = context.indexResolution().get(plan.indexPattern());
+            if (resolution == null || resolution.isValid() == false) {
+                // Mirror ResolveTable's invalid branch, including the equal-message short-circuit that avoids a rule loop.
+                String message = resolution == null ? "[none specified]" : resolution.toString();
+                return unresolvedWith(plan, message);
+            }
+
+            // Validate METADATA against the fields the EQL response envelope can populate. "Unknown index" above keeps
+            // precedence; metadata errors fail the query through the verifier, like FROM's unresolved-metadata path.
+            String metadataError = validateEqlMetadata(plan.metadataFields());
+            if (metadataError != null) {
+                return unresolvedWith(plan, metadataError);
+            }
+
+            List<Attribute> mapped = mappingAsAttributes(plan.source(), resolution.get().mapping());
+            List<Attribute> synthetics = EqlRelation.syntheticColumns(plan.source(), plan.mode());
+            // A mapped field whose name collides with a synthetic (_sequence/_sequence_stage/join_keys) or a declared
+            // metadata column would produce two output columns of the same name. Values stay correct (the converter
+            // dispatches by attribute class, not name), but a downstream KEEP/SORT on that name is ambiguous, so fail
+            // loud here instead of emitting an ambiguous schema.
+            Set<String> reserved = new HashSet<>();
+            for (Attribute synthetic : synthetics) {
+                reserved.add(synthetic.name());
+            }
+            for (NamedExpression metadata : plan.metadataFields()) {
+                reserved.add(metadata.name());
+            }
+            for (Attribute attr : mapped) {
+                if (reserved.contains(attr.name())) {
+                    return unresolvedWith(
+                        plan,
+                        "mapped field [" + attr.name() + "] collides with the EQL command's reserved column of the same name"
+                    );
+                }
+            }
+            List<Attribute> output = new ArrayList<>(mapped.size() + synthetics.size() + plan.metadataFields().size());
+            output.addAll(synthetics);
+            for (Attribute attr : mapped) {
+                output.add(gateUnconvertibleType(plan.source(), attr));
+            }
+            // Metadata columns come last (matching FROM) and must NOT pass through gateUnconvertibleType — _source is
+            // DataType.SOURCE, which is not convertible, so gating would wrongly turn it into an unsupported column.
+            for (NamedExpression metadata : plan.metadataFields()) {
+                output.add(metadata.toAttribute());
+            }
+            // Only now, after metadata is appended, fall back to NO_FIELDS: an empty mapping with a METADATA clause
+            // still yields real metadata columns (mirror FROM, which always has at least one column).
+            List<Attribute> finalOutput = output.isEmpty() ? NO_FIELDS : output;
+            // Attach the coordinator-resolved field-caps (if any was retained for this pattern) so the EQL delegate
+            // reuses it; a null entry means none was retained and the EQL engine self-resolves.
+            return new EqlRelation(
+                plan.source(),
+                plan.indexPattern(),
+                plan.query(),
+                plan.options(),
+                plan.mode(),
+                plan.hasExplicitLimit(),
+                finalOutput,
+                null,
+                context.eqlFieldCaps().get(plan.indexPattern())
+            );
+        }
+
+        /** Rebuilds the unresolved node with a message, short-circuiting to avoid a rule loop (mirrors ResolveTable). */
+        private static LogicalPlan unresolvedWith(UnresolvedEqlRelation plan, String message) {
+            return plan.unresolvedMessage().equals(message)
+                ? plan
+                : new UnresolvedEqlRelation(
+                    plan.source(),
+                    plan.indexPattern(),
+                    plan.query(),
+                    plan.options(),
+                    plan.mode(),
+                    plan.hasExplicitLimit(),
+                    plan.metadataFields(),
+                    message
+                );
+        }
+
+        /**
+         * Returns an error message if any declared METADATA field cannot be populated by the EQL delegate, else null.
+         * The EQL response envelope carries only {@code _index}, {@code _id} and {@code _source} per event; FROM-known
+         * fields outside that set (e.g. {@code _score}, {@code _version}) and unknown names/wildcards are rejected.
+         */
+        private static String validateEqlMetadata(List<NamedExpression> metadataFields) {
+            // Not a static constant: EqlPageConverter must only initialize (and load EQL classes) for EQL queries.
+            Set<String> supported = EqlPageConverter.SUPPORTED_METADATA;
+            String hint = "supported metadata fields are " + supported.stream().sorted().toList();
+            List<String> errors = new ArrayList<>();
+            for (NamedExpression metadata : metadataFields) {
+                switch (metadata) {
+                    case MetadataAttribute ma -> {
+                        if (supported.contains(ma.name()) == false) {
+                            errors.add("metadata field [" + ma.name() + "] is not supported by the EQL command; " + hint);
+                        }
+                    }
+                    // MetadataAttribute.create returned an unresolved expression: unknown name or a wildcard (the EQL
+                    // delegate resolves no custom tags). Read pattern(), not name() — name() throws on an unresolved node.
+                    case UnresolvedMetadataAttributeExpression um -> errors.add("unknown metadata field [" + um.pattern() + "]; " + hint);
+                    default -> throw new IllegalStateException("Unexpected metadata type: " + metadata.getClass().getName());
+                }
+            }
+            return errors.isEmpty() ? null : String.join("; ", errors);
+        }
+
+        /**
+         * Replaces a mapped column whose type the converter cannot extract with an {@link UnsupportedAttribute} (same UX as
+         * {@code FROM}). Columns field-caps already turned unsupported ({@link UnsupportedAttribute} — itself a
+         * {@link FieldAttribute} subtype) pass through untouched, preserving their original type info. Union-type conflicts
+         * are diagnosed through the blessed {@link FieldAttribute#flagTypeConflicts()} path (the message names the ambiguity,
+         * matching {@code FROM}). The remaining gate is on {@link DataType}: anything outside {@code CONVERTIBLE_TYPES} becomes
+         * unsupported.
+         */
+        private static Attribute gateUnconvertibleType(Source source, Attribute attr) {
+            // UnsupportedAttribute extends FieldAttribute; leave field-caps' own unsupported columns untouched.
+            if (attr instanceof UnsupportedAttribute) {
+                return attr;
+            }
+            // A union-type field (ambiguous type across indices) surfaces as a FieldAttribute with dataType
+            // UNSUPPORTED; use the blessed FROM mechanism so the error names the conflict, not a generic EQL limit.
+            if (attr instanceof FieldAttribute fa && fa.hasTypeConflicts()) {
+                return fa.flagTypeConflicts();
+            }
+            if (attr instanceof FieldAttribute fa && EqlPageConverter.CONVERTIBLE_TYPES.contains(fa.dataType()) == false) {
+                String typeName = fa.dataType().typeName();
+                UnsupportedEsField field = new UnsupportedEsField(fa.name(), List.of(typeName), null, Map.of());
+                return new UnsupportedAttribute(source, fa.name(), field, "EQL command does not yet support [" + typeName + "] fields");
+            }
+            return attr;
         }
     }
 
@@ -2280,10 +2438,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             );
         }
 
-        private static @Nullable FieldAttribute mappedSiblingField(Attribute attr) {
-            return attr instanceof FieldAttribute fa
-                && fa instanceof UnsupportedAttribute == false
-                && fa.field() instanceof UnmappedEsField == false ? fa : null;
+        /**
+         * Whether the column {@code attr} of a merge, which some branch has and another lacks, can be one that the other branch has in
+         * its own {@code _source}: it has a type, which is the one that every branch that has it agrees on, and it is not metadata or
+         * something the analyzer made, neither of which is in {@code _source}.
+         */
+        private static boolean siblingColumnMayBeInSource(Attribute attr) {
+            return attr instanceof UnsupportedAttribute == false
+                && attr instanceof MetadataAttribute == false
+                && MetadataAttribute.isSupported(attr.name()) == false
+                && attr.synthetic() == false
+                && attr.dataType() != NULL
+                && attr.dataType() != UNSUPPORTED;
         }
 
         /**
@@ -2374,9 +2540,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * Either adds what the relation needs to {@code toLoad} (and, to convert it, an alias to {@code aliases}) and returns
          * {@code true}, or leaves the branch contributing nulls and returns {@code false}.
          * <ul>
-         *   <li>A {@code LOAD_ALL} extra: a sibling mapped the column and this branch never named it, so the keyword read from
-         *   {@code _source} is cast to the sibling's type when a cast exists, and otherwise null-filled with a warning. A field this
-         *   branch already named stays a keyword and conflicts further down, same as load.</li>
+         *   <li>A {@code LOAD_ALL} sibling column: a sibling branch of a union or a {@code FORK} has the column, with the same type in
+         *   every branch that has it, and this branch does not, so the keyword read from {@code _source} is cast to that type when a
+         *   cast exists, and otherwise null-filled with a warning. How the sibling got the column (a mapping, an {@code EVAL}, a
+         *   {@code RENAME}, a union or {@code FORK} nested in it) makes no difference, and neither does the order of the branches. A
+         *   column with no single type, such as one that the siblings disagree on, is not loaded. A field this branch already named
+         *   stays a keyword and conflicts further down, same as load.</li>
          *   <li>A field materialized in a sibling branch is materialized here too (rather than null-filled), unless this branch
          *   cannot surface it: loaded from {@code _source} under {@code LOAD}/{@code LOAD_ALL}, null-typed under nullify. This keeps
          *   the branches' source relations symmetric. Matched by name so a sibling's generating command (EVAL/MV_EXPAND/...)
@@ -2402,13 +2571,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             UnmappedResolution unmappedResolution = context.unmappedResolution();
             LogicalPlan branch = mergePlan.children().get(branchIndex);
-            FieldAttribute mapped = mappedSiblingField(attr);
-            if (mapped != null
-                && mergePlan instanceof UnionAll
+            if ((mergePlan instanceof UnionAll || mergePlan instanceof Fork)
                 && unmappedResolution.loadsAllUnmappedFields()
+                && siblingColumnMayBeInSource(attr)
+                && context.fieldCapsAsksFor(attr.name())
                 && branchCanSurfaceLoadedField(branch, attr.name())) {
+                // A sibling has the column, and has it with one type in every branch that does (otherwise the merged column is
+                // unsupported). The branch does not, so read it from its own _source and cast it to that type. What the sibling does
+                // to get the column (a mapping, an EVAL, a RENAME, a nested union or FORK) makes no difference. Only a column the field
+                // caps requests ask for: a branch that lacks one that was not asked for may well map it, with another type, and the
+                // query does not read the column then (see AnalyzerContext#fieldCapsAsksFor).
                 FieldAttribute loaded = unmappedKeyword(attr);
-                AbstractConvertFunction cast = EsqlDataTypeConverter.castFromKeyword(mapped.dataType(), loaded, context.configuration());
+                AbstractConvertFunction cast = EsqlDataTypeConverter.castFromKeyword(attr.dataType(), loaded, context.configuration());
                 if (cast != null) {
                     toLoad.add(loaded);
                     if (cast.isNoop() == false) {
@@ -2416,7 +2590,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                 } else {
                     // The branch contributes nulls to the column, as for any column it lacks; warn that it could not be loaded.
-                    context.subqueryNonLoadableNullFills().add(mapped.name());
+                    context.subqueryNonLoadableNullFills().add(attr.name());
                 }
                 return true;
             }

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165955
+summary: Fix CLAMP `unsigned_long` mixes and signatures
+type: bug

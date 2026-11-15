@@ -303,6 +303,8 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.add(
             new TestCaseSupplier(
+                // rounds up to 10^19, which does not fit into a long, so it overflows rather than
+                // dropping to zero - compare with <max unsigned_long>, <-19> above, where 10^19 fits
                 "<max long>, <-19>",
                 List.of(DataType.LONG, DataType.LONG),
                 () -> new TestCaseSupplier.TestCase(
@@ -312,8 +314,9 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                     ),
                     "RoundLongEvaluator[val=Attribute[channel=0], decimals=Attribute[channel=1]]",
                     DataType.LONG,
-                    equalTo(0L)
-                )
+                    equalTo(null)
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line 1:1: java.lang.ArithmeticException: long overflow")
             )
         );
         suppliers.add(
@@ -407,9 +410,23 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier(Long.MAX_VALUE, 5, Long.MAX_VALUE));
         suppliers.add(supplier(Long.MIN_VALUE, 5, Long.MIN_VALUE));
 
+        // a leading digit of 5 or more rounds up to the next power of ten instead of down to zero
+        suppliers.add(supplier(5L, -1, 10));
+        suppliers.add(supplier(9L, -1, 10));
+        suppliers.add(supplier(4L, -1, 0));
+        suppliers.add(supplier(50L, -2, 100));
+        suppliers.add(supplier(99L, -2, 100));
+        suppliers.add(supplier(49L, -2, 0));
+        suppliers.add(supplier(500L, -3, 1000));
+        suppliers.add(supplier(-5L, -1, -10));
+        suppliers.add(supplier(-50L, -2, -100));
+
         suppliers.add(supplier(0, 0, 0));
         suppliers.add(supplier(123, 2, 123));
         suppliers.add(supplier(123, -1, 120));
+        suppliers.add(supplier(5, -1, 10));
+        suppliers.add(supplier(-5, -1, -10));
+        suppliers.add(supplier(99, -2, 100));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(
             (nullPosition, nullValueDataType, original) -> nullPosition == 0 ? nullValueDataType : original.expectedType(),

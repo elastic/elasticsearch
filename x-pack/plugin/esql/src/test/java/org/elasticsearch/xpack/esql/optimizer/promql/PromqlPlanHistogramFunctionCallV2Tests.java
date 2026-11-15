@@ -11,14 +11,15 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramQuantile;
-import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
@@ -52,8 +53,7 @@ public class PromqlPlanHistogramFunctionCallV2Tests extends AbstractPromqlPlanOp
         PromqlHistogramQuantile quantile = expressions(plan, PromqlHistogramQuantile.class).getFirst();
         assertThat(as(quantile.upperBound(), Attribute.class).name(), equalTo("le"));
         // the index has no __name__ field: the source's view only leaves le out
-        TimeSeriesWithout source = expressions(plan, TimeSeriesWithout.class).getFirst();
-        assertThat(names(source.children().stream().map(Attribute.class::cast).toList()), equalTo(List.of("le")));
+        assertThat(sourceViews(plan.collect(TimeSeriesAggregate.class).getFirst()), equalTo(Set.of(List.of("le"))));
         assertThat(expressions(plan, TimeSeriesMetadataFilter.class), empty());
         assertThat(names(plan.output()), hasItem("_timeseries"));
     }

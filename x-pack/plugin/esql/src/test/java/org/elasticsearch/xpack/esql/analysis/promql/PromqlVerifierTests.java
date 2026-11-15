@@ -1157,7 +1157,7 @@ public class PromqlVerifierTests extends ESTestCase {
         tsdb.error(
             "PROMQL index=test step=5m count_values(\"v\", request_duration)",
             ParsingException.class,
-            containsString("Error building ESQL function for [count_values]: count_values() is not supported yet on native histograms")
+            containsString("count_values function is not yet supported on native histograms")
         );
     }
 

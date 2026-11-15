@@ -144,12 +144,7 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
         IntermediateResult ir = context.withRequired(union(open(), finite(keys))).translate(child());
         Expression value = ir.value();
         if (value.resolved() && value.dataType().isHistogram()) {
-            throw new ParsingException(
-                source(),
-                "Error building ESQL function for [{}]: {}() is not supported yet on native histograms",
-                functionName(),
-                functionName()
-            );
+            throw new ParsingException(source(), "{} function is not yet supported on native histograms", functionName());
         }
         if (ir.kind().constant) {
             return translateCountValuesConstant(context, ir, keys);

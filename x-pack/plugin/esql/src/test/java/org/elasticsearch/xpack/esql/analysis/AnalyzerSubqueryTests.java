@@ -1913,7 +1913,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         }
     }
 
-    // consecutive forks are not supported yet
+    // two FORKs written on one pipeline are rejected by the parser
     public void testConsecutiveForksInMainQuery() {
         analyzer().addEmployees("test").error("""
             FROM test
@@ -1972,29 +1972,6 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                         (WHERE emp_no > 50))
                   (WHERE emp_no > 100)
                 | KEEP emp_no
-            """, containsString("Only a single FORK command is supported, but found multiple"));
-    }
-
-    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
-    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
-    // differentiate this case from the consecutive FORKs.
-    public void testConsecutiveForksWithFromSubquery() {
-        analyzer().addEmployees("test").error("""
-            FROM (
-                FROM test
-                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
-            )
-            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
-            """, containsString("Only a single FORK command is supported, but found multiple"));
-    }
-
-    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
-    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
-    // differentiate this case from the consecutive FORKs.
-    public void testConsecutiveForksWithNestedView() {
-        analyzer().addEmployees("test").addView("fork_view", "FROM test | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)").error("""
-            FROM fork_view
-            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
             """, containsString("Only a single FORK command is supported, but found multiple"));
     }
 

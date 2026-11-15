@@ -59,13 +59,7 @@ public class EsqlParserQueryAnalyzer implements EsqlQueryAnalyzer {
 
     @Override
     public EsqlQueryStructure analyze(String query) {
-        EsqlStatement statement = parser.parse(
-            query,
-            new QueryParams(),
-            new InferenceSettings(Settings.EMPTY),
-            QueryPragmas.EMPTY,
-            EsqlFlags.DEFAULTS
-        );
+        EsqlStatement statement = parse(query);
         LogicalPlan plan = statement.plan();
         LogicalPlan source = leadingSource(plan);
         // FORK copies the input relation into every branch, so the same pattern can appear more than once.
@@ -77,6 +71,7 @@ public class EsqlParserQueryAnalyzer implements EsqlQueryAnalyzer {
             target.addAll(List.of(Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern())));
         });
         return new EsqlQueryStructure(
+            query,
             settings(statement),
             settingsText(query, statement),
             sourceCommand(source),
@@ -88,8 +83,18 @@ public class EsqlParserQueryAnalyzer implements EsqlQueryAnalyzer {
     }
 
     @Override
+    public String sourceFieldOf(EsqlQueryStructure structure, String outputColumn) {
+        // The structure holds no plan, so parse again; the query parsed once already, and a parse costs well under a millisecond.
+        return ColumnLineage.sourceFieldOf(parse(structure.query()).plan(), outputColumn);
+    }
+
+    @Override
     public boolean isDateType(String outputType) {
         return DataType.fromEs(outputType).isDate();
+    }
+
+    private EsqlStatement parse(String query) {
+        return parser.parse(query, new QueryParams(), new InferenceSettings(Settings.EMPTY), QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
     }
 
     private static Map<String, String> settings(EsqlStatement statement) {

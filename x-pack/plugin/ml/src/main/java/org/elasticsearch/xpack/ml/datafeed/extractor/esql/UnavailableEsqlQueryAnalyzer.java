@@ -21,6 +21,11 @@ public final class UnavailableEsqlQueryAnalyzer implements EsqlQueryAnalyzer {
     }
 
     @Override
+    public String sourceFieldOf(EsqlQueryStructure structure, String outputColumn) {
+        throw unavailable();
+    }
+
+    @Override
     public boolean isDateType(String outputType) {
         throw unavailable();
     }

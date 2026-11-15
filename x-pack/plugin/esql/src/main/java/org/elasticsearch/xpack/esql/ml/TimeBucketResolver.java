@@ -16,10 +16,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.ml.ColumnLineage.Computed;
+import org.elasticsearch.xpack.esql.ml.ColumnLineage.Scope;
+import org.elasticsearch.xpack.esql.ml.ColumnLineage.SourceField;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.TimeBucket;
 
@@ -44,7 +44,8 @@ final class TimeBucketResolver {
 
     private TimeBucketResolver() {}
 
-    private record BucketSource(@Nullable String field, TimeValue span) {}
+    /** A bucket over {@code field}, a source field, or over a computed value when {@code computedField}; both unset for TBUCKET. */
+    private record BucketSource(@Nullable String field, boolean computedField, TimeValue span) {}
 
     /**
      * The one fixed-span time bucket among the groupings of {@code aggregate}, or {@code null} if there is none or more than one.
@@ -56,7 +57,7 @@ final class TimeBucketResolver {
         BucketSource bucket = null;
         String column = null;
         for (Expression grouping : aggregate.groupings()) {
-            BucketSource source = bucketSource(grouping, aggregate.child());
+            BucketSource source = bucketSource(Alias.unwrap(grouping), Scope.below(aggregate.child()));
             if (source != null) {
                 if (bucket != null) {
                     return null;
@@ -65,73 +66,22 @@ final class TimeBucketResolver {
                 column = ((NamedExpression) grouping).name();
             }
         }
-        return bucket == null ? null : new TimeBucket(bucket.field(), bucket.span(), outputColumns(column, above));
+        return bucket == null ? null : new TimeBucket(bucket.field(), bucket.computedField(), bucket.span(), outputColumns(column, above));
     }
 
-    /** The bucket {@code expression} computes when it is itself a time function, or an attribute defined below as one. */
+    /**
+     * The bucket {@code value} computes when it is itself a time function, or an attribute defined below as one through EVAL,
+     * RENAME or a lower STATS grouping. Joins, merges and INLINE STATS end the search.
+     */
     @Nullable
-    private static BucketSource bucketSource(Expression expression, LogicalPlan below) {
-        Expression value = Alias.unwrap(expression);
+    private static BucketSource bucketSource(Expression value, Scope scope) {
         if (value instanceof UnresolvedFunction function) {
-            return bucketSource(function);
+            return bucketSource(function, scope);
         }
-        return value instanceof UnresolvedAttribute attribute ? lineage(attribute.name(), below) : null;
-    }
-
-    /** Follows {@code column} down through EVAL, RENAME and lower STATS groupings to the time function defining it. */
-    @Nullable
-    private static BucketSource lineage(String column, LogicalPlan plan) {
-        LogicalPlan node = plan;
-        while (true) {
-            switch (node) {
-                case Eval eval -> {
-                    // The last alias of a name wins, and a later alias may refer to an earlier one of the same EVAL.
-                    for (Alias alias : eval.fields().reversed()) {
-                        if (alias.name().equals(column)) {
-                            if (alias.child() instanceof UnresolvedFunction function) {
-                                return bucketSource(function);
-                            } else if (alias.child() instanceof UnresolvedAttribute attribute) {
-                                column = attribute.name();
-                            } else {
-                                return null;
-                            }
-                        }
-                    }
-                    node = eval.child();
-                }
-                case Rename rename -> {
-                    for (Alias renaming : rename.renamings().reversed()) {
-                        if (renaming.name().equals(column) && renaming.child() instanceof UnresolvedAttribute attribute) {
-                            column = attribute.name();
-                        }
-                    }
-                    node = rename.child();
-                }
-                case InlineStats ignored -> {
-                    return null;
-                }
-                case Aggregate aggregate -> {
-                    Expression grouping = grouping(aggregate, column);
-                    if (grouping == null) {
-                        return null;
-                    }
-                    return bucketSource(grouping, aggregate.child());
-                }
-                case UnaryPlan unary -> node = unary.child();
-                // Joins, merges (FORK, FROM with subqueries) and the source command end the lineage.
-                default -> {
-                    return null;
-                }
-            }
-        }
-    }
-
-    @Nullable
-    private static Expression grouping(Aggregate aggregate, String column) {
-        for (Expression grouping : aggregate.groupings()) {
-            if (grouping instanceof NamedExpression named && named.name().equals(column)) {
-                return grouping;
-            }
+        if (value instanceof UnresolvedAttribute attribute
+            && ColumnLineage.origin(attribute.name(), scope, false) instanceof Computed computed
+            && computed.expression() instanceof UnresolvedFunction function) {
+            return bucketSource(function, computed.scope());
         }
         return null;
     }
@@ -160,8 +110,8 @@ final class TimeBucketResolver {
                         }
                     }
                 }
-                case Keep keep -> columns.removeIf(name -> keep.projections().stream().noneMatch(projection -> matches(projection, name)));
-                case Drop drop -> columns.removeIf(name -> drop.removals().stream().anyMatch(removal -> matches(removal, name)));
+                case Keep keep -> columns.removeIf(name -> ColumnLineage.matchesAny(keep.projections(), name) == false);
+                case Drop drop -> columns.removeIf(name -> ColumnLineage.matchesAny(drop.removals(), name));
                 case InlineStats inlineStats -> {
                     // Aliased aggregates overwrite columns of the same name; unaliased groupings keep theirs.
                     if (inlineStats.child() instanceof Aggregate aggregate) {
@@ -198,36 +148,32 @@ final class TimeBucketResolver {
         return references.size() == 1 && columns.containsAll(references);
     }
 
-    private static boolean matches(NamedExpression pattern, String column) {
-        return switch (pattern) {
-            case UnresolvedStar ignored -> true;
-            case UnresolvedNamePattern namePattern -> namePattern.match(column);
-            case UnresolvedAttribute attribute -> attribute.name().equals(column);
-            default -> false;
-        };
-    }
-
     @Nullable
-    private static BucketSource bucketSource(UnresolvedFunction function) {
+    private static BucketSource bucketSource(UnresolvedFunction function, Scope scope) {
         List<Expression> args = function.arguments();
         return switch (function.name().toLowerCase(Locale.ROOT)) {
-            case "bucket" -> args.size() >= 2 ? fixedBucket(args.get(0), args.get(1)) : null;
-            case "date_trunc" -> args.size() == 2 ? fixedBucket(args.get(1), args.get(0)) : null;
-            case "tbucket" -> args.size() == 1 ? fixedBucket(null, args.get(0)) : null;
+            case "bucket" -> args.size() >= 2 ? fixedBucket(args.get(0), args.get(1), scope) : null;
+            case "date_trunc" -> args.size() == 2 ? fixedBucket(args.get(1), args.get(0), scope) : null;
+            case "tbucket" -> args.size() == 1 ? fixedBucket(null, args.get(0), scope) : null;
             default -> null;
         };
     }
 
+    /** A bucket with a fixed {@code span}, its {@code field} traced to a source field ({@code null} for TBUCKET), or {@code null}. */
     @Nullable
-    private static BucketSource fixedBucket(@Nullable Expression field, Expression span) {
-        if (field != null && field instanceof UnresolvedAttribute == false) {
-            return null;
-        }
+    private static BucketSource fixedBucket(@Nullable Expression field, Expression span, Scope scope) {
         TimeValue spanValue = span(span);
         if (spanValue == null) {
             return null;
         }
-        return new BucketSource(field == null ? null : ((UnresolvedAttribute) field).name(), spanValue);
+        if (field == null) {
+            return new BucketSource(null, false, spanValue);
+        }
+        if (field instanceof UnresolvedAttribute attribute
+            && ColumnLineage.origin(attribute.name(), scope, true) instanceof SourceField sourceField) {
+            return new BucketSource(sourceField.name(), false, spanValue);
+        }
+        return new BucketSource(null, true, spanValue);
     }
 
     /** A fixed span from a time-duration literal ({@code 1 hour}) or a string ({@code "1 hour"}); calendar periods are not fixed. */

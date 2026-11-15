@@ -374,6 +374,11 @@ public class MachineLearningTests extends ESTestCase {
         }
 
         @Override
+        public String sourceFieldOf(EsqlQueryStructure structure, String outputColumn) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public boolean isDateType(String outputType) {
             return false;
         }

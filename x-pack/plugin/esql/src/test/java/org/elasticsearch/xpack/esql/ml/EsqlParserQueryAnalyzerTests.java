@@ -239,19 +239,23 @@ public class EsqlParserQueryAnalyzerTests extends ESTestCase {
 
     public void testEvalDefinedGroupingShouldReportBucketAndGroupingColumn() {
         TimeBucket bucket = bucket("FROM x | EVAL h = DATE_TRUNC(1 hour, @timestamp) | STATS c = COUNT(*) BY h, host");
-        assertThat(bucket, equalTo(new TimeBucket("@timestamp", TimeValue.timeValueHours(1), Set.of("h"))));
+        assertThat(bucket, equalTo(new TimeBucket("@timestamp", false, TimeValue.timeValueHours(1), Set.of("h"))));
     }
 
-    public void testChainedEvalShouldReportFieldAsWrittenInTimeFunction() {
+    public void testChainedEvalShouldReportSourceFieldOfBucket() {
         assertBucket(
             "FROM x | EVAL t = @timestamp | EVAL h = BUCKET(t, 1 hour) | STATS c = COUNT(*) BY h",
-            "t",
+            "@timestamp",
             TimeValue.timeValueHours(1)
         );
     }
 
-    public void testRenameBelowStatsShouldReportRenamedField() {
-        assertBucket("FROM x | RENAME @timestamp AS ts | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour)", "ts", TimeValue.timeValueHours(1));
+    public void testRenameBelowStatsShouldReportOriginalSourceField() {
+        assertBucket(
+            "FROM x | RENAME @timestamp AS ts | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour)",
+            "@timestamp",
+            TimeValue.timeValueHours(1)
+        );
     }
 
     public void testRenamedGroupingBelowStatsShouldBeFollowed() {
@@ -266,7 +270,7 @@ public class EsqlParserQueryAnalyzerTests extends ESTestCase {
         TimeBucket bucket = bucket(
             "FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour), host | STATS m = MAX(c) BY b | WHERE m > 0 | SORT b"
         );
-        assertThat(bucket, equalTo(new TimeBucket("@timestamp", TimeValue.timeValueHours(1), Set.of("b"))));
+        assertThat(bucket, equalTo(new TimeBucket("@timestamp", false, TimeValue.timeValueHours(1), Set.of("b"))));
     }
 
     public void testLowerStatsAggregateShouldNotBeReportedAsBucket() {
@@ -326,6 +330,49 @@ public class EsqlParserQueryAnalyzerTests extends ESTestCase {
         assertNoBucket("FROM x | EVAL h = DATE_TRUNC(1 hour, @timestamp) | FORK (WHERE a > 1) (WHERE a < 1) | STATS c = COUNT(*) BY h");
         assertNoBucket("FROM x | EVAL h = DATE_TRUNC(1 hour, @timestamp) | LOOKUP JOIN l ON k | STATS c = COUNT(*) BY h");
         assertNoBucket("FROM x | EVAL h = DATE_TRUNC(1 hour, @timestamp) | INLINE STATS m = MAX(a) BY h | STATS c = COUNT(*) BY h");
+    }
+
+    public void testShadowedTimestampShouldReportSourceFieldOfBucket() {
+        TimeBucket bucket = bucket("FROM x | EVAL @timestamp = event.ingested | STATS c = COUNT(*) BY BUCKET(@timestamp, 1 hour)");
+        assertThat(bucket.field(), equalTo("event.ingested"));
+        assertThat(bucket.computedField(), is(false));
+    }
+
+    public void testComputedBucketFieldShouldBeReportedAsComputed() {
+        for (String query : List.of(
+            "FROM x | EVAL t = TO_DATETIME(raw) | STATS c = COUNT(*) BY BUCKET(t, 1 hour)",
+            "FROM x | EVAL t = @timestamp + 1 hour | RENAME t AS u | STATS c = COUNT(*) BY BUCKET(u, 1 hour)",
+            "FROM x | EVAL t = CASE(a > 0, @timestamp, event.ingested) | STATS c = COUNT(*) BY BUCKET(t, 1 hour)",
+            "FROM x | STATS c = COUNT(*) BY BUCKET(TO_DATETIME(raw), 1 hour)"
+        )) {
+            TimeBucket bucket = bucket(query);
+            assertThat(query, bucket.field(), nullValue());
+            assertThat(query, bucket.computedField(), is(true));
+            assertThat(query, bucket.span(), equalTo(TimeValue.timeValueHours(1)));
+        }
+    }
+
+    public void testTbucketShouldReportNoFieldAndNoComputedField() {
+        TimeBucket bucket = bucket("TS m | STATS max(cpu) BY TBUCKET(1 hour)");
+        assertThat(bucket.field(), nullValue());
+        assertThat(bucket.computedField(), is(false));
+    }
+
+    public void testRenamedAndKeptColumnShouldTraceToSourceField() {
+        assertThat(sourceFieldOf("FROM x | RENAME @timestamp AS ts | KEEP ts, host", "ts"), equalTo("@timestamp"));
+        assertThat(sourceFieldOf("FROM x | EVAL ts = @timestamp | WHERE host == \"a\" | KEEP ts", "ts"), equalTo("@timestamp"));
+        assertThat(sourceFieldOf("FROM x | WHERE a > 1", "@timestamp"), equalTo("@timestamp"));
+    }
+
+    public void testComputedOrRemovedColumnShouldHaveNoSourceField() {
+        assertThat(sourceFieldOf("FROM x | EVAL ts = TO_DATETIME(raw) | KEEP ts", "ts"), nullValue());
+        assertThat(sourceFieldOf("FROM x | RENAME @timestamp AS ts | KEEP host", "ts"), nullValue());
+        assertThat(sourceFieldOf("FROM x | DROP @timestamp", "@timestamp"), nullValue());
+        assertThat(sourceFieldOf("FROM x | FORK (WHERE a > 1) (WHERE a < 1)", "@timestamp"), nullValue());
+    }
+
+    private String sourceFieldOf(String query, String outputColumn) {
+        return analyzer.sourceFieldOf(analyzer.analyze(query), outputColumn);
     }
 
     private TimeBucket bucket(String query) {

@@ -14,6 +14,7 @@ import java.util.Objects;
 /**
  * Syntax facts of one ES|QL query.
  *
+ * @param query          the analyzed query text
  * @param settings       {@code SET name=value;} statements before the query, in order
  * @param settingsText   the exact query text of those statements, empty when there are none
  * @param sourceCommand  the leading source command as written ({@code FROM ...} or {@code TS ...}). When the parser collapses a
@@ -26,6 +27,7 @@ import java.util.Objects;
  *                       single subquery
  */
 public record EsqlQueryStructure(
+    String query,
     Map<String, String> settings,
     String settingsText,
     String sourceCommand,
@@ -43,6 +45,7 @@ public record EsqlQueryStructure(
     }
 
     public EsqlQueryStructure {
+        Objects.requireNonNull(query);
         settings = Map.copyOf(settings);
         Objects.requireNonNull(settingsText);
         Objects.requireNonNull(sourceCommand);

@@ -20,8 +20,6 @@ public abstract class AbstractVectorBuilder implements Vector.Builder {
     /** The number of bytes currently estimated with the breaker. */
     protected long estimatedBytes;
 
-    protected boolean pooled;
-
     protected AbstractVectorBuilder(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
     }
@@ -96,9 +94,5 @@ public abstract class AbstractVectorBuilder implements Vector.Builder {
     @Override
     public final boolean isReleased() {
         return closed;
-    }
-
-    public final void pooled(boolean pooled) {
-        this.pooled = pooled;
     }
 }

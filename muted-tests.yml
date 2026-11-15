@@ -530,11 +530,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/165491
-- class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testClosingNodeShouldWaitForOngoingMerge
-  issue: https://github.com/elastic/elasticsearch/issues/165534
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   tasks:
   - :x-pack:plugin:esql:compute:test

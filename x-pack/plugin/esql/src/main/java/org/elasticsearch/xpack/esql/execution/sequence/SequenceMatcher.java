@@ -61,6 +61,7 @@ public final class SequenceMatcher implements Releasable {
 
     private final int stages;
     private final long maxSpanNanos;
+    private long[] maxGapNanos;
     private final CircuitBreaker breaker;
     private final BooleanSupplier cancelled;
     private final Comparator<BytesRef> keyOrder;
@@ -89,18 +90,50 @@ public final class SequenceMatcher implements Releasable {
         BooleanSupplier cancelled,
         Comparator<BytesRef> keyOrder
     ) {
+        this(stages, maxSpan, breaker, cancelled, keyOrder, null);
+    }
+
+    /** Copies only explicitly configured incoming limits; zero and an absent array preserve the original matching policy. */
+    public SequenceMatcher(
+        int stages,
+        TimeValue maxSpan,
+        CircuitBreaker breaker,
+        BooleanSupplier cancelled,
+        Comparator<BytesRef> keyOrder,
+        @Nullable long[] maxGapNanos
+    ) {
         if (stages < 2) {
             throw new IllegalArgumentException("a sequence requires at least two stages");
         }
         if (maxSpan.nanos() <= 0) {
             throw new IllegalArgumentException("sequence maxspan must be positive");
         }
+        boolean hasLinkLimits = false;
+        if (maxGapNanos != null) {
+            if (maxGapNanos.length != stages || maxGapNanos[0] != 0) {
+                throw new IllegalArgumentException(
+                    "SEQUENCE incoming link limits must align with members and leave the first member unconstrained"
+                );
+            }
+            for (long limit : maxGapNanos) {
+                if (limit < 0) {
+                    throw new IllegalArgumentException("SEQUENCE link time limit must be positive or absent");
+                }
+                hasLinkLimits |= limit > 0;
+            }
+        }
         this.stages = stages;
         this.maxSpanNanos = maxSpan.nanos();
         this.breaker = Objects.requireNonNull(breaker);
         this.cancelled = Objects.requireNonNull(cancelled);
         this.keyOrder = Objects.requireNonNull(keyOrder);
-        reserve(BASE_BYTES);
+        reserve(BASE_BYTES + (hasLinkLimits ? longArrayBytes(stages) : 0));
+        try {
+            this.maxGapNanos = hasLinkLimits ? maxGapNanos.clone() : null;
+        } catch (RuntimeException | Error e) {
+            release(heldBytes);
+            throw e;
+        }
     }
 
     /**
@@ -146,6 +179,9 @@ public final class SequenceMatcher implements Releasable {
             }
             Candidate prefix = state.slots[stage - 1];
             if (prefix == null || prefix.last.compareTo(ordinal) >= 0) {
+                return null;
+            }
+            if (maxGapNanos != null && maxGapNanos[stage] > 0 && ordinal.exceedsSpan(prefix.last, maxGapNanos[stage])) {
                 return null;
             }
             if (stage == stages - 1) {
@@ -267,6 +303,10 @@ public final class SequenceMatcher implements Releasable {
         );
     }
 
+    private static long longArrayBytes(int length) {
+        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) length * Long.BYTES);
+    }
+
     private void reserve(long bytes) {
         breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
         heldBytes += bytes;
@@ -289,6 +329,12 @@ public final class SequenceMatcher implements Releasable {
         }
     }
 
+    /** Returns the latest original start across every incomplete stage, or null when no prefix remains. */
+    @Nullable
+    SequenceOrdinal latestStart() {
+        return expiry.isEmpty() ? null : expiry.last().start;
+    }
+
     int pendingCandidates() {
         return expiry.size();
     }
@@ -303,6 +349,7 @@ public final class SequenceMatcher implements Releasable {
             closed = true;
             expiry.clear();
             keys = null;
+            maxGapNanos = null;
             previousKey = null;
             previousOrdinal = null;
             release(heldBytes);
@@ -347,7 +394,7 @@ public final class SequenceMatcher implements Releasable {
      * Getters and closure are synchronized, so a concurrent close cannot return a null view. Borrowed views must
      * still be consumed before closing their owner; callers must coordinate the lifetime of in-flight payload reads.
      */
-    public static final class Match implements Releasable {
+    public static final class Match implements SequenceMatch {
         private final CircuitBreaker breaker;
         private final long bytes;
         private BytesRef key;

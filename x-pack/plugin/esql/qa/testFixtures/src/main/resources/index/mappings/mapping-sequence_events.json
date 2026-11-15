@@ -1,0 +1,9 @@
+{
+  "properties": {
+    "@timestamp": { "type": "date" },
+    "key": { "type": "keyword" },
+    "phase": { "type": "keyword" },
+    "label": { "type": "keyword" },
+    "n": { "type": "integer" }
+  }
+}

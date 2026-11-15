@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -180,6 +182,26 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         LinkedHashMap<String, List<UnresolvedAttribute>> unresolvedByName = collectUnresolved(plan);
         if (unresolvedByName.isEmpty()) {
             return plan;
+        }
+
+        if (load) {
+            // MEMBER's display name is a scoped diagnostic, never a physical field name to load from every source.
+            for (List<UnresolvedAttribute> attributes : unresolvedByName.values()) {
+                for (UnresolvedAttribute attribute : attributes) {
+                    if (attribute instanceof MemberReference member) {
+                        throw new VerificationException(
+                            List.of(
+                                Failure.fail(
+                                    member,
+                                    "Cannot load missing field [{}] for SEQUENCE member [{}]; use a mapped or stage-produced MEMBER field",
+                                    member.field(),
+                                    member.stage() + 1
+                                )
+                            )
+                        );
+                    }
+                }
+            }
         }
 
         // One representative UA per name for nullify/load (which only need distinct field names).

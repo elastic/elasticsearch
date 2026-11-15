@@ -183,7 +183,6 @@ public class ColumnInfoImpl implements ColumnInfo {
         return originalTypes;
     }
 
-    @Override
     @Nullable
     public Map<String, Object> meta() {
         return meta;

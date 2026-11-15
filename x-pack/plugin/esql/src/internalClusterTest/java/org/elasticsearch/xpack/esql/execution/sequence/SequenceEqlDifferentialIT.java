@@ -7,8 +7,16 @@
 
 package org.elasticsearch.xpack.esql.execution.sequence;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
@@ -21,7 +29,12 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -219,20 +232,64 @@ public class SequenceEqlDifferentialIT extends AbstractSequenceIntegTestCase {
         );
     }
 
+    /** The selected latest starts and consumed completions agree when the two engines share a verified tie order. */
     public void testControlledEqualTimestamps() throws Exception {
-        // One shard, one append-only bulk, and ascending event.sequence make EQL's explicit tie breaker agree with
-        // native PIT document order. This does not claim parity for arbitrary user-selected EQL tie-breaker fields.
-        indexEvents(
+        List<Event> events = List.of(
+            event("A1", "A", "shared", 0),
+            event("A2", "A", "shared", 0),
+            event("B3", "B", "shared", 0),
+            event("B4", "B", "shared", 0),
+            event("A5", "A", "shared", 0),
+            event("B6", "B", "shared", 0)
+        );
+        indexEvents(events, "date_nanos", true);
+        assertControlledTieOrder(events);
+        assertParity("key", false, TWO_STAGES, "30s", 100, 2, List.of(match("shared", "A2", "B3"), match("shared", "A5", "B6")));
+    }
+
+    /** Equal millisecond timestamps still order distinct events by the immutable PIT ordinal. */
+    public void testControlledSameTimestampContractsForDate() throws Exception {
+        assertControlledSameTimestampContracts("date");
+    }
+
+    /** Nanosecond mappings retain the same strict ordinal and key-partition contract when timestamps tie. */
+    public void testControlledSameTimestampContractsForDateNanos() throws Exception {
+        assertControlledSameTimestampContracts("date_nanos");
+    }
+
+    private void assertControlledSameTimestampContracts(String timestampType) throws Exception {
+        List<Event> events = List.of(
+            event("A-positive", "A", "positive", 0),
+            event("B-positive", "B", "positive", 0),
+            event("B-reverse", "B", "reverse", 0),
+            event("A-reverse", "A", "reverse", 0),
+            event("A-first", "A", "first", 0),
+            event("B-second", "B", "second", 0),
+            event("A-second", "A", "second", 0),
+            event("B-first", "B", "first", 0),
+            event("both-self", "both", "self", 0),
+            event("A-adjacent", "A", "adjacent", 0),
+            event("both-adjacent", "both", "adjacent", 0),
+            event("B-adjacent", "B", "adjacent", 0)
+        );
+        indexEvents(events, timestampType, true);
+        assertControlledTieOrder(events);
+        // At one full ordinal, stage 1 runs before stage 0. A is consumed once by both, then the distinct
+        // both event starts a new prefix consumed once by B. No prefix survives its completed match.
+        assertParity(
+            "key",
+            false,
+            List.of("phase in (\"A\", \"both\")", "phase in (\"B\", \"both\")"),
+            "30s",
+            100,
+            2,
             List.of(
-                event("A1", "A", "shared", 0),
-                event("A2", "A", "shared", 0),
-                event("B3", "B", "shared", 0),
-                event("B4", "B", "shared", 0),
-                event("A5", "A", "shared", 0),
-                event("B6", "B", "shared", 0)
+                match("positive", "A-positive", "B-positive"),
+                match("first", "A-first", "B-first"),
+                match("adjacent", "A-adjacent", "both-adjacent"),
+                match("adjacent", "both-adjacent", "B-adjacent")
             )
         );
-        assertParity("key", false, TWO_STAGES, "30s", 100, 2, List.of(match("shared", "A2", "B3"), match("shared", "A5", "B6")));
     }
 
     public void testOneEventEligibleForSeveralStages() throws Exception {
@@ -460,12 +517,20 @@ public class SequenceEqlDifferentialIT extends AbstractSequenceIntegTestCase {
     }
 
     private void indexEvents(List<Event> events) {
+        indexEvents(events, "date_nanos", false);
+    }
+
+    private void indexEvents(List<Event> events, String timestampType, boolean controlledTieOrder) {
+        Settings.Builder settings = indexSettings(1, 0);
+        if (controlledTieOrder) {
+            settings.put("index.sort.field", "event.sequence").put("index.sort.order", "asc");
+        }
         assertAcked(
             indicesAdmin().prepareCreate(INDEX)
-                .setSettings(indexSettings(1, 0))
+                .setSettings(settings)
                 .setMapping(
                     "@timestamp",
-                    "type=date_nanos",
+                    "type=" + timestampType,
                     "key",
                     "type=keyword",
                     "phase",
@@ -502,6 +567,83 @@ public class SequenceEqlDifferentialIT extends AbstractSequenceIntegTestCase {
         }
         assertFalse(bulk.get().hasFailures());
         refresh(INDEX);
+        if (controlledTieOrder) {
+            // The index is private to this fixture. One sorted immutable segment fixes native document order
+            // across the separate raw, EQL and native PITs without giving native matching an explicit tie-breaker field.
+            assertAcked(indicesAdmin().prepareAddBlock(IndexMetadata.APIBlock.WRITE, INDEX));
+            assertEquals(0, indicesAdmin().prepareForceMerge(INDEX).setMaxNumSegments(1).setFlush(true).get().getFailedShards());
+            refresh(INDEX);
+        }
+    }
+
+    /** Establish the declared full-ordinal order from raw PIT hits, independently of either matching engine. */
+    private void assertControlledTieOrder(List<Event> events) {
+        assertTrue(events.stream().allMatch(event -> event.nanos == 0));
+        BytesReference pit = new BytesArray(
+            BytesRef.deepCopyOf(
+                client().execute(TransportOpenPointInTimeAction.TYPE, new OpenPointInTimeRequest(INDEX).keepAlive(TIMEOUT))
+                    .actionGet(TIMEOUT)
+                    .getPointInTimeId()
+                    .toBytesRef()
+            )
+        );
+        Throwable primary = null;
+        try {
+            var source = new SearchSourceBuilder().sort(
+                new FieldSortBuilder("@timestamp").order(SortOrder.ASC).setFormat("strict_date_optional_time_nanos")
+            )
+                .sort(new FieldSortBuilder(ShardDocSortField.NAME).order(SortOrder.ASC))
+                .docValueField("event.sequence")
+                .size(events.size())
+                .pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(TIMEOUT));
+            var response = client().prepareSearch()
+                .setSource(source)
+                .setPreference(null)
+                .setPreFilterShardSize(Integer.MAX_VALUE)
+                .setAllowPartialSearchResults(false)
+                .get(TIMEOUT);
+            try {
+                if (response.pointInTimeId() != null) {
+                    pit = new BytesArray(BytesRef.deepCopyOf(response.pointInTimeId().toBytesRef()));
+                }
+                assertFalse(response.isTimedOut());
+                assertEquals(0, response.getFailedShards());
+                var hits = response.getHits().getHits();
+                assertEquals(events.size(), hits.length);
+                long previous = -1;
+                for (int ordinal = 0; ordinal < hits.length; ordinal++) {
+                    var hit = hits[ordinal];
+                    assertEquals(events.get(ordinal).id, hit.getId());
+                    assertEquals(2, hit.getSortValues().length);
+                    assertEquals(BASE, Instant.parse(hit.getSortValues()[0].toString()));
+                    assertTrue(hit.getSortValues()[1] instanceof Long);
+                    long shardDoc = (Long) hit.getSortValues()[1];
+                    assertTrue("PIT document coordinates must advance even at equal timestamps", shardDoc > previous);
+                    previous = shardDoc;
+                    assertNotNull(hit.field("event.sequence"));
+                    assertEquals(ordinal, ((Number) hit.field("event.sequence").getValue()).longValue());
+                }
+            } finally {
+                response.decRef();
+            }
+        } catch (Exception | Error failure) {
+            primary = failure;
+            throw failure;
+        } finally {
+            try {
+                var closed = client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pit)).actionGet(TIMEOUT);
+                assertTrue(closed.isSucceeded());
+                assertEquals(1, closed.getNumFreed());
+            } catch (Exception | Error cleanup) {
+                if (primary != null) {
+                    if (primary != cleanup) {
+                        primary.addSuppressed(cleanup);
+                    }
+                } else {
+                    throw cleanup;
+                }
+            }
+        }
     }
 
     private void installMeasurementHooks() {
@@ -575,7 +717,7 @@ public class SequenceEqlDifferentialIT extends AbstractSequenceIntegTestCase {
     /** Stores only the payload identity needed to compare matching, keeping payload layouts independent. */
     private record Match(List<Object> keys, List<String> identities) {}
 
-    /** Append order supplies event.sequence and native document order for controlled equal-timestamp fixtures. */
+    /** Generation order supplies event.sequence; controlled tie fixtures independently verify immutable PIT order. */
     private record Event(String id, String phase, String key, long nanos, List<String> labels) {}
 
     /** Observations from one complete query, with sampled memory rather than an asserted peak-memory bound. */

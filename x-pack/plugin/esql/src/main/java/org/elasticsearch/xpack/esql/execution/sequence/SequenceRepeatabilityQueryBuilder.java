@@ -30,7 +30,8 @@ import java.util.Objects;
 /**
  * Validates sequence source repeatability before a shard rewrites or executes its candidate/replay query. A PIT
  * freezes document visibility, not runtime scripts. Keeping the wrapper through match-none rewrites also validates
- * zero-hit inputs; the raw timestamp and demanded fields are checked even when projections hide their values.
+ * zero-hit inputs. Callers supply exactly the fields this read requires, including the raw timestamp for candidate
+ * selection and replay, so identity-only hydration does not evaluate an otherwise undemanded timestamp.
  */
 public final class SequenceRepeatabilityQueryBuilder extends AbstractQueryBuilder<SequenceRepeatabilityQueryBuilder> {
     public static final TransportVersion ESQL_SEQUENCE_REPEATABLE_INPUT = TransportVersion.fromName("esql_sequence_repeatable_input");
@@ -83,7 +84,7 @@ public final class SequenceRepeatabilityQueryBuilder extends AbstractQueryBuilde
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext context) {
-        // The shard must validate mappings and install the repeatability guard before any delegate rewrite can
+        // The shard must install the repeatability guard before any delegate rewrite can
         // remove an unsupported dependency or resolve an external lookup. In particular, do not unwrap match-none.
         return this;
     }
@@ -94,7 +95,6 @@ public final class SequenceRepeatabilityQueryBuilder extends AbstractQueryBuilde
             return new MatchNoneQueryBuilder("PIT slot is outside this SEQUENCE source").toQuery(context, visitor);
         }
         context.requireRepeatableEvaluation();
-        context.getFieldType("@timestamp");
         for (String field : fields) {
             context.getFieldType(field);
         }

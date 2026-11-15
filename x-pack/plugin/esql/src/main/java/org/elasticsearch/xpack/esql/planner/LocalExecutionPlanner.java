@@ -2026,8 +2026,7 @@ public class LocalExecutionPlanner {
         Layout.Builder layout = new Layout.Builder();
         layout.append(localSourceExec.output());
         LocalSourceOperator.PageSupplier supplier = () -> localSourceExec.supplier().get();
-        var operator = new LocalSourceOperator(supplier);
-        return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
+        return PhysicalOperation.fromSource(new LocalSourceFactory(() -> new LocalSourceOperator(supplier)), layout.build());
     }
 
     private PhysicalOperation planSequence(SequenceExec sequence, LocalExecutionPlannerContext context) {
@@ -2035,15 +2034,16 @@ public class LocalExecutionPlanner {
             throw new IllegalStateException("native SEQUENCE execution is not available in this planner");
         }
         var factory = sequenceFactory.create(sequence, (stage, output) -> {
-            return plan(
+            var planned = plan(
                 "sequence stage",
                 context.foldCtx(),
                 context.plannerSettings(),
                 new OutputExec(stage, output),
                 context.shardContexts(),
                 true
-            ).createDrivers(sessionId);
-        });
+            );
+            return () -> planned.createDrivers(sessionId);
+        }, context.analysisRegistry());
         context.driverParallelism(DriverParallelism.SINGLE);
         return PhysicalOperation.fromSource(factory, new Layout.Builder().append(sequence.output()).build());
     }

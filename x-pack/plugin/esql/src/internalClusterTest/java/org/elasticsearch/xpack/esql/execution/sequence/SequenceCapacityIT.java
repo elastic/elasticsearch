@@ -7,15 +7,26 @@
 
 package org.elasticsearch.xpack.esql.execution.sequence;
 
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
@@ -25,8 +36,10 @@ import org.junit.After;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -219,9 +232,11 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         Measured complete = measure("many_completed_matches", SEQUENCE + PROJECT + "| sort key | limit 400", shape);
         assertEquals(expected, complete.values());
         assertEquals(900L, complete.source().candidateRowsFetched());
+        assertEquals(5L, complete.source().candidateSearchRequests());
         assertEquals(600L, complete.source().payloadRowsFetched());
         assertEquals(12L, complete.source().payloadSearchRequests());
-        assertEquals(17L, complete.source().stageDrivers());
+        // Untouched raw payloads load late; the five candidate pages are the only stage executions.
+        assertEquals(5L, complete.source().stageDrivers());
         assertEquals(300L, complete.source().completedMatches());
         assertEquals(300L, complete.source().rowsEmitted());
         Measured limited = measure("many_completed_limit_one", SEQUENCE + PROJECT + "| limit 1", shape);
@@ -288,7 +303,7 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         assertEquals(10L, measured.source().stageDrivers());
     }
 
-    /** An unrelated routed copy of a selected ID fills the first payload page without hiding the later exact hit. */
+    /** Physical continuation skips an unrelated routed copy outside the selected shard's bounded identity batch. */
     public void testPayloadBatchPagesRoutedDuplicateIds() {
         createIndices();
         IndexRouting routing = IndexRouting.fromIndexMetadata(clusterService().state().metadata().getProject().index(FIRST));
@@ -358,9 +373,166 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         assertEquals(expected, measured.values());
         assertEquals(3L, measured.source().completedMatches());
         assertEquals(3L, measured.source().rowsEmitted());
-        assertEquals(7L, measured.source().payloadRowsFetched());
-        assertEquals(5L, measured.source().payloadSearchRequests());
-        assertEquals(6L, measured.source().stageDrivers());
+        assertEquals(7L, measured.source().candidateRowsFetched());
+        assertEquals(2L, measured.source().candidateSearchRequests());
+        assertEquals(6L, measured.source().payloadRowsFetched());
+        assertEquals(4L, measured.source().payloadSearchRequests());
+        // Physical late-field paging still fetches all selected payloads, without running replay drivers.
+        assertEquals(2L, measured.source().stageDrivers());
+    }
+
+    /** Physical membership excludes a routed duplicate between selected coordinates for both primaries. */
+    public void testPhysicalPayloadPagingSkipsInterleavedRoutedDuplicate() {
+        createIndices();
+        IndexRouting routing = IndexRouting.fromIndexMetadata(clusterService().state().metadata().getProject().index(FIRST));
+        String first = "physical-route0";
+        int shard = routing.getShard("middle", first);
+        String second = null;
+        for (int value = 1; value < 1000; value++) {
+            String candidate = "physical-route" + value;
+            if (routing.getShard("middle", candidate) != shard) {
+                second = candidate;
+                break;
+            }
+        }
+        assertNotNull(second);
+        String[] selectedIds = { "first", "alpha", "middle", "omega" };
+        List<Map<String, Object>> firstBodies = new ArrayList<>();
+        List<Map<String, Object>> secondBodies = new ArrayList<>();
+        for (int event = 0; event < selectedIds.length; event++) {
+            firstBodies.add(physicalPagingBody(event, "A", event * 100L));
+            secondBodies.add(physicalPagingBody(event, "B", 1000L + event));
+        }
+        var bulk = client().prepareBulk();
+        // The first routing's bulk order fixes alpha < unselected middle < omega within one Lucene shard.
+        bulk.add(prepareIndex(FIRST).setId("first").setRouting(first).setSource(firstBodies.get(0)));
+        bulk.add(prepareIndex(FIRST).setId("alpha").setRouting(first).setSource(firstBodies.get(1)));
+        bulk.add(
+            prepareIndex(FIRST).setId("middle")
+                .setRouting(first)
+                .setSource(
+                    "@timestamp",
+                    BASE.plusMillis(250).toString(),
+                    "key",
+                    "unmatched",
+                    "disposition",
+                    "candidate",
+                    "payload",
+                    "unselected-physical-copy"
+                )
+        );
+        bulk.add(prepareIndex(FIRST).setId("omega").setRouting(first).setSource(firstBodies.get(3)));
+        bulk.add(prepareIndex(FIRST).setId("middle").setRouting(second).setSource(firstBodies.get(2)));
+        for (int event = 0; event < selectedIds.length; event++) {
+            bulk.add(prepareIndex(SECOND).setId("B" + event).setSource(secondBodies.get(event)));
+        }
+        assertFalse(bulk.get().hasFailures());
+        refresh(FIRST, SECOND);
+        assertPhysicalPagingFixtureOrder();
+        for (int primary : List.of(1, 2)) {
+            int other = primary == 1 ? 2 : 1;
+            String query = """
+                SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+                (FROM sequence-capacity-a METADATA _id, _source | WHERE disposition=="candidate"
+                  | EVAL computed_payload=CONCAT(payload, "/computed") | KEEP key, _id, _source, computed_payload),
+                (FROM sequence-capacity-b METADATA _id, _source | WHERE disposition=="candidate"
+                  | EVAL computed_payload=CONCAT(payload, "/computed") | KEEP key, _id, _source, computed_payload)
+                | EVAL other_id=MEMBER(%s, _id), other_payload=MEMBER(%s, computed_payload)
+                | KEEP key, _id, other_id, computed_payload, other_payload, _source | LIMIT 10
+                """.formatted(primary, other, other);
+            Measured measured = measure("physical_routed_batch_primary_" + primary, query, new Shape(9, 5, 4));
+            List<List<Object>> expected = new ArrayList<>();
+            for (int event = 0; event < selectedIds.length; event++) {
+                expected.add(
+                    List.of(
+                        key(event),
+                        primary == 1 ? selectedIds[event] : "B" + event,
+                        primary == 1 ? "B" + event : selectedIds[event],
+                        payload(primary == 1 ? "A" : "B", event) + "/computed",
+                        payload(primary == 1 ? "B" : "A", event) + "/computed",
+                        primary == 1 ? firstBodies.get(event) : secondBodies.get(event)
+                    )
+                );
+            }
+            assertEquals(expected, measured.values());
+            assertEquals(4L, measured.source().completedMatches());
+            assertEquals(4L, measured.source().rowsEmitted());
+            // Two stages and two output batches fetch only the selected positions, without paging through the routed duplicate.
+            assertEquals(4L, measured.source().payloadSearchRequests());
+            assertEquals(8L, measured.source().payloadRowsFetched());
+        }
+    }
+
+    private static Map<String, Object> physicalPagingBody(int event, String stage, long millis) {
+        return Map.of(
+            "@timestamp",
+            BASE.plusMillis(millis).toString(),
+            "key",
+            key(event),
+            "disposition",
+            "candidate",
+            "payload",
+            payload(stage, event),
+            "body",
+            Map.of("stage", stage, "array", List.of(event, event + 100))
+        );
+    }
+
+    /** Checks real PIT coordinates before measuring, independently of the order in which PIT shards are enumerated. */
+    private void assertPhysicalPagingFixtureOrder() {
+        BytesReference pit = client().execute(
+            TransportOpenPointInTimeAction.TYPE,
+            new OpenPointInTimeRequest(FIRST).keepAlive(TimeValue.timeValueMinutes(2))
+        ).actionGet().getPointInTimeId();
+        try {
+            var source = new SearchSourceBuilder().query(idsQuery().addIds("alpha", "middle", "omega"))
+                .sort(new FieldSortBuilder(ShardDocSortField.NAME).order(SortOrder.ASC))
+                .size(10)
+                .fetchSource(true)
+                .pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(TimeValue.timeValueMinutes(2)));
+            var response = client().prepareSearch()
+                .setSource(source)
+                .setPreference(null)
+                .setPreFilterShardSize(Integer.MAX_VALUE)
+                .setAllowPartialSearchResults(false)
+                .get();
+            try {
+                if (response.pointInTimeId() != null) {
+                    pit = response.pointInTimeId();
+                }
+                assertFalse(response.isTimedOut());
+                assertEquals(0, response.getFailedShards());
+                assertEquals(4, response.getHits().getHits().length);
+                SearchHit alpha = null, omega = null, selected = null, unselected = null;
+                for (SearchHit hit : response.getHits().getHits()) {
+                    switch (hit.getId()) {
+                        case "alpha" -> alpha = hit;
+                        case "omega" -> omega = hit;
+                        case "middle" -> {
+                            if (hit.getSourceAsMap().get("key").equals("unmatched")) {
+                                unselected = hit;
+                            } else {
+                                selected = hit;
+                            }
+                        }
+                        default -> throw new AssertionError("unexpected physical fixture hit " + hit.getId());
+                    }
+                }
+                assertNotNull(alpha);
+                assertNotNull(omega);
+                assertNotNull(selected);
+                assertNotNull(unselected);
+                assertEquals(alpha.getShard().getShardId(), unselected.getShard().getShardId());
+                assertEquals(alpha.getShard().getShardId(), omega.getShard().getShardId());
+                assertNotEquals(alpha.getShard().getShardId(), selected.getShard().getShardId());
+                assertTrue((Long) alpha.getSortValues()[0] < (Long) unselected.getSortValues()[0]);
+                assertTrue((Long) unselected.getSortValues()[0] < (Long) omega.getSortValues()[0]);
+            } finally {
+                response.decRef();
+            }
+        } finally {
+            assertTrue(client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pit)).actionGet().isSucceeded());
+        }
     }
 
     private Measured measure(String scenario, String query, Shape shape) {

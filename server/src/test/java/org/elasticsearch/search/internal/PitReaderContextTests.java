@@ -10,7 +10,6 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -47,8 +46,7 @@ public class PitReaderContextTests extends ESTestCase {
                 100,
                 null,
                 SplitShardCountSummary.IRRELEVANT,
-                0L,
-                MappingLookup.EMPTY.cacheKey()
+                0L
             );
 
             // Calling isExpired() ticks a timer and time is now 1000

@@ -1795,28 +1795,19 @@ public class AuthorizationServiceTests extends ESTestCase {
         IndexMetadata denied = createIndexMetadata("private");
         mockClusterState(ProjectMetadata.builder(projectId).put(permitted, true).put(denied, true).build());
         String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        for (boolean scoped : new boolean[] { false, true }) {
-            SearchRequest request = aliasPitRequest(createEncodedPIT(permitted.getIndex(), denied.getIndex()), "alias-public");
-            if (scoped) {
-                request.setPointInTimeAuthorization(
-                    request.getPointInTimeAuthorizationIndices(),
-                    new OriginalIndices(new String[] { "alias-public" }, request.indicesOptions()),
-                    QueryBuilders.matchAllQuery()
-                );
-            }
-            assertThrowsAuthorizationException(
-                () -> authorize(authentication, TransportSearchAction.TYPE.name(), request),
-                TransportSearchAction.TYPE.name(),
-                "alias-user"
-            );
-            verify(auditTrail).accessDenied(
-                eq(requestId),
-                eq(authentication),
-                eq(TransportSearchAction.TYPE.name()),
-                eq(request),
-                authzInfoRoles(new String[] { role.getName() })
-            );
-        }
+        SearchRequest request = aliasPitRequest(createEncodedPIT(permitted.getIndex(), denied.getIndex()), "alias-public");
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request),
+            TransportSearchAction.TYPE.name(),
+            "alias-user"
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(TransportSearchAction.TYPE.name()),
+            eq(request),
+            authzInfoRoles(new String[] { role.getName() })
+        );
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -2096,7 +2087,8 @@ public class AuthorizationServiceTests extends ESTestCase {
     private static SearchRequest aliasPitRequest(BytesReference encodedPit, String... aliases) {
         SearchRequest request = new SearchRequest().source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(encodedPit)))
             .allowPartialSearchResults(false);
-        request.setPointInTimeAuthorizationIndices(new OriginalIndices(aliases, request.indicesOptions()));
+        OriginalIndices original = new OriginalIndices(aliases, request.indicesOptions());
+        request.setPointInTimeAuthorization(original, original, QueryBuilders.matchAllQuery());
         return request;
     }
 

@@ -219,6 +219,9 @@ public class CommandLicenseTests extends ESTestCase {
             case "Limit" -> {
                 return new Limit(source, null, child);
             }
+            case "Sequence" -> {
+                return SequenceTests.randomSequence();
+            }
         }
 
         // For all others, find the constructor that takes Source and LogicalPlan as the first two parameters

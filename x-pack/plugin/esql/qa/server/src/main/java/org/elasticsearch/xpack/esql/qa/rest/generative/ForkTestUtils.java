@@ -29,6 +29,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_VIEWS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_WHERE_IN_SUBQUERY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PROMQL_COMMAND_V0;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEQUENCE_COMMAND;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
@@ -47,6 +48,10 @@ public class ForkTestUtils {
      * sub-variant silently without failing the whole test).
      */
     public static void shouldSkipForkTest(CsvSpecReader.CsvTestCase testCase, RestClient adminClient) {
+        assumeFalse(
+            "SEQUENCE output does not support generated FORK or duplicate-subquery wrappers",
+            testCase.requiredCapabilities.contains(SEQUENCE_COMMAND.capabilityName())
+        );
         assumeFalse(
             "Tests using FORK are skipped since we don't support multiple FORKs",
             testCase.requiredCapabilities.contains(FORK_V9.capabilityName())

@@ -6,7 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
+import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -14,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
@@ -21,15 +26,21 @@ import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
+import org.elasticsearch.xpack.esql.execution.sequence.SequenceDocValuesSearchExt;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
 
@@ -37,10 +48,14 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -59,6 +74,7 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         var plugins = new ArrayList<>(super.nodePlugins());
         assertTrue(plugins.removeIf(EsqlPlugin.class::isAssignableFrom));
         plugins.add(TrackingPlugin.class);
+        plugins.add(MockTransportService.TestPlugin.class);
         return plugins;
     }
 
@@ -289,6 +305,372 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
                         response.values(),
                         List.of(List.of(primary == 1 ? "downloader" : "runner", primary == 1 ? "runner" : "downloader"))
                     );
+                }
+            }
+        }
+    }
+
+    /** Parsed stage keys and projected payloads retain the complete selected physical events through all consumers. */
+    public void testRetainedParsingUsesParsedKeysAndAuthenticOriginals() throws Exception {
+        for (String extraction : List.of(
+            "DISSECT raw \"%{parsed_key}:%{payload}:%{unused}\"",
+            "GROK raw \"^%{DATA:parsed_key}:%{WORD:payload}:%{WORD:unused}$\""
+        )) {
+            for (int primary : List.of(1, 2)) {
+                String stage = "EVAL raw = CONCAT(host.id, \":\", user.name, \":unused\") | "
+                    + extraction
+                    + " | RENAME payload AS actor | DROP unused | KEEP parsed_key, actor";
+                try (var response = query("""
+                    SEQUENCE BY parsed_key WITH {"maxspan":"1m"} PRIMARY %s
+                    (FROM demo-downloads | %s), (FROM demo-executions | %s)
+                    | EVAL other = MEMBER(%s, actor)
+                    | KEEP actor, other | LIMIT 10 | RETURN MATCHES
+                    """.formatted(primary, stage, stage, 3 - primary))) {
+                    Decoded decoded = checkConsumers(response);
+                    assertRetainedFixture(decoded, primary);
+                    assertEquals(List.of("actor", "other"), decoded.ordinaryNames);
+                    assertEquals(
+                        List.of(primary == 1 ? "downloader" : "runner", primary == 1 ? "runner" : "downloader"),
+                        decoded.rows.getFirst().ordinary
+                    );
+                }
+            }
+        }
+    }
+
+    /** GROK numeric captures keep their types and physical output positions after a sibling capture is removed. */
+    public void testRetainedGrokTypedCapturesAfterPartialProjection() throws Exception {
+        String extraction = "GROK raw \"^%{DATA:parsed_key}:%{INT:number:int}:%{NUMBER:ratio:double}:%{WORD:unused}$\""
+            + " | DROP unused | RENAME number AS parsed_number | KEEP parsed_key, parsed_number, ratio";
+        for (int primary : List.of(1, 2)) {
+            try (var response = query("""
+                SEQUENCE BY parsed_key WITH {"maxspan":"1m"} PRIMARY %s
+                (FROM demo-downloads | EVAL raw = CONCAT(host.id, ":7:1.5:unused") | %s),
+                (FROM demo-executions | EVAL raw = CONCAT(host.id, ":9:2.5:unused") | %s)
+                | EVAL other_number = MEMBER(%s, parsed_number), other_ratio = MEMBER(%s, ratio)
+                | KEEP parsed_number, ratio, other_number, other_ratio | LIMIT 10 | RETURN MATCHES
+                """.formatted(primary, extraction, extraction, 3 - primary, 3 - primary))) {
+                Decoded decoded = checkConsumers(response);
+                assertRetainedFixture(decoded, primary);
+                assertEquals(
+                    List.of("integer", "double", "integer", "double"),
+                    response.columns().subList(0, 4).stream().map(ColumnInfo::outputType).toList()
+                );
+                assertEquals(primary == 1 ? List.of(7, 1.5, 9, 2.5) : List.of(9, 2.5, 7, 1.5), decoded.rows.getFirst().ordinary);
+            }
+        }
+    }
+
+    /** Null, unmatched and multivalued parsing payloads follow ordinary extraction without changing their supporting events. */
+    public void testRetainedParsingNullNoMatchAndMultivaluedInput() throws Exception {
+        for (String extraction : List.of("DISSECT raw \"%{parsed}:%{unused}\"", "GROK raw \"^%{WORD:parsed}:%{INT:unused:int}$\"")) {
+            for (String input : List.of("null", "\"unmatched\"", "MV_APPEND(\"left:1\", \"right:2\")")) {
+                Object expected = input.startsWith("MV_APPEND") ? List.of("left", "right") : null;
+                for (String index : List.of(A, B)) {
+                    try (
+                        var standalone = query(
+                            "FROM " + index + " | EVAL raw = " + input + " | " + extraction + " | KEEP parsed | LIMIT 10"
+                        )
+                    ) {
+                        var values = standalone.column(0);
+                        assertTrue(values.hasNext());
+                        assertEquals(expected, values.next());
+                        assertFalse(values.hasNext());
+                    }
+                }
+                for (int primary : List.of(1, 2)) {
+                    try (var response = query("""
+                        SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+                        (FROM demo-downloads | EVAL raw = %s | %s | KEEP host.id, parsed),
+                        (FROM demo-executions | EVAL raw = %s | %s | KEEP host.id, parsed)
+                        | EVAL other = MEMBER(%s, parsed)
+                        | KEEP parsed, other | LIMIT 10 | RETURN MATCHES
+                        """.formatted(primary, input, extraction, input, extraction, 3 - primary))) {
+                        Decoded decoded = checkConsumers(response);
+                        assertRetainedFixture(decoded, primary);
+                        assertEquals(List.of("parsed", "other"), decoded.ordinaryNames);
+                        assertEquals(Collections.nCopies(2, expected), decoded.rows.getFirst().ordinary);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Parsed public metadata names can change presentation without replacing the retained identity or body. */
+    public void testRetainedParsingMetadataTargetsPreserveOriginals() throws Exception {
+        for (String field : List.of("_id", "_index", "_source")) {
+            for (String extraction : List.of("DISSECT user.name \"%{" + field + "}\"", "GROK user.name \"%{WORD:" + field + "}\"")) {
+                for (int primary : List.of(1, 2)) {
+                    try (var response = query("""
+                        SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+                        (FROM demo-downloads | %s | KEEP host.id, %s),
+                        (FROM demo-executions | %s | KEEP host.id, %s)
+                        | EVAL other = MEMBER(%s, %s)
+                        | KEEP %s, other | LIMIT 10 | RETURN MATCHES
+                        """.formatted(primary, extraction, field, extraction, field, 3 - primary, field, field))) {
+                        Decoded decoded = checkConsumers(response);
+                        assertRetainedFixture(decoded, primary);
+                        assertEquals(List.of(field, "other"), decoded.ordinaryNames);
+                        assertEquals(
+                            List.of(primary == 1 ? "downloader" : "runner", primary == 1 ? "runner" : "downloader"),
+                            decoded.rows.getFirst().ordinary
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /** A multivalued parsed key requires explicit MV_EXPAND before it reaches the matcher. */
+    public void testRetainedParsingRejectsMultivaluedKeys() {
+        for (String extraction : List.of("DISSECT raw \"%{parsed_key}\"", "GROK raw \"^%{WORD:parsed_key}$\"")) {
+            Exception failure = expectThrows(Exception.class, () -> { try (var ignored = query("""
+                SEQUENCE BY parsed_key WITH {"maxspan":"1m"} PRIMARY 2
+                (FROM demo-downloads | EVAL raw = MV_APPEND("left", "right") | %s),
+                (FROM demo-executions | EVAL raw = "left" | %s)
+                | KEEP parsed_key | LIMIT 10 | RETURN MATCHES
+                """.formatted(extraction, extraction))) {} });
+            assertThat(failure.getMessage(), containsString("is multivalued; use MV_EXPAND inside the stage"));
+        }
+    }
+
+    /** Direct and correlated branches remain ordinary rows, including duplicates of the same selected event. */
+    public void testOrdinaryUnionPreservesDirectAndCorrelatedDuplicates() throws Exception {
+        String correlated = """
+            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            (FROM demo-downloads), (FROM demo-executions METADATA _id)
+            | KEEP _id, user.name
+            """;
+        String direct = "FROM demo-executions METADATA _id | KEEP _id, user.name";
+        for (int degree : List.of(1, 2)) {
+            for (List<String> branches : List.of(List.of(correlated, direct), List.of(direct, correlated))) {
+                String union = "FROM (" + branches.get(0) + "), (" + branches.get(1) + ")";
+                try (var response = query(union + " | WHERE user.name == \"runner\" | SORT _id | LIMIT 10", degree)) {
+                    assertOrdinaryUnionConsumers(
+                        response,
+                        List.of("_id", "user.name"),
+                        List.of(List.of("E1", "runner"), List.of("E1", "runner"))
+                    );
+                }
+                try (var response = query(union + " | STATS copies = COUNT(*) BY _id | SORT _id | LIMIT 1", degree)) {
+                    assertOrdinaryUnionConsumers(response, List.of("copies", "_id"), List.of(List.of(2L, "E1")));
+                }
+            }
+        }
+    }
+
+    /** Two sequence branches use different PRIMARY and MEMBER contexts while sharing ordinary union schema alignment. */
+    public void testOrdinaryUnionKeepsIndependentSequenceContexts() throws Exception {
+        String first = """
+            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 1
+            (FROM demo-downloads), (FROM demo-executions)
+            | EVAL other = MEMBER(2, user.name), branch = "first"
+            | KEEP branch, user.name, other
+            """;
+        String second = """
+            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            (FROM demo-downloads), (FROM demo-executions)
+            | EVAL other = MEMBER(1, user.name), branch = "second"
+            | KEEP branch, user.name, other
+            """;
+        for (int degree : List.of(1, 2)) {
+            for (List<String> branches : List.of(List.of(first, second), List.of(second, first))) {
+                try (var response = query("FROM (" + branches.get(0) + "), (" + branches.get(1) + ") | SORT branch | LIMIT 10", degree)) {
+                    assertOrdinaryUnionConsumers(
+                        response,
+                        List.of("branch", "user.name", "other"),
+                        List.of(List.of("first", "downloader", "runner"), List.of("second", "runner", "downloader"))
+                    );
+                    var accounting = response.getExecutionInfo().getCluster("");
+                    assertEquals(Integer.valueOf(4), accounting.getTotalShards());
+                    assertEquals(Integer.valueOf(4), accounting.getSuccessfulShards());
+                    assertEquals(Integer.valueOf(0), accounting.getFailedShards());
+                }
+            }
+        }
+    }
+
+    /** The same request filter reaches each direct source and each independent sequence's PIT reads. */
+    public void testOrdinaryUnionAppliesRequestFilterToEveryBranch() throws Exception {
+        for (int stage = 0; stage < 2; stage++) {
+            Map<String, Object> document = object(list(fixture.get("documents")).get(stage));
+            Map<String, Object> source = object(document.get("_source"));
+            source.put("@timestamp", "2026-11-08T12:01:0" + (stage * 2) + ".000Z");
+            prepareIndex((String) document.get("_index")).setId(stage == 0 ? "D2" : "E2").setSource(source).get();
+        }
+        refresh(A, B);
+        String sequence = """
+            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            (FROM demo-downloads), (FROM demo-executions METADATA _id)
+            | KEEP _id
+            """;
+        for (int degree : List.of(1, 2)) {
+            try (
+                var response = query(
+                    "FROM (" + sequence + "), (" + sequence + "), (FROM demo-executions METADATA _id | KEEP _id) | SORT _id | LIMIT 10",
+                    degree
+                )
+            ) {
+                assertOrdinaryUnionConsumers(response, List.of("_id"), List.of(List.of("E1"), List.of("E1"), List.of("E1")));
+            }
+        }
+    }
+
+    /** Failure in a sibling sequence must release any completed or concurrently running branch resources. */
+    public void testOrdinaryUnionSequenceFailureReleasesBranches() throws Exception {
+        String successful = """
+            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            (FROM demo-downloads), (FROM demo-executions)
+            | KEEP host.id
+            """;
+        String failing = successful.replace(
+            "(FROM demo-downloads)",
+            "(FROM demo-downloads | EVAL host.id = MV_APPEND(host.id, \"other\"))"
+        );
+        for (int degree : List.of(1, 2)) {
+            for (List<String> branches : List.of(List.of(successful, failing), List.of(failing, successful))) {
+                Exception failure = expectThrows(Exception.class, () -> {
+                    try (var ignored = query("FROM (" + branches.get(0) + "), (" + branches.get(1) + ") | LIMIT 10", degree)) {}
+                });
+                assertThat(failure.getMessage(), containsString("is multivalued; use MV_EXPAND inside the stage"));
+                for (SearchService service : internalCluster().getInstances(SearchService.class)) {
+                    assertBusy(() -> assertEquals(0, service.getActiveContexts()));
+                }
+            }
+        }
+    }
+
+    /** Cancellation releases both live sequence PITs, or the live PIT plus an undispatched branch at degree one. */
+    public void testOrdinaryUnionCancellationClosesEveryOwnedPit() throws Exception {
+        String sequence = """
+            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            (FROM demo-downloads), (FROM demo-executions)
+            | KEEP host.id
+            """;
+        for (int degree : List.of(1, 2)) {
+            try (var gate = new UnionSearchGate()) {
+                var request = EsqlQueryRequest.syncEsqlQueryRequest("FROM (" + sequence + "), (" + sequence + ") | LIMIT 10")
+                    .pragmas(new QueryPragmas(Settings.builder().put("branch_parallel_degree", degree).build()));
+                var future = client().execute(EsqlQueryAction.INSTANCE, request);
+                try {
+                    assertBusy(() -> {
+                        assertFalse("query finished before its native sources were parked", future.isDone());
+                        int contexts = 0;
+                        for (SearchService service : internalCluster().getInstances(SearchService.class)) {
+                            contexts += service.getActiveContexts();
+                        }
+                        assertEquals("each dispatched sequence owns both source shards", degree * 2, contexts);
+                        assertTrue(gate.pending.get() > 0);
+                    });
+                    var roots = client().admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks();
+                    assertEquals(1, roots.size());
+                    var cancellation = new CancelTasksRequest().setTargetTaskId(roots.getFirst().taskId()).setReason("sequence union test");
+                    cancellation.setWaitForCompletion(false);
+                    client().execute(TransportCancelTasksAction.TYPE, cancellation).actionGet();
+                    gate.release();
+                    Exception failure = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
+                    assertNotNull(ExceptionsHelper.unwrap(failure, TaskCancelledException.class));
+                } finally {
+                    gate.release();
+                    try {
+                        future.actionGet(30, TimeUnit.SECONDS).close();
+                    } catch (Exception failure) {
+                        assertTrue("cancelled query must finish after its gate is released", future.isDone());
+                    }
+                }
+            }
+            for (SearchService service : internalCluster().getInstances(SearchService.class)) {
+                assertBusy(() -> assertEquals(0, service.getActiveContexts()));
+            }
+            assertBusy(
+                () -> assertTrue(client().admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks().isEmpty())
+            );
+        }
+    }
+
+    /** Park actual shard requests off transport threads, retaining each request until delegation or failure completes. */
+    private final class UnionSearchGate implements AutoCloseable {
+        private final CountDownLatch proceed = new CountDownLatch(1);
+        private final AtomicInteger pending = new AtomicInteger();
+        private volatile boolean closed;
+
+        private UnionSearchGate() {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transport = MockTransportService.getInstance(node);
+                transport.<ShardSearchRequest>addRequestHandlingBehavior(
+                    SearchTransportService.QUERY_ACTION_NAME,
+                    (handler, request, channel, task) -> {
+                        if (closed
+                            || request.source() == null
+                            || request.source().ext().stream().noneMatch(SequenceDocValuesSearchExt.class::isInstance)) {
+                            handler.messageReceived(request, channel, task);
+                            return;
+                        }
+                        request.incRef();
+                        pending.incrementAndGet();
+                        transport.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+                            @Override
+                            protected void doRun() throws Exception {
+                                if (proceed.await(30, TimeUnit.SECONDS) == false) {
+                                    throw new IllegalStateException("sequence union search gate was not released");
+                                }
+                                handler.messageReceived(request, channel, task);
+                            }
+
+                            @Override
+                            public void onFailure(Exception failure) {
+                                if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
+                                channel.sendResponse(failure);
+                            }
+
+                            @Override
+                            public void onAfter() {
+                                request.decRef();
+                                pending.decrementAndGet();
+                            }
+                        });
+                    }
+                );
+            }
+        }
+
+        private void release() {
+            proceed.countDown();
+        }
+
+        @Override
+        public void close() throws Exception {
+            closed = true;
+            release();
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+            assertBusy(() -> assertEquals(0, pending.get()));
+        }
+    }
+
+    /** Ordinary union responses carry no retained-match metadata and remain ordinary through JSON and transport. */
+    private void assertOrdinaryUnionConsumers(EsqlQueryResponse response, List<String> names, List<Iterable<Object>> rows)
+        throws Exception {
+        assertEquals(names, response.columns().stream().map(ColumnInfo::name).toList());
+        assertTrue(response.columns().stream().noneMatch(column -> column.meta() != null && column.meta().containsKey("sequence")));
+        assertValues(response.values(), rows);
+        // JSON carries numeric values without Java's boxed width; compare both through the same JSON parser.
+        try (var expected = JsonXContent.contentBuilder()) {
+            expected.startObject().field("values", rows).endObject();
+            assertEquals(
+                objectJson(BytesReference.bytes(expected).utf8ToString()).get("values"),
+                objectJson(json(response, false, false)).get("values")
+            );
+        }
+        try (var output = new BytesStreamOutput()) {
+            output.setTransportVersion(TransportVersion.current());
+            response.writeTo(output);
+            try (var input = output.bytes().streamInput()) {
+                input.setTransportVersion(TransportVersion.current());
+                try (var copy = EsqlQueryResponse.reader(blocks).read(input)) {
+                    assertEquals(names, copy.columns().stream().map(ColumnInfo::name).toList());
+                    assertValues(copy.values(), rows);
                 }
             }
         }
@@ -693,7 +1075,17 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
     }
 
     private EsqlQueryResponse query(String text) {
-        var request = EsqlQueryRequest.syncEsqlQueryRequest(text);
+        return query(EsqlQueryRequest.syncEsqlQueryRequest(text));
+    }
+
+    private EsqlQueryResponse query(String text, int branchParallelDegree) {
+        return query(
+            EsqlQueryRequest.syncEsqlQueryRequest(text)
+                .pragmas(new QueryPragmas(Settings.builder().put("branch_parallel_degree", branchParallelDegree).build()))
+        );
+    }
+
+    private EsqlQueryResponse query(EsqlQueryRequest request) {
         request.filter(rangeQuery("@timestamp").gte("2026-11-08T12:00:00.000Z").lt("2026-11-08T12:01:00.000Z"));
         var response = run(request);
         assertFalse(response.isPartial());

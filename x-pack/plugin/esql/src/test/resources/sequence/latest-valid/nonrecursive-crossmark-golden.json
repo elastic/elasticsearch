@@ -1,0 +1,300 @@
+{
+  "after_first_match": {
+    "additional_cross_marked_earlier_ids": [
+      "t1000000.d101.s2.k6b.r0"
+    ],
+    "after_final_id": "t3000000.d301.s3.k6b.r0",
+    "direct_used_earlier_ids": [
+      "t1000000.d101.s1.k6b.r0",
+      "t2000000.d201.s2.k6b.r0"
+    ],
+    "dropped": 0,
+    "expired": 0,
+    "flags": [
+      {
+        "in_earlier_ring": true,
+        "row_id": "t1000000.d101.s2.k6b.r0",
+        "used": true
+      },
+      {
+        "in_earlier_ring": true,
+        "row_id": "t1000000.d101.s1.k6b.r0",
+        "used": true
+      },
+      {
+        "in_earlier_ring": true,
+        "row_id": "t1000000.d101.s1.k6b.r1",
+        "used": false
+      },
+      {
+        "in_earlier_ring": true,
+        "row_id": "t2000000.d201.s2.k6b.r0",
+        "used": true
+      },
+      {
+        "in_earlier_ring": false,
+        "row_id": "t3000000.d301.s3.k6b.r0",
+        "used": false
+      }
+    ],
+    "not_arrived_row_ids": [
+      "t4000000.d401.s2.k6b.r0",
+      "t5000000.d501.s3.k6b.r0"
+    ],
+    "substitute_used_earlier_ids": [],
+    "unused_earlier_ids": [
+      "t1000000.d101.s1.k6b.r1"
+    ],
+    "used_earlier_ids": [
+      "t1000000.d101.s2.k6b.r0",
+      "t1000000.d101.s1.k6b.r0",
+      "t2000000.d201.s2.k6b.r0"
+    ]
+  },
+  "after_second_match": {
+    "after_final_id": "t5000000.d501.s3.k6b.r0",
+    "dropped": 0,
+    "expired": 0,
+    "final_rows_used": false,
+    "unused_earlier_ids": [],
+    "used_earlier_ids": [
+      "t1000000.d101.s2.k6b.r0",
+      "t1000000.d101.s1.k6b.r0",
+      "t1000000.d101.s1.k6b.r1",
+      "t2000000.d201.s2.k6b.r0",
+      "t4000000.d401.s2.k6b.r0"
+    ]
+  },
+  "configurations": [
+    {
+      "candidate_bound": 16,
+      "id": "nonrecursive-cross-stage-marking.N16"
+    },
+    {
+      "candidate_bound": null,
+      "id": "nonrecursive-cross-stage-marking.unbounded",
+      "mode": "explicit-test-mode"
+    }
+  ],
+  "conventions": {
+    "derivation_only_fields": [
+      "direct_used_earlier_ids",
+      "substitute_used_earlier_ids",
+      "additional_cross_marked_earlier_ids"
+    ],
+    "matching_time": "timestamp_nanos and query limits are nanoseconds",
+    "source_time": "source_time_ms is milliseconds; one source tick is 1000000ns",
+    "stage_numbering": "one-based",
+    "state_identity_lists": "sets; match tuples/order and processing_order are ordered"
+  },
+  "expected_applies_to_all_configurations": true,
+  "expected_ordered_matches": [
+    [
+      "t1000000.d101.s1.k6b.r0",
+      "t2000000.d201.s2.k6b.r0",
+      "t3000000.d301.s3.k6b.r0"
+    ],
+    [
+      "t1000000.d101.s1.k6b.r1",
+      "t4000000.d401.s2.k6b.r0",
+      "t5000000.d501.s3.k6b.r0"
+    ]
+  ],
+  "expected_source_labels": [
+    [
+      "x#0",
+      "y1_s2",
+      "f1_s3"
+    ],
+    [
+      "x#1",
+      "y2_s2",
+      "f2_s3"
+    ]
+  ],
+  "id": "nonrecursive-cross-stage-marking",
+  "normalization": {
+    "arrival_rank": "Within same document/stage/key; lower rank is earlier arrival and more recent. Global processing_position is a separate annotation.",
+    "candidate_identity_fields": [
+      "timestamp_nanos",
+      "shard_doc",
+      "stage",
+      "key_utf8_hex",
+      "arrival_rank"
+    ],
+    "description": "timestamp_nanos = timestamp_millis * 1000000 + nano_of_milli; source tick is 1ms, intentionally distinct from 60s ticks in older corpus",
+    "document_identity_fields": [
+      "timestamp_nanos",
+      "shard_doc"
+    ],
+    "nanoseconds_per_source_tick": "1000000",
+    "source_unit": "millisecond",
+    "window_source_ticks": 10
+  },
+  "parent_sha256": "087e5c4cd6c18dcf3ee35ce5654a37553550c990d80f34629d9d3a85c56c7d8f",
+  "processing_order": [
+    "t1000000.d101.s2.k6b.r0",
+    "t1000000.d101.s1.k6b.r0",
+    "t1000000.d101.s1.k6b.r1",
+    "t2000000.d201.s2.k6b.r0",
+    "t3000000.d301.s3.k6b.r0",
+    "t4000000.d401.s2.k6b.r0",
+    "t5000000.d501.s3.k6b.r0"
+  ],
+  "query": {
+    "conditions": [
+      {
+        "expression": {
+          "args": [
+            {
+              "own": true
+            },
+            {
+              "member": 1
+            }
+          ],
+          "op": "eq"
+        },
+        "referenced_stages": [
+          1
+        ],
+        "stage": 3
+      }
+    ],
+    "link_limits_nanos": {},
+    "search_step_limit": null,
+    "stages": 3,
+    "window_nanos": "10000000"
+  },
+  "registry_parent_sha256": "a6a43859d4f26a7f55acaad28a47d3be305d5245afe063a2580eeae9af4383b5",
+  "rows": [
+    {
+      "arrival_rank": 0,
+      "document_label": "X",
+      "id": "t1000000.d101.s2.k6b.r0",
+      "key": "k",
+      "key_utf8_hex": "6b",
+      "label": "x_s2",
+      "nano_of_milli": 0,
+      "processing_position": 0,
+      "shard_doc": 101,
+      "source_time_ms": 1,
+      "stage": 2,
+      "timestamp_millis": 1,
+      "timestamp_nanos": "1000000",
+      "values": {
+        "v": 0
+      }
+    },
+    {
+      "arrival_rank": 0,
+      "document_label": "X",
+      "id": "t1000000.d101.s1.k6b.r0",
+      "key": "k",
+      "key_utf8_hex": "6b",
+      "label": "x#0",
+      "nano_of_milli": 0,
+      "processing_position": 1,
+      "shard_doc": 101,
+      "source_time_ms": 1,
+      "stage": 1,
+      "timestamp_millis": 1,
+      "timestamp_nanos": "1000000",
+      "values": {
+        "v": 1
+      }
+    },
+    {
+      "arrival_rank": 1,
+      "document_label": "X",
+      "id": "t1000000.d101.s1.k6b.r1",
+      "key": "k",
+      "key_utf8_hex": "6b",
+      "label": "x#1",
+      "nano_of_milli": 0,
+      "processing_position": 2,
+      "shard_doc": 101,
+      "source_time_ms": 1,
+      "stage": 1,
+      "timestamp_millis": 1,
+      "timestamp_nanos": "1000000",
+      "values": {
+        "v": 2
+      }
+    },
+    {
+      "arrival_rank": 0,
+      "document_label": "Y1",
+      "id": "t2000000.d201.s2.k6b.r0",
+      "key": "k",
+      "key_utf8_hex": "6b",
+      "label": "y1_s2",
+      "nano_of_milli": 0,
+      "processing_position": 3,
+      "shard_doc": 201,
+      "source_time_ms": 2,
+      "stage": 2,
+      "timestamp_millis": 2,
+      "timestamp_nanos": "2000000",
+      "values": {
+        "v": 0
+      }
+    },
+    {
+      "arrival_rank": 0,
+      "document_label": "F1",
+      "id": "t3000000.d301.s3.k6b.r0",
+      "key": "k",
+      "key_utf8_hex": "6b",
+      "label": "f1_s3",
+      "nano_of_milli": 0,
+      "processing_position": 4,
+      "shard_doc": 301,
+      "source_time_ms": 3,
+      "stage": 3,
+      "timestamp_millis": 3,
+      "timestamp_nanos": "3000000",
+      "values": {
+        "v": 1
+      }
+    },
+    {
+      "arrival_rank": 0,
+      "document_label": "Y2",
+      "id": "t4000000.d401.s2.k6b.r0",
+      "key": "k",
+      "key_utf8_hex": "6b",
+      "label": "y2_s2",
+      "nano_of_milli": 0,
+      "processing_position": 5,
+      "shard_doc": 401,
+      "source_time_ms": 4,
+      "stage": 2,
+      "timestamp_millis": 4,
+      "timestamp_nanos": "4000000",
+      "values": {
+        "v": 0
+      }
+    },
+    {
+      "arrival_rank": 0,
+      "document_label": "F2",
+      "id": "t5000000.d501.s3.k6b.r0",
+      "key": "k",
+      "key_utf8_hex": "6b",
+      "label": "f2_s3",
+      "nano_of_milli": 0,
+      "processing_position": 6,
+      "shard_doc": 501,
+      "source_time_ms": 5,
+      "stage": 3,
+      "timestamp_millis": 5,
+      "timestamp_nanos": "5000000",
+      "values": {
+        "v": 2
+      }
+    }
+  ],
+  "schema": "esql.sequence.portable.nonrecursive.v1",
+  "state_collection_semantics": "Used/unused/substitute/cross-mark lists are identity sets. Match tuples, match emission order and processing_order are ordered."
+}

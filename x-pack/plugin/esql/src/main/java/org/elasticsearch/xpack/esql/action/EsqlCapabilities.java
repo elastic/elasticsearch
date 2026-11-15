@@ -4586,6 +4586,18 @@ public class EsqlCapabilities {
         /** Development command for ordered positive event stages with one row per completed sequence. */
         SEQUENCE_COMMAND(Build.current().isSnapshot()),
 
+        /** Parse-time stage aliases may select PRIMARY and MEMBER without changing positional sequence plans. */
+        SEQUENCE_NAMED_STAGES(Build.current().isSnapshot()),
+
+        /** Stage-local key names append to shared keys and match by position without overwriting an event field. */
+        SEQUENCE_STAGE_KEYS(Build.current().isSnapshot()),
+
+        /** Fixed-duration WITHIN is an alternative spelling for the mandatory overall maxspan window. */
+        SEQUENCE_WITHIN(Build.current().isSnapshot()),
+
+        /** An incoming stage WITHIN additionally bounds time since the selected previous member, inclusively. */
+        SEQUENCE_PER_LINK_TIME(Build.current().isSnapshot()),
+
         /** The usage response includes the sequence counter, including in release builds where the command is gated. */
         SEQUENCE_USAGE_METRIC,
 

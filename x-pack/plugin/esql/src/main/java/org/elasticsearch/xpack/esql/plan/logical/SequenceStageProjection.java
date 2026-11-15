@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
@@ -19,7 +20,9 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Derives the exact raw source projection for a sequence stage without physical planning or I/O. The same branch
@@ -46,6 +49,71 @@ public final class SequenceStageProjection {
     }
 
     /**
+     * Includes mandatory values without widening a stage's public output. An own condition input is resolved at
+     * its WHERE boundary, so a trailing projection may remove its public name while selection still needs its value.
+     */
+    public static List<Attribute> selectionOutput(SequenceStage stage, List<Attribute> payloads, List<Attribute> mandatory) {
+        if (mandatory.isEmpty()) {
+            return visibleOutput(stage, payloads);
+        }
+        List<Attribute> publicPayloads = new ArrayList<>(payloads);
+        for (Attribute attribute : mandatory) {
+            Attribute current = find(stage.output(), attribute);
+            if (current != null) {
+                publicPayloads.add(current);
+            }
+        }
+        List<Attribute> result = new ArrayList<>(visibleOutput(stage, publicPayloads));
+        Set<NameId> included = new HashSet<>();
+        result.forEach(attribute -> included.add(attribute.id()));
+        Set<NameId> demanded = new HashSet<>();
+        mandatory.forEach(attribute -> demanded.add(attribute.id()));
+        List<Attribute> own = new ArrayList<>();
+        Set<NameId> ownIds = new HashSet<>();
+        stage.child().forEachDown(SequenceCondition.class, condition -> {
+            for (SequenceCondition.Input input : condition.activeInputs()) {
+                if (input.stage() == condition.ownStage() && demanded.contains(input.source().id()) && ownIds.add(input.source().id())) {
+                    own.add(canonical(condition.child().output(), input.source()));
+                }
+            }
+        });
+        for (Attribute attribute : mandatory) {
+            Attribute current = find(stage.output(), attribute);
+            if (current == null) {
+                current = canonical(own, attribute);
+            }
+            if (included.add(current.id())) {
+                result.add(current);
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static Attribute canonical(List<Attribute> output, Attribute expected) {
+        Attribute current = find(output, expected);
+        if (current == null) {
+            throw new IllegalStateException("SEQUENCE condition input lost column [" + expected.name() + "#" + expected.id() + "]");
+        }
+        return current;
+    }
+
+    private static Attribute find(List<Attribute> output, Attribute expected) {
+        Attribute result = null;
+        for (Attribute current : output) {
+            if (current.id().equals(expected.id())) {
+                if (result != null) {
+                    throw new IllegalStateException("SEQUENCE condition input has duplicate column identity [" + expected.id() + "]");
+                }
+                if (current.dataType() != expected.dataType()) {
+                    throw new IllegalStateException("SEQUENCE condition input changed type of column [" + expected.name() + "]");
+                }
+                result = current;
+            }
+        }
+        return result;
+    }
+
+    /**
      * Binds one event branch to a local input and prunes its unused raw fields. The marker survives every projection
      * even when no payloads are retained, so event identity and cardinality remain available to matching.
      */
@@ -56,11 +124,25 @@ public final class SequenceStageProjection {
         Attribute marker,
         LocalSupplier supplier
     ) {
-        BoundPlan bound = bindPlan(stage.child(), selected, marker, supplier);
+        return prepare(stage, payloads, List.of(), selected, marker, supplier);
+    }
+
+    /** Keeps condition-only own values private while removing deferred conditions from ordinary row execution. */
+    public static Prepared prepare(
+        SequenceStage stage,
+        List<Attribute> payloads,
+        List<Attribute> mandatory,
+        EsRelation selected,
+        Attribute marker,
+        LocalSupplier supplier
+    ) {
+        Set<NameId> demanded = new HashSet<>();
+        mandatory.forEach(attribute -> demanded.add(attribute.id()));
+        BoundPlan bound = bindPlan(stage.child(), selected, marker, supplier, demanded);
         if (bound.active == false) {
             throw new IllegalArgumentException("selected sequence source does not belong to its event stream");
         }
-        List<NamedExpression> projections = new ArrayList<>(visibleOutput(stage, payloads));
+        List<NamedExpression> projections = new ArrayList<>(selectionOutput(stage, payloads, mandatory));
         projections.add(marker);
         LogicalPlan logical = new PruneColumns().apply(new Project(Source.EMPTY, bound.plan, projections));
         var references = AttributeSet.builder();
@@ -76,26 +158,49 @@ public final class SequenceStageProjection {
         return new Prepared(logical, selected.withAttributes(selected.output().stream().filter(used::contains).toList()));
     }
 
-    private static BoundPlan bindPlan(LogicalPlan plan, EsRelation selected, Attribute marker, LocalSupplier supplier) {
+    private static BoundPlan bindPlan(
+        LogicalPlan plan,
+        EsRelation selected,
+        Attribute marker,
+        LocalSupplier supplier,
+        Set<NameId> demanded
+    ) {
+        if (plan instanceof SequenceCondition condition) {
+            BoundPlan child = bindPlan(condition.child(), selected, marker, supplier, demanded);
+            List<Attribute> values = new ArrayList<>(child.conditionValues);
+            Set<NameId> included = new HashSet<>();
+            values.forEach(attribute -> included.add(attribute.id()));
+            for (SequenceCondition.Input input : condition.activeInputs()) {
+                if (input.stage() == condition.ownStage() && demanded.contains(input.source().id()) && included.add(input.source().id())) {
+                    values.add(canonical(child.plan.output(), input.source()));
+                }
+            }
+            return new BoundPlan(child.plan, child.active, List.copyOf(values));
+        }
         if (plan instanceof EsRelation relation) {
             List<Attribute> attributes = new ArrayList<>(relation.output());
             attributes.add(marker);
             boolean active = relation == selected;
-            return new BoundPlan(new LocalRelation(relation.source(), attributes, active ? supplier : EmptyLocalSupplier.EMPTY), active);
+            return new BoundPlan(
+                new LocalRelation(relation.source(), attributes, active ? supplier : EmptyLocalSupplier.EMPTY),
+                active,
+                List.of()
+            );
         }
         if (plan instanceof AbstractSubqueryJoin join) {
-            BoundPlan left = bindPlan(join.left(), selected, marker, supplier);
-            return new BoundPlan(join.replaceChildren(List.of(left.plan, join.right())), left.active);
+            BoundPlan left = bindPlan(join.left(), selected, marker, supplier, demanded);
+            return new BoundPlan(join.replaceChildren(List.of(left.plan, join.right())), left.active, left.conditionValues);
         }
         if (plan instanceof LocalRelation relation && relation.hasEmptySupplier() == false) {
             // Prepared membership tables keep their original schemas and suppliers across page bindings.
-            return new BoundPlan(relation, false);
+            return new BoundPlan(relation, false, List.of());
         }
         List<LogicalPlan> children = new ArrayList<>();
         LogicalPlan activeChild = null;
         boolean active = false;
+        List<Attribute> conditionValues = List.of();
         for (LogicalPlan child : plan.children()) {
-            BoundPlan bound = bindPlan(child, selected, marker, supplier);
+            BoundPlan bound = bindPlan(child, selected, marker, supplier, demanded);
             children.add(bound.plan);
             if (bound.active) {
                 if (activeChild != null) {
@@ -103,13 +208,14 @@ public final class SequenceStageProjection {
                 }
                 activeChild = bound.plan;
                 active = true;
+                conditionValues = bound.conditionValues;
             }
         }
         if (plan instanceof UnionAll union) {
             List<Attribute> attributes = new ArrayList<>(union.output());
             attributes.add(marker);
             if (active == false) {
-                return new BoundPlan(new LocalRelation(union.source(), attributes, EmptyLocalSupplier.EMPTY), false);
+                return new BoundPlan(new LocalRelation(union.source(), attributes, EmptyLocalSupplier.EMPTY), false, List.of());
             }
             List<NamedExpression> projections = new ArrayList<>();
             for (int column = 0; column < union.output().size(); column++) {
@@ -118,20 +224,27 @@ public final class SequenceStageProjection {
                 projections.add(new Alias(desired.source(), desired.name(), actual, desired.id(), desired.synthetic()));
             }
             projections.add(marker);
-            return new BoundPlan(new Project(union.source(), activeChild, projections), true);
+            return new BoundPlan(new Project(union.source(), activeChild, projections), true, conditionValues);
         }
         if (plan instanceof LocalRelation relation && relation.hasEmptySupplier()) {
             List<Attribute> attributes = new ArrayList<>(relation.output());
             attributes.add(marker);
-            return new BoundPlan(new LocalRelation(relation.source(), attributes, EmptyLocalSupplier.EMPTY), false);
+            return new BoundPlan(new LocalRelation(relation.source(), attributes, EmptyLocalSupplier.EMPTY), false, List.of());
         }
         LogicalPlan result = plan.replaceChildren(children);
         if (result instanceof Project project) {
             List<NamedExpression> projections = new ArrayList<>(project.projections());
+            Set<NameId> included = new HashSet<>();
+            projections.forEach(expression -> included.add(expression.id()));
+            for (Attribute value : conditionValues) {
+                if (included.add(value.id())) {
+                    projections.add(value);
+                }
+            }
             projections.add(marker);
             result = project.withProjections(projections);
         }
-        return new BoundPlan(result, active);
+        return new BoundPlan(result, active, conditionValues);
     }
 
     private static void collectSources(LogicalPlan plan, List<EsRelation> sources) {
@@ -153,7 +266,7 @@ public final class SequenceStageProjection {
         }
     }
 
-    private record BoundPlan(LogicalPlan plan, boolean active) {}
+    private record BoundPlan(LogicalPlan plan, boolean active, List<Attribute> conditionValues) {}
 
     /** Carries the compact raw schema beside the logical row operators that consume it. */
     public record Prepared(LogicalPlan plan, EsRelation source) {}

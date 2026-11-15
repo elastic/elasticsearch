@@ -2050,21 +2050,23 @@ public class ComputeService {
                 clusterService.state().getMinTransportVersion(),
                 sequenceClient == null
                     ? null
-                    : (sequence, stagePlanner) -> new SequenceSourceOperator.Factory(
-                        sequence,
-                        new ParentTaskAssigningClient(sequenceClient, clusterService.localNode(), task),
-                        sequenceClient,
-                        task,
-                        context.configuration(),
-                        stagePlanner,
-                        (drivers, done) -> driverRunner.executeDrivers(
+                    : SequenceSourceOperator.sourceFactoryProvider(
+                        (sequence, stagePlanner) -> new SequenceSourceOperator.Factory(
+                            sequence,
+                            new ParentTaskAssigningClient(sequenceClient, clusterService.localNode(), task),
+                            sequenceClient,
                             task,
-                            drivers,
-                            computeExecutor,
-                            ActionListener.releaseAfter(done, () -> Releasables.close(drivers))
-                        ),
-                        threadPool.getThreadContext().newRestorableContext(true),
-                        context.executionInfo()
+                            context.configuration(),
+                            stagePlanner,
+                            (drivers, done) -> driverRunner.executeDrivers(
+                                task,
+                                drivers,
+                                computeExecutor,
+                                ActionListener.releaseAfter(done, () -> Releasables.close(drivers))
+                            ),
+                            threadPool.getThreadContext().newRestorableContext(true),
+                            context.executionInfo()
+                        )
                     )
             );
 

@@ -195,7 +195,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         );
         String[] expressions = { "events-alias-*" };
         OriginalIndices original = new OriginalIndices(expressions, SearchRequest.DEFAULT_INDICES_OPTIONS);
-        request.setPointInTimeAuthorizationIndices(original);
+        request.setPointInTimeAuthorization(original, original, QueryBuilders.matchAllQuery());
         expressions[0] = "changed";
         request.getPointInTimeAuthorizationIndices().indices()[0] = "also-changed";
         assertArrayEquals(new String[] { "events-alias-*" }, request.getPointInTimeAuthorizationIndices().indices());
@@ -209,7 +209,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     public void testPitAuthorizationExpressionsRequireLocalPit() {
         SearchRequest request = new SearchRequest().source(new SearchSourceBuilder());
-        request.setPointInTimeAuthorizationIndices(new OriginalIndices(new String[] { "alias" }, request.indicesOptions()));
+        OriginalIndices original = new OriginalIndices(new String[] { "alias" }, request.indicesOptions());
+        request.setPointInTimeAuthorization(original, original, QueryBuilders.matchAllQuery());
         assertEquals(List.of("PIT authorization expressions require a local point in time search"), request.validate().validationErrors());
         request.source().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot")));
         assertNull(request.validate());
@@ -225,7 +226,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals(List.of("PIT authorization expressions require a local point in time search"), remote.validate().validationErrors());
         expectThrows(
             IllegalArgumentException.class,
-            () -> request.setPointInTimeAuthorizationIndices(new OriginalIndices(Strings.EMPTY_ARRAY, request.indicesOptions()))
+            () -> request.setResolvedPointInTimeAuthorizationIndices(new OriginalIndices(Strings.EMPTY_ARRAY, request.indicesOptions()))
         );
     }
 
@@ -237,6 +238,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         String[] scopedExpressions = { "stage-alias-*" };
         OriginalIndices complete = new OriginalIndices(new String[] { "all-alias-*" }, request.indicesOptions());
         OriginalIndices scoped = new OriginalIndices(scopedExpressions, request.indicesOptions());
+        expectThrows(IllegalStateException.class, () -> request.setResolvedPointInTimeAuthorizationIndices(complete));
         expectThrows(IllegalStateException.class, () -> request.setResolvedPointInTimeAuthorizationScope(scoped));
         expectThrows(NullPointerException.class, () -> request.setPointInTimeAuthorization(null, scoped, QueryBuilders.matchAllQuery()));
         expectThrows(NullPointerException.class, () -> request.setPointInTimeAuthorization(complete, null, QueryBuilders.matchAllQuery()));
@@ -291,7 +293,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertSame(new SearchRequest(admitted).source(), admitted.source());
         SearchRequest copy = new SearchRequest(request);
         assertEquals(started, copy.getAbsoluteStartMillis());
-        copy.setPointInTimeAuthorizationIndices(
+        copy.setResolvedPointInTimeAuthorizationIndices(
             new OriginalIndices(new String[] { "resolved-a", "resolved-b" }, complete.indicesOptions())
         );
         copy.setResolvedPointInTimeAuthorizationScope(new OriginalIndices(new String[] { "resolved-a" }, scoped.indicesOptions()));

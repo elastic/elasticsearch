@@ -172,6 +172,11 @@ public class CsvTestsDataLoader {
         ),
         new TestDataset("ul_logs"),
         new TestDataset("sample_data"),
+        new TestDataset("sequence_events").noSubfields().withRequiredCapabilities(EsqlCapabilities.Cap.SEQUENCE_COMMAND),
+        new TestDataset("sequence_events").withIndex("sequence_events_nanos")
+            .withTypeMapping(Map.of("@timestamp", "date_nanos"))
+            .noSubfields()
+            .withRequiredCapabilities(EsqlCapabilities.Cap.SEQUENCE_COMMAND),
         new TestDataset("sample_data").withIndex("cloned_sample_data"),
         new TestDataset("partial_mapping_sample_data"),
         new TestDataset("partial_mapping_mv_sample_data", "mapping-partial_mapping_sample_data.json", "partial_mapping_mv_sample_data.csv"),

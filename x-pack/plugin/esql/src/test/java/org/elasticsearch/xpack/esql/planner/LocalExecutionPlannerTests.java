@@ -1040,6 +1040,60 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             sourceFactory,
             instanceOf(LocalSourceOperator.LocalSourceFactory.class)
         );
+        assertFreshLocalSourceOperators(sourceFactory, true);
+    }
+
+    /** Ordinary local values must not share mutable finish state when a compiled factory creates another operator. */
+    public void testLocalSourceFactoryCreatesFreshMutableOperators() throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        // This test owns the sole input-page release; the observed output is that same page and has no other consumer.
+        try (Page input = new Page(blockFactory.newConstantLongBlockWith(7L, 1))) {
+            var value = new ReferenceAttribute(Source.EMPTY, "value", DataType.LONG);
+            var source = new LocalSourceExec(Source.EMPTY, List.of(value), LocalSupplier.of(input));
+            var plan = planner().plan(
+                "ordinary local source",
+                FoldContext.small(),
+                PlannerSettings.DEFAULTS,
+                source,
+                EmptyIndexedByShardId.instance(),
+                randomBoolean()
+            );
+            assertEquals(1, plan.driverFactories.size());
+            var sourceFactory = plan.driverFactories.get(0).driverSupplier().physicalOperation().sourceOperatorFactory;
+            assertFreshLocalSourceOperators(sourceFactory, false);
+        }
+    }
+
+    /** Exercises both ordinary local-value and empty-metrics factories, independently of native sequence planning. */
+    private static void assertFreshLocalSourceOperators(SourceOperator.SourceOperatorFactory factory, boolean empty) {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
+        var context = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (var first = factory.get(context); var second = factory.get(context)) {
+            assertNotSame("each factory binding needs independent mutable operator state", first, second);
+            assertFalse(first.isFinished());
+            assertFalse(second.isFinished());
+            Page firstOutput = first.getOutput();
+            if (empty) {
+                assertNull(firstOutput);
+            } else {
+                assertNotNull(firstOutput);
+                assertEquals(1, firstOutput.getPositionCount());
+                LongBlock firstValues = firstOutput.getBlock(0);
+                assertEquals(7L, firstValues.getLong(firstValues.getFirstValueIndex(0)));
+            }
+            assertTrue(first.isFinished());
+            assertFalse("consuming one binding must not finish another", second.isFinished());
+            Page output = second.getOutput();
+            if (empty) {
+                assertNull(output);
+            } else {
+                assertNotNull(output);
+                assertEquals(1, output.getPositionCount());
+                LongBlock values = output.getBlock(0);
+                assertEquals(7L, values.getLong(values.getFirstValueIndex(0)));
+            }
+            assertTrue(second.isFinished());
+        }
     }
 
     public void testStreamingOutput() throws IOException {

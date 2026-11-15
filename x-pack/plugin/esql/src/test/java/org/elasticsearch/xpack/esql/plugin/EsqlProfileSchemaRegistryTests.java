@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -41,5 +43,32 @@ public class EsqlProfileSchemaRegistryTests extends ESTestCase {
             .map(variant -> variant.name())
             .collect(Collectors.toSet());
         assertEquals(registered, described);
+    }
+
+    public void testSequenceLatestValidFieldsAreOptionalIntegers() {
+        var variant = EsqlProfileSchemaRegistry.operatorStatusVariants()
+            .stream()
+            .filter(item -> item.name().equals("sequence_source"))
+            .findFirst()
+            .orElseThrow();
+        var schema = variant.profileSchema().schema();
+        assertTrue(schema.get("properties") instanceof Map<?, ?>);
+        assertTrue(schema.get("required") instanceof List<?>);
+        var properties = (Map<?, ?>) schema.get("properties");
+        var required = (List<?>) schema.get("required");
+        for (String field : List.of(
+            "candidates_dropped_at_bound",
+            "searches_abandoned_at_work_limit",
+            "keys_that_hit_bound",
+            "search_steps",
+            "max_search_steps_per_final_row",
+            "condition_evaluations",
+            "condition_false_or_null",
+            "largest_ring_fill",
+            "candidates_used_without_report"
+        )) {
+            assertEquals(Map.of("type", "integer"), properties.get(field));
+            assertFalse(required.contains(field));
+        }
     }
 }

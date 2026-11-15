@@ -66,6 +66,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType.NONE;
@@ -227,7 +228,7 @@ public class SequenceSnapshotLeaseIT extends AbstractSequenceIntegTestCase {
             );
         }
 
-        private List<Driver> planStage(PhysicalPlan physical, Consumer<Page> output) {
+        private Supplier<List<Driver>> planStage(PhysicalPlan physical, Consumer<Page> output) {
             Settings settings = Settings.builder()
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, "0b")
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, "0b")
@@ -264,14 +265,15 @@ public class SequenceSnapshotLeaseIT extends AbstractSequenceIntegTestCase {
                 MatcherWatchdog.noop(),
                 TransportVersion.current()
             );
-            return planner.plan(
+            var planned = planner.plan(
                 "sequence stage",
                 FoldContext.small(),
                 PlannerSettings.DEFAULTS,
                 new OutputExec(physical, output),
                 EmptyIndexedByShardId.instance(),
                 true
-            ).createDrivers("sequence-lease");
+            );
+            return () -> planned.createDrivers("sequence-lease");
         }
 
         private void executeStage(List<Driver> drivers, ActionListener<Void> listener) {

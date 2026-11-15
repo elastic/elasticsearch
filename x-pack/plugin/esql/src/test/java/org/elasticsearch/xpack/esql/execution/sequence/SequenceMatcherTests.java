@@ -131,6 +131,170 @@ public class SequenceMatcherTests extends ESTestCase {
         );
     }
 
+    /** Incoming limits constrain the selected previous event, while total maxspan still starts at the first event. */
+    public void testLinkUsesPreviousSelectedEventAndStillRequiresOverallMaxspan() {
+        List<Event> events = List.of(
+            new Event(0, "k", new SequenceOrdinal(0, 0, 1), "A"),
+            new Event(1, "k", new SequenceOrdinal(9, 0, 2), "B"),
+            new Event(2, "k", new SequenceOrdinal(18, 0, 3), "C")
+        );
+        long[] limits = { 0, 10_000_000, 10_000_000 };
+        assertEquals(List.of("k|A B C"), run(3, TimeValue.timeValueMillis(30), events, limits));
+        assertEquals(List.of(), run(3, TimeValue.timeValueMillis(15), events, limits));
+        limits[2] = 8_000_000;
+        assertEquals(List.of(), run(3, TimeValue.timeValueMillis(30), events, limits));
+    }
+
+    /** The inclusive nanosecond boundary must survive a fractional-millisecond carry. */
+    public void testInclusiveLinkBoundaryAtNanosecondPrecision() {
+        for (long millis : new long[] { 100, Long.MIN_VALUE, Long.MAX_VALUE - 1 }) {
+            Event first = new Event(0, "k", new SequenceOrdinal(millis, 999_999, 1), "A");
+            long[] limits = { 0, 2 };
+            assertEquals(
+                List.of("k|A B"),
+                run(2, TimeValue.timeValueMillis(1), List.of(first, new Event(1, "k", new SequenceOrdinal(millis + 1, 1, 2), "B")), limits)
+            );
+            assertEquals(
+                List.of(),
+                run(2, TimeValue.timeValueMillis(1), List.of(first, new Event(1, "k", new SequenceOrdinal(millis + 1, 2, 2), "B")), limits)
+            );
+        }
+    }
+
+    /** A timed-out link neither advances an old prefix nor prevents a later independent sequence from completing. */
+    public void testFailedLinkDoesNotReuseOldEvents() {
+        assertEquals(
+            List.of("k|newA newB newC"),
+            run(
+                3,
+                TimeValue.timeValueMillis(100),
+                List.of(
+                    new Event(0, "k", new SequenceOrdinal(0, 0, 1), "oldA"),
+                    new Event(1, "k", new SequenceOrdinal(1, 0, 2), "oldB"),
+                    new Event(2, "k", new SequenceOrdinal(20, 0, 3), "lateC"),
+                    new Event(0, "k", new SequenceOrdinal(21, 0, 4), "newA"),
+                    new Event(1, "k", new SequenceOrdinal(22, 0, 5), "newB"),
+                    new Event(2, "k", new SequenceOrdinal(23, 0, 6), "newC")
+                ),
+                new long[] { 0, 0, 5_000_000 }
+            )
+        );
+    }
+
+    /** The default matcher commits to the first middle event and cannot reconsider a later viable middle event. */
+    public void testEarlierMiddleEventCanHideLaterChainWithinLinkLimit() {
+        List<Event> events = List.of(
+            new Event(0, "k", new SequenceOrdinal(0, 0, 1), "download"),
+            new Event(1, "k", new SequenceOrdinal(TimeValue.timeValueMinutes(1).millis(), 0, 2), "earlyExecution"),
+            new Event(1, "k", new SequenceOrdinal(TimeValue.timeValueMinutes(8).millis(), 0, 3), "laterExecution"),
+            new Event(2, "k", new SequenceOrdinal(TimeValue.timeValueMinutes(10).millis(), 0, 4), "installation")
+        );
+        TimeValue span = TimeValue.timeValueMinutes(10);
+        assertEquals(List.of("k|download earlyExecution installation"), run(3, span, events));
+        assertEquals(List.of(), run(3, span, events, new long[] { 0, span.nanos(), TimeValue.timeValueMinutes(5).nanos() }));
+    }
+
+    /** In two stages, an incoming limit equal to total maxspan must preserve the same selected source handles. */
+    public void testEqualTwoStageLimitPreservesUnconstrainedResults() {
+        List<Event> events = List.of(
+            new Event(0, "k", new SequenceOrdinal(0, 0, 1), "old"),
+            new Event(0, "k", new SequenceOrdinal(1, 0, 2), "latest"),
+            new Event(1, "k", new SequenceOrdinal(2, 0, 3), "B1"),
+            new Event(0, "k", new SequenceOrdinal(3, 0, 4), "A2"),
+            new Event(0, "other", new SequenceOrdinal(4, 0, 5), "tooOld"),
+            new Event(1, "k", new SequenceOrdinal(8, 0, 6), "B2"),
+            new Event(1, "other", new SequenceOrdinal(10, 0, 7), "tooLate")
+        );
+        TimeValue span = TimeValue.timeValueMillis(5);
+        List<String> expected = List.of("k|latest B1", "k|A2 B2");
+        assertEquals(expected, run(2, span, events));
+        assertEquals(expected, run(2, span, events, new long[] { 0, span.nanos() }));
+    }
+
+    /** A history oracle uses exact arithmetic and retains all prefixes independently of the compact matcher. */
+    public void testRandomizedHistoryOracleWithIncomingLinkLimits() {
+        for (int iteration = 0; iteration < 100; iteration++) {
+            int stages = between(2, 8);
+            TimeValue maxSpan = TimeValue.timeValueNanos(between(1, 20) * 1_000_000L + between(0, 999_999));
+            long[] limits = new long[stages];
+            for (int stage = 1; stage < stages; stage++) {
+                limits[stage] = randomBoolean() ? 0 : between(1, 10) * 1_000_000L + between(0, 999_999);
+            }
+            List<Event> events = new ArrayList<>();
+            long timestamp = 0;
+            for (int event = 0; event < 100; event++) {
+                timestamp += between(0, 2);
+                SequenceOrdinal ordinal = new SequenceOrdinal(timestamp, between(0, 999_999), event);
+                for (int stage = 0; stage < stages; stage++) {
+                    if (randomBoolean()) {
+                        Event row = new Event(stage, Integer.toString(between(0, 3)), ordinal, "event" + event);
+                        events.add(row);
+                        if (randomBoolean()) {
+                            events.add(row);
+                        }
+                    }
+                }
+            }
+            events.sort(EVENT_ORDER);
+            assertEquals("iteration " + iteration, historyOracle(stages, maxSpan, events, limits), run(stages, maxSpan, events, limits));
+            if (stages == 2) {
+                assertEquals(
+                    "a two-member incoming limit equal to maxspan is redundant",
+                    run(stages, maxSpan, events),
+                    run(stages, maxSpan, events, new long[] { 0, maxSpan.nanos() })
+                );
+            }
+        }
+    }
+
+    /** Configuration is copied, optional storage is charged and cancellation frees both it and candidate state. */
+    public void testIncomingLimitOwnershipValidationAndCancellation() {
+        CircuitBreaker breaker = requestBreaker("10mb");
+        for (long[] invalid : List.of(new long[] { 0 }, new long[] { 1, 0 }, new long[] { 0, -1 })) {
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new SequenceMatcher(2, TimeValue.timeValueSeconds(1), breaker, () -> false, BytesRef::compareTo, invalid)
+            );
+        }
+        long[] configured = { 0, 2 };
+        AtomicBoolean cancelled = new AtomicBoolean();
+        try (
+            SequenceMatcher baseline = matcher(2, TimeValue.timeValueSeconds(1), breaker);
+            SequenceMatcher zero = new SequenceMatcher(
+                2,
+                TimeValue.timeValueSeconds(1),
+                breaker,
+                () -> false,
+                BytesRef::compareTo,
+                new long[2]
+            );
+            SequenceMatcher constrained = new SequenceMatcher(
+                2,
+                TimeValue.timeValueSeconds(1),
+                breaker,
+                cancelled::get,
+                BytesRef::compareTo,
+                configured
+            )
+        ) {
+            assertEquals("all-zero input allocates no retained limit array", baseline.ramBytesUsed(), zero.ramBytesUsed());
+            assertTrue(constrained.ramBytesUsed() > baseline.ramBytesUsed());
+            configured[1] = 1;
+            assertNull(constrained.match(0, new BytesRef("k"), new SequenceOrdinal(0, 0, 1), new BytesRef("A")));
+            try (var match = constrained.match(1, new BytesRef("k"), new SequenceOrdinal(0, 2, 2), new BytesRef("B"))) {
+                assertNotNull("the caller's later array edit must not shorten the admitted limit", match);
+            }
+            constrained.match(0, new BytesRef("other"), new SequenceOrdinal(1, 0, 3), new BytesRef("C"));
+            cancelled.set(true);
+            expectThrows(
+                TaskCancelledException.class,
+                () -> constrained.match(1, new BytesRef("other"), new SequenceOrdinal(1, 1, 4), new BytesRef("D"))
+            );
+            assertEquals(0, constrained.ramBytesUsed());
+        }
+        assertEquals(0, breaker.getUsed());
+    }
+
     public void testInclusiveTotalMaxspanAtNanosecondPrecision() {
         SequenceOrdinal start = new SequenceOrdinal(100, 999_999, 1);
         TimeValue span = TimeValue.timeValueNanos(2);
@@ -304,11 +468,15 @@ public class SequenceMatcherTests extends ESTestCase {
     }
 
     private static List<String> run(int stages, TimeValue span, List<Event> input) {
+        return run(stages, span, input, null);
+    }
+
+    private static List<String> run(int stages, TimeValue span, List<Event> input, long[] maxGapNanos) {
         CircuitBreaker breaker = requestBreaker("10mb");
         List<Event> events = new ArrayList<>(input);
         events.sort(EVENT_ORDER);
         List<String> result = new ArrayList<>();
-        try (SequenceMatcher matcher = matcher(stages, span, breaker)) {
+        try (SequenceMatcher matcher = new SequenceMatcher(stages, span, breaker, () -> false, BytesRef::compareTo, maxGapNanos)) {
             for (Event event : events) {
                 try (
                     SequenceMatcher.Match match = matcher.match(
@@ -335,6 +503,10 @@ public class SequenceMatcherTests extends ESTestCase {
 
     /** Retains all prefixes and consumes the latest strict predecessor as EQL does, without the compact-state optimization. */
     private static List<String> historyOracle(int stages, TimeValue span, List<Event> events) {
+        return historyOracle(stages, span, events, null);
+    }
+
+    private static List<String> historyOracle(int stages, TimeValue span, List<Event> events, long[] maxGapNanos) {
         List<List<Prefix>> pending = new ArrayList<>();
         for (int stage = 0; stage < stages - 1; stage++) {
             pending.add(new ArrayList<>());
@@ -355,7 +527,11 @@ public class SequenceMatcherTests extends ESTestCase {
             }
             previous.removeIf(candidate -> candidate.key.equals(event.key) && candidate.end.compareTo(event.ordinal) < 0);
             if (prefix == null
-                || epochNanos(event.ordinal).subtract(epochNanos(prefix.start)).compareTo(BigInteger.valueOf(span.nanos())) > 0) {
+                || epochNanos(event.ordinal).subtract(epochNanos(prefix.start)).compareTo(BigInteger.valueOf(span.nanos())) > 0
+                || maxGapNanos != null
+                    && maxGapNanos[event.stage] > 0
+                    && epochNanos(event.ordinal).subtract(epochNanos(prefix.end))
+                        .compareTo(BigInteger.valueOf(maxGapNanos[event.stage])) > 0) {
                 continue;
             }
             List<String> handles = new ArrayList<>(prefix.handles);

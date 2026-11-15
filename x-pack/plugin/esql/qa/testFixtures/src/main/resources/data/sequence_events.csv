@@ -1,0 +1,7 @@
+@timestamp:date,key:keyword,phase:keyword,label:keyword,n:integer
+2026-11-11T00:00:00.000Z,ALPHA,start,a-start,1
+2026-11-11T00:00:01.000Z,BETA,start,b-start,3
+2026-11-11T00:00:02.000Z,OUTSIDE,start,outside-start,5
+2026-11-11T00:00:30.000Z,ALPHA,finish,a-finish,2
+2026-11-11T00:00:31.000Z,BETA,finish,b-finish,4
+2026-11-11T00:00:32.001Z,OUTSIDE,finish,outside-finish,6

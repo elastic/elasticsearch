@@ -15,7 +15,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
@@ -30,19 +29,13 @@ import java.util.Objects;
  */
 final class PointInTimeAuthorization {
     private final OriginalIndices indices;
-    @Nullable
     private final OriginalIndices scope;
-    @Nullable
     private final byte[] membership;
 
-    private PointInTimeAuthorization(OriginalIndices indices, @Nullable OriginalIndices scope, @Nullable byte[] membership) {
+    private PointInTimeAuthorization(OriginalIndices indices, OriginalIndices scope, byte[] membership) {
         this.indices = copy(indices);
-        this.scope = scope == null ? null : copy(scope);
-        this.membership = membership;
-    }
-
-    static PointInTimeAuthorization snapshot(OriginalIndices indices) {
-        return new PointInTimeAuthorization(indices, null, null);
+        this.scope = copy(scope);
+        this.membership = Objects.requireNonNull(membership, "PIT source membership must not be null");
     }
 
     static PointInTimeAuthorization source(OriginalIndices indices, OriginalIndices scope, QueryBuilder membership) {
@@ -61,9 +54,6 @@ final class PointInTimeAuthorization {
     }
 
     PointInTimeAuthorization withScope(OriginalIndices resolved) {
-        if (scope == null) {
-            throw new IllegalStateException("PIT scope resolution requires a constructed source authorization");
-        }
         return new PointInTimeAuthorization(indices, resolved, membership);
     }
 
@@ -71,16 +61,11 @@ final class PointInTimeAuthorization {
         return copy(indices);
     }
 
-    @Nullable
     OriginalIndices scope() {
-        return scope == null ? null : copy(scope);
+        return copy(scope);
     }
 
-    @Nullable
     QueryBuilder membership(NamedWriteableRegistry registry) throws IOException {
-        if (membership == null) {
-            return null;
-        }
         try (var in = new NamedWriteableAwareStreamInput(new BytesArray(membership).streamInput(), registry)) {
             return in.readNamedWriteable(QueryBuilder.class);
         }
@@ -105,13 +90,13 @@ final class PointInTimeAuthorization {
     public boolean equals(Object other) {
         return other instanceof PointInTimeAuthorization that
             && indices.equals(that.indices)
-            && Objects.equals(scope, that.scope)
+            && scope.equals(that.scope)
             && Arrays.equals(membership, that.membership);
     }
 
     @Override
     public String toString() {
-        return "PointInTimeAuthorization[indices=" + indices + ", scope=" + scope + ", sourceMembership=" + (membership != null) + "]";
+        return "PointInTimeAuthorization[indices=" + indices + ", scope=" + scope + "]";
     }
 
     @Override

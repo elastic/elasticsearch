@@ -7,10 +7,16 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -22,6 +28,53 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /** Exercises malformed consumer inputs separately from the server's final-schema construction. */
 public class SequenceMatchDescriptionTests extends ESTestCase {
+    /** The concrete response schema keeps JSON metadata even though the generic column API has no metadata accessor. */
+    public void testConcreteColumnMetadataSurvivesJsonRoundTrip() throws IOException {
+        List<ColumnInfo> restored = new ArrayList<>();
+        for (ColumnInfo column : columns(contract())) {
+            try (var builder = JsonXContent.contentBuilder()) {
+                column.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                try (var parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                    ColumnInfoImpl concrete = ColumnInfoImpl.PARSER.apply(parser, null);
+                    assertEquals(column, concrete);
+                    restored.add(concrete);
+                }
+            }
+        }
+        assertEquals(2, SequenceMatchDescription.fromColumns(restored).primaryStage());
+    }
+
+    /** A generic adapter can render a column but does not promise the concrete metadata contract required by this helper. */
+    public void testGenericColumnHasClearMetadataBoundary() {
+        List<ColumnInfo> columns = columns(contract());
+        ColumnInfo concrete = columns.getFirst();
+        columns.set(0, new ColumnInfo() {
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+                return concrete.toXContent(builder, params);
+            }
+
+            @Override
+            public String name() {
+                return concrete.name();
+            }
+
+            @Override
+            public String outputType() {
+                return concrete.outputType();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                concrete.writeTo(out);
+            }
+        });
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> SequenceMatchDescription.fromColumns(columns)).getMessage(),
+            containsString("column metadata requires the concrete ES|QL response schema")
+        );
+    }
+
     public void testIdentityComesFromMemberReferencesAndNumbersRemainLossless() {
         var description = SequenceMatchDescription.fromColumns(columns(contract()));
         long exact = 9_007_199_254_740_993L;

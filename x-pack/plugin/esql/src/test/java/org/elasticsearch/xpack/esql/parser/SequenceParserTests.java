@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +47,26 @@ public class SequenceParserTests extends ESTestCase {
         assertEquals(2, sequence.children().size());
         for (var child : sequence.children()) {
             assertEquals(List.of("host.id", "user.name"), ((SequenceStage) child).keys().stream().map(a -> a.name()).toList());
+        }
+    }
+
+    /** Names are command-local labels; the lowered children and primary remain positional. */
+    public void testNamedStageScopesAndIdentifierNames() {
+        for (String name : List.of("download", "Download", "_download", "@download", "primary")) {
+            var plan = parser.createStatement("""
+                SeQuEnCe BY host.id WITH {"maxspan":"30s"} pRiMaRy execution
+                (FROM a | KEEP host.id, label) aS %s,
+                (FROM b | KEEP host.id, label) AS execution
+                | EVAL evidence = MEMBER(%s, label) | KEEP host.id, evidence
+                """.formatted(name, name)).plan();
+            Sequence sequence = plan.collect(Sequence.class).getFirst();
+            assertEquals(2, sequence.children().size());
+            assertEquals(30_000_000_000L, sequence.maxSpanNanos());
+            assertEquals(1, plan.collect(SequenceMatchOutput.Scope.class).getFirst().primary());
+            assertTrue(plan.collect(SequenceMatchOutput.Declaration.class).isEmpty());
+            for (var child : sequence.children()) {
+                assertEquals(List.of("host.id"), ((SequenceStage) child).keys().stream().map(a -> a.name()).toList());
+            }
         }
     }
 
@@ -150,10 +171,21 @@ public class SequenceParserTests extends ESTestCase {
 
     public void testSequenceInFromSubquery() {
         for (String pipeline : List.of("", " | keep host.id")) {
-            error("""
+            var plan = parser.createStatement("""
                 from (
                     sequence by host.id with {"maxspan":"30s"} primary 2 (from a), (from b)
-                """ + pipeline + "), (from targets) | limit 5", "outside the sequence output prototype");
+                """ + pipeline + "), (from targets) | limit 5").plan();
+            assertTrue(plan.collect(SequenceMatchOutput.Declaration.class).isEmpty());
+            assertEquals(1, plan.collect(UnionAll.class).size());
+            UnionAll union = plan.collect(UnionAll.class).getFirst();
+            assertEquals(2, union.children().size());
+            var sequenceBranch = union.children().getFirst();
+            assertEquals(1, sequenceBranch.collect(Sequence.class).size());
+            assertEquals(1, sequenceBranch.collect(SequenceMatchOutput.Scope.class).size());
+            assertEquals(1, sequenceBranch.collect(SequenceMatchOutput.Scope.class).getFirst().primary());
+            var ordinaryBranch = union.children().get(1);
+            assertTrue(ordinaryBranch.collect(Sequence.class).isEmpty());
+            assertTrue(ordinaryBranch.collect(SequenceMatchOutput.Scope.class).isEmpty());
         }
         error(
             "sequence with {\"maxspan\":\"30s\"} primary 2 (sequence with {\"maxspan\":\"30s\"} primary 2 (from a), (from b)), (from b)",

@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_I
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ML_ANOMALIES;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.NAMED_SUBQUERY_LET;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEQUENCE_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TS_INFO_COMMAND;
@@ -210,6 +211,11 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         }
         // Check all capabilities on the local cluster first.
         super.shouldSkipTest(testName);
+
+        assumeFalse(
+            "SEQUENCE stages do not support the generated cross-cluster source rewrite",
+            testCase.requiredCapabilities.contains(SEQUENCE_COMMAND.capabilityName())
+        );
 
         // Slice tests need the slice dataset, which is not loaded when either cluster predates the current (renamed)
         // slice parameter (see clusterHasCapability). Slice indexing is unreleased, so skip them in a bwc CCS cluster.

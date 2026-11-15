@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.execution.sequence;
 
+import org.elasticsearch.core.Nullable;
+
+import java.time.Instant;
+
 /**
  * An event's position within the shared sequence snapshot. The fractional millisecond preserves
  * {@code date_nanos} precision without restricting ordinary dates to the epoch-nanosecond range.
@@ -31,6 +35,23 @@ public record SequenceOrdinal(long epochMillis, int nanoOfMilli, long shardDoc) 
             result = Integer.compare(nanoOfMilli, other.nanoOfMilli);
         }
         return result == 0 ? Long.compare(shardDoc, other.shardDoc) : result;
+    }
+
+    /** Adds a positive maxspan without narrowing ordinary dates to epoch nanos; overflow leaves the upper range open. */
+    @Nullable
+    Instant upperTimeBound(long maxSpanNanos) {
+        assert maxSpanNanos > 0;
+        try {
+            long millis = Math.addExact(epochMillis, maxSpanNanos / 1_000_000);
+            int nanos = nanoOfMilli + (int) (maxSpanNanos % 1_000_000);
+            if (nanos >= 1_000_000) {
+                millis = Math.addExact(millis, 1);
+                nanos -= 1_000_000;
+            }
+            return Instant.ofEpochMilli(millis).plusNanos(nanos);
+        } catch (ArithmeticException e) {
+            return null;
+        }
     }
 
     /** Tests the inclusive total span without overflowing for dates separated by more than {@code Long.MAX_VALUE} milliseconds. */

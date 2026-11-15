@@ -137,40 +137,35 @@ import static org.mockito.Mockito.when;
 
 public class SearchExecutionContextTests extends ESTestCase {
 
-    public void testRepeatableEvaluationRequiresOriginalPitMappingIdentity() {
+    public void testRepeatableEvaluationDoesNotRequirePitMappingIdentity() {
         SearchExecutionContext context = createSearchExecutionContext("uuid", null);
-        assertThat(
-            expectThrows(IllegalArgumentException.class, context::requireRepeatableEvaluation).getMessage(),
-            containsString("PIT reader without its original mapping identity")
-        );
+        context.requireRepeatableEvaluation();
+        assertNotNull(context.toQuery(new MatchAllQueryBuilder()));
     }
 
-    public void testRepeatableEvaluationRejectsChangedMappingButOrdinarySearchIsUnchanged() {
-        MappingLookup original = createMappingLookup(List.of(), List.of());
+    public void testRepeatableEvaluationUsesLiveMapping() {
         MappingLookup changed = createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("new_field")), List.of());
         SearchExecutionContext context = createSearchExecutionContext("uuid", null, changed, Map.of());
-        context.setPointInTimeMappingCacheKey(original.cacheKey());
         assertNotNull(context.getFieldType("new_field"));
         assertNotNull(context.toQuery(new MatchAllQueryBuilder()));
-        assertThat(
-            expectThrows(IllegalArgumentException.class, context::requireRepeatableEvaluation).getMessage(),
-            containsString("mapping changes since the PIT reader was opened")
-        );
-        assertThat(
-            expectThrows(IllegalArgumentException.class, new SearchExecutionContext(context)::requireRepeatableEvaluation).getMessage(),
-            containsString("mapping changes since the PIT reader was opened")
-        );
-    }
-
-    public void testRepeatableEvaluationPreservesPitIdentityAndPolicyThroughCopyAndReset() {
-        SearchExecutionContext context = createSearchExecutionContext("uuid", null);
-        context.setPointInTimeMappingCacheKey(context.mappingCacheKey());
         context.requireRepeatableEvaluation();
         SearchExecutionContext copy = new SearchExecutionContext(context);
-        copy.requireRepeatableEvaluation();
         for (SearchExecutionContext guarded : List.of(context, copy)) {
+            assertNotNull(guarded.getFieldType("new_field"));
             assertNotNull(guarded.toQuery(new MatchAllQueryBuilder()));
-            guarded.requireRepeatableEvaluation();
+        }
+    }
+
+    public void testRepeatableEvaluationPreservesPolicyThroughCopyAndReset() {
+        SearchExecutionContext context = createSearchExecutionContext("uuid", null);
+        context.requireRepeatableEvaluation();
+        SearchExecutionContext copy = new SearchExecutionContext(context);
+        for (SearchExecutionContext guarded : List.of(context, copy)) {
+            assertThat(
+                expectThrows(IllegalArgumentException.class, guarded::getClient).getMessage(),
+                containsString("requires repeatable evaluation")
+            );
+            assertNotNull(guarded.toQuery(new MatchAllQueryBuilder()));
             assertThat(
                 expectThrows(IllegalArgumentException.class, guarded::getClient).getMessage(),
                 containsString("requires repeatable evaluation")

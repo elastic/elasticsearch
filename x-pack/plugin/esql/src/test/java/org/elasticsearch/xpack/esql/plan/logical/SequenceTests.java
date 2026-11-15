@@ -30,7 +30,10 @@ public class SequenceTests extends AbstractNodeTestCase<Sequence, LogicalPlan> {
             var input = new LocalRelation(Source.EMPTY, List.of(key, payload), EmptyLocalSupplier.EMPTY);
             stages.add(new SequenceStage(Source.EMPTY, input, List.of(key)));
         }
-        Sequence sequence = new Sequence(Source.EMPTY, stages, randomLongBetween(1, Long.MAX_VALUE)).resolveSchema();
+        Sequence.Pairing pairing = randomFrom(Sequence.Pairing.values());
+        Integer maxCandidates = pairing == Sequence.Pairing.LATEST_VALID && randomBoolean() ? between(1, 1024) : null;
+        Sequence sequence = new Sequence(Source.EMPTY, stages, randomLongBetween(1, Long.MAX_VALUE), pairing, maxCandidates)
+            .resolveSchema();
         return sequence;
     }
 
@@ -57,7 +60,9 @@ public class SequenceTests extends AbstractNodeTestCase<Sequence, LogicalPlan> {
             instance.sourceAttributes(),
             instance.sourceStages(),
             instance.output(),
-            instance.expressionsResolved()
+            instance.expressionsResolved(),
+            instance.pairing(),
+            instance.maxCandidates()
         );
     }
 
@@ -82,9 +87,49 @@ public class SequenceTests extends AbstractNodeTestCase<Sequence, LogicalPlan> {
                 node.sourceAttributes(),
                 node.sourceStages(),
                 node.output(),
-                node.expressionsResolved()
+                node.expressionsResolved(),
+                node.pairing(),
+                node.maxCandidates()
             ),
             node.replaceChildren(children)
         );
+    }
+
+    public void testUnspecifiedCandidateBoundSurvivesNodeReconstruction() {
+        Sequence base = randomSequence();
+        for (Sequence.Pairing pairing : Sequence.Pairing.values()) {
+            var node = new Sequence(
+                base.source(),
+                base.children(),
+                1,
+                base.sourceAttributes(),
+                base.sourceStages(),
+                base.output(),
+                true,
+                pairing,
+                null
+            );
+            assertNull(node.maxCandidates());
+            assertSame(node, node.transformExpressionsOnly(expression -> expression));
+            Sequence changed = (Sequence) node.transformPropertiesOnly(Long.class, span -> span + 1);
+            assertEquals(2, changed.maxSpanNanos());
+            assertEquals(pairing, changed.pairing());
+            assertNull(changed.maxCandidates());
+            assertEquals(node.output(), changed.output());
+            assertNull(node.replaceChildren(node.children()).maxCandidates());
+        }
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new Sequence(base.source(), base.children(), 1, Sequence.Pairing.LATEST_VALID, 0)
+        );
+    }
+
+    /** A limit constrains an incoming link, so the first member cannot have one. */
+    public void testFirstMemberCannotHaveIncomingLimit() {
+        Sequence sequence = randomSequence();
+        var stages = new ArrayList<>(sequence.children());
+        SequenceStage first = (SequenceStage) stages.getFirst();
+        stages.set(0, new SequenceStage(first.source(), first.child(), first.keys(), 1));
+        expectThrows(IllegalArgumentException.class, () -> sequence.replaceChildren(stages));
     }
 }

@@ -117,6 +117,22 @@ public class SequenceUnmappedFieldsIT extends AbstractSequenceIntegTestCase {
         assertValue(primary(" | EVAL optional = absent_optional", "| EVAL observed = MEMBER(1, optional)", true), null, true);
     }
 
+    /** Late NULLIFY inputs remain visible to extraction without substituting nulls for the authentic originals. */
+    public void testRetainedParsingNullifiesMissingInput() {
+        for (String extraction : List.of("DISSECT absent_optional \"%{parsed}\"", "GROK absent_optional \"%{WORD:parsed}\"")) {
+            assertValue(primary(" | " + extraction, "| EVAL observed = MEMBER(1, parsed)", true), null, true, "keyword");
+        }
+    }
+
+    /** A generated field removed by an author must not be reintroduced as a nullified source field. */
+    public void testNullifyDoesNotRestoreProjectedParsingOutput() {
+        for (String extraction : List.of("DISSECT label \"%{parsed}\"", "GROK label \"%{WORD:parsed}\"")) {
+            for (String projection : List.of(" | KEEP key", " | DROP parsed")) {
+                assertRemoved(primary(" | " + extraction + projection, "| EVAL observed = MEMBER(1, parsed)", true), "parsed");
+            }
+        }
+    }
+
     /** Membership filters preserve the event's optional-field scope and the retained source association. */
     public void testMissingMemberNullifiesThroughStageMembership() {
         for (boolean retained : List.of(false, true)) {
@@ -145,13 +161,17 @@ public class SequenceUnmappedFieldsIT extends AbstractSequenceIntegTestCase {
     }
 
     private void assertValue(String query, Object expected, boolean retained) {
+        assertValue(query, expected, retained, expected == null ? "null" : null);
+    }
+
+    private void assertValue(String query, Object expected, boolean retained, String expectedType) {
         try (var response = run(query)) {
             assertFalse(response.isPartial());
             var names = response.columns().stream().map(ColumnInfo::name).toList();
             int column = names.indexOf("observed");
             assertTrue(names.toString(), column >= 0);
-            if (expected == null) {
-                assertEquals("null", response.columns().get(column).outputType());
+            if (expectedType != null) {
+                assertEquals(expectedType, response.columns().get(column).outputType());
             }
             var rows = getValuesList(response);
             assertEquals(1, rows.size());

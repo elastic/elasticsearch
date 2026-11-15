@@ -2456,8 +2456,11 @@ public class TransportSearchActionTests extends ESTestCase {
         assertTrue(
             TransportSearchAction.shouldPreFilterSearchShards(state.projectState(project), request, new String[] { "stage-a" }, 4, 1)
         );
-        request.setPointInTimeAuthorizationIndices(new OriginalIndices(new String[] { "alias-a", "alias-b" }, request.indicesOptions()));
-        request.setPointInTimeAuthorization(request.getPointInTimeAuthorizationIndices(), scopeA, QueryBuilders.matchAllQuery());
+        request.setPointInTimeAuthorization(
+            new OriginalIndices(new String[] { "alias-a", "alias-b" }, request.indicesOptions()),
+            scopeA,
+            QueryBuilders.matchAllQuery()
+        );
         assertFalse(
             TransportSearchAction.shouldPreFilterSearchShards(state.projectState(project), request, new String[] { "stage-a" }, 4, 1)
         );

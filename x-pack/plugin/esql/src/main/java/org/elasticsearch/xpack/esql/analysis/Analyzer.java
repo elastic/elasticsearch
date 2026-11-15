@@ -385,6 +385,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(LogicalPlan plan) {
             if (plan instanceof org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Originals originals) return originals.lower();
             if (plan instanceof org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Scope scope) return scope.lower();
+            if (plan instanceof org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Capture capture) return capture.lower();
             return plan;
         }
 
@@ -1507,6 +1508,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            if (plan instanceof Sequence sequence) {
+                // Deferred MEMBER inputs depend on earlier final stage schemas, not on all stages resolving first.
+                plan = sequence.resolveConditions();
+            }
             if (plan.childrenResolved() == false) {
                 return plan;
             }
@@ -1534,7 +1539,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Scope scope -> scope.resolve(
                     context.unmappedResolution() == UnmappedResolution.NULLIFY
                 );
-                case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Capture capture -> capture.lower();
+                // NULLIFY projections can still recompute their user commands; append protected dependencies only after they finish.
+                case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Capture capture -> context
+                    .unmappedResolution() == UnmappedResolution.NULLIFY ? capture : capture.lower();
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);

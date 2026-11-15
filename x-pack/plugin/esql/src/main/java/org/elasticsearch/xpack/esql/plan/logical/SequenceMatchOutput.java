@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -60,20 +62,31 @@ public final class SequenceMatchOutput {
     /** Parse-time declarations disappear before analysis and never acquire a wire representation. */
     public static final class Declaration extends UnaryPlan {
         private final int primary;
+        private final Map<String, Integer> stageNames;
 
         public Declaration(Source source, LogicalPlan child, int primary) {
+            this(source, child, primary, Map.of());
+        }
+
+        /** Named references lower to existing positions before analysis, so aliases never enter a runtime plan. */
+        public Declaration(Source source, LogicalPlan child, int primary, Map<String, Integer> stageNames) {
             super(source, child);
             this.primary = primary;
+            this.stageNames = Map.copyOf(stageNames);
+        }
+
+        public Map<String, Integer> stageNames() {
+            return stageNames;
         }
 
         @Override
         protected NodeInfo<Declaration> info() {
-            return NodeInfo.create(this, Declaration::new, child(), primary);
+            return NodeInfo.create(this, Declaration::new, child(), primary, stageNames);
         }
 
         @Override
         public Declaration replaceChild(LogicalPlan child) {
-            return new Declaration(source(), child, primary);
+            return new Declaration(source(), child, primary, stageNames);
         }
 
         @Override
@@ -104,21 +117,32 @@ public final class SequenceMatchOutput {
             rejectSequenceOutputInLet(binding.plan());
         }
         rejectSequenceOutputInMembershipSubqueries(plan);
+        plan = prepareUnionBranches(plan, statement);
         List<Declaration> declarations = plan.collect(Declaration.class);
         if (declarations.isEmpty()) {
+            boolean branchContext = plan.collect(Scope.class).isEmpty() == false;
             plan.forEachExpressionDown(UnresolvedFunction.class, f -> {
                 if (f.name().equalsIgnoreCase("member")) {
+                    if (branchContext) {
+                        throw new ParsingException(f.source(), "MEMBER cannot escape its SEQUENCE branch");
+                    }
                     throw new ParsingException(f.source(), "MEMBER requires SEQUENCE with an explicit PRIMARY");
                 }
             });
-            return statement;
+            return plan == statement.plan() ? statement : new EsqlStatement(plan, statement.settings(), statement.letBindings());
         }
         List<Declaration> headers = declarations.stream().filter(d -> d.primary > 0).toList();
         if (headers.size() != 1 || (headers.getFirst().child() instanceof Sequence) == false) {
-            throw new ParsingException(plan.source(), "RETURN MATCHES requires one SEQUENCE with an explicit PRIMARY");
+            boolean retained = declarations.stream().anyMatch(d -> d.primary == 0);
+            throw new ParsingException(
+                plan.source(),
+                retained
+                    ? "RETURN MATCHES requires one SEQUENCE with an explicit PRIMARY"
+                    : "SEQUENCE output is outside the prototype in this command composition"
+            );
         }
         Declaration header = headers.getFirst();
-        Sequence sequence = (Sequence) header.child();
+        Sequence sequence = prepareStageConditions((Sequence) header.child(), header.stageNames);
         boolean capture = declarations.size() == 2;
         if (declarations.size() > 2
             || (capture && (plan instanceof Declaration) == false)
@@ -158,28 +182,41 @@ public final class SequenceMatchOutput {
             }
             cursor = ((UnaryPlan) cursor).child();
         }
-        sequence.forEachExpressionDown(UnresolvedFunction.class, f -> {
-            if (f.name().equalsIgnoreCase("member")) {
-                throw new ParsingException(f.source(), "MEMBER is only available after SEQUENCE");
-            }
-        });
         Map<Member, NameId> members = new LinkedHashMap<>();
-        plan = plan.transformUp(Declaration.class, Declaration::child);
+        plan = plan.transformUp(Declaration.class, declaration -> declaration.primary > 0 ? sequence : declaration.child());
         plan = plan.transformExpressionsUp(UnresolvedFunction.class, f -> {
             if (f.name().equalsIgnoreCase("member") == false) return f;
-            if (f.children().size() != 2
-                || (f.children().get(0) instanceof Literal) == false
-                || (f.children().get(1) instanceof UnresolvedAttribute) == false) {
-                throw new ParsingException(f.source(), "MEMBER requires a literal member number and a field identifier");
+            if (f.children().size() != 2 || (f.children().get(1) instanceof UnresolvedAttribute) == false) {
+                throw new ParsingException(
+                    f.source(),
+                    "MEMBER requires a literal member number or an unquoted stage name and a field identifier"
+                );
             }
-            Literal number = (Literal) f.children().get(0);
-            if ((number.value() instanceof Integer) == false || number.source().text().matches("[0-9]+") == false) {
-                throw new ParsingException(f.source(), "MEMBER requires a literal member number");
-            }
-            int stage = (Integer) number.value();
-            if (stage < 1 || stage > sequence.children().size()) {
-                throw new ParsingException(f.source(), "MEMBER must name an existing one-based member");
-            }
+            Expression selected = f.children().get(0);
+            final int stage;
+            if (selected instanceof Literal number) {
+                if ((number.value() instanceof Integer) == false || number.source().text().matches("[0-9]+") == false) {
+                    throw new ParsingException(f.source(), "MEMBER requires a literal member number");
+                }
+                stage = (Integer) number.value();
+                if (stage < 1 || stage > sequence.children().size()) {
+                    throw new ParsingException(f.source(), "MEMBER must name an existing one-based member");
+                }
+            } else if (selected instanceof UnresolvedAttribute name
+                && name.qualifier() == null
+                && name.source().text().equals(name.name())
+                && name.name().contains(".") == false) {
+                    Integer position = header.stageNames.get(name.name());
+                    if (position == null) {
+                        throw new ParsingException(f.source(), "Unknown SEQUENCE stage name [{}] in MEMBER", name.name());
+                    }
+                    stage = position;
+                } else {
+                    throw new ParsingException(
+                        f.source(),
+                        "MEMBER requires a literal member number or an unquoted stage name and a field identifier"
+                    );
+                }
             if (stage == header.primary) {
                 throw new ParsingException(f.source(), "Use ordinary field names for the PRIMARY member");
             }
@@ -189,6 +226,162 @@ public final class SequenceMatchOutput {
             return new MemberReference(f.source(), member, binding);
         });
         return prepare(new EsqlStatement(plan, statement.settings(), statement.letBindings()), header.primary - 1, capture, members);
+    }
+
+    /** Splits only the final WHERE, preserving its own-row binding point through the permitted trailing projections. */
+    private static Sequence prepareStageConditions(Sequence sequence, Map<String, Integer> stageNames) {
+        List<LogicalPlan> stages = new ArrayList<>();
+        for (int ownStage = 0; ownStage < sequence.children().size(); ownStage++) {
+            SequenceStage stage = (SequenceStage) sequence.children().get(ownStage);
+            LogicalPlan cursor = stage.child();
+            List<UnaryPlan> projections = new ArrayList<>();
+            while (cursor instanceof Keep || cursor instanceof Drop || cursor instanceof Rename) {
+                projections.add((UnaryPlan) cursor);
+                cursor = ((UnaryPlan) cursor).child();
+            }
+            if (cursor instanceof Filter filter && containsMember(filter.condition())) {
+                List<Expression> own = new ArrayList<>();
+                List<Expression> deferred = new ArrayList<>();
+                List<List<Integer>> referenced = new ArrayList<>();
+                final int currentStage = ownStage;
+                for (Expression conjunct : Predicates.splitAnd(filter.condition())) {
+                    if (containsMember(conjunct) == false) {
+                        own.add(conjunct);
+                        continue;
+                    }
+                    conjunct.forEachDown(expression -> {
+                        if (expression instanceof InSubquery || expression instanceof MultiColumnInSubquery) {
+                            throw new ParsingException(
+                                expression.source(),
+                                "IN subqueries are not supported in a SEQUENCE MEMBER condition"
+                            );
+                        }
+                    });
+                    Set<Integer> earlier = new HashSet<>();
+                    deferred.add(conjunct.transformUp(UnresolvedFunction.class, function -> {
+                        if (function.name().equalsIgnoreCase("member") == false) return function;
+                        MemberReference reference = stageMember(function, stageNames, sequence.children().size(), currentStage);
+                        earlier.add(reference.stage());
+                        return reference;
+                    }));
+                    referenced.add(earlier.stream().sorted().toList());
+                }
+                cursor = own.isEmpty() ? filter.child() : new Filter(filter.source(), filter.child(), Predicates.combineAnd(own));
+                for (int conjunct = deferred.size() - 1; conjunct >= 0; conjunct--) {
+                    cursor = new SequenceCondition(
+                        filter.source(),
+                        cursor,
+                        ownStage,
+                        deferred.get(conjunct),
+                        referenced.get(conjunct),
+                        List.of()
+                    );
+                }
+                for (int projection = projections.size() - 1; projection >= 0; projection--) {
+                    cursor = projections.get(projection).replaceChild(cursor);
+                }
+                stage = stage.replaceChild(cursor);
+            }
+            stage.forEachExpressionDown(UnresolvedFunction.class, function -> {
+                if (function.name().equalsIgnoreCase("member")) {
+                    throw new ParsingException(
+                        function.source(),
+                        "MEMBER is only supported in the final WHERE of a SEQUENCE stage; only KEEP, DROP or RENAME may follow that WHERE"
+                    );
+                }
+            });
+            stages.add(stage);
+        }
+        return sequence.replaceChildren(stages);
+    }
+
+    private static boolean containsMember(Expression expression) {
+        return expression.anyMatch(e -> e instanceof UnresolvedFunction function && function.name().equalsIgnoreCase("member"));
+    }
+
+    private static MemberReference stageMember(UnresolvedFunction function, Map<String, Integer> names, int count, int ownStage) {
+        if (function.children().size() != 2 || function.children().get(1) instanceof UnresolvedAttribute == false) {
+            throw new ParsingException(
+                function.source(),
+                "MEMBER requires a literal member number or an unquoted stage name and a field identifier"
+            );
+        }
+        Expression selected = function.children().getFirst();
+        final int stage;
+        if (selected instanceof Literal number) {
+            if (number.value() instanceof Integer == false || number.source().text().matches("[0-9]+") == false) {
+                throw new ParsingException(function.source(), "MEMBER requires a literal member number");
+            }
+            stage = (Integer) number.value();
+            if (stage < 1 || stage > count) {
+                throw new ParsingException(function.source(), "MEMBER must name an existing one-based member");
+            }
+        } else if (selected instanceof UnresolvedAttribute name
+            && name.qualifier() == null
+            && name.source().text().equals(name.name())
+            && name.name().contains(".") == false) {
+                Integer position = names.get(name.name());
+                if (position == null) {
+                    throw new ParsingException(function.source(), "Unknown SEQUENCE stage name [{}] in MEMBER", name.name());
+                }
+                stage = position;
+            } else {
+                throw new ParsingException(
+                    function.source(),
+                    "MEMBER requires a literal member number or an unquoted stage name and a field identifier"
+                );
+            }
+        if (stage - 1 >= ownStage) {
+            throw new ParsingException(
+                function.source(),
+                "MEMBER in SEQUENCE stage [{}] must refer to an earlier stage; found [{}]",
+                ownStage + 1,
+                stage
+            );
+        }
+        return new MemberReference(
+            function.source(),
+            new Member(stage - 1, ((UnresolvedAttribute) function.children().get(1)).name()),
+            new NameId()
+        );
+    }
+
+    /** Ordinary unions publish each branch's processed schema after binding its own PRIMARY and MEMBER context. */
+    private static LogicalPlan prepareUnionBranches(LogicalPlan plan, EsqlStatement statement) {
+        if (plan instanceof Declaration declaration) {
+            if (declaration.primary == 0 && hasOrdinaryUnion(declaration.child())) {
+                throw new ParsingException(declaration.source(), "RETURN MATCHES cannot retain an ordinary union");
+            }
+            // A sequence owns its event stages; branch preparation must not make nested declarations valid there.
+            return plan;
+        }
+        if (plan instanceof Sequence) return plan;
+        if (plan instanceof UnionAll union) {
+            List<Declaration> declarations = union.collect(Declaration.class);
+            if (declarations.isEmpty()) return plan;
+            for (Declaration declaration : declarations) {
+                if (declaration.primary == 0) {
+                    throw new ParsingException(declaration.source(), "RETURN MATCHES is not supported inside an ordinary union");
+                }
+            }
+            List<LogicalPlan> branches = new ArrayList<>();
+            for (LogicalPlan branch : union.children()) {
+                branches.add(prepare(new EsqlStatement(branch, statement.settings(), statement.letBindings())).plan());
+            }
+            return union.replaceChildren(branches);
+        }
+        if (plan instanceof UnaryPlan unary) {
+            LogicalPlan child = prepareUnionBranches(unary.child(), statement);
+            return child == unary.child() ? plan : unary.replaceChild(child);
+        }
+        return plan;
+    }
+
+    /** A stage-local union is behind its sequence declaration and does not merge independent output contexts. */
+    private static boolean hasOrdinaryUnion(LogicalPlan plan) {
+        if (plan instanceof Declaration || plan instanceof Sequence) return false;
+        if (plan instanceof UnionAll) return true;
+        return plan.children().stream().anyMatch(SequenceMatchOutput::hasOrdinaryUnion);
     }
 
     /** LET plans are expanded after preparation, so inspect their expression-held subqueries before declarations can escape. */
@@ -236,6 +429,11 @@ public final class SequenceMatchOutput {
                 if (declarations.isEmpty() == false) {
                     throw new ParsingException(declarations.getFirst().source(), "SEQUENCE is not supported as an IN subquery source");
                 }
+                subquery.forEachExpressionDown(UnresolvedFunction.class, function -> {
+                    if (function.name().equalsIgnoreCase("member")) {
+                        throw new ParsingException(function.source(), "MEMBER is not available inside an IN subquery");
+                    }
+                });
                 pending.add(subquery);
             });
             pending.addAll(current.children());
@@ -376,7 +574,7 @@ public final class SequenceMatchOutput {
         Map<NameId, NameId> published = new LinkedHashMap<>();
         roles.forEach(role -> published.put(role.output(), new NameId()));
         keys.forEach(key -> published.put(key, new NameId()));
-        List<String> keyNames = ((SequenceStage) sequence.children().getFirst()).keys().stream().map(Attribute::name).toList();
+        List<String> keyNames = ((SequenceStage) sequence.children().get(primary)).keys().stream().map(Attribute::name).toList();
         Context context = new Context(
             primary,
             Map.copyOf(members),
@@ -393,11 +591,12 @@ public final class SequenceMatchOutput {
 
     private static void requireSimpleStage(LogicalPlan plan) {
         if (plan instanceof UnresolvedRelation) return;
-        if (plan instanceof Eval
-            || plan instanceof Keep
-            || plan instanceof Drop
-            || plan instanceof Rename
-            || plan instanceof Filter
+        if (plan instanceof Eval || plan instanceof Keep || plan instanceof Drop || plan instanceof Rename || plan instanceof Filter
+        // Deferred predicates preserve the event rows and public schema carrying the authentic original bindings.
+            || plan instanceof SequenceCondition
+            || plan instanceof Dissect
+            || plan instanceof Grok
+            || plan instanceof MvExpand
             || plan instanceof UnresolvedMetadata) {
             requireSimpleStage(((UnaryPlan) plan).child());
             return;
@@ -599,17 +798,22 @@ public final class SequenceMatchOutput {
                 Attribute value = sequence.output().get(i);
                 int stage = sequence.sourceStages().get(i);
                 if (input.synthetic() == false && (i < keyCount || stage == context.primary())) {
+                    String name = i < keyCount
+                        ? ((SequenceStage) sequence.children().get(context.primary())).keys().get(i).name()
+                        : input.name();
                     // Recomputing a compiler projection must not change an already published binding.
                     output.add(
-                        keepUnmapped
-                            ? new Alias(value.source(), input.name(), value, value.id(), false)
-                            : new Alias(value.source(), input.name(), value)
+                        keepUnmapped ? new Alias(value.source(), name, value, value.id(), false) : new Alias(value.source(), name, value)
                     );
                 }
                 for (var entry : context.members().entrySet()) {
                     Member member = entry.getKey();
-                    // Matching keys are shared by every member, although Sequence emits them only once.
-                    if ((i < keyCount || stage == member.stage()) && input.synthetic() == false && input.name().equals(member.field())) {
+                    // A key slot is shared by value, but each member names it through its own stage's key attribute.
+                    // An opposite-named non-key payload must still bind to its actual member instead of that slot.
+                    String name = i < keyCount
+                        ? ((SequenceStage) sequence.children().get(member.stage())).keys().get(i).name()
+                        : input.name();
+                    if ((i < keyCount || stage == member.stage()) && input.synthetic() == false && name.equals(member.field())) {
                         NameId binding = entry.getValue();
                         // Reserve against parsed and resolved user names; MEMBER resolution uses only the binding ID.
                         output.add(new Alias(value.source(), temporaryName(usedNames, "sequence_member", binding), value, binding, true));

@@ -12,7 +12,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 public interface ColumnInfo extends Writeable {
     /*
@@ -28,8 +27,4 @@ public interface ColumnInfo extends Writeable {
 
     String outputType();
 
-    /** Optional schema metadata must remain accessible to consumers of the generic response view. */
-    default Map<String, Object> meta() {
-        return null;
-    }
 }

@@ -45,6 +45,7 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
     );
 
     private final List<Attribute> keys;
+    private final long maxGapNanos;
     private static final Set<DataType> KEY_TYPES = Set.of(
         DataType.NULL,
         DataType.BOOLEAN,
@@ -60,12 +61,26 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
     );
 
     public SequenceStage(Source source, LogicalPlan child, List<Attribute> keys) {
+        this(source, child, keys, 0);
+    }
+
+    /** Limits this member's incoming link from the selected previous event; zero leaves that link unconstrained. */
+    public SequenceStage(Source source, LogicalPlan child, List<Attribute> keys, long maxGapNanos) {
         super(source, child);
+        if (maxGapNanos < 0) {
+            throw new IllegalArgumentException("SEQUENCE link time limit must be positive or absent");
+        }
         this.keys = List.copyOf(keys);
+        this.maxGapNanos = maxGapNanos;
     }
 
     private SequenceStage(StreamInput in) throws IOException {
-        this(readSource(in), in.readNamedWriteable(LogicalPlan.class), in.readNamedWriteableCollectionAsList(Attribute.class));
+        this(
+            readSource(in),
+            in.readNamedWriteable(LogicalPlan.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.getTransportVersion().supports(Sequence.ESQL_SEQUENCE_PER_LINK_TIME) ? in.readVLong() : 0
+        );
     }
 
     private static Source readSource(StreamInput in) throws IOException {
@@ -75,10 +90,17 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Sequence.checkSupported(out.getTransportVersion());
+        Sequence.checkPlanSupported(
+            out.getTransportVersion(),
+            maxGapNanos > 0,
+            child().anyMatch(plan -> plan instanceof SequenceCondition)
+        );
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(keys);
+        if (out.getTransportVersion().supports(Sequence.ESQL_SEQUENCE_PER_LINK_TIME)) {
+            out.writeVLong(maxGapNanos);
+        }
     }
 
     @Override
@@ -88,16 +110,20 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
 
     @Override
     protected NodeInfo<SequenceStage> info() {
-        return NodeInfo.create(this, SequenceStage::new, child(), keys);
+        return NodeInfo.create(this, SequenceStage::new, child(), keys, maxGapNanos);
     }
 
     @Override
     public SequenceStage replaceChild(LogicalPlan newChild) {
-        return new SequenceStage(source(), newChild, keys);
+        return new SequenceStage(source(), newChild, keys, maxGapNanos);
     }
 
     public List<Attribute> keys() {
         return keys;
+    }
+
+    public long maxGapNanos() {
+        return maxGapNanos;
     }
 
     @Override
@@ -180,6 +206,7 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
             }
         }
         if (plan instanceof Filter
+            || plan instanceof SequenceCondition
             || plan instanceof Eval
             || plan instanceof Project
             || plan instanceof MvExpand
@@ -237,11 +264,15 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), keys);
+        return Objects.hash(child(), keys, maxGapNanos);
     }
 
     @Override
     public boolean equals(Object obj) {
-        return this == obj || obj instanceof SequenceStage other && child().equals(other.child()) && keys.equals(other.keys);
+        return this == obj
+            || obj instanceof SequenceStage other
+                && child().equals(other.child())
+                && keys.equals(other.keys)
+                && maxGapNanos == other.maxGapNanos;
     }
 }

@@ -29,9 +29,11 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
@@ -52,6 +54,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType.NONE;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
 /** Verifies independent stage scopes, the wide schema, and candidate completeness boundaries. */
@@ -60,6 +63,39 @@ public class SequenceAnalyzerTests extends ESTestCase {
     @BeforeClass
     public static void requireSequenceCommand() {
         assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
+    }
+
+    /** Stage aliases lower before field discovery; they can share ordinary field names without changing bindings. */
+    public void testNamedStagesPreservePositionalSchemaAndDemands() {
+        String numeric = """
+            SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 2
+            (FROM a | KEEP host.id, label), (FROM b | KEEP host.id, label)
+            | EVAL from_name = MEMBER(1, label), from_number = MEMBER(1, label)
+            | KEEP host.id, label, from_name, from_number | LIMIT 1
+            """;
+        String named = numeric.replace("PRIMARY 2", "PRIMARY execution")
+            .replace("(FROM a | KEEP host.id, label)", "(FROM a | KEEP host.id, label) AS label")
+            .replace("(FROM b | KEEP host.id, label)", "(FROM b | KEEP host.id, label) AS execution")
+            .replace("from_name = MEMBER(1, label)", "from_name = MEMBER(label, label)");
+        for (String retention : List.of("", " | RETURN MATCHES")) {
+            LogicalPlan numbered = configured().statement(numeric + retention);
+            LogicalPlan aliased = configured().statement(named + retention);
+            assertEquals(numbered.output().stream().map(Attribute::name).toList(), aliased.output().stream().map(Attribute::name).toList());
+            assertEquals(
+                numbered.output().stream().map(Attribute::dataType).toList(),
+                aliased.output().stream().map(Attribute::dataType).toList()
+            );
+            Sequence numberedSequence = numbered.collect(Sequence.class).getFirst();
+            Sequence namedSequence = aliased.collect(Sequence.class).getFirst();
+            assertEquals(numberedSequence.sourceStages(), namedSequence.sourceStages());
+            assertEquals(
+                numberedSequence.sourceAttributes().stream().map(Attribute::dataType).toList(),
+                namedSequence.sourceAttributes().stream().map(Attribute::dataType).toList()
+            );
+            assertEquals(numberedSequence.maxSpanNanos(), namedSequence.maxSpanNanos());
+            assertTrue(aliased.collect(SequenceMatchOutput.Declaration.class).isEmpty());
+            assertTrue(aliased.collect(SequenceMatchOutput.Scope.class).isEmpty());
+        }
     }
 
     /** Quoted aliases can spell the original's actual generated name; ID-preserved KEEP must still carry genuine originals. */
@@ -133,6 +169,263 @@ public class SequenceAnalyzerTests extends ESTestCase {
         compilerNames.remove(quotedName(parsed, "input"));
         assertFalse(compilerNames.isEmpty());
         assertTrue(compilerNames.stream().noneMatch(fields::contains));
+    }
+
+    /** Capture names participate in reservation even when no ordinary alias declares the colliding name. */
+    public void testExtractedTemporaryOriginalSurvivesStageKeep() throws Exception {
+        for (int primary : List.of(1, 2)) {
+            EsqlStatement parsed = quotedCollision("""
+                SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY %s
+                (FROM a | DISSECT label "%%{placeholder}" | KEEP host.id, `placeholder`), (FROM b)
+                | EVAL ordinary = %s | KEEP ordinary | LIMIT 1 | RETURN MATCHES
+                """.formatted(primary, primary == 1 ? "`placeholder`" : "MEMBER(1, `placeholder`)"), "input");
+            assertCompleteOriginalSchema(parsed, configured(), List.of("ordinary"));
+        }
+    }
+
+    /** Extracted keys resolve independently, while typed payloads survive pruning and MEMBER publication. */
+    public void testRetainedExtractionKeysAndTypedPayload() {
+        for (String extraction : List.of(
+            "DISSECT label \"%{parsed_key}:%{payload}:%{unused}\"",
+            "GROK label \"%{WORD:parsed_key}:%{INT:payload:int}:%{WORD:unused}\""
+        )) {
+            for (int primary : List.of(1, 2)) {
+                String query = """
+                    SEQUENCE BY parsed_key WITH {"maxspan":"30s"} PRIMARY %s
+                    (FROM a | %s | RENAME payload AS parsed_value | DROP unused | KEEP parsed_key, parsed_value),
+                    (FROM b | %s | RENAME payload AS parsed_value | DROP unused | KEEP parsed_key, parsed_value)
+                    | EVAL other_value = MEMBER(%s, parsed_value)
+                    | KEEP parsed_key, parsed_value, other_value | LIMIT 1 | RETURN MATCHES
+                    """.formatted(primary, extraction, extraction, 3 - primary);
+                EsqlStatement parsed = EsqlTestUtils.TEST_PARSER.createStatement(query);
+                assertCompleteOriginalSchema(parsed, configured(), List.of("parsed_key", "parsed_value", "other_value"));
+                LogicalPlan analyzed = configured().statement(query);
+                DataType payloadType = extraction.startsWith("GROK") ? DataType.INTEGER : DataType.KEYWORD;
+                assertEquals(
+                    List.of(DataType.KEYWORD, payloadType, payloadType),
+                    analyzed.output().subList(0, 3).stream().map(Attribute::dataType).toList()
+                );
+                LogicalPlan optimized = optimizer().optimize(analyzed);
+                assertEquals(analyzed.output(), optimized.output());
+                assertEquals(2, optimized.collect(RegexExtract.class).size());
+                Sequence sequence = optimized.collect(Sequence.class).getFirst();
+                assertTrue(sequence.sourceAttributes().stream().noneMatch(attribute -> attribute.name().equals("unused")));
+                assertEquals(2L, sequence.sourceAttributes().stream().filter(a -> a.dataType() == DataType.SOURCE).count());
+            }
+        }
+    }
+
+    /** A nullified expansion input keeps the ordinary schema independently of retained evidence. */
+    public void testNullifyExpandedOrdinaryPrimaryOne() {
+        assertNullifyExpandedBindings(1, false);
+    }
+
+    /** The second primary has the same ordinary null-typed expansion contract. */
+    public void testNullifyExpandedOrdinaryPrimaryTwo() {
+        assertNullifyExpandedBindings(2, false);
+    }
+
+    /** Compiler-owned key and original bindings survive late NULLIFY projection recomputation. */
+    public void testNullifyExpandedRetainedPrimaryOne() {
+        assertNullifyExpandedBindings(1, true);
+    }
+
+    /** Retained dependencies survive with the second primary as well as the first. */
+    public void testNullifyExpandedRetainedPrimaryTwo() {
+        assertNullifyExpandedBindings(2, true);
+    }
+
+    /** LOAD must report the member's missing field rather than trying to load the MEMBER display spelling. */
+    public void testLoadMissingMemberHasScopedDiagnostic() {
+        for (int primary : List.of(1, 2)) {
+            int other = 3 - primary;
+            configured().statementError(
+                """
+                    SET unmapped_fields="load";
+                    SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s (FROM a), (FROM b)
+                    | EVAL missing = MEMBER(%s, absent_optional) | KEEP missing | LIMIT 10
+                    """.formatted(primary, other),
+                containsString(
+                    "Cannot load missing field [absent_optional] for SEQUENCE member ["
+                        + other
+                        + "]; use a mapped or stage-produced MEMBER field"
+                )
+            );
+        }
+    }
+
+    /** Ordinary LOAD analysis and mapped or stage-produced MEMBER fields retain their existing behavior. */
+    public void testLoadPreservesOrdinaryAndStageProducedMemberFields() {
+        var ordinary = configured().statement("""
+            SET unmapped_fields="load";
+            FROM a | EVAL ordinary=absent_optional | KEEP ordinary | LIMIT 10
+            """);
+        assertEquals(List.of("ordinary"), ordinary.output().stream().map(Attribute::name).toList());
+        assertEquals(List.of(DataType.KEYWORD), ordinary.output().stream().map(Attribute::dataType).toList());
+        for (int primary : List.of(1, 2)) {
+            int other = 3 - primary;
+            for (String memberField : List.of("label", "stage_value")) {
+                var analyzed = configured().statement("""
+                    SET unmapped_fields="load";
+                    SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+                    (FROM a | EVAL stage_value=label), (FROM b | EVAL stage_value=label)
+                    | EVAL other=MEMBER(%s, %s) | KEEP other | LIMIT 10
+                    """.formatted(primary, other, memberField));
+                assertEquals(List.of("other"), analyzed.output().stream().map(Attribute::name).toList());
+                assertEquals(List.of(DataType.KEYWORD), analyzed.output().stream().map(Attribute::dataType).toList());
+            }
+        }
+    }
+
+    private void assertNullifyExpandedBindings(int primary, boolean capture) {
+        String query = """
+            SET unmapped_fields="nullify";
+            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+            (FROM a | EVAL pick=absent_optional | MV_EXPAND pick | KEEP host.id,pick),
+            (FROM b | EVAL pick=absent_optional | MV_EXPAND pick | KEEP host.id,pick)
+            | EVAL other=MEMBER(%s,pick) | KEEP host.id,pick,other | SORT host.id | LIMIT 10
+            """.formatted(primary, 3 - primary) + (capture ? " | RETURN MATCHES" : "");
+        EsqlStatement parsed = EsqlTestUtils.TEST_PARSER.createStatement(query);
+        LogicalPlan analyzed = configured().unmappedResolution(parsed.setting(QuerySettings.UNMAPPED_FIELDS))
+            .buildAnalyzer()
+            .analyze(parsed.plan());
+        List<String> names = new ArrayList<>(List.of("host.id", "pick", "other"));
+        List<DataType> types = new ArrayList<>(List.of(DataType.KEYWORD, DataType.NULL, DataType.NULL));
+        if (capture) {
+            names.addAll(
+                List.of(
+                    "match_key_1",
+                    "member_1_index",
+                    "member_1_id",
+                    "member_1_source",
+                    "member_2_index",
+                    "member_2_id",
+                    "member_2_source"
+                )
+            );
+            types.addAll(
+                List.of(
+                    DataType.KEYWORD,
+                    DataType.KEYWORD,
+                    DataType.KEYWORD,
+                    DataType.SOURCE,
+                    DataType.KEYWORD,
+                    DataType.KEYWORD,
+                    DataType.SOURCE
+                )
+            );
+        }
+        assertEquals(names, analyzed.output().stream().map(Attribute::name).toList());
+        assertEquals(types, analyzed.output().stream().map(Attribute::dataType).toList());
+        assertEquals(analyzed.output().size(), analyzed.output().stream().map(Attribute::id).distinct().count());
+        assertEquals(capture ? 10 : 0, SequenceMatchOutput.deliveryMetadata(parsed, analyzed.output(), Map.of()).size());
+        assertTrue(analyzed.collect(SequenceMatchOutput.Capture.class).isEmpty());
+        assertTrue(analyzed.collect(SequenceMatchOutput.Scope.class).isEmpty());
+        assertTrue(analyzed.collect(SequenceMatchOutput.Originals.class).isEmpty());
+        LogicalPlan optimized = optimizer().optimize(analyzed);
+        assertEquals(analyzed.output(), optimized.output());
+        assertEquals(
+            capture ? 2L : 0L,
+            optimized.collect(Sequence.class).getFirst().sourceAttributes().stream().filter(a -> a.dataType() == DataType.SOURCE).count()
+        );
+    }
+
+    /** Public metadata-shaped captures remain processed values, separate from the protected source slots. */
+    public void testExtractedMetadataNamesPreserveOriginals() {
+        for (String extraction : List.of(
+            "DISSECT label \"%{_id}:%{_index}:%{_source}\"",
+            "GROK label \"%{WORD:_id}:%{WORD:_index}:%{WORD:_source}\""
+        )) {
+            assertProtectedBindings("| " + extraction, "", "_id", "_index", "_source");
+        }
+    }
+
+    /** Original retention does not relax the event-time source contract for extracted fields. */
+    public void testRetainedExtractionCannotOverwriteTimestamp() {
+        for (String extraction : List.of("DISSECT label \"%{@timestamp}\"", "GROK label \"%{WORD:@timestamp}\"")) {
+            configured().statementError("""
+                SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 1
+                (FROM a | %s), (FROM b)
+                | KEEP host.id | LIMIT 1 | RETURN MATCHES
+                """.formatted(extraction), containsString("cannot overwrite the source [@timestamp]"));
+        }
+    }
+
+    /** Retaining authentic originals does not keep an extraction whose processed outputs are all unused. */
+    public void testUnusedRetainedExtractionIsPruned() {
+        for (String extraction : List.of("DISSECT label \"%{unused}\"", "GROK label \"%{WORD:unused}\"")) {
+            LogicalPlan analyzed = configured().statement("""
+                SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 2
+                (FROM a | %s), (FROM b | %s)
+                | KEEP host.id | LIMIT 1 | RETURN MATCHES
+                """.formatted(extraction, extraction));
+            LogicalPlan optimized = optimizer().optimize(analyzed);
+            assertEquals(analyzed.output(), optimized.output());
+            assertTrue(optimized.collect(RegexExtract.class).isEmpty());
+            assertEquals(
+                2L,
+                optimized.collect(Sequence.class)
+                    .getFirst()
+                    .sourceAttributes()
+                    .stream()
+                    .filter(a -> a.dataType() == DataType.SOURCE)
+                    .count()
+            );
+        }
+    }
+
+    /** Independent union branches resolve ordinary PRIMARY names and MEMBER demands against their own stages. */
+    public void testUnionResolvesIndependentPrimaryAndMemberContexts() {
+        String first = """
+            SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 1
+            (FROM a | KEEP host.id, label), (FROM b | KEEP host.id, label)
+            | EVAL other = MEMBER(2, label) | KEEP label, other
+            """;
+        String second = """
+            SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 2
+            (FROM a | KEEP host.id, label), (FROM b | KEEP host.id, label)
+            | EVAL other = MEMBER(1, label) | KEEP label, other
+            """;
+        for (List<String> branches : List.of(List.of(first, second), List.of(second, first))) {
+            LogicalPlan analyzed = configured().statement(
+                "FROM (" + branches.get(0) + "), (" + branches.get(1) + ") | STATS n = COUNT(*) BY label, other | SORT label | LIMIT 10"
+            );
+            assertEquals(List.of("n", "label", "other"), analyzed.output().stream().map(Attribute::name).toList());
+            assertEquals(
+                List.of(DataType.LONG, DataType.KEYWORD, DataType.KEYWORD),
+                analyzed.output().stream().map(Attribute::dataType).toList()
+            );
+            assertEquals(2, analyzed.collect(Sequence.class).size());
+            assertTrue(analyzed.collect(SequenceMatchOutput.Scope.class).isEmpty());
+            LogicalPlan optimized = optimizer().optimize(analyzed);
+            assertEquals(analyzed.output(), optimized.output());
+            assertEquals(2, optimized.collect(Sequence.class).size());
+        }
+    }
+
+    /** Ordinary union alignment retains its normal null-fill and conflicting-type behavior for sequence branches. */
+    public void testUnionSequenceUsesOrdinarySchemaAlignment() {
+        String sequence = """
+            SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 2 (FROM a), (FROM b)
+            | EVAL supporting = MEMBER(1, label) | KEEP label, supporting
+            """;
+        for (String branches : List.of("(" + sequence + "), (FROM a | KEEP label)", "(FROM a | KEEP label), (" + sequence + ")")) {
+            LogicalPlan analyzed = configured().statement("FROM " + branches + " | KEEP label, supporting | SORT label | LIMIT 10");
+            assertEquals(List.of("label", "supporting"), analyzed.output().stream().map(Attribute::name).toList());
+            assertEquals(List.of(DataType.KEYWORD, DataType.KEYWORD), analyzed.output().stream().map(Attribute::dataType).toList());
+        }
+        // Bare conflicting columns are published as UNSUPPORTED, just as in an ordinary source union.
+        // Only a downstream operation that needs a usable type must reject that conflict.
+        String integerLabel = "FROM a | EVAL label = 1 | KEEP label";
+        for (String keywordLabel : List.of("FROM b | KEEP label", sequence)) {
+            for (List<String> branches : List.of(List.of(keywordLabel, integerLabel), List.of(integerLabel, keywordLabel))) {
+                LogicalPlan analyzed = configured().statement(
+                    "FROM (" + branches.get(0) + "), (" + branches.get(1) + ") | KEEP label | LIMIT 10"
+                );
+                assertEquals(List.of("label"), analyzed.output().stream().map(Attribute::name).toList());
+                assertEquals(List.of(DataType.UNSUPPORTED), analyzed.output().stream().map(Attribute::dataType).toList());
+            }
+        }
     }
 
     /** Validate the same final typed roles used by delivery, not just a familiar set of display labels. */
@@ -358,6 +651,39 @@ public class SequenceAnalyzerTests extends ESTestCase {
         assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
+    /** MEMBER sees the stage's final schema: RENAME replaces the old spelling and EVAL can publish a new column. */
+    public void testMemberUsesFinalStageColumnNames() {
+        String query = """
+            SEQUENCE BY host.id WITHIN 30 seconds PRIMARY execution
+            (FROM a | RENAME label AS actor | EVAL normalized = TO_LOWER(actor) | KEEP host.id, actor, normalized) AS download,
+            (FROM b | KEEP host.id, label) AS execution
+            | EVAL observed = MEMBER(download, actor), derived = MEMBER(download, normalized)
+            | KEEP host.id, observed, derived | LIMIT 10
+            """;
+        LogicalPlan analyzed = configured().statement(query);
+        LogicalPlan optimized = optimizer().optimize(analyzed);
+        assertEquals(List.of("host.id", "observed", "derived"), optimized.output().stream().map(Attribute::name).toList());
+        assertEquals(
+            List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD),
+            optimized.output().stream().map(Attribute::dataType).toList()
+        );
+        configured().statementError(
+            query.replace("MEMBER(download, actor)", "MEMBER(download, label)"),
+            allOf(containsString("Unknown column"), containsString("label"))
+        );
+    }
+
+    /** An explicit projection is a schema boundary even when a mapped source field could otherwise be loaded. */
+    public void testMemberCannotReadFieldRemovedFromNamedStage() {
+        for (String projection : List.of("KEEP host.id", "DROP label")) {
+            configured().statementError("""
+                SEQUENCE BY host.id WITHIN 30 seconds PRIMARY execution
+                (FROM a | %s) AS download, (FROM b | KEEP host.id, label) AS execution
+                | EVAL observed = MEMBER(download, label) | KEEP host.id, observed | LIMIT 10
+                """.formatted(projection), allOf(containsString("Unknown column"), containsString("label")));
+        }
+    }
+
     public void testIndexedSearchRequiresAnExplicitStageBoundary() {
         for (String predicate : List.of("MATCH(label, \"term\")", "QSTR(\"label:term\")", "KQL(\"label:term\")")) {
             configured().statementError(Strings.format("""
@@ -423,10 +749,9 @@ public class SequenceAnalyzerTests extends ESTestCase {
     }
 
     public void testOldClusterRejectedBeforePlanning() {
-        configured().minimumTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_STAGE_COLUMNS))
-            .statementError("""
-                sequence by host.id with {"maxspan":"30s"} PRIMARY 1 (from a), (from b)
-                """, containsString("SEQUENCE is not supported by all nodes in the cluster"));
+        configured().minimumTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE)).statementError("""
+            sequence by host.id with {"maxspan":"30s"} PRIMARY 1 (from a), (from b)
+            """, containsString("SEQUENCE is not supported by all nodes in the cluster"));
         assertWarnings("No limit defined, adding default limit of [1000]");
     }
 

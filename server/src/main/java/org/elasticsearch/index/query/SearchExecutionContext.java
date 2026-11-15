@@ -137,8 +137,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final IndexSearcher searcher;
     private boolean cacheable = true;
     private boolean requireRepeatableEvaluation;
-    @Nullable
-    private MappingLookup.CacheKey pointInTimeMappingCacheKey;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private Set<String> fieldsInIndex = null;
     private UnmappedFields unmappedFields = null;
@@ -256,7 +254,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.sliceSelection = source.sliceSelection;
         this.fieldVisibilityPredicate = source.fieldVisibilityPredicate;
         this.requireRepeatableEvaluation = source.requireRepeatableEvaluation;
-        this.pointInTimeMappingCacheKey = source.pointInTimeMappingCacheKey;
     }
 
     private SearchExecutionContext(
@@ -708,14 +705,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Supplies the original PIT reader's node-local mapping identity. Ordinary searches may omit it; a repeatable
-     * search requires it so a relocated/reconstructed reader cannot silently establish a different baseline.
-     */
-    public final void setPointInTimeMappingCacheKey(@Nullable MappingLookup.CacheKey mappingCacheKey) {
-        this.pointInTimeMappingCacheKey = mappingCacheKey;
-    }
-
-    /**
      * Requires query construction and mapped runtime reads to be repeatable on this search context. A caller that
      * replays selected documents can opt in before rewriting its query; the ordinary fixed request clock remains
      * available, while nondeterministic scripts and external lookups cannot silently change the selected population.
@@ -723,12 +712,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public final void requireRepeatableEvaluation() {
         requireRepeatableEvaluation = true;
-        if (pointInTimeMappingCacheKey == null) {
-            rejectNonRepeatableEvaluation("PIT reader without its original mapping identity");
-        }
-        if (pointInTimeMappingCacheKey != mappingCacheKey()) {
-            rejectNonRepeatableEvaluation("mapping changes since the PIT reader was opened");
-        }
     }
 
     @Override

@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceCondition;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
@@ -178,11 +179,24 @@ public class Verifier {
         checkHighlightAnalyzersAgree(plan, failures, context.minimumVersion());
         checkDenseVectorSupported(plan, failures, context.minimumVersion());
         checkFillNullFieldCount(plan, failures, context.flags().maxFillNullFields());
-        if (context.minimumVersion().supports(Sequence.ESQL_SEQUENCE_STAGE_COLUMNS) == false) {
+        if (context.minimumVersion().supports(Sequence.ESQL_SEQUENCE) == false) {
             plan.forEachDown(
                 Sequence.class,
                 sequence -> failures.add(fail(sequence, "SEQUENCE is not supported by all nodes in the cluster"))
             );
+        } else if (context.minimumVersion().supports(Sequence.ESQL_SEQUENCE_PER_LINK_TIME) == false) {
+            plan.forEachDown(Sequence.class, sequence -> {
+                if (sequence.hasLinkTimeLimits()) {
+                    failures.add(fail(sequence, "SEQUENCE per-link time limits are not supported by all nodes in the cluster"));
+                }
+            });
+        }
+        if (context.minimumVersion().supports(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE) == false) {
+            plan.forEachDown(Sequence.class, sequence -> {
+                if (sequence.pairing() == Sequence.Pairing.LATEST_VALID || sequence.hasConditions()) {
+                    failures.add(fail(sequence, "SEQUENCE latest_valid pairing is not supported by all nodes in the cluster"));
+                }
+            });
         }
 
         // collect plan checkers
@@ -468,7 +482,15 @@ public class Verifier {
             collectPlanCheckers.accept(p);
             p.forEachExpression(collectPlanCheckers);
 
-            if (p instanceof PostAnalysisVerificationAware va) {
+            if (p instanceof SequenceCondition condition) {
+                // Failure deduplication keeps the first message on each expression. Explain the deferred-condition
+                // restriction before generic full-text location checks, and verify each wrapper only once.
+                planCheckers.add(0, (lp, failures) -> {
+                    if (lp == condition) {
+                        condition.postAnalysisVerification(analysisRegistry, warnings, failures);
+                    }
+                });
+            } else if (p instanceof PostAnalysisVerificationAware va) {
                 planCheckers.add((lp, failures) -> {
                     if (lp.getClass().equals(va.getClass())) {
                         va.postAnalysisVerification(analysisRegistry, warnings, failures);

@@ -107,15 +107,22 @@ import static org.mockito.Mockito.when;
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     /** Scoped PIT paging must not combine a source alias with broader grants belonging to another physical index. */
     public void testScopedPointInTimeDisablesNodeQueryBatching() {
-        assertPointInTimeQueryDispatch(true, true);
+        assertPointInTimeQueryDispatch(true);
     }
 
     public void testOrdinaryPointInTimeRetainsNodeQueryBatching() {
-        assertPointInTimeQueryDispatch(false, false);
+        assertPointInTimeQueryDispatch(false);
     }
 
-    public void testAuthorizationOnlyPointInTimeDisablesNodeQueryBatching() {
-        assertPointInTimeQueryDispatch(true, false);
+    public void testAuthorizationOnlyPointInTimeCannotBeConstructed() {
+        SearchRequest request = new SearchRequest();
+        expectThrows(
+            IllegalStateException.class,
+            () -> request.setResolvedPointInTimeAuthorizationIndices(
+                new OriginalIndices(new String[] { "narrow-alias" }, request.indicesOptions())
+            )
+        );
+        assertNull(request.getPointInTimeAuthorizationIndices());
     }
 
     public void testScopeOnlyPointInTimeCannotBeConstructed() {
@@ -129,7 +136,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         assertNull(request.getPointInTimeAuthorizationScope());
     }
 
-    private void assertPointInTimeQueryDispatch(boolean authorized, boolean scoped) {
+    private void assertPointInTimeQueryDispatch(boolean scoped) {
         DiscoveryNode coordinator = DiscoveryNodeUtils.create("coordinator");
         DiscoveryNode dataNode = DiscoveryNodeUtils.create("data");
         Transport.Connection connection = new SearchAsyncActionTests.MockConnection(dataNode);
@@ -177,14 +184,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest().source(
             new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("snapshot"))).size(0)
         ).allowPartialSearchResults(false);
-        if (authorized) {
-            request.setPointInTimeAuthorizationIndices(
-                new OriginalIndices(new String[] { "narrow-alias", "broad-alias" }, request.indicesOptions())
-            );
-        }
         if (scoped) {
             request.setPointInTimeAuthorization(
-                request.getPointInTimeAuthorizationIndices(),
+                new OriginalIndices(new String[] { "narrow-alias", "broad-alias" }, request.indicesOptions()),
                 new OriginalIndices(new String[] { "narrow-alias" }, request.indicesOptions()),
                 new MatchAllQueryBuilder()
             );
@@ -217,8 +219,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Map.of()
             );
             action.start();
-            assertEquals(authorized || scoped ? List.of(List.of("narrow-alias"), List.of("broad-alias")) : List.of(), singletonAliases);
-            verify(transportService, times(authorized || scoped ? 0 : 1)).sendChildRequest(
+            assertEquals(scoped ? List.of(List.of("narrow-alias"), List.of("broad-alias")) : List.of(), singletonAliases);
+            verify(transportService, times(scoped ? 0 : 1)).sendChildRequest(
                 any(Transport.Connection.class),
                 eq(SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME),
                 any(TransportRequest.class),

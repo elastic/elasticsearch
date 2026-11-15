@@ -19,6 +19,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -28,15 +29,25 @@ import org.elasticsearch.compute.lucene.read.ComputeBlockLoaderFactory;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper;
 
 import java.io.IOException;
+import java.math.BigInteger;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,6 +55,186 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** Real mapped loaders exercise cached reader accounting, backwards document reads and failed row-stride builders. */
 public class SequenceMappedFieldLoaderTests extends ESTestCase {
+    public void testLiveNumericFormatterPreservesExactSignedAndUnsignedValues() {
+        for (var type : List.of(
+            NumberFieldMapper.NumberType.BYTE,
+            NumberFieldMapper.NumberType.SHORT,
+            NumberFieldMapper.NumberType.INTEGER,
+            NumberFieldMapper.NumberType.LONG
+        )) {
+            var formatter = SequenceDocValuesFetchSubPhase.valueFormatter(
+                "alias",
+                new NumberFieldMapper.NumberFieldType("target", type),
+                SequenceHitReader.INTEGRAL_FORMAT
+            );
+            long minimum = switch (type) {
+                case BYTE -> Byte.MIN_VALUE;
+                case SHORT -> Short.MIN_VALUE;
+                case INTEGER -> Integer.MIN_VALUE;
+                case LONG -> Long.MIN_VALUE;
+                default -> throw new AssertionError(type);
+            };
+            long maximum = switch (type) {
+                case BYTE -> Byte.MAX_VALUE;
+                case SHORT -> Short.MAX_VALUE;
+                case INTEGER -> Integer.MAX_VALUE;
+                case LONG -> Long.MAX_VALUE;
+                default -> throw new AssertionError(type);
+            };
+            for (long value : new long[] { minimum, -1, 0, 1, maximum }) {
+                assertEquals(Long.toString(value), formatter.format(value));
+            }
+            assertEquals("1", formatter.format(1));
+            assertNull(formatter.format(null));
+        }
+        for (String format : new String[] { null, SequenceHitReader.INTEGRAL_FORMAT }) {
+            var formatter = SequenceDocValuesFetchSubPhase.valueFormatter(
+                "alias",
+                new UnsignedLongFieldMapper.UnsignedLongFieldType("target"),
+                format
+            );
+            for (BigInteger value : List.of(
+                BigInteger.ZERO,
+                BigInteger.ONE,
+                BigInteger.ONE.shiftLeft(63),
+                NumericUtils.UNSIGNED_LONG_MAX
+            )) {
+                assertEquals(value.toString(), formatter.format(NumericUtils.asLongUnsigned(value)));
+            }
+            assertNull(formatter.format(null));
+        }
+    }
+
+    public void testLiveNumericFormatterRejectsRoundingAndKeepsExactLargeFloatingInteger() {
+        var formatter = SequenceDocValuesFetchSubPhase.valueFormatter(
+            "alias",
+            new NumberFieldMapper.NumberFieldType("target", NumberFieldMapper.NumberType.DOUBLE),
+            SequenceHitReader.INTEGRAL_FORMAT
+        );
+        assertEquals("9223372036854775808", formatter.format(0x1.0p63));
+        assertEquals("-1", formatter.format(-1.0));
+        assertEquals("0", formatter.format(-0.0));
+        for (double value : new double[] { 1.5, Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY }) {
+            expectThrows(IllegalArgumentException.class, () -> formatter.format(value));
+        }
+        expectThrows(IllegalArgumentException.class, () -> formatter.format(new BytesRef("1")));
+    }
+
+    public void testLiveProducerValidationKeepsNullAndRejectsIncompatibleMappedDomains() {
+        for (String format : new String[] { null, SequenceHitReader.INTEGRAL_FORMAT, SequenceHitReader.TEMPORAL_FORMAT }) {
+            assertNull(SequenceDocValuesFetchSubPhase.valueFormatter("hidden", null, format));
+        }
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SequenceDocValuesFetchSubPhase.valueFormatter("alias", new GeoPointFieldMapper.GeoPointFieldType("target"), null)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SequenceDocValuesFetchSubPhase.valueFormatter(
+                "alias",
+                new KeywordFieldMapper.KeywordFieldType("target"),
+                SequenceHitReader.INTEGRAL_FORMAT
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SequenceDocValuesFetchSubPhase.valueFormatter(
+                "alias",
+                new DateFieldMapper.DateFieldType("target", DateFieldMapper.Resolution.MILLISECONDS),
+                SequenceHitReader.INTEGRAL_FORMAT
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> SequenceDocValuesFetchSubPhase.valueFormatter(
+                "@timestamp",
+                new NumberFieldMapper.NumberFieldType("target", NumberFieldMapper.NumberType.LONG),
+                null
+            )
+        );
+        assertNull(
+            SequenceDocValuesFetchSubPhase.valueFormatter(
+                "@timestamp",
+                new DateFieldMapper.DateFieldType("target", DateFieldMapper.Resolution.MILLISECONDS),
+                null
+            )
+        );
+        var date = SequenceDocValuesFetchSubPhase.valueFormatter(
+            "ordinary_alias",
+            new DateFieldMapper.DateFieldType("target", DateFieldMapper.Resolution.MILLISECONDS),
+            null
+        );
+        assertEquals("2026-03-17T12:34:56.789Z", date.format(1_773_750_896_789L));
+    }
+
+    public void testLiveIpFormatterProducesSemanticTextAndUtf8FieldsRemainNative() {
+        var formatter = SequenceDocValuesFetchSubPhase.valueFormatter("alias", new IpFieldMapper.IpFieldType("target"), null);
+        for (String address : List.of("192.0.2.1", "2001:db8::1")) {
+            BytesRef encoded = StringUtils.parseIP(address);
+            assertEquals(address, formatter.format(encoded));
+        }
+        assertNull(formatter.format(null));
+        expectThrows(IllegalArgumentException.class, () -> formatter.format(1L));
+        assertNull(SequenceDocValuesFetchSubPhase.valueFormatter("alias", new KeywordFieldMapper.KeywordFieldType("target"), null));
+    }
+
+    public void testTemporalFormattingUsesLiveResolutionAndPreservesBoundaries() {
+        var millis = SequenceDocValuesFetchSubPhase.temporalFormatter(
+            "alias",
+            new DateFieldMapper.DateFieldType(
+                "actual_millis",
+                DateFieldMapper.Resolution.MILLISECONDS,
+                DateFormatter.forPattern("epoch_millis")
+            ),
+            SequenceHitReader.TEMPORAL_FORMAT
+        );
+        var nanos = SequenceDocValuesFetchSubPhase.temporalFormatter(
+            "alias",
+            new DateFieldMapper.DateFieldType(
+                "actual_nanos",
+                DateFieldMapper.Resolution.NANOSECONDS,
+                DateFormatter.forPattern("epoch_millis")
+            ),
+            SequenceHitReader.TEMPORAL_FORMAT
+        );
+        for (long value : new long[] { Long.MIN_VALUE, -1, 0, 1_773_750_896_789L, Long.MAX_VALUE }) {
+            assertEquals(Instant.ofEpochMilli(value), Instant.parse((String) millis.format(value)));
+        }
+        for (long value : new long[] { 0, 1, 2, 1_773_750_896_789_123_456L, Long.MAX_VALUE }) {
+            assertEquals(
+                Instant.ofEpochSecond(value / 1_000_000_000L, value % 1_000_000_000L),
+                Instant.parse((String) nanos.format(value))
+            );
+        }
+        assertEquals("2026-03-17T12:34:56.789Z", millis.format(1_773_750_896_789L));
+        assertEquals("2026-03-17T12:34:56.789123456Z", nanos.format(1_773_750_896_789_123_456L));
+        assertNull(millis.format(null));
+    }
+
+    public void testTemporalFormattingRejectsNonDateAndMalformedNativeValue() {
+        assertNull(SequenceDocValuesFetchSubPhase.temporalFormatter("missing", null, SequenceHitReader.TEMPORAL_FORMAT));
+        assertEquals(
+            "SEQUENCE temporal field [alias] no longer has a date or date_nanos type",
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> SequenceDocValuesFetchSubPhase.temporalFormatter(
+                    "alias",
+                    new KeywordFieldMapper.KeywordFieldType("target"),
+                    SequenceHitReader.TEMPORAL_FORMAT
+                )
+            ).getMessage()
+        );
+        var formatter = SequenceDocValuesFetchSubPhase.temporalFormatter(
+            "alias",
+            new DateFieldMapper.DateFieldType("target", DateFieldMapper.Resolution.MILLISECONDS),
+            SequenceHitReader.TEMPORAL_FORMAT
+        );
+        assertEquals(
+            "SEQUENCE temporal field [alias] did not load a native date value",
+            expectThrows(IllegalArgumentException.class, () -> formatter.format(new BytesRef("not-a-native-date"))).getMessage()
+        );
+    }
+
     public void testDocValueReaderCanBeReusedAndRebuiltForEarlierDocument() throws Exception {
         var breaker = new TrackingBreaker();
         var factory = factory(breaker);

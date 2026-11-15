@@ -26,6 +26,9 @@ import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -504,6 +507,142 @@ public class SequenceSecurityIT extends ESRestTestCase {
         return type.cast(value);
     }
 
+    /** Direct late reads must preserve the same restricted values and original sources as ordinary authorized reads. */
+    public void testDirectLateFieldsAndSourcesPreserveDocumentAndFieldSecurity() throws Exception {
+        createSequenceSecurityEvents(true);
+        createSequenceSecurityAliases();
+        for (String user : List.of("sequence_dls_fls", "sequence_alias_only")) {
+            String first = user.equals("sequence_alias_only") ? "sequence-alias-a" : "sequence-security-events";
+            String second = user.equals("sequence_alias_only") ? "sequence-alias-b" : "sequence-security-events";
+            Map<?, ?> firstSource = ordinaryRetentionSource(user, first, "visible-A");
+            Map<?, ?> secondSource = ordinaryRetentionSource(user, second, "visible-B");
+            assertEquals(Set.of("@timestamp", "key", "phase", "payload", "number"), firstSource.keySet());
+            assertEquals(firstSource.keySet(), secondSource.keySet());
+            assertEquals(9007199254740993L, firstSource.get("number"));
+            assertEquals(
+                List.of(List.of("visible-A")),
+                retentionQuery(user, "FROM " + first + " METADATA _id | WHERE phase==\"A\" | KEEP _id | SORT _id | LIMIT 10").get("values")
+            );
+            assertEquals(
+                List.of(List.of("orphan-B"), List.of("visible-B")),
+                retentionQuery(user, "FROM " + second + " METADATA _id | WHERE phase==\"B\" | KEEP _id | SORT _id | LIMIT 10").get("values")
+            );
+            String stages = """
+                SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+                (FROM %s | WHERE phase=="A" | KEEP key,payload,number),
+                (FROM %s | WHERE phase=="B" | KEEP key,payload,number)
+                | EVAL other_payload=MEMBER(%s,payload), other_number=MEMBER(%s,number)
+                | KEEP key,payload,number,other_payload,other_number | LIMIT 10 | RETURN MATCHES
+                """;
+            for (int primary : List.of(1, 2)) {
+                int other = 3 - primary;
+                Map<String, Object> result = profiledRetentionQuery(user, stages.formatted(primary, first, second, other, other));
+                assertRetainedPair(result, primary, firstSource, secondSource);
+                Map<?, ?> selected = primary == 1 ? firstSource : secondSource;
+                Map<?, ?> member = other == 1 ? firstSource : secondSource;
+                List<?> row = requireType(List.class, requireType(List.class, result.get("values")).getFirst());
+                assertEquals(
+                    List.of("shared", selected.get("payload"), selected.get("number"), member.get("payload"), member.get("number")),
+                    row.subList(0, 5)
+                );
+                assertDirectSequenceProfile(result, 2, 2, 1);
+            }
+            Map<String, Object> unrestricted = retentionQuery("test-admin", stages.formatted(1, first, second, 2, 2));
+            assertEquals(Set.of("hidden-A", "orphan-A"), new java.util.HashSet<>(retainedRoleValues(unrestricted, 1, "id")));
+            for (Object source : retainedRoleValues(unrestricted, 1, "source")) {
+                assertNotNull(requireType(Map.class, source).get("secret"));
+                assertNotNull(requireType(Map.class, source).get("tenant"));
+            }
+        }
+    }
+
+    /** Already authorized key and physical ID values can be retained without fetching payloads or widening field access. */
+    public void testFullyRetainedIdsPreserveSecurityWithoutPayloadSearch() throws Exception {
+        createSequenceSecurityEvents(true);
+        String query = """
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            (FROM sequence-security-events METADATA _id,_index | WHERE phase=="A" | KEEP key,_id,_index),
+            (FROM sequence-security-events METADATA _id,_index | WHERE phase=="B" | KEEP key,_id,_index)
+            | EVAL other_id=MEMBER(2,_id), other_index=MEMBER(2,_index)
+            | KEEP key,_id,_index,other_id,other_index | LIMIT 10
+            """;
+        Map<String, Object> restricted = profiledRetentionQuery("sequence_dls_fls", query);
+        assertEquals(
+            List.of(List.of("shared", "visible-A", "sequence-security-events", "visible-B", "sequence-security-events")),
+            restricted.get("values")
+        );
+        assertDirectSequenceProfile(restricted, 0, 0, 1);
+        Map<String, Object> ordinary = retentionQuery("sequence_dls_fls", """
+            FROM sequence-security-events METADATA _id
+            | KEEP _id | SORT _id | LIMIT 10
+            """);
+        assertEquals(List.of(List.of("orphan-B"), List.of("visible-A"), List.of("visible-B")), ordinary.get("values"));
+        Map<String, Object> unrestricted = profiledRetentionQuery("test-admin", query);
+        List<?> rows = requireType(List.class, unrestricted.get("values"));
+        assertEquals(
+            Set.of("hidden-A", "orphan-A"),
+            rows.stream().map(row -> requireType(List.class, row).get(1)).collect(java.util.stream.Collectors.toSet())
+        );
+        assertDirectSequenceProfile(unrestricted, 0, 0, 2);
+        assertRetentionFieldDenied("sequence_dls_fls", "FROM sequence-security-events | KEEP secret | LIMIT 10");
+        String forbidden = """
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            (FROM sequence-security-events METADATA _id | WHERE phase=="A" | EVAL _id=secret | KEEP key,_id),
+            (FROM sequence-security-events METADATA _id | WHERE phase=="B" | EVAL _id=secret | KEEP key,_id)
+            | EVAL other_id=MEMBER(2,_id) | KEEP _id,other_id | LIMIT 10
+            """;
+        Map<String, Object> allowed = retentionQuery("test-admin", forbidden);
+        assertEquals(2, requireType(List.class, allowed.get("values")).size());
+        assertRetentionFieldDenied("sequence_dls_fls", forbidden);
+    }
+
+    private Map<String, Object> profiledRetentionQuery(String user, String query) throws IOException {
+        Request request = new Request("POST", "_query");
+        request.addParameter("drop_null_columns", "false");
+        request.addParameter("allow_partial_results", "false");
+        request.setOptions(runAsUserOptions(user));
+        request.setJsonEntity(
+            Strings.toString(
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("query", query)
+                    .field("profile", true)
+                    .field(
+                        "filter",
+                        Map.of("range", Map.of("@timestamp", Map.of("gte", "2026-09-25T21:14:51Z", "lt", "2026-09-25T21:15:30Z")))
+                    )
+                    .endObject()
+            )
+        );
+        Map<String, Object> result = entityAsMap(assertOK(client().performRequest(request)));
+        assertEquals(Boolean.FALSE, result.get("is_partial"));
+        return result;
+    }
+
+    private static void assertDirectSequenceProfile(Map<String, Object> result, long payloadSearches, long payloadRows, long emittedRows) {
+        Map<?, ?> profile = requireType(Map.class, result.get("profile"));
+        List<Map<?, ?>> statuses = new ArrayList<>();
+        for (Object driver : requireType(List.class, profile.get("drivers"))) {
+            for (Object operator : requireType(List.class, requireType(Map.class, driver).get("operators"))) {
+                Object status = requireType(Map.class, operator).get("status");
+                if (status instanceof Map<?, ?> values && values.containsKey("payload_search_requests")) {
+                    statuses.add(values);
+                }
+            }
+        }
+        assertEquals("exactly one native sequence source must report its actual work", 1, statuses.size());
+        Map<?, ?> status = statuses.getFirst();
+        assertEquals(2L, requireType(Number.class, status.get("candidate_search_requests")).longValue());
+        assertEquals(
+            "only the two candidate stage drivers may run",
+            2L,
+            requireType(Number.class, status.get("stage_drivers")).longValue()
+        );
+        assertEquals(payloadSearches, requireType(Number.class, status.get("payload_search_requests")).longValue());
+        assertEquals(payloadRows, requireType(Number.class, status.get("payload_rows_fetched")).longValue());
+        assertEquals(emittedRows, requireType(Number.class, status.get("rows_emitted")).longValue());
+    }
+
     /** Hidden predecessors must never enter matching, and typed evidence fetches must retain the caller's field permissions. */
     public void testSequenceRetainsDocumentAndFieldSecurityDuringEvidenceReplay() throws Exception {
         createSequenceSecurityEvents();
@@ -555,6 +694,96 @@ public class SequenceSecurityIT extends ESRestTestCase {
         direct.setOptions(runAsUserOptions("sequence_alias_only"));
         ResponseException forbidden = expectThrows(ResponseException.class, () -> client().performRequest(direct));
         assertEquals(HttpStatus.SC_FORBIDDEN, forbidden.getResponse().getStatusLine().getStatusCode());
+    }
+
+    /** A previously authorized PIT must recheck current read grants even when field discovery remains authorized. */
+    public void testPitAndSequenceSearchReauthorizeAfterReadGrantRevocation() throws Exception {
+        createSequenceSecurityEvents(true);
+        createSequenceSecurityAliases();
+        String user = "sequence-current-grants";
+        Request role = new Request("PUT", "_security/role/" + user);
+        role.setJsonEntity("""
+            {"indices":[{"names":["sequence-security-events","sequence-alias-a","sequence-alias-b"],
+             "privileges":["read","view_index_metadata"]}]}
+            """);
+        assertOK(adminClient().performRequest(role));
+        try {
+            Request createUser = new Request("PUT", "_security/user/" + user);
+            createUser.setJsonEntity(
+                Strings.toString(
+                    JsonXContent.contentBuilder()
+                        .startObject()
+                        .field("roles", List.of(user))
+                        .field("password", randomAlphaOfLength(32))
+                        .endObject()
+                )
+            );
+            assertOK(adminClient().performRequest(createUser));
+            try {
+                String query = """
+                    SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+                    (FROM sequence-alias-a | WHERE tenant=="allowed"),
+                    (FROM sequence-alias-b | WHERE tenant=="allowed")
+                    | EVAL other_payload = MEMBER(2, payload) | KEEP key, payload, other_payload | LIMIT 10
+                    """;
+                Map<String, Object> authorized = entityAsMap(runESQLCommand(user, query));
+                assertEquals(List.of(List.of("shared", "visible-A", "visible-B")), authorized.get("values"));
+                assertEquals(Boolean.FALSE, authorized.get("is_partial"));
+                Request open = new Request("POST", "sequence-alias-a,sequence-alias-b/_pit");
+                open.addParameter("keep_alive", "2m");
+                open.setOptions(runAsUserOptions(user));
+                String pit = requireType(String.class, entityAsMap(assertOK(client().performRequest(open))).get("id"));
+                try {
+                    Request authorizedSearch = new Request("POST", "_search");
+                    authorizedSearch.setOptions(runAsUserOptions(user));
+                    authorizedSearch.setJsonEntity(
+                        Strings.toString(
+                            JsonXContent.contentBuilder().startObject().field("size", 0).field("pit", Map.of("id", pit)).endObject()
+                        )
+                    );
+                    Map<String, Object> searched = entityAsMap(assertOK(client().performRequest(authorizedSearch)));
+                    assertEquals(0, requireType(Map.class, searched.get("_shards")).get("failed"));
+                    if (searched.get("pit_id") != null) {
+                        pit = requireType(String.class, searched.get("pit_id"));
+                    }
+                    Request revokeRead = new Request("PUT", "_security/role/" + user);
+                    revokeRead.setJsonEntity("""
+                        {"indices":[{"names":["sequence-security-events","sequence-alias-a","sequence-alias-b"],
+                         "privileges":["view_index_metadata"]}]}
+                        """);
+                    assertOK(adminClient().performRequest(revokeRead));
+                    Request fieldCaps = new Request("GET", "sequence-alias-a/_field_caps");
+                    fieldCaps.addParameter("fields", "@timestamp,key,phase,payload,tenant");
+                    fieldCaps.setOptions(runAsUserOptions(user));
+                    Map<?, ?> fields = requireType(Map.class, entityAsMap(assertOK(client().performRequest(fieldCaps))).get("fields"));
+                    assertTrue("field discovery must pass before testing search authorization", fields.containsKey("key"));
+
+                    Request search = new Request("POST", "_search");
+                    search.setOptions(runAsUserOptions(user));
+                    search.setJsonEntity(
+                        Strings.toString(
+                            JsonXContent.contentBuilder().startObject().field("size", 0).field("pit", Map.of("id", pit)).endObject()
+                        )
+                    );
+                    assertBusy(() -> {
+                        ResponseException denied = expectThrows(ResponseException.class, () -> client().performRequest(search));
+                        assertEquals(HttpStatus.SC_FORBIDDEN, denied.getResponse().getStatusLine().getStatusCode());
+                        assertThat(EntityUtils.toString(denied.getResponse().getEntity()), containsString("indices:data/read/search"));
+                    });
+                    ResponseException denied = expectThrows(ResponseException.class, () -> runESQLCommand(user, query));
+                    assertEquals(HttpStatus.SC_FORBIDDEN, denied.getResponse().getStatusLine().getStatusCode());
+                    assertThat(EntityUtils.toString(denied.getResponse().getEntity()), containsString("indices:data/read/"));
+                } finally {
+                    Request close = new Request("DELETE", "_pit");
+                    close.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("id", pit).endObject()));
+                    assertEquals(Boolean.TRUE, entityAsMap(assertOK(adminClient().performRequest(close))).get("succeeded"));
+                }
+            } finally {
+                assertOK(adminClient().performRequest(new Request("DELETE", "_security/user/" + user)));
+            }
+        } finally {
+            assertOK(adminClient().performRequest(new Request("DELETE", "_security/role/" + user)));
+        }
     }
 
     /** A branch-local exclusion must also exclude that alias's broader document permissions when opening the shared PIT. */
@@ -623,6 +852,348 @@ public class SequenceSecurityIT extends ESRestTestCase {
         assertEquals(List.of(), allowed.get("values"));
     }
 
+    /** An entirely empty authorized alias scope must retain its schema and recover the same masked originals. */
+    public void testNarrowedPitAllowsAllAuthorizedAliasesToBeEmpty() throws Exception {
+        createSequenceSecurityEvents(true);
+        createSequenceSecurityAliases();
+        String user = "sequence_alias_only";
+        Map<?, ?> first = ordinaryRetentionSource(user, "sequence-alias-a", "visible-A");
+        Map<?, ?> second = ordinaryRetentionSource(user, "sequence-alias-b", "visible-B");
+        assertEquals(Set.of("@timestamp", "key", "phase", "payload", "number"), first.keySet());
+        assertEquals(first.keySet(), second.keySet());
+        setSequenceSecurityAliasesEmpty();
+        try {
+            Map<String, Object> ordinary = retentionQuery(user, """
+                FROM sequence-alias-a,sequence-alias-b | KEEP key,payload | LIMIT 10
+                """);
+            assertEquals(List.of(), ordinary.get("values"));
+            for (int primary : List.of(1, 2)) {
+                assertEmptyAliasSequence(retentionQuery(user, emptyAliasSequenceQuery(primary)));
+            }
+            assertSequenceSearchReadDenied(user, "sequence-security-events");
+        } finally {
+            createSequenceSecurityAliases();
+        }
+        for (int primary : List.of(1, 2)) {
+            Map<String, Object> recovered = retentionQuery(user, emptyAliasSequenceQuery(primary) + " | RETURN MATCHES");
+            assertRetainedPair(recovered, primary, first, second);
+            List<?> row = requireType(List.class, requireType(List.class, recovered.get("values")).getFirst());
+            assertEquals(
+                List.of("shared", primary == 1 ? "visible-A" : "visible-B", primary == 1 ? "visible-B" : "visible-A"),
+                row.subList(0, 3)
+            );
+        }
+    }
+
+    /** Zero-hit native work must still enforce current read grants when field discovery remains authorized. */
+    public void testNarrowedEmptyPitRechecksCurrentReadPrivileges() throws Exception {
+        createSequenceSecurityEvents(true);
+        createSequenceSecurityAliases();
+        String user = "sequence-empty-current-grants";
+        String readRole = """
+            {"indices":[{"names":["sequence-alias-a","sequence-alias-b"],
+              "privileges":["read","view_index_metadata"],"query":{"term":{"tenant":"allowed"}},
+              "field_security":{"grant":["@timestamp","key","phase","payload","number"]}}]}
+            """;
+        Request role = new Request("PUT", "_security/role/" + user);
+        role.setJsonEntity(readRole);
+        assertOK(adminClient().performRequest(role));
+        try {
+            createSequenceSecurityUser(user);
+            try {
+                setSequenceSecurityAliasesEmpty();
+                String query = emptyAliasSequenceQuery(1);
+                assertEmptyAliasSequence(retentionQuery(user, query));
+                role.setJsonEntity("""
+                    {"indices":[{"names":["sequence-alias-a","sequence-alias-b"],
+                      "privileges":["view_index_metadata"]}]}
+                    """);
+                assertOK(adminClient().performRequest(role));
+                Request fieldCaps = new Request("GET", "sequence-alias-a,sequence-alias-b/_field_caps");
+                fieldCaps.addParameter("fields", "@timestamp,key,phase,payload");
+                fieldCaps.setOptions(runAsUserOptions(user));
+                Map<?, ?> fields = requireType(Map.class, entityAsMap(assertOK(client().performRequest(fieldCaps))).get("fields"));
+                assertTrue("field discovery must remain authorized", fields.containsKey("key"));
+                assertBusy(() -> assertSequenceSearchReadDenied(user, "sequence-alias-a"));
+                ResponseException denied = expectThrows(ResponseException.class, () -> retentionQuery(user, query));
+                assertEquals(HttpStatus.SC_FORBIDDEN, denied.getResponse().getStatusLine().getStatusCode());
+                assertThat(EntityUtils.toString(denied.getResponse().getEntity()), containsString("indices:data/read/"));
+
+                role.setJsonEntity(readRole);
+                assertOK(adminClient().performRequest(role));
+                assertBusy(() -> {
+                    try {
+                        assertEmptyAliasSequence(retentionQuery(user, query));
+                    } catch (ResponseException failure) {
+                        if (failure.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_FORBIDDEN) {
+                            assertThat(EntityUtils.toString(failure.getResponse().getEntity()), containsString("indices:data/read/"));
+                            throw new AssertionError("restored read grant must become visible", failure);
+                        }
+                        throw failure;
+                    }
+                });
+                createSequenceSecurityAliases();
+                Map<?, ?> first = ordinaryRetentionSource(user, "sequence-alias-a", "visible-A");
+                Map<?, ?> second = ordinaryRetentionSource(user, "sequence-alias-b", "visible-B");
+                assertEquals(Set.of("@timestamp", "key", "phase", "payload", "number"), first.keySet());
+                assertEquals(first.keySet(), second.keySet());
+                assertRetainedPair(retentionQuery(user, query + " | RETURN MATCHES"), 1, first, second);
+            } finally {
+                try {
+                    createSequenceSecurityAliases();
+                } finally {
+                    assertOK(adminClient().performRequest(new Request("DELETE", "_security/user/" + user)));
+                }
+            }
+        } finally {
+            assertOK(adminClient().performRequest(new Request("DELETE", "_security/role/" + user)));
+        }
+    }
+
+    /** Routed duplicate IDs and broader excluded grants must not change either stage's physical original or field mask. */
+    public void testNarrowedPitKeepsRoutedAliasAndExcludedGrantsIndependent() throws Exception {
+        String index = "sequence-security-routed-events";
+        List<String> routes = createRoutedSequenceSecurityEvents(index);
+        String user = "sequence-pit-routed-grants";
+        Request role = new Request("PUT", "_security/role/" + user);
+        role.setJsonEntity("""
+            {"indices":[
+              {"names":["sequence-pit-routed-a"],"privileges":["read","view_index_metadata"],
+               "query":{"term":{"tenant":"allowed"}},
+               "field_security":{"grant":["@timestamp","key","phase","payload","number"]}},
+              {"names":["sequence-pit-routed-b","sequence-pit-routed-excluded"],
+               "privileges":["read","view_index_metadata"],"field_security":{"grant":["*"]}}
+            ]}
+            """);
+        assertOK(adminClient().performRequest(role));
+        try {
+            createSequenceSecurityUser(user);
+            try {
+                assertEquals(
+                    sequenceSecurityRoutingShard("test-admin", index, routes.get(0)),
+                    sequenceSecurityRoutingShard(user, "sequence-pit-routed-a", null)
+                );
+                assertEquals(
+                    sequenceSecurityRoutingShard("test-admin", index, routes.get(1)),
+                    sequenceSecurityRoutingShard(user, "sequence-pit-routed-b", null)
+                );
+                Map<String, Object> duplicateIds = retentionQuery("test-admin", """
+                    FROM sequence-security-routed-events METADATA _id
+                    | WHERE _id=="visible-A" | KEEP _id,payload | SORT payload | LIMIT 10
+                    """);
+                assertEquals(List.of(List.of("visible-A", "routed-away-A"), List.of("visible-A", "visible-A")), duplicateIds.get("values"));
+                assertEquals(List.of(List.of("visible-A")), retentionQuery(user, """
+                    FROM sequence-pit-routed-a | KEEP payload | LIMIT 10
+                    """).get("values"));
+                assertEquals(List.of(List.of("visible-B")), retentionQuery(user, """
+                    FROM sequence-pit-routed-b | KEEP payload | LIMIT 10
+                    """).get("values"));
+                Map<String, Object> broad = retentionQuery(user, """
+                    FROM sequence-pit-routed-excluded | KEEP payload | SORT payload | LIMIT 10
+                    """);
+                assertEquals(
+                    List.of(
+                        List.of("hidden-A"),
+                        List.of("routed-away-A"),
+                        List.of("routed-away-B"),
+                        List.of("visible-A"),
+                        List.of("visible-B")
+                    ),
+                    broad.get("values")
+                );
+                Map<?, ?> first = ordinaryRetentionSource(user, "sequence-pit-routed-a", "visible-A");
+                Map<?, ?> second = ordinaryRetentionSource(user, "sequence-pit-routed-b", "visible-B");
+                assertEquals(Set.of("@timestamp", "key", "phase", "payload", "number"), first.keySet());
+                assertEquals(9007199254740993L, first.get("number"));
+                assertEquals("secret-B", second.get("secret"));
+                assertEquals("allowed", second.get("tenant"));
+                assertRetentionFieldDenied(user, "FROM sequence-pit-routed-a | KEEP secret | LIMIT 10");
+                assertSequenceSearchReadDenied(user, index);
+                for (int primary : List.of(1, 2)) {
+                    String query = """
+                        SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+                        (FROM sequence-pit-routed-*,-sequence-pit-routed-b,-sequence-pit-routed-excluded),
+                        (FROM sequence-pit-routed-b,sequence-pit-routed-excluded | WHERE phase=="B")
+                        | EVAL other_payload=MEMBER(%s,payload), broad_secret=%s
+                        | KEEP key,payload,other_payload,broad_secret | LIMIT 10 | RETURN MATCHES
+                        """.formatted(primary, 3 - primary, primary == 2 ? "secret" : "MEMBER(2,secret)");
+                    Map<String, Object> result = profiledRetentionQuery(user, query);
+                    assertEquals(primary, retentionContract(result).get("primary_stage"));
+                    assertEquals(List.of("visible-A"), retainedRoleValues(result, 1, "id"));
+                    assertEquals(List.of("visible-B"), retainedRoleValues(result, 2, "id"));
+                    for (int stage : List.of(1, 2)) {
+                        assertEquals(List.of(index), retainedRoleValues(result, stage, "index"));
+                    }
+                    assertEquals(List.of(first), retainedRoleValues(result, 1, "source"));
+                    assertEquals(List.of(second), retainedRoleValues(result, 2, "source"));
+                    List<?> row = requireType(List.class, requireType(List.class, result.get("values")).getFirst());
+                    assertEquals(
+                        List.of("routed", primary == 1 ? "visible-A" : "visible-B", primary == 1 ? "visible-B" : "visible-A", "secret-B"),
+                        row.subList(0, 4)
+                    );
+                    assertDirectSequenceProfile(result, 2, 2, 1);
+                    Map<String, Object> ids = profiledRetentionQuery(user, """
+                        SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+                        (FROM sequence-pit-routed-*,-sequence-pit-routed-b,-sequence-pit-routed-excluded
+                         METADATA _id,_index | KEEP key,_id,_index),
+                        (FROM sequence-pit-routed-b,sequence-pit-routed-excluded METADATA _id,_index
+                         | WHERE phase=="B" | KEEP key,_id,_index)
+                        | EVAL other_id=MEMBER(%s,_id), other_index=MEMBER(%s,_index)
+                        | KEEP key,_id,_index,other_id,other_index | LIMIT 10
+                        """.formatted(primary, 3 - primary, 3 - primary));
+                    assertEquals(
+                        List.of(
+                            List.of(
+                                "routed",
+                                primary == 1 ? "visible-A" : "visible-B",
+                                index,
+                                primary == 1 ? "visible-B" : "visible-A",
+                                index
+                            )
+                        ),
+                        ids.get("values")
+                    );
+                    assertDirectSequenceProfile(ids, 0, 0, 1);
+                }
+            } finally {
+                assertOK(adminClient().performRequest(new Request("DELETE", "_security/user/" + user)));
+            }
+        } finally {
+            assertOK(adminClient().performRequest(new Request("DELETE", "_security/role/" + user)));
+        }
+    }
+
+    private static String emptyAliasSequenceQuery(int primary) {
+        return """
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+            (FROM sequence-alias-a), (FROM sequence-alias-b)
+            | EVAL other_payload=MEMBER(%s,payload) | KEEP key,payload,other_payload | LIMIT 10
+            """.formatted(primary, 3 - primary);
+    }
+
+    private static void assertEmptyAliasSequence(Map<String, Object> result) {
+        assertEquals(Boolean.FALSE, result.get("is_partial"));
+        assertEquals(List.of(), result.get("values"));
+        List<?> columns = requireType(List.class, result.get("columns"));
+        assertEquals(List.of("key", "payload", "other_payload"), columns.stream().map(c -> requireType(Map.class, c).get("name")).toList());
+        assertEquals(List.of("keyword", "keyword", "keyword"), columns.stream().map(c -> requireType(Map.class, c).get("type")).toList());
+    }
+
+    private void setSequenceSecurityAliasesEmpty() throws IOException {
+        Request aliases = new Request("POST", "_aliases");
+        aliases.setJsonEntity("""
+            {"actions":[
+              {"add":{"index":"sequence-security-events","alias":"sequence-alias-a","filter":{"match_none":{}}}},
+              {"add":{"index":"sequence-security-events","alias":"sequence-alias-b","filter":{"match_none":{}}}}
+            ]}
+            """);
+        assertOK(adminClient().performRequest(aliases));
+    }
+
+    private void createSequenceSecurityUser(String user) throws IOException {
+        Request request = new Request("PUT", "_security/user/" + user);
+        request.setJsonEntity(
+            Strings.toString(
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("roles", List.of(user))
+                    .field("password", randomAlphaOfLength(32))
+                    .endObject()
+            )
+        );
+        assertOK(adminClient().performRequest(request));
+    }
+
+    private void assertSequenceSearchReadDenied(String user, String expression) throws IOException {
+        Request search = new Request("GET", expression + "/_search");
+        search.setOptions(runAsUserOptions(user));
+        ResponseException denied = expectThrows(ResponseException.class, () -> client().performRequest(search));
+        assertEquals(HttpStatus.SC_FORBIDDEN, denied.getResponse().getStatusLine().getStatusCode());
+        assertThat(EntityUtils.toString(denied.getResponse().getEntity()), containsString("indices:data/read/search"));
+    }
+
+    /** Real routing resolution prevents a duplicate-ID control from accidentally landing both copies on one shard. */
+    private List<String> createRoutedSequenceSecurityEvents(String index) throws IOException {
+        Request create = new Request("PUT", index);
+        create.setJsonEntity("""
+            {"settings":{"number_of_shards":2,"number_of_replicas":0,"routing.allocation.total_shards_per_node":1},
+             "mappings":{"properties":{
+               "@timestamp":{"type":"date_nanos"},"key":{"type":"keyword"},"phase":{"type":"keyword"},
+               "payload":{"type":"keyword"},"tenant":{"type":"keyword"},"secret":{"type":"keyword"},"number":{"type":"long"}}}}
+            """);
+        assertOK(adminClient().performRequest(create));
+        String first = "route-0";
+        int firstShard = sequenceSecurityRoutingShard("test-admin", index, first);
+        String second = null;
+        for (int i = 1; i <= 32; i++) {
+            String candidate = "route-" + i;
+            if (sequenceSecurityRoutingShard("test-admin", index, candidate) != firstShard) {
+                second = candidate;
+                break;
+            }
+        }
+        assertNotNull("bounded real routing controls must reach distinct physical shards", second);
+        indexRoutedSequenceSecurityEvent(index, first, "visible-A", "A", "visible-A", "allowed", "secret-A", 0, 9007199254740993L);
+        indexRoutedSequenceSecurityEvent(index, second, "visible-A", "A", "routed-away-A", "allowed", "away-A", 1, 11);
+        indexRoutedSequenceSecurityEvent(index, first, "hidden-A", "A", "hidden-A", "hidden", "hidden-secret", 2, 12);
+        indexRoutedSequenceSecurityEvent(index, second, "visible-B", "B", "visible-B", "allowed", "secret-B", 3, 8);
+        indexRoutedSequenceSecurityEvent(index, first, "visible-B", "B", "routed-away-B", "allowed", "away-B", 4, 14);
+        assertOK(adminClient().performRequest(new Request("POST", index + "/_refresh")));
+        Request aliases = new Request("POST", "_aliases");
+        aliases.setJsonEntity("""
+            {"actions":[
+              {"add":{"index":"%s","alias":"sequence-pit-routed-a","search_routing":"%s","filter":{"term":{"phase":"A"}}}},
+              {"add":{"index":"%s","alias":"sequence-pit-routed-b","search_routing":"%s","filter":{"term":{"phase":"B"}}}},
+              {"add":{"index":"%s","alias":"sequence-pit-routed-excluded","filter":{"match_all":{}}}}
+            ]}
+            """.formatted(index, first, index, second, index));
+        assertOK(adminClient().performRequest(aliases));
+        return List.of(first, second);
+    }
+
+    private void indexRoutedSequenceSecurityEvent(
+        String index,
+        String routing,
+        String id,
+        String phase,
+        String payload,
+        String tenant,
+        String secret,
+        int nanos,
+        long number
+    ) throws IOException {
+        Request request = new Request("PUT", index + "/_doc/" + id);
+        request.addParameter("routing", routing);
+        request.setJsonEntity(
+            Strings.toString(
+                JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("@timestamp", "2026-09-25T21:14:51.38900000" + nanos + "Z")
+                    .field("key", "routed")
+                    .field("phase", phase)
+                    .field("payload", payload)
+                    .field("tenant", tenant)
+                    .field("secret", secret)
+                    .field("number", number)
+                    .endObject()
+            )
+        );
+        assertOK(adminClient().performRequest(request));
+    }
+
+    private int sequenceSecurityRoutingShard(String user, String expression, String routing) throws IOException {
+        Request request = new Request("GET", expression + "/_search_shards");
+        request.setOptions(runAsUserOptions(user));
+        if (routing != null) {
+            request.addParameter("routing", routing);
+        }
+        List<?> groups = requireType(List.class, entityAsMap(assertOK(client().performRequest(request))).get("shards"));
+        assertEquals("a routed source must identify one physical shard", 1, groups.size());
+        List<?> copies = requireType(List.class, groups.getFirst());
+        assertFalse(copies.isEmpty());
+        return requireType(Number.class, requireType(Map.class, copies.getFirst()).get("shard")).intValue();
+    }
+
     private void createSequenceSecurityAdditionalIndex() throws IOException {
         Request create = new Request("PUT", "sequence-security-other");
         create.setJsonEntity("""
@@ -659,6 +1230,250 @@ public class SequenceSecurityIT extends ESRestTestCase {
 
     private void createSequenceSecurityEvents() throws IOException {
         createSequenceSecurityEvents(false);
+    }
+
+    /** A role naming only the data stream must read matched originals from all of its backing indices. */
+    public void testSequenceDataStreamNameGrantsAcrossRollover() throws Exception {
+        assertSequenceDataStreamNameGrants(false);
+    }
+
+    /** Parent data-stream grants must retain DLS/FLS on both matching and authentic-source hydration. */
+    public void testSequenceDataStreamNameGrantsPreserveDlsFls() throws Exception {
+        assertSequenceDataStreamNameGrants(true);
+    }
+
+    private void assertSequenceDataStreamNameGrants(boolean filtered) throws Exception {
+        String stream = "sequence-security-stream";
+        String deniedIndex = "sequence-stream-denied-events";
+        String user = filtered ? "sequence-stream-filtered-reader" : "sequence-stream-reader";
+        List<String> backings = createSequenceDataStreamEvents(stream, deniedIndex, filtered);
+        try {
+            Request role = new Request("PUT", "_security/role/" + user);
+            role.setJsonEntity("""
+                {"indices":[{"names":["%s"],"privileges":["read"]%s}]}
+                """.formatted(stream, filtered ? """
+                ,"query":{"term":{"tenant":"allowed"}},
+                "field_security":{"grant":["@timestamp","key","phase","payload","number"]}
+                """ : ""));
+            assertOK(adminClient().performRequest(role));
+            try {
+                createSequenceSecurityUser(user);
+                try {
+                    Map<?, ?> savedRole = requireType(
+                        Map.class,
+                        entityAsMap(adminClient().performRequest(new Request("GET", "_security/role/" + user))).get(user)
+                    );
+                    List<?> grants = requireType(List.class, savedRole.get("indices"));
+                    assertEquals(1, grants.size());
+                    assertEquals(List.of(stream), requireType(Map.class, grants.getFirst()).get("names"));
+
+                    if (filtered) {
+                        Map<String, Object> admin = retentionQuery("test-admin", sequenceDataStreamStages(stream, 1) + """
+                            | EVAL end_payload=MEMBER(2,payload) | KEEP key,payload,end_payload | SORT key | LIMIT 10
+                            """);
+                        assertEquals(
+                            List.of(
+                                List.of("new", "new-A", "new-B"),
+                                List.of("old", "hidden-A", "old-B"),
+                                List.of("orphan", "hidden-orphan-A", "orphan-B")
+                            ),
+                            admin.get("values")
+                        );
+                    }
+                    for (int primary : List.of(1, 2)) {
+                        int other = primary == 1 ? 2 : 1;
+                        String stages = sequenceDataStreamStages(stream, primary);
+                        Map<String, Object> result = retentionQuery(user, stages + """
+                            | EVAL other_payload=MEMBER(%s,payload), other_id=MEMBER(%s,_id), other_index=MEMBER(%s,_index)
+                            | KEEP key,payload,_id,_index,other_payload,other_id,other_index | SORT key | LIMIT 10
+                            """.formatted(other, other, other));
+                        assertEquals(
+                            List.of(
+                                sequenceDataStreamRow("new", "new-A", backings.get(1), "new-B", backings.get(2), primary),
+                                sequenceDataStreamRow("old", "old-A", backings.get(0), "old-B", backings.get(1), primary)
+                            ),
+                            result.get("values")
+                        );
+
+                        Map<String, Object> originals = retentionQuery(user, stages + " | KEEP key | SORT key | LIMIT 10 | RETURN MATCHES");
+                        List<?> retainedRows = requireType(List.class, originals.get("values"));
+                        assertEquals(
+                            List.of("new", "old"),
+                            retainedRows.stream().map(row -> requireType(List.class, row).getFirst()).toList()
+                        );
+                        assertEquals(primary, retentionContract(originals).get("primary_stage"));
+                        assertEquals(List.of("shared-start", "shared-start"), retainedRoleValues(originals, 1, "id"));
+                        assertEquals(List.of("shared-end", "shared-end"), retainedRoleValues(originals, 2, "id"));
+                        assertEquals(List.of(backings.get(1), backings.get(0)), retainedRoleValues(originals, 1, "index"));
+                        assertEquals(List.of(backings.get(2), backings.get(1)), retainedRoleValues(originals, 2, "index"));
+                        assertEquals(
+                            List.of(
+                                sequenceDataStreamSource("new", "A", "new-A", "allowed", 10_000, filtered),
+                                sequenceDataStreamSource("old", "A", "old-A", "allowed", 0, filtered)
+                            ),
+                            retainedRoleValues(originals, 1, "source")
+                        );
+                        assertEquals(
+                            List.of(
+                                sequenceDataStreamSource("new", "B", "new-B", "allowed", 11_000, filtered),
+                                sequenceDataStreamSource("old", "B", "old-B", "allowed", 1_000, filtered)
+                            ),
+                            retainedRoleValues(originals, 2, "source")
+                        );
+                        if (filtered) {
+                            assertRetentionFieldDenied(
+                                user,
+                                stages + " | EVAL hidden=MEMBER(" + other + ",secret) | KEEP hidden | LIMIT 10"
+                            );
+                        }
+                    }
+                    // Backing-index access is inherited from a data-stream grant. An unrelated existing index is the denial control.
+                    assertOK(adminClient().performRequest(new Request("GET", deniedIndex + "/_search")));
+                    assertSequenceSearchReadDenied(user, deniedIndex);
+                    ResponseException denied = expectThrows(ResponseException.class, () -> retentionQuery(user, """
+                        SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+                        (FROM %s | WHERE phase=="A"), (FROM %s | WHERE phase=="B")
+                        | KEEP payload | LIMIT 10
+                        """.formatted(stream, deniedIndex)));
+                    assertEquals(HttpStatus.SC_BAD_REQUEST, denied.getResponse().getStatusLine().getStatusCode());
+                    assertThat(
+                        EntityUtils.toString(denied.getResponse().getEntity()),
+                        containsString("Unknown index [" + deniedIndex + "]")
+                    );
+                } finally {
+                    assertOK(adminClient().performRequest(new Request("DELETE", "_security/user/" + user)));
+                }
+            } finally {
+                assertOK(adminClient().performRequest(new Request("DELETE", "_security/role/" + user)));
+            }
+        } finally {
+            try {
+                // Check before deleting backing indices, since deleting them could hide a leaked PIT reader.
+                assertRetentionResourcesReleased();
+                assertBusy(() -> {
+                    Request tasks = new Request("GET", "_tasks");
+                    tasks.addParameter("actions", "indices:data/read/esql*,indices:data/read/search*");
+                    Map<?, ?> nodes = requireType(Map.class, entityAsMap(adminClient().performRequest(tasks)).get("nodes"));
+                    assertTrue(nodes.toString(), nodes.isEmpty());
+                });
+            } finally {
+                assertOK(adminClient().performRequest(new Request("DELETE", "_data_stream/" + stream)));
+                assertOK(adminClient().performRequest(new Request("DELETE", deniedIndex)));
+                assertOK(adminClient().performRequest(new Request("DELETE", "_index_template/" + stream + "-template")));
+            }
+        }
+    }
+
+    private static String sequenceDataStreamStages(String stream, int primary) {
+        return """
+            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+            (FROM %s METADATA _id,_index,_source | WHERE phase=="A"),
+            (FROM %s METADATA _id,_index,_source | WHERE phase=="B")
+            """.formatted(primary, stream, stream);
+    }
+
+    private static List<Object> sequenceDataStreamRow(
+        String key,
+        String startPayload,
+        String startIndex,
+        String endPayload,
+        String endIndex,
+        int primary
+    ) {
+        return primary == 1
+            ? List.of(key, startPayload, "shared-start", startIndex, endPayload, "shared-end", endIndex)
+            : List.of(key, endPayload, "shared-end", endIndex, startPayload, "shared-start", startIndex);
+    }
+
+    private static Map<String, Object> sequenceDataStreamSource(
+        String key,
+        String phase,
+        String payload,
+        String tenant,
+        int millis,
+        boolean filtered
+    ) {
+        Map<String, Object> source = new HashMap<>(
+            Map.of(
+                "@timestamp",
+                Instant.parse("2026-09-25T21:14:51.389Z").plusMillis(millis).toString(),
+                "key",
+                key,
+                "phase",
+                phase,
+                "payload",
+                payload,
+                "number",
+                9007199254740993L
+            )
+        );
+        if (filtered == false) {
+            source.put("tenant", tenant);
+            source.put("secret", payload + "-secret");
+        }
+        return source;
+    }
+
+    private List<String> createSequenceDataStreamEvents(String stream, String deniedIndex, boolean hiddenEvents) throws IOException {
+        Request template = new Request("PUT", "_index_template/" + stream + "-template");
+        template.setJsonEntity("""
+            {"index_patterns":["%s"],"data_stream":{},"template":{
+              "settings":{"index.mode":"standard","number_of_shards":2,"number_of_replicas":0,
+                "routing.allocation.total_shards_per_node":1},
+              "mappings":{"dynamic":"strict","properties":{
+                "@timestamp":{"type":"date_nanos"},"key":{"type":"keyword"},"phase":{"type":"keyword"},
+                "payload":{"type":"keyword"},"tenant":{"type":"keyword"},"secret":{"type":"keyword"},"number":{"type":"long"}}}}}
+            """.formatted(stream));
+        assertOK(adminClient().performRequest(template));
+        assertOK(adminClient().performRequest(new Request("PUT", "_data_stream/" + stream)));
+        indexSequenceDataStreamEvent(stream, "shared-start", "old", "A", "old-A", "allowed", 0);
+        if (hiddenEvents) {
+            indexSequenceDataStreamEvent(stream, "hidden-A", "old", "A", "hidden-A", "hidden", 500);
+            indexSequenceDataStreamEvent(stream, "hidden-orphan-A", "orphan", "A", "hidden-orphan-A", "hidden", 12_000);
+        }
+        Map<String, Object> second = entityAsMap(assertOK(adminClient().performRequest(new Request("POST", stream + "/_rollover"))));
+        assertEquals(Boolean.TRUE, second.get("rolled_over"));
+        indexSequenceDataStreamEvent(stream, "shared-end", "old", "B", "old-B", "allowed", 1_000);
+        indexSequenceDataStreamEvent(stream, "shared-start", "new", "A", "new-A", "allowed", 10_000);
+        Map<String, Object> third = entityAsMap(assertOK(adminClient().performRequest(new Request("POST", stream + "/_rollover"))));
+        assertEquals(Boolean.TRUE, third.get("rolled_over"));
+        indexSequenceDataStreamEvent(stream, "shared-end", "new", "B", "new-B", "allowed", 11_000);
+        if (hiddenEvents) {
+            indexSequenceDataStreamEvent(stream, "orphan-B", "orphan", "B", "orphan-B", "allowed", 13_000);
+        }
+        assertOK(adminClient().performRequest(new Request("POST", stream + "/_refresh")));
+        Map<String, Object> data = entityAsMap(assertOK(adminClient().performRequest(new Request("GET", "_data_stream/" + stream))));
+        List<?> actual = requireType(
+            List.class,
+            requireType(Map.class, requireType(List.class, data.get("data_streams")).getFirst()).get("indices")
+        );
+        List<String> backings = actual.stream()
+            .map(index -> requireType(String.class, requireType(Map.class, index).get("index_name")))
+            .toList();
+        assertEquals(3, backings.size());
+        assertEquals(second.get("old_index"), backings.get(0));
+        assertEquals(second.get("new_index"), backings.get(1));
+        assertEquals(third.get("new_index"), backings.get(2));
+
+        Request denied = new Request("PUT", deniedIndex);
+        denied.setJsonEntity("""
+            {"mappings":{"properties":{"@timestamp":{"type":"date_nanos"},"key":{"type":"keyword"},
+              "phase":{"type":"keyword"},"payload":{"type":"keyword"},"tenant":{"type":"keyword"},
+              "secret":{"type":"keyword"},"number":{"type":"long"}}}}
+            """);
+        assertOK(adminClient().performRequest(denied));
+        indexSequenceDataStreamEvent(deniedIndex, "denied-B", "old", "B", "denied-B", "allowed", 2_000);
+        assertOK(adminClient().performRequest(new Request("POST", deniedIndex + "/_refresh")));
+        return backings;
+    }
+
+    private void indexSequenceDataStreamEvent(String stream, String id, String key, String phase, String payload, String tenant, int millis)
+        throws IOException {
+        Request event = new Request("PUT", stream + "/_create/" + id);
+        event.setJsonEntity(
+            Strings.toString(JsonXContent.contentBuilder().map(sequenceDataStreamSource(key, phase, payload, tenant, millis, false)))
+        );
+        assertOK(adminClient().performRequest(event));
     }
 
     private void createSequenceSecurityEvents(boolean sourceEnabled) throws IOException {

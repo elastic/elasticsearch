@@ -559,57 +559,65 @@ public class AuthorizationService {
                 // Wrapping here in order to have exceptions thrown from the {@code authorizeIndexAction} method
                 // get handled directly by the listener and not go through {@code onAuthorizedResourceLoadFailure}
                 // which wraps them in security exception. This is in order to maintain the same behavior as before.
-                ActionListener.run(
-                    listener,
-                    l -> authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier, projectMetadata)
-                        .andThenApply(result -> checkPointInTimeAuthorization(request, result))
-                        .<IndexAuthorizationResult>andThen(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext, (scopeListener, result) -> {
-                            if (result.isGranted() == false
-                                || request instanceof SearchRequest == false
-                                || ((SearchRequest) request).getPointInTimeAuthorizationScope() == null) {
-                                scopeListener.onResponse(result);
-                                return;
-                            }
-                            // A sibling source's permissions must not be inherited from a broader parent search.
-                            RequestInfo scopeRequestInfo = new RequestInfo(authentication, request, action, null);
-                            AsyncSupplier<ResolvedIndices> scopedIndicesSupplier = makeResolvedIndicesAsyncSupplier(
-                                targetProjects,
-                                scopeRequestInfo,
-                                requestId,
-                                request,
-                                action,
-                                projectMetadata,
-                                authzInfo,
-                                authzEngine,
-                                auditTrail,
-                                l,
-                                true
-                            );
-                            authzEngine.authorizeIndexAction(scopeRequestInfo, authzInfo, scopedIndicesSupplier, projectMetadata)
-                                .andThenApply(
-                                    scopeResult -> combinePointInTimeScopeAuthorization(
-                                        (SearchRequest) request,
+                ActionListener.run(listener, l -> {
+                    SubscribableListener<IndexAuthorizationResult> authorization = authzEngine.authorizeIndexAction(
+                        requestInfo,
+                        authzInfo,
+                        resolvedIndicesAsyncSupplier,
+                        projectMetadata
+                    );
+                    if (request instanceof SearchRequest searchRequest && searchRequest.getPointInTimeAuthorizationScope() != null) {
+                        authorization = authorization.andThenApply(result -> checkPointInTimeAuthorization(searchRequest, result))
+                            .<IndexAuthorizationResult>andThen(
+                                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                                threadContext,
+                                (scopeListener, result) -> {
+                                    if (result.isGranted() == false) {
+                                        scopeListener.onResponse(result);
+                                        return;
+                                    }
+                                    // A sibling source's permissions must not be inherited from a broader parent search.
+                                    RequestInfo scopeRequestInfo = new RequestInfo(authentication, request, action, null);
+                                    AsyncSupplier<ResolvedIndices> scopedIndicesSupplier = makeResolvedIndicesAsyncSupplier(
+                                        targetProjects,
+                                        scopeRequestInfo,
+                                        requestId,
+                                        request,
+                                        action,
                                         projectMetadata,
-                                        result,
-                                        scopeResult
-                                    )
-                                )
-                                .addListener(scopeListener);
-                        })
-                        .addListener(wrapPreservingContext(new AuthorizationResultListener<>(result -> {
-                            setIndexResolutionException(authzInfo, request, authentication, action);
-                            handleIndexActionAuthorizationResult(
-                                result,
-                                requestInfo,
-                                requestId,
-                                authzInfo,
-                                authzEngine,
-                                resolvedIndicesAsyncSupplier,
-                                projectMetadata,
-                                l
+                                        authzInfo,
+                                        authzEngine,
+                                        auditTrail,
+                                        l,
+                                        true
+                                    );
+                                    authzEngine.authorizeIndexAction(scopeRequestInfo, authzInfo, scopedIndicesSupplier, projectMetadata)
+                                        .andThenApply(
+                                            scopeResult -> combinePointInTimeScopeAuthorization(
+                                                searchRequest,
+                                                projectMetadata,
+                                                result,
+                                                scopeResult
+                                            )
+                                        )
+                                        .addListener(scopeListener);
+                                }
                             );
-                        }, l::onFailure, requestInfo, requestId, authzInfo), threadContext))
-                );
+                    }
+                    authorization.addListener(wrapPreservingContext(new AuthorizationResultListener<>(result -> {
+                        setIndexResolutionException(authzInfo, request, authentication, action);
+                        handleIndexActionAuthorizationResult(
+                            result,
+                            requestInfo,
+                            requestId,
+                            authzInfo,
+                            authzEngine,
+                            resolvedIndicesAsyncSupplier,
+                            projectMetadata,
+                            l
+                        );
+                    }, l::onFailure, requestInfo, requestId, authzInfo), threadContext));
+                });
             }, e -> onAuthorizedResourceLoadFailure(requestId, requestInfo, authzInfo, auditTrail, listener, e)));
         } else {
             logger.warn("denying access for [{}] as action [{}] is not an index or cluster action", authentication, action);
@@ -672,7 +680,7 @@ public class AuthorizationService {
                             if (pitScope) {
                                 searchRequest.setResolvedPointInTimeAuthorizationScope(new OriginalIndices(authorized));
                             } else {
-                                searchRequest.setPointInTimeAuthorizationIndices(new OriginalIndices(authorized));
+                                searchRequest.setResolvedPointInTimeAuthorizationIndices(new OriginalIndices(authorized));
                             }
                         }
                         resolvedIndicesListener.onResponse(resolved);
@@ -685,25 +693,17 @@ public class AuthorizationService {
     }
 
     /** Alias permissions must cover the complete PIT before success is audited or any shard phase can run. */
-    private IndexAuthorizationResult checkPointInTimeAuthorization(TransportRequest request, IndexAuthorizationResult result) {
-        if (request instanceof SearchRequest searchRequest
-            && searchRequest.getPointInTimeAuthorizationScope() != null
-            && searchRequest.getPointInTimeAuthorizationIndices() == null) {
+    private IndexAuthorizationResult checkPointInTimeAuthorization(SearchRequest request, IndexAuthorizationResult result) {
+        IndicesAccessControl accessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
+        if (request.pointInTimeBuilder() == null || accessControl == null || accessControl.isGranted() == false) {
             return IndexAuthorizationResult.DENIED;
         }
-        if (request instanceof SearchRequest searchRequest && searchRequest.getPointInTimeAuthorizationIndices() != null) {
-            IndicesAccessControl accessControl = indicesAccessControlWrapper.wrap(result.getIndicesAccessControl());
-            if (searchRequest.pointInTimeBuilder() == null || accessControl == null || accessControl.isGranted() == false) {
+        for (String index : SearchContextId.decodeIndices(request.pointInTimeBuilder().getEncodedId())) {
+            if (RemoteClusterAware.isRemoteIndexName(index) || accessControl.hasIndexPermissions(index) == false) {
                 return IndexAuthorizationResult.DENIED;
             }
-            for (String index : SearchContextId.decodeIndices(searchRequest.pointInTimeBuilder().getEncodedId())) {
-                if (RemoteClusterAware.isRemoteIndexName(index) || accessControl.hasIndexPermissions(index) == false) {
-                    return IndexAuthorizationResult.DENIED;
-                }
-            }
-            return new IndexAuthorizationResult(accessControl);
         }
-        return result;
+        return new IndexAuthorizationResult(accessControl);
     }
 
     /** Uses source-only DLS/FLS on overlapping indices and retains full-snapshot grants solely for slots made empty by the coordinator. */

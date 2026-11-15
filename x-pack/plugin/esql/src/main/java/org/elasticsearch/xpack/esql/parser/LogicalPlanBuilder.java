@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -517,12 +519,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSequenceCommand(EsqlBaseParser.SequenceCommandContext ctx) {
-        if (ctx.subquery().size() > Sequence.MAX_STAGES) {
+        if (ctx.sequenceStage().size() > Sequence.MAX_STAGES) {
             throw new ParsingException(
                 source(ctx),
                 "Sequence cannot contain more than {} stages; found [{}]",
                 Sequence.MAX_STAGES,
-                ctx.subquery().size()
+                ctx.sequenceStage().size()
             );
         }
         List<Attribute> keys = ctx.qualifiedNames() == null
@@ -534,12 +536,73 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(key.source(), "Duplicate SEQUENCE BY column [{}]", key.name());
             }
         }
-        MapExpression options = visitMapExpression(ctx.mapExpression());
-        long maxSpanNanos = sequenceMaxSpan(options);
-        List<LogicalPlan> stages = new ArrayList<>(ctx.subquery().size());
-        for (EsqlBaseParser.SubqueryContext stage : ctx.subquery()) {
+        SequenceOptions options = ctx.mapExpression() == null
+            ? new SequenceOptions(sequenceWithinNanos(ctx.windowKeyword, ctx.window), null, null)
+            : sequenceOptions(visitMapExpression(ctx.mapExpression()));
+        List<LogicalPlan> stages = new ArrayList<>(ctx.sequenceStage().size());
+        Map<String, Integer> stageNames = new LinkedHashMap<>();
+        int localKeyCount = -1;
+        for (EsqlBaseParser.SequenceStageContext stageContext : ctx.sequenceStage()) {
+            EsqlBaseParser.SubqueryContext stage = stageContext.subquery();
+            String stageName = null;
+            if (stageContext.alias != null) {
+                if (stageContext.aliasKeyword.getText().equalsIgnoreCase("as") == false) {
+                    throw new ParsingException(source(stageContext), "Expected AS before the SEQUENCE stage name");
+                }
+                stageName = stageContext.alias.getText();
+                if (isSequenceStageName(stageName) == false) {
+                    throw new ParsingException(
+                        source(stageContext),
+                        "SEQUENCE stage name [{}] must be an unquoted field identifier",
+                        stageName
+                    );
+                }
+            }
+            String memberLabel = stageName == null ? Integer.toString(stages.size() + 1) : stageName;
+            String namedStageSuffix = stageName == null ? "" : " [" + stageName + "]";
+            String namedMemberSuffix = stageName == null ? "" : "; member [" + stageName + "]";
+            long maxGapNanos = stageContext.gap == null ? 0 : sequenceWithinNanos(stageContext.gapKeyword, stageContext.gap);
+            if (maxGapNanos > 0 && stages.isEmpty()) {
+                throw new ParsingException(
+                    source(stageContext.gap),
+                    "The first SEQUENCE member{} cannot have an incoming WITHIN limit",
+                    namedStageSuffix
+                );
+            }
+            List<Attribute> localKeys = stageContext.qualifiedNames() == null
+                ? List.of()
+                : stageContext.qualifiedNames().qualifiedName().stream().map(q -> (Attribute) visitQualifiedName(q)).toList();
+            if (localKeyCount >= 0 && localKeys.size() != localKeyCount) {
+                throw new ParsingException(
+                    source(stageContext),
+                    "All SEQUENCE stages must declare the same number of local BY columns{}",
+                    namedMemberSuffix
+                );
+            }
+            localKeyCount = localKeys.size();
+            List<Attribute> stageKeys = keys;
+            if (localKeys.isEmpty() == false) {
+                Set<String> stageKeyNames = new HashSet<>(names);
+                stageKeys = new ArrayList<>(keys);
+                for (Attribute key : localKeys) {
+                    if (stageKeyNames.add(key.name()) == false) {
+                        throw new ParsingException(
+                            key.source(),
+                            "Duplicate SEQUENCE BY column [{}] in member [{}]",
+                            key.name(),
+                            memberLabel
+                        );
+                    }
+                    stageKeys.add(key);
+                }
+            }
+            if (stageContext.alias != null) {
+                if (stageNames.putIfAbsent(stageName, stages.size() + 1) != null) {
+                    throw new ParsingException(source(stageContext), "Duplicate SEQUENCE stage name [{}]", stageName);
+                }
+            }
             if (stage.subquerySourceCommand().fromCommand() == null) {
-                throw new ParsingException(source(stage), "SEQUENCE stages must start with FROM");
+                throw new ParsingException(source(stage), "SEQUENCE stages must start with FROM{}", namedMemberSuffix);
             }
             for (EsqlBaseParser.ProcessingCommandContext command : stage.processingCommand()) {
                 if (command.whereCommand() == null
@@ -552,14 +615,47 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     && command.grokCommand() == null) {
                     throw new ParsingException(
                         source(command),
-                        "[{}] is not supported inside a SEQUENCE stage",
-                        command.getStart().getText()
+                        "[{}] is not supported inside a SEQUENCE stage{}",
+                        command.getStart().getText(),
+                        namedStageSuffix
                     );
                 }
             }
-            stages.add(new SequenceStage(source(stage), visitSubquery(stage), keys));
+            LogicalPlan stagePlan = visitSubquery(stage);
+            stages.add(
+                maxGapNanos == 0
+                    ? new SequenceStage(source(stage), stagePlan, stageKeys)
+                    : new SequenceStage(source(stage), stagePlan, stageKeys, maxGapNanos)
+            );
         }
-        LogicalPlan sequence = new Sequence(source(ctx), stages, maxSpanNanos);
+        boolean hasCondition = stages.stream()
+            .anyMatch(
+                stage -> stage.anyMatch(
+                    plan -> plan.expressions()
+                        .stream()
+                        .anyMatch(
+                            expression -> expression.anyMatch(
+                                e -> e instanceof UnresolvedFunction function && function.name().equalsIgnoreCase("member")
+                            )
+                        )
+                )
+            );
+        Sequence.Pairing pairing = options.pairing() == null
+            ? (hasCondition ? Sequence.Pairing.LATEST_VALID : Sequence.Pairing.TODAY)
+            : options.pairing();
+        if (hasCondition && pairing == Sequence.Pairing.TODAY) {
+            throw new ParsingException(
+                source(ctx),
+                "SEQUENCE [pairing: today] cannot evaluate an in-stage MEMBER condition; use [latest_valid]"
+            );
+        }
+        if (options.maxCandidates() != null && pairing != Sequence.Pairing.LATEST_VALID) {
+            throw new ParsingException(
+                source(ctx),
+                "SEQUENCE [max_candidates] requires [pairing: latest_valid] or an in-stage MEMBER condition"
+            );
+        }
+        LogicalPlan sequence = new Sequence(source(ctx), stages, options.maxSpanNanos(), pairing, options.maxCandidates());
         if (ctx.primary == null) {
             throw new ParsingException(source(ctx), "SEQUENCE requires an explicit PRIMARY member");
         }
@@ -567,15 +663,30 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "Expected PRIMARY before the selected member number");
         }
         final int primary;
-        try {
-            primary = Integer.parseInt(ctx.primary.getText());
-        } catch (NumberFormatException e) {
-            throw new ParsingException(source(ctx), "PRIMARY must name an existing one-based member");
+        if (ctx.primary.getType() == EsqlBaseParser.INTEGER_LITERAL) {
+            try {
+                primary = Integer.parseInt(ctx.primary.getText());
+            } catch (NumberFormatException e) {
+                throw new ParsingException(source(ctx), "PRIMARY must name an existing one-based member");
+            }
+            if (primary < 1 || primary > stages.size()) {
+                throw new ParsingException(source(ctx), "PRIMARY must name an existing one-based member");
+            }
+        } else {
+            Integer selected = stageNames.get(ctx.primary.getText());
+            if (selected == null) {
+                throw new ParsingException(source(ctx), "Unknown SEQUENCE stage name [{}] in PRIMARY", ctx.primary.getText());
+            }
+            primary = selected;
         }
-        if (primary < 1 || primary > stages.size()) {
-            throw new ParsingException(source(ctx), "PRIMARY must name an existing one-based member");
-        }
-        return new org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Declaration(source(ctx), sequence, primary);
+        return new org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Declaration(source(ctx), sequence, primary, stageNames);
+    }
+
+    /** Stage names must also be usable as bare identifiers in MEMBER's expression mode. */
+    private static boolean isSequenceStageName(String name) {
+        EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(name));
+        lexer.mode(EsqlBaseLexer.EXPRESSION_MODE);
+        return lexer.nextToken().getType() == EsqlBaseLexer.UNQUOTED_IDENTIFIER && lexer.nextToken().getType() == Token.EOF;
     }
 
     @Override
@@ -583,18 +694,82 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return child -> new org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Declaration(source(ctx), child, 0);
     }
 
-    private static long sequenceMaxSpan(MapExpression options) {
+    /** A fixed-duration spelling must preserve the existing maxspan units without calendar or saturating conversions. */
+    private long sequenceWithinNanos(Token keyword, EsqlBaseParser.SequenceDurationContext duration) {
+        if (keyword.getText().equalsIgnoreCase("within") == false) {
+            throw new ParsingException(source(keyword), "Expected WITHIN before a SEQUENCE duration");
+        }
+        if (duration.amount.getType() != EsqlBaseParser.INTEGER_LITERAL
+            || duration.sign != null && duration.sign.getType() == EsqlBaseParser.MINUS) {
+            throw new ParsingException(source(duration), "SEQUENCE WITHIN requires a positive integer fixed duration");
+        }
+        String unit = duration.unit.getText();
+        // Core TimeValue reserves uppercase M for months, so normalizing it to minutes would silently change meaning.
+        if (unit.equals("M")) {
+            throw new ParsingException(source(duration), "SEQUENCE WITHIN does not accept calendar months or years");
+        }
+        String suffix = switch (unit.toLowerCase(Locale.ROOT)) {
+            case "ns", "nano", "nanos", "nanosecond", "nanoseconds" -> "nanos";
+            case "us", "micro", "micros", "microsecond", "microseconds" -> "micros";
+            case "ms", "milli", "millis", "millisecond", "milliseconds" -> "ms";
+            case "s", "sec", "secs", "second", "seconds" -> "s";
+            case "m", "min", "mins", "minute", "minutes" -> "m";
+            case "h", "hr", "hrs", "hour", "hours" -> "h";
+            case "d", "day", "days" -> "d";
+            default -> throw new ParsingException(
+                source(duration),
+                "SEQUENCE WITHIN requires a fixed unit from nanoseconds through days; found [{}]",
+                unit
+            );
+        };
+        try {
+            String amount = (duration.sign == null ? "" : duration.sign.getText()) + duration.amount.getText();
+            TimeValue value = TimeValue.parseTimeValue(amount + suffix, "SEQUENCE WITHIN");
+            long nanos = Math.multiplyExact(value.duration(), value.timeUnit().toNanos(1));
+            if (nanos > 0) {
+                return nanos;
+            }
+        } catch (IllegalArgumentException | ArithmeticException e) {
+            throw new ParsingException(source(duration), "Invalid SEQUENCE WITHIN duration: {}", e.getMessage());
+        }
+        throw new ParsingException(source(duration), "SEQUENCE WITHIN requires a positive integer fixed duration");
+    }
+
+    private record SequenceOptions(long maxSpanNanos, Sequence.Pairing pairing, Integer maxCandidates) {}
+
+    private static SequenceOptions sequenceOptions(MapExpression options) {
         Expression maxSpan = null;
+        Sequence.Pairing pairing = null;
+        Integer maxCandidates = null;
         Set<String> names = new HashSet<>();
         for (var entry : options.entryExpressions()) {
             String name = BytesRefs.toString(((Literal) entry.key()).value());
             if (names.add(name) == false) {
                 throw new ParsingException(entry.source(), "Duplicate SEQUENCE option [{}]", name);
             }
-            if (name.equals("maxspan") == false) {
-                throw new ParsingException(entry.source(), "Unknown SEQUENCE option [{}]", name);
+            switch (name) {
+                case "maxspan" -> maxSpan = entry.value();
+                case "pairing" -> {
+                    Expression value = entry.value();
+                    if (value instanceof Literal literal && DataType.isString(literal.dataType()) && literal.value() != null) {
+                        pairing = switch (BytesRefs.toString(literal.value())) {
+                            case "today" -> Sequence.Pairing.TODAY;
+                            case "latest_valid" -> Sequence.Pairing.LATEST_VALID;
+                            default -> throw new ParsingException(value.source(), "SEQUENCE [pairing] must be [today] or [latest_valid]");
+                        };
+                    } else {
+                        throw new ParsingException(value.source(), "SEQUENCE [pairing] must be a [today] or [latest_valid] string");
+                    }
+                }
+                case "max_candidates" -> {
+                    if (entry.value() instanceof Literal literal && literal.value() instanceof Integer value && value > 0) {
+                        maxCandidates = value;
+                    } else {
+                        throw new ParsingException(entry.value().source(), "SEQUENCE [max_candidates] must be a positive integer");
+                    }
+                }
+                default -> throw new ParsingException(entry.source(), "Unknown SEQUENCE option [{}]", name);
             }
-            maxSpan = entry.value();
         }
         if (maxSpan == null) {
             throw new ParsingException(options.source(), "SEQUENCE requires a [maxspan] option");
@@ -605,7 +780,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 // TimeValue.nanos() saturates on overflow. Reject instead of silently changing the requested span.
                 long nanos = Math.multiplyExact(span.duration(), span.timeUnit().toNanos(1));
                 if (nanos > 0) {
-                    return nanos;
+                    return new SequenceOptions(nanos, pairing, maxCandidates);
                 }
             } catch (IllegalArgumentException | ArithmeticException e) {
                 throw new ParsingException(maxSpan.source(), "Invalid SEQUENCE [maxspan]: {}", e.getMessage());

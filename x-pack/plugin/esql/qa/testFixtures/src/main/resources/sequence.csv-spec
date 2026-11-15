@@ -1,0 +1,296 @@
+// Tie-free pairs at exactly maxspan survive; OUTSIDE exceeds it by one millisecond.
+// The same fixture runs with date and date_nanos mappings. Retained evidence has separate consumer ITs.
+
+primaryFirstMemberPayload
+required_capability: sequence_command
+
+SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+(FROM sequence_events | WHERE phase == "start" | KEEP key, label, n),
+(FROM sequence_events | WHERE phase == "finish" | KEEP key, label, n)
+| EVAL finish_label = MEMBER(2, label), finish_n = MEMBER(2, n)
+| KEEP key, label, n, finish_label, finish_n
+| SORT key | LIMIT 10;
+
+key:keyword | label:keyword | n:integer | finish_label:keyword | finish_n:integer
+ALPHA       | a-start       | 1         | a-finish             | 2
+BETA        | b-start       | 3         | b-finish             | 4
+;
+
+primaryLastMemberPayload
+required_capability: sequence_command
+
+SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+(FROM sequence_events | WHERE phase == "start" | KEEP key, label, n),
+(FROM sequence_events | WHERE phase == "finish" | KEEP key, label, n)
+| EVAL start_label = MEMBER(1, label), start_n = MEMBER(1, n)
+| KEEP key, label, n, start_label, start_n
+| SORT key | LIMIT 10;
+
+key:keyword | label:keyword | n:integer | start_label:keyword | start_n:integer
+ALPHA       | a-finish      | 2         | a-start             | 1
+BETA        | b-finish      | 4         | b-start             | 3
+;
+
+primaryLastNamedStagePayload
+required_capability: sequence_command
+required_capability: sequence_named_stages
+
+SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY execution
+(FROM sequence_events | WHERE phase == "start" | KEEP key, label, n) AS download,
+(FROM sequence_events | WHERE phase == "finish" | KEEP key, label, n) AS execution
+| EVAL start_label = MEMBER(download, label), start_n = MEMBER(download, n)
+| KEEP key, label, n, start_label, start_n
+| SORT key | LIMIT 10;
+
+key:keyword | label:keyword | n:integer | start_label:keyword | start_n:integer
+ALPHA       | a-finish      | 2         | a-start             | 1
+BETA        | b-finish      | 4         | b-start             | 3
+;
+
+computedKeysInclusiveDateMaxspan
+required_capability: sequence_command
+
+SEQUENCE BY join_key WITH {"maxspan":"30s"} PRIMARY 1
+(FROM sequence_events | WHERE phase == "start" | EVAL join_key = TO_LOWER(key) | KEEP join_key, n, @timestamp),
+(FROM sequence_events | WHERE phase == "finish" | EVAL join_key = TO_LOWER(key) | KEEP join_key, n, @timestamp)
+| EVAL finish_n = MEMBER(2, n), finish_time = MEMBER(2, @timestamp)
+| KEEP join_key, n, finish_n, @timestamp, finish_time
+| SORT join_key | LIMIT 10;
+
+join_key:keyword | n:integer | finish_n:integer | @timestamp:date          | finish_time:date
+alpha            | 1         | 2                | 2026-11-11T00:00:00.000Z | 2026-11-11T00:00:30.000Z
+beta             | 3         | 4                | 2026-11-11T00:00:01.000Z | 2026-11-11T00:00:31.000Z
+;
+
+computedKeysInclusiveDateNanosMaxspan
+required_capability: sequence_command
+required_capability: date_nanos_type
+
+SEQUENCE BY join_key WITH {"maxspan":"30s"} PRIMARY 2
+(FROM sequence_events_nanos | WHERE phase == "start" | EVAL join_key = TO_LOWER(key) | KEEP join_key, n, @timestamp),
+(FROM sequence_events_nanos | WHERE phase == "finish" | EVAL join_key = TO_LOWER(key) | KEEP join_key, n, @timestamp)
+| EVAL start_n = MEMBER(1, n), start_time = MEMBER(1, @timestamp)
+| KEEP join_key, n, start_n, @timestamp, start_time
+| SORT join_key | LIMIT 10;
+
+join_key:keyword | n:integer | start_n:integer | @timestamp:date_nanos    | start_time:date_nanos
+alpha            | 2         | 1               | 2026-11-11T00:00:30.000Z | 2026-11-11T00:00:00.000Z
+beta             | 4         | 3               | 2026-11-11T00:00:31.000Z | 2026-11-11T00:00:01.000Z
+;
+
+downstreamStats
+required_capability: sequence_command
+
+SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+(FROM sequence_events | WHERE phase == "start" | KEEP key, n),
+(FROM sequence_events | WHERE phase == "finish" | KEEP key, n)
+| EVAL start_n = MEMBER(1, n)
+| STATS matches = COUNT(*), start_total = SUM(start_n), finish_total = SUM(n)
+| LIMIT 10;
+
+matches:long | start_total:long | finish_total:long
+2            | 4                | 6
+;
+
+stageLocalKeysPrimaryProcessPreservesOppositePayload
+required_capability: sequence_command
+required_capability: sequence_named_stages
+required_capability: sequence_stage_keys
+
+SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY proc
+(FROM sequence_events | WHERE phase == "start"
+ | EVAL process.entity_id=key, process.parent.entity_id=CONCAT("process-parent-",key)
+ | KEEP key,process.entity_id,process.parent.entity_id) AS proc BY process.entity_id,
+(FROM sequence_events | WHERE phase == "finish"
+ | EVAL process.parent.entity_id=key, process.entity_id=CONCAT("connection-process-",key)
+ | KEEP key,process.entity_id,process.parent.entity_id) AS conn BY process.parent.entity_id
+| EVAL other_key=MEMBER(conn,process.parent.entity_id), other_payload=MEMBER(conn,process.entity_id)
+| KEEP key,process.entity_id,process.parent.entity_id,other_key,other_payload
+| SORT key | LIMIT 10;
+
+key:keyword | process.entity_id:keyword | process.parent.entity_id:keyword | other_key:keyword | other_payload:keyword
+ALPHA       | ALPHA                     | process-parent-ALPHA              | ALPHA             | connection-process-ALPHA
+BETA        | BETA                      | process-parent-BETA               | BETA              | connection-process-BETA
+;
+
+stageLocalKeysPrimaryConnectionPreservesOppositePayload
+required_capability: sequence_command
+required_capability: sequence_named_stages
+required_capability: sequence_stage_keys
+
+SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY conn
+(FROM sequence_events | WHERE phase == "start"
+ | EVAL process.entity_id=key, process.parent.entity_id=CONCAT("process-parent-",key)
+ | KEEP key,process.entity_id,process.parent.entity_id) AS proc BY process.entity_id,
+(FROM sequence_events | WHERE phase == "finish"
+ | EVAL process.parent.entity_id=key, process.entity_id=CONCAT("connection-process-",key)
+ | KEEP key,process.entity_id,process.parent.entity_id) AS conn BY process.parent.entity_id
+| EVAL other_key=MEMBER(proc,process.entity_id), other_payload=MEMBER(proc,process.parent.entity_id)
+| KEEP key,process.parent.entity_id,process.entity_id,other_key,other_payload
+| SORT key | LIMIT 10;
+
+key:keyword | process.parent.entity_id:keyword | process.entity_id:keyword | other_key:keyword | other_payload:keyword
+ALPHA       | ALPHA                            | connection-process-ALPHA   | ALPHA             | process-parent-ALPHA
+BETA        | BETA                             | connection-process-BETA    | BETA              | process-parent-BETA
+;
+
+stageLocalKeysMatchComputedSharedAlias
+required_capability: sequence_command
+required_capability: sequence_stage_keys
+required_capability: date_nanos_type
+
+SEQUENCE WITH {"maxspan":"30s"} PRIMARY 2
+(FROM sequence_events_nanos | WHERE phase == "start" | EVAL start_key=TO_LOWER(key) | KEEP start_key,n,@timestamp) BY start_key,
+(FROM sequence_events_nanos | WHERE phase == "finish" | EVAL finish_key=TO_LOWER(key) | KEEP finish_key,n,@timestamp) BY finish_key
+| EVAL start_n=MEMBER(1,n), start_time=MEMBER(1,@timestamp)
+| RENAME finish_key AS join_key
+| KEEP join_key,n,start_n,@timestamp,start_time
+| SORT join_key | LIMIT 10;
+
+join_key:keyword | n:integer | start_n:integer | @timestamp:date_nanos    | start_time:date_nanos
+alpha            | 2         | 1               | 2026-11-11T00:00:30.000Z | 2026-11-11T00:00:00.000Z
+beta             | 4         | 3               | 2026-11-11T00:00:31.000Z | 2026-11-11T00:00:01.000Z
+;
+
+overallWithinMatchesMapWindow
+required_capability: sequence_command
+required_capability: sequence_named_stages
+required_capability: sequence_within
+
+SEQUENCE BY key WITHIN 30 seconds PRIMARY execution
+(FROM sequence_events | WHERE phase == "start" | KEEP key,label,n) AS download,
+(FROM sequence_events | WHERE phase == "finish" | KEEP key,label,n) AS execution
+| EVAL start_label=MEMBER(download,label), start_n=MEMBER(download,n)
+| KEEP key,label,n,start_label,start_n
+| SORT key | LIMIT 10;
+
+key:keyword | label:keyword | n:integer | start_label:keyword | start_n:integer
+ALPHA       | a-finish      | 2         | a-start             | 1
+BETA        | b-finish      | 4         | b-start             | 3
+;
+
+overallWithinAndStageKeysMatchMap
+required_capability: sequence_command
+required_capability: sequence_stage_keys
+required_capability: sequence_within
+required_capability: date_nanos_type
+
+SEQUENCE WITHIN 30seconds PRIMARY 2
+(FROM sequence_events_nanos | WHERE phase == "start" | EVAL start_key=TO_LOWER(key) | KEEP start_key,n,@timestamp) BY start_key,
+(FROM sequence_events_nanos | WHERE phase == "finish" | EVAL finish_key=TO_LOWER(key) | KEEP finish_key,n,@timestamp) BY finish_key
+| EVAL start_n=MEMBER(1,n), start_time=MEMBER(1,@timestamp)
+| RENAME finish_key AS join_key
+| KEEP join_key,n,start_n,@timestamp,start_time
+| SORT join_key | LIMIT 10;
+
+join_key:keyword | n:integer | start_n:integer | @timestamp:date_nanos    | start_time:date_nanos
+alpha            | 2         | 1               | 2026-11-11T00:00:30.000Z | 2026-11-11T00:00:00.000Z
+beta             | 4         | 3               | 2026-11-11T00:00:31.000Z | 2026-11-11T00:00:01.000Z
+;
+
+perLinkEqualOverallMatchesUnconstrained
+required_capability: sequence_command
+required_capability: sequence_per_link_time
+required_capability: date_nanos_type
+
+SEQUENCE BY join_key WITH {"maxspan":"30s"} PRIMARY 2
+(FROM sequence_events_nanos | WHERE phase == "start" | EVAL join_key=TO_LOWER(key) | KEEP join_key,n,@timestamp),
+(FROM sequence_events_nanos | WHERE phase == "finish" | EVAL join_key=TO_LOWER(key) | KEEP join_key,n,@timestamp) WITHIN 30 seconds
+| EVAL start_n=MEMBER(1,n), start_time=MEMBER(1,@timestamp)
+| KEEP join_key,n,start_n,@timestamp,start_time
+| SORT join_key | LIMIT 10;
+
+join_key:keyword | n:integer | start_n:integer | @timestamp:date_nanos    | start_time:date_nanos
+alpha            | 2         | 1               | 2026-11-11T00:00:30.000Z | 2026-11-11T00:00:00.000Z
+beta             | 4         | 3               | 2026-11-11T00:00:31.000Z | 2026-11-11T00:00:01.000Z
+;
+
+perLinkOneNanosecondBelowBoundary
+required_capability: sequence_command
+required_capability: sequence_per_link_time
+required_capability: date_nanos_type
+
+SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+(FROM sequence_events_nanos | WHERE phase == "start" | KEEP key,label),
+(FROM sequence_events_nanos | WHERE phase == "finish" | KEEP key,label) WITHIN 29999999999 nanos
+| KEEP key,label | SORT key | LIMIT 10;
+
+key:keyword | label:keyword
+;
+
+perLinkMeasuredFromPreviousAndInclusive
+required_capability: sequence_command
+required_capability: sequence_named_stages
+required_capability: sequence_stage_keys
+required_capability: sequence_within
+required_capability: sequence_per_link_time
+
+SEQUENCE WITHIN 30 seconds PRIMARY execution
+(FROM sequence_events | WHERE key == "ALPHA" AND phase == "start"
+ | EVAL download_key="chain" | KEEP download_key,label) AS download BY download_key,
+(FROM sequence_events | WHERE key == "BETA" AND phase == "start"
+ | EVAL launch_key="chain" | KEEP launch_key,label) AS launch BY launch_key WITHIN 1 second,
+(FROM sequence_events | WHERE key == "ALPHA" AND phase == "finish"
+ | EVAL execution_key="chain" | KEEP execution_key,label) AS execution BY execution_key WITHIN 29 seconds
+| EVAL first_label=MEMBER(download,label), previous_label=MEMBER(launch,label), previous_key=MEMBER(launch,launch_key)
+| KEEP execution_key,label,first_label,previous_label,previous_key | LIMIT 10;
+
+execution_key:keyword | label:keyword | first_label:keyword | previous_label:keyword | previous_key:keyword
+chain                 | a-finish      | a-start             | b-start                | chain
+;
+
+perLinkTooShortDoesNotMatch
+required_capability: sequence_command
+required_capability: sequence_named_stages
+required_capability: sequence_stage_keys
+required_capability: sequence_within
+required_capability: sequence_per_link_time
+
+SEQUENCE WITHIN 30 seconds PRIMARY execution
+(FROM sequence_events | WHERE key == "ALPHA" AND phase == "start"
+ | EVAL download_key="chain" | KEEP download_key,label) AS download BY download_key,
+(FROM sequence_events | WHERE key == "BETA" AND phase == "start"
+ | EVAL launch_key="chain" | KEEP launch_key,label) AS launch BY launch_key WITHIN 1 second,
+(FROM sequence_events | WHERE key == "ALPHA" AND phase == "finish"
+ | EVAL execution_key="chain" | KEEP execution_key,label) AS execution BY execution_key WITHIN 28 seconds
+| KEEP execution_key,label | LIMIT 10;
+
+execution_key:keyword | label:keyword
+;
+
+perLinkStillRequiresOverallMaxspan
+required_capability: sequence_command
+required_capability: sequence_named_stages
+required_capability: sequence_stage_keys
+required_capability: sequence_within
+required_capability: sequence_per_link_time
+
+SEQUENCE WITHIN 29 seconds PRIMARY execution
+(FROM sequence_events | WHERE key == "ALPHA" AND phase == "start"
+ | EVAL download_key="chain" | KEEP download_key,label) AS download BY download_key,
+(FROM sequence_events | WHERE key == "BETA" AND phase == "start"
+ | EVAL launch_key="chain" | KEEP launch_key,label) AS launch BY launch_key WITHIN 1 second,
+(FROM sequence_events | WHERE key == "ALPHA" AND phase == "finish"
+ | EVAL execution_key="chain" | KEEP execution_key,label) AS execution BY execution_key WITHIN 29 seconds
+| KEEP execution_key,label | LIMIT 10;
+
+execution_key:keyword | label:keyword
+;
+
+withinIdentifierAndAliasBesideIncomingConstraint
+required_capability: sequence_command
+required_capability: sequence_named_stages
+required_capability: sequence_stage_keys
+required_capability: sequence_within
+required_capability: sequence_per_link_time
+
+SEQUENCE WITHIN 30 seconds PRIMARY within
+(FROM sequence_events | WHERE phase == "start" | EVAL within=key | KEEP within,n) AS other BY within,
+(FROM sequence_events | WHERE phase == "finish" | EVAL within=key | KEEP within,n) AS within BY within WITHIN 30s
+| EVAL from_other=MEMBER(other,within), start_n=MEMBER(other,n)
+| KEEP within,from_other,n,start_n | SORT within | LIMIT 10;
+
+within:keyword | from_other:keyword | n:integer | start_n:integer
+ALPHA          | ALPHA              | 2         | 1
+BETA           | BETA               | 4         | 3
+;

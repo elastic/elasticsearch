@@ -126,7 +126,18 @@ returnMatchesCommand
 
 sequenceCommand
     // PRIMARY is required by the plan builder; keep the slot optional here to report a clear missing-primary diagnostic.
-    : DEV_SEQUENCE (BY qualifiedNames)? WITH mapExpression (primaryKeyword=UNQUOTED_IDENTIFIER primary=INTEGER_LITERAL)? subquery (COMMA subquery)+
+    : DEV_SEQUENCE (BY qualifiedNames)? (WITH mapExpression | windowKeyword=UNQUOTED_IDENTIFIER window=sequenceDuration)
+      (primaryKeyword=UNQUOTED_IDENTIFIER primary=(INTEGER_LITERAL | UNQUOTED_IDENTIFIER))?
+      sequenceStage (COMMA sequenceStage)+
+    ;
+
+sequenceStage
+    : subquery (aliasKeyword=UNQUOTED_IDENTIFIER alias=UNQUOTED_IDENTIFIER)? (BY qualifiedNames)?
+      (gapKeyword=UNQUOTED_IDENTIFIER gap=sequenceDuration)?
+    ;
+
+sequenceDuration
+    : sign=(PLUS | MINUS)? amount=(INTEGER_LITERAL | DECIMAL_LITERAL) unit=UNQUOTED_IDENTIFIER
     ;
 
 indexPatternAndMetadataFields

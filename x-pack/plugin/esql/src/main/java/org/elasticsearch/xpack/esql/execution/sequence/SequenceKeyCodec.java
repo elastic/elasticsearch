@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -79,6 +80,12 @@ public final class SequenceKeyCodec implements Releasable {
     /** Returns a separately charged copied key, or null when any component is null. */
     @Nullable
     public EncodedKey encode(Page page, int position) {
+        return encode(page, position, -1, null);
+    }
+
+    /** Uses caller-owned stage identities only when constructing a diagnostic; successful encoding retains no new state. */
+    @Nullable
+    EncodedKey encode(Page page, int position, int stage, @Nullable List<? extends Attribute> keys) {
         if (closed) {
             throw new IllegalStateException("sequence key codec is closed");
         }
@@ -95,9 +102,18 @@ public final class SequenceKeyCodec implements Releasable {
                 continue;
             }
             if (count != 1) {
-                throw new IllegalArgumentException(
-                    "SEQUENCE BY column at position [" + key + "] is multivalued; use MV_EXPAND inside the stage"
-                );
+                String column;
+                if (keys == null) {
+                    column = "SEQUENCE BY column at position [" + key + "]";
+                } else {
+                    String name = keys.get(key).name();
+                    column = "SEQUENCE member ["
+                        + (stage + 1)
+                        + "] BY column ["
+                        + (name.length() > 128 ? name.substring(0, 128) + "..." : name)
+                        + "]";
+                }
+                throw new IllegalArgumentException(column + " is multivalued; use MV_EXPAND inside the stage");
             }
             int value = block.getFirstValueIndex(position);
             int valueBytes = switch (types[key]) {

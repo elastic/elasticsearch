@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.orc.OrcDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.execution.sequence.SequenceSourceStatus;
 import org.elasticsearch.xpack.esql.plugin.EsqlProfileSchemaRegistry;
 import org.junit.Test;
 
@@ -112,7 +113,11 @@ public class EsqlProfileSchemaDocumentTests {
             100,
             200,
             1,
-            List.of(new OperatorStatus("MMR", new MMROperator.Status(1, 1, 1, 1, 1)), new OperatorStatus("Limit", null)),
+            List.of(
+                new OperatorStatus("MMR", new MMROperator.Status(1, 1, 1, 1, 1)),
+                new OperatorStatus("SequenceSource", new SequenceSourceStatus(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)),
+                new OperatorStatus("Limit", null)
+            ),
             new DriverSleeps(Map.of("exchange empty", 1L), List.of(sleep), List.of(sleep))
         );
         PlanProfile plan = new PlanProfile("data", "cluster", "node", "Limit[10]", "Limit[10]", new PlanTimeProfile(1, 2, 3));

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -62,13 +63,65 @@ public class SequenceExecSerializationTests extends AbstractPhysicalPlanSerializ
 
     public void testRejectUnsupportedPeerBeforeWriting() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_STAGE_COLUMNS));
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE));
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out)).getMessage(),
                 containsString("SEQUENCE is not supported")
             );
             assertEquals(0, out.size());
         }
+    }
+
+    public void testLatestValidPolicySurvivesPhysicalTransportAndRejectsOlderPeer() throws Exception {
+        SequenceExec original = createTestInstance();
+        Sequence sequence = original.sequence();
+        var latest = new Sequence(
+            sequence.source(),
+            sequence.children(),
+            sequence.maxSpanNanos(),
+            sequence.sourceAttributes(),
+            sequence.sourceStages(),
+            sequence.output(),
+            true,
+            Sequence.Pairing.LATEST_VALID,
+            16
+        );
+        var exec = new SequenceExec(original.source(), latest, original.esFilter());
+        SequenceExec restored = copyInstance(exec);
+        assertEquals(exec, restored);
+        assertEquals(Sequence.Pairing.LATEST_VALID, restored.sequence().pairing());
+        assertEquals(Integer.valueOf(16), restored.sequence().maxCandidates());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE));
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> exec.writeTo(out)).getMessage(),
+                containsString("SEQUENCE latest_valid pairing is not supported")
+            );
+            assertEquals(0, out.size());
+        }
+    }
+
+    /** The coordinator leaf carries link constraints and refuses an older peer before its own source is serialized. */
+    public void testIncomingLimitSurvivesPhysicalTransportAndRejectsOlderPeer() throws Exception {
+        SequenceExec original = createTestInstance();
+        var stages = new ArrayList<>(original.sequence().children());
+        SequenceStage second = (SequenceStage) stages.get(1);
+        long limit = randomLongBetween(1, Long.MAX_VALUE);
+        stages.set(1, new SequenceStage(second.source(), second.child(), second.keys(), limit));
+        var constrained = new SequenceExec(original.source(), original.sequence().replaceChildren(stages), original.esFilter());
+        SequenceExec restored = copyInstance(constrained, TransportVersion.current());
+        assertEquals(constrained, restored);
+        assertEquals(limit, ((SequenceStage) restored.sequence().children().get(1)).maxGapNanos());
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_PER_LINK_TIME);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(old);
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> constrained.writeTo(out)).getMessage(),
+                containsString("SEQUENCE per-link time limits are not supported")
+            );
+            assertEquals(0, out.size());
+        }
+        assertEquals(original, copyInstance(original, old));
     }
 
     public void testResolvedOutputAndBindingsSurviveTransport() throws Exception {

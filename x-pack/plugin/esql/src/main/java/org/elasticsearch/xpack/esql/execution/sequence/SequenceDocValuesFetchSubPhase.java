@@ -8,28 +8,40 @@
 package org.elasticsearch.xpack.esql.execution.sequence;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.lucene.read.ComputeBlockLoaderFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.SequenceSourceTypes;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -62,6 +74,7 @@ public final class SequenceDocValuesFetchSubPhase implements FetchSubPhase {
         var sizes = loaderSizes(clusterSettings.get());
         List<FieldLoader> fields = new ArrayList<>(extension.fields().size());
         for (var field : extension.fields()) {
+            var formatter = valueFormatter(field.field, searchContext.getFieldType(field.field), field.format);
             fields.add(
                 new FieldLoader(
                     field.field,
@@ -73,7 +86,8 @@ public final class SequenceDocValuesFetchSubPhase implements FetchSubPhase {
                         (exceptionClass, message) -> HeaderWarning.addWarning("{}: {}", exceptionClass.getName(), message),
                         sizes.ordinals(),
                         sizes.script()
-                    )
+                    ),
+                    formatter
                 )
             );
         }
@@ -92,6 +106,129 @@ public final class SequenceDocValuesFetchSubPhase implements FetchSubPhase {
 
     /** Reader reservations share the cluster defaults and dynamic updates used by ordinary ES|QL. */
     record LoaderSizes(ByteSizeValue ordinals, ByteSizeValue script) {}
+
+    /** Missing/security-hidden fields stay null; every other native cell is interpreted using its current producer. */
+    static @Nullable ValueFormatter valueFormatter(String name, @Nullable MappedFieldType fieldType, @Nullable String format) {
+        if (fieldType == null) {
+            return null;
+        }
+        DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fieldType.familyTypeName(), fieldType.getMetricType()).widenSmallNumeric();
+        if (type == DataType.UNSUPPORTED || SequenceSourceTypes.supports(type) == false) {
+            throw new IllegalArgumentException(
+                "SEQUENCE field [" + name + "] has unsupported live mapped type [" + fieldType.typeName() + "]"
+            );
+        }
+        boolean temporal = type == DataType.DATETIME || type == DataType.DATE_NANOS;
+        if (name.equals("@timestamp") && format == null) {
+            if (temporal == false) {
+                throw new IllegalArgumentException("SEQUENCE source [@timestamp] must remain a mapped date or date_nanos");
+            }
+            return null; // Hidden candidate time checks cardinality without exporting an ordinary mapped value.
+        }
+        if (SequenceHitReader.INTEGRAL_FORMAT.equals(format)) {
+            if (temporal) {
+                // A date pattern "0" can be a literal; it does not make the underlying date units an integer value.
+                throw new IllegalArgumentException("SEQUENCE integral field [" + name + "] no longer has a numeric type");
+            }
+            if (type != DataType.UNSIGNED_LONG) {
+                fieldType.docValueFormat(format, null); // Preserve the live mapper's ordinary custom-format validation.
+            }
+            DocValueFormat semantic = fieldType.docValueFormat(null, null);
+            return value -> value == null ? null : exactIntegral(name, semanticNumber(name, semantic, value)).toString();
+        }
+        if (format != null || temporal) {
+            return temporalFormatter(name, fieldType, format == null ? SequenceHitReader.TEMPORAL_FORMAT : format);
+        }
+        if (type == DataType.UNSIGNED_LONG) {
+            DocValueFormat semantic = fieldType.docValueFormat(null, null);
+            return value -> value == null ? null : exactIntegral(name, semanticNumber(name, semantic, value)).toString();
+        }
+        if (type == DataType.IP || type == DataType.VERSION) {
+            DocValueFormat semantic = fieldType.docValueFormat(null, null);
+            return value -> {
+                if (value == null) {
+                    return null;
+                }
+                if ((value instanceof BytesRef) == false) {
+                    throw new IllegalArgumentException("SEQUENCE field [" + name + "] did not load native mapped bytes");
+                }
+                return semantic.format((BytesRef) value);
+            };
+        }
+        // The remaining admitted byte producers are UTF8 keyword/text/flattened. Other admitted primitives are native
+        // signed numbers, floating values and booleans, whose semantic representation is already unambiguous.
+        return null;
+    }
+
+    /** Formats the live numeric encoding before checking exactness; unsigned compute longs are biased, unlike signed longs. */
+    private static Number semanticNumber(String name, DocValueFormat formatter, Object value) {
+        Object semantic;
+        if (value instanceof Long || value instanceof Integer) {
+            semantic = formatter.format(((Number) value).longValue());
+        } else if (value instanceof Double || value instanceof Float) {
+            semantic = formatter.format(((Number) value).doubleValue());
+        } else {
+            throw new IllegalArgumentException("SEQUENCE field [" + name + "] did not load a native numeric value");
+        }
+        if (semantic instanceof Number number) {
+            return number;
+        }
+        throw new IllegalArgumentException("SEQUENCE field [" + name + "] did not format an actual numeric value");
+    }
+
+    private static BigInteger exactIntegral(String name, Number value) {
+        if (value instanceof BigInteger number) {
+            return number;
+        }
+        if (value instanceof Long || value instanceof Integer) {
+            return BigInteger.valueOf(value.longValue());
+        }
+        if (value instanceof Double || value instanceof Float) {
+            try {
+                return new BigDecimal(value.doubleValue()).toBigIntegerExact();
+            } catch (ArithmeticException | NumberFormatException e) {
+                throw new IllegalArgumentException("SEQUENCE field [" + name + "] does not hold an exact finite integral value", e);
+            }
+        }
+        throw new IllegalArgumentException("SEQUENCE field [" + name + "] did not format an actual numeric value");
+    }
+
+    /** Translates a single mapped cell without changing nulls, multivalue shape or the block loader's ownership. */
+    @FunctionalInterface
+    interface ValueFormatter {
+        /** Preserves a live mapped cell's meaning before admission to the prepared consumer schema. */
+        Object format(Object value);
+    }
+
+    /** Resolves actual date units once per fetch; a missing or security-hidden field keeps ordinary null loading. */
+    static @Nullable TemporalFormatter temporalFormatter(String name, @Nullable MappedFieldType fieldType, String format) {
+        if (fieldType == null) {
+            return null;
+        }
+        DateFieldMapper.Resolution resolution;
+        if (fieldType.typeName().equals(DateFieldMapper.CONTENT_TYPE)) {
+            resolution = DateFieldMapper.Resolution.MILLISECONDS;
+        } else if (fieldType.typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
+            resolution = DateFieldMapper.Resolution.NANOSECONDS;
+        } else {
+            throw new IllegalArgumentException("SEQUENCE temporal field [" + name + "] no longer has a date or date_nanos type");
+        }
+        return new TemporalFormatter(name, DateFormatter.forPattern(format), resolution);
+    }
+
+    /** Actual cell values use no sort-missing sentinels, including valid long extrema in mapped date fields. */
+    record TemporalFormatter(String name, DateFormatter formatter, DateFieldMapper.Resolution resolution) implements ValueFormatter {
+        @Override
+        public Object format(Object value) {
+            if (value == null) {
+                return null;
+            }
+            if ((value instanceof Long) == false) {
+                throw new IllegalArgumentException("SEQUENCE temporal field [" + name + "] did not load a native date value");
+            }
+            return formatter.format(resolution.toInstant((Long) value).atZone(ZoneOffset.UTC));
+        }
+    }
 
     private static final class Processor implements FetchSubPhaseProcessor, Releasable {
         private final FetchContext context;
@@ -130,9 +267,12 @@ public final class SequenceDocValuesFetchSubPhase implements FetchSubPhase {
                     if (value == null) {
                         values = List.of();
                     } else if (value instanceof List<?> list) {
-                        values = new ArrayList<>(list);
+                        values = new ArrayList<>(list.size());
+                        for (Object item : list) {
+                            values.add(field.format(item));
+                        }
                     } else {
-                        values = List.of(value);
+                        values = List.of(field.format(value));
                     }
                     var documentField = new DocumentField(field.name, values);
                     // FetchPhase now accounts DocumentField estimates after all sub-phases. Only native backing arrays
@@ -158,13 +298,23 @@ public final class SequenceDocValuesFetchSubPhase implements FetchSubPhase {
     static final class FieldLoader implements Releasable {
         private final String name;
         private final BlockLoader loader;
+        private final @Nullable ValueFormatter formatter;
         private LeafReaderContext leaf;
         private BlockLoader.ColumnAtATimeReader columnReader;
         private BlockLoader.RowStrideReader rowReader;
 
         FieldLoader(String name, BlockLoader loader) {
+            this(name, loader, null);
+        }
+
+        FieldLoader(String name, BlockLoader loader, @Nullable ValueFormatter formatter) {
             this.name = name;
             this.loader = loader;
+            this.formatter = formatter;
+        }
+
+        private Object format(Object value) {
+            return formatter == null ? value : formatter.format(value);
         }
 
         void setNextReader(LeafReaderContext leaf) {

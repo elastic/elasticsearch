@@ -1,0 +1,175 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.execution.sequence;
+
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.OptionalInt;
+import java.util.Set;
+
+/** Admits bounded production work separately from configurations reserved for direct matcher tests. */
+final class SequenceLatestValidConfig {
+    static final int DEFAULT_MAX_CANDIDATES = 16;
+    static final int MAX_CANDIDATE_EXPONENT = 20;
+    static final int MAX_CANDIDATES = 1024;
+    static final long SEARCH_STEP_LIMIT = 131072;
+    static final int CANCELLATION_CHECK_INTERVAL = 1024;
+
+    private final OptionalInt maxCandidates;
+    private final long searchStepLimit;
+    private final boolean testOnly;
+    private final List<List<ValueDemand>> mandatoryDemands;
+    private final List<PredicateGroup> groups;
+
+    private SequenceLatestValidConfig(
+        OptionalInt maxCandidates,
+        long searchStepLimit,
+        boolean testOnly,
+        List<List<ValueDemand>> demands,
+        List<PredicateGroup> groups
+    ) {
+        maximumCandidates(demands.size());
+        if (searchStepLimit < 1 || (maxCandidates.isPresent() && maxCandidates.getAsInt() < 1)) {
+            throw new IllegalArgumentException("sequence candidate bound and search step limit must be positive");
+        }
+        this.maxCandidates = maxCandidates;
+        this.searchStepLimit = searchStepLimit;
+        this.testOnly = testOnly;
+        List<List<ValueDemand>> copy = new ArrayList<>(demands.size());
+        for (List<ValueDemand> stage : demands) {
+            Set<NameId> identities = new HashSet<>();
+            for (ValueDemand demand : stage) {
+                if (identities.add(demand.attribute().id()) == false) {
+                    throw new IllegalArgumentException("duplicate mandatory sequence column identity");
+                }
+            }
+            copy.add(List.copyOf(stage));
+        }
+        mandatoryDemands = List.copyOf(copy);
+        this.groups = List.copyOf(groups);
+        for (PredicateGroup group : groups) {
+            if (group.ownStage() >= demands.size()) {
+                throw new IllegalArgumentException("sequence predicate stage is outside the demand layout");
+            }
+        }
+    }
+
+    static SequenceLatestValidConfig defaults(List<List<ValueDemand>> demands, List<PredicateGroup> groups) {
+        return bounded(Math.min(DEFAULT_MAX_CANDIDATES, maximumCandidates(demands.size())), demands, groups);
+    }
+
+    static SequenceLatestValidConfig bounded(int maxCandidates, List<List<ValueDemand>> demands, List<PredicateGroup> groups) {
+        validateCandidateBound(maxCandidates, demands.size());
+        return new SequenceLatestValidConfig(OptionalInt.of(maxCandidates), SEARCH_STEP_LIMIT, false, demands, groups);
+    }
+
+    /** Unbounded state and search are never admitted by an ordinary source entry point. */
+    static SequenceLatestValidConfig unboundedForTests(List<List<ValueDemand>> demands, List<PredicateGroup> groups) {
+        return new SequenceLatestValidConfig(OptionalInt.empty(), Long.MAX_VALUE, true, demands, groups);
+    }
+
+    /** Explicit provenance also excludes a test configuration whose numbers happen to equal production defaults. */
+    static SequenceLatestValidConfig boundedForTests(
+        int maxCandidates,
+        long searchStepLimit,
+        List<List<ValueDemand>> demands,
+        List<PredicateGroup> groups
+    ) {
+        return new SequenceLatestValidConfig(OptionalInt.of(maxCandidates), searchStepLimit, true, demands, groups);
+    }
+
+    /** Integer division bounds the exponent without computing an overflowing power. */
+    static int maximumCandidates(int stages) {
+        if (stages < 2) {
+            throw new IllegalArgumentException("sequence requires at least two stages");
+        }
+        return 1 << Math.min(Integer.numberOfTrailingZeros(MAX_CANDIDATES), MAX_CANDIDATE_EXPONENT / (stages - 1));
+    }
+
+    static void validateCandidateBound(int candidates, int stages) {
+        int maximum = maximumCandidates(stages);
+        if (candidates < 1 || candidates > maximum) {
+            throw new IllegalArgumentException(
+                "SEQUENCE max_candidates [" + candidates + "] for [" + stages + "] stages must be between [1] and [" + maximum + "]"
+            );
+        }
+    }
+
+    /** Ordinary exceptions enforce this boundary even when assertions and snapshot checks are disabled. */
+    void validateForProduction(int stages) {
+        if (testOnly || maxCandidates.isEmpty() || searchStepLimit != SEARCH_STEP_LIMIT) {
+            throw new IllegalArgumentException("test-only SEQUENCE limits cannot be used by a source operator");
+        }
+        if (mandatoryDemands.size() != stages) {
+            throw new IllegalArgumentException("sequence mandatory demand layouts must align with stages");
+        }
+        validateCandidateBound(maxCandidates.getAsInt(), stages);
+    }
+
+    long searchStepLimit() {
+        return searchStepLimit;
+    }
+
+    OptionalInt maxCandidates() {
+        return maxCandidates;
+    }
+
+    List<List<ValueDemand>> mandatoryDemands() {
+        return mandatoryDemands;
+    }
+
+    List<PredicateGroup> groups() {
+        return groups;
+    }
+
+    /** Slot order is caller supplied; identity/type binding belongs to the prepared stage schema. */
+    record ValueDemand(Attribute attribute) {
+        ValueDemand {
+            Objects.requireNonNull(attribute);
+        }
+    }
+
+    /** A group is callable as soon as its lowest referenced stage has been bound by backward search. */
+    record PredicateGroup(int ownStage, List<Integer> referencedStages, RowPredicate predicate) {
+        PredicateGroup {
+            referencedStages = List.copyOf(referencedStages);
+            Objects.requireNonNull(predicate);
+            if (ownStage < 1 || referencedStages.isEmpty()) {
+                throw new IllegalArgumentException("sequence predicate requires an earlier referenced stage");
+            }
+            int previous = -1;
+            for (int stage : referencedStages) {
+                if (stage <= previous || stage >= ownStage) {
+                    throw new IllegalArgumentException("sequence predicate references must be sorted unique earlier stages");
+                }
+                previous = stage;
+            }
+        }
+
+        int minReferencedStage() {
+            return referencedStages.getFirst();
+        }
+    }
+
+    /** Predicates synchronously borrow their inputs; they must not retain, close, or mutate them. */
+    @FunctionalInterface
+    interface RowPredicate {
+        boolean test(SelectedValues values);
+    }
+
+    /** One-position typed blocks; a real null cell is distinct from a missing demanded block. */
+    interface SelectedValues {
+        Block block(int stage, int demandSlot);
+    }
+}

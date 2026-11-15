@@ -29,16 +29,22 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.DateTimeException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Copies mapped block-loader values into the exact typed raw schema expected by a prepared sequence stage. Field fetches
- * preserve native values and multifields; metadata comes from the selected hit. Missing values remain typed nulls,
+ * preserve values and multifields; ambiguous native encodings carry semantic values so live aliases cannot change their meaning.
+ * Metadata comes from the selected hit. Missing values remain typed nulls,
  * and no source-map reconstruction or timestamp string concatenation is used for correlation.
  */
 final class SequenceHitReader {
+    static final String TEMPORAL_FORMAT = "strict_date_optional_time_nanos";
+    static final String INTEGRAL_FORMAT = "0";
     private final List<Attribute> attributes;
     private final Configuration configuration;
 
@@ -82,23 +88,49 @@ final class SequenceHitReader {
     }
 
     /**
-     * Requires the original event timestamp to be scalar before matching or payload replay. Search sort values
+     * Requires the original event timestamp to be scalar before candidate admission, including a formatted ordinary demand. Search sort values
      * expose only the minimum of a multivalued date, so they cannot prove the EQL source timestamp contract.
      * Stage projections and MV_EXPAND must not hide or repair an ambiguous original event time.
      */
     static void ensureScalarTimestamp(SearchHit hit) {
         DocumentField field = hit.field("@timestamp");
-        if (field == null || field.getValues().size() != 1 || (field.getValues().getFirst() instanceof Long) == false) {
+        if (field == null || field.getValues().size() != 1 || isScalarDate(field.getValues().getFirst()) == false) {
             throw new IllegalArgumentException("SEQUENCE source [@timestamp] must hold a single mapped date or date_nanos value");
         }
     }
 
+    private static boolean isScalarDate(Object value) {
+        if (value instanceof Long) {
+            return true; // Hidden candidate time uses the native cardinality-only projection.
+        }
+        if (value instanceof String text) {
+            try {
+                Instant.parse(text);
+                return true; // An ordinary timestamp demand replaces the hidden projection with a formatted instant.
+            } catch (DateTimeException e) {
+                return false;
+            }
+        }
+        return false;
+    }
+
     SearchSourceBuilder fields(SearchSourceBuilder source) {
+        return fields(source, true);
+    }
+
+    /** Selected physical events need only their replay projection; undemanded event time must not be evaluated again. */
+    SearchSourceBuilder identityFields(SearchSourceBuilder source) {
+        return fields(source, false);
+    }
+
+    private SearchSourceBuilder fields(SearchSourceBuilder source, boolean requireTimestamp) {
         source.fetchSource(false);
         List<FieldAndFormat> mappedFields = new ArrayList<>();
-        // Event time remains mandatory after payload pruning. The mapped loader exposes source cardinality,
+        // Candidate event time remains mandatory after payload pruning. The mapped loader exposes source cardinality,
         // while the separately returned sort value alone would silently select the earliest array value.
-        mappedFields.add(new FieldAndFormat("@timestamp", null));
+        if (requireTimestamp) {
+            mappedFields.add(new FieldAndFormat("@timestamp", null));
+        }
         for (Attribute attribute : attributes) {
             if (attribute instanceof MetadataAttribute && attribute.name().equals("_version")) {
                 source.version(true);
@@ -111,7 +143,13 @@ final class SequenceHitReader {
                 && attribute.name().equals("_index") == false) {
                     source.fetchField(attribute.name());
                 } else if (attribute instanceof FieldAttribute field && attribute.dataType() != DataType.UNSUPPORTED) {
-                    mappedFields.add(new FieldAndFormat(fieldName(field), null));
+                    String format = switch (attribute.dataType()) {
+                        case DATETIME, DATE_NANOS -> TEMPORAL_FORMAT;
+                        case INTEGER, COUNTER_INTEGER, LONG, COUNTER_LONG, UNSIGNED_LONG -> INTEGRAL_FORMAT;
+                        case NULL, BOOLEAN, DOUBLE, COUNTER_DOUBLE, KEYWORD, TEXT, IP, VERSION, SOURCE, FLATTENED, UNSUPPORTED -> null;
+                        default -> throw new IllegalArgumentException("unexpected SEQUENCE mapped type [" + attribute.dataType() + "]");
+                    };
+                    mappedFields.add(new FieldAndFormat(fieldName(field), format));
                 }
         }
         if (mappedFields.isEmpty() == false) {
@@ -169,27 +207,102 @@ final class SequenceHitReader {
     }
 
     private Object convert(Object value, DataType type) {
-        // Mapped fields arrive in their native compute representation. Preserve encoded IP/version bytes and exact
-        // unsigned/date longs rather than interpreting them as display values.
-        if (value instanceof BytesRef
-            || value instanceof Long && (type == DataType.UNSIGNED_LONG || type == DataType.DATETIME || type == DataType.DATE_NANOS)) {
-            return value;
+        if (value == null) {
+            return null;
+        }
+        if (type == DataType.DATETIME || type == DataType.DATE_NANOS) {
+            // A live alias can change date resolution after analysis. Native Longs do not carry units, so only
+            // a formatted actual instant can safely enter the frozen temporal schema.
+            if (value instanceof String text) {
+                if (type == DataType.DATE_NANOS) {
+                    return EsqlDataTypeConverter.dateNanosToLong(text);
+                }
+                try {
+                    Instant instant = Instant.parse(text);
+                    if (instant.getNano() % 1_000_000 != 0) {
+                        throw new IllegalArgumentException(
+                            "SEQUENCE temporal instant cannot be represented with date millisecond precision"
+                        );
+                    }
+                    return instant.toEpochMilli();
+                } catch (DateTimeException | ArithmeticException e) {
+                    throw new IllegalArgumentException("SEQUENCE temporal instant cannot be represented as a date", e);
+                }
+            }
+            throw new IllegalArgumentException("SEQUENCE mapped temporal values require a formatted date instant");
         }
         return switch (type) {
-            case KEYWORD, TEXT, FLATTENED -> value == null ? null : value.toString();
-            case COUNTER_LONG -> EsqlDataTypeConverter.convert(value, DataType.LONG, configuration);
-            case COUNTER_INTEGER -> EsqlDataTypeConverter.convert(value, DataType.INTEGER, configuration);
-            case COUNTER_DOUBLE -> EsqlDataTypeConverter.convert(value, DataType.DOUBLE, configuration);
-            case UNSIGNED_LONG -> value == null
-                ? null
-                : NumericUtils.asLongUnsigned(NumericUtils.asUnsignedLong(new BigInteger(value.toString())));
-            case BOOLEAN, INTEGER, LONG, DOUBLE, DATETIME, DATE_NANOS, IP, VERSION -> EsqlDataTypeConverter.convert(
-                value,
-                type,
-                configuration
-            );
+            // The fetch processor admits native bytes only from live UTF8 field families. IP/version bytes are
+            // decoded there using the live mapper, then encoded here using the frozen consumer type.
+            case KEYWORD, TEXT, FLATTENED -> {
+                if ((value instanceof BytesRef) == false) {
+                    throw new IllegalArgumentException("SEQUENCE mapped [" + type.typeName() + "] values require native textual bytes");
+                }
+                yield value;
+            }
+            case INTEGER, COUNTER_INTEGER, LONG, COUNTER_LONG, UNSIGNED_LONG -> integral(value, type);
+            case DOUBLE, COUNTER_DOUBLE -> exactDouble(value);
+            case BOOLEAN -> {
+                if ((value instanceof Boolean) == false) {
+                    throw new IllegalArgumentException("SEQUENCE mapped boolean values require an actual boolean");
+                }
+                yield value;
+            }
+            case IP, VERSION -> {
+                // This is a semantic-text policy, not proof of the live producer's family after formatting.
+                // VERSION deliberately accepts invalid-text versions too, so a version grammar check would be incorrect.
+                if ((value instanceof String) == false) {
+                    throw new IllegalArgumentException("SEQUENCE mapped [" + type.typeName() + "] values require semantic text");
+                }
+                yield EsqlDataTypeConverter.convert(value, type, configuration);
+            }
             default -> throw new IllegalArgumentException("unexpected SEQUENCE conversion type [" + type.typeName() + "]");
         };
+    }
+
+    /** Native longs can be biased unsigned values, so only the fetch processor's exact decimal projection is unambiguous. */
+    private static Object integral(Object value, DataType type) {
+        if ((value instanceof String) == false) {
+            throw new IllegalArgumentException("SEQUENCE mapped integral values require exact decimal text");
+        }
+        try {
+            BigInteger number = new BigInteger((String) value);
+            return switch (type) {
+                case INTEGER, COUNTER_INTEGER -> number.intValueExact();
+                case LONG, COUNTER_LONG -> number.longValueExact();
+                case UNSIGNED_LONG -> NumericUtils.asLongUnsigned(NumericUtils.asUnsignedLong(number));
+                default -> throw new IllegalArgumentException("unexpected SEQUENCE integral type [" + type.typeName() + "]");
+            };
+        } catch (ArithmeticException | NumberFormatException e) {
+            throw new IllegalArgumentException("SEQUENCE mapped value cannot be represented as [" + type.typeName() + "]", e);
+        }
+    }
+
+    /** Stable floating values stay native; an integral live producer must not silently lose bits in a frozen double column. */
+    private static double exactDouble(Object value) {
+        if (value instanceof Double number) {
+            return number;
+        }
+        if (value instanceof Float number) {
+            return number.doubleValue();
+        }
+        try {
+            BigInteger number;
+            if (value instanceof Long || value instanceof Integer) {
+                number = BigInteger.valueOf(((Number) value).longValue());
+            } else if (value instanceof String text) {
+                number = new BigInteger(text);
+            } else {
+                throw new IllegalArgumentException("SEQUENCE mapped double values require an actual numeric value");
+            }
+            double converted = number.doubleValue();
+            if (Double.isFinite(converted) == false || new BigDecimal(converted).toBigIntegerExact().equals(number) == false) {
+                throw new IllegalArgumentException("SEQUENCE mapped integral value cannot be represented exactly as a double");
+            }
+            return converted;
+        } catch (ArithmeticException | NumberFormatException e) {
+            throw new IllegalArgumentException("SEQUENCE mapped value cannot be represented exactly as a double", e);
+        }
     }
 
     private static Object metadata(SearchHit hit, String name) {

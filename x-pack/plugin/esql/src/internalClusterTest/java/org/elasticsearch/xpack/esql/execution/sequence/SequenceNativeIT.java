@@ -402,7 +402,8 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    public void testPrimarySequenceRejectsOuterUnionWhileOrdinaryUnionReportsMetadata() {
+    /** Native and ordinary UNION arms must retain independent output contexts. */
+    public void testSequenceUnionArmPreservesOrdinaryUnionMetadata() {
         createIndices();
         assertFalse(
             client().prepareBulk()
@@ -412,7 +413,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
                 .hasFailures()
         );
         refresh("sequence-a", "sequence-b");
-        ParsingException failure = expectThrows(ParsingException.class, () -> run("""
+        try (var response = run("""
             from (
                 sequence by key with {"maxspan":"30s"} PRIMARY 1
                 (from sequence-a | keep key), (from sequence-b | keep key)
@@ -420,8 +421,9 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
             ), (from sequence-a | keep key)
             | stats count(*)
             | limit 1
-            """));
-        assertThat(failure.getMessage(), containsString("outside the sequence output prototype"));
+            """)) {
+            assertValues(response.values(), List.of(List.of(2L)));
+        }
         try (var response = run(syncEsqlQueryRequest("""
             from (from sequence-a | keep key), (from sequence-b | keep key)
             | stats count(*)

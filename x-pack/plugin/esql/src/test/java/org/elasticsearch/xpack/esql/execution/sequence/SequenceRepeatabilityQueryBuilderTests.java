@@ -28,7 +28,9 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -69,6 +71,29 @@ public class SequenceRepeatabilityQueryBuilderTests extends AbstractWireSerializ
         var guard = new SequenceRepeatabilityQueryBuilder(new MatchNoneQueryBuilder(), List.of("changing"), List.of("sequence-a"));
         var context = new QueryRewriteContext(XContentParserConfiguration.EMPTY, null, () -> 0L);
         assertSame(guard, guard.rewrite(context));
+    }
+
+    /** Identity hydration must not touch fields that selection required but the requested output does not demand. */
+    public void testIdentityReadValidatesOnlyDemandedFields() throws Exception {
+        assertValidatedFields(List.of("payload"));
+    }
+
+    public void testCandidateReadExplicitlyValidatesTimestamp() throws Exception {
+        assertValidatedFields(List.of("@timestamp", "key"));
+    }
+
+    private void assertValidatedFields(List<String> fields) throws Exception {
+        // This boundary only delegates field admission; real mapped-value behavior is covered by the integration tests.
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.index()).thenReturn(new Index("sequence-a", "sequence-a-uuid"));
+        var guard = new SequenceRepeatabilityQueryBuilder(new MatchNoneQueryBuilder(), fields, List.of("sequence-a"));
+
+        assertThat(guard.doToQuery(context, new MaxClauseCountQueryVisitor(Integer.MAX_VALUE)), instanceOf(MatchNoDocsQuery.class));
+        verify(context).index();
+        for (String field : fields) {
+            verify(context).getFieldType(field);
+        }
+        verify(context, times(fields.size())).getFieldType(anyString());
     }
 
     /** Foreign PIT slots must remain empty before any source-specific query or mapping interpretation. */

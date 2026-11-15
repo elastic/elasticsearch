@@ -694,15 +694,14 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
     }
 
     /**
-     * Supplies or resolves complete snapshot authorization for internal local PIT paging. Security must verify
-     * coverage of every concrete PIT index under current caller permissions. For one source of a shared PIT,
-     * use {@link #setPointInTimeAuthorization(OriginalIndices, OriginalIndices, QueryBuilder)} to bind its scope
-     * and membership atomically. This state has no REST/wire representation and survives local copies only.
+     * Replaces a constructed source's complete snapshot expressions after Security's caller-scoped resolution,
+     * preserving source scope and membership. Resolution cannot construct an authorization-only request.
      */
-    public void setPointInTimeAuthorizationIndices(OriginalIndices originalIndices) {
-        pointInTimeAuthorization = pointInTimeAuthorization == null
-            ? PointInTimeAuthorization.snapshot(originalIndices)
-            : pointInTimeAuthorization.withIndices(originalIndices);
+    public void setResolvedPointInTimeAuthorizationIndices(OriginalIndices originalIndices) {
+        if (pointInTimeAuthorization == null) {
+            throw new IllegalStateException("PIT index resolution requires a constructed source authorization");
+        }
+        pointInTimeAuthorization = pointInTimeAuthorization.withIndices(originalIndices);
     }
 
     /**
@@ -734,7 +733,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
         pointInTimeAuthorization = pointInTimeAuthorization.withScope(originalIndices);
     }
 
-    /** Returns a defensive copy of independently authorized source expressions, or null for full-snapshot searches. */
+    /** Returns a defensive copy of independently authorized source expressions, or null for ordinary PIT requests. */
     @Nullable
     public OriginalIndices getPointInTimeAuthorizationScope() {
         return pointInTimeAuthorization == null ? null : pointInTimeAuthorization.scope();
@@ -746,9 +745,6 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
             return this;
         }
         QueryBuilder membership = pointInTimeAuthorization.membership(registry);
-        if (membership == null) {
-            return this;
-        }
         if (source == null) {
             throw new IllegalArgumentException("PIT source authorization requires a search source");
         }
@@ -769,7 +765,6 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
 
     private boolean hasUnsupportedPointInTimeSource() {
         return pointInTimeAuthorization != null
-            && pointInTimeAuthorization.scope() != null
             && source != null
             && (source.retriever() != null
                 || source.subSearches().size() > 1

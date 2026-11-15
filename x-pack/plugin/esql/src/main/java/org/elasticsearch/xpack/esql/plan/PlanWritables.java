@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceCondition;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -132,6 +133,7 @@ public class PlanWritables {
             Sample.ENTRY,
             SampledAggregate.ENTRY,
             Sequence.ENTRY,
+            SequenceCondition.ENTRY,
             SequenceStage.ENTRY,
             TopNPreFilter.ENTRY,
             Subquery.ENTRY,

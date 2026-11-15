@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
+import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 import org.junit.After;
 
 import java.time.Instant;
@@ -69,9 +71,136 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(super.nodePlugins(), UnsignedLongMapperPlugin.class),
-            FailingRuntimeFieldPlugin.class
+            CollectionUtils.appendToCopy(
+                CollectionUtils.appendToCopy(super.nodePlugins(), UnsignedLongMapperPlugin.class),
+                FailingRuntimeFieldPlugin.class
+            ),
+            VersionFieldPlugin.class
         );
+    }
+
+    /** Real encoded version values match ordinary fields when selected rows load late output columns. */
+    public void testVersionMappedValuesMatchOrdinaryAcrossStoragePreferencesAndPrimaryStages() {
+        String index = "sequence-version-values";
+        Map<String, Object> properties = baseProperties();
+        properties.put("key", Map.of("type", "keyword", "store", true));
+        properties.put("phase", Map.of("type", "keyword", "store", true));
+        List<String> versions = List.of("1.2.3", "2.0.0-beta.1+build.7", "not a version");
+        List<String> fields = List.of("version_valid", "version_prerelease", "version_invalid", "version_mv", "version_missing");
+        for (String field : fields) {
+            properties.put(field, Map.of("type", "version"));
+        }
+        createIndex(index, Map.of("_source", Map.of("enabled", false), "properties", properties), Settings.EMPTY);
+        indexPair(
+            index,
+            Map.of(
+                "version_valid",
+                versions.get(0),
+                "version_prerelease",
+                versions.get(1),
+                "version_invalid",
+                versions.get(2),
+                "version_mv",
+                versions
+            )
+        );
+        String projection = "key, phase, "
+            + String.join(", ", fields)
+            + ", other_phase, other_valid, other_prerelease, other_invalid, other_mv, other_missing";
+        for (var preference : List.of(MappedFieldType.FieldExtractPreference.NONE, MappedFieldType.FieldExtractPreference.STORED)) {
+            var pragmas = new QueryPragmas(Settings.builder().put("field_extract_preference", preference).build());
+            for (int primary = 1; primary <= 2; primary++) {
+                String phase = primary == 1 ? "A" : "B";
+                String otherPhase = primary == 1 ? "B" : "A";
+                String ordinary = Strings.format("""
+                    FROM %s | WHERE phase=="%s"
+                    | EVAL other_phase="%s", other_valid=version_valid, other_prerelease=version_prerelease,
+                      other_invalid=version_invalid, other_mv=version_mv, other_missing=version_missing
+                    | KEEP %s | LIMIT 1
+                    """, index, phase, otherPhase, projection);
+                // Fields used only in output load after matching without replaying the stage program.
+                String sequence = Strings.format(
+                    """
+                        SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+                        (FROM %s | WHERE phase=="A" | KEEP key,phase,%s),
+                        (FROM %s | WHERE phase=="B" | KEEP key,phase,%s)
+                        | EVAL other_phase=MEMBER(%s,phase), other_valid=MEMBER(%s,version_valid),
+                          other_prerelease=MEMBER(%s,version_prerelease), other_invalid=MEMBER(%s,version_invalid),
+                          other_mv=MEMBER(%s,version_mv), other_missing=MEMBER(%s,version_missing)
+                        | KEEP %s | LIMIT 1
+                        """,
+                    primary,
+                    index,
+                    String.join(",", fields),
+                    index,
+                    String.join(",", fields),
+                    3 - primary,
+                    3 - primary,
+                    3 - primary,
+                    3 - primary,
+                    3 - primary,
+                    3 - primary,
+                    projection
+                );
+                try (
+                    var ordinaryResponse = run(syncEsqlQueryRequest(ordinary).pragmas(pragmas).allowPartialResults(false));
+                    var sequenceResponse = run(syncEsqlQueryRequest(sequence).pragmas(pragmas).allowPartialResults(false).profile(true))
+                ) {
+                    var expected = getValuesList(ordinaryResponse);
+                    assertEquals(1, expected.size());
+                    var row = expected.getFirst();
+                    assertEquals(List.of("shared", phase, versions.get(0), versions.get(1), versions.get(2)), row.subList(0, 5));
+                    assertTrue(row.get(5) instanceof List<?>);
+                    assertEquals(3, ((List<?>) row.get(5)).size());
+                    assertEquals(Set.copyOf(versions), Set.copyOf((List<?>) row.get(5)));
+                    assertNull(row.get(6));
+                    assertEquals(otherPhase, row.get(7));
+                    assertEquals(row.subList(2, 7), row.subList(8, 13));
+                    assertEquals(expected, getValuesList(sequenceResponse));
+                    assertEquals(
+                        ordinaryResponse.columns().stream().map(column -> List.of(column.name(), column.outputType())).toList(),
+                        sequenceResponse.columns().stream().map(column -> List.of(column.name(), column.outputType())).toList()
+                    );
+                    assertEquals(
+                        List.of(
+                            "keyword",
+                            "keyword",
+                            "version",
+                            "version",
+                            "version",
+                            "version",
+                            "version",
+                            "keyword",
+                            "version",
+                            "version",
+                            "version",
+                            "version",
+                            "version"
+                        ),
+                        sequenceResponse.columns().stream().map(column -> column.outputType()).toList()
+                    );
+                    assertFalse(sequenceResponse.isPartial());
+                    var statuses = sequenceResponse.profile()
+                        .drivers()
+                        .stream()
+                        .flatMap(driver -> driver.operators().stream())
+                        .map(OperatorStatus::status)
+                        .filter(SequenceSourceStatus.class::isInstance)
+                        .map(SequenceSourceStatus.class::cast)
+                        .toList();
+                    assertEquals(1, statuses.size());
+                    SequenceSourceStatus status = statuses.getFirst();
+                    assertEquals(2L, status.candidateSearchRequests());
+                    assertEquals(2L, status.candidateRowsFetched());
+                    assertEquals(2L, status.payloadSearchRequests());
+                    assertEquals(2L, status.payloadRowsFetched());
+                    assertEquals(1L, status.completedMatches());
+                    assertEquals(1L, status.rowsEmitted());
+                    assertEquals(2L, status.stageDrivers());
+                    logger.info("SEQUENCE real version mapper preference={} primary={} profile={}", preference, primary, status);
+                }
+            }
+        }
     }
 
     public void testSourceDisabledStoredKeywordAndTextLayouts() {
@@ -359,8 +488,8 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         indexPair(index, Map.of());
     }
 
-    /** A truthful pure runtime definition is still mutable; old PIT reads fail and fresh sequence reads use the new definition. */
-    public void testRuntimeDefinitionChangeRejectsOldPitIncludingZeroHitRead() {
+    /** A PIT preserves its documents while later reads use the live runtime definition, including zero-hit reads. */
+    public void testRuntimeDefinitionChangeUsesLiveDefinitionOnOldPitIncludingZeroHitRead() {
         String index = "sequence-runtime-epoch";
         createRuntimeIndex(index, "constant");
         BytesReference pit = client().execute(
@@ -371,6 +500,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
             SearchResponse first = guardedPitRead(pit, index, "A");
             try {
                 assertEquals(1L, first.getHits().getTotalHits().value());
+                assertEquals(List.of(1L), first.getHits().getAt(0).field("changing").getValues());
                 if (first.pointInTimeId() != null) pit = first.pointInTimeId();
             } finally {
                 first.decRef();
@@ -378,13 +508,17 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
             assertAcked(
                 indicesAdmin().preparePutMapping(index).setSource(Map.of("runtime", Map.of("changing", runtimeField("long", "two"))))
             );
-            BytesReference oldPit = pit;
             for (String phase : List.of("B", "missing")) {
-                RuntimeException failure = expectThrows(RuntimeException.class, () -> {
-                    SearchResponse unexpected = guardedPitRead(oldPit, index, phase);
-                    unexpected.decRef();
-                });
-                assertThat(ExceptionsHelper.stackTrace(failure), containsString("mapping changes since the PIT reader was opened"));
+                SearchResponse live = guardedPitRead(pit, index, phase);
+                try {
+                    assertEquals(phase.equals("B") ? 1L : 0L, live.getHits().getTotalHits().value());
+                    if (phase.equals("B")) {
+                        assertEquals(List.of(2L), live.getHits().getAt(0).field("changing").getValues());
+                    }
+                    if (live.pointInTimeId() != null) pit = live.pointInTimeId();
+                } finally {
+                    live.decRef();
+                }
             }
             try (var ordinary = run("from " + index + " | keep changing | limit 1")) {
                 assertValues(ordinary.values(), List.of(List.of(2L)));
@@ -401,8 +535,8 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Even an unused dynamic field replaces the mapping identity; a fresh sequence must remain usable afterward. */
-    public void testUnrelatedDynamicFieldAdditionRejectsOldPit() throws Exception {
+    /** Adding an unused dynamic field does not reject an existing PIT or make newly indexed documents visible to it. */
+    public void testUnrelatedDynamicFieldAdditionPreservesOldPit() throws Exception {
         String index = "sequence-unrelated-dynamic-field";
         String unrelatedField = "unrelated_dynamic_field";
         createRuntimeIndex(index, "constant");
@@ -426,13 +560,17 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
                 .get();
             assertBusy(() -> assertNotNull(client().prepareFieldCaps(index).setFields(unrelatedField).get().getField(unrelatedField)));
             refresh(index);
-            BytesReference oldPit = pit;
-            for (String phase : List.of("B", "missing")) {
-                RuntimeException failure = expectThrows(RuntimeException.class, () -> {
-                    SearchResponse unexpected = guardedPitRead(oldPit, index, phase);
-                    unexpected.decRef();
-                });
-                assertThat(ExceptionsHelper.stackTrace(failure), containsString("mapping changes since the PIT reader was opened"));
+            for (String phase : List.of("B", "missing", "unrelated")) {
+                SearchResponse live = guardedPitRead(pit, index, phase);
+                try {
+                    assertEquals(phase.equals("B") ? 1L : 0L, live.getHits().getTotalHits().value());
+                    if (phase.equals("B")) {
+                        assertEquals(List.of(1L), live.getHits().getAt(0).field("changing").getValues());
+                    }
+                    if (live.pointInTimeId() != null) pit = live.pointInTimeId();
+                } finally {
+                    live.decRef();
+                }
             }
             try (var fresh = run("""
                 sequence by changing with {"maxspan":"30s"} PRIMARY 1
@@ -451,8 +589,16 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         return client().prepareSearch()
             .setSource(
                 new SearchSourceBuilder().query(
-                    new SequenceRepeatabilityQueryBuilder(QueryBuilders.termQuery("phase", phase), List.of("changing"), List.of(index))
-                ).pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(TimeValue.timeValueMinutes(2))).size(1).trackTotalHits(true)
+                    new SequenceRepeatabilityQueryBuilder(
+                        QueryBuilders.termQuery("phase", phase),
+                        List.of("@timestamp", "changing"),
+                        List.of(index)
+                    )
+                )
+                    .pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(TimeValue.timeValueMinutes(2)))
+                    .fetchField("changing")
+                    .size(1)
+                    .trackTotalHits(true)
             )
             .setPreference(null)
             .setPreFilterShardSize(Integer.MAX_VALUE)
@@ -486,6 +632,8 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
                 vars -> 1L,
                 "two",
                 vars -> 2L,
+                "timestamp",
+                vars -> ((Number) vars.get("millis")).longValue(),
                 "dependent",
                 vars -> ((org.elasticsearch.index.fielddata.ScriptDocValues<?>) ((Map<?, ?>) vars.get("doc")).get("changing")).get(0)
             );

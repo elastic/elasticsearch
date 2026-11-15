@@ -1323,6 +1323,71 @@
       ],
       "additionalProperties" : false
     },
+    "OperatorStatus_sequence_source" : {
+      "type" : "object",
+      "properties" : {
+        "candidate_search_requests" : {
+          "type" : "integer"
+        },
+        "payload_search_requests" : {
+          "type" : "integer"
+        },
+        "candidate_rows_fetched" : {
+          "type" : "integer"
+        },
+        "payload_rows_fetched" : {
+          "type" : "integer"
+        },
+        "completed_matches" : {
+          "type" : "integer"
+        },
+        "rows_emitted" : {
+          "type" : "integer"
+        },
+        "stage_drivers" : {
+          "type" : "integer"
+        },
+        "stage_driver_cpu_nanos" : {
+          "type" : "integer"
+        },
+        "stage_driver_cpu_time" : {
+          "type" : "string"
+        },
+        "stage_driver_iterations" : {
+          "type" : "integer"
+        },
+        "candidate_search_took_millis" : {
+          "type" : "integer"
+        },
+        "payload_search_took_millis" : {
+          "type" : "integer"
+        },
+        "candidate_search_took" : {
+          "type" : "string"
+        },
+        "payload_search_took" : {
+          "type" : "string"
+        },
+        "max_pending_candidates" : {
+          "type" : "integer"
+        }
+      },
+      "required" : [
+        "candidate_search_requests",
+        "payload_search_requests",
+        "candidate_rows_fetched",
+        "payload_rows_fetched",
+        "completed_matches",
+        "rows_emitted",
+        "stage_drivers",
+        "stage_driver_cpu_nanos",
+        "stage_driver_iterations",
+        "candidate_search_took_millis",
+        "payload_search_took_millis",
+        "max_pending_candidates"
+      ],
+      "additionalProperties" : false
+    },
     "OperatorStatus_streaming_lookup" : {
       "type" : "object",
       "properties" : {
@@ -1636,6 +1701,9 @@
                 },
                 {
                   "$ref" : "#/definitions/OperatorStatus_sample"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_sequence_source"
                 },
                 {
                   "$ref" : "#/definitions/OperatorStatus_streaming_lookup"

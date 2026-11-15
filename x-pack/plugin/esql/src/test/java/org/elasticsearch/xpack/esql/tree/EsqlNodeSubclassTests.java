@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
@@ -170,11 +171,22 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static final String ESQL_CORE_CLASS_PREFIX = "org.elasticsearch.xpack.esql.core";
     private static final String ESQL_CORE_JAR_LOCATION_SUBSTRING = "x-pack-esql-core";
     private static final String ESQL_CLASS_PREFIX = "org.elasticsearch.xpack.esql";
+    // Compiler bindings need one coherent sequence context and are covered through parser-built copy tests.
+    private static final Set<String> SEQUENCE_COMPILER_HELPERS = Set.of(
+        SequenceMatchOutput.BindingReference.class.getName(),
+        SequenceMatchOutput.MemberReference.class.getName(),
+        SequenceMatchOutput.Originals.class.getName(),
+        SequenceMatchOutput.Scope.class.getName(),
+        SequenceMatchOutput.Capture.class.getName()
+    );
 
     private static final Predicate<String> CLASSNAME_FILTER = className -> {
         boolean esqlCore = className.startsWith(ESQL_CORE_CLASS_PREFIX) != false;
         boolean esqlProper = className.startsWith(ESQL_CLASS_PREFIX) != false;
         if ((esqlCore || esqlProper) == false) {
+            return false;
+        }
+        if (SEQUENCE_COMPILER_HELPERS.contains(className)) {
             return false;
         }
         int dollarIdx = className.indexOf('$');

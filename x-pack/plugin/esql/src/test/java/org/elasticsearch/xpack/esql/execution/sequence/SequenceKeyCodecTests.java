@@ -18,6 +18,8 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
@@ -143,6 +145,25 @@ public class SequenceKeyCodecTests extends ESTestCase {
         }
         try (var codec = codec(List.of(DataType.NULL), breaker); Page nullRow = page((Object) null)) {
             assertNull(codec.encode(nullRow, 0));
+        }
+        assertEquals(0, breaker.getUsed());
+    }
+
+    /** Caller-owned member/key identities improve the failure without retaining an unbounded field name or breaker bytes. */
+    public void testNamedMultivalueDiagnosticIsBoundedAndDoesNotReserveBytes() {
+        var breaker = breaker("1mb");
+        String name = "key".repeat(200);
+        try (var codec = codec(List.of(DataType.KEYWORD), breaker); Page input = page(List.of("a", "b"))) {
+            long baseline = breaker.getUsed();
+            String message = expectThrows(
+                IllegalArgumentException.class,
+                () -> codec.encode(input, 0, 2, List.of(new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD)))
+            ).getMessage();
+            assertEquals(
+                "SEQUENCE member [3] BY column [" + name.substring(0, 128) + "...] is multivalued; use MV_EXPAND inside the stage",
+                message
+            );
+            assertEquals(baseline, breaker.getUsed());
         }
         assertEquals(0, breaker.getUsed());
     }

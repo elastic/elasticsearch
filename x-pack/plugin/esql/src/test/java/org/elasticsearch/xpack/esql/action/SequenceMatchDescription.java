@@ -84,7 +84,10 @@ public final class SequenceMatchDescription {
         Map<String, Object> contract = null;
         int anchor = -1;
         for (int i = 0; i < columns.size(); i++) {
-            var role = object(object(columns.get(i).meta()).get("sequence"));
+            if ((columns.get(i) instanceof ColumnInfoImpl) == false) {
+                throw invalid("column metadata requires the concrete ES|QL response schema");
+            }
+            var role = object(object(((ColumnInfoImpl) columns.get(i)).meta()).get("sequence"));
             String id = text(role.get("column_id"));
             if (ids.put(id, i) != null) throw invalid("duplicate column ID");
             if (role.containsKey("contract")) {

@@ -1758,6 +1758,23 @@ public class IndicesPermissionTests extends ESTestCase {
         }
     }
 
+    public void testMandatoryTimestampThroughAlias() {
+        MandatoryTimestampIndices indices = mandatoryTimestampIndices();
+        List<String> alias = List.of(indices.mixedAlias());
+
+        IndicesAccessControl excluding = authorize(timestampRole(true), TransportSearchAction.TYPE.name(), indices, alias);
+        assertThat(excluding.isGranted(), is(false));
+        assertThat(excluding.getTimestampExcludedIndices(), equalTo(Set.of(indices.timestampModeIndex())));
+
+        IndicesAccessControl implicit = authorize(timestampRole(false), TransportSearchAction.TYPE.name(), indices, alias);
+        assertThat(implicit.isGranted(), is(true));
+        assertThat(implicit.getTimestampExcludedIndices(), equalTo(Set.of()));
+        for (String index : List.of(indices.timestampModeIndex(), indices.otherModeIndex())) {
+            boolean qualifying = index.equals(indices.timestampModeIndex());
+            assertThat(index, implicit.getIndexPermissions(index).getFieldPermissions().grantsAccessTo("@timestamp"), is(qualifying));
+        }
+    }
+
     public void testMandatoryTimestampKeepsHiddenMetadataFieldsAndDocumentPermissions() {
         MandatoryTimestampIndices indices = mandatoryTimestampIndices();
         Set<BytesReference> query = Collections.singleton(new BytesArray("{\"term\":{\"host\":\"a\"}}"));
@@ -1848,7 +1865,8 @@ public class IndicesPermissionTests extends ESTestCase {
         String timestampModeIndex,
         String backingIndex,
         String failureIndex,
-        String otherModeIndex
+        String otherModeIndex,
+        String mixedAlias
     ) {
         List<String> all() {
             return List.of(timestampModeIndex, backingIndex, failureIndex, otherModeIndex);
@@ -1861,8 +1879,13 @@ public class IndicesPermissionTests extends ESTestCase {
         IndexMode otherMode = randomBoolean()
             ? null
             : randomValueOtherThanMany(IndexMode::requiresTimestamp, () -> randomFrom(IndexMode.values()));
-        IndexMetadata timestampModeIndex = indexMetadataWithMode("timestamp-mode", timestampMode, false);
-        IndexMetadata otherModeIndex = indexMetadataWithMode("other-mode", otherMode, false);
+        String mixedAlias = "mixed-alias";
+        IndexMetadata timestampModeIndex = IndexMetadata.builder(indexMetadataWithMode("timestamp-mode", timestampMode, false))
+            .putAlias(AliasMetadata.builder(mixedAlias))
+            .build();
+        IndexMetadata otherModeIndex = IndexMetadata.builder(indexMetadataWithMode("other-mode", otherMode, false))
+            .putAlias(AliasMetadata.builder(mixedAlias))
+            .build();
         String dataStreamName = "logs-standard";
         IndexMetadata backingIndex = indexMetadataWithMode(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
@@ -1889,7 +1912,8 @@ public class IndicesPermissionTests extends ESTestCase {
             timestampModeIndex.getIndex().getName(),
             backingIndex.getIndex().getName(),
             failureIndex.getIndex().getName(),
-            otherModeIndex.getIndex().getName()
+            otherModeIndex.getIndex().getName(),
+            mixedAlias
         );
     }
 

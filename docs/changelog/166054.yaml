@@ -1,0 +1,5 @@
+area: "ES|QL, Search"
+issues: []
+pr: 166054
+summary: Report the search load of a query
+type: enhancement

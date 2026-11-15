@@ -122,8 +122,7 @@ public final class PushNestedExpandFilterToSource extends PhysicalOptimizerRules
             || e instanceof LessThanOrEqual
             || e instanceof In
             || e instanceof WildcardLike
-            || e instanceof RLike
-            || e instanceof IsNotNull) {
+            || e instanceof RLike) {
             return e.children().stream().allMatch(c -> c instanceof Attribute || c instanceof Literal);
         }
         return false;

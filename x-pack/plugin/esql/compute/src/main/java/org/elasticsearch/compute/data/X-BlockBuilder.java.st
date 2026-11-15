@@ -42,6 +42,24 @@ $if(BytesRef)$
 
 $else$
     private $type$[] values;
+$if(int||long||double)$
+    private final boolean enablePooling;
+
+    $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory, boolean enablePooling) {
+        super(blockFactory);
+        this.enablePooling = enablePooling;
+        int initialSize = Math.max(estimatedSize, 2);
+        if (enablePooling) {
+            // Not zeroed and maybe longer than we asked for. Acquiring it accounted for its elements.
+            values = blockFactory.acquire$Type$s(initialSize);
+            estimatedBytes = LocalArrayPool.usedBytesFor$Type$s(values.length);
+        } else {
+            adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+            values = new $type$[initialSize];
+        }
+    }
+
+$else$
 
     $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
@@ -49,6 +67,7 @@ $else$
         adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
         values = new $type$[initialSize];
     }
+$endif$
 $endif$
 
     @Override
@@ -355,6 +374,11 @@ $endif$
                     estimatedBytes
                 );
             }
+    $if(int||long||double)$
+            if (enablePooling) {
+                theBlock.enablePooling();
+            }
+    $endif$
     $endif$
             built();
             return theBlock;

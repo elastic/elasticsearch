@@ -25,12 +25,20 @@ import java.util.Arrays;
 final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.Builder {
 
     private long[] values;
+    private final boolean enablePooling;
 
-    LongBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+    LongBlockBuilder(int estimatedSize, BlockFactory blockFactory, boolean enablePooling) {
         super(blockFactory);
+        this.enablePooling = enablePooling;
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
-        values = new long[initialSize];
+        if (enablePooling) {
+            // Not zeroed and maybe longer than we asked for. Acquiring it accounted for its elements.
+            values = blockFactory.acquireLongs(initialSize);
+            estimatedBytes = LocalArrayPool.usedBytesForLongs(values.length);
+        } else {
+            adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+            values = new long[initialSize];
+        }
     }
 
     @Override
@@ -216,6 +224,9 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
                     mvOrdering,
                     estimatedBytes
                 );
+            }
+            if (enablePooling) {
+                theBlock.enablePooling();
             }
             built();
             return theBlock;

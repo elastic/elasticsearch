@@ -25,12 +25,20 @@ import java.util.Arrays;
 final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Builder {
 
     private int[] values;
+    private final boolean enablePooling;
 
-    IntBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+    IntBlockBuilder(int estimatedSize, BlockFactory blockFactory, boolean enablePooling) {
         super(blockFactory);
+        this.enablePooling = enablePooling;
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
-        values = new int[initialSize];
+        if (enablePooling) {
+            // Not zeroed and maybe longer than we asked for. Acquiring it accounted for its elements.
+            values = blockFactory.acquireInts(initialSize);
+            estimatedBytes = LocalArrayPool.usedBytesForInts(values.length);
+        } else {
+            adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+            values = new int[initialSize];
+        }
     }
 
     @Override
@@ -216,6 +224,9 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
                     mvOrdering,
                     estimatedBytes
                 );
+            }
+            if (enablePooling) {
+                theBlock.enablePooling();
             }
             built();
             return theBlock;

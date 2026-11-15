@@ -25,12 +25,20 @@ import java.util.Arrays;
 final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlock.Builder {
 
     private double[] values;
+    private final boolean enablePooling;
 
-    DoubleBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+    DoubleBlockBuilder(int estimatedSize, BlockFactory blockFactory, boolean enablePooling) {
         super(blockFactory);
+        this.enablePooling = enablePooling;
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
-        values = new double[initialSize];
+        if (enablePooling) {
+            // Not zeroed and maybe longer than we asked for. Acquiring it accounted for its elements.
+            values = blockFactory.acquireDoubles(initialSize);
+            estimatedBytes = LocalArrayPool.usedBytesForDoubles(values.length);
+        } else {
+            adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+            values = new double[initialSize];
+        }
     }
 
     @Override
@@ -216,6 +224,9 @@ final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlo
                     mvOrdering,
                     estimatedBytes
                 );
+            }
+            if (enablePooling) {
+                theBlock.enablePooling();
             }
             built();
             return theBlock;

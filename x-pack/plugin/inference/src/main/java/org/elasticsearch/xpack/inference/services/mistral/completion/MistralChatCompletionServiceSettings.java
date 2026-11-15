@@ -19,11 +19,16 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.INFERENCE_API_MISTRAL_URL_ADDED;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MODEL_FIELD;
 
 /**
@@ -37,6 +42,8 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
     );
 
     private final String modelId;
+    @Nullable
+    private final URI url;
     private final RateLimitSettings rateLimitSettings;
 
     // default for Mistral is 5 requests / sec
@@ -47,11 +54,12 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
         var validationException = new ValidationException();
 
         var modelId = extractRequiredString(map, MODEL_FIELD, SERVICE_SETTINGS, validationException);
+        var url = extractOptionalUri(map, URL, validationException);
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new MistralChatCompletionServiceSettings(modelId, rateLimitSettings);
+        return new MistralChatCompletionServiceSettings(modelId, url, rateLimitSettings);
     }
 
     @Override
@@ -67,16 +75,22 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
 
         validationException.throwIfValidationErrorsExist();
 
-        return new MistralChatCompletionServiceSettings(this.modelId, extractedRateLimitSettings);
+        return new MistralChatCompletionServiceSettings(this.modelId, this.url, extractedRateLimitSettings);
     }
 
     public MistralChatCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
+        this.url = in.getTransportVersion().supports(INFERENCE_API_MISTRAL_URL_ADDED) ? createOptionalUri(in.readOptionalString()) : null;
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     public MistralChatCompletionServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+        this(modelId, null, rateLimitSettings);
+    }
+
+    public MistralChatCompletionServiceSettings(String modelId, @Nullable URI url, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = modelId;
+        this.url = url;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
@@ -101,6 +115,14 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
         return this.modelId;
     }
 
+    /**
+     * The custom endpoint url, or {@code null} when the default Mistral endpoint should be used.
+     */
+    @Nullable
+    public URI url() {
+        return this.url;
+    }
+
     public RateLimitSettings rateLimitSettings() {
         return this.rateLimitSettings;
     }
@@ -108,6 +130,9 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
+        if (out.getTransportVersion().supports(INFERENCE_API_MISTRAL_URL_ADDED)) {
+            out.writeOptionalString(url != null ? url.toString() : null);
+        }
         rateLimitSettings.writeTo(out);
     }
 
@@ -122,6 +147,9 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_FIELD, this.modelId);
+        if (url != null) {
+            builder.field(URL, url.toString());
+        }
 
         rateLimitSettings.toXContent(builder, params);
 
@@ -133,12 +161,14 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MistralChatCompletionServiceSettings that = (MistralChatCompletionServiceSettings) o;
-        return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+        return Objects.equals(modelId, that.modelId)
+            && Objects.equals(url, that.url)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, rateLimitSettings);
+        return Objects.hash(modelId, url, rateLimitSettings);
     }
 
 }

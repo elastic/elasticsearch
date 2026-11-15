@@ -13,10 +13,36 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.mistral.MistralConstants;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.net.URI;
+
+import static org.hamcrest.Matchers.is;
+
 public class MistralEmbeddingModelTests extends ESTestCase {
+
+    public void testUri_UsesDefaultUrl_WhenServiceSettingsHaveNoUrl() {
+        var model = createModel("id", "mistral-embed", "api_key");
+
+        assertThat(model.uri(), is(URI.create(MistralConstants.API_EMBEDDINGS_PATH)));
+    }
+
+    public void testUri_UsesUrlFromServiceSettings() {
+        var customUrl = URI.create("https://custom.mistral.example.com/v1/embeddings");
+        var model = new MistralEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "mistral",
+            new MistralEmbeddingsServiceSettings("mistral-embed", customUrl, null, null, null, null),
+            null,
+            new DefaultSecretSettings(new SecureString("api_key".toCharArray()))
+        );
+
+        assertThat(model.uri(), is(customUrl));
+    }
+
     public static MistralEmbeddingsModel createModel(String inferenceId, String model, String apiKey) {
         return createModel(inferenceId, model, apiKey, null, null, null, null);
     }

@@ -57,7 +57,7 @@ public class MistralEmbeddingsModel extends MistralModel {
 
     private void setPropertiesFromServiceSettings(MistralEmbeddingsServiceSettings serviceSettings) {
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
-        setEndpointUrl();
+        setEndpointUrl(serviceSettings.url());
     }
 
     private void setEndpointUrl() {
@@ -66,6 +66,15 @@ public class MistralEmbeddingsModel extends MistralModel {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void setEndpointUrl(@Nullable URI url) {
+        if (url != null) {
+            this.uri = url;
+            return;
+        }
+
+        setEndpointUrl();
     }
 
     public MistralEmbeddingsModel(

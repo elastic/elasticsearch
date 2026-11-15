@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services.mistral;
 
+import org.elasticsearch.TransportVersion;
+
 public class MistralConstants {
+    public static final TransportVersion INFERENCE_API_MISTRAL_URL_ADDED = TransportVersion.fromName("inference_api_mistral_url_added");
+
     public static final String API_EMBEDDINGS_PATH = "https://api.mistral.ai/v1/embeddings";
     public static final String API_COMPLETIONS_PATH = "https://api.mistral.ai/v1/chat/completions";
 

@@ -116,6 +116,7 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature INFERENCE_INFERENCE_INDEX_DOC_TYPE = new NodeFeature("inference.inference_index_doc_type");
     public static final NodeFeature INFERENCE_CLEAR_PREFERENCES_CACHE = new NodeFeature("inference.clear_preferences_cache");
     public static final NodeFeature INFERENCE_ANTHROPIC_COMPLETION_URL_ADDED = new NodeFeature("inference.anthropic.completion_url_added");
+    public static final NodeFeature INFERENCE_MISTRAL_URL_ADDED = new NodeFeature("inference.mistral.url_added");
     // Test feature only: gates the YAML suite that sends a template instead of messages to a chat completion endpoint.
     private static final NodeFeature INFERENCE_CHAT_COMPLETION_TEMPLATE = new NodeFeature("inference.chat_completion_template");
 
@@ -135,7 +136,8 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_ELASTIC_REASONING_TASK_SETTINGS,
             INFERENCE_INFERENCE_INDEX_DOC_TYPE,
             INFERENCE_CLEAR_PREFERENCES_CACHE,
-            INFERENCE_ANTHROPIC_COMPLETION_URL_ADDED
+            INFERENCE_ANTHROPIC_COMPLETION_URL_ADDED,
+            INFERENCE_MISTRAL_URL_ADDED
         );
     }
 

@@ -18,15 +18,19 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.mistral.MistralConstants;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<MistralChatCompletionServiceSettings> {
 
@@ -38,12 +42,28 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
 
     private static final int DEFAULT_RATE_LIMIT = 240;
 
+    private static final String TEST_URL = "https://custom.mistral.example.com/v1/chat/completions";
+    private static final String INITIAL_TEST_URL = "https://initial.mistral.example.com/v1/chat/completions";
+
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {
+        var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_URL, TEST_RATE_LIMIT),
+            randomFrom(ConfigurationParseContext.values())
+        );
+
+        assertThat(
+            serviceSettings,
+            is(new MistralChatCompletionServiceSettings(TEST_MODEL_ID, URI.create(TEST_URL), new RateLimitSettings(TEST_RATE_LIMIT)))
+        );
+    }
+
+    public void testFromMap_NoUrl_UrlIsNull() {
         var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT),
             randomFrom(ConfigurationParseContext.values())
         );
 
+        assertNull(serviceSettings.url());
         assertThat(serviceSettings, is(new MistralChatCompletionServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
@@ -72,29 +92,103 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
         );
     }
 
+    public void testFromMap_InvalidUrl_ThrowsValidationError() {
+        var invalidUrl = "^invalid-url";
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> MistralChatCompletionServiceSettings.fromMap(
+                buildServiceSettingsMap(TEST_MODEL_ID, invalidUrl, TEST_RATE_LIMIT),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(
+            thrownException.validationErrors().getFirst(),
+            startsWith(Strings.format("[service_settings] Invalid url [%s] received for field [%s]", invalidUrl, ServiceFields.URL))
+        );
+    }
+
+    public void testFromMap_EmptyUrl_ThrowsValidationError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> MistralChatCompletionServiceSettings.fromMap(
+                buildServiceSettingsMap(TEST_MODEL_ID, "", TEST_RATE_LIMIT),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(
+            thrownException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", ServiceFields.URL))
+        );
+    }
+
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT);
+        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_URL, TEST_RATE_LIMIT);
         var originalServiceSettings = new MistralChatCompletionServiceSettings(
             INITIAL_TEST_MODEL_ID,
+            URI.create(INITIAL_TEST_URL),
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
 
         assertThat(
             updatedServiceSettings,
-            is(new MistralChatCompletionServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)))
+            is(
+                new MistralChatCompletionServiceSettings(
+                    INITIAL_TEST_MODEL_ID,
+                    URI.create(INITIAL_TEST_URL),
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
         );
+    }
+
+    public void testUpdateServiceSettings_UrlProvided_OriginalWithoutUrl_UrlStaysNull() {
+        var originalServiceSettings = new MistralChatCompletionServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>(Map.of(ServiceFields.URL, TEST_URL)));
+
+        assertNull(updatedServiceSettings.url());
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
         var originalServiceSettings = new MistralChatCompletionServiceSettings(
             INITIAL_TEST_MODEL_ID,
+            URI.create(INITIAL_TEST_URL),
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
+        var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_URL, TEST_RATE_LIMIT),
+            randomFrom(ConfigurationParseContext.values())
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+        var expected = XContentHelper.stripWhitespace(Strings.format("""
+            {
+                "model": "%s",
+                "url": "%s",
+                "rate_limit": {
+                    "requests_per_minute": %d
+                }
+            }
+            """, TEST_MODEL_ID, TEST_URL, TEST_RATE_LIMIT));
+
+        assertThat(xContentResult, is(expected));
+    }
+
+    public void testToXContent_DoesNotWriteUrl_WhenNull() throws IOException {
         var serviceSettings = MistralChatCompletionServiceSettings.fromMap(
             buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT),
             randomFrom(ConfigurationParseContext.values())
@@ -127,13 +221,16 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
 
     @Override
     protected MistralChatCompletionServiceSettings mutateInstance(MistralChatCompletionServiceSettings instance) throws IOException {
-        if (randomBoolean()) {
-            var modelId = randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(8));
-            return new MistralChatCompletionServiceSettings(modelId, instance.rateLimitSettings());
-        } else {
-            var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
-            return new MistralChatCompletionServiceSettings(instance.modelId(), rateLimitSettings);
+        var modelId = instance.modelId();
+        var url = instance.url();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 1 -> url = randomValueOtherThan(url, MistralChatCompletionServiceSettingsTests::randomOptionalUrl);
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
+        return new MistralChatCompletionServiceSettings(modelId, url, rateLimitSettings);
     }
 
     @Override
@@ -141,20 +238,36 @@ public class MistralChatCompletionServiceSettingsTests extends AbstractBWCWireSe
         MistralChatCompletionServiceSettings instance,
         TransportVersion version
     ) {
-        return instance;
+        if (version.supports(MistralConstants.INFERENCE_API_MISTRAL_URL_ADDED)) {
+            return instance;
+        }
+
+        // Older versions do not send the url over the wire, so it is lost in the round trip
+        return new MistralChatCompletionServiceSettings(instance.modelId(), null, instance.rateLimitSettings());
     }
 
     private static MistralChatCompletionServiceSettings createRandom() {
         var modelId = randomAlphaOfLength(8);
 
-        return new MistralChatCompletionServiceSettings(modelId, RateLimitSettingsTests.createRandom());
+        return new MistralChatCompletionServiceSettings(modelId, randomOptionalUrl(), RateLimitSettingsTests.createRandom());
+    }
+
+    private static URI randomOptionalUrl() {
+        return randomBoolean() ? null : createUri("https://" + randomAlphaOfLength(8) + ".example");
     }
 
     public static Map<String, Object> buildServiceSettingsMap(@Nullable String modelId, @Nullable Integer rateLimit) {
+        return buildServiceSettingsMap(modelId, null, rateLimit);
+    }
+
+    public static Map<String, Object> buildServiceSettingsMap(@Nullable String modelId, @Nullable String url, @Nullable Integer rateLimit) {
         var map = new HashMap<String, Object>();
 
         if (modelId != null) {
             map.put(MistralConstants.MODEL_FIELD, modelId);
+        }
+        if (url != null) {
+            map.put(ServiceFields.URL, url);
         }
         if (rateLimit != null) {
             map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit)));

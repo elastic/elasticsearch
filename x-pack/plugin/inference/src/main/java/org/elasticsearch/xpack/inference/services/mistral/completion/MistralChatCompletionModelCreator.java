@@ -14,14 +14,23 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
+import org.elasticsearch.xpack.inference.services.mistral.compatibility.CompatibilityService;
 
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Creates {@link MistralChatCompletionModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
 public class MistralChatCompletionModelCreator implements ModelCreator<MistralChatCompletionModel> {
+
+    private final CompatibilityService compatibilityService;
+
+    public MistralChatCompletionModelCreator(CompatibilityService compatibilityService) {
+        this.compatibilityService = Objects.requireNonNull(compatibilityService);
+    }
+
     @Override
     public MistralChatCompletionModel createFromMaps(
         String inferenceId,
@@ -33,7 +42,9 @@ public class MistralChatCompletionModelCreator implements ModelCreator<MistralCh
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new MistralChatCompletionModel(inferenceId, taskType, service, serviceSettings, secretSettings, context);
+        var model = new MistralChatCompletionModel(inferenceId, taskType, service, serviceSettings, secretSettings, context);
+        compatibilityService.checkCompatibility(model.getServiceSettings().url(), context);
+        return model;
     }
 
     @Override

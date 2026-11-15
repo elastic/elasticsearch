@@ -14,14 +14,23 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
+import org.elasticsearch.xpack.inference.services.mistral.compatibility.CompatibilityService;
 
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Creates {@link MistralEmbeddingsModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
 public class MistralEmbeddingsModelCreator implements ModelCreator<MistralEmbeddingsModel> {
+
+    private final CompatibilityService compatibilityService;
+
+    public MistralEmbeddingsModelCreator(CompatibilityService compatibilityService) {
+        this.compatibilityService = Objects.requireNonNull(compatibilityService);
+    }
+
     @Override
     public MistralEmbeddingsModel createFromMaps(
         String inferenceId,
@@ -33,7 +42,9 @@ public class MistralEmbeddingsModelCreator implements ModelCreator<MistralEmbedd
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new MistralEmbeddingsModel(inferenceId, taskType, service, serviceSettings, chunkingSettings, secretSettings, context);
+        var model = new MistralEmbeddingsModel(inferenceId, taskType, service, serviceSettings, chunkingSettings, secretSettings, context);
+        compatibilityService.checkCompatibility(model.getServiceSettings().url(), context);
+        return model;
     }
 
     @Override

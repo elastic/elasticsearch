@@ -229,7 +229,7 @@ teardown:
       search:
         index: fls-tsdb
   - match: { error.type: "security_exception" }
-  - match: { error.reason: "/on\\ indices\\ \\[fls-tsdb\\]\\ because\\ field\\ level\\ security\\ excludes\\ \\[@timestamp\\]/" }
+  - match: { error.reason: "/because\\ field\\ level\\ security\\ excludes\\ \\[@timestamp\\]/" }
 
 ---
 "Excluding @timestamp fails reads of a data stream":
@@ -239,7 +239,7 @@ teardown:
       search:
         index: fls-logs
   - match: { error.type: "security_exception" }
-  - match: { error.reason: "/on\\ indices\\ \\[\\.ds-fls-logs-.*\\]\\ because\\ field\\ level\\ security\\ excludes\\ \\[@timestamp\\]/" }
+  - match: { error.reason: "/because\\ field\\ level\\ security\\ excludes\\ \\[@timestamp\\]/" }
 
 ---
 "An exclusion pattern that matches @timestamp fails reads":

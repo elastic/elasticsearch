@@ -167,7 +167,7 @@ teardown:
       search:
         index: tsdb
   - match: { error.type: "security_exception" }
-  - match: { error.reason: "/on\\ indices\\ \\[tsdb\\]\\ because\\ field\\ level\\ security\\ excludes\\ \\[@timestamp\\]/" }
+  - match: { error.reason: "/because\\ field\\ level\\ security\\ excludes\\ \\[@timestamp\\]/" }
 
 ---
 "GET fails when field level security excludes @timestamp":

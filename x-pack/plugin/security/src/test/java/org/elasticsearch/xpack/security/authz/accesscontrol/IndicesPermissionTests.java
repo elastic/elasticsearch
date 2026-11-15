@@ -1775,6 +1775,22 @@ public class IndicesPermissionTests extends ESTestCase {
         }
     }
 
+    public void testStandaloneLogsdbIndexIsNotMandatoryTimestamp() {
+        assertStandaloneIndexExcludingTimestampIsGranted(IndexMode.LOGSDB);
+    }
+
+    public void testStandaloneLogsdbColumnarIndexIsNotMandatoryTimestamp() {
+        assertStandaloneIndexExcludingTimestampIsGranted(IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    public void testLogsdbBackingIndexIsMandatoryTimestamp() {
+        assertBackingIndexExcludingTimestampIsDenied(IndexMode.LOGSDB);
+    }
+
+    public void testLogsdbColumnarBackingIndexIsMandatoryTimestamp() {
+        assertBackingIndexExcludingTimestampIsDenied(IndexMode.LOGSDB_COLUMNAR);
+    }
+
     public void testMandatoryTimestampKeepsHiddenMetadataFieldsAndDocumentPermissions() {
         MandatoryTimestampIndices indices = mandatoryTimestampIndices();
         Set<BytesReference> query = Collections.singleton(new BytesArray("{\"term\":{\"host\":\"a\"}}"));
@@ -1835,6 +1851,41 @@ public class IndicesPermissionTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private static void assertStandaloneIndexExcludingTimestampIsGranted(IndexMode mode) {
+        final String index = "standalone-" + mode.getName();
+        final ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(indexMetadataWithMode(index, mode, false), false)
+            .build();
+        final IndicesAccessControl accessControl = timestampRole(true).authorize(
+            TransportSearchAction.TYPE.name(),
+            Set.of(index),
+            metadata,
+            new FieldPermissionsCache(Settings.EMPTY),
+            true
+        );
+        assertThat(accessControl.isGranted(), is(true));
+        assertThat(accessControl.getTimestampExcludedIndices(), equalTo(Set.of()));
+        assertThat(accessControl.getIndexPermissions(index).getFieldPermissions().grantsAccessTo("@timestamp"), is(false));
+    }
+
+    private static void assertBackingIndexExcludingTimestampIsDenied(IndexMode mode) {
+        final String dataStreamName = "data-stream-" + mode.getName();
+        final IndexMetadata backingIndex = indexMetadataWithMode(DataStream.getDefaultBackingIndexName(dataStreamName, 1), mode, true);
+        final ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(backingIndex, false)
+            .put(DataStreamTestHelper.newInstance(dataStreamName, List.of(backingIndex.getIndex()), List.of()))
+            .build();
+        final IndicesAccessControl accessControl = timestampRole(true).authorize(
+            TransportSearchAction.TYPE.name(),
+            Set.of(dataStreamName),
+            metadata,
+            new FieldPermissionsCache(Settings.EMPTY),
+            true
+        );
+        assertThat(accessControl.isGranted(), is(false));
+        assertThat(accessControl.getTimestampExcludedIndices(), equalTo(Set.of(backingIndex.getIndex().getName())));
     }
 
     private static Role timestampRole(boolean excludesTimestamp) {

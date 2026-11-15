@@ -21,7 +21,6 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -69,8 +68,8 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final String OTHER_DATA_STREAM = "dls-ds-web";
     private static final String DATA_STREAM_ALIAS = "dls-ds-all";
 
-    private final List<String> usersToDelete = new ArrayList<>();
-    private final List<String> rolesToDelete = new ArrayList<>();
+    private final Set<String> usersToDelete = new HashSet<>();
+    private final Set<String> rolesToDelete = new HashSet<>();
 
     @After
     public void deleteUsersAndRoles() throws IOException {
@@ -436,51 +435,144 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(esqlValues(user, "FROM " + TS_STANDALONE + " METADATA _id | KEEP _id | LIMIT 10").get(0).get(0), equalTo(id));
     }
 
-    public void testTimestampRuleOnStandardIndex() throws IOException {
+    public void testStandaloneStandardIndexTimestampIsNotMandatory() throws IOException {
         createTypeIndex(TYPE_STANDARD, "");
         assertTimestampNotMandatory(TYPE_STANDARD);
     }
 
-    public void testTimestampRuleOnTimeSeriesIndex() throws IOException {
+    public void testStandaloneTimeSeriesIndexTimestampIsMandatory() throws IOException {
         final String index = "fls-type-time-series";
         createTypeIndex(index, TYPE_TIME_SERIES + TYPE_TIME_SERIES_BOUNDS);
         assertTimestampMandatory(index);
     }
 
-    public void testTimestampRuleDoesNotApplyToLogsdbIndex() throws IOException {
+    public void testStandaloneLogsdbIndexTimestampIsNotMandatory() throws IOException {
         final String index = "fls-type-logsdb";
-        createTypeIndex(index, ", \"index.mode\": \"logsdb\"");
+        createTypeIndex(index, MODE_LOGSDB);
         assertTimestampNotMandatory(index);
     }
 
-    public void testTimestampRuleDoesNotApplyToLogsdbColumnarIndex() throws IOException {
+    public void testStandaloneLogsdbColumnarIndexTimestampIsNotMandatory() throws IOException {
         final String index = "fls-type-logsdb-columnar";
-        createTypeIndex(index, ", \"index.mode\": \"logsdb_columnar\"");
+        createTypeIndex(index, MODE_LOGSDB_COLUMNAR);
         assertTimestampNotMandatory(index);
     }
 
-    public void testTimestampRuleOnStandardDataStream() throws IOException {
+    public void testStandaloneLookupIndexTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-lookup";
+        createTypeIndex(index, MODE_LOOKUP);
+        assertTimestampNotMandatory(index);
+    }
+
+    public void testStandaloneColumnarIndexTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-columnar";
+        createTypeIndex(index, MODE_COLUMNAR);
+        assertTimestampNotMandatory(index);
+    }
+
+    public void testStandaloneVectordbDocumentIndexTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-vectordb-document";
+        createTypeIndex(index, MODE_VECTORDB_DOCUMENT);
+        assertTimestampNotMandatory(index);
+    }
+
+    public void testStandaloneVectordbColumnarIndexTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-vectordb-columnar";
+        createTypeIndex(index, MODE_VECTORDB_COLUMNAR);
+        assertTimestampNotMandatory(index);
+    }
+
+    public void testDataStreamStandardBackingIndexTimestampIsMandatory() throws IOException {
         final String dataStream = "fls-type-ds-standard";
         createTypeDataStream(dataStream, "");
         assertTimestampMandatory(dataStream);
     }
 
-    public void testTimestampRuleOnTimeSeriesDataStream() throws IOException {
+    public void testDataStreamTimeSeriesBackingIndexTimestampIsMandatory() throws IOException {
         final String dataStream = "fls-type-ds-time-series";
         createTypeDataStream(dataStream, TYPE_TIME_SERIES);
         assertTimestampMandatory(dataStream);
     }
 
-    public void testTimestampRuleOnLogsdbDataStream() throws IOException {
+    public void testDataStreamLogsdbBackingIndexTimestampIsMandatory() throws IOException {
         final String dataStream = "fls-type-ds-logsdb";
-        createTypeDataStream(dataStream, ", \"index.mode\": \"logsdb\"");
+        createTypeDataStream(dataStream, MODE_LOGSDB);
         assertTimestampMandatory(dataStream);
     }
 
-    public void testTimestampRuleOnLogsdbColumnarDataStream() throws IOException {
+    public void testDataStreamLogsdbColumnarBackingIndexTimestampIsMandatory() throws IOException {
         final String dataStream = "fls-type-ds-logsdb-columnar";
-        createTypeDataStream(dataStream, ", \"index.mode\": \"logsdb_columnar\"");
+        createTypeDataStream(dataStream, MODE_LOGSDB_COLUMNAR);
         assertTimestampMandatory(dataStream);
+    }
+
+    public void testDataStreamLookupBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-lookup";
+        createTypeDataStream(dataStream, MODE_LOOKUP);
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testDataStreamColumnarBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-columnar";
+        createTypeDataStream(dataStream, MODE_COLUMNAR);
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testDataStreamVectordbDocumentBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-vectordb-document";
+        createTypeDataStream(dataStream, MODE_VECTORDB_DOCUMENT);
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testDataStreamVectordbColumnarBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-vectordb-columnar";
+        createTypeDataStream(dataStream, MODE_VECTORDB_COLUMNAR);
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testStandaloneLogsdbIndexWithoutDataStreamTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-logsdb-no-timestamp";
+        createTypeIndexWithoutDataStreamTimestamp(index, MODE_LOGSDB);
+        assertTimestampNotMandatoryWithoutTimestampField(index);
+    }
+
+    public void testStandaloneLogsdbColumnarIndexWithoutDataStreamTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-logsdb-columnar-no-timestamp";
+        createTypeIndexWithoutDataStreamTimestamp(index, MODE_LOGSDB_COLUMNAR);
+        assertTimestampNotMandatoryWithoutTimestampField(index);
+    }
+
+    public void testStandaloneTimeSeriesIndexCannotDisableDataStreamTimestamp() throws IOException {
+        final String settings = TYPE_TIME_SERIES + TYPE_TIME_SERIES_BOUNDS;
+        assertOK(adminClient().performRequest(typeIndexWithDataStreamTimestampRequest("fls-type-time-series-timestamp", settings, true)));
+        final Request disabled = typeIndexWithDataStreamTimestampRequest("fls-type-time-series-no-timestamp", settings, false);
+        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(disabled));
+        assertThat(e.getMessage(), containsString("[_data_stream_timestamp] meta field has been disabled"));
+    }
+
+    public void testStandaloneTimeSeriesIndexTimestampStaysMandatoryAcrossDataStreamMembership() throws IOException {
+        final String index = "fls-type-member-time-series";
+        final String dataStream = "fls-type-ds-member-time-series";
+        // NOTE: the time ranges of the backing indices of a time series data stream cannot overlap
+        createTypeIndex(index, TYPE_TIME_SERIES + TYPE_TIME_SERIES_PAST_BOUNDS, TYPE_TIME_SERIES_PAST_TIMESTAMP);
+        assertTimestampMandatory(index);
+        createTypeDataStream(dataStream, TYPE_TIME_SERIES);
+        modifyDataStream("add_backing_index", dataStream, index);
+        assertTimestampMandatory(index);
+        modifyDataStream("remove_backing_index", dataStream, index);
+        assertTimestampMandatory(index);
+    }
+
+    public void testStandaloneLogsdbIndexTimestampFollowsDataStreamMembership() throws IOException {
+        final String index = "fls-type-member-logsdb";
+        createTypeIndex(index, MODE_LOGSDB);
+        assertTimestampFollowsDataStreamMembership("fls-type-ds-member-logsdb", index);
+    }
+
+    public void testStandaloneLogsdbColumnarIndexTimestampFollowsDataStreamMembership() throws IOException {
+        final String index = "fls-type-member-logsdb-columnar";
+        createTypeIndex(index, MODE_LOGSDB_COLUMNAR);
+        assertTimestampFollowsDataStreamMembership("fls-type-ds-member-logsdb-columnar", index);
     }
 
     public void testFieldLevelSecurityExcludingTimestampFailsWholeRequest() throws IOException {
@@ -971,7 +1063,16 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
           "host": {"properties": {"name": {"type": "keyword", "time_series_dimension": true}}},
           "cpu": {"type": "double"}
         }}""";
+    private static final String MODE_LOGSDB = ", \"index.mode\": \"logsdb\"";
+    private static final String MODE_LOGSDB_COLUMNAR = ", \"index.mode\": \"logsdb_columnar\"";
+    private static final String MODE_LOOKUP = ", \"index.mode\": \"lookup\"";
+    private static final String MODE_COLUMNAR = ", \"index.mode\": \"columnar\"";
+    private static final String MODE_VECTORDB_DOCUMENT = ", \"index.mode\": \"vectordb_document\"";
+    private static final String MODE_VECTORDB_COLUMNAR = ", \"index.mode\": \"vectordb_columnar\"";
     private static final String TYPE_TIME_SERIES = ", \"index.mode\": \"time_series\", \"index.routing_path\": [\"host.name\"]";
+    private static final String TYPE_TIME_SERIES_PAST_BOUNDS =
+        ", \"index.time_series.start_time\": \"2020-01-01T00:00:00Z\", \"index.time_series.end_time\": \"2020-01-02T00:00:00Z\"";
+    private static final long TYPE_TIME_SERIES_PAST_TIMESTAMP = 1577880000000L;
     private static final String TYPE_TIME_SERIES_BOUNDS =
         ", \"index.time_series.start_time\": \"2020-01-01T00:00:00Z\", \"index.time_series.end_time\": \"2100-01-01T00:00:00Z\"";
 
@@ -983,11 +1084,15 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         {"grant": ["@timestamp", "host.name"]}""";
 
     private void createTypeIndex(String index, String settings) throws IOException {
+        createTypeIndex(index, settings, System.currentTimeMillis());
+    }
+
+    private void createTypeIndex(String index, String settings, long timestamp) throws IOException {
         final Request create = new Request("PUT", "/" + index);
         create.setJsonEntity(Strings.format("""
             {"settings": {"number_of_shards": 1, "number_of_replicas": 0%s}, "mappings": %s}""", settings, TYPE_MAPPINGS));
         assertOK(adminClient().performRequest(create));
-        indexTypeDocument(index);
+        indexTypeDocument(index, timestamp);
     }
 
     private void createTypeDataStream(String dataStream, String settings) throws IOException {
@@ -1000,11 +1105,50 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     private void indexTypeDocument(String target) throws IOException {
+        indexTypeDocument(target, System.currentTimeMillis());
+    }
+
+    private void indexTypeDocument(String target, long timestamp) throws IOException {
         final Request index = new Request("POST", "/" + target + "/_doc");
         index.addParameter("refresh", "true");
         index.setJsonEntity(Strings.format("""
-            {"@timestamp": %d, "host": {"name": "a"}, "cpu": 1.0}""", System.currentTimeMillis()));
+            {"@timestamp": %d, "host": {"name": "a"}, "cpu": 1.0}""", timestamp));
         assertThat(target, adminClient().performRequest(index).getStatusLine().getStatusCode(), equalTo(201));
+    }
+
+    private static Request typeIndexWithDataStreamTimestampRequest(String index, String settings, boolean enabled) {
+        final Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(Strings.format("""
+            {"settings": {"number_of_shards": 1, "number_of_replicas": 0%s},
+             "mappings": {"_data_stream_timestamp": {"enabled": %s}, "properties": {
+               "host": {"properties": {"name": {"type": "keyword", "time_series_dimension": true}}},
+               "cpu": {"type": "double"}
+             }}}""", settings, enabled));
+        return create;
+    }
+
+    private void createTypeIndexWithoutDataStreamTimestamp(String index, String settings) throws IOException {
+        assertOK(adminClient().performRequest(typeIndexWithDataStreamTimestampRequest(index, settings, false)));
+        final Request document = new Request("POST", "/" + index + "/_doc");
+        document.addParameter("refresh", "true");
+        document.setJsonEntity("""
+            {"host": {"name": "a"}, "cpu": 1.0}""");
+        assertThat(index, adminClient().performRequest(document).getStatusLine().getStatusCode(), equalTo(201));
+    }
+
+    private void assertTimestampNotMandatoryWithoutTimestampField(String target) throws IOException {
+        assertThat(typeSourceFields("omit", TYPE_OMIT, target), equalTo(Set.of("host.name", "cpu")));
+        assertThat(typeSourceFields("exclude", TYPE_EXCLUDE, target), equalTo(Set.of("host.name", "cpu")));
+        assertThat(typeSourceFields("grant", TYPE_GRANT, target), equalTo(Set.of("host.name")));
+    }
+
+    private void assertTimestampFollowsDataStreamMembership(String dataStream, String index) throws IOException {
+        createTypeDataStream(dataStream, "");
+        assertTimestampNotMandatory(index);
+        modifyDataStream("add_backing_index", dataStream, index);
+        assertTimestampMandatory(index);
+        modifyDataStream("remove_backing_index", dataStream, index);
+        assertTimestampNotMandatory(index);
     }
 
     private void assertTimestampMandatory(String target) throws IOException {

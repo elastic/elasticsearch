@@ -499,10 +499,7 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Request fieldCaps = new Request("GET", "/" + TS_STANDALONE + "/_field_caps");
         fieldCaps.addParameter("fields", "*");
         assertTimestampExclusionRejected(user, fieldCaps);
-        final Request esql = new Request("POST", "/_query");
-        esql.setJsonEntity(Strings.format("""
-            {"query": "FROM %s | LIMIT 10"}""", TS_METRICS));
-        assertTimestampExclusionRejected(user, esql);
+        assertTimestampExclusionRejected(user, esqlRequest("/_query", "FROM " + TS_METRICS + " | LIMIT 10"));
         final Request eql = new Request("POST", "/" + TS_METRICS + "/_eql/search");
         eql.setJsonEntity("""
             {"query": "any where true"}""");
@@ -539,6 +536,24 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         createUser(omittingUnionUser, PASSWORD, List.of("ts_explicit_role", "ts_omit_role"));
         usersToDelete.add(omittingUnionUser);
         assertTimestampExclusionRejected(omittingUnionUser, partialSearch);
+    }
+
+    public void testFieldLevelSecurityExcludingTimestampFailsEsqlQueries() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_esql_user", "ts_esql_role", timestampRole(EXCLUDED_TIMESTAMP));
+        final List<String> queries = List.of(
+            "FROM " + TS_METRICS + " | LIMIT 10",
+            "FROM " + TS_STANDALONE + " METADATA _id | KEEP _id | LIMIT 10",
+            "FROM " + TS_STANDALONE + " | STATS c = COUNT(*) | LIMIT 10",
+            "FROM " + TS_STANDALONE + "," + TS_PLAIN + " | KEEP host | LIMIT 10",
+            "FROM " + TS_PLAIN + "," + TS_METRICS + " | KEEP host | LIMIT 10"
+        );
+        for (String endpoint : List.of("/_query", "/_query/async")) {
+            for (String query : queries) {
+                assertTimestampExclusionRejected(user, esqlRequest(endpoint, query));
+            }
+        }
+        assertThat(esqlValues(user, "FROM " + TS_PLAIN + " | STATS c = COUNT(*) | LIMIT 10"), equalTo(List.of(List.of(1))));
     }
 
     public void testFieldLevelSecurityExcludingTimestampFailsMixedIndexSearch() throws IOException {
@@ -1221,10 +1236,14 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     private List<List<Object>> esqlValues(String user, String query) throws IOException {
-        final Request request = new Request("POST", "/_query");
+        return ObjectPath.createFromResponse(performRequest(user, esqlRequest("/_query", query))).evaluate("values");
+    }
+
+    private static Request esqlRequest(String endpoint, String query) {
+        final Request request = new Request("POST", endpoint);
         request.setJsonEntity(Strings.format("""
             {"query": "%s"}""", query));
-        return ObjectPath.createFromResponse(performRequest(user, request)).evaluate("values");
+        return request;
     }
 
     private int cachedTotalHits(String user) throws IOException {

@@ -525,7 +525,8 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
     ) {
         var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute));
         firstPassAggs.add(valuesAgg);
-        if (attribute.isDimension()) {
+        // The typed label container is never packed: it is the largest key, holds one value per series, and keys as it is.
+        if (attribute.isDimension() && attribute.dataType() != DataType.TIME_SERIES_METADATA_DATA_TYPE) {
             packDimensions.add(valuesAgg.toAttribute());
             unpackDimensions.add(
                 new ReferenceAttribute(group.source(), null, group.name(), attribute.dataType(), Nullability.TRUE, group.id(), false)
@@ -649,7 +650,7 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
                 List<Attribute> dims = new ArrayList<>();
                 for (NamedExpression agg : aggs.aggregates()) {
                     if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction fn) {
-                        if (fn instanceof DimensionValues dv) {
+                        if (fn instanceof DimensionValues dv && packDims.dims().contains(alias.toAttribute())) {
                             dims.add((Attribute) dv.field());
                         } else {
                             newAggregates.add(agg);

@@ -65,8 +65,26 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         EsField.TimeSeriesFieldType.DIMENSION
     );
 
+    /** {@code _timeseries} as a typed label container: it loads as one, see {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}. */
+    private static final EsField TYPED_TIMESERIES_FIELD = new EsField(
+        MetadataAttribute.TIMESERIES,
+        DataType.TIME_SERIES_METADATA_DATA_TYPE,
+        Map.of(),
+        false,
+        EsField.TimeSeriesFieldType.DIMENSION
+    );
+
     public static EsField timeSeriesField() {
         return TIMESERIES_FIELD;
+    }
+
+    /** The {@code _timeseries} field loading as {@code type}: the keyword JSON object, or the typed label container. */
+    public static EsField timeSeriesField(DataType type) {
+        return switch (type) {
+            case KEYWORD -> TIMESERIES_FIELD;
+            case TIME_SERIES_METADATA_DATA_TYPE -> TYPED_TIMESERIES_FIELD;
+            default -> throw new IllegalArgumentException("_timeseries does not load as [" + type + "]");
+        };
     }
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

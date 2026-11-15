@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Groups by all dimensions except the specified ones.
@@ -44,6 +46,10 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
         "TimeSeriesWithout",
         TimeSeriesWithout::new
     );
+
+    private final DataType type;
+
+    public static final TransportVersion ESQL_TYPED_TIMESERIES_WITHOUT = TransportVersion.fromName("esql_typed_timeseries_without");
 
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TimeSeriesWithout.class)
         .nAry(TimeSeriesWithout::new)
@@ -109,7 +115,16 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
             optional = true
         ) List<Expression> fields
     ) {
+        this(source, fields, DataType.KEYWORD);
+    }
+
+    /**
+     * Groups by all dimensions except {@code fields}, as {@code type}: the keyword JSON object of the dimensions, or the typed
+     * label container PromQL translation reads.
+     */
+    public TimeSeriesWithout(Source source, List<Expression> fields, DataType type) {
         super(source, fields);
+        this.type = type;
     }
 
     public TimeSeriesWithout(Source source) {
@@ -117,7 +132,11 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
     }
 
     private TimeSeriesWithout(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Expression.class));
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteableCollectionAsList(Expression.class),
+            in.getTransportVersion().supports(ESQL_TYPED_TIMESERIES_WITHOUT) ? DataType.readFrom(in) : DataType.KEYWORD
+        );
     }
 
     public NamedExpression createNamedExpression() {
@@ -128,6 +147,11 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteableCollection(children());
+        if (out.getTransportVersion().supports(ESQL_TYPED_TIMESERIES_WITHOUT)) {
+            type.writeTo(out);
+        } else if (type != DataType.KEYWORD) {
+            throw new IllegalStateException("a typed label container needs a node that knows it: " + out.getTransportVersion());
+        }
     }
 
     @Override
@@ -137,17 +161,17 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, TimeSeriesWithout::new, children());
+        return NodeInfo.create(this, TimeSeriesWithout::new, children(), type);
     }
 
     @Override
     public TimeSeriesWithout replaceChildren(List<Expression> newChildren) {
-        return new TimeSeriesWithout(source(), newChildren);
+        return new TimeSeriesWithout(source(), newChildren, type);
     }
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return type;
     }
 
     @Override
@@ -170,7 +194,17 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), type);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && type == ((TimeSeriesWithout) obj).type;
+    }
+
+    @Override
     public String toString() {
-        return ENTRY.name + "{fields=" + children() + "}";
+        return ENTRY.name + "{fields=" + children() + (type == DataType.KEYWORD ? "" : ", type=" + type.typeName()) + "}";
     }
 }

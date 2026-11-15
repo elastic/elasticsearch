@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -107,7 +107,7 @@ public record TranslationContextV2(
 
     /** The labels of a vector without labels. */
     public static Expression emptyLabels(Source source) {
-        return new ToTimeSeriesMetadata(source, Literal.keyword(source, "{}"));
+        return new Literal(source, new BytesRef("{}"), DataType.TIME_SERIES_METADATA_DATA_TYPE);
     }
 
     public Configuration configuration() {
@@ -120,7 +120,7 @@ public record TranslationContextV2(
 
     /** The labels of a series read from the source: its whole label container. */
     public static Expression sourceLabels(Source source) {
-        return new ToTimeSeriesMetadata(source, new TimeSeriesWithout(source));
+        return new TimeSeriesWithout(source, List.of(), DataType.TIME_SERIES_METADATA_DATA_TYPE);
     }
 
     /** Translates an independent branch with its own value and step identities. */
@@ -197,10 +197,7 @@ public record TranslationContextV2(
         Expression labels = input.labels();
         Expression series = labels == null
             ? null
-            : labels.collectFirstChildren(e -> e instanceof ToTimeSeriesMetadata t && t.field() instanceof TimeSeriesWithout)
-                .stream()
-                .findFirst()
-                .orElse(null);
+            : labels.collectFirstChildren(e -> e instanceof TimeSeriesWithout).stream().findFirst().orElse(null);
         if (series == null) {
             return emitInitialAggregate(input, labels, function);
         }

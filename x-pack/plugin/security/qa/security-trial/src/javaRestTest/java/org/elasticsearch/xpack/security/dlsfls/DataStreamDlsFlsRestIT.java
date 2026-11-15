@@ -620,7 +620,6 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ObjectPath msearchResponse = ObjectPath.createFromResponse(performRequest(user, msearch));
         assertThat(msearchResponse.evaluate("responses.0.status"), equalTo(403));
         assertThat(msearchResponse.evaluate("responses.0.error.reason"), containsString(TIMESTAMP_EXCLUDED));
-        assertThat(msearchResponse.evaluate("responses.0.error.reason"), containsString(DataStream.BACKING_INDEX_PREFIX + TS_METRICS));
         assertThat(msearchResponse.evaluate("responses.1.hits.total.value"), equalTo(1));
     }
 

@@ -36,7 +36,7 @@ public record SearchLoadMetrics(long loadNanos, long cpuNanos, long waitingNanos
     private static final TransportVersion SEARCH_LOAD_REPORT = TransportVersion.fromName("search_load_report");
 
     public SearchLoadMetrics(StreamInput in) throws IOException {
-        this(in.readVLong(), in.readVLong(), in.readVLong());
+        this(in.readLong(), in.readLong(), in.readLong());
     }
 
     /**
@@ -60,9 +60,10 @@ public record SearchLoadMetrics(long loadNanos, long cpuNanos, long waitingNanos
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(loadNanos);
-        out.writeVLong(cpuNanos);
-        out.writeVLong(waitingNanos);
+        // fixed width, so the size of a shard result does not depend on timing
+        out.writeLong(loadNanos);
+        out.writeLong(cpuNanos);
+        out.writeLong(waitingNanos);
     }
 
     @Override

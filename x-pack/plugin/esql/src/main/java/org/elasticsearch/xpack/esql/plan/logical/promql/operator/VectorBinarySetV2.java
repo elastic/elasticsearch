@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
@@ -48,11 +49,26 @@ public final class VectorBinarySetV2 {
             return VectorBinaryOperatorV2.translate(set, context);
         }
         List<LogicalPlan> branches = flattenUnion(set);
+        // One limb: this or keeps every left series of a signature, so it unions a with b unless a, deduplicating nothing.
+        boolean keepsLeftTies = branches.size() == 1;
+        if (keepsLeftTies) {
+            branches = List.of(set.left(), rightUnlessLeft(set));
+        }
         List<IntermediateResult> intermediateResults = new ArrayList<>(branches.size());
         for (LogicalPlan branch : branches) {
             intermediateResults.add(context.translateIntermediate(branch, new NameId(), new NameId()));
         }
-        return wrapUnion(set, context, translateUnion(context, intermediateResults));
+        UnionAll union = unionBranches(context, intermediateResults);
+        return wrapUnion(set, context, keepsLeftTies ? union : firstPerSeries(context, union));
+    }
+
+    /**
+     * The right operand without the series the left one matches: {@code b unless<M> a} for {@code a or<M> b}. Prometheus
+     * keeps every series of {@code a} and those of {@code b} whose match signature no series of {@code a} has, so the union of
+     * {@code a} and this needs no deduplication.
+     */
+    private static VectorBinarySet rightUnlessLeft(VectorBinarySet set) {
+        return new VectorBinarySet(set.source(), set.right(), set.left(), set.match(), VectorBinarySet.SetOp.SUBTRACT);
     }
 
     /**
@@ -82,13 +98,17 @@ public final class VectorBinarySetV2 {
         LogicalPlan plan = new Project(set.source(), union, withoutBranch);
         String pinName = TemporaryNameGenerator.locallyUniqueTemporaryName(cmd.valueColumnName());
         Alias pinned = new Alias(value.source(), pinName, value, new NameId());
-        plan = new Eval(set.source(), plan, List.of(pinned));
+        // Expose the step under the enclosing frame's step identity, as a join result does, so an operand sharing the
+        // frame (a scalar in 2 + (a or b)) reads the union's step.
+        Alias frameStep = new Alias(step.source(), step.name(), step, context.stepAttr().id());
+        plan = new Eval(set.source(), plan, List.of(pinned, frameStep));
+        Attribute stepAttr = TranslationContextV2.pinnedAttribute(frameStep);
         List<NamedExpression> pinnedOut = new ArrayList<>();
         pinnedOut.add(pinned.toAttribute());
-        pinnedOut.add(step);
+        pinnedOut.add(stepAttr);
         pinnedOut.add(labels);
         plan = new Project(set.source(), plan, pinnedOut);
-        return new IntermediateResult(plan, pinned.toAttribute(), labels, step, null, Kind.AFTER_INITIAL_AGGREGATE);
+        return new IntermediateResult(plan, pinned.toAttribute(), labels, stepAttr, null, Kind.AFTER_INITIAL_AGGREGATE);
     }
 
     /**
@@ -96,6 +116,11 @@ public final class VectorBinarySetV2 {
      * branch has at the same step - Prometheus' {@code or}.
      */
     public static LogicalPlan translateUnion(TranslationContextV2 context, List<IntermediateResult> intermediateResults) {
+        return firstPerSeries(context, unionBranches(context, intermediateResults));
+    }
+
+    /** The branches side by side, each tagged with its position and projected onto the union's columns. */
+    private static UnionAll unionBranches(TranslationContextV2 context, List<IntermediateResult> intermediateResults) {
         PromqlCommand cmd = context.cmd();
         // Already validated against max_branch_count_per_merge by PromqlCommand.verify.
         int maxBranches = context.analyzer().maxBranchCountPerMerge();
@@ -131,8 +156,14 @@ public final class VectorBinarySetV2 {
         }
 
         // Every branch projects the same columns; the union outputs the first branch's.
-        List<Attribute> unionOutput = branchPlans.getFirst().output();
-        var union = new UnionAll(source, branchPlans, unionOutput);
+        return new UnionAll(source, branchPlans, branchPlans.getFirst().output());
+    }
+
+    /** Each series of {@code union} at a step whose labels, the metric name left out, no earlier branch has. */
+    private static LogicalPlan firstPerSeries(TranslationContextV2 context, UnionAll union) {
+        PromqlCommand cmd = context.cmd();
+        Source source = cmd.source();
+        List<Attribute> unionOutput = union.output();
         Attribute step = attribute(unionOutput, cmd.stepColumnName());
         Attribute match = attribute(unionOutput, OR_MATCH_KEY);
         var order = new Order(source, attribute(unionOutput, cmd.branchColumnName()), Order.OrderDirection.ASC, Order.NullsPosition.LAST);

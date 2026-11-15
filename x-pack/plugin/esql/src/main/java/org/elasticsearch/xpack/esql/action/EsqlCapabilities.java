@@ -2817,17 +2817,9 @@ public class EsqlCapabilities {
         FIX_PROMQL_OFFSET_PRECEDENCE(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
-         * PromQL reads and rewrites labels in {@code _timeseries} with the label container functions, which every node of the
-         * cluster must know: the shapes this admits, and the canonical {@code _timeseries} the command outputs. A cluster with a
-         * node that does not know them keeps rejecting those shapes. Gates test coverage of both.
-         */
-        PROMQL_TIMESERIES_METADATA_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
-
-        /**
          * PromQL shapes the translation admits by reading labels through references bound after it, rather than from
-         * concrete label columns: the {@code and} and {@code unless} set operators, vector matching between operands whose
-         * labels stay in the label container, unmatched comparisons nested under aggregations, {@code label_replace}
-         * or reductions, and a filter comparison with a computed scalar on the left. Gates test coverage of those shapes.
+         * concrete label columns: the {@code and} and {@code unless} set operators and vector matching between operands whose
+         * labels stay in the label container. Gates test coverage of those shapes.
          */
         PROMQL_LABEL_REFERENCES(PROMQL_COMMAND_V0.isEnabled()),
 
@@ -4367,6 +4359,12 @@ public class EsqlCapabilities {
          * applied over. Two series left with one label set fail the query, as in Prometheus.
          */
         PROMQL_LABEL_FUNCTIONS_OVERWRITE(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL {@code or} with {@code on(...)}/{@code ignoring(...)} keeps every left series and the right series no left
+         * series matches on the listed labels.
+         */
+        PROMQL_SET_OPERATOR_MATCHING,
 
         /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,

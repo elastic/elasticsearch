@@ -2092,12 +2092,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             );
             switch (result) {
                 case DONE -> {
-                    // Buffer finished (externally or by row-limit exhaustion) while an iterator is still open:
-                    // capture the live bytes first, then close so a reader that invalidates its
-                    // StorageObject on close cannot make metrics() throw and drop the delta.
+                    // Buffer finished (externally or by row-limit exhaustion) while an iterator is still open.
+                    // Stream reads publish in 256 KiB chunks and flush the tail only on close, so the
+                    // iterator must close while the object is still tracked. Commit published chunks
+                    // first so a reader that invalidates metrics() on close cannot drop that delta.
                     snapshotFormatReaderStatus(state);
-                    state.buffer.finishInFlightBytes();
-                    clearCurrentIterator(state);
+                    closeCurrentIteratorAndFinishBytes(state);
                     completeProducer(state, completionListener);
                 }
                 case EOF -> {
@@ -2105,8 +2105,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // and re-enter to advance to the next unit (openUnitThenDrain re-dispatches to the I/O pool).
                     snapshotFormatReaderStatus(state);
                     state.buffer.incSplitsProcessed();
-                    state.buffer.finishInFlightBytes();
-                    clearCurrentIterator(state);
+                    closeCurrentIteratorAndFinishBytes(state);
                     maybeRampAfterUnit();
                     runProducerLoop(state, completionListener);
                 }
@@ -2143,6 +2142,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> previous = state.pages;
         state.pages = null;
         closeQuietly(previous);
+    }
+
+    /**
+     * Commits live published chunks, closes the iterator so {@link
+     * org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream} flushes its last partial
+     * 256 KiB, then folds the remainder. Closing first is what makes {@code bytes_read} exact for
+     * stream formats; committing first keeps already-published chunks if {@code metrics()} throws
+     * after close.
+     */
+    private static void closeCurrentIteratorAndFinishBytes(ProducerState state) {
+        state.buffer.commitInFlightBytes();
+        clearCurrentIterator(state);
+        state.buffer.finishInFlightBytes();
     }
 
     /**
@@ -2463,8 +2475,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /** Bytes + iterator. Used when this run owns cleanup (holder, or a terminal failure on this task). */
     private static void releaseProducerResources(ProducerState state) {
-        state.buffer.finishInFlightBytes();
-        clearCurrentIterator(state);
+        closeCurrentIteratorAndFinishBytes(state);
     }
 
     private static void abortProducer(ProducerState state, ActionListener<Void> listener, Exception e) {
@@ -2786,6 +2797,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             assignPages(state, wrapped);
             return true;
         } catch (Exception e) {
+            state.buffer.commitInFlightBytes();
             closeQuietly(pages);
             state.buffer.finishInFlightBytes();
             if (e instanceof IOException io) throw io;
@@ -3005,6 +3017,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             assignPages(state, wrapped);
             return true;
         } catch (Exception e) {
+            state.buffer.commitInFlightBytes();
             closeQuietly(pages);
             state.buffer.finishInFlightBytes();
             if (e instanceof IOException io) throw io;
@@ -3186,22 +3199,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 page -> deliverPage(page, buffer),
                 // Close the iterator chain and record telemetry BEFORE notifying the buffer:
                 // closing publishes the finalize marker into the capture sink (via
-                // StatsCapturingIterator and the parallel coordinators' finalize hook), and
-                // recordSingleFileTelemetry writes the splits_processed / bytes_read /
-                // format-reader status counters that the operator status snapshot reads. The
-                // Driver may snapshot status() synchronously the moment buffer.finish(false)
-                // flips isFinished() to true; notifying the buffer first opens a window where
-                // the snapshot lacks the marker (reconciler discards the partial contributions)
-                // and the telemetry counters (profile shows zeros for an operator that did
-                // real work). Telemetry runs on both success and failure to match the previous
-                // runAfter semantics.
+                // StatsCapturingIterator and the parallel coordinators' finalize hook) and
+                // flushes MeteredInputStream's last partial 256 KiB into the still-tracked
+                // object. recordSingleFileTelemetry then folds bytes_read / splits_processed /
+                // format-reader status. The Driver may snapshot status() synchronously the
+                // moment buffer.finish(false) flips isFinished() to true; notifying the buffer
+                // first opens a window where the snapshot lacks the marker (reconciler discards
+                // the partial contributions) and the telemetry counters (profile shows zeros
+                // for an operator that did real work). Telemetry runs on both success and
+                // failure to match the previous runAfter semantics.
                 ActionListener.runAfter(ActionListener.wrap(v -> {
-                    recordSingleFileTelemetry(buffer, formatCounters);
-                    closeQuietly(finalPages);
+                    closeAndRecordSingleFileTelemetry(buffer, formatCounters, finalPages);
                     buffer.finish(false);
                 }, e -> {
-                    recordSingleFileTelemetry(buffer, formatCounters);
-                    closeQuietly(finalPages);
+                    closeAndRecordSingleFileTelemetry(buffer, formatCounters, finalPages);
                     buffer.onFailure(e);
                 }), () -> {
                     driverContext.removeAsyncAction();
@@ -3248,12 +3259,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // before notifying the buffer so the finalize marker and the telemetry
                 // counters reach the operator status snapshot before isFinished() flips.
                 ActionListener.runAfter(ActionListener.wrap(v -> {
-                    recordSingleFileTelemetry(buffer, formatCounters);
-                    closeQuietly(wrapped);
+                    closeAndRecordSingleFileTelemetry(buffer, formatCounters, wrapped);
                     buffer.finish(false);
                 }, e -> {
-                    recordSingleFileTelemetry(buffer, formatCounters);
-                    closeQuietly(wrapped);
+                    closeAndRecordSingleFileTelemetry(buffer, formatCounters, wrapped);
                     buffer.onFailure(e);
                 }), () -> {
                     driverContext.removeAsyncAction();
@@ -3264,16 +3273,32 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
+     * Commits published chunks, closes {@code pages} so {@link
+     * org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream} flushes its last partial
+     * 256 KiB, then records single-file telemetry. Closing while the object is still tracked is
+     * what makes {@code bytes_read} exact for stream formats.
+     */
+    private static void closeAndRecordSingleFileTelemetry(
+        AsyncExternalSourceBuffer buffer,
+        @Nullable FormatReadCounters formatCounters,
+        CloseableIterator<Page> pages
+    ) {
+        buffer.commitInFlightBytes();
+        closeQuietly(pages);
+        recordSingleFileTelemetry(buffer, formatCounters);
+    }
+
+    /**
      * Records final telemetry for the single-file producer paths
      * ({@link #startNativeAsyncRead}, {@link #startSyncWrapperRead}): increments
      * splits_processed, folds the tracked object's live bytes into committed, and
      * forwards the latest format-reader counter snapshot. Best-effort: any
      * accessor that misbehaves (e.g. returns {@code null} from a test mock) is
      * tolerated so telemetry can never short-circuit the lifecycle callbacks.
-     * Callers must invoke this before closing the iterator so {@code metrics()} is
-     * still valid.
+     * Callers must close the iterator first so the stream remainder is published,
+     * then invoke this while {@code metrics()} is still valid.
      */
-    private void recordSingleFileTelemetry(AsyncExternalSourceBuffer buffer, @Nullable FormatReadCounters formatCounters) {
+    private static void recordSingleFileTelemetry(AsyncExternalSourceBuffer buffer, @Nullable FormatReadCounters formatCounters) {
         buffer.incSplitsProcessed();
         buffer.finishInFlightBytes();
         if (formatCounters == null) {

@@ -90,7 +90,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                 }
                 boolean multivalued = false;
                 for (Page page : pages) {
-                    if (page.getBlock(blockIndex).mayHaveMultivaluedFields()) {
+                    if (converter.isMultivalued(column.name, page.getBlock(blockIndex))) {
                         multivalued = true;
                         break;
                     }
@@ -459,9 +459,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // ipv4 addresses it would still be twice as big.
             case IP -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses);
 
-            // geo_point: Keep WKB format (JSON converts to WKT)
-            // FIXME: use GeoArrow
-            case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
+            // Geo types: keep the WKB format (JSON converts to WKT), tagged with the geoarrow.wkb extension type
+            case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsGeoArrowWkb(type);
 
             // version: convert to string
             case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);
@@ -476,7 +475,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case TSID_DATA_TYPE -> new BlockArrowFormatter.AsVarBinary(type);
             case DENSE_VECTOR -> TO_BE_IMPLEMENTED_MARKER;
 
-            case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
+            case AGGREGATE_METRIC_DOUBLE -> new BlockArrowFormatter.AsAggregateMetricDouble(type);
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
             case FLATTENED -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
             case GEOHASH -> TO_BE_IMPLEMENTED_MARKER;

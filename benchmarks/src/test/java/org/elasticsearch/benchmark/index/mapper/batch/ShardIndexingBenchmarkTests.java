@@ -39,6 +39,7 @@ import org.elasticsearch.benchmark.index.mapper.batch.ShardIndexingBenchmark.Sha
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumnKind;
+import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -138,6 +139,10 @@ public class ShardIndexingBenchmarkTests extends ESTestCase {
     }
 
     public void testBenchmarkLifecycle() throws IOException {
+        // Each state dry-runs its shapes against their Expect, and the catalog's Expect values are the stages reached with the
+        // simdjson ESCF encoder; benchmarks/build.gradle enables it. Where simdjson is unavailable the Jackson encoder makes
+        // floating arrays plain DOUBLE rather than UNION, so the floating mv1to4 shapes would map instead of falling back.
+        assumeTrue("shape expectations assume the simdjson ESCF encoder", EscfEncoder.isSimdEnabled());
         ShardIndexingBenchmark bench = new ShardIndexingBenchmark();
         runLifecycles(ColumnState.class, (shape, docsPerRequest) -> {
             ColumnState state = new ColumnState();

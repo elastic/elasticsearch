@@ -1961,31 +1961,10 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testMandatoryTimestampExclusionDeniesReadOnlyWhenFeatureEnabled() {
         final String index = "logs-" + randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT);
-        final RoleDescriptor role = new RoleDescriptor(
-            "timestamp_excluding",
-            null,
-            new IndicesPrivileges[] {
-                IndicesPrivileges.builder().indices(index).privileges("read").grantedFields("*").deniedFields("@timestamp").build() },
-            null
-        );
+        final RoleDescriptor role = timestampExcludingRole(index);
         roleMap.put(role.getName(), role);
         final Authentication authentication = createAuthentication(new User("timestamp_user", role.getName()));
-        mockClusterState(
-            ProjectMetadata.builder(projectId)
-                .put(
-                    IndexMetadata.builder(index)
-                        .settings(
-                            Settings.builder()
-                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                                .put(IndexSettings.MODE.getKey(), "logsdb")
-                        )
-                        .numberOfShards(1)
-                        .numberOfReplicas(0)
-                        .build(),
-                    true
-                )
-                .build()
-        );
+        mockClusterState(ProjectMetadata.builder(projectId).put(logsdbIndexMetadata(index), true).build());
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.FLS_MANDATORY_TIMESTAMP))).thenReturn(false);
@@ -2015,6 +1994,28 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(denied),
             authzInfoRoles(new String[] { role.getName() })
         );
+    }
+
+    public void testMandatoryTimestampExclusionReportsMissingPrivilegeBeforeExclusion() {
+        final String excluded = "logs-" + randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT);
+        final String denied = "other-" + randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT);
+        final RoleDescriptor role = timestampExcludingRole(excluded);
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("timestamp_user", role.getName()));
+        mockClusterState(
+            ProjectMetadata.builder(projectId).put(logsdbIndexMetadata(excluded), true).put(createIndexMetadata(denied), true).build()
+        );
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.FLS_MANDATORY_TIMESTAMP))).thenReturn(true);
+
+        final SearchRequest request = randomBoolean() ? new SearchRequest(excluded, denied) : new SearchRequest(denied, excluded);
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> authorize(authentication, TransportSearchAction.TYPE.name(), request)
+        );
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(e, throwableWithMessage(containsString("on indices [" + denied + "]")));
+        assertThat(e, throwableWithMessage(not(containsString("because field level security excludes [@timestamp]"))));
     }
 
     public void testDenialErrorMessagesForBulkIngest() throws Exception {
@@ -3700,6 +3701,28 @@ public class AuthorizationServiceTests extends ESTestCase {
         final IndexMetadata indexMetadata = createIndexMetadata(indexName);
         final ProjectMetadata project = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         return mockClusterState(project);
+    }
+
+    private static RoleDescriptor timestampExcludingRole(String... indices) {
+        return new RoleDescriptor(
+            "timestamp_excluding",
+            null,
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices(indices).privileges("read").grantedFields("*").deniedFields("@timestamp").build() },
+            null
+        );
+    }
+
+    private static IndexMetadata logsdbIndexMetadata(String indexName) {
+        return IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexSettings.MODE.getKey(), "logsdb")
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
     }
 
     private static IndexMetadata createIndexMetadata(String indexName) {

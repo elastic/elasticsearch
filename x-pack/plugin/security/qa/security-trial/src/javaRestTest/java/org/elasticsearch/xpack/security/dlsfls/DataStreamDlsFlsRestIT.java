@@ -582,6 +582,34 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
     }
 
+    public void testFieldLevelSecurityExcludingTimestampFailsThroughAliases() throws IOException {
+        createTimestampIndices();
+        final Request aliases = new Request("POST", "/_aliases");
+        aliases.setJsonEntity(Strings.format("""
+            {"actions": [
+              {"add": {"index": "%s", "alias": "%s"}},
+              {"add": {"index": "%s", "alias": "%s"}},
+              {"add": {"index": "%s", "alias": "%s"}}
+            ]}""", TS_STANDALONE, TS_ALIAS, TS_PLAIN, TS_ALIAS, TS_METRICS, TS_DATA_STREAM_ALIAS));
+        assertOK(adminClient().performRequest(aliases));
+        final String excludingUser = createUserWithRole(
+            "ts_alias_excluding_user",
+            "ts_alias_excluding_role",
+            timestampRole(EXCLUDED_TIMESTAMP)
+        );
+        final String implicitUser = createUserWithRole(
+            "ts_alias_implicit_user",
+            "ts_alias_implicit_role",
+            timestampRole(IMPLICIT_TIMESTAMP)
+        );
+
+        for (String alias : List.of(TS_ALIAS, TS_DATA_STREAM_ALIAS)) {
+            assertTimestampExclusionRejected(excludingUser, searchRequest(alias));
+            assertTimestampExclusionRejected(excludingUser, esqlRequest("/_query", "FROM " + alias + " | LIMIT 10"));
+            assertThat(alias, timestampCount(implicitUser, alias), equalTo(1));
+        }
+    }
+
     public void testFieldLevelSecurityExcludingTimestampFailsMixedIndexSearch() throws IOException {
         createTimestampIndices();
         final String user = createUserWithRole("ts_mixed_user", "ts_mixed_role", timestampRole("""
@@ -927,6 +955,8 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final String TS_LOGS = "fls-ts-logs";
     private static final String TS_STANDALONE = "fls-ts-standalone";
     private static final String TS_PLAIN = "fls-ts-plain";
+    private static final String TS_ALIAS = "fls-ts-alias";
+    private static final String TS_DATA_STREAM_ALIAS = "fls-ts-ds-alias";
     private static final String TIMESTAMP_EXCLUDED = "because field level security excludes [@timestamp]";
 
     private static String timestampRole(String fieldSecurity) {

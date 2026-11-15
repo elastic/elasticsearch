@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -256,6 +257,7 @@ public final class VectorBinaryOperatorV2 {
             if (leftFrame == null
                 || rightFrame == null
                 || leftFrame.sharesGrainWith(rightFrame) == false
+                || sameSeriesLabels(left.labels(), right.labels()) == false
                 || readsDisjointSeries(context.cmd().child())) {
                 return translateAsLeftJoin(context, leftTranslated, rightTranslated);
             }
@@ -378,6 +380,34 @@ public final class VectorBinaryOperatorV2 {
             return new Frame(aggregate, evals, filter, aggregatesAcrossSeries(aggregate));
         }
         return null;
+    }
+
+    /**
+     * Whether two collapsed operands label each series of their frames alike, but for the metric name, which matching ignores: a
+     * relabel on one side only makes its series match none of the other side's row by row.
+     */
+    private static boolean sameSeriesLabels(@Nullable Expression left, @Nullable Expression right) {
+        Expression leftProgram = labelProgram(left);
+        Expression rightProgram = labelProgram(right);
+        return leftProgram == null ? rightProgram == null : rightProgram != null && leftProgram.semanticEquals(rightProgram);
+    }
+
+    /** {@code labels} over any frame key, without removing the metric name. */
+    private static @Nullable Expression labelProgram(@Nullable Expression labels) {
+        if (labels == null) {
+            return null;
+        }
+        Expression program = labels.transformUp(Attribute.class, key -> Literal.keyword(key.source(), "{}"));
+        return program.transformUp(
+            TimeSeriesMetadataFilter.class,
+            unset -> unset.exclude() && unset.labels().size() == 1 && isMetricName(unset.labels().getFirst())
+                ? unset.children().getFirst()
+                : unset
+        );
+    }
+
+    private static boolean isMetricName(Expression label) {
+        return label instanceof Literal literal && LabelMatcher.NAME.equals(BytesRefs.toString(literal.value()));
     }
 
     /** Whether every field an Eval defines is the sample value - a relabel defines label columns instead. */

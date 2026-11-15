@@ -446,43 +446,43 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
     public void testTimestampRuleOnTimeSeriesIndex() throws IOException {
         final String index = "fls-type-time-series";
         createTypeIndex(index, TYPE_TIME_SERIES + TYPE_TIME_SERIES_BOUNDS);
-        assertTimestampMandatory(index, index);
+        assertTimestampMandatory(index);
     }
 
     public void testTimestampRuleOnLogsdbIndex() throws IOException {
         final String index = "fls-type-logsdb";
         createTypeIndex(index, ", \"index.mode\": \"logsdb\"");
-        assertTimestampMandatory(index, index);
+        assertTimestampMandatory(index);
     }
 
     public void testTimestampRuleOnLogsdbColumnarIndex() throws IOException {
         final String index = "fls-type-logsdb-columnar";
         createTypeIndex(index, ", \"index.mode\": \"logsdb_columnar\"");
-        assertTimestampMandatory(index, index);
+        assertTimestampMandatory(index);
     }
 
     public void testTimestampRuleOnStandardDataStream() throws IOException {
         final String dataStream = "fls-type-ds-standard";
         createTypeDataStream(dataStream, "");
-        assertTimestampMandatory(dataStream, DataStream.BACKING_INDEX_PREFIX + dataStream);
+        assertTimestampMandatory(dataStream);
     }
 
     public void testTimestampRuleOnTimeSeriesDataStream() throws IOException {
         final String dataStream = "fls-type-ds-time-series";
         createTypeDataStream(dataStream, TYPE_TIME_SERIES);
-        assertTimestampMandatory(dataStream, DataStream.BACKING_INDEX_PREFIX + dataStream);
+        assertTimestampMandatory(dataStream);
     }
 
     public void testTimestampRuleOnLogsdbDataStream() throws IOException {
         final String dataStream = "fls-type-ds-logsdb";
         createTypeDataStream(dataStream, ", \"index.mode\": \"logsdb\"");
-        assertTimestampMandatory(dataStream, DataStream.BACKING_INDEX_PREFIX + dataStream);
+        assertTimestampMandatory(dataStream);
     }
 
     public void testTimestampRuleOnLogsdbColumnarDataStream() throws IOException {
         final String dataStream = "fls-type-ds-logsdb-columnar";
         createTypeDataStream(dataStream, ", \"index.mode\": \"logsdb_columnar\"");
-        assertTimestampMandatory(dataStream, DataStream.BACKING_INDEX_PREFIX + dataStream);
+        assertTimestampMandatory(dataStream);
     }
 
     public void testFieldLevelSecurityExcludingTimestampFailsWholeRequest() throws IOException {
@@ -491,40 +491,39 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
             {"grant": ["*"], "except": ["@timestamp"]}""");
         final String user = createUserWithRole("ts_explicit_user", "ts_explicit_role", role);
 
-        final String metricsBackingIndex = DataStream.BACKING_INDEX_PREFIX + TS_METRICS;
         final Request partialSearch = new Request("GET", "/" + TS_METRICS + "/_search");
         partialSearch.addParameter("allow_partial_search_results", "true");
         partialSearch.setJsonEntity(MATCH_ALL);
-        assertTimestampExclusionRejected(user, partialSearch, metricsBackingIndex);
-        assertTimestampExclusionRejected(user, new Request("GET", "/" + TS_LOGS + "/_count"), DataStream.BACKING_INDEX_PREFIX + TS_LOGS);
+        assertTimestampExclusionRejected(user, partialSearch);
+        assertTimestampExclusionRejected(user, new Request("GET", "/" + TS_LOGS + "/_count"));
         final Request fieldCaps = new Request("GET", "/" + TS_STANDALONE + "/_field_caps");
         fieldCaps.addParameter("fields", "*");
-        assertTimestampExclusionRejected(user, fieldCaps, TS_STANDALONE);
+        assertTimestampExclusionRejected(user, fieldCaps);
         final Request esql = new Request("POST", "/_query");
         esql.setJsonEntity(Strings.format("""
             {"query": "FROM %s | LIMIT 10"}""", TS_METRICS));
-        assertTimestampExclusionRejected(user, esql, metricsBackingIndex);
+        assertTimestampExclusionRejected(user, esql);
         final Request eql = new Request("POST", "/" + TS_METRICS + "/_eql/search");
         eql.setJsonEntity("""
             {"query": "any where true"}""");
-        assertTimestampExclusionRejected(user, eql, metricsBackingIndex);
+        assertTimestampExclusionRejected(user, eql);
         final Request openPointInTime = new Request("POST", "/" + TS_STANDALONE + "/_pit");
         openPointInTime.addParameter("keep_alive", "1m");
-        assertTimestampExclusionRejected(user, openPointInTime, TS_STANDALONE);
+        assertTimestampExclusionRejected(user, openPointInTime);
         final String id = firstDocumentId(TS_STANDALONE);
-        assertTimestampExclusionRejected(user, new Request("GET", "/" + TS_STANDALONE + "/_doc/" + id), TS_STANDALONE);
+        assertTimestampExclusionRejected(user, new Request("GET", "/" + TS_STANDALONE + "/_doc/" + id));
         final Request termVectors = new Request("GET", "/" + TS_STANDALONE + "/_termvectors/" + id);
         termVectors.addParameter("fields", "host");
-        assertTimestampExclusionRejected(user, termVectors, TS_STANDALONE);
+        assertTimestampExclusionRejected(user, termVectors);
         final Request termsEnum = new Request("POST", "/" + TS_STANDALONE + "/_terms_enum");
         termsEnum.setJsonEntity("""
             {"field": "host"}""");
-        assertTimestampExclusionRejected(user, termsEnum, TS_STANDALONE);
+        assertTimestampExclusionRejected(user, termsEnum);
 
         assertSourceHasOnly(hits(search(user, TS_PLAIN, MATCH_ALL)).get(0), "host", "cpu");
         assertOK(adminClient().performRequest(new Request("GET", "/_security/role/ts_explicit_role")));
         upsertRole(role, "ts_explicit_role");
-        assertTimestampExclusionRejected(user, partialSearch, metricsBackingIndex);
+        assertTimestampExclusionRejected(user, partialSearch);
 
         final String unionUser = "ts_union_user";
         upsertRole(timestampRole("""
@@ -539,7 +538,7 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         rolesToDelete.add("ts_omit_role");
         createUser(omittingUnionUser, PASSWORD, List.of("ts_explicit_role", "ts_omit_role"));
         usersToDelete.add(omittingUnionUser);
-        assertTimestampExclusionRejected(omittingUnionUser, partialSearch, metricsBackingIndex);
+        assertTimestampExclusionRejected(omittingUnionUser, partialSearch);
     }
 
     public void testFieldLevelSecurityExcludingTimestampFailsMixedIndexSearch() throws IOException {
@@ -550,7 +549,7 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
             final Request search = new Request("GET", "/" + TS_METRICS + "," + TS_PLAIN + "/_search");
             search.addParameter("allow_partial_search_results", Boolean.toString(allowPartialSearchResults));
             search.setJsonEntity(MATCH_ALL);
-            assertTimestampExclusionRejected(user, search, DataStream.BACKING_INDEX_PREFIX + TS_METRICS);
+            assertTimestampExclusionRejected(user, search);
         }
         assertSourceHasOnly(hits(search(user, TS_PLAIN, MATCH_ALL)).get(0), "host", "cpu");
     }
@@ -592,10 +591,7 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
             {"docs": [{"_index": "%s", "_id": "%s"}, {"_index": "%s", "_id": "%s"}]}""", TS_STANDALONE, excludedId, TS_PLAIN, plainId));
         final ObjectPath mgetResponse = ObjectPath.createFromResponse(performRequest(user, mget));
         assertThat(mgetResponse.evaluate("docs.0.error.type"), equalTo("security_exception"));
-        assertThat(
-            mgetResponse.evaluate("docs.0.error.reason"),
-            containsString("on indices [" + TS_STANDALONE + "] " + TIMESTAMP_EXCLUDED)
-        );
+        assertThat(mgetResponse.evaluate("docs.0.error.reason"), containsString(TIMESTAMP_EXCLUDED));
         assertThat(mgetResponse.evaluate("docs.1.found"), equalTo(true));
 
         final Request mtv = new Request("GET", "/_mtermvectors");
@@ -611,7 +607,7 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
         final ObjectPath mtvResponse = ObjectPath.createFromResponse(performRequest(user, mtv));
         assertThat(mtvResponse.evaluate("docs.0.error.type"), equalTo("security_exception"));
-        assertThat(mtvResponse.evaluate("docs.0.error.reason"), containsString("on indices [" + TS_STANDALONE + "] " + TIMESTAMP_EXCLUDED));
+        assertThat(mtvResponse.evaluate("docs.0.error.reason"), containsString(TIMESTAMP_EXCLUDED));
         assertThat(mtvResponse.evaluate("docs.1.found"), equalTo(true));
 
         final Request msearch = new Request("GET", "/_msearch");
@@ -692,11 +688,10 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         createTimestampIndices();
         final String user = createUserWithRole("ts_role_change_user", "ts_role_change_role", timestampRole(IMPLICIT_TIMESTAMP));
         rolloverAndIndexDocument(TS_LOGS);
-        final List<String> backingIndices = backingIndices(TS_LOGS);
         assertThat(timestampCount(user, TS_LOGS), equalTo(2));
 
         upsertRole(timestampRole(EXCLUDED_TIMESTAMP), "ts_role_change_role");
-        assertTimestampExclusionRejectedOn(user, searchRequest(TS_LOGS), backingIndices);
+        assertTimestampExclusionRejected(user, searchRequest(TS_LOGS));
 
         upsertRole(timestampRole(IMPLICIT_TIMESTAMP), "ts_role_change_role");
         assertThat(timestampCount(user, TS_LOGS), equalTo(2));
@@ -722,13 +717,12 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(indexSetting(backingIndices.get(0), "index.mode"), is(nullValue()));
 
         assertThat(timestampCount(implicitUser, TS_LOGS), equalTo(2));
-        assertTimestampExclusionRejectedOn(excludingUser, searchRequest(TS_LOGS), backingIndices);
+        assertTimestampExclusionRejected(excludingUser, searchRequest(TS_LOGS));
     }
 
     public void testPointInTimeSearchAfterRoleChangeIsDenied() throws IOException {
         createTimestampIndices();
         final String user = createUserWithRole("ts_pit_user", "ts_pit_role", timestampRole(IMPLICIT_TIMESTAMP));
-        final String pitBackingIndex = backingIndices(TS_LOGS).get(0);
         final Request openPointInTime = new Request("POST", "/" + TS_LOGS + "/_pit");
         openPointInTime.addParameter("keep_alive", "1m");
         final String pitId = ObjectPath.createFromResponse(performRequest(user, openPointInTime)).evaluate("id");
@@ -740,7 +734,7 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
             assertThat(hits(performRequest(user, pitSearch)), hasSize(1));
 
             upsertRole(timestampRole(EXCLUDED_TIMESTAMP), "ts_pit_role");
-            assertTimestampExclusionRejectedOn(user, pitSearch, List.of(pitBackingIndex));
+            assertTimestampExclusionRejected(user, pitSearch);
         } finally {
             final Request closePointInTime = new Request("DELETE", "/_pit");
             closePointInTime.setJsonEntity(Strings.format("""
@@ -764,7 +758,7 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
             assertSourceHasOnly(firstHits.get(0), "@timestamp", "host", "cpu");
 
             upsertRole(timestampRole(EXCLUDED_TIMESTAMP), "ts_scroll_role");
-            assertTimestampExclusionRejectedOn(user, searchRequest(TS_LOGS), backingIndices(TS_LOGS));
+            assertTimestampExclusionRejected(user, searchRequest(TS_LOGS));
             final Request continueScroll = new Request("POST", "/_search/scroll");
             continueScroll.setJsonEntity(Strings.format("""
                 {"scroll": "1m", "scroll_id": "%s"}""", scrollId));
@@ -819,7 +813,7 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
         final String first = backingIndices(TS_LOGS).get(0);
         assertThat(timestampCount(implicitUser, first), equalTo(1));
-        assertTimestampExclusionRejectedOn(excludingUser, searchRequest(first), List.of(first));
+        assertTimestampExclusionRejected(excludingUser, searchRequest(first));
 
         final String second = rolloverAndIndexDocument(TS_LOGS);
         final String both = first + "," + second;
@@ -830,17 +824,17 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         for (String target : List.of(both, TS_LOGS, backingPattern)) {
             assertThat(target, timestampCount(implicitUser, target), equalTo(2));
         }
-        assertTimestampExclusionRejectedOn(excludingUser, searchRequest(second), List.of(second));
+        assertTimestampExclusionRejected(excludingUser, searchRequest(second));
         for (String target : List.of(both, TS_LOGS, backingPattern)) {
-            assertTimestampExclusionRejectedOn(excludingUser, searchRequest(target), List.of(first, second));
+            assertTimestampExclusionRejected(excludingUser, searchRequest(target));
         }
-        assertTimestampExclusionRejectedOn(excludingUser, searchRequest(second + "," + TS_PLAIN), List.of(second));
+        assertTimestampExclusionRejected(excludingUser, searchRequest(second + "," + TS_PLAIN));
 
         modifyDataStream("remove_backing_index", TS_LOGS, first);
         assertThat(timestampCount(implicitUser, first), equalTo(0));
         assertThat(timestampCount(implicitUser, both), equalTo(1));
         assertSourceHasOnly(hits(search(excludingUser, first, MATCH_ALL)).get(0), "host", "cpu");
-        assertTimestampExclusionRejectedOn(excludingUser, searchRequest(both), List.of(second));
+        assertTimestampExclusionRejected(excludingUser, searchRequest(both));
     }
 
     private static final String IMPLICIT_TIMESTAMP = """
@@ -887,16 +881,6 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         request.addParameter("expand_wildcards", "open,hidden");
         request.setJsonEntity(MATCH_ALL);
         return request;
-    }
-
-    private void assertTimestampExclusionRejectedOn(String user, Request request, List<String> indices) {
-        final ResponseException e = expectThrows(ResponseException.class, () -> performRequest(user, request));
-        assertThat(request.getEndpoint(), e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-        assertThat(
-            request.getEndpoint(),
-            e.getMessage(),
-            containsString("on indices [" + String.join(",", indices.stream().sorted().toList()) + "] " + TIMESTAMP_EXCLUDED)
-        );
     }
 
     private static final String TS_METRICS = "fls-ts-metrics";
@@ -953,11 +937,11 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(target, adminClient().performRequest(index).getStatusLine().getStatusCode(), equalTo(201));
     }
 
-    private void assertTimestampMandatory(String target, String excludedIndex) throws IOException {
+    private void assertTimestampMandatory(String target) throws IOException {
         assertThat(typeSourceFields("omit", TYPE_OMIT, target), equalTo(Set.of("@timestamp", "host.name", "cpu")));
         final Request search = new Request("GET", "/" + target + "/_search");
         search.setJsonEntity(MATCH_ALL);
-        assertTimestampExclusionRejected(typeUser("exclude", TYPE_EXCLUDE), search, excludedIndex);
+        assertTimestampExclusionRejected(typeUser("exclude", TYPE_EXCLUDE), search);
         assertThat(typeSourceFields("grant", TYPE_GRANT, target), equalTo(Set.of("@timestamp", "host.name")));
     }
 
@@ -1049,11 +1033,10 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         return fields.containsKey("@timestamp");
     }
 
-    private void assertTimestampExclusionRejected(String user, Request request, String excludedIndexPrefix) {
+    private void assertTimestampExclusionRejected(String user, Request request) {
         final ResponseException e = expectThrows(ResponseException.class, () -> performRequest(user, request));
         assertThat(request.getEndpoint(), e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(request.getEndpoint(), e.getMessage(), containsString("security_exception"));
-        assertThat(request.getEndpoint(), e.getMessage(), containsString("on indices [" + excludedIndexPrefix));
         assertThat(request.getEndpoint(), e.getMessage(), containsString(TIMESTAMP_EXCLUDED));
     }
 

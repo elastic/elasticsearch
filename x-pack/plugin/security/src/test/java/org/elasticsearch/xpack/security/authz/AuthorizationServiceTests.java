@@ -2006,10 +2006,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             () -> authorize(authentication, TransportSearchAction.TYPE.name(), denied)
         );
         assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
-        assertThat(
-            e,
-            throwableWithMessage(containsString("on indices [" + index + "] because field level security excludes [@timestamp]"))
-        );
+        assertThat(e, throwableWithMessage(containsString("because field level security excludes [@timestamp]")));
+        assertThat(e, throwableWithMessage(not(containsString("on indices ["))));
         verify(auditTrail).accessDenied(
             eq(requestId),
             eq(authentication),

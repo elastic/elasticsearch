@@ -637,6 +637,9 @@ public interface AuthorizationEngine {
         public static final IndexAuthorizationResult EMPTY = new IndexAuthorizationResult(null);
         public static final IndexAuthorizationResult ALLOW_NO_INDICES = new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES);
 
+        private static final String TIMESTAMP_EXCLUSION_DESCRIPTION = "because field level security excludes [@timestamp], which is "
+            + "always visible on data stream backing indices and on indices whose index mode requires it";
+
         private final IndicesAccessControl indicesAccessControl;
 
         public IndexAuthorizationResult(IndicesAccessControl indicesAccessControl) {
@@ -655,23 +658,16 @@ public interface AuthorizationEngine {
                 if (indices == null
                     || indices.length == 0
                     || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
-                    return timestampExcludedIndices.isEmpty() ? null : getTimestampExclusionDescription(timestampExcludedIndices);
+                    return timestampExcludedIndices.isEmpty() ? null : TIMESTAMP_EXCLUSION_DESCRIPTION;
                 }
                 Set<String> deniedIndices = Arrays.stream(indices)
                     .filter(index -> false == indicesAccessControl.hasIndexPermissions(index))
                     .collect(Collectors.toSet());
                 if (deniedIndices.isEmpty() && timestampExcludedIndices.isEmpty() == false) {
-                    return getTimestampExclusionDescription(timestampExcludedIndices);
+                    return TIMESTAMP_EXCLUSION_DESCRIPTION;
                 }
                 return getFailureDescription(deniedIndices, restrictedIndices);
             }
-        }
-
-        private static String getTimestampExclusionDescription(Set<String> timestampExcludedIndices) {
-            return "on indices ["
-                + String.join(",", timestampExcludedIndices.stream().sorted().toList())
-                + "] because field level security excludes [@timestamp], which is always visible on data stream backing indices "
-                + "and on indices whose index mode requires it";
         }
 
         public static String getFailureDescription(Collection<String> deniedIndices, RestrictedIndices restrictedNames) {

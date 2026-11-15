@@ -12,9 +12,15 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -27,6 +33,9 @@ import org.hamcrest.Matcher;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
@@ -117,5 +126,23 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         Alias bucketAlias = as(stepEval.fields().getFirst(), Alias.class);
         assertThat(bucketAlias.id(), equalTo(stepInTsAgg.id()));
         assertThat(bucketAlias.id(), equalTo(step.id()));
+    }
+
+    /**
+     * The labels each view of the source's series in {@code plan} leaves out, sorted: the typed label container's
+     * {@link TimeSeriesWithout}, or the {@code _timeseries} attribute it is lowered to.
+     */
+    protected static Set<List<String>> sourceViews(LogicalPlan plan) {
+        var views = new LinkedHashSet<List<String>>();
+        plan.forEachDown(node -> node.forEachExpressionDown(Expression.class, e -> {
+            switch (e) {
+                case TimeSeriesWithout without -> views.add(without.children().stream().map(c -> ((Attribute) c).name()).sorted().toList());
+                case TimeSeriesMetadataAttribute lowered -> views.add(lowered.excludedFields().stream().sorted().toList());
+                case FieldAttribute field when field.name().equals(MetadataAttribute.TIMESERIES) -> views.add(List.of());
+                default -> {
+                }
+            }
+        }));
+        return views;
     }
 }

@@ -74,6 +74,7 @@ public class MistralChatCompletionModel extends MistralModel {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new MistralChatCompletionServiceSettings(
             request.model(),
+            originalModelServiceSettings.url(),
             originalModelServiceSettings.rateLimitSettings()
         );
 
@@ -106,7 +107,7 @@ public class MistralChatCompletionModel extends MistralModel {
 
     private void setPropertiesFromServiceSettings(MistralChatCompletionServiceSettings serviceSettings) {
         this.rateLimitSettings = serviceSettings.rateLimitSettings();
-        setEndpointUrl();
+        setEndpointUrl(serviceSettings.url());
     }
 
     private void setEndpointUrl() {
@@ -115,6 +116,15 @@ public class MistralChatCompletionModel extends MistralModel {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void setEndpointUrl(@Nullable URI url) {
+        if (url != null) {
+            this.uri = url;
+            return;
+        }
+
+        setEndpointUrl();
     }
 
     @Override

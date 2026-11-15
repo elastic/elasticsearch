@@ -25,11 +25,14 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<MistralEmbeddingsServiceSettings> {
 
@@ -50,9 +53,12 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
 
     private static final int DEFAULT_RATE_LIMIT = 240;
 
+    private static final String TEST_URL = "https://custom.mistral.example.com/v1/embeddings";
+    private static final String INITIAL_TEST_URL = "https://initial.mistral.example.com/v1/embeddings";
+
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {
         var serviceSettings = MistralEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(TEST_MODEL_ID, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_SIMILARITY, TEST_RATE_LIMIT),
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_URL, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_SIMILARITY, TEST_RATE_LIMIT),
             randomFrom(ConfigurationParseContext.values())
         );
 
@@ -61,6 +67,7 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
             is(
                 new MistralEmbeddingsServiceSettings(
                     TEST_MODEL_ID,
+                    URI.create(TEST_URL),
                     TEST_DIMENSIONS,
                     TEST_MAX_INPUT_TOKENS,
                     TEST_SIMILARITY,
@@ -79,6 +86,51 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
         assertThat(
             serviceSettings,
             is(new MistralEmbeddingsServiceSettings(TEST_MODEL_ID, null, null, null, new RateLimitSettings(DEFAULT_RATE_LIMIT)))
+        );
+    }
+
+    public void testFromMap_NoUrl_UrlIsNull() {
+        var serviceSettings = MistralEmbeddingsServiceSettings.fromMap(
+            buildServiceSettingsMap(TEST_MODEL_ID, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_SIMILARITY, TEST_RATE_LIMIT),
+            randomFrom(ConfigurationParseContext.values())
+        );
+
+        assertNull(serviceSettings.url());
+        assertThat(
+            serviceSettings,
+            is(
+                new MistralEmbeddingsServiceSettings(
+                    TEST_MODEL_ID,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testFromMap_InvalidUrl_ThrowsValidationError() {
+        var invalidUrl = "^invalid-url";
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> MistralEmbeddingsServiceSettings.fromMap(
+                buildServiceSettingsMap(TEST_MODEL_ID, invalidUrl, null, null, null, null),
+                randomFrom(ConfigurationParseContext.values())
+            )
+        );
+
+        assertThat(thrownException.validationErrors().size(), is(1));
+        assertThat(
+            thrownException.validationErrors().getFirst(),
+            startsWith(Strings.format("[service_settings] Invalid url [%s] received for field [%s]", invalidUrl, ServiceFields.URL))
+        );
+    }
+
+    public void testFromMap_EmptyUrl_ThrowsValidationError() {
+        assertFromMap_FieldIsInvalid_ThrowsValidationError(
+            buildServiceSettingsMap(TEST_MODEL_ID, "", null, null, null, null),
+            Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", ServiceFields.URL)
         );
     }
 
@@ -155,9 +207,17 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
     }
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var settingsMap = buildServiceSettingsMap(TEST_MODEL_ID, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_SIMILARITY, TEST_RATE_LIMIT);
+        var settingsMap = buildServiceSettingsMap(
+            TEST_MODEL_ID,
+            TEST_URL,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY,
+            TEST_RATE_LIMIT
+        );
         var originalServiceSettings = new MistralEmbeddingsServiceSettings(
             INITIAL_TEST_MODEL_ID,
+            URI.create(INITIAL_TEST_URL),
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_SIMILARITY,
@@ -170,6 +230,7 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
             is(
                 new MistralEmbeddingsServiceSettings(
                     INITIAL_TEST_MODEL_ID,
+                    URI.create(INITIAL_TEST_URL),
                     INITIAL_TEST_DIMENSIONS,
                     TEST_MAX_INPUT_TOKENS,
                     INITIAL_TEST_SIMILARITY,
@@ -179,9 +240,24 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
         );
     }
 
+    public void testUpdateServiceSettings_UrlProvided_OriginalWithoutUrl_UrlStaysNull() {
+        var originalServiceSettings = new MistralEmbeddingsServiceSettings(
+            INITIAL_TEST_MODEL_ID,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            INITIAL_TEST_SIMILARITY,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>(Map.of(ServiceFields.URL, TEST_URL)));
+
+        assertNull(updatedServiceSettings.url());
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
+    }
+
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
         var originalServiceSettings = new MistralEmbeddingsServiceSettings(
             INITIAL_TEST_MODEL_ID,
+            URI.create(INITIAL_TEST_URL),
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_SIMILARITY,
@@ -193,6 +269,7 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
     public void testToXContent_WritesAllValues() throws IOException {
         var entity = new MistralEmbeddingsServiceSettings(
             TEST_MODEL_ID,
+            URI.create(TEST_URL),
             TEST_DIMENSIONS,
             TEST_MAX_INPUT_TOKENS,
             TEST_SIMILARITY,
@@ -206,6 +283,7 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
         var expected = XContentHelper.stripWhitespace(Strings.format("""
             {
                 "model": "%s",
+                "url": "%s",
                 "dimensions": %d,
                 "similarity": "%s",
                 "max_input_tokens": %d,
@@ -213,7 +291,7 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
                     "requests_per_minute": %d
                 }
             }
-            """, TEST_MODEL_ID, TEST_DIMENSIONS, TEST_SIMILARITY, TEST_MAX_INPUT_TOKENS, TEST_RATE_LIMIT));
+            """, TEST_MODEL_ID, TEST_URL, TEST_DIMENSIONS, TEST_SIMILARITY, TEST_MAX_INPUT_TOKENS, TEST_RATE_LIMIT));
 
         assertThat(xContentResult, is(expected));
     }
@@ -244,10 +322,24 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer rateLimit
     ) {
+        return buildServiceSettingsMap(modelId, null, dimensions, maxInputTokens, similarity, rateLimit);
+    }
+
+    public static Map<String, Object> buildServiceSettingsMap(
+        @Nullable String modelId,
+        @Nullable String url,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens,
+        @Nullable SimilarityMeasure similarity,
+        @Nullable Integer rateLimit
+    ) {
         var map = new HashMap<String, Object>();
 
         if (modelId != null) {
             map.put(MistralConstants.MODEL_FIELD, modelId);
+        }
+        if (url != null) {
+            map.put(ServiceFields.URL, url);
         }
         if (dimensions != null) {
             map.put(ServiceFields.DIMENSIONS, dimensions);
@@ -270,7 +362,19 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
         MistralEmbeddingsServiceSettings instance,
         TransportVersion version
     ) {
-        return instance;
+        if (version.supports(MistralConstants.INFERENCE_API_MISTRAL_URL_ADDED)) {
+            return instance;
+        }
+
+        // Older versions do not send the url over the wire, so it is lost in the round trip
+        return new MistralEmbeddingsServiceSettings(
+            instance.modelId(),
+            null,
+            instance.dimensions(),
+            instance.maxInputTokens(),
+            instance.similarity(),
+            instance.rateLimitSettings()
+        );
     }
 
     @Override
@@ -286,20 +390,26 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
     @Override
     protected MistralEmbeddingsServiceSettings mutateInstance(MistralEmbeddingsServiceSettings instance) throws IOException {
         var modelId = instance.modelId();
+        var url = instance.url();
         var dimensions = instance.dimensions();
         var maxInputTokens = instance.maxInputTokens();
         var similarity = instance.similarity();
         var rateLimitSettings = instance.rateLimitSettings();
-        switch (randomInt(4)) {
+        switch (randomInt(5)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
             case 1 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(32, 256), null));
             case 2 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
             case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
             case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 5 -> url = randomValueOtherThan(url, MistralEmbeddingsServiceSettingsTests::randomOptionalUrl);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new MistralEmbeddingsServiceSettings(modelId, dimensions, maxInputTokens, similarity, rateLimitSettings);
+        return new MistralEmbeddingsServiceSettings(modelId, url, dimensions, maxInputTokens, similarity, rateLimitSettings);
+    }
+
+    private static URI randomOptionalUrl() {
+        return randomBoolean() ? null : createUri("https://" + randomAlphaOfLength(8) + ".example");
     }
 
     private static MistralEmbeddingsServiceSettings createRandom() {
@@ -309,6 +419,7 @@ public class MistralEmbeddingsServiceSettingsTests extends AbstractBWCWireSerial
         var similarityMeasure = randomFrom(SimilarityMeasure.values());
         return new MistralEmbeddingsServiceSettings(
             modelId,
+            randomOptionalUrl(),
             dimensions,
             maxInputTokens,
             similarityMeasure,

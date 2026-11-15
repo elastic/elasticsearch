@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mistral.action.MistralActionCreator;
+import org.elasticsearch.xpack.inference.services.mistral.compatibility.CompatibilityService;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
@@ -56,6 +58,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.mistral.MistralConstants.MODEL_FIELD;
 
@@ -77,26 +80,38 @@ public class MistralService extends SenderService<MistralModel> {
         "mistral chat completions",
         OpenAiUnifiedChatCompletionResponseEntity::fromResponse
     );
-    private static final MistralChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new MistralChatCompletionModelCreator();
-    private static final Map<TaskType, ModelCreator<? extends MistralModel>> MODEL_CREATORS = Map.of(
-        TaskType.TEXT_EMBEDDING,
-        new MistralEmbeddingsModelCreator(),
-        TaskType.COMPLETION,
-        COMPLETION_MODEL_CREATOR,
-        TaskType.CHAT_COMPLETION,
-        COMPLETION_MODEL_CREATOR
-    );
 
     public MistralService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        this(factory, serviceComponents, context.clusterService());
+        this(factory, serviceComponents, context.clusterService(), context.featureService());
     }
 
-    public MistralService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService, MODEL_CREATORS);
+    public MistralService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ClusterService clusterService,
+        FeatureService featureService
+    ) {
+        super(factory, serviceComponents, clusterService, createModelCreators(clusterService, featureService));
+    }
+
+    private static Map<TaskType, ModelCreator<? extends MistralModel>> createModelCreators(
+        ClusterService clusterService,
+        FeatureService featureService
+    ) {
+        var compatibilityService = new CompatibilityService(clusterService, featureService);
+        var completionModelCreator = new MistralChatCompletionModelCreator(compatibilityService);
+        return Map.of(
+            TaskType.TEXT_EMBEDDING,
+            new MistralEmbeddingsModelCreator(compatibilityService),
+            TaskType.COMPLETION,
+            completionModelCreator,
+            TaskType.CHAT_COMPLETION,
+            completionModelCreator
+        );
     }
 
     @Override
@@ -220,6 +235,7 @@ public class MistralService extends SenderService<MistralModel> {
 
             MistralEmbeddingsServiceSettings updatedServiceSettings = new MistralEmbeddingsServiceSettings(
                 serviceSettings.modelId(),
+                serviceSettings.url(),
                 embeddingSize,
                 serviceSettings.maxInputTokens(),
                 similarityToUse,
@@ -251,6 +267,23 @@ public class MistralService extends SenderService<MistralModel> {
                     )
                         .setLabel("Model")
                         .setRequired(true)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    URL,
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
+                        "The absolute URL of the Mistral API endpoint to send requests to, including the path. Defaults to "
+                            + MistralConstants.API_EMBEDDINGS_PATH
+                            + " for text_embedding and "
+                            + MistralConstants.API_COMPLETIONS_PATH
+                            + " for completion and chat_completion."
+                    )
+                        .setLabel("URL")
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)

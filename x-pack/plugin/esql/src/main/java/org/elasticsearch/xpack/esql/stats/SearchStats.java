@@ -49,11 +49,10 @@ public interface SearchStats {
     }
 
     /**
-     * Whether every shard here that maps {@code path} as nested also indexes its objects' fields in the parent document, with
-     * {@code include_in_parent} or {@code include_in_root}. A query on a child field then matches the parents of the objects
-     * it matches.
+     * Whether Lucene can compare this nested child's values exactly as its block loader reads them, as {@code type},
+     * on every applicable shard. Requires searchable doc values and excludes normalizers that also change query literals.
      */
-    default boolean nestedCopiedToParent(String path) {
+    default boolean nestedFieldIsQueryable(FieldName field, DataType type) {
         return false;
     }
 

@@ -4865,9 +4865,9 @@ public class EsqlCapabilities {
         NESTED_FLATTEN(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),
 
         /**
-         * A {@code WHERE} on the columns {@code NESTED_EXPAND} adds narrows the parents Lucene returns where the nested field
-         * is copied into the parent with {@code include_in_parent} or {@code include_in_root}; {@code NESTED_EXPAND} and
-         * {@code NESTED_FLATTEN} only run on the data nodes. Stays unadvertised under the same switch as
+         * A {@code WHERE} on the columns {@code NESTED_EXPAND} adds narrows the parents Lucene returns with a nested query
+         * over their child documents. The row filter remains; no parent copy of the child values is required.
+         * {@code NESTED_EXPAND} and {@code NESTED_FLATTEN} only run on the data nodes. Stays unadvertised under the same switch as
          * {@link #NESTED_REDUCTIONS}.
          */
         NESTED_EXPAND_PUSHDOWN(Booleans.parseBoolean(System.getProperty("esql.nested_reductions.test_execution"), false)),

@@ -1,7 +1,6 @@
-# A WHERE on the columns NESTED_EXPAND adds narrows the parents Lucene returns when every index here copies the objects
-# into the parent document, with include_in_parent or include_in_root. A parent then matches when any of its objects
-# does, so only predicates that a matching row implies of its parent are pushed: comparisons, IN, LIKE and IS NOT NULL.
-# The WHERE still runs on every expanded row. NESTED_FLATTEN pushes nothing.
+# A WHERE on expanded columns adds a nested query over actual child documents to select parents.
+# No include_in_parent/include_in_root copy is required. Safe conjuncts must match the same child.
+# The WHERE still runs on every expanded row. Null-sensitive predicates remain in compute; NESTED_FLATTEN pushes nothing.
 # Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
 ---
 setup:
@@ -132,7 +131,7 @@ include_in_root narrows the parents:
 - match: { documents_found: 2 }
 
 ---
-without a copy in the parent nothing is pushed:
+a nested query narrows parents without copied values:
 - do:
     esql.query:
       allow_partial_results: false
@@ -142,12 +141,10 @@ without a copy in the parent nothing is pushed:
     values:
     - [q1, book]
     - [q4, cup]
-- match: { documents_found: 4 }
+- match: { documents_found: 2 }
 
 ---
-every index must copy the objects into the parent:
-# Each data node decides for its own shards, so documents_found depends on where they are; q1 and q4 show np_plain was
-# not narrowed.
+mixed copied and uncopied mappings both narrow parents:
 - do:
     esql.query:
       allow_partial_results: false
@@ -160,10 +157,11 @@ every index must copy the objects into the parent:
     - [p4, cup]
     - [q1, book]
     - [q4, cup]
+- match: { documents_found: 4 }
 
 ---
 each row still checks its own object:
-# p1 has a book and an object under 10, but not in the same object.
+# p1 has a book and an object under 10, but not in the same object. The nested prefilter excludes it.
 - do:
     esql.query:
       allow_partial_results: false
@@ -173,7 +171,7 @@ each row still checks its own object:
 - match:
     values:
     - [p2, book]
-- match: { documents_found: 2 }
+- match: { documents_found: 1 }
 
 ---
 an IN is pushed:
@@ -191,7 +189,7 @@ an IN is pushed:
 
 ---
 a negation is not pushed:
-# Pushed, it would drop p1, whose pen is not 20.
+# Keep negation in compute in this initial null-rejecting predicate whitelist.
 - do:
     esql.query:
       allow_partial_results: false
@@ -217,7 +215,7 @@ IS NULL is not pushed:
 
 ---
 NESTED_FLATTEN pushes nothing:
-# Pushed, the copied values in the parent would match p1, whose flattened sku holds two values.
+# A child query would not have the same semantics as comparison over a flattened multivalue.
 - do:
     esql.query:
       allow_partial_results: false
@@ -230,3 +228,241 @@ NESTED_FLATTEN pushes nothing:
     values:
     - [p4]
 - match: { documents_found: 4 }
+
+---
+OR predicates query children without copied parent values:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM np_plain | NESTED_EXPAND items
+          | WHERE items.price > 10 OR items.sku == "pen"
+          | KEEP id, items.sku | SORT id, items.sku | LIMIT 10
+- match:
+    values:
+    - [q1, book]
+    - [q1, pen]
+    - [q4, cup]
+- match: { documents_found: 2 }
+
+---
+renamed collection references use the original nested path:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM np_plain | EVAL o = NESTED_OBJECT(items) | RENAME o AS products
+          | NESTED_EXPAND products | WHERE products.price > 10
+          | KEEP id, products.sku | SORT id | LIMIT 10
+- match:
+    values:
+    - [q1, book]
+    - [q4, cup]
+- match: { documents_found: 2 }
+
+---
+parent disjunctions do not lose the null-preserved row:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM np_plain | NESTED_EXPAND items | WHERE id == "q3" OR items.price > 10
+          | KEEP id, items.sku | SORT id | LIMIT 10
+- match:
+    values:
+    - [q1, book]
+    - [q3, null]
+    - [q4, cup]
+- match: { documents_found: 4 }
+
+---
+null-sensitive disjunctions stay in compute:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM np_plain | NESTED_EXPAND items | WHERE items.price IS NULL OR items.price > 10
+          | KEEP id, items.sku | SORT id | LIMIT 10
+- match:
+    values:
+    - [q1, book]
+    - [q3, null]
+    - [q4, cup]
+- match: { documents_found: 4 }
+
+---
+IS NOT NULL stays in compute until existence rewriting is safe:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM np_parent | NESTED_EXPAND items | WHERE items.price IS NOT NULL | KEEP id, items.sku | SORT id, items.sku | LIMIT 10
+- match:
+    values:
+    - [p1, book]
+    - [p1, pen]
+    - [p2, book]
+    - [p4, cup]
+- match: { documents_found: 4 }
+
+---
+child multivalues retain single-value comparison semantics:
+- do:
+    indices.create:
+      index: np_multivalue
+      body:
+        mappings:
+          properties:
+            id: { type: keyword }
+            items:
+              type: nested
+              properties:
+                price: { type: long }
+                sku: { type: keyword }
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index: { _index: np_multivalue }
+      - { id: m1, items: [ { price: [20, 30], sku: multi } ] }
+      - index: { _index: np_multivalue }
+      - { id: m2, items: [ { price: 20, sku: single } ] }
+      - index: { _index: np_multivalue }
+      - { id: m3, items: [ { price: 20, sku: left }, { price: 5, sku: right } ] }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM np_multivalue | NESTED_EXPAND items | WHERE items.price > 10
+          | KEEP id, items.sku | SORT id | LIMIT 10
+    allowed_warnings_regex:
+    - "Line 1:\\d+: evaluation of \\[.*\\] failed, treating result as null. Only first 20 failures recorded."
+    - "Line 1:\\d+: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+- match:
+    values:
+    - [m2, single]
+    - [m3, left]
+- match: { documents_found: 2 }
+
+---
+normalized keyword predicates compare loaded values in both pushdown rules:
+- do:
+    indices.create:
+      index: np_normalized
+      body:
+        settings:
+          analysis:
+            normalizer:
+              lowercase_norm:
+                type: custom
+                filter: [lowercase]
+        mappings:
+          properties:
+            id: { type: keyword }
+            items:
+              type: nested
+              properties:
+                sku: { type: keyword, normalizer: lowercase_norm }
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index: { _index: np_normalized }
+      - { id: n1, items: [ { sku: A } ] }
+      - index: { _index: np_normalized }
+      - { id: n2, items: [ { sku: C } ] }
+      - index: { _index: np_normalized }
+      - { id: n3, items: [] }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM np_normalized | NESTED_EXPAND items | WHERE items.sku > "B" | KEEP id, items.sku | SORT id | LIMIT 10
+- match:
+    values:
+    - [n1, a]
+    - [n2, c]
+- match: { documents_found: 3 }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM np_normalized | WHERE NESTED_ANY(items.sku == "A") | KEEP id | LIMIT 10
+- match: { values: [] }
+- match: { documents_found: 3 }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM np_normalized | WHERE NESTED_ALL(items.sku == "A") | KEEP id | LIMIT 10
+- match:
+    values:
+    - [n3]
+- match: { documents_found: 3 }
+
+---
+mapped children without doc values keep source-backed filtering:
+- do:
+    indices.create:
+      index: np_source
+      body:
+        mappings:
+          properties:
+            id: { type: keyword }
+            items:
+              type: nested
+              properties:
+                price: { type: long, doc_values: false }
+                sku: { type: keyword }
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index: { _index: np_source }
+      - { id: s1, items: [ { price: 20, sku: book }, { price: 5, sku: pen } ] }
+      - index: { _index: np_source }
+      - { id: s2, items: [ { price: 1, sku: cup } ] }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM np_source | NESTED_EXPAND items | WHERE items.price > 10 | KEEP id, items.sku | LIMIT 10
+- match:
+    values:
+    - [s1, book]
+- match: { documents_found: 2 }
+
+---
+an index without a nested mapping contributes no child matches:
+# Each data node decides for its own shards, so documents_found depends on where they are: a node with only np_unmapped
+# reads u1 and filters it in memory.
+- do:
+    indices.create:
+      index: np_unmapped
+      body:
+        mappings:
+          dynamic: false
+          properties:
+            id: { type: keyword }
+- do:
+    index:
+      index: np_unmapped
+      id: u1
+      refresh: true
+      body: { id: u1, items: [ { price: 999, sku: source-only } ] }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM np_plain, np_unmapped | NESTED_EXPAND items | WHERE items.price > 10
+          | KEEP id, items.sku | SORT id | LIMIT 10
+- match:
+    values:
+    - [q1, book]
+    - [q4, cup]

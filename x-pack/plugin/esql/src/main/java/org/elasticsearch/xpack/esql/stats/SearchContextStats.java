@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
@@ -226,17 +225,6 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
-    public boolean nestedCopiedToParent(String path) {
-        for (SearchExecutionContext context : contexts) {
-            NestedObjectMapper nested = context.nestedLookup().getNestedMappers().get(path);
-            if (nested != null && nested.isIncludeInParent() == false && nested.isIncludeInRoot() == false) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Override
     public boolean nestedFieldIsSearchable(FieldName field) {
         boolean mapped = false;
         for (SearchExecutionContext context : contexts) {
@@ -250,6 +238,21 @@ public class SearchContextStats implements SearchStats {
             }
         }
         return mapped;
+    }
+
+    @Override
+    public boolean nestedFieldIsQueryable(FieldName field, DataType type) {
+        if (nestedFieldIsSearchable(field) == false || nestedFieldHasDocValues(field) == false) {
+            return false;
+        }
+        for (SearchExecutionContext context : contexts) {
+            MappedFieldType fieldType = context.getFieldType(field.string());
+            if (fieldType != null
+                && (dataType(fieldType) != type || fieldType instanceof KeywordFieldType keyword && keyword.hasNormalizer())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

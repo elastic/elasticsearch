@@ -2730,6 +2730,7 @@ limitk_without_keeps_k_per_partition
 required_capability: promql_command_v0
 required_capability: promql_limitk
 required_capability: promql_reduction_without
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(count by (cluster) (limitk without (pod) (1, last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, cluster

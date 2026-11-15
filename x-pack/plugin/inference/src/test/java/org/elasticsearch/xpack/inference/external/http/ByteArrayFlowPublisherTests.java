@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -459,7 +460,9 @@ public class ByteArrayFlowPublisherTests extends ESTestCase {
     private static class TestSubscriber implements Flow.Subscriber<byte[]> {
         private final long initialDemand;
         private final List<byte[]> items = Collections.synchronizedList(new ArrayList<>());
-        private final List<String> events = Collections.synchronizedList(new ArrayList<>());
+        // Copy-on-write so assertions can iterate safely while the publisher's thread is still appending; iterating a synchronizedList
+        // without holding its lock can throw ConcurrentModificationException.
+        private final List<String> events = new CopyOnWriteArrayList<>();
         private final CountDownLatch terminalLatch = new CountDownLatch(1);
         private final AtomicLong outstanding = new AtomicLong();
         private volatile Flow.Subscription subscription;

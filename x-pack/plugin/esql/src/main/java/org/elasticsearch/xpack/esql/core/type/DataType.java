@@ -253,7 +253,12 @@ public enum DataType implements Writeable {
         builder().esType("integer").estimatedSize(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER).supportedOnAllNodes()
     ),
     /**
-     * 64-bit unsigned numbers packed into a java {@code long}.
+     * 64-bit unsigned numbers packed into a java {@code long}. ESQL stores {@code unsigned_long} inside a signed {@code LongBlock}
+     * with the sign bit flipped. This allows signed-long ordering to match unsigned ordering. The
+     * {@link org.elasticsearch.xpack.esql.core.util.NumericUtils}
+     * class provides conversion and calculation utilities for this encoding.
+     *
+     * @see org.elasticsearch.xpack.esql.core.util.NumericUtils#unsignedLongAsNumber(long)
      */
     UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues().supportedOnAllNodes()),
     /**
@@ -422,6 +427,13 @@ public enum DataType implements Writeable {
             .estimatedSize(Long.BYTES * 2)
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
+    ),
+    /**
+     * Dynamically loaded label container: a label dictionary that PromQL manipulates internally. Never reaches a response: PromQL
+     * hands the user its keyword JSON form.
+     */
+    TIME_SERIES_METADATA_DATA_TYPE(
+        builder().typeName("_tsmd").estimatedSize(1024).underConstruction(TransportVersion.fromName("tsmd_data_type"))
     ),
     PARTIAL_AGG(
         builder().esType("partial_agg")
@@ -831,7 +843,8 @@ public enum DataType implements Writeable {
         SCALED_FLOAT,
         HALF_FLOAT,
         PARTIAL_AGG,
-        DOC_DATA_TYPE
+        DOC_DATA_TYPE,
+        TIME_SERIES_METADATA_DATA_TYPE
     );
 
     /**
@@ -846,10 +859,14 @@ public enum DataType implements Writeable {
     /**
      * Types permitted as general-purpose values by expression validation. Individual functions may impose further
      * restrictions. Counters and {@code _source} require special handling in expressions rather than being accepted
-     * wherever a representable value is expected.
+     * wherever a representable value is expected. A typed label container never reaches a response but is an ordinary
+     * value inside the plan.
      */
     public static boolean isRepresentableInExpression(DataType t) {
-        return isRepresentableInOutput(t) && t.isCounter() == false && t != SOURCE && t != UNSUPPORTED;
+        return (isRepresentableInOutput(t) || t == TIME_SERIES_METADATA_DATA_TYPE)
+            && t.isCounter() == false
+            && t != SOURCE
+            && t != UNSUPPORTED;
     }
 
     public static boolean isCounter(DataType t) {
@@ -889,7 +906,8 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE
+        return false == (t == TIME_SERIES_METADATA_DATA_TYPE
+            || t == SOURCE
             || isCounter(t)
             || isSpatialOrGrid(t)
             || t == AGGREGATE_METRIC_DOUBLE

@@ -341,8 +341,7 @@ public class SingleValueQuery extends Query {
             if (singleValueQuery instanceof MatchAllDocsQuery == false) {
                 builder.add(singleValueQuery, BooleanClause.Occur.FILTER);
             }
-
-            org.apache.lucene.search.Query ignored = new TermQuery(new org.apache.lucene.index.Term(IgnoredFieldMapper.NAME, ft.name()));
+            org.apache.lucene.search.Query ignored = context.getFieldType(IgnoredFieldMapper.NAME).termQuery(ft.name(), context);
             ignored = ignored.rewrite(context.searcher());
             if (ignored instanceof MatchNoDocsQuery == false) {
                 builder.add(ignored, BooleanClause.Occur.MUST_NOT);
@@ -425,7 +424,7 @@ public class SingleValueQuery extends Query {
             ft = ((TextFieldMapper.TextFieldType) ft).syntheticSourceDelegate().orElse(null);
             org.apache.lucene.search.Query svNext = simple(ft, context);
 
-            org.apache.lucene.search.Query ignored = new TermQuery(new org.apache.lucene.index.Term(IgnoredFieldMapper.NAME, ft.name()));
+            org.apache.lucene.search.Query ignored = context.getFieldType(IgnoredFieldMapper.NAME).termQuery(ft.name(), context);
             ignored = ignored.rewrite(context.searcher());
             if (ignored instanceof MatchNoDocsQuery) {
                 return svNext;

@@ -67,7 +67,7 @@ public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
         closed = true;
         IntVector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstantIntBlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = blockFactory.newConstantIntVector(values[0], 1, preAdjustedBytes);
         } else {
             vector = blockFactory.newIntArrayVector(values, values.length, preAdjustedBytes);
         }
@@ -84,6 +84,7 @@ public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
         }
     }
 
+    @Override
     public boolean isReleased() {
         return closed;
     }

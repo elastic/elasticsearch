@@ -11,6 +11,9 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -617,7 +620,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * - If shard is a (primary or replica) relocation target, this also clears the relocation information on the source shard.
      *
      */
-    public void failShard(ShardRouting failedShard, UnassignedInfo unassignedInfo, RoutingChangesObserver routingChangesObserver) {
+    public void failShard(
+        ShardRouting failedShard,
+        UnassignedInfo unassignedInfo,
+        RoutingChangesObserver routingChangesObserver,
+        Metadata metadata
+    ) {
         ensureMutable();
         assert failedShard.assignedToNode() : "only assigned shards can be failed";
         assert getByAllocationId(failedShard.shardId(), failedShard.allocationId().getId()) == failedShard
@@ -648,7 +656,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                             Collections.emptySet(),
                             routing.currentNodeId()
                         );
-                        failShard(replicaShard, primaryFailedUnassignedInfo, routingChangesObserver);
+                        failShard(replicaShard, primaryFailedUnassignedInfo, routingChangesObserver, metadata);
                     }
                 }
             }
@@ -675,10 +683,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             if (failedShard.relocatingNodeId() == null) {
                 if (failedShard.primary()) {
                     // promote active replica to primary if active replica exists (only the case for shadow replicas)
-                    unassignPrimaryAndPromoteActiveReplicaIfExists(failedShard, unassignedInfo, routingChangesObserver);
+                    unassignPrimaryAndPromoteActiveReplicaIfExists(failedShard, unassignedInfo, routingChangesObserver, metadata);
                 } else {
                     // initializing shard that is not relocation target, just move to unassigned
-                    moveFailedShardToUnassigned(failedShard, unassignedInfo);
+                    moveFailedShardToUnassigned(failedShard, unassignedInfo, metadata);
                 }
             } else {
                 // The shard is a target of a relocating shard. In that case we only need to remove the target shard and cancel the source
@@ -696,12 +704,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             assert failedShard.active();
             if (failedShard.primary()) {
                 // promote active replica to primary if active replica exists
-                unassignPrimaryAndPromoteActiveReplicaIfExists(failedShard, unassignedInfo, routingChangesObserver);
+                unassignPrimaryAndPromoteActiveReplicaIfExists(failedShard, unassignedInfo, routingChangesObserver, metadata);
             } else {
                 if (failedShard.relocating()) {
                     remove(failedShard);
                 } else {
-                    moveFailedShardToUnassigned(failedShard, unassignedInfo);
+                    moveFailedShardToUnassigned(failedShard, unassignedInfo, metadata);
                 }
             }
         }
@@ -713,12 +721,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private void unassignPrimaryAndPromoteActiveReplicaIfExists(
         ShardRouting failedPrimary,
         UnassignedInfo unassignedInfo,
-        RoutingChangesObserver routingChangesObserver
+        RoutingChangesObserver routingChangesObserver,
+        Metadata metadata
     ) {
         assert failedPrimary.primary();
         ShardRouting replicaToPromote = activePromotableReplicaWithHighestVersion(failedPrimary.shardId());
         if (replicaToPromote == null) {
-            moveFailedShardToUnassigned(failedPrimary, unassignedInfo);
+            moveFailedShardToUnassigned(failedPrimary, unassignedInfo, metadata);
             for (ShardRouting unpromotableReplica : List.copyOf(assignedShards(failedPrimary.shardId()))) {
                 assert unpromotableReplica.primary() == false : unpromotableReplica;
                 assert unpromotableReplica.isPromotableToPrimary() == false : unpromotableReplica;
@@ -736,7 +745,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         AllocationStatus.NO_ATTEMPT,
                         Set.of(),
                         unpromotableReplica.currentNodeId()
-                    )
+                    ),
+                    metadata
                 );
             }
         } else {
@@ -907,10 +917,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         shardsWithMatchingShardId.set(previousShardIndex, newShard);
     }
 
-    private ShardRouting moveFailedShardToUnassigned(ShardRouting shard, UnassignedInfo unassignedInfo) {
+    private ShardRouting moveFailedShardToUnassigned(ShardRouting shard, UnassignedInfo unassignedInfo, Metadata metadata) {
         assert shard.unassigned() == false : "only assigned shards can be moved to unassigned (" + shard + ")";
         remove(shard);
-        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, failedShardRecoveryPriority(shard));
+        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, failedShardRecoveryPriority(shard, metadata));
         unassignedShards.add(unassigned);
         return unassigned;
     }
@@ -919,16 +929,32 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /// has reduced availability, so it takes priority [RecoveryPriority#UNASSIGNED_UNEXPECTED]. If the
     /// shard failed before becoming active then the failure has not reduced availability, and recovering it again is
     /// just a retry, so it keeps the last priority it had.
-    private static RecoveryPriority failedShardRecoveryPriority(ShardRouting failedShard) {
-        // TODO: a reshard split target primary takes over writes for its share of the documents at HANDOFF, before it becomes
-        // active, so its failure in that window does reduce availability. It then keeps UNASSIGNED_PERFORMANCE_SCALING and its
-        // recovery queues behind any pending split clones. It should be UNASSIGNED_UNEXPECTED. In practice, the window
-        // is small but this should still be fixed.
-        if (failedShard.initializing()) {
-            assert failedShard.relocatingNodeId() == null && failedShard.recoveryPriority().isValidForUnassigned() : failedShard;
-            return failedShard.recoveryPriority();
+    private static RecoveryPriority failedShardRecoveryPriority(ShardRouting failedShard, Metadata metadata) {
+        if (failedShard.active()) {
+            return RecoveryPriority.UNASSIGNED_UNEXPECTED;
         }
-        return RecoveryPriority.UNASSIGNED_UNEXPECTED;
+        assert failedShard.initializing() : "failed shard must be initializing if it is not active: " + failedShard;
+        assert failedShard.recoveryPriority().isValidForUnassigned()
+            : "failed initializing shard must not be a relocation target: " + failedShard;
+
+        // A reshard split target primary takes over writes for its share at [IndexReshardingState.Split.TargetShardState#HANDOFF],
+        // before it becomes active. Its failure from then on does reduce availability, so it should also take priority
+        // [RecoveryPriority#UNASSIGNED_UNEXPECTED] rather than queueing behind other deferrable recoveries
+        // such as pending split clones.
+        if (failedShard.primary() && failedShard.recoverySource().getType() == RecoverySource.Type.RESHARD_SPLIT) {
+            final IndexReshardingMetadata reshardingMetadata = metadata.indexMetadata(failedShard.index()).getReshardingMetadata();
+            // The resharding metadata is added along with the split target shards and only removed once all of them are done,
+            // and only split target shards use a RESHARD_SPLIT recovery source. IndexRoutingTable#validate asserts this.
+            assert reshardingMetadata != null : "missing resharding metadata for failed split target shard: " + failedShard;
+            assert IndexReshardingMetadata.isSplitTarget(failedShard.shardId(), reshardingMetadata)
+                : "failed shard with a RESHARD_SPLIT recovery source must be a split target: " + failedShard;
+            if (IndexReshardingMetadata.isSplitTarget(failedShard.shardId(), reshardingMetadata) == false
+                || reshardingMetadata.getSplit()
+                    .targetStateAtLeast(failedShard.id(), IndexReshardingState.Split.TargetShardState.HANDOFF)) {
+                return RecoveryPriority.UNASSIGNED_UNEXPECTED;
+            }
+        }
+        return failedShard.recoveryPriority();
     }
 
     /**

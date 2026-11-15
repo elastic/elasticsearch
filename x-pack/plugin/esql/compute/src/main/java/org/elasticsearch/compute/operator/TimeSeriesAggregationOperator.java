@@ -197,16 +197,11 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     }
 
     @Override
-    protected boolean shouldEmitPartialResultsPeriodically(Page incomingPage) {
-        if (super.shouldEmitPartialResultsPeriodically(incomingPage) == false) {
-            return false;
+    protected boolean canEmitCurrentBatchPeriodically() {
+        if (aggregatorMode == AggregatorMode.SINGLE) {
+            return aggregators.isEmpty() == false;
         }
-        for (GroupingAggregator aggregator : aggregators) {
-            if (aggregator.aggregatorFunction().canEmitPartialResultsPeriodically(incomingPage) == false) {
-                return false;
-            }
-        }
-        return true;
+        return super.canEmitCurrentBatchPeriodically();
     }
 
     private long largestWindowMillis() {

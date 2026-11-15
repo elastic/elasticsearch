@@ -52,7 +52,6 @@ public final class TimeSeriesBlockHash extends PartitionedBlockHash {
     private final boolean trackTimestamp;
     private long minTimestamp = Long.MAX_VALUE;
     private long maxTimestamp = Long.MIN_VALUE;
-    private TimeSeriesPartitionedHash partitioned;
 
     public TimeSeriesBlockHash(
         int tsidChannel,
@@ -104,14 +103,11 @@ public final class TimeSeriesBlockHash extends PartitionedBlockHash {
     }
 
     private TimeSeriesPartitionedHash partitioned() {
-        if (partitioned == null) {
-            if (tsidHash instanceof BytesRefSwissHash bytes && finalHash instanceof LongLongSwissHash longlong) {
-                partitioned = new TimeSeriesPartitionedHash(bytes, longlong, blockFactory.bigArrays());
-            } else {
-                throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
-            }
+        if (tsidHash instanceof BytesRefSwissHash bytes && finalHash instanceof LongLongSwissHash longlong) {
+            return new TimeSeriesPartitionedHash(bytes, longlong, blockFactory.bigArrays());
+        } else {
+            throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
         }
-        return partitioned;
     }
 
     @Override
@@ -328,7 +324,7 @@ public final class TimeSeriesBlockHash extends PartitionedBlockHash {
     }
 
     private Block[] buildOrdinalKeys(IntVector selected) {
-        if (partitioned == null && selected.getPositionCount() == finalHash.size()) {
+        if (selected.getPositionCount() == finalHash.size()) {
             return buildFullDictionaryOrdinalKeys(selected);
         }
         return buildPageLocalDictionaryOrdinalKeys(selected);
@@ -346,14 +342,15 @@ public final class TimeSeriesBlockHash extends PartitionedBlockHash {
                 tsidOrds.appendInt(p, (int) finalHash.getKey1(groupId));
                 timestamps.appendLong(p, finalHash.getKey2(groupId));
             }
-            final BytesRefArray bytes = tsidHash.getBytesRefs();
-            var dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
-            bytes.incRef();
+            BytesRefArray bytes = tsidHash.getBytesRefs().deepCopy();
+            BytesRefVector dict = null;
             try {
+                dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
+                bytes = null; // owned by dict
                 blocks[0] = new OrdinalBytesRefVector(tsidOrds.build(), dict).asBlock();
             } finally {
                 if (blocks[0] == null) {
-                    dict.close();
+                    Releasables.close(bytes, dict);
                 }
             }
             blocks[1] = timestamps.build().asBlock();

@@ -28,6 +28,7 @@ import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.IndexingDiskController;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
@@ -50,11 +51,15 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegTestCase {
@@ -335,6 +340,68 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
             assertThat(safeGet(preFlush.result()).skippedDueToCollision(), is(false));
         }
         ensureGreen(indexName);
+    }
+
+    /// verify prewarm is sent after the preflush and asks to prewarm the BCC the preflush uploaded
+    public void testPreFlushPrecedesPrewarms() {
+        final var sourceNode = startMasterAndIndexNode(
+            // disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
+            Settings.builder().put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false).build()
+        );
+        final var indexName = createTestIndex();
+
+        final var uploadedBccNames = new CopyOnWriteArrayList<String>();
+        setNodeRepositoryStrategy(sourceNode, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerWriteBlobAtomic(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                if (blobName.startsWith(BatchedCompoundCommit.PREFIX)) {
+                    uploadedBccNames.add(blobName);
+                }
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+            }
+        });
+
+        // the first BCC is uploaded by this `flush`
+        indexDocs(indexName, randomIntBetween(10, 20));
+        flush(indexName);
+
+        // do not `flush` here, so the preflush (during relocation) is the one that performs the flush and is what
+        // the target node will prewarm
+        indexDocs(indexName, randomIntBetween(10, 20));
+
+        final var preFlush = installPreFlushObserver(sourceNode, indexName);
+        final var preFlushDoneAtPrewarmSend = new AtomicBoolean();
+        final var prewarmedBccGeneration = new AtomicReference<Long>();
+        final var sourceTransportService = MockTransportService.getInstance(sourceNode);
+
+        sourceTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME.equals(action)) {
+                preFlushDoneAtPrewarmSend.set(preFlush.result().isDone());
+                prewarmedBccGeneration.set(
+                    ((TransportStatelessPrimaryRelocationPrewarmAction.Request) request).latestBccBlob().blobFile().generation()
+                );
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        safeGet(triggerRelocationAndTrackCompletionOnSource(sourceNode, indexName));
+        ensureGreen(indexName);
+
+        assertTrue("prewarm is sent after the preflush", preFlushDoneAtPrewarmSend.get());
+
+        final var preFlushResult = safeGet(preFlush.result());
+        assertThat(
+            "prewarm warms the BCC of the preflush or of a later flush",
+            prewarmedBccGeneration.get(),
+            greaterThanOrEqualTo(preFlushResult.generation())
+        );
     }
 
     private String createTestIndex() {

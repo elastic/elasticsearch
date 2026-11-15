@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164932
+summary: Emit `TS_INFO` rows early on data nodes
+type: enhancement

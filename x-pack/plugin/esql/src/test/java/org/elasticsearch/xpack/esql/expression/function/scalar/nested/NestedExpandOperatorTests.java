@@ -7,19 +7,26 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
     @Override
@@ -62,6 +69,49 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
             }
         }
         assertThat(actual, equalTo(expected));
+    }
+
+    /**
+     * Without child fields and with {@code flatten}, no block grows with the children, so the positions of the child rows
+     * are the only memory that does. They count against the breaker while the page expands, and are released after.
+     */
+    public void testChildRowPositionsCountAgainstTheBreaker() {
+        RecordingBreaker breaker = new RecordingBreaker();
+        BlockFactory blockFactory = new BlockFactory(breaker, BigArrays.NON_RECYCLING_INSTANCE);
+        DriverContext context = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
+        NestedChildren.Factory children = NestedChildren.factory(new IndexedByShardIdFromSingleton<>(shard), "items", List.of(), List.of());
+        try (Operator operator = new NestedExpandOperator.Factory(0, children, "items", List.of(), true).get(context)) {
+            operator.addInput(parents(blockFactory, 0, PARENTS));
+            operator.getOutput().releaseBlocks();
+        }
+        // 1500 children, and one row for each of the 250 parents without children
+        assertThat(breaker.added(NestedExpandOperator.BREAKER_LABEL), greaterThanOrEqualTo(1750L * Integer.BYTES));
+        assertThat(breaker.used, equalTo(0L));
+    }
+
+    /** Records the bytes reserved under each label, and the bytes held in total. */
+    private static class RecordingBreaker extends NoopCircuitBreaker {
+        private final Map<String, Long> added = new HashMap<>();
+        private long used;
+
+        RecordingBreaker() {
+            super("recording");
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            added.merge(label, bytes, Long::sum);
+            used += bytes;
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            used += bytes;
+        }
+
+        long added(String label) {
+            return added.getOrDefault(label, 0L);
+        }
     }
 
     @Override

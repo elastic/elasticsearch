@@ -72,6 +72,11 @@ public class ExistsQuery extends Query {
         @Override
         protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
             if (context instanceof SearchExecutionContext shard) {
+                // A nested query rewrites its child outside the nested scope, so only doToQuery can tell whether a sub-field of
+                // a nested object resolves
+                if (shard.nestedLookup().hasNestedParent(fieldName())) {
+                    return this;
+                }
                 // The shard may resolve a field its mapping does not match by name
                 return mappedFieldType(shard, fieldName()) == null
                     ? new MatchNoneQueryBuilder("missing field [" + fieldName() + "]")

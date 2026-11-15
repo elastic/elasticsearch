@@ -117,15 +117,20 @@ public abstract class NestedIndexOperatorTestCase extends OperatorTestCase {
         int parents = Math.min(size, PARENTS);
         for (int start = 0; start < parents;) {
             int count = Math.min(between(1, 200), parents - start);
-            try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, count)) {
-                for (int i = start; i < start + count; i++) {
-                    builder.appendShard(0).appendSegment(0).appendDoc(parentDocs[i]);
-                }
-                pages.add(new Page(builder.build()));
-            }
+            pages.add(parents(blockFactory, start, count));
             start += count;
         }
         return new CannedSourceOperator(pages.iterator());
+    }
+
+    /** One page of the {@code count} parents from {@code start}, in doc order. */
+    protected final Page parents(BlockFactory blockFactory, int start, int count) {
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, count)) {
+            for (int i = start; i < start + count; i++) {
+                builder.appendShard(0).appendSegment(0).appendDoc(parentDocs[i]);
+            }
+            return new Page(builder.build());
+        }
     }
 
     /** The parent at each position of {@code page}, whose block 0 holds the parents' doc ids. */

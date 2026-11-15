@@ -151,3 +151,120 @@ a nested predicate in a disjunction filters in memory:
     - [b]
     - [d]
 - match: { documents_found: 4 }
+
+---
+a nested existence predicate matches the child fields:
+- do:
+    indices.create:
+      index: nr_push_exists
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                qty:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index: { _index: nr_push_exists, _id: mixed }
+      - { id: mixed, items: [ { price: 1 }, { qty: 1 } ] }
+      - index: { _index: nr_push_exists, _id: priced }
+      - { id: priced, items: [ { price: 2 } ] }
+      - index: { _index: nr_push_exists, _id: unpriced }
+      - { id: unpriced, items: [ { qty: 1 } ] }
+      - index: { _index: nr_push_exists, _id: empty }
+      - { id: empty }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_exists | WHERE NESTED_ANY(items.price IS NOT NULL) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [mixed]
+    - [priced]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_exists | WHERE NESTED_ANY(items.price IS NULL) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [mixed]
+    - [unpriced]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_exists | WHERE NESTED_ALL(items.price IS NOT NULL) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [empty]
+    - [priced]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_exists | WHERE NESTED_ALL(items.price IS NULL) | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [empty]
+    - [unpriced]
+
+---
+a nested keyword with a normalizer filters in memory:
+# Lucene compares normalized terms: it would match "A" against the indexed "a", and reject "a" for a bound "B" normalized to "b".
+- do:
+    indices.create:
+      index: nr_push_normalized
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          analysis:
+            normalizer:
+              lower:
+                type: custom
+                filter: [lowercase]
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                sku:
+                  type: keyword
+                  normalizer: lower
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index: { _index: nr_push_normalized, _id: n1 }
+      - { id: n1, items: [ { sku: a } ] }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_normalized | WHERE NESTED_ANY(items.sku == "A") | KEEP id | LIMIT 10
+- length: { values: 0 }
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM nr_push_normalized | WHERE NESTED_ANY(items.sku > "B") | KEEP id | LIMIT 10
+- match:
+    values:
+    - [n1]

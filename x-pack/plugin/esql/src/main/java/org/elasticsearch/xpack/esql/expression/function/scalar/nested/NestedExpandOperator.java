@@ -32,6 +32,8 @@ import java.util.List;
  * child block holds the values of all of its objects.
  */
 public final class NestedExpandOperator extends AbstractPageMappingOperator {
+    static final String BREAKER_LABEL = "nested_expand";
+
     public record Factory(int docChannel, NestedChildren.Factory children, String path, List<DataType> types, boolean flatten)
         implements
             Operator.OperatorFactory {
@@ -70,31 +72,39 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
         int columns = factory.types().size();
         Block.Builder[] built = new Block.Builder[columns];
         Block[] blocks = new Block[columns];
+        // The positions grow with the children of the page, and no block may account for them
+        var rows = new Object() {
+            int[] positions = new int[0];
+            long reserved;
+            int count;
+            int next;
+
+            void add(int position) {
+                if (count == positions.length) {
+                    int size = ArrayUtil.oversize(count + 1, Integer.BYTES);
+                    long bytes = (long) (size - positions.length) * Integer.BYTES;
+                    context.breaker().addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+                    reserved += bytes;
+                    positions = ArrayUtil.growExact(positions, size);
+                }
+                positions[count++] = position;
+            }
+
+            /** One null row for each parent before {@code parent}, which have no children. */
+            void fillTo(int parent) {
+                for (; next < parent; next++) {
+                    add(next);
+                    for (Block.Builder builder : built) {
+                        builder.appendNull();
+                    }
+                }
+            }
+        };
         try {
             for (int c = 0; c < columns; c++) {
                 built[c] = PlannerUtils.toElementType(factory.types().get(c))
                     .newBlockBuilder(page.getPositionCount(), context.blockFactory());
             }
-            var rows = new Object() {
-                int[] positions = new int[page.getPositionCount()];
-                int count;
-                int next;
-
-                void add(int position) {
-                    positions = ArrayUtil.grow(positions, count + 1);
-                    positions[count++] = position;
-                }
-
-                /** One null row for each parent before {@code parent}, which have no children. */
-                void fillTo(int parent) {
-                    for (; next < parent; next++) {
-                        add(next);
-                        for (Block.Builder builder : built) {
-                            builder.appendNull();
-                        }
-                    }
-                }
-            };
             DocVector docs = ((DocBlock) page.getBlock(factory.docChannel())).asVector();
             children.read(docs, loaded -> {
                 IntVector parentPositions = loaded.<IntBlock>getBlock(0).asVector();
@@ -119,6 +129,7 @@ public final class NestedExpandOperator extends AbstractPageMappingOperator {
             blocks = null;
             return output(page, rows.positions, rows.count, owned);
         } finally {
+            context.breaker().addWithoutBreaking(-rows.reserved);
             Releasables.closeExpectNoException(built);
             if (blocks != null) {
                 Releasables.closeExpectNoException(blocks);

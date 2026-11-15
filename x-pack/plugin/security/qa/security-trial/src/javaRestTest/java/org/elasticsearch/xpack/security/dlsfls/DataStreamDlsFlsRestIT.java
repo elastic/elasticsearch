@@ -107,9 +107,7 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
 
         // async search
-        final Request asyncSearch = new Request("POST", "/" + DATA_STREAM + "/_async_search");
-        asyncSearch.addParameter("wait_for_completion_timeout", "30s");
-        asyncSearch.setJsonEntity(MATCH_ALL);
+        final Request asyncSearch = asyncSearchRequest(DATA_STREAM, false);
         final ObjectPath asyncResponse = ObjectPath.createFromResponse(performRequest(user, asyncSearch));
         assertThat(asyncResponse.evaluate("is_running"), is(false));
         assertThat(asyncResponse.evaluate("is_partial"), is(false));
@@ -554,6 +552,34 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
             }
         }
         assertThat(esqlValues(user, "FROM " + TS_PLAIN + " | STATS c = COUNT(*) | LIMIT 10"), equalTo(List.of(List.of(1))));
+    }
+
+    public void testFieldLevelSecurityExcludingTimestampFailsAsyncSearch() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_async_excluding_user", "ts_async_excluding_role", timestampRole(EXCLUDED_TIMESTAMP));
+        for (boolean keepOnCompletion : new boolean[] { true, false }) {
+            for (String target : List.of(TS_METRICS, TS_STANDALONE + "," + TS_PLAIN)) {
+                assertTimestampExclusionRejected(user, asyncSearchRequest(target, keepOnCompletion));
+            }
+        }
+        assertSourceHasOnly(hits(search(user, TS_PLAIN, MATCH_ALL)).get(0), "host", "cpu");
+    }
+
+    public void testAsyncSearchResultKeepsTimestampAfterRoleChange() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_async_user", "ts_async_role", timestampRole(IMPLICIT_TIMESTAMP));
+        final String asyncId = ObjectPath.createFromResponse(performRequest(user, asyncSearchRequest(TS_STANDALONE, true))).evaluate("id");
+        try {
+            upsertRole(timestampRole(EXCLUDED_TIMESTAMP), "ts_async_role");
+            assertTimestampExclusionRejected(user, asyncSearchRequest(TS_STANDALONE, true));
+            final List<Map<String, Object>> storedHits = ObjectPath.createFromResponse(
+                performRequest(user, new Request("GET", "/_async_search/" + asyncId))
+            ).evaluate("response.hits.hits");
+            assertThat(storedHits, hasSize(1));
+            assertSourceHasOnly(storedHits.get(0), "@timestamp", "host", "cpu");
+        } finally {
+            assertOK(adminClient().performRequest(new Request("DELETE", "/_async_search/" + asyncId)));
+        }
     }
 
     public void testFieldLevelSecurityExcludingTimestampFailsMixedIndexSearch() throws IOException {
@@ -1237,6 +1263,14 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     private List<List<Object>> esqlValues(String user, String query) throws IOException {
         return ObjectPath.createFromResponse(performRequest(user, esqlRequest("/_query", query))).evaluate("values");
+    }
+
+    private static Request asyncSearchRequest(String target, boolean keepOnCompletion) {
+        final Request request = new Request("POST", "/" + target + "/_async_search");
+        request.addParameter("wait_for_completion_timeout", "30s");
+        request.addParameter("keep_on_completion", Boolean.toString(keepOnCompletion));
+        request.setJsonEntity(MATCH_ALL);
+        return request;
     }
 
     private static Request esqlRequest(String endpoint, String query) {

@@ -27,6 +27,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -609,7 +610,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 blobCacheMetrics,
                 capturingPolicy,
                 System::nanoTime,
-                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+                threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL),
                 metricHolder
             );
             this.capturingPolicy = capturingPolicy;

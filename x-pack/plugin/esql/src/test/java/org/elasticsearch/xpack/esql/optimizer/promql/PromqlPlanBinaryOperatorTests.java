@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.time.Duration;
@@ -493,9 +493,9 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
-        InnerJoin join = joins.getFirst();
+        HashJoin join = joins.getFirst();
         assertThat(join.unique(), equalTo(true));
         assertThat(join.leftFields().getFirst().name(), equalTo("step"));
         assertThat(keyedLabels(join.left()), containsInAnyOrder("cluster"));
@@ -508,7 +508,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) / on (cluster) "
                 + "sum by (cluster) (network.eth0.rx)) / ignoring (pod) sum by (cluster, region) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(2));
         joins.forEach(join -> assertFalse(join.leftFields().stream().map(Attribute::name).toList().contains("region")));
     }
@@ -520,9 +520,9 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(sum by (cluster, pod) (network.eth0.tx) "
                 + "/ on (cluster) group_left sum by (cluster) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
-        InnerJoin join = joins.getFirst();
+        HashJoin join = joins.getFirst();
         assertThat(join.unique(), equalTo(false));
         assertThat(keyedLabels(join.left()), containsInAnyOrder("cluster"));
         assertThat(keyedLabels(join.right()), containsInAnyOrder("cluster"));
@@ -544,9 +544,9 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) group_right sum by (cluster, pod) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
-        InnerJoin join = joins.getFirst();
+        HashJoin join = joins.getFirst();
         assertThat(join.unique(), equalTo(false));
         // After the swap the probe (left of the join) is the RHS "many" side, grouped by (cluster, pod).
         assertThat(keyedLabels(join.left()), containsInAnyOrder("cluster"));
@@ -558,7 +558,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) > bool on (cluster) sum by (cluster) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
         assertThat(keyedLabels(joins.getFirst().left()), containsInAnyOrder("cluster"));
     }
@@ -569,7 +569,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) > on (cluster) sum by (cluster) (network.eth0.rx))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
         boolean hasGreaterThanFilter = plan.collect(Filter.class)
             .stream()
             .anyMatch(f -> f.condition().anyMatch(GreaterThan.class::isInstance));
@@ -583,7 +583,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         LogicalPlan plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) + sum by (pod) (network.eth0.rx))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     public void testVectorMatchOnLabelAbsentFromBothOperandsJoinsOnStep() {
@@ -594,7 +594,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql(
             "PROMQL index=k8s step=5m result=(sum by (cluster) (network.eth0.tx) / on (pod) sum by (cluster) (network.eth0.rx))"
         );
-        var joins = plan.collect(InnerJoin.class);
+        var joins = plan.collect(HashJoin.class);
         assertThat(joins, hasSize(1));
         assertThat(
             joins.getFirst().leftFields().stream().map(Attribute::name).toList(),
@@ -659,7 +659,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(1 + (sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) sum by (cluster) (network.eth0.rx)))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     public void testVectorMatchNestedInAggregation() {
@@ -669,7 +669,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(sum(sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) sum by (cluster) (network.eth0.rx)))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     public void testVectorMatchNestedInFunction() {
@@ -679,7 +679,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(abs(sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) sum by (cluster) (network.eth0.rx)))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     public void testVectorMatchComparisonInsideUnion() {
@@ -689,7 +689,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) "
                 + "> on (cluster) sum by (cluster) (network.eth0.rx)) or sum by (cluster) (network.eth0.rx))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     public void testVectorMatchComposedWithPlainVectorOperand() {
@@ -699,7 +699,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=((sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) sum by (cluster) (network.eth0.rx)) + sum by (cluster) (network.eth0.rx))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(2));
+        assertThat(plan.collect(HashJoin.class), hasSize(2));
     }
 
     public void testTopKOverVectorMatchInsideUnion() {
@@ -709,7 +709,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "PROMQL index=k8s step=5m result=(topk(2, sum by (cluster) (network.eth0.tx) "
                 + "/ on (cluster) sum by (cluster) (network.eth0.rx)) or sum by (cluster) (network.eth0.rx))"
         );
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     /**

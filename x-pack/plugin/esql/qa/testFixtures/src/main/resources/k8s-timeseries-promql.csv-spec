@@ -2870,3 +2870,52 @@ result:double | step:datetime            | cluster:keyword | v:keyword
 244.0         | 2024-05-10T01:00:00.000Z | staging         | 238
 488.0         | 2024-05-10T01:00:00.000Z | staging         | 3
 ;
+
+count_values_without-Ignore
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+PROMQL index=k8s step=1h result=(count_values without (pod, region) ("v", network.bytes_in{cluster="qa"}))
+| SORT _timeseries;
+
+result:double | step:datetime            | _timeseries:keyword
+1.0           | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""v"":""206""}"
+1.0           | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""v"":""913""}"
+1.0           | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""v"":""972""}"
+;
+
+// on (...) keeps only the matching labels, so the result has cluster and pod but not v.
+count_values_on_raw_vector-Ignore
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=1h result=(count_values by (cluster, pod) ("v", network.bytes_in{cluster="qa"}) * on (cluster, pod) network.bytes_in{cluster="qa"})
+| SORT pod;
+
+result:double | step:datetime            | cluster:keyword | pod:keyword
+206.0         | 2024-05-10T01:00:00.000Z | qa              | one
+972.0         | 2024-05-10T01:00:00.000Z | qa              | three
+913.0         | 2024-05-10T01:00:00.000Z | qa              | two
+;
+
+// Each count, always 1 here, is multiplied by the qa value of its pod: one 206, two 913, three 972.
+count_values_group_left_raw_vector-Ignore
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: promql_count_values
+required_capability: promql_vector_matching_v0
+PROMQL index=k8s step=1h result=(count_values by (pod) ("v", network.bytes_in) * on (pod) group_left network.bytes_in{cluster="qa"})
+| SORT pod, v;
+
+result:double | step:datetime            | pod:keyword | v:keyword
+206.0         | 2024-05-10T01:00:00.000Z | one         | 206
+206.0         | 2024-05-10T01:00:00.000Z | one         | 238
+206.0         | 2024-05-10T01:00:00.000Z | one         | 931
+972.0         | 2024-05-10T01:00:00.000Z | three       | 3
+972.0         | 2024-05-10T01:00:00.000Z | three       | 774
+972.0         | 2024-05-10T01:00:00.000Z | three       | 972
+913.0         | 2024-05-10T01:00:00.000Z | two         | 3
+913.0         | 2024-05-10T01:00:00.000Z | two         | 812
+913.0         | 2024-05-10T01:00:00.000Z | two         | 913
+;

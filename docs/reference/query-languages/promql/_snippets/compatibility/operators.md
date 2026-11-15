@@ -134,11 +134,12 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 |---|---|---|---|---|
 | 31 | `group` | `group by (job) (x)` | - | [#164009]({{es-issue}}164009) |
 | 32 | `count_values` on native histograms {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `count_values("v", h)` | - | [#152263]({{es-issue}}152263) |
-| 33 | `topk`, `bottomk`, `limitk`, `limit_ratio`, or `count_values` with `without(...)` | `topk without (instance) (1, x)`, `count_values without (instance) ("v", x)` | Use `by(...)` | [#157671]({{es-issue}}157671) |
-| 34 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | [#164225]({{es-issue}}164225) |
-| 35 | Nested `without(...)` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
-| 36 | `without(...)` as an operand | `sum without (method) (x) * 2` | Use `by(...)` | [#145308]({{es-issue}}145308) |
-| 37 | Grouping by a label named `step`, or a `count_values` label named `step`, `_timeseries`, or with the same name as the value column (set by `name=(...)`) | `sum by (step) (x)`, `count_values("step", x)`, `value=(count_values("value", x))` | `step`, `_timeseries`, and the value column are output columns of the `PROMQL` command | - |
+| 33 | `or` between `count_values` and a vector whose label of the same name is mapped as a type other than `keyword` {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `sum by (shard) (x) or count_values("shard", x)`, where `shard` is a `long` field | - | - |
+| 34 | `topk`, `bottomk`, `limitk`, `limit_ratio`, or `count_values` with `without(...)` | `topk without (instance) (1, x)`, `count_values without (instance) ("v", x)` | Use `by(...)` | [#157671]({{es-issue}}157671) |
+| 35 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | [#164225]({{es-issue}}164225) |
+| 36 | Nested `without(...)` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
+| 37 | `without(...)` as an operand | `sum without (method) (x) * 2` | Use `by(...)` | [#145308]({{es-issue}}145308) |
+| 38 | Grouping by a label named `step`, or a `count_values` label named `step`, `_timeseries`, or with the same name as the value column (set by `name=(...)`) | `sum by (step) (x)`, `count_values("step", x)`, `value=(count_values("value", x))` | `step`, `_timeseries`, and the value column are output columns of the `PROMQL` command | - |
 :::
 
 **Behaves differently**
@@ -148,6 +149,6 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 38 | `quantile` | `quantile(0.9, x)` | Approximate, using t-digest | Exact, with linear interpolation | - |
-| 39 | `limitk`, `limit_ratio` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `limitk(10, x)` | A different, equally valid subset | A deterministic pseudo-random subset, with the `promql-experimental-functions` feature flag | - |
+| 39 | `quantile` | `quantile(0.9, x)` | Approximate, using t-digest | Exact, with linear interpolation | - |
+| 40 | `limitk`, `limit_ratio` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `limitk(10, x)` | A different, equally valid subset | A deterministic pseudo-random subset, with the `promql-experimental-functions` feature flag | - |
 :::

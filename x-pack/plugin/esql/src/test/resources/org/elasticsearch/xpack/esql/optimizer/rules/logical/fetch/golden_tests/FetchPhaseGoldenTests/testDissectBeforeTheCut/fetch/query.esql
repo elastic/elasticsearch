@@ -1,0 +1,5 @@
+FROM employees
+| DISSECT first_name "%{name}"
+| SORT name
+| LIMIT 10
+| KEEP first_name, name, last_name

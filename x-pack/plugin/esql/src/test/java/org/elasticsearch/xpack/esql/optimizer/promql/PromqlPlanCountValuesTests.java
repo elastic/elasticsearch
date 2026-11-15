@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.junit.Before;
 
 import java.util.List;
@@ -149,7 +149,7 @@ public class PromqlPlanCountValuesTests extends AbstractPromqlPlanOptimizerTests
 
     public void testNumberOperandStaysFused() {
         LogicalPlan plan = countValuesPlan("count_values(\"v\", network.bytes_in) * 2");
-        assertThat(plan.collect(InnerJoin.class), empty());
+        assertThat(plan.collect(HashJoin.class), empty());
         assertEquals(List.of("step", "v"), outputNames(plan));
     }
 
@@ -159,7 +159,7 @@ public class PromqlPlanCountValuesTests extends AbstractPromqlPlanOptimizerTests
      */
     public void testCountValuesOperandIsJoined() {
         LogicalPlan plan = countValuesPlan("count_values(\"cluster\", network.bytes_in) / sum by (cluster) (network.cost)");
-        assertThat(plan.collect(InnerJoin.class), hasSize(1));
+        assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
     /** The fused path cannot pair an aggregated constant with {@code scalar(...)} of a vector. */

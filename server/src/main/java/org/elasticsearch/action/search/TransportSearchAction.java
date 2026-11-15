@@ -65,6 +65,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -221,6 +222,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseMetrics searchResponseMetrics,
         Client client,
         UsageService usageService,
+        QuerySinkRegistry querySinkRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider
@@ -276,7 +278,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             fieldProvider,
             indexNameExpressionResolver.getSystemNamePredicate()
         );
-        this.queryInterceptor = new QueryInterceptor<>(List.of(queryLogger));
+        this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -1022,7 +1024,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.getSuccessfulShards(),
                         searchResponse.getSkippedShards(),
                         timeProvider.buildTookInMillis(),
-                        searchResponse.getShardFailures(),
+                        searchResponse.shardFailuresList(),
                         clusters,
                         searchResponse.pointInTimeId(),
                         null,
@@ -1085,10 +1087,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchCoordinatorContext,
                 circuitBreaker
             );
+            // The shared source is widened for outgoing subsearches, so snapshot mergers must reuse the requested page.
+            final int originalFrom = searchResponseMerger.from;
+            final int originalSize = searchResponseMerger.size;
+            final int originalTrackTotalHitsUpTo = searchResponseMerger.trackTotalHitsUpTo;
             // Partial results merge responses that searchResponseMerger already holds and charges, so their merger gets no breaker.
             task.setSearchResponseMergerSupplier(
-                () -> createSearchResponseMerger(
-                    searchRequest.source(),
+                () -> new SearchResponseMerger(
+                    originalFrom,
+                    originalSize,
+                    originalTrackTotalHitsUpTo,
                     timeProvider,
                     aggReduceContextBuilder,
                     searchCoordinatorContext,

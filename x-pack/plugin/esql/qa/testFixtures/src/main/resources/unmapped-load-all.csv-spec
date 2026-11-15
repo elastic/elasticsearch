@@ -6554,6 +6554,48 @@ message:keyword | _unmapped_fields:_source
 42              | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383""}"
 ;
 
+// The same query with the view listed first: which rows carry _unmapped_fields must not depend on the order of the FROM sources, and a
+// wildcard KEEP of the caller must not reach into the view, which has no _unmapped_fields column to filter.
+loadAllViewBeforeIndexKeepUnmappedStar
+required_capability: optional_fields_load_all_views
+required_capability: settings_scoped_at_view_boundaries
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_view, partial_mapping_sample_data
+| WHERE message == "42"
+| KEEP message, unmapped_*
+;
+ignoreOrder:true
+
+message:keyword | _unmapped_fields:_source
+42              | null
+42              | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383""}"
+;
+
+// A view that SETs unmapped_fields="load" and loads a field itself still has no _unmapped_fields column: the caller's LOAD_ALL
+// does not change that, and the index next to it keeps its own. The KEEP pattern deliberately avoids the field the view loads, whose
+// handling next to an index is not pinned here.
+loadAllViewThatLoadsBesideIndexKeepsIndexUnmappedFields
+required_capability: optional_fields_load_all_views
+required_capability: settings_scoped_at_view_boundaries
+required_capability: set_in_view_definitions
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, view_partial_mapping_loads_event_duration
+| WHERE message == "42"
+| KEEP message, unmapped_message*
+;
+ignoreOrder:true
+
+message:keyword | _unmapped_fields:_source
+42              | "{""unmapped_message"":""43""}"
+42              | null
+;
+
 loadAllViewNameWildcard
 required_capability: optional_fields_load_all_views
 required_capability: settings_scoped_at_view_boundaries

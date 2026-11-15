@@ -281,7 +281,7 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
                 Block[] blocks = new Block[1];
                 try {
                     prepared.evaluate(blocks, 0, firstPage);
-                    assertThat( ((DoubleBlock) blocks[0]).getDouble(0), closeTo(7.5, 0.0001));
+                    assertThat(((DoubleBlock) blocks[0]).getDouble(0), closeTo(7.5, 0.0001));
                 } finally {
                     Releasables.close(blocks);
                 }

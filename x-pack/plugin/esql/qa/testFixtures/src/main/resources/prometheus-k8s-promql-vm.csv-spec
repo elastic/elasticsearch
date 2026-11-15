@@ -220,7 +220,7 @@ required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_label_references
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) and on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
 
@@ -242,7 +242,7 @@ required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_label_references
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) and on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, step;
 
@@ -386,7 +386,7 @@ required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_label_references
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) and sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
 
@@ -737,7 +737,7 @@ required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_label_references
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) and ignoring (pod) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, pod, step;
 
@@ -915,56 +915,12 @@ r:double            | region:keyword | _timeseries:keyword
 0.34833948339483395 | us             | "{""cluster"":""staging"",""pod"":""two""}"
 ;
 
-// Opaque/opaque: both keys are materialized from _timeseries, no regrouping.
-vector_match_matrix_opaque_opaque_on-Ignore
-required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
-required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_binary_opaque_signature_match
-required_capability: promql_timeseries_metadata_functions
-PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx / ignoring (pod, region) group_left sum by (cluster) (network.eth0.rx))
-| WHERE step == "2024-05-10T00:10:00.000Z"
-| KEEP r, _timeseries
-| SORT TO_STRING(_timeseries);
-
-r:double            | _timeseries:keyword
-0.4225206611570248  | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
-0.37293388429752067 | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
-0.30785123966942146 | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
-0.257244534824606   | "{""cluster"":""qa"",""pod"":""one""}"
-0.2541942043721403  | "{""cluster"":""qa"",""pod"":""three""}"
-0.4616166751398068  | "{""cluster"":""qa"",""pod"":""two""}"
-0.25535055350553504 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
-0.33062730627306275 | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
-0.34833948339483395 | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
-;
-
-// ignoring(...) group_left (region) over a raw LHS: the source serves two label container views at once, the match key leaving
-// pod and region out and the result leaving region out, which the one side's region replaces.
-// Same numbers as vector_match_matrix_opaque_many_group_left_overwrite.
-vector_match_matrix_opaque_ignoring_group_left_include
-required_capability: promql_command_v0
-required_capability: promql_vector_matching_v0
-required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_binary_opaque_signature_match
-required_capability: promql_timeseries_metadata_functions
-PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx / ignoring (pod, region) group_left (region) sum by (cluster, region) (network.eth0.rx{cluster="staging"}))
-| WHERE step == "2024-05-10T00:10:00.000Z"
-| KEEP r, region, _timeseries
-| SORT TO_STRING(_timeseries);
-
-r:double            | region:keyword | _timeseries:keyword
-0.25535055350553504 | us             | "{""cluster"":""staging"",""pod"":""one""}"
-0.33062730627306275 | us             | "{""cluster"":""staging"",""pod"":""three""}"
-0.34833948339483395 | us             | "{""cluster"":""staging"",""pod"":""two""}"
-;
-
 // A filtering comparison keeps the metric name of its LHS series; only `bool` drops it.
 vector_match_matrix_opaque_ignoring_comparison_keeps_metric_name
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx{cluster="prod"} >= ignoring (region) network.eth0.tx{cluster="prod"})
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, _timeseries
@@ -980,7 +936,7 @@ vector_match_matrix_opaque_ignoring_comparison_bool_drops_metric_name
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx{cluster="prod"} >= bool ignoring (region) network.eth0.tx{cluster="prod"})
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, _timeseries
@@ -996,7 +952,7 @@ vector_match_matrix_opaque_many_group_left_comparison_keeps_metric_name
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx{cluster="prod"} > on (cluster) group_left sum by (cluster) (network.eth0.rx) * 0)
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, cluster, _timeseries
@@ -1012,7 +968,7 @@ vector_match_matrix_opaque_many_group_left_comparison_bool_drops_metric_name
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx{cluster="prod"} > bool on (cluster) group_left sum by (cluster) (network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, cluster, _timeseries
@@ -1027,7 +983,7 @@ r:double | cluster:keyword | _timeseries:keyword
 vector_match_matrix_opaque_scalar_comparison_keeps_metric_name
 required_capability: promql_command_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx{cluster="prod"} > 0)
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, _timeseries
@@ -1042,7 +998,7 @@ r:double | _timeseries:keyword
 vector_match_matrix_opaque_scalar_comparison_bool_drops_metric_name
 required_capability: promql_command_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx{cluster="prod"} > bool 0)
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, _timeseries
@@ -1115,7 +1071,7 @@ vector_match_matrix_opaque_many_group_left
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx / on (cluster) group_left sum by (cluster) (network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, cluster, _timeseries
@@ -1139,7 +1095,7 @@ vector_match_matrix_opaque_many_group_right
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m r=(sum by (cluster) (network.eth0.tx) / on (cluster) group_right network.eth0.rx)
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, cluster, _timeseries
@@ -1162,7 +1118,7 @@ vector_match_matrix_opaque_many_group_left_overwrite
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx / on (cluster) group_left (region) sum by (cluster, region) (network.eth0.rx{cluster="staging"}))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, cluster, region, _timeseries
@@ -1180,7 +1136,7 @@ vector_match_matrix_opaque_many_group_left_delete
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx{cluster="prod"} / on (cluster, pod) group_left (region) sum by (cluster, pod) (network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP r, cluster, pod, region, _timeseries
@@ -1266,8 +1222,8 @@ vector_match_matrix_and
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 required_capability: fn_json_extract
-required_capability: promql_timeseries_metadata_functions
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx and on (cluster, pod) network.eth0.rx)
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | EVAL cluster = JSON_EXTRACT(_timeseries, "cluster"), pod = JSON_EXTRACT(_timeseries, "pod")
@@ -1466,7 +1422,7 @@ required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_label_references
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) and on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, step;
 
@@ -1562,6 +1518,18 @@ PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) 
 | SORT cluster, step;
 
 result:double | step:datetime | cluster:keyword
+;
+
+// Opaque selector + ignoring labelless sum: the empty Prometheus signature never matches a non-empty series.
+vector_match_ignoring_opaque_vs_labelless_is_empty
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
+PROMQL index=prometheus-k8s step=10m result=(network.eth0.tx + ignoring (pod) sum(network.eth0.tx))
+| KEEP result, step;
+
+result:double | step:datetime
 ;
 
 // label_replace over opaque group_left: keep includes (region) and derive dst from pod. Rest must retain child unset

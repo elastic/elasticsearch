@@ -158,8 +158,8 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
      */
     public void testIgnoringLabellessVsOpaque() throws IOException {
         assumeTrue(
-            "opaque operands match on their label containers",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_BINARY_OPAQUE_SIGNATURE_MATCH.capabilityName()))
+            "typed _timeseries required for opaque ignoring join keys",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.capabilityName()))
         );
         assertRows(
             "PROMQL index=k8s step=10m result=(network.eth0.tx + ignoring (pod) sum(network.eth0.tx)) | KEEP result, step",
@@ -178,8 +178,8 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.capabilityName()))
         );
         assumeTrue(
-            "a relabel over a binary operator",
-            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_LABEL_REFERENCES.capabilityName()))
+            "typed _timeseries required",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.capabilityName()))
         );
         assertRows(
             "PROMQL index=k8s step=10m result=(label_replace("
@@ -197,7 +197,7 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
 
     /**
      * {@code or on(cluster)} keeps every left series and adds the right series of the clusters the left one lacks: the same
-     * rows as a default {@code or} whose right operand leaves out the left one's clusters.
+     * rows as a default {@code or} whose right operand leaves out the left one's clusters. A keyword label container rejects it.
      */
     public void testOrWithOnKeepsUnmatchedRightSeries() throws IOException {
         requirePromqlUnion();
@@ -209,6 +209,10 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
         String orOn = "PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx{cluster=\"prod\"}) "
             + "or on (cluster) sum by (cluster) (network.eth0.rx))"
             + keep;
+        if (hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.capabilityName())) == false) {
+            assertPromqlError(orOn, "set operator [or] with on/ignoring requires a typed label container");
+            return;
+        }
         List<List<Object>> matched = values(orOn);
         List<List<Object>> disjoint = values(
             "PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx{cluster=\"prod\"}) "

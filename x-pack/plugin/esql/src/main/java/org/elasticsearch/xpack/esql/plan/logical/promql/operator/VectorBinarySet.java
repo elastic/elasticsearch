@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
@@ -35,9 +38,14 @@ public final class VectorBinarySet extends VectorBinaryOperator {
             return keyword;
         }
 
+        /** {@code and} keeps the left value where a right series matches, {@code unless} where none does. */
         @Override
         public ScalarFunctionFactory asFunction() {
-            throw new UnsupportedOperationException("not yet implemented");
+            return switch (this) {
+                case INTERSECT -> (source, left, right, config) -> new Case(source, new IsNotNull(source, right), List.of(left));
+                case SUBTRACT -> (source, left, right, config) -> new Case(source, new IsNull(source, right), List.of(left));
+                case UNION -> throw new AssertionError("UNION translates via UnionAll, not asFunction");
+            };
         }
     }
 
@@ -56,8 +64,7 @@ public final class VectorBinarySet extends VectorBinaryOperator {
     /**
      * A set operator combines series from both operands, so its output schema is the union of both label sets
      * (deduplicated by name, left operand first). This differs from arithmetic/comparison operators, which
-     * require matching label sets. Only {@code or} (UNION) is currently translated; {@code and}/{@code unless}
-     * are rejected by the verifier before reaching translation.
+     * require matching label sets.
      */
     @Override
     public List<Attribute> output() {

@@ -11,8 +11,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
@@ -63,14 +63,14 @@ public class PromqlPlanFunctionCallV2Tests extends AbstractPromqlPlanOptimizerTe
         LogicalPlan plan = planPromql("PROMQL index=k8s step=1h scalar(network.bytes_in)", false);
 
         assertThat(expressions(plan, Scalar.class), hasSize(1));
-        assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
+        assertThat(expressions(plan, TimeSeriesWithout.class), empty());
         assertThat(names(plan.output()), not(hasItem("_timeseries")));
     }
 
     /** A scalar function has no labels. */
     public void testTimeHasNoLabels() {
         LogicalPlan plan = planPromql("PROMQL index=k8s step=1h time()", false);
-        assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
+        assertThat(expressions(plan, TimeSeriesWithout.class), empty());
     }
 
     private static List<String> names(List<Attribute> attributes) {

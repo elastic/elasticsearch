@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
+package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -37,6 +36,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
  * A comparison of the field with a constant is null, and so filters the row out, both when the field is missing and when it is
  * multivalued. Only comparisons that every row must pass count, i.e. the conjuncts of the filters between the aggregation and
  * the source.
+ * <p>
+ * The rule needs nothing but the plan, so it runs on the coordinator and applies to every data node.
  */
 public class ReplaceCountFieldWithCountStar extends OptimizerRules.OptimizerRule<Aggregate> {
 

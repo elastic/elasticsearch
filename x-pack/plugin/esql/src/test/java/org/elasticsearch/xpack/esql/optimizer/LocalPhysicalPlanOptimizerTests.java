@@ -435,7 +435,9 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | where salary > 1000 and emp_no > 10010
             | stats cs = count(salary), ce = count(emp_no)
             """, IS_SV_STATS);
-        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+        // The filter leaves only rows with a single salary and a single emp_no, so both count the rows: one count, pushed down
+        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(false));
+        assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(true));
     }
 
     public void testAnotherCountAllWithFilter() {

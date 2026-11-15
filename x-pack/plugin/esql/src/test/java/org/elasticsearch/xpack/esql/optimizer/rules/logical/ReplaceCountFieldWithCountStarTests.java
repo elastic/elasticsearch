@@ -5,28 +5,30 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
+package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.optimizer.AbstractLocalLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ReplaceCountFieldWithCountStarTests extends AbstractLocalLogicalPlanOptimizerTests {
+public class ReplaceCountFieldWithCountStarTests extends AbstractLogicalPlanOptimizerTests {
+
+    public ReplaceCountFieldWithCountStarTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     public void testComparisonWithConstant() {
         for (String comparison : List.of(
@@ -82,12 +84,12 @@ public class ReplaceCountFieldWithCountStarTests extends AbstractLocalLogicalPla
     }
 
     /**
-     * The only {@link Count} of the only aggregation of the locally optimized plan.
+     * The only {@link Count} of the only aggregation of the optimized plan.
      */
     private Count count(String query) {
-        LogicalPlan localPlan = localPlan(testAnalyzer().coordinatorPlan(query), TEST_CFG, TEST_SEARCH_STATS);
+        LogicalPlan plan = optimizedPlan(query);
         List<Count> counts = new ArrayList<>();
-        localPlan.forEachDown(Aggregate.class, aggregate -> {
+        plan.forEachDown(Aggregate.class, aggregate -> {
             for (NamedExpression aggregateExpression : aggregate.aggregates()) {
                 if (Alias.unwrap(aggregateExpression) instanceof Count count) {
                     counts.add(count);

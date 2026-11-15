@@ -638,3 +638,13 @@ tests:
   - :server:test
   method: testToQueryChargesBreakerOnce
   issue: https://github.com/elastic/elasticsearch/issues/166038
+- class: org.elasticsearch.integration.LegacyTimeSeriesIdFieldLevelSecurityTests
+  tasks:
+  - :x-pack:plugin:security:internalClusterTest
+  method: testSearchIdOfLegacyIndexWhenFieldLevelSecurityHidesRoutingPathField
+  issue: https://github.com/elastic/elasticsearch/issues/166058
+- class: org.elasticsearch.integration.LegacyTimeSeriesIdFieldLevelSecurityTests
+  tasks:
+  - :x-pack:plugin:security:internalClusterTest
+  method: testGetByIdReturnedBySearchOfLegacyIndexWhenFieldLevelSecurityHidesRoutingPathField
+  issue: https://github.com/elastic/elasticsearch/issues/166058

@@ -192,6 +192,30 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * A name under a {@code flattened} field is a field, the key of that name. The node that loads the fetched columns reads
+     * it the way the query phase does, so the key keeps its values.
+     */
+    public void testFetchesTheKeyOfAFlattenedField() {
+        assumeTrue("a name under a flattened field is a field", EsqlCapabilities.Cap.FLATTENED_KEYS.isEnabled());
+        String index = indexName + "_flattened";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(indexSettings(4, 0))
+                .setMapping("unique_sort", "type=long", "attributes", "type=flattened")
+        );
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 64; i++) {
+            bulk.add(prepareIndex(index).setSource("unique_sort", i, "attributes", Map.of("host", Map.of("name", "host-" + i))));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        Run run = runBoth("FROM " + index + " | SORT unique_sort DESC | LIMIT 3 | KEEP unique_sort, attributes.host.name");
+
+        assertThat(run.rows(), equalTo(List.of(List.of(63L, "host-63"), List.of(62L, "host-62"), List.of(61L, "host-61"))));
+        assertFetched(run, 3);
+    }
+
+    /**
      * A plain {@code LIMIT} over many small segments gets a small page from the exchange for each of them. The pages that
      * arrive while earlier batches fetch leave together, so the query sends fewer than half as many fetch requests as it
      * gets pages.

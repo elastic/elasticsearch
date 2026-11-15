@@ -277,10 +277,12 @@ final class DataNodeFetchExecutor {
             boolean success = false;
             try {
                 checkBounds(searchContext, shard);
+                // reads the fields as the query phase did, a name under a flattened field included
                 EsqlSearchExecutionContext executionContext = new EsqlSearchExecutionContext(
                     searchContext.getSearchExecutionContext(),
                     QueryWarnings.EMIT,
-                    unmappedFieldNames
+                    unmappedFieldNames,
+                    request.configuration().flattenedKeys()
                 );
                 searchContext.addReleasable(executionContext::releaseQueryConstructionMemory);
                 // the request's reference, the first on the context. The search context closes once every reference is gone.

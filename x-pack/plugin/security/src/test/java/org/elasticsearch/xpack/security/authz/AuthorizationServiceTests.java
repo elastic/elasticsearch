@@ -1964,7 +1964,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final RoleDescriptor role = timestampExcludingRole(index);
         roleMap.put(role.getName(), role);
         final Authentication authentication = createAuthentication(new User("timestamp_user", role.getName()));
-        mockClusterState(ProjectMetadata.builder(projectId).put(logsdbIndexMetadata(index), true).build());
+        mockClusterState(ProjectMetadata.builder(projectId).put(timeSeriesIndexMetadata(index), true).build());
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.FLS_MANDATORY_TIMESTAMP))).thenReturn(false);
@@ -2003,7 +2003,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put(role.getName(), role);
         final Authentication authentication = createAuthentication(new User("timestamp_user", role.getName()));
         mockClusterState(
-            ProjectMetadata.builder(projectId).put(logsdbIndexMetadata(excluded), true).put(createIndexMetadata(denied), true).build()
+            ProjectMetadata.builder(projectId).put(timeSeriesIndexMetadata(excluded), true).put(createIndexMetadata(denied), true).build()
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.FLS_MANDATORY_TIMESTAMP))).thenReturn(true);
@@ -2024,7 +2024,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put(role.getName(), role);
         final Authentication authentication = createAuthentication(new User("timestamp_user", role.getName()));
         final ClusterState clusterState = mockClusterState(
-            ProjectMetadata.builder(projectId).put(logsdbIndexMetadata(index), true).build()
+            ProjectMetadata.builder(projectId).put(timeSeriesIndexMetadata(index), true).build()
         );
         final SearchRequest searchRequest = new SearchRequest(index).allowPartialSearchResults(false);
         final ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
@@ -3773,12 +3773,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
     }
 
-    private static IndexMetadata logsdbIndexMetadata(String indexName) {
+    private static IndexMetadata timeSeriesIndexMetadata(String indexName) {
         return IndexMetadata.builder(indexName)
             .settings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexSettings.MODE.getKey(), "logsdb")
+                    .put(IndexSettings.MODE.getKey(), "time_series")
+                    .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host")
             )
             .numberOfShards(1)
             .numberOfReplicas(0)

@@ -713,8 +713,10 @@ public final class IndicesPermission {
     ) {}
 
     /**
-     * True if {@code @timestamp} is mandatory visible metadata on the concrete index {@code name}: the index is a backing index of a
-     * data stream, or its index mode {@link IndexMode#requiresTimestamp()}. Failure store indices never qualify.
+     * True if {@code @timestamp} is mandatory visible metadata on the concrete index {@code name}. Two cases qualify. A backing index
+     * of a data stream qualifies in every index mode, because visibility of the timestamp is a data stream policy. A standalone
+     * time series index qualifies, because its {@code _id} is synthesized from the timestamp. Failure store indices never qualify,
+     * and neither does a standalone index in another mode, whatever its mapping or sort configuration.
      */
     static boolean isMandatoryTimestampIndex(String name, ProjectMetadata metadata) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(name);
@@ -725,8 +727,7 @@ public final class IndicesPermission {
             return indexAbstraction.isFailureIndexOfDataStream() == false;
         }
         final IndexMetadata indexMetadata = metadata.index(name);
-        final IndexMode indexMode = indexMetadata == null ? null : indexMetadata.getIndexMode();
-        return indexMode != null && indexMode.requiresTimestamp();
+        return indexMetadata != null && IndexMode.isTsdb(indexMetadata.getIndexMode());
     }
 
     private ResolvedIndexAccessControls buildIndicesAccessControl(

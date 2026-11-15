@@ -1652,7 +1652,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
         IndicesAccessControl enabled = authorizeSearch(role, indices, true);
         assertThat(enabled.isGranted(), is(true));
-        for (String qualifying : List.of(indices.timestampModeIndex(), indices.backingIndex())) {
+        for (String qualifying : List.of(indices.timeSeriesIndex(), indices.backingIndex())) {
             assertThat(qualifying, enabled.getIndexPermissions(qualifying).getFieldPermissions().grantsAccessTo("@timestamp"), is(true));
             assertThat(qualifying, enabled.getIndexPermissions(qualifying).getFieldPermissions().grantsAccessTo("host"), is(true));
             assertThat(qualifying, enabled.getIndexPermissions(qualifying).getFieldPermissions().grantsAccessTo("message"), is(false));
@@ -1683,7 +1683,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
         IndicesAccessControl accessControl = authorizeSearch(excluding, indices, true);
         assertThat(accessControl.isGranted(), is(false));
-        assertThat(accessControl.getTimestampExcludedIndices(), equalTo(Set.of(indices.timestampModeIndex(), indices.backingIndex())));
+        assertThat(accessControl.getTimestampExcludedIndices(), equalTo(Set.of(indices.timeSeriesIndex(), indices.backingIndex())));
         IndicesAccessControl disabled = authorizeSearch(excluding, indices, false);
         assertThat(disabled.isGranted(), is(true));
         assertThat(disabled.getTimestampExcludedIndices(), equalTo(Set.of()));
@@ -1708,7 +1708,7 @@ public class IndicesPermissionTests extends ESTestCase {
             .build();
         IndicesAccessControl mappings = authorize(excludingWithMetadata, GetMappingsAction.NAME, indices, indices.all());
         assertThat(mappings.isGranted(), is(true));
-        assertThat(mappings.getTimestampExcludedIndices(), equalTo(Set.of(indices.timestampModeIndex(), indices.backingIndex())));
+        assertThat(mappings.getTimestampExcludedIndices(), equalTo(Set.of(indices.timeSeriesIndex(), indices.backingIndex())));
         for (String index : indices.all()) {
             assertThat(index, mappings.getIndexPermissions(index).getFieldPermissions().grantsAccessTo("@timestamp"), is(false));
         }
@@ -1748,7 +1748,7 @@ public class IndicesPermissionTests extends ESTestCase {
             .build();
         IndicesAccessControl omitted = authorizeSearch(excludingAndOmitting, indices, true);
         assertThat(omitted.isGranted(), is(false));
-        assertThat(omitted.getTimestampExcludedIndices(), equalTo(Set.of(indices.timestampModeIndex(), indices.backingIndex())));
+        assertThat(omitted.getTimestampExcludedIndices(), equalTo(Set.of(indices.timeSeriesIndex(), indices.backingIndex())));
 
         IndicesAccessControl union = authorizeSearch(excludingAndGranting, indices, true);
         assertThat(union.isGranted(), is(true));
@@ -1764,13 +1764,13 @@ public class IndicesPermissionTests extends ESTestCase {
 
         IndicesAccessControl excluding = authorize(timestampRole(true), TransportSearchAction.TYPE.name(), indices, alias);
         assertThat(excluding.isGranted(), is(false));
-        assertThat(excluding.getTimestampExcludedIndices(), equalTo(Set.of(indices.timestampModeIndex())));
+        assertThat(excluding.getTimestampExcludedIndices(), equalTo(Set.of(indices.timeSeriesIndex())));
 
         IndicesAccessControl implicit = authorize(timestampRole(false), TransportSearchAction.TYPE.name(), indices, alias);
         assertThat(implicit.isGranted(), is(true));
         assertThat(implicit.getTimestampExcludedIndices(), equalTo(Set.of()));
-        for (String index : List.of(indices.timestampModeIndex(), indices.otherModeIndex())) {
-            boolean qualifying = index.equals(indices.timestampModeIndex());
+        for (String index : List.of(indices.timeSeriesIndex(), indices.otherModeIndex())) {
+            boolean qualifying = index.equals(indices.timeSeriesIndex());
             assertThat(index, implicit.getIndexPermissions(index).getFieldPermissions().grantsAccessTo("@timestamp"), is(qualifying));
         }
     }
@@ -1790,7 +1790,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
         IndicesAccessControl enabled = authorizeSearch(role, indices, true);
         IndicesAccessControl disabled = authorizeSearch(role, indices, false);
-        for (String index : List.of(indices.timestampModeIndex(), indices.backingIndex())) {
+        for (String index : List.of(indices.timeSeriesIndex(), indices.backingIndex())) {
             FieldPermissions fieldPermissions = enabled.getIndexPermissions(index).getFieldPermissions();
             assertThat(index, fieldPermissions.grantsAccessTo("@timestamp"), is(true));
             assertThat(index, fieldPermissions.grantsAccessTo("_ignored"), is(false));
@@ -1815,13 +1815,13 @@ public class IndicesPermissionTests extends ESTestCase {
                     assertThat(
                         scenario,
                         accessControl.getTimestampExcludedIndices(),
-                        equalTo(Set.of(indices.timestampModeIndex(), indices.backingIndex()))
+                        equalTo(Set.of(indices.timeSeriesIndex(), indices.backingIndex()))
                     );
                 } else {
                     assertThat(scenario, accessControl.getTimestampExcludedIndices(), equalTo(Set.of()));
                 }
                 boolean visible = ownerExcludes == false && keyExcludes == false;
-                for (String index : List.of(indices.timestampModeIndex(), indices.backingIndex())) {
+                for (String index : List.of(indices.timeSeriesIndex(), indices.backingIndex())) {
                     assertThat(
                         scenario + " on " + index,
                         accessControl.getIndexPermissions(index).getFieldPermissions().grantsAccessTo("@timestamp"),
@@ -1862,25 +1862,24 @@ public class IndicesPermissionTests extends ESTestCase {
 
     private record MandatoryTimestampIndices(
         ProjectMetadata metadata,
-        String timestampModeIndex,
+        String timeSeriesIndex,
         String backingIndex,
         String failureIndex,
         String otherModeIndex,
         String mixedAlias
     ) {
         List<String> all() {
-            return List.of(timestampModeIndex, backingIndex, failureIndex, otherModeIndex);
+            return List.of(timeSeriesIndex, backingIndex, failureIndex, otherModeIndex);
         }
     }
 
     private static MandatoryTimestampIndices mandatoryTimestampIndices() {
-        IndexMode timestampMode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR);
         // NOTE: an index created without index.mode has no index mode in its metadata
         IndexMode otherMode = randomBoolean()
             ? null
-            : randomValueOtherThanMany(IndexMode::requiresTimestamp, () -> randomFrom(IndexMode.values()));
+            : randomValueOtherThanMany(mode -> mode.isTsdb(), () -> randomFrom(IndexMode.values()));
         String mixedAlias = "mixed-alias";
-        IndexMetadata timestampModeIndex = IndexMetadata.builder(indexMetadataWithMode("timestamp-mode", timestampMode, false))
+        IndexMetadata timeSeriesIndex = IndexMetadata.builder(indexMetadataWithMode("time-series", IndexMode.TIME_SERIES, false))
             .putAlias(AliasMetadata.builder(mixedAlias))
             .build();
         IndexMetadata otherModeIndex = IndexMetadata.builder(indexMetadataWithMode("other-mode", otherMode, false))
@@ -1901,7 +1900,7 @@ public class IndicesPermissionTests extends ESTestCase {
             List.of(failureIndex.getIndex())
         );
         ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
-            .put(timestampModeIndex, false)
+            .put(timeSeriesIndex, false)
             .put(otherModeIndex, false)
             .put(backingIndex, false)
             .put(failureIndex, false)
@@ -1909,7 +1908,7 @@ public class IndicesPermissionTests extends ESTestCase {
             .build();
         return new MandatoryTimestampIndices(
             metadata,
-            timestampModeIndex.getIndex().getName(),
+            timeSeriesIndex.getIndex().getName(),
             backingIndex.getIndex().getName(),
             failureIndex.getIndex().getName(),
             otherModeIndex.getIndex().getName(),

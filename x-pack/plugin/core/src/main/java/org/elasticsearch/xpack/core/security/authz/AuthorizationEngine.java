@@ -638,7 +638,7 @@ public interface AuthorizationEngine {
         public static final IndexAuthorizationResult ALLOW_NO_INDICES = new IndexAuthorizationResult(IndicesAccessControl.ALLOW_NO_INDICES);
 
         private static final String TIMESTAMP_EXCLUSION_DESCRIPTION = "because field level security excludes [@timestamp], which is "
-            + "always visible on data stream backing indices and on indices whose index mode requires it";
+            + "always visible on data stream backing indices and on time series indices";
 
         private final IndicesAccessControl indicesAccessControl;
 

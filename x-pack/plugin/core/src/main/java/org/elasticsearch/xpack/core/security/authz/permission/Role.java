@@ -188,8 +188,8 @@ public interface Role {
 
     /**
      * Like {@link #authorize(String, Set, ProjectMetadata, FieldPermissionsCache)}. When {@code mandatoryTimestamp} is {@code true},
-     * {@code @timestamp} is mandatory visible metadata under field level security on data stream backing indices and on indices in a
-     * timestamp-based index mode, see {@link IndicesPermission#authorize(String, Set, ProjectMetadata, FieldPermissionsCache, boolean)}.
+     * {@code @timestamp} is mandatory visible metadata under field level security on data stream backing indices and on standalone
+     * time series indices, see {@link IndicesPermission#authorize(String, Set, ProjectMetadata, FieldPermissionsCache, boolean)}.
      */
     IndicesAccessControl authorize(
         String action,

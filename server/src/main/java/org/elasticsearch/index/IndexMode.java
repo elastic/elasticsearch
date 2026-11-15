@@ -120,11 +120,6 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean requiresTimestamp() {
-            return false;
-        }
-
-        @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
 
         @Override
@@ -296,11 +291,6 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean requiresTimestamp() {
-            return true;
-        }
-
-        @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
             if (sourceFieldMapper.enabled() == false) {
                 throw new IllegalArgumentException("_source can not be disabled in index using [" + IndexMode.TIME_SERIES + "] index mode");
@@ -378,11 +368,6 @@ public enum IndexMode {
         @Override
         public boolean shouldValidateTimestamp() {
             return false;
-        }
-
-        @Override
-        public boolean requiresTimestamp() {
-            return true;
         }
 
         @Override
@@ -467,11 +452,6 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean requiresTimestamp() {
-            return false;
-        }
-
-        @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
 
         @Override
@@ -542,11 +522,6 @@ public enum IndexMode {
 
         @Override
         public boolean shouldValidateTimestamp() {
-            return false;
-        }
-
-        @Override
-        public boolean requiresTimestamp() {
             return false;
         }
 
@@ -654,11 +629,6 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean requiresTimestamp() {
-            return true;
-        }
-
-        @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
             if (sourceFieldMapper.enabled() == false) {
                 throw new IllegalArgumentException(
@@ -753,11 +723,6 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean requiresTimestamp() {
-            return false;
-        }
-
-        @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
 
         @Override
@@ -827,11 +792,6 @@ public enum IndexMode {
 
         @Override
         public boolean shouldValidateTimestamp() {
-            return false;
-        }
-
-        @Override
-        public boolean requiresTimestamp() {
             return false;
         }
 
@@ -1070,12 +1030,6 @@ public enum IndexMode {
      * @return Whether timestamps should be validated for being withing the time range of an index.
      */
     public abstract boolean shouldValidateTimestamp();
-
-    /**
-     * @return Whether every document of an index in this mode must have {@code @timestamp}, whether or not the index belongs to a
-     * data stream: the default mapping of this mode enables {@code _data_stream_timestamp}.
-     */
-    public abstract boolean requiresTimestamp();
 
     /**
      * Validates the source field mapper

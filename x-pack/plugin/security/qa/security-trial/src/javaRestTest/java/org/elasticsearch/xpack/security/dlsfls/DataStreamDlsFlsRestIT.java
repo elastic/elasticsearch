@@ -447,16 +447,16 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertTimestampMandatory(index);
     }
 
-    public void testTimestampRuleOnLogsdbIndex() throws IOException {
+    public void testTimestampRuleDoesNotApplyToLogsdbIndex() throws IOException {
         final String index = "fls-type-logsdb";
         createTypeIndex(index, ", \"index.mode\": \"logsdb\"");
-        assertTimestampMandatory(index);
+        assertTimestampNotMandatory(index);
     }
 
-    public void testTimestampRuleOnLogsdbColumnarIndex() throws IOException {
+    public void testTimestampRuleDoesNotApplyToLogsdbColumnarIndex() throws IOException {
         final String index = "fls-type-logsdb-columnar";
         createTypeIndex(index, ", \"index.mode\": \"logsdb_columnar\"");
-        assertTimestampMandatory(index);
+        assertTimestampNotMandatory(index);
     }
 
     public void testTimestampRuleOnStandardDataStream() throws IOException {

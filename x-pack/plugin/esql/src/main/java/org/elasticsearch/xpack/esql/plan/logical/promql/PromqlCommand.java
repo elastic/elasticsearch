@@ -507,9 +507,11 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 }
                 case HistogramFunctionCall histogram -> {
                     LogicalPlan buckets = histogram.child();
-                    // Regrouping by every label but `le` needs the labels as named columns. A reduction or a WITHOUT over
-                    // raw series keeps them packed in one `_timeseries` column instead.
-                    if (hasConcreteLabels(buckets) == false && (usesReduction(buckets) || usesWithoutGrouping(buckets))) {
+                    // Regrouping by every label but `le` leaves `le` out of the label container, which a keyword one cannot do
+                    // over a reduction or a WITHOUT over raw series.
+                    if (labelContainer == false
+                        && hasConcreteLabels(buckets) == false
+                        && (usesReduction(buckets) || usesWithoutGrouping(buckets))) {
                         failures.add(
                             fail(
                                 histogram,
@@ -575,11 +577,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         }
                     }
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
-                        if (comp.match() == VectorMatch.NONE && root.get() == false) {
-                            failures.add(
-                                fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
-                            );
-                        }
                         // Filter-mode comparisons finish over the shared frame (literal operand), as a step broadcast (a scalar
                         // computed from the source, on either side), or as a join (two vectors), like arithmetic.
                         if (comp.boolMode() == false && PromqlPlan.returnsScalar(comp.left()) && PromqlPlan.returnsScalar(comp.right())) {

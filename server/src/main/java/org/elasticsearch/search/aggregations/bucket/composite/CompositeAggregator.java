@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.queries.SearchAfterSortedDocQuery;
@@ -252,6 +253,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
 
     /** Return true if the provided field may have multiple values per document in the leaf **/
     private static boolean isMaybeMultivalued(LeafReaderContext context, SortField sortField) throws IOException {
+        // Binary doc values sort as STRING too, but have no SORTED_SET doc values to ask below, which would read as single-valued.
+        if (sortField instanceof MultiValuedBinaryDocValuesSortField binarySortField) {
+            return binarySortField.isMaybeMultiValued(context.reader());
+        }
         SortField.Type type = IndexSortConfig.getSortFieldType(sortField);
         return switch (type) {
             case STRING -> {

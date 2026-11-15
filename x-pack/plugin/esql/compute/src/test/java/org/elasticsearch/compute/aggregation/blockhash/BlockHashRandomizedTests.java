@@ -510,6 +510,11 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                         ordinals.endPositionEntry();
                     }
                 }
+                // A dictionary can be shared with other pages, so it may hold entries this block never references.
+                // They are longer than the real keys, so they can only show up in the hash if it wrongly adds them.
+                for (int unused = between(0, 3); unused > 0; unused--) {
+                    bytes.appendBytesRef(new BytesRef(randomAlphaOfLength(6)));
+                }
                 return new RandomBlock(values, new OrdinalBytesRefBlock(ordinals.build(), bytes.build()), valueMaxByteSize);
             }
         }

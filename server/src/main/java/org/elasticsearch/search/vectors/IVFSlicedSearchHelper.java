@@ -116,7 +116,7 @@ final class IVFSlicedSearchHelper {
         }
         final Bits liveDocs = reader.getLiveDocs();
         final int maxDoc = reader.maxDoc();
-        final IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
+        final IVFKnnSearchStrategy strategy = knnCollectorManager.newSearchStrategy(visitRatio, numCands, k);
         final AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(Integer.MAX_VALUE, strategy, ctx);
         if (knnCollector == null) {
             return AbstractIVFKnnVectorQuery.NO_RESULTS;

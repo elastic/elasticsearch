@@ -13,12 +13,15 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergeBranchAlignment;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.HashMap;
@@ -238,7 +241,14 @@ public final class ViewRequestFilterRewriter {
                 newSubqueries.put(key, rewrittenChild);
                 changed |= rewrittenChild != child;
             } else {
-                QueryDslTranslator.TranslationResult result = translateFilter(child.output(), requestFilter, configuration, minimumVersion);
+                // Bind against the branch as the merge aligns it: a merge column the branch does not produce is a typed null.
+                List<Alias> nullFills = MergeBranchAlignment.nullFills(vua.output(), child);
+                QueryDslTranslator.TranslationResult result = translateFilter(
+                    MergeBranchAlignment.alignedColumns(vua.output(), child, nullFills),
+                    requestFilter,
+                    configuration,
+                    minimumVersion
+                );
                 // The same construct can fail more than once on one view (two wildcard clauses, say); the set keeps the header short.
                 for (QueryDslTranslator.UnsupportedClause unsupported : result.unsupported()) {
                     // The identity's name, not the map key: keys are uniquified labels ("meow~2"), names are the view's own.
@@ -256,7 +266,9 @@ public final class ViewRequestFilterRewriter {
                     // match_all → no-op; leave this view unfiltered.
                     newSubqueries.put(key, child);
                 } else {
-                    newSubqueries.put(key, new Filter(child.source(), child, condition));
+                    // The condition may reference the null fills, so they have to be produced below the Filter.
+                    LogicalPlan filtered = nullFills.isEmpty() ? child : new Eval(child.source(), child, nullFills);
+                    newSubqueries.put(key, new Filter(child.source(), filtered, condition));
                     changed = true;
                 }
             }
@@ -264,7 +276,8 @@ public final class ViewRequestFilterRewriter {
         if (changed == false) {
             return vua;
         }
-        // Output columns are unchanged: a Filter never adds columns. Identities carry over untouched.
+        // Output columns are unchanged: a Filter never adds columns, and the null fills only add merge columns the branch lacked.
+        // Identities carry over untouched.
         return new BranchPlan(vua.source(), newSubqueries, vua.branchIdentities(), vua.output());
     }
 

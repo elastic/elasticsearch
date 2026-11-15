@@ -14,10 +14,10 @@ import org.elasticsearch.index.ActionLoggingFields;
 
 import java.util.Optional;
 
-public class EqlLogProducer implements ActivityLogProducer<EqlLogContext> {
+public class EqlLogProducer implements ActivityLogProducer<EqlCaptureContext> {
 
     @Override
-    public Optional<ESLogMessage> produce(EqlLogContext context, ActionLoggingFields additionalFields) {
+    public Optional<ESLogMessage> produce(EqlCaptureContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());

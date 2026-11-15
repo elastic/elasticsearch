@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -69,6 +70,20 @@ public class SchemaDiscoveryPathExtractorTests extends ESTestCase {
     public void testLimitZeroAboveProjectionStillReadsNoRows() {
         Keep keep = new Keep(SRC, externalRelation(PATH), List.of(unresolved("a")));
         LogicalPlan plan = new Limit(SRC, intLiteral(0), keep);
+
+        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
+    }
+
+    public void testDescribeReadsNoRows() {
+        LogicalPlan plan = new Describe(SRC, externalRelation(PATH));
+
+        assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
+    }
+
+    public void testAggregateUnderDescribeReadsNoRows() {
+        // Unlike LIMIT 0, DESCRIBE replaces its whole input during analysis, so the aggregate below it never runs.
+        Aggregate aggregate = new Aggregate(SRC, externalRelation(PATH), List.of(), List.<NamedExpression>of());
+        LogicalPlan plan = new Describe(SRC, aggregate);
 
         assertEquals(Set.of(PATH), SchemaDiscoveryPathExtractor.pathsReadingNoRows(plan));
     }

@@ -33,7 +33,7 @@ import java.util.List;
 
 /**
  * Evaluates reads and rewrites of labels in a typed label container. The label container is the canonical JSON object
- * {@code TimeSeriesMetadataConverter} loads - labels sorted by name - so every operation streams over it: a read stops at its label,
+ * {@link TimeSeriesMetadataConverter} loads - labels sorted by name - so every operation streams over it: a read stops at its label,
  * and a rewrite copies the labels it keeps in their order, writing a set label at its sorted position, which keeps the
  * result canonical. Label names are folded once.
  */
@@ -218,7 +218,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
         return buffer.bytesRefView();
     }
 
-    /** One value is written as a string, several as an array, as {@code TimeSeriesMetadataConverter} does. */
+    /** One value is written as a string, several as an array, as {@link TimeSeriesMetadataConverter} does. */
     private static void write(XContentBuilder builder, String name, List<String> values) throws IOException {
         if (values.size() == 1) {
             builder.field(name, values.getFirst());
@@ -249,7 +249,7 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
     }
 
     /**
-     * A JSON builder writing into breaker-accounted {@code buffer}; {@code TimeSeriesMetadataConverter} loads the canonical form
+     * A JSON builder writing into breaker-accounted {@code buffer}; {@link TimeSeriesMetadataConverter} loads the canonical form
      * with it.
      */
     static XContentBuilder jsonBuilder(BreakingBytesRefBuilder buffer) throws IOException {

@@ -98,7 +98,9 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                 // the grouping resolved before this rule ran still point at a column named by the user.
                 boolean keepAlias = grouping instanceof Alias alias && alias.name().equals(MetadataAttribute.TIMESERIES) == false;
                 TimeSeriesMetadataAttribute lowered;
-                if (groupingAttribute instanceof TimeSeriesMetadataAttribute t && excludedFields.equals(t.excludedFields())) {
+                if (groupingAttribute instanceof TimeSeriesMetadataAttribute t
+                    && excludedFields.equals(t.excludedFields())
+                    && t.dataType() == fn.dataType()) {
                     lowered = t;
                 } else {
                     String parentName = groupingAttribute instanceof FieldAttribute fieldAttribute ? fieldAttribute.parentName() : null;
@@ -107,7 +109,7 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                         parentName,
                         groupingAttribute.qualifier(),
                         MetadataAttribute.TIMESERIES,
-                        timeSeriesField(),
+                        timeSeriesField(fn.dataType()),
                         groupingAttribute.nullable(),
                         keepAlias ? new NameId() : groupingAttribute.id(),
                         groupingAttribute.synthetic(),

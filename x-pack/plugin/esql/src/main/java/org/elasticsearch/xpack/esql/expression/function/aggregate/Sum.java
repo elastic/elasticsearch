@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LossySumDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SumAsDoubleLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDenseVectorAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -97,11 +99,11 @@ public class Sum extends NumericAggregate
      */
     public static final Literal LONG_OVERFLOW_WARN = Literal.keyword(Source.EMPTY, "long_overflow_warn");
 
+    public static final TransportVersion ESQL_SUM_LONG_AS_DOUBLE = TransportVersion.fromName("esql_sum_long_as_double");
+
+    public static final Literal LONG_OVERFLOW_DOUBLE = Literal.keyword(Source.EMPTY, "long_overflow_double");
+
     private final Expression summationMode;
-    /**
-     * Either {@link #LONG_OVERFLOW_THROW} or {@link #LONG_OVERFLOW_WARN}.
-     * Set internally only, used for BWC.
-     */
     private final Expression longOverflowMode;
 
     @FunctionInfo(
@@ -224,11 +226,17 @@ public class Sum extends NumericAggregate
         if (dt == DataType.DENSE_VECTOR) {
             return DataType.DENSE_VECTOR;
         }
+        if (sumsLongAsDouble()) {
+            return DOUBLE;
+        }
         return dt.isWholeNumber() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
     }
 
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
+        if (sumsLongAsDouble()) {
+            return new SumAsDoubleLongAggregatorFunctionSupplier();
+        }
         if (longOverflowMode().equals(LONG_OVERFLOW_THROW)) {
             return new SumOverflowingLongAggregatorFunctionSupplier();
         }
@@ -260,6 +268,10 @@ public class Sum extends NumericAggregate
 
     public Expression longOverflowMode() {
         return longOverflowMode;
+    }
+
+    public boolean sumsLongAsDouble() {
+        return field().dataType() == DataType.LONG && longOverflowMode.equals(LONG_OVERFLOW_DOUBLE);
     }
 
     @Override
@@ -325,7 +337,8 @@ public class Sum extends NumericAggregate
                 return new Literal(s, null, NULL);
             }
             // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
-            return new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter(), window()));
+            Expression summed = sumsLongAsDouble() ? new ToDouble(s, field) : field;
+            return new Mul(s, new MvSum(s, summed), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter(), window()));
         } else {
             return null;
         }

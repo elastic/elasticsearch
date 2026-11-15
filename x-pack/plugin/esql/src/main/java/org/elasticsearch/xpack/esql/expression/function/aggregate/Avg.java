@@ -195,8 +195,20 @@ public class Avg extends UnaryAggregateFunction
         return new Avg(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), allowNonFinite);
     }
 
+    /**
+     * The surrogate that every node can run: it sums a {@code long} after converting it to a {@code double}.
+     */
     @Override
     public Expression surrogate() {
+        return surrogate(false);
+    }
+
+    @Override
+    public Expression surrogate(TransportVersion minTransportVersion) {
+        return surrogate(minTransportVersion.supports(Sum.ESQL_SUM_LONG_AS_DOUBLE));
+    }
+
+    private Expression surrogate(boolean canSumLongAsDouble) {
         var s = source();
         var field = field();
         if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
@@ -220,16 +232,19 @@ public class Avg extends UnaryAggregateFunction
         if (field.foldable()) {
             return new MvAvg(s, field);
         }
-        // Cast long inputs to double up-front so the intermediate Sum cannot overflow.
+        // Sum long inputs as doubles so the intermediate Sum cannot overflow.
         // Avg always returns double, and Sum(int) already accumulates as long (Which would require many big values to overflow),
-        // so the cast is only necessary for long.
-        Expression sumField = field.dataType() == DataType.LONG ? new ToDouble(s, field) : field;
-        return new Div(
-            s,
-            new Sum(s, sumField, filter(), window(), summationMode),
-            new Count(s, field, filter(), window()),
-            dataType(),
-            allowNonFinite
-        );
+        // so this is only necessary for long.
+        Sum sum;
+        if (field.dataType() != DataType.LONG) {
+            sum = new Sum(s, field, filter(), window(), summationMode);
+        } else if (canSumLongAsDouble && SummationMode.fromLiteral(summationMode) == SummationMode.COMPENSATED) {
+            // The Sum reads the longs itself, there is no pass over them to cast each one to double.
+            sum = new Sum(s, field, filter(), window(), summationMode, Sum.LONG_OVERFLOW_DOUBLE);
+        } else {
+            // Cast them up-front: either a node doesn't know how to sum longs as doubles, or the lossy sum was asked for.
+            sum = new Sum(s, new ToDouble(s, field), filter(), window(), summationMode);
+        }
+        return new Div(s, sum, new Count(s, field, filter(), window()), dataType(), allowNonFinite);
     }
 }

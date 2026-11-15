@@ -107,6 +107,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#eqlCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEqlCommand(EsqlBaseParser.EqlCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -956,11 +962,17 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinTarget}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#subqueryJoinTarget}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
+  T visitSubqueryJoinTarget(EsqlBaseParser.SubqueryJoinTargetContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#lookupJoinTarget}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLookupJoinTarget(EsqlBaseParser.LookupJoinTargetContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#joinCondition}.
    * @param ctx the parse tree

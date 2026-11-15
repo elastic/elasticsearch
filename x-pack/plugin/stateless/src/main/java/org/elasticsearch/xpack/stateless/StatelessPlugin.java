@@ -614,6 +614,7 @@ public class StatelessPlugin extends Plugin
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
             .put(DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), true)
             .put(BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED.getKey(), true)
+            .put(COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT.getKey(), true)
             .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30));
         settings.put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
             .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0)
@@ -1806,7 +1807,8 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public void registerDirectoryMetrics(BiConsumer<String, PluggableDirectoryMetricsHolder<?>> registrator) {
-        registrator.accept(StatelessPlugin.NAME, metricHolder);
+        // the same name the metric is deserialized under on the coordinator, so that local and remote shards merge into one entry
+        registrator.accept(BlobStoreCacheDirectoryMetrics.NAME, metricHolder);
     }
 
     protected CodecProvider getCodecProvider(EngineConfig engineConfig) {

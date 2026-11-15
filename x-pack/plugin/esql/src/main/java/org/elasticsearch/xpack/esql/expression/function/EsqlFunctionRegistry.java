@@ -202,6 +202,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAll;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedJson;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedObject;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedStats;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay;
@@ -693,6 +694,7 @@ public class EsqlFunctionRegistry {
                 NestedAny.DEFINITION,
                 NestedAll.DEFINITION,
                 NestedJson.DEFINITION,
+                NestedObject.DEFINITION,
                 // TSTEP is new enough that we only want to expose it on snapshot builds for now.
                 TStep.DEFINITION,
                 // dense vector functions

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.Nested;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAll;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedJson;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedObject;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedReduction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedStats;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -55,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /** Binds reductions before EVAL's aggregate verification; public outputs contain only completed parent values. */
 public final class NestedReductionsAnalysis {
@@ -193,8 +195,9 @@ public final class NestedReductionsAnalysis {
                         }
                     }));
                     Function<UnresolvedAttribute, Expression> scoped = attribute -> {
-                        String name = attribute.name();
-                        String rawName = name.startsWith(NestedScopeField.PREFIX) ? name.substring(NestedScopeField.PREFIX.length()) : name;
+                        String original = rawName(attribute.name());
+                        String rawName = dereference(input, original);
+                        String name = rawName.equals(original) ? attribute.name() : rawName;
                         boolean primary = schema.roots().keySet().stream().anyMatch(path -> inPath(rawName, path));
                         if (primary == false && allPaths.stream().anyMatch(path -> inPath(rawName, path))) {
                             throw error(attribute, "NESTED lookup-side nested scopes are not supported by this PoC");
@@ -273,6 +276,11 @@ public final class NestedReductionsAnalysis {
                     return result.toAttribute();
                 };
                 LogicalPlan lowered = p.transformExpressionsOnlyUp(Nested.class, nested -> {
+                    if (nested instanceof NestedObject object) {
+                        // Stays until Cleanup, so later commands can resolve names through it.
+                        checkReference(object, p);
+                        return object;
+                    }
                     if (nested instanceof NestedStats && nested.keys().isEmpty() && nested.body() instanceof Avg avg) {
                         // AVG is SUM / COUNT, as STATS computes it. Each half is a reduction of its own; they share one read.
                         return avg.surrogate().transformUp(AggregateFunction.class, half -> reduce.apply(withBody(nested, half)));
@@ -307,6 +315,59 @@ public final class NestedReductionsAnalysis {
 
     private static boolean inPath(String name, String path) {
         return name.equals(path) || name.startsWith(path + ".");
+    }
+
+    /**
+     * The collection that the {@code NESTED_OBJECT} reference called {@code name} stands for in the rows of {@code input}, or
+     * {@code null} when {@code name} is not a reference there. Follows renames; a later column of the same name hides it.
+     */
+    private static String referencedCollection(LogicalPlan input, String name) {
+        LogicalPlan plan = input;
+        while (true) {
+            if (plan instanceof Aggregate) {
+                return null;
+            }
+            if (plan instanceof Eval eval) {
+                for (Alias field : eval.fields().reversed()) {
+                    if (field.name().equals(name)) {
+                        if (field.child() instanceof NestedObject object && object.body() instanceof NamedExpression collection) {
+                            String path = rawName(collection.name());
+                            String further = referencedCollection(eval.child(), path);
+                            return further != null ? further : path;
+                        }
+                        return null;
+                    }
+                }
+            } else {
+                for (Expression expression : plan.expressions()) {
+                    if (expression instanceof Alias alias
+                        && alias.name().equals(name)
+                        && alias.child() instanceof NamedExpression renamed) {
+                        name = renamed.name();
+                        break;
+                    }
+                }
+            }
+            if (plan.children().isEmpty()) {
+                return null;
+            }
+            plan = plan instanceof Join join ? join.left() : plan.children().getFirst();
+        }
+    }
+
+    /** {@code name} with a leading {@code NESTED_OBJECT} reference replaced by the collection it stands for. */
+    private static String dereference(LogicalPlan input, String name) {
+        for (int end = name.length(); end > 0; end = name.lastIndexOf('.', end - 1)) {
+            String collection = referencedCollection(input, name.substring(0, end));
+            if (collection != null) {
+                return collection + name.substring(end);
+            }
+        }
+        return name;
+    }
+
+    private static String rawName(String name) {
+        return name.startsWith(NestedScopeField.PREFIX) ? name.substring(NestedScopeField.PREFIX.length()) : name;
     }
 
     private static NestedReduction bind(Nested nested, LogicalPlan input, AnalyzerContext context) {
@@ -451,9 +512,24 @@ public final class NestedReductionsAnalysis {
      * the collection behind it would give a different {@code items} than the one the query shows.
      */
     private static void checkNotReplaced(LogicalPlan input, String path, Expression at, String function) {
-        if (input.output().stream().anyMatch(a -> a.name().equals(path))) {
+        if (input.output().stream().anyMatch(a -> a.name().equals(path)) && referencedCollection(input, path) == null) {
             throw error(at, function + " cannot use [" + path + "]: a column of that name replaces it here");
         }
+    }
+
+    private static void checkReference(NestedObject object, LogicalPlan plan) {
+        if (plan instanceof Eval == false) {
+            throw error(object, "NESTED_OBJECT is supported in EVAL");
+        }
+        if ((object.body() instanceof FieldAttribute a && a.field() instanceof NestedScopeField n && n.collection()) == false) {
+            throw error(object, "NESTED_OBJECT requires a nested collection, not [" + object.body().sourceText() + "]");
+        }
+        FieldAttribute f = (FieldAttribute) object.body();
+        NestedScopeField scope = (NestedScopeField) f.field();
+        if (scope.conflict() != null) {
+            throw error(object, "NESTED_OBJECT cannot read [" + publicName(f) + "]: " + scope.conflict());
+        }
+        checkReadsIndexRows(plan.children().getFirst(), object, "NESTED_OBJECT");
     }
 
     /** Binds NESTED_JSON to every child field of its collection, in name order, like NESTED_EXPAND. */
@@ -504,13 +580,16 @@ public final class NestedReductionsAnalysis {
         NamedExpression target = expand.target();
         String command = expand.commandName();
         String name = target.name();
+        // Expanding a NESTED_OBJECT reference names the columns after the reference.
+        String reference = referencedCollection(expand.child(), name);
+        String rootName = NestedScopeField.PREFIX + (reference != null ? reference : name);
         List<Attribute> input = expand.child().output();
         FieldAttribute root = null;
         Set<String> collections = new HashSet<>();
         for (Attribute attribute : input) {
             if (attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField scope && scope.collection()) {
                 collections.add(scope.path());
-                if (field.name().equals(NestedScopeField.PREFIX + name)) {
+                if (field.name().equals(rootName)) {
                     root = field;
                 }
             }
@@ -554,9 +633,10 @@ public final class NestedReductionsAnalysis {
         List<Attribute> expanded = new ArrayList<>();
         List<String> paths = new ArrayList<>();
         for (FieldAttribute child : children) {
-            String column = publicName(child);
+            String relative = publicName(child).substring(path.length() + 1);
+            String column = (reference != null ? name : path) + "." + relative;
             expanded.add(new ReferenceAttribute(expand.source(), column, child.dataType()));
-            paths.add(column.substring(path.length() + 1));
+            paths.add(relative);
         }
         return new NestedExpand(expand.source(), expand.child(), expand.flatten(), null, path, expanded, paths);
     }
@@ -569,37 +649,70 @@ public final class NestedReductionsAnalysis {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             if (plan.anyMatch(
-                p -> p instanceof NestedExpand || p.expressions().stream().anyMatch(e -> e.anyMatch(NestedReduction.class::isInstance))
+                p -> p instanceof NestedExpand
+                    || p.expressions().stream().anyMatch(e -> e.anyMatch(x -> x instanceof NestedReduction || x instanceof NestedObject))
             ) == false) {
                 return plan;
             }
+            Map<NameId, String> references = references(plan);
+            Predicate<Expression> hidden = a -> isSchema(a) || a instanceof NamedExpression n && references.containsKey(n.id());
             return plan.transformUp(p -> {
-                if (p instanceof EsRelation relation) {
-                    return relation.withAttributes(relation.output().stream().filter(a -> isSchema(a) == false).toList());
-                }
-                if (p instanceof MergePlan merge) {
-                    return merge.replaceSubPlansAndOutput(
-                        merge.children(),
-                        merge.output().stream().filter(a -> isSchema(a) == false).toList()
-                    );
-                }
-                if (p instanceof Project project) {
-                    var projections = project.projections().stream().filter(a -> isSchema(a) == false).toList();
-                    return projections.size() == project.projections().size() ? project : project.withProjections(projections);
-                }
-                if (p instanceof Eval eval) {
-                    var fields = eval.fields().stream().filter(a -> isSchema(a) == false).toList();
-                    if (fields.size() != eval.fields().size()) {
-                        if (fields.isEmpty()) {
-                            return eval.child();
-                        }
-                        return eval instanceof NestedReduce
-                            ? new NestedReduce(eval.source(), eval.child(), fields)
-                            : new Eval(eval.source(), eval.child(), fields);
+                LogicalPlan cleaned = cleanup(p, hidden);
+                cleaned.forEachExpression(Attribute.class, a -> {
+                    if (references.containsKey(a.id())) {
+                        throw error(
+                            a,
+                            "["
+                                + a.name()
+                                + "] is a reference to the nested collection ["
+                                + references.get(a.id())
+                                + "]; read it with NESTED, NESTED_ANY, NESTED_ALL, NESTED_JSON, NESTED_EXPAND or NESTED_FLATTEN"
+                        );
                     }
-                }
-                return p;
+                });
+                return cleaned;
             });
+        }
+
+        private static LogicalPlan cleanup(LogicalPlan p, Predicate<Expression> hidden) {
+            if (p instanceof EsRelation relation) {
+                return relation.withAttributes(relation.output().stream().filter(a -> hidden.test(a) == false).toList());
+            }
+            if (p instanceof MergePlan merge) {
+                return merge.replaceSubPlansAndOutput(
+                    merge.children(),
+                    merge.output().stream().filter(a -> hidden.test(a) == false).toList()
+                );
+            }
+            if (p instanceof Project project) {
+                var projections = project.projections().stream().filter(a -> hidden.test(a) == false).toList();
+                return projections.size() == project.projections().size() ? project : project.withProjections(projections);
+            }
+            if (p instanceof Eval eval) {
+                var fields = eval.fields().stream().filter(a -> hidden.test(a) == false).toList();
+                if (fields.size() != eval.fields().size()) {
+                    if (fields.isEmpty()) {
+                        return eval.child();
+                    }
+                    return eval instanceof NestedReduce
+                        ? new NestedReduce(eval.source(), eval.child(), fields)
+                        : new Eval(eval.source(), eval.child(), fields);
+                }
+            }
+            return p;
+        }
+
+        /** Each {@code NESTED_OBJECT} reference column, including renamed copies, and the collection it stands for. */
+        private static Map<NameId, String> references(LogicalPlan plan) {
+            Map<NameId, String> references = new HashMap<>();
+            plan.forEachUp(p -> p.forEachExpression(Alias.class, alias -> {
+                if (alias.child() instanceof NestedObject object && object.body() instanceof FieldAttribute f) {
+                    references.put(alias.id(), ((NestedScopeField) f.field()).path());
+                } else if (p instanceof Project && alias.child() instanceof Attribute a && references.containsKey(a.id())) {
+                    references.put(alias.id(), references.get(a.id()));
+                }
+            }));
+            return references;
         }
     }
 

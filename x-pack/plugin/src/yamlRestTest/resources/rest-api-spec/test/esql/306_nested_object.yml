@@ -1,0 +1,262 @@
+# NESTED_OBJECT(<collection>) is a reference to one nested collection: the mapped path and the row's parent document. It
+# reads nothing. Later NESTED, NESTED_ANY, NESTED_ALL, NESTED_JSON, NESTED_EXPAND and NESTED_FLATTEN read the collection
+# through it, as they read the collection itself, so EVAL o = NESTED_OBJECT(items) makes o.price name items.price. Like the
+# collection, a reference is not a returned column, and it is not a value other commands can use; NESTED_JSON displays it.
+# Execute with -Desql.nested_reductions.test_execution=true. A capability skip is not a pass.
+---
+setup:
+- requires:
+    test_runner_features:
+    - capabilities
+    - contains
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities:
+      - nested_reductions
+    reason: "Completed per-parent nested reductions; capability stays unadvertised unless -Desql.nested_reductions.test_execution=true"
+- do:
+    indices.create:
+      index: no_orders
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                sku:
+                  type: keyword
+            shipments:
+              type: nested
+              properties:
+                carrier:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: no_orders
+          _id: a
+      - id: a
+        items:
+        - { price: 20, sku: book }
+        - { price: 5, sku: pen }
+        shipments:
+        - { carrier: ups }
+      - index:
+          _index: no_orders
+          _id: b
+      - id: b
+        items: []
+      - index:
+          _index: no_orders
+          _id: c
+      - id: c
+      - index:
+          _index: no_orders
+          _id: d
+      - id: d
+        items:
+        - {}
+      - index:
+          _index: no_orders
+          _id: e
+      - id: e
+        items:
+        - { price: 1, sku: cup }
+
+---
+reductions read through a reference:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM no_orders | EVAL o = NESTED_OBJECT(items)
+          | EVAL total = NESTED(SUM(o.price)), n = NESTED(COUNT(o.price)), has = NESTED_ANY(o, true)
+          | KEEP id, total, n, has | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, 25, 2, true]
+    - [b, null, 0, false]
+    - [c, null, 0, false]
+    - [d, null, 0, true]
+    - [e, 1, 1, true]
+
+---
+a predicate through a reference filters parents:
+# NESTED_ALL is true for a parent without objects, and false for d, whose one object has no price.
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM no_orders | EVAL o = NESTED_OBJECT(items) | WHERE NESTED_ANY(o.sku == "pen") OR NESTED_ALL(o.price < 2)
+          | KEEP id | SORT id | LIMIT 10
+- match:
+    values:
+    - [a]
+    - [b]
+    - [c]
+    - [e]
+
+---
+expanding a reference names the columns after it:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM no_orders | EVAL o = NESTED_OBJECT(items) | NESTED_EXPAND o
+          | KEEP id, o.price, o.sku | SORT id, o.price | LIMIT 10
+- match:
+    columns:
+    - name: id
+      type: keyword
+    - name: o.price
+      type: long
+    - name: o.sku
+      type: keyword
+- match:
+    values:
+    - [a, 5, pen]
+    - [a, 20, book]
+    - [b, null, null]
+    - [c, null, null]
+    - [d, null, null]
+    - [e, 1, cup]
+
+---
+flattening a reference:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM no_orders | EVAL o = NESTED_OBJECT(items) | NESTED_FLATTEN o | KEEP id, o.price | SORT id | LIMIT 2
+- match:
+    values:
+    - [a, [20, 5]]
+    - [b, null]
+
+---
+a renamed reference:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM no_orders | EVAL o = NESTED_OBJECT(items) | RENAME o AS p | EVAL n = NESTED(COUNT(p.price))
+          | KEEP id, n | SORT id | LIMIT 2
+- match:
+    values:
+    - [a, 2]
+    - [b, 0]
+
+---
+a reference named like a collection shadows it:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM no_orders | EVAL items = NESTED_OBJECT(shipments) | EVAL n = NESTED(COUNT(items.carrier))
+          | KEEP id, n | SORT id | LIMIT 2
+- match:
+    values:
+    - [a, 1]
+    - [b, 0]
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM no_orders | EVAL items = NESTED_OBJECT(items) | EVAL n = NESTED(COUNT(items.price))
+          | KEEP id, n | SORT id | LIMIT 2
+- match:
+    values:
+    - [a, 2]
+    - [b, 0]
+
+---
+NESTED_JSON displays a reference:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: >-
+          FROM no_orders | EVAL o = NESTED_OBJECT(items) | WHERE NESTED_ANY(o, true) | EVAL o_json = NESTED_JSON(o)
+          | KEEP id, o_json | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, '[{"price":20,"sku":"book"},{"price":5,"sku":"pen"}]']
+    - [d, '[{}]']
+    - [e, '[{"price":1,"sku":"cup"}]']
+
+---
+a reference is not a returned column:
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM no_orders | EVAL o = NESTED_OBJECT(items) | KEEP id, o | SORT id | LIMIT 1
+- match:
+    columns:
+    - name: id
+      type: keyword
+- match:
+    values:
+    - [a]
+
+---
+a reference is not a value:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM no_orders | EVAL o = NESTED_OBJECT(items) | WHERE o IS NOT NULL | LIMIT 1
+- contains:
+    error.reason: "[o] is a reference to the nested collection [items]; read it with NESTED, NESTED_ANY, NESTED_ALL, NESTED_JSON, NESTED_EXPAND or NESTED_FLATTEN"
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM no_orders | EVAL o = NESTED_OBJECT(items) | STATS c = COUNT(*) BY o
+- contains:
+    error.reason: "[o] is a reference to the nested collection [items]"
+
+---
+the argument must be a nested collection:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM no_orders | EVAL x = NESTED_OBJECT(items.price) | LIMIT 1
+- contains:
+    error.reason: "NESTED_OBJECT requires a nested collection, not [items.price]"
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM no_orders | EVAL x = NESTED_OBJECT(id) | LIMIT 1
+- contains:
+    error.reason: "NESTED_OBJECT requires a nested collection, not [id]"
+
+---
+only in EVAL:
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM no_orders | WHERE NESTED_OBJECT(items) IS NOT NULL | LIMIT 1
+- contains:
+    error.reason: "NESTED_OBJECT is supported in EVAL"

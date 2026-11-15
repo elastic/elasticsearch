@@ -83,7 +83,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
 
-    private static final Set<String> NESTED_FUNCTIONS = Set.of("nested", "nested_any", "nested_all", "nested_json");
+    private static final Set<String> NESTED_FUNCTIONS = Set.of("nested", "nested_any", "nested_all", "nested_json", "nested_object");
 
     private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(
         TBucket.NAME.toLowerCase(Locale.ROOT),
@@ -110,13 +110,15 @@ public class FieldNameUtils {
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
         PreAnalysisResult result = collectFieldNames(parsed, hasEnriches, includePrefixFields);
         var nested = new boolean[1];
-        // NESTED_JSON and NESTED_EXPAND read every child field of the collection they name.
+        // NESTED_JSON and NESTED_EXPAND read every child field of the collection they name, and a NESTED_OBJECT reference
+        // can name any child field later.
         Set<String> collections = new HashSet<>();
         parsed.forEachExpressionDown(UnresolvedFunction.class, f -> {
             String name = f.name().toLowerCase(Locale.ROOT);
             if (NESTED_FUNCTIONS.contains(name)) {
                 nested[0] = true;
-                if (name.equals("nested_json") && f.children().getFirst() instanceof UnresolvedAttribute collection) {
+                if ((name.equals("nested_json") || name.equals("nested_object"))
+                    && f.children().getFirst() instanceof UnresolvedAttribute collection) {
                     collections.add(collection.name());
                 }
             }

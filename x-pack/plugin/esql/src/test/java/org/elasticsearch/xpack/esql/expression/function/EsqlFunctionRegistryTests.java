@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Foldables
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAll;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedJson;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedObject;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedStats;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -271,7 +272,8 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
             if (def.clazz() == NestedStats.class
                 || def.clazz() == NestedAny.class
                 || def.clazz() == NestedAll.class
-                || def.clazz() == NestedJson.class) {
+                || def.clazz() == NestedJson.class
+                || def.clazz() == NestedObject.class) {
                 // These syntax markers need analyzer context and never execute or serialize unlowered. The nested YAML REST
                 // tests cover them.
                 continue;

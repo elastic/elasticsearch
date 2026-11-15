@@ -114,6 +114,13 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     }
 
     /**
+     * The {@link System#nanoTime()} when the task started running, which its execution time is measured from, or -1 before.
+     */
+    long getStartTimeNanos() {
+        return startTimeNanos;
+    }
+
+    /**
      * Get the {@link System#nanoTime()} when the task completed.
      * <p>
      * Note that this method will return -1 if the task has not yet completed, but it could also

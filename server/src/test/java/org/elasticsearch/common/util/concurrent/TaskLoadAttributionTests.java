@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.util.concurrent.TaskLoadAttribution.SHORT_NANOS;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -30,7 +31,7 @@ public class TaskLoadAttributionTests extends ESTestCase {
     public void testChargesTheCpuTimeTheThreadUsed() {
         onPoolThread(clocks -> {
             Charges charges = new Charges();
-            TaskLoadAttribution.taskStarted();
+            TaskLoadAttribution.taskStarted(clocks.now);
             TaskLoadAttribution.attribute(charges);
             clocks.cpu += 300;
             assertThat(TaskLoadAttribution.taskCompleted(TASK_NANOS, clocks.now), equalTo(TASK_NANOS));
@@ -41,7 +42,7 @@ public class TaskLoadAttributionTests extends ESTestCase {
     public void testCpuTimeIsAtMostTheTime() {
         onPoolThread(clocks -> {
             Charges charges = new Charges();
-            TaskLoadAttribution.taskStarted();
+            TaskLoadAttribution.taskStarted(clocks.now);
             TaskLoadAttribution.attribute(charges);
             clocks.cpu += 2 * TASK_NANOS;
             TaskLoadAttribution.taskCompleted(TASK_NANOS, clocks.now);
@@ -57,7 +58,7 @@ public class TaskLoadAttributionTests extends ESTestCase {
         onPoolThread(clocks -> {
             Charges task = new Charges();
             Charges part = new Charges();
-            TaskLoadAttribution.taskStarted();
+            TaskLoadAttribution.taskStarted(clocks.now);
             TaskLoadAttribution.attribute(task);
             clocks.cpu += 100;
             TaskLoadAttribution.charge(part, TASK_NANOS, clocks.now);
@@ -75,7 +76,7 @@ public class TaskLoadAttributionTests extends ESTestCase {
         onPoolThread(clocks -> {
             Charges task = new Charges();
             Charges part = new Charges();
-            TaskLoadAttribution.taskStarted();
+            TaskLoadAttribution.taskStarted(clocks.now);
             TaskLoadAttribution.attribute(task);
             clocks.cpu += 300;
             TaskLoadAttribution.startPart();
@@ -95,7 +96,7 @@ public class TaskLoadAttributionTests extends ESTestCase {
         onPoolThread(clocks -> {
             Charges task = new Charges();
             Charges part = new Charges();
-            TaskLoadAttribution.taskStarted();
+            TaskLoadAttribution.taskStarted(clocks.now);
             TaskLoadAttribution.attribute(task);
             assertThat(clocks.reads, equalTo(1));
             clocks.cpu += 10;
@@ -134,7 +135,7 @@ public class TaskLoadAttributionTests extends ESTestCase {
             Charges charges = new Charges();
             runTask(clocks, charges, 300);
             int reads = clocks.reads;
-            TaskLoadAttribution.taskStarted();
+            TaskLoadAttribution.taskStarted(clocks.now);
             clocks.cpu += 5000;
             assertThat(TaskLoadAttribution.taskCompleted(TASK_NANOS, clocks.now), equalTo(0L));
             assertThat(clocks.reads, equalTo(reads));
@@ -165,12 +166,53 @@ public class TaskLoadAttributionTests extends ESTestCase {
                 charges.charge(nanos, cpuNanos, finishNanos);
                 throw new IllegalStateException("boom");
             };
-            TaskLoadAttribution.taskStarted();
+            TaskLoadAttribution.taskStarted(clocks.now);
             TaskLoadAttribution.attribute(throwing);
             clocks.cpu += 300;
             expectThrows(IllegalStateException.class, () -> TaskLoadAttribution.taskCompleted(TASK_NANOS, clocks.now));
             assertThat(TaskLoadAttribution.taskCompleted(TASK_NANOS, clocks.now), equalTo(0L));
             assertThat(charges, contains(new Charge(TASK_NANOS, 300)));
+        });
+    }
+
+    /**
+     * Charging a task so far charges its target the time since its pool started it, less its parts charged elsewhere, and
+     * leaves its pool only the rest.
+     */
+    public void testChargesTheTaskSoFar() {
+        onPoolThread(clocks -> {
+            Charges task = new Charges();
+            Charges part = new Charges();
+            TaskLoadAttribution.taskStarted(clocks.now);
+            TaskLoadAttribution.attribute(task);
+            assertSame(task, TaskLoadAttribution.target());
+            clocks.cpu += 100;
+            TaskLoadAttribution.startPart();
+            clocks.cpu += 50;
+            assertThat(TaskLoadAttribution.charge(part, TASK_NANOS, clocks.now), equalTo(50L));
+            clocks.cpu += 200;
+            TaskLoadAttribution.chargeSoFar(task, clocks.now + 3 * TASK_NANOS);
+            assertThat(task, contains(new Charge(2 * TASK_NANOS, 300)));
+            clocks.cpu += 25;
+            TaskLoadAttribution.taskCompleted(3 * TASK_NANOS + SHORT_NANOS, clocks.now + 3 * TASK_NANOS + SHORT_NANOS);
+            assertThat(part, contains(new Charge(TASK_NANOS, 50)));
+            assertThat(task, contains(new Charge(2 * TASK_NANOS, 300), new Charge(SHORT_NANOS, 25)));
+        });
+    }
+
+    /**
+     * Only the task whose target is the one given is charged so far.
+     */
+    public void testChargesSoFarOnlyTheTaskOfTheTarget() {
+        onPoolThread(clocks -> {
+            Charges task = new Charges();
+            TaskLoadAttribution.taskStarted(clocks.now);
+            TaskLoadAttribution.attribute(task);
+            clocks.cpu += 300;
+            TaskLoadAttribution.chargeSoFar(new Charges(), clocks.now + TASK_NANOS);
+            assertThat(task, empty());
+            TaskLoadAttribution.taskCompleted(TASK_NANOS, clocks.now + TASK_NANOS);
+            assertThat(task, contains(new Charge(TASK_NANOS, 300)));
         });
     }
 
@@ -187,7 +229,7 @@ public class TaskLoadAttributionTests extends ESTestCase {
      * Runs a task of {@link #TASK_NANOS} that uses {@code cpu} of CPU time, charged to {@code charges}.
      */
     private static void runTask(Clocks clocks, Charges charges, long cpu) {
-        TaskLoadAttribution.taskStarted();
+        TaskLoadAttribution.taskStarted(clocks.now);
         TaskLoadAttribution.attribute(charges);
         if (clocks.cpu >= 0) {
             clocks.cpu += cpu;

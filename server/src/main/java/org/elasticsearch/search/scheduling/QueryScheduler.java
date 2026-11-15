@@ -10,6 +10,7 @@
 package org.elasticsearch.search.scheduling;
 
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.tasks.TaskId;
@@ -28,6 +29,9 @@ import java.util.function.LongSupplier;
  * order. A query waits while it has tasks queued on the node and none running: a query running fewer tasks than it queued
  * is not waiting. While a query waits, each shard with queued work accumulates the waiting time once, however many of its
  * tasks are queued. Shards are charged when a task leaves the queue.
+ * <p>
+ * The query's own waiting on the node goes to the {@link QueryLoad} of the executor whose task left the queue, so the loads
+ * of its executors add up to it.
  */
 public final class QueryScheduler {
 
@@ -68,29 +72,37 @@ public final class QueryScheduler {
      * Returns an executor that submits the tasks of the query {@code queryId} to {@code delegate}. The tasks work on
      * {@code shards}, each listed once, which accumulate the waiting into {@link ShardSearchStats#accumulateSearchWaiting}.
      * A query is identified by the task of its coordinator in this cluster, the same on every node.
+     *
+     * @param load where the query's waiting handed to this executor goes, or {@code null} if it takes none
      */
-    public QueryExecutor executor(TaskId queryId, Executor delegate, List<SearchedShard> shards) {
+    public QueryExecutor executor(TaskId queryId, Executor delegate, List<SearchedShard> shards, @Nullable QueryLoad load) {
         List<Shard> searched = new ArrayList<>(shards.size());
         for (SearchedShard shard : shards) {
             ShardSearchStats stats = shard.shard().shardSearchStats();
             searched.add(new Shard(stats, stats::accumulateSearchWaiting, shard.hasWork()));
         }
-        return newExecutor(queryId, delegate, searched);
+        return newExecutor(queryId, delegate, searched, load);
     }
 
     /**
      * Returns an executor that submits the tasks of the query {@code queryId} to {@code delegate}, all working on
      * {@code shard}, which has work as long as they are queued.
+     *
+     * @param load where the query's waiting handed to this executor goes, or {@code null} if it takes none
      */
-    public QueryExecutor executor(TaskId queryId, Executor delegate, IndexShard shard) {
+    public QueryExecutor executor(TaskId queryId, Executor delegate, IndexShard shard, @Nullable QueryLoad load) {
         ShardSearchStats stats = shard.shardSearchStats();
-        return newExecutor(queryId, delegate, List.of(new Shard(stats, stats::accumulateSearchWaiting, () -> true)));
+        return newExecutor(queryId, delegate, List.of(new Shard(stats, stats::accumulateSearchWaiting, () -> true)), load);
     }
 
     QueryExecutor newExecutor(TaskId queryId, Executor delegate, List<Shard> shards) {
+        return newExecutor(queryId, delegate, shards, new QueryLoad());
+    }
+
+    QueryExecutor newExecutor(TaskId queryId, Executor delegate, List<Shard> shards, @Nullable QueryLoad load) {
         assert queryId.isSet() : "query id must be set";
         assert shards.stream().map(Shard::id).distinct().count() == shards.size() : "shards listed more than once " + shards;
-        return new QueryExecutor(queryId, delegate, shards);
+        return new QueryExecutor(queryId, delegate, shards, load);
     }
 
     /**
@@ -108,6 +120,8 @@ public final class QueryScheduler {
         private final TaskId queryId;
         private final Executor delegate;
         private final List<Shard> shards;
+        @Nullable
+        private final QueryLoad load;
         /** Tasks submitted and not started. */
         private int queuedTasks;
         /** The waiting of the query when this executor last charged its shards, or started queuing. */
@@ -117,10 +131,11 @@ public final class QueryScheduler {
         /** Whether other executors of the query queued at the same time, so its shards are charged through the query. */
         private boolean shared;
 
-        private QueryExecutor(TaskId queryId, Executor delegate, List<Shard> shards) {
+        private QueryExecutor(TaskId queryId, Executor delegate, List<Shard> shards, QueryLoad load) {
             this.queryId = queryId;
             this.delegate = delegate;
             this.shards = shards;
+            this.load = load;
         }
 
         @Override
@@ -210,6 +225,8 @@ public final class QueryScheduler {
         long waitedNanos;
         /** The last time {@link #waitedNanos} was brought up to date. */
         long waitedUpToNanos;
+        /** The part of {@link #waitedNanos} handed to the loads of its executors. */
+        long handedOutWaitedNanos;
         /** The executors with tasks queued. */
         int queuingExecutors;
         /** The executor with tasks queued while no other has any, so it is shared once another joins. */
@@ -336,10 +353,15 @@ public final class QueryScheduler {
         }
 
         /**
-         * A task of the executor left the queue: charges its shards if the query waited since the executor last charged
-         * them, and forgets them if it was the last task the executor had queued.
+         * A task of the executor left the queue: hands the waiting of the query not handed out yet to the executor's load, if
+         * it has one, charges its shards if the query waited since the executor last charged them, and forgets them if it was
+         * the last task the executor had queued.
          */
         private void leaveQueue(QueryExecutor executor) {
+            if (executor.load != null && handedOutWaitedNanos != waitedNanos) {
+                executor.load.addWaiting(waitedNanos - handedOutWaitedNanos);
+                handedOutWaitedNanos = waitedNanos;
+            }
             if (executor.chargedWaitedNanos != waitedNanos) {
                 charge(executor);
             }

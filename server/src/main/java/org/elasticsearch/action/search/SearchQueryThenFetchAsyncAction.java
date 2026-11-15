@@ -41,6 +41,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -52,6 +53,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.scheduling.QueryLoad;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -774,7 +777,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 // merging the results of the shards of the request is work for them, by the docs each matched
                 List<ShardId> shardIds = request.shards.stream().map(ShardToQuery::shardId).toList();
                 var consumer = state.queryPhaseResultConsumer;
-                consumer.mergeLoad(searchService.searchLoad(shardIds, consumer::docsMatched));
+                consumer.mergeLoad(new QueryLoad().charging(searchService.searchLoad(shardIds, consumer::docsMatched)));
                 // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
                     executeShardTasks(state);
@@ -953,6 +956,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final TransportChannel channel;
         private volatile BottomSortValuesCollector bottomSortCollector;
         private final NamedWriteableRegistry namedWriteableRegistry;
+        /** When the part of building the response not charged yet started. */
+        private long mergeStartNanos;
 
         private QueryPerNodeState(
             QueryPhaseResultConsumer queryPhaseResultConsumer,
@@ -979,7 +984,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             }
             ChannelActionListener<BytesTransportResponse> channelListener = new ChannelActionListener<>(channel);
             final BytesTransportResponse response;
-            long startNanos = TaskLoadAttribution.startPart();
+            mergeStartNanos = TaskLoadAttribution.startPart();
             try {
                 response = buildResponse();
             } catch (Exception e) {
@@ -991,7 +996,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 channelListener.onFailure(e);
                 return;
             } finally {
-                chargeMerge(startNanos);
+                chargeMerge();
             }
             ActionListener.respondAndRelease(channelListener, response);
         }
@@ -1000,12 +1005,24 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
          * Charges building the response to the shards of the request, as it merges their results in the task of the shard that
          * completed last.
          */
-        private void chargeMerge(long startNanos) {
+        private void chargeMerge() {
             TaskLoadAttribution.Target mergeLoad = queryPhaseResultConsumer.mergeLoad();
             if (mergeLoad != null) {
                 long finishNanos = System.nanoTime();
-                TaskLoadAttribution.charge(mergeLoad, finishNanos - startNanos, finishNanos);
+                TaskLoadAttribution.charge(mergeLoad, finishNanos - mergeStartNanos, finishNanos);
+                mergeStartNanos = finishNanos;
             }
+        }
+
+        /**
+         * The load of merging the results of the shards so far, charged first, which the response reports with a shard result.
+         */
+        private DirectoryMetrics mergeMetrics() {
+            if (queryPhaseResultConsumer.mergeLoad() instanceof QueryLoad.Charging mergeLoad) {
+                chargeMerge();
+                return SearchLoadMetrics.of(mergeLoad.load());
+            }
+            return DirectoryMetrics.EMPTY;
         }
 
         private BytesTransportResponse buildResponse() throws Exception {
@@ -1065,12 +1082,17 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
             }
             final int resultCount = queryPhaseResultConsumer.getNumShards();
+            DirectoryMetrics mergeMetrics = mergeMetrics();
             out.writeVInt(resultCount);
             for (int i = 0; i < resultCount; i++) {
                 var result = queryPhaseResultConsumer.results.get(i);
                 if (result == null) {
                     NodeQueryResponse.writePerShardException(out, shardFailureOrUnknown(i));
                 } else {
+                    if (mergeMetrics.isEmpty() == false) {
+                        result.setDirectoryMetrics(result.getDirectoryMetrics().merge(mergeMetrics));
+                        mergeMetrics = DirectoryMetrics.EMPTY;
+                    }
                     // free context id and remove it from the result right away in case we don't need it anymore
                     maybeFreeContext(result, relevantShardIndices, namedWriteableRegistry);
                     NodeQueryResponse.writePerShardResult(out, result);

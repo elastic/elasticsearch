@@ -79,6 +79,7 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorePhase;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -112,6 +113,7 @@ final class DefaultSearchContext extends SearchContext {
     private DirectoryMetricsAwareExecutor metricsAwareExecutor;
     private final DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture;
     private DirectoryMetrics fetchThreadsMetrics = DirectoryMetrics.EMPTY;
+    private volatile QueryLoad.Charging searchLoad;
     private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
@@ -213,11 +215,12 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
-                // the tasks searching segments in parallel work for this shard
-                Executor shardExecutor = TaskLoadAttribution.charging(
-                    executor,
-                    readerContext.indexShard().shardSearchStats().searchLoadTarget()
-                );
+                // the tasks searching segments in parallel work for this shard, and for the phase that runs them
+                TaskLoadAttribution.Target shardLoad = readerContext.indexShard().shardSearchStats().searchLoadTarget();
+                Executor shardExecutor = TaskLoadAttribution.charging(executor, (nanos, cpuNanos, finishNanos) -> {
+                    TaskLoadAttribution.Target phaseLoad = searchLoad;
+                    (phaseLoad == null ? shardLoad : phaseLoad).charge(nanos, cpuNanos, finishNanos);
+                });
                 // Always wrap: cache and directory metrics must be collected on worker threads.
                 this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(shardExecutor, currentThreadDirectoryMetricsCapture);
                 executor = this.metricsAwareExecutor;
@@ -272,6 +275,18 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture() {
         return currentThreadDirectoryMetricsCapture;
+    }
+
+    @Override
+    public QueryLoad.Charging searchLoad() {
+        return searchLoad;
+    }
+
+    /**
+     * Charges the work of this context to {@code searchLoad}, which charges its shard.
+     */
+    public void searchLoad(QueryLoad.Charging searchLoad) {
+        this.searchLoad = searchLoad;
     }
 
     @Override

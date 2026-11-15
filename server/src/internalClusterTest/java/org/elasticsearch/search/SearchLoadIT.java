@@ -20,6 +20,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -90,6 +91,66 @@ public class SearchLoadIT extends ESIntegTestCase {
         assertThat(searchLoad("searched"), greaterThan(0.0));
         assertCpuIsPartOfTheLoad("searched");
         assertThat(searchLoad("other"), equalTo(0.0));
+    }
+
+    /**
+     * A search reports the load its shard phases were charged: each phase is charged its task until its result leaves.
+     */
+    public void testSearchReportsTheLoadItsShardsWereCharged() throws Exception {
+        assertSearchReportsTheLoadItsShardsWereCharged(Settings.EMPTY, false, 0);
+    }
+
+    /**
+     * A search also reports the load of the segments its shard phases search in parallel, and of the data node merging their
+     * results.
+     */
+    public void testSearchReportsTheLoadOfParallelSegmentsAndMerges() throws Exception {
+        assertSearchReportsTheLoadItsShardsWereCharged(
+            Settings.builder().put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1).put("thread_pool.search.size", 4).build(),
+            true,
+            10
+        );
+    }
+
+    /**
+     * Searches {@code size} hits, so with none only the query phase runs.
+     */
+    private void assertSearchReportsTheLoadItsShardsWereCharged(Settings dataNodeSettings, boolean batched, int size) throws Exception {
+        String dataNode = internalCluster().startNode(dataNodeSettings);
+        String coordinator = internalCluster().startCoordinatingOnlyNode(
+            Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), batched).build()
+        );
+        createIndex("searched", indexSettings(between(1, 5), 0).build());
+        for (int segment = 0; segment < 3; segment++) {
+            BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int i = 0; i < 500; i++) {
+                bulk.add(prepareIndex("searched").setSource("k", "k" + (i % 10), "v", i));
+            }
+            assertNoFailures(bulk.get());
+        }
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, dataNode);
+        var search = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
+        long totalBefore = search.getTotalTaskExecutionTime();
+        long chargedBefore = chargedToShards(dataNode);
+
+        var response = client(coordinator).prepareSearch("searched")
+            .setQuery(QueryBuilders.rangeQuery("v").gte(between(0, 50)))
+            .setSize(size)
+            .setBatchedReduceSize(2)
+            .get();
+        SearchLoadMetrics reported;
+        try {
+            assertNoFailures(response);
+            reported = (SearchLoadMetrics) response.getDirectoryMetrics().metrics(SearchLoadMetrics.NAME);
+        } finally {
+            response.decRef();
+        }
+
+        assertThat(reported.loadNanos(), greaterThan(0L));
+        assertThat(reported.cpuNanos(), lessThanOrEqualTo(reported.loadNanos()));
+        // what the search reports was charged to its shards, which are also charged the tasks after their results left
+        assertBusy(() -> assertThat(chargedToShards(dataNode) - chargedBefore, equalTo(search.getTotalTaskExecutionTime() - totalBefore)));
+        assertThat(reported.loadNanos(), lessThanOrEqualTo(chargedToShards(dataNode) - chargedBefore));
     }
 
     private static long chargedToShards(String node) {

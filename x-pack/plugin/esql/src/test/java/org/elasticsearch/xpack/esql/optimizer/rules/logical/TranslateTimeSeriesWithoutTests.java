@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -80,8 +79,8 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
         assertThat(loweredRelation.output(), hasItem(loweredGrouping));
     }
 
-    /** A WITHOUT read through an expression, such as the typed label container cast from it, is lowered inside it. */
-    public void testLoweringReachesIntoTheGroupingExpression() {
+    /** A typed WITHOUT lowers to the {@code _timeseries} attribute that loads as the typed label container. */
+    public void testTypedWithoutLowersToTheTypedAttribute() {
         FieldAttribute cluster = new FieldAttribute(
             Source.EMPTY,
             null,
@@ -90,8 +89,12 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
             new EsField("cluster", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION)
         );
         EsRelation relation = EsqlTestUtils.relation(IndexMode.TIME_SERIES).withAttributes(List.of(cluster));
-        var fn = new TimeSeriesWithout(Source.EMPTY, new ArrayList<>(List.<Expression>of(cluster)));
-        var container = new Alias(Source.EMPTY, MetadataAttribute.TIMESERIES, new ToTimeSeriesMetadata(Source.EMPTY, fn));
+        var fn = new TimeSeriesWithout(
+            Source.EMPTY,
+            new ArrayList<>(List.<Expression>of(cluster)),
+            DataType.TIME_SERIES_METADATA_DATA_TYPE
+        );
+        var container = new Alias(Source.EMPTY, MetadataAttribute.TIMESERIES, fn);
         TimeSeriesAggregate aggregate = new TimeSeriesAggregate(
             Source.EMPTY,
             relation,
@@ -108,9 +111,9 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
             TimeSeriesAggregate.class
         );
 
-        Alias grouping = as(lowered.groupings().getFirst(), Alias.class);
-        assertThat(grouping.id(), equalTo(container.id()));
-        var view = as(as(grouping.child(), ToTimeSeriesMetadata.class).field(), TimeSeriesMetadataAttribute.class);
+        var view = as(lowered.groupings().getFirst(), TimeSeriesMetadataAttribute.class);
+        assertThat(view.id(), equalTo(container.id()));
+        assertThat(view.dataType(), equalTo(DataType.TIME_SERIES_METADATA_DATA_TYPE));
         assertThat(view.excludedFields(), equalTo(Set.of("cluster")));
         assertThat(as(lowered.child(), EsRelation.class).output(), hasItem(view));
     }

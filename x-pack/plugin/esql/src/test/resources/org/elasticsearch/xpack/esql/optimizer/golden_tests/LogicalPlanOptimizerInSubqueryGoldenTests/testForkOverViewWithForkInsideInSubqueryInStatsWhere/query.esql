@@ -1,0 +1,2 @@
+FROM employees
+| STATS c = COUNT(*) WHERE emp_no IN (FROM fork_view | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5) | KEEP emp_no)

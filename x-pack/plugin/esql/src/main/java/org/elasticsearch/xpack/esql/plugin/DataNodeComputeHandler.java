@@ -63,6 +63,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -1215,6 +1216,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, shards.size());
             final AtomicInteger pagesProduced = new AtomicInteger();
             List<DataNodeRequest.Shard> batch = shards.subList(startBatchIndex, endBatchIndex);
+            // acquiring the search contexts of the batch is work of its compute
+            QueryLoad batchLoad = new QueryLoad();
             ActionListener<DriverCompletionInfo> batchListener = new ActionListener<>() {
                 final ActionListener<DriverCompletionInfo> ref = computeListener.acquireCompute();
 
@@ -1258,6 +1261,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 configuration,
                 request.aliasFilters(),
                 PlannerUtils.sliceSelection(request.plan()),
+                batchLoad,
                 ActionListener.wrap(acquiredSearchContexts -> {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
                     if (acquiredSearchContexts.isEmpty()) {
@@ -1277,7 +1281,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> exchangeSink(pagesProduced::incrementAndGet),
                         singleNodeOptimizations,
                         sortBound,
-                        null
+                        null,
+                        batchLoad
                     );
                     computeService.runCompute(
                         parentTask,
@@ -1298,6 +1303,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             Configuration configuration,
             Map<Index, AliasFilter> aliasFilters,
             SliceSelection slices,
+            QueryLoad load,
             ActionListener<IndexedByShardId<ComputeSearchContext>> listener
         ) {
             final List<Tuple<IndexShard, SplitShardCountSummary>> targetShards = new ArrayList<>();
@@ -1316,7 +1322,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
                 // acquiring the search contexts and planning the batch with them is work for its shards
-                TaskLoadAttribution.attribute(shardsLoad(shards));
+                TaskLoadAttribution.attribute(load.charging(shardsLoad(shards)));
                 var newContexts = new ArrayList<SearchContext>();
                 for (Tuple<IndexShard, SplitShardCountSummary> targetShard : targetShards) {
                     SearchContext context = null;
@@ -1485,7 +1491,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> leavingTheNode(externalSink.createExchangeSink(() -> {}), searchContexts, fetchContexts),
                         request.singleNodeOptimizations(),
                         null,
-                        reduceLoad(request.shards(), searchContexts)
+                        reduceLoad(request.shards(), searchContexts),
+                        new QueryLoad()
                     ),
                     reductionPlan.nodeReducePlan(),
                     plannerSettings,

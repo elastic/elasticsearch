@@ -280,7 +280,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(15, answer.size());
+        assertEquals(18, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -296,6 +296,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("driver_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("search_load_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("search_cpu_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("search_waiting_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
                 .entry("completion_time_in_millis", greaterThan(0L))

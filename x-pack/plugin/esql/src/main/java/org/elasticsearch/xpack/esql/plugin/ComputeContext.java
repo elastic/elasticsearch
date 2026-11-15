@@ -13,6 +13,7 @@ import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -22,6 +23,7 @@ import java.util.function.Supplier;
 /**
  * @param queryId the task of the query's coordinator in this cluster
  * @param load where the time of a compute that reads no shard of its own is charged, or {@code null}
+ * @param queryLoad what the compute charged outside its drivers, and its waiting
  */
 record ComputeContext(
     String sessionId,
@@ -36,7 +38,8 @@ record ComputeContext(
     Supplier<ExchangeSink> exchangeSinkSupplier,
     boolean singleNodeOptimizations,
     @Nullable SharedSortBound sortBound,
-    @Nullable TaskLoadAttribution.Target load
+    @Nullable TaskLoadAttribution.Target load,
+    QueryLoad queryLoad
 ) {
     ComputeContext(
         String sessionId,
@@ -64,7 +67,8 @@ record ComputeContext(
             exchangeSinkSupplier,
             singleNodeOptimizations,
             null,
-            null
+            null,
+            new QueryLoad()
         );
     }
 }

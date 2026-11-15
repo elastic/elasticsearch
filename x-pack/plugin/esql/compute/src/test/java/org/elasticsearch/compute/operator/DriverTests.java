@@ -43,6 +43,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -150,6 +151,7 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().driverNanos(), greaterThan(0L));
         assertThat(charged.get(), equalTo(driver.status().driverNanos()));
+        assertThat(driver.searchLoad().nanos(), equalTo(charged.get()));
     }
 
     /**
@@ -165,7 +167,9 @@ public class DriverTests extends ESTestCase {
                 return List.of(new ShardLoad(first, 0, 3), new ShardLoad(second, 0, 1), new ShardLoad(empty, 0, 0));
             }
         };
-        assertTrue(source.reportSearchLoad(400, System.nanoTime()));
+        QueryLoad driverLoad = new QueryLoad();
+        assertTrue(source.reportSearchLoad(400, System.nanoTime(), driverLoad));
+        assertThat(driverLoad.nanos(), equalTo(400L));
         assertThat(first.rowsEmitted(), equalTo(3L));
         assertThat(second.rowsEmitted(), equalTo(1L));
         assertThat(empty.rowsEmitted(), equalTo(0L));
@@ -212,6 +216,7 @@ public class DriverTests extends ESTestCase {
         assertThat(shardNanos, greaterThan(0L));
         assertThat(charged.get(), greaterThan(0L));
         assertThat(shardNanos + charged.get(), equalTo(driver.status().driverNanos()));
+        assertThat(driver.searchLoad().nanos(), equalTo(driver.status().driverNanos()));
     }
 
     /**

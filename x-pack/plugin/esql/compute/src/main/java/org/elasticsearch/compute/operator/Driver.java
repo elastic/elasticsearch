@@ -26,6 +26,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
@@ -127,6 +128,7 @@ public class Driver implements Releasable, Describable {
 
     /** Set with {@link #loadTarget(TaskLoadAttribution.Target)}, or {@code null}. */
     private TaskLoadAttribution.Target loadTarget;
+    private final QueryLoad searchLoad = new QueryLoad();
     /** The time since the last status update already reported by a source operator when it closed. */
     private long reportedByClosedSource;
 
@@ -450,7 +452,7 @@ public class Driver implements Releasable, Describable {
                     if (op instanceof SourceOperator sourceOperator) {
                         long now = currentTimeNanosSupplier.getAsLong();
                         // report one last time before closing
-                        if (sourceOperator.reportSearchLoad(now - lastStatusUpdate - reportedByClosedSource, now)) {
+                        if (sourceOperator.reportSearchLoad(now - lastStatusUpdate - reportedByClosedSource, now, searchLoad)) {
                             reportedByClosedSource = now - lastStatusUpdate;
                         }
                     }
@@ -726,7 +728,14 @@ public class Driver implements Releasable, Describable {
      */
     public void loadTarget(TaskLoadAttribution.Target loadTarget) {
         assert started.get() == false : "driver already started";
-        this.loadTarget = loadTarget;
+        this.loadTarget = loadTarget == null ? null : searchLoad.charging(loadTarget);
+    }
+
+    /**
+     * What this driver charged, whether to its shards or to its {@link #loadTarget load target}.
+     */
+    public QueryLoad searchLoad() {
+        return searchLoad;
     }
 
     private void reportSearchLoad(long extraDriverNanos, long now) {
@@ -737,7 +746,7 @@ public class Driver implements Releasable, Describable {
             .filter(o -> o instanceof SourceOperator)
             .map(o -> (SourceOperator) o)
             .findFirst()
-            .map(sourceOperator -> sourceOperator.reportSearchLoad(extraDriverNanos, now))
+            .map(sourceOperator -> sourceOperator.reportSearchLoad(extraDriverNanos, now, searchLoad))
             .orElse(false);
         if (attributed == false && loadTarget != null) {
             TaskLoadAttribution.charge(loadTarget, extraDriverNanos, now);

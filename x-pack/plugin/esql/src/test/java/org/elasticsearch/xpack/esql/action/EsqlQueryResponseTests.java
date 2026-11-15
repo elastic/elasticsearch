@@ -783,7 +783,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     /**
-     * {@code driver_nanos} round-trips on current nodes. Nodes that predate it read 0, while {@code cpu_nanos} still round-trips.
+     * {@code driver_nanos} and the search load round-trip on current nodes. Nodes that predate them read 0, while
+     * {@code cpu_nanos} still round-trips.
      */
     public void testDriverNanosSerialization() throws IOException {
         try (
@@ -798,6 +799,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 7777,
                 8888,
                 9999,
+                11,
+                12,
+                13,
                 null,
                 true,
                 null,
@@ -813,6 +817,16 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             try (EsqlQueryResponse copy = copyInstance(response, TransportVersion.current())) {
                 assertThat(copy.cpuNanos(), equalTo(8888L));
                 assertThat(copy.driverNanos(), equalTo(9999L));
+                assertThat(copy.searchLoadNanos(), equalTo(11L));
+                assertThat(copy.searchCpuNanos(), equalTo(12L));
+                assertThat(copy.searchWaitingNanos(), equalTo(13L));
+            }
+            TransportVersion beforeSearchLoad = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("search_load_report"));
+            try (EsqlQueryResponse copy = copyInstance(response, beforeSearchLoad)) {
+                assertThat(copy.driverNanos(), equalTo(9999L));
+                assertThat(copy.searchLoadNanos(), equalTo(0L));
+                assertThat(copy.searchCpuNanos(), equalTo(0L));
+                assertThat(copy.searchWaitingNanos(), equalTo(0L));
             }
             TransportVersion beforeDriverNanos = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_driver_nanos"));
             try (EsqlQueryResponse copy = copyInstance(response, beforeDriverNanos)) {
@@ -823,7 +837,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     /**
-     * Positive coverage of the four query-wide rollup fields at the response root. The existing
+     * Positive coverage of the query-wide rollup fields at the response root. The existing
      * XContent tests all assert zero — this one asserts the values appear in the JSON exactly
      * as supplied to the constructor, guarding against a regression that silently zeros them out.
      */
@@ -840,6 +854,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 7777, // read_cpu_nanos
                 8888, // cpu_nanos
                 9999, // driver_nanos
+                1212, // search_load_nanos
+                1313, // search_cpu_nanos
+                1414, // search_waiting_nanos
                 null,
                 true,
                 null,
@@ -862,6 +879,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 7777,
                   "cpu_nanos" : 8888,
                   "driver_nanos" : 9999,
+                  "search_load_nanos" : 1212,
+                  "search_cpu_nanos" : 1313,
+                  "search_waiting_nanos" : 1414,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -890,6 +910,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -925,6 +948,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
                       "driver_nanos" : 0,
+                      "search_load_nanos" : 0,
+                      "search_cpu_nanos" : 0,
+                      "search_waiting_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -961,6 +987,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -990,6 +1019,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 List.of(new Page(blockFactory.newIntArrayVector(new int[] { 40, 80 }, 2).asBlock())),
                 3,
                 100,
+                0,
+                0,
+                0,
                 0,
                 0,
                 0,
@@ -1047,6 +1079,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1083,6 +1118,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1114,6 +1152,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1167,6 +1208,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1221,6 +1265,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1267,6 +1314,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1334,6 +1384,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     equalTo(
                         "{\"documents_found\":0,\"values_loaded\":0,\"rows_emitted\":0,\"bytes_read\":0,\"read_nanos\":0,"
                             + "\"read_cpu_nanos\":0,\"cpu_nanos\":0,\"driver_nanos\":0,"
+                            + "\"search_load_nanos\":0,\"search_cpu_nanos\":0,\"search_waiting_nanos\":0,"
                             + "\"columns\":[{\"name\":\"id\",\"type\":\"integer\"},{\"name\":\"_source\",\"type\":\"_source\"}],"
                             + "\"values\":[[1,"
                             + firstSource
@@ -1353,6 +1404,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
                       "driver_nanos" : 0,
+                      "search_load_nanos" : 0,
+                      "search_cpu_nanos" : 0,
+                      "search_waiting_nanos" : 0,
                       "columns" : [
                         {
                           "name" : "id",
@@ -1432,6 +1486,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                       "read_cpu_nanos" : 0,
                       "cpu_nanos" : 0,
                       "driver_nanos" : 0,
+                      "search_load_nanos" : 0,
+                      "search_cpu_nanos" : 0,
+                      "search_waiting_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -1503,6 +1560,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                           "read_cpu_nanos" : 0,
                           "cpu_nanos" : 0,
                           "driver_nanos" : 0,
+                          "search_load_nanos" : 0,
+                          "search_cpu_nanos" : 0,
+                          "search_waiting_nanos" : 0,
                           "all_columns" : [
                             {
                               "name" : "foo",
@@ -1599,6 +1659,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "read_cpu_nanos" : 0,
                   "cpu_nanos" : 0,
                   "driver_nanos" : 0,
+                  "search_load_nanos" : 0,
+                  "search_cpu_nanos" : 0,
+                  "search_waiting_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",

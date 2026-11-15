@@ -79,7 +79,7 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
 
     /**
      * On a data node, every driver task on the worker pool, including the node-level reduce, and acquiring the search
-     * contexts on the search pool charge the shards the queries read, once. The transport glue on the search pool charges
+     * contexts on the search pool charge the shards the queries read, once, and the queries report what they charged. The transport glue on the search pool charges
      * nothing: the requests that start the drivers, their responses and the exchange with the coordinator. The queries read
      * all the docs they match, since a driver that finishes early can run outside the pools.
      */
@@ -100,6 +100,7 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
         long workersAttributedBefore = workers.getAttributedTaskExecutionTime();
         long workersTotalBefore = workers.getTotalTaskExecutionTime();
         long chargedBefore = chargedToShards(dataNode);
+        long reported = 0;
 
         for (int i = between(1, 5); i > 0; i--) {
             String query = randomFrom(
@@ -108,7 +109,9 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
                 "FROM read | WHERE v > 100 | KEEP k, v | LIMIT 1000"
             );
             try (var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
-                assertNotNull(response);
+                assertThat(response.searchLoadNanos(), greaterThan(0L));
+                assertThat(response.searchCpuNanos(), lessThanOrEqualTo(response.searchLoadNanos()));
+                reported += response.searchLoadNanos();
             }
         }
 
@@ -123,6 +126,8 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
             // and all that is charged goes to the shards, once
             assertThat(chargedToShards(dataNode) - chargedBefore, equalTo(workersAttributed + searchAttributed));
         });
+        // the queries report what their shards were charged, which are also charged the tasks still running when they completed
+        assertThat(reported, lessThanOrEqualTo(chargedToShards(dataNode) - chargedBefore));
         assertThat(searchLoad("read"), greaterThan(0.0));
         assertCpuIsPartOfTheLoad("read");
         assertThat(searchLoad("other"), equalTo(0.0));

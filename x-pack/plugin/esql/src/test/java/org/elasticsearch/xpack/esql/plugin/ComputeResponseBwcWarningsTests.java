@@ -85,7 +85,7 @@ public class ComputeResponseBwcWarningsTests extends ESTestCase {
     }
 
     private static DriverCompletionInfo completionInfo() {
-        return new DriverCompletionInfo(0, 0, 0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of(), false, false, Set.of());
+        return new DriverCompletionInfo(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, List.of(), List.of(), Map.of(), false, false, Set.of());
     }
 
     /**

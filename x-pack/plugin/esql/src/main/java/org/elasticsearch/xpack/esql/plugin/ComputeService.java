@@ -67,6 +67,7 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -2049,7 +2050,10 @@ public class ComputeService {
             ? shardsLoad(shardContexts)
             : context.load();
         assert context.description().equals(REDUCE_DESCRIPTION) == false || computeLoad != null : "node reduce without a load target";
-        Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of());
+        QueryLoad queryLoad = context.queryLoad();
+        // a compute that charges no load, such as on the coordinator, takes none of the query's waiting either
+        QueryLoad waitingLoad = computeLoad == null ? null : queryLoad;
+        Executor parallelWorkers = searchService.queryScheduler().executor(context.queryId(), computeExecutor, List.of(), waitingLoad);
 
         try {
             var workerThreadPool = transportService.getThreadPool();
@@ -2088,7 +2092,7 @@ public class ComputeService {
                 operatorFactoryRegistry,
                 datasetConfigResolver.snapshotBuild(),
                 // the workers of parallel operators are tasks of the query, with no shard of their own
-                computeLoad == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, computeLoad),
+                computeLoad == null ? parallelWorkers : TaskLoadAttribution.charging(parallelWorkers, queryLoad.charging(computeLoad)),
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion(),
@@ -2237,8 +2241,13 @@ public class ComputeService {
             QueryDriverExecutor driverExecutor = new QueryDriverExecutor(
                 context.queryId(),
                 // only data drivers read the slices of the shards; the node reduce shares the search contexts
-                context.description().equals(DATA_DESCRIPTION) ? searchedShards(context.searchContexts()) : List.of()
+                context.description().equals(DATA_DESCRIPTION) ? searchedShards(context.searchContexts()) : List.of(),
+                waitingLoad
             );
+            // the task that prepared the compute, such as acquiring its search contexts, reports what it did so far with it
+            if (TaskLoadAttribution.target() instanceof QueryLoad.Charging charging && charging.load() == queryLoad) {
+                TaskLoadAttribution.chargeSoFar(charging, System.nanoTime());
+            }
             driverRunner.executeDrivers(task, drivers, driverExecutor, ActionListener.releaseAfter(driverListener, () -> {
                 if (hookExecInfo != null) {
                     for (BooleanSupplier hook : registeredStopHooks) {
@@ -2283,6 +2292,7 @@ public class ComputeService {
                     logicalPlanString,
                     planTimeProfile,
                     planningBytesRead,
+                    context.queryLoad(),
                     approximated
                 );
                 LOGGER.debug("finished {}", driverCompletionInfo);
@@ -2296,7 +2306,7 @@ public class ComputeService {
                 }
             }
 
-            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, approximated);
+            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, context.queryLoad(), approximated);
         });
     }
 
@@ -2417,8 +2427,8 @@ public class ComputeService {
         /** The scheduler passes a wrapped {@link AbstractRunnable} on as an {@link AbstractRunnable}, so the cast holds. */
         private final Executor resumed = task -> computeExecutor.executeResumed((AbstractRunnable) task);
 
-        QueryDriverExecutor(TaskId queryId, List<QueryScheduler.SearchedShard> shards) {
-            this.executor = searchService.queryScheduler().executor(queryId, computeExecutor, shards);
+        QueryDriverExecutor(TaskId queryId, List<QueryScheduler.SearchedShard> shards, QueryLoad load) {
+            this.executor = searchService.queryScheduler().executor(queryId, computeExecutor, shards, load);
         }
 
         @Override

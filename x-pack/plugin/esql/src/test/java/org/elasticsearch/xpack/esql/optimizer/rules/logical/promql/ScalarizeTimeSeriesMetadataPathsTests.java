@@ -28,13 +28,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.Abstra
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
 
 import java.util.List;
 import java.util.Map;
@@ -71,8 +71,8 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         TimeSeriesAggregate pushed = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertEquals(List.of(MetadataAttribute.TIMESERIES, "pod"), names(pushed.groupings()));
         Expression container = Alias.unwrap(pushed.groupings().getFirst());
-        assertThat(container, instanceOf(ToTimeSeriesMetadata.class));
-        assertThat(container.children().getFirst().children(), empty());
+        assertThat(as(container, TimeSeriesWithout.class).children(), empty());
+        assertThat(container.dataType(), sameInstance(DataType.TIME_SERIES_METADATA_DATA_TYPE));
         assertEquals(pod, Alias.unwrap(pushed.groupings().getLast()));
         assertThat(expressions(plan, AbstractTimeSeriesMetadataFunction.class), empty());
         Eval eval = as(plan, Eval.class);
@@ -237,7 +237,7 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
     }
 
     private static Alias sourceLabels() {
-        return new Alias(SOURCE, MetadataAttribute.TIMESERIES, new ToTimeSeriesMetadata(SOURCE, new TimeSeriesWithout(SOURCE)));
+        return new Alias(SOURCE, MetadataAttribute.TIMESERIES, TranslationContextV2.sourceLabels(SOURCE));
     }
 
     private TimeSeriesAggregate timeSeriesAggregate(Alias labels, TimeSeriesAggregate.Origin origin) {

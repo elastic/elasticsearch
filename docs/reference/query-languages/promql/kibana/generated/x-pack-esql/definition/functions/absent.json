@@ -1,0 +1,24 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "metadata",
+  "name" : "absent",
+  "description" : "Returns an empty vector if the instant vector argument has any element, and a single-element vector with the value `1` otherwise. When the argument is a selector, the result carries the labels of its equality matchers, such as `job=\"api\"` for `absent(http_requests_total{job=\"api\"})`. A label takes the value of its first equality matcher, and is left out when a later matcher names it too, such as `job` in `absent(x{job=\"api\", job!=\"web\"})`. Any other argument gives a result without labels.\n\nThe query needs a time range (`start` and `end`, `time`, or a `@timestamp` range filter on the request), because `absent` returns a value at the evaluation steps where the argument has no element.",
+  "signatures" : [
+    {
+      "params" : [
+        {
+          "name" : "v",
+          "type" : "instant_vector",
+          "optional" : false,
+          "description" : "Instant vector input."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "instant_vector"
+    }
+  ],
+  "examples" : [
+    "absent(http_requests_total{job=\"api\"})"
+  ],
+  "snapshot_only" : false
+}

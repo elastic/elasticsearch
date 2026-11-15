@@ -279,6 +279,37 @@ public class PromqlBuiltinFunctionDefinitions {
         + "- Sequences of digits longer than about 20 digits are still compared numerically, where {{prom}} falls back "
         + "to text comparison.";
 
+    /**
+     * {@code absent(v)} returns {@code 1} at every evaluation step where {@code v} has no element. It derives its own labels
+     * from the selector's equality matchers and is translated directly rather than lowered through the generic function
+     * builder (see {@code AbsentFunction#translate}).
+     */
+    public static final PromqlFunctionDefinition ABSENT = PromqlFunctionDefinition.def()
+        .metadataManipulation(PromqlFunctionDefinition.PromqlFunctionArity.ONE, false, List.of(PromqlFunctionDefinition.INSTANT_VECTOR))
+        .description(
+            "Returns an empty vector if the instant vector argument has any element, and a single-element vector with the value "
+                + "`1` otherwise."
+        )
+        .extendedDescription(
+            "When the argument is a selector, the result carries the labels of its equality matchers, such as `job=\"api\"` "
+                + "for `absent(http_requests_total{job=\"api\"})`. A label takes the value of its first equality matcher, "
+                + "and is left out when a later matcher names it too, such as `job` in `absent(x{job=\"api\", job!=\"web\"})`. "
+                + "Any other argument gives a result without labels.\n\n"
+                + "The query needs a time range (`start` and `end`, `time`, or a `@timestamp` range filter on the request), "
+                + "because `absent` returns a value at the evaluation steps where the argument has no element."
+        )
+        .stdDivergence(
+            "`absent` as an operand of an arithmetic or comparison operator whose other operand reads data, such as "
+                + "`absent(a) + b`, isn't supported yet. Scalar operands, such as `absent(a) * 2`, and the `or` operator, such "
+                + "as `a or absent(b)`, are supported, unless the other operand has a label of the same name mapped as a type "
+                + "other than `keyword`, such as `sum by (shard) (x) or absent(x{shard=\"7\"})` where `shard` is a `long` "
+                + "field. An equality matcher on a label named `step`, such as "
+                + "`absent(x{step=\"a\"})`, isn't supported yet."
+        )
+        .example("absent(http_requests_total{job=\"api\"})")
+        .stack(PromqlFunctionDefinition.STACK_GA_9_7)
+        .name("absent");
+
     public static final PromqlFunctionDefinition SORT_BY_LABEL = PromqlFunctionDefinition.def()
         .resultOrderingByLabel()
         .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)

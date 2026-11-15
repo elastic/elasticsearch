@@ -199,13 +199,14 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     /**
-     * Bounds are only needed when {@code buckets} is specified without an explicit time range.
-     * When {@code step} alone is set, the query can proceed without start/end because the step
-     * directly defines the bucket size; {@link #postAnalysisVerification} validates that case.
+     * Bounds are only needed without an explicit time range, when {@code buckets} is specified or the expression uses
+     * {@code absent}, which enumerates every evaluation step of the range. When {@code step} alone is set otherwise, the query
+     * can proceed without start/end because the step directly defines the bucket size; {@link #postAnalysisVerification}
+     * validates that case.
      */
     @Override
     public boolean needsTimestampBounds() {
-        return buckets.value() != null && hasTimeRange() == false;
+        return hasTimeRange() == false && (buckets.value() != null || containsAbsent(promqlPlan()));
     }
 
     @Override
@@ -511,6 +512,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             )
                         );
                     }
+                    if (functionCall instanceof AbsentFunction absent) {
+                        verifyAbsent(absent, failures);
+                    }
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok
@@ -523,6 +527,19 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             );
                         }
                     });
+                    if (binaryOperator instanceof VectorBinarySet == false && combinesAbsentWithSourceData(binaryOperator)) {
+                        // Such an operator fuses both operands into one aggregate or joins them, neither of which can take an
+                        // operand that is translated as an anti join.
+                        failures.add(
+                            fail(
+                                lp,
+                                "[absent] as an operand of a binary operator whose other operand reads data is not supported at this "
+                                    + "time [{}]",
+                                lp.sourceText()
+                            )
+                        );
+                        return;
+                    }
                     if (binaryOperator instanceof VectorBinarySet == false
                         && binaryOperator.match() != VectorMatch.NONE
                         && EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled() == false) {
@@ -634,7 +651,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * Enforces the supported scope for {@code label_replace}/{@code label_join}: because a derived label is materialized as a
      * concrete column (never by rewriting the series-identity blob), it must either be consumed by an enclosing
      * {@code by(...)} aggregation, or merely add a new label to an identity that an enclosed {@code by(...)} aggregation has
-     * already reduced to concrete columns (see {@link #identitySource} and {@link #overwritesLabel}). Walking down the plan, each relabel
+     * already reduced to concrete columns (see {@link #identitySource} and {@link #overwritesLabel}), or relabel the single
+     * series of an enclosed {@code absent}, whose labels are constant columns. Walking down the plan, each relabel
      * is checked against the nearest enclosing <i>identity consumer</i> - the aggregate, reduction, or binary operator whose
      * output identity it would feed. An {@link AcrossSeriesAggregate} with {@link AcrossSeriesAggregate.Grouping#BY} always
      * consumes it; a bare (non-aggregated) call or an {@link AcrossSeriesReduction} only when the relabel refines an
@@ -691,9 +709,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         }
         // No consumer (top-level) or a topk-style reduction: the relabel is supported when it merely adds a new label to an
         // identity that an enclosed `by(...)` aggregation has already reduced to concrete columns.
-        String position = consumer instanceof AcrossSeriesReduction reduction
-            ? "under [" + reduction.definition().name() + "]"
-            : "as a top-level expression";
+        String position = consumer instanceof PromqlFunctionCall call ? "under [" + call.functionName() + "]" : "as a top-level expression";
         LogicalPlan identitySource = identitySource(relabel.child());
         if (identitySource instanceof AcrossSeriesAggregate agg && agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {
             // Compare by label name, not attribute name: a destination written as `labels.pod` names the same label as the
@@ -718,10 +734,17 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             checkBuiltInColumnCollision(relabel, destination, failures);
             return;
         }
+        if (identitySource instanceof AbsentFunction) {
+            // `absent` yields at most one series, whose labels are constant columns, so unlike a `by(...)` aggregation it
+            // may also have one of its labels overwritten: no two series can collapse onto one label set.
+            checkBuiltInColumnCollision(relabel, PromqlLabels.labelName(relabel.destination()), failures);
+            return;
+        }
         failures.add(
             fail(
                 relabel,
-                "[{}] is only supported inside a `by(...)` aggregation or over the result of one, but was used {} over {} [{}]",
+                "[{}] is only supported inside a `by(...)` aggregation or over the result of one or of [absent], "
+                    + "but was used {} over {} [{}]",
                 name,
                 position,
                 describeIdentitySource(identitySource),
@@ -752,7 +775,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * <p>
      * A relabel over an aggregate is only correct when this is a {@code by(...)} aggregation: that both makes the label set
      * enumerable (an unaggregated vector still carries the opaque {@code _timeseries} identity) and materializes the source
-     * labels as columns the derived expression can read. A binary operator or a {@code topk}-style reduction reshapes
+     * labels as columns the derived expression can read. An {@code absent} qualifies as well, since its labels are constant
+     * columns of a single series. A binary operator or a {@code topk}-style reduction reshapes
      * identity in ways that do not leave the relabel's source labels readable as columns.
      */
     private static LogicalPlan identitySource(LogicalPlan plan) {
@@ -771,7 +795,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     /**
      * A human-readable name for an {@link #identitySource} in a verification failure. Only called for the sources that
-     * {@link #checkRelabelConsumer} rejects, so a {@code by(...)} aggregation never reaches this method.
+     * {@link #checkRelabelConsumer} rejects, so neither a {@code by(...)} aggregation nor {@code absent} reaches this method.
      */
     private static String describeIdentitySource(LogicalPlan identitySource) {
         return switch (identitySource) {
@@ -781,6 +805,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 case NONE -> "an aggregation without a `by(...)` grouping";
                 case BY -> throw new AssertionError("a relabel over a `by(...)` aggregation is accepted before reaching here");
             };
+            case AbsentFunction absent -> throw new AssertionError("a relabel over [absent] is accepted before reaching here");
             case AcrossSeriesReduction reduction -> "[" + reduction.definition().name() + "]";
             case VectorBinaryOperator binaryOperator -> "a binary operator";
             // These are the only nodes for which PromqlPlan#isIdentityTransparent returns false, so identitySource never
@@ -860,6 +885,34 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     private static boolean hasSourceBackedExpression(LogicalPlan plan) {
         return plan.anyMatch(p -> p instanceof Selector && (p instanceof LiteralSelector) == false);
+    }
+
+    /**
+     * {@code absent} returns a value at the evaluation steps where its argument has no element, so the steps must be
+     * enumerable from the command's time range rather than from the data.
+     */
+    private void verifyAbsent(AbsentFunction absent, Failures failures) {
+        if (hasTimeRange() == false) {
+            failures.add(
+                fail(
+                    absent,
+                    "[absent] requires a time range ([start] and [end], [time], or a @timestamp range filter) at this time [{}]",
+                    absent.sourceText()
+                )
+            );
+        }
+        for (Attribute label : absent.output()) {
+            checkBuiltInColumnCollision(absent, label.name(), failures);
+        }
+    }
+
+    private static boolean combinesAbsentWithSourceData(VectorBinaryOperator binaryOperator) {
+        return (containsAbsent(binaryOperator.left()) && hasSourceBackedExpression(binaryOperator.right()))
+            || (containsAbsent(binaryOperator.right()) && hasSourceBackedExpression(binaryOperator.left()));
+    }
+
+    private static boolean containsAbsent(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof AbsentFunction);
     }
 
     private static boolean containsVectorMatch(LogicalPlan plan) {

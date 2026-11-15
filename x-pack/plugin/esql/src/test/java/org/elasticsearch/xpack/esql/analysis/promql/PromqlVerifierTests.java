@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -829,7 +830,7 @@ public class PromqlVerifierTests extends ESTestCase {
         tsdb.error(
             "PROMQL index=test step=5m label_replace(network.bytes_in, \"dst\", \"$1\", \"host\", \"(.+)\")",
             containsString(
-                "[label_replace] is only supported inside a `by(...)` aggregation or over the result of one, "
+                "[label_replace] is only supported inside a `by(...)` aggregation or over the result of one or of [absent], "
                     + "but was used as a top-level expression over raw (non-aggregated) series"
             )
         );
@@ -864,7 +865,7 @@ public class PromqlVerifierTests extends ESTestCase {
         tsdb.error(
             "PROMQL index=test step=5m topk(3, label_replace(network.bytes_in, \"dst\", \"$1\", \"host\", \"(.+)\"))",
             containsString(
-                "[label_replace] is only supported inside a `by(...)` aggregation or over the result of one, "
+                "[label_replace] is only supported inside a `by(...)` aggregation or over the result of one or of [absent], "
                     + "but was used under [topk] over raw (non-aggregated) series"
             )
         );
@@ -952,7 +953,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "PROMQL index=test step=5m "
                 + "label_join(sum by (host) (network.bytes_in) / sum by (host) (network.bytes_in), \"dst\", \"-\", \"host\")",
             containsString(
-                "[label_join] is only supported inside a `by(...)` aggregation or over the result of one, "
+                "[label_join] is only supported inside a `by(...)` aggregation or over the result of one or of [absent], "
                     + "but was used as a top-level expression over a binary operator"
             )
         );
@@ -1147,6 +1148,130 @@ public class PromqlVerifierTests extends ESTestCase {
                 // Expected — analysis should reject this query
             }
         }
+    }
+
+    private static final String ABSENT_RANGE = "PROMQL index=test start=\"2025-10-31T00:00:00Z\" end=\"2025-10-31T01:00:00Z\" step=5m ";
+
+    public void testAbsentArity() {
+        tsdb.error(
+            ABSENT_RANGE + "absent()",
+            ParsingException.class,
+            containsString("Invalid number of parameters for function [absent], required [1], found [0]")
+        );
+        tsdb.error(
+            ABSENT_RANGE + "absent(network.bytes_in, network.bytes_out)",
+            ParsingException.class,
+            containsString("Invalid number of parameters for function [absent], required [1], found [2]")
+        );
+    }
+
+    public void testAbsentArgumentType() {
+        tsdb.error(
+            ABSENT_RANGE + "absent(network.bytes_in[5m])",
+            containsString("expected type instant_vector in call to function [absent], got range_vector")
+        );
+        tsdb.error(ABSENT_RANGE + "absent(1)", containsString("expected type instant_vector in call to function [absent], got scalar"));
+    }
+
+    public void testAbsentRequiresTimeRange() {
+        tsdb.error(
+            "PROMQL index=test step=5m absent(network.bytes_in)",
+            containsString(
+                "[absent] requires a time range ([start] and [end], [time], or a @timestamp range filter) at this time "
+                    + "[absent(network.bytes_in)]"
+            )
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m sum(network.bytes_in) or absent(network.bytes_out)",
+            containsString("[absent] requires a time range")
+        );
+    }
+
+    public void testAbsentTimeRangeFromRequestBounds() {
+        var now = Instant.now();
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .timestampBounds(new TimestampBounds(now.minus(1, ChronoUnit.HOURS), now))
+            .query("PROMQL index=test step=5m absent(network.bytes_in)");
+        assertTrue(plan.resolved());
+    }
+
+    public void testAbsentInstantQueryResolves() {
+        assertTrue(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" absent(network.bytes_in)").resolved());
+    }
+
+    public void testAbsentWithSourceBackedBinaryOperandRejected() {
+        for (String expression : List.of(
+            "absent(network.bytes_in) + network.bytes_out",
+            "network.bytes_out * absent(network.bytes_in)",
+            "absent(network.bytes_in) + absent(network.bytes_out)",
+            "sum(network.bytes_out) == bool absent(network.bytes_in)"
+        )) {
+            tsdb.error(
+                ABSENT_RANGE + expression,
+                containsString("[absent] as an operand of a binary operator whose other operand reads data is not supported at this time")
+            );
+        }
+    }
+
+    public void testAbsentWithScalarOrSetOperandResolves() {
+        for (String expression : List.of(
+            "absent(network.bytes_in) * 2",
+            "absent(network.bytes_in) == 1",
+            "absent(network.bytes_in) or vector(0)",
+            "network.bytes_out or absent(network.bytes_in)",
+            "sum by (host) (network.bytes_out) or absent(network.bytes_in{host=\"nope\"})"
+        )) {
+            assertTrue(expression, tsdb.query(ABSENT_RANGE + expression).resolved());
+        }
+    }
+
+    public void testAbsentLabelCollidingWithBuiltInColumnRejected() {
+        tsdb.error(
+            ABSENT_RANGE + "absent(network.bytes_in{step=\"a\"})",
+            containsString("label [step] collides with the built-in [step] output column")
+        );
+    }
+
+    public void testRelabelOverRawSeriesUnderAbsentRejected() {
+        tsdb.error(
+            ABSENT_RANGE + "absent(label_replace(network.bytes_in, \"dst\", \"$1\", \"host\", \"(.+)\"))",
+            containsString(
+                "[label_replace] is only supported inside a `by(...)` aggregation or over the result of one or of [absent], "
+                    + "but was used under [absent] over raw (non-aggregated) series"
+            )
+        );
+    }
+
+    public void testRelabelOverAbsentResolves() {
+        for (String expression : List.of(
+            "label_replace(absent(network.bytes_in{host=\"a\"}), \"dst\", \"$1\", \"host\", \"(.*)\")",
+            "label_replace(absent(network.bytes_in{host=\"a\"}), \"host\", \"b\", \"host\", \"(.*)\")",
+            "topk(1, label_replace(absent(network.bytes_in{host=\"a\"}), \"dst\", \"$1\", \"host\", \"(.*)\"))"
+        )) {
+            assertTrue(expression, tsdb.query(ABSENT_RANGE + expression).resolved());
+        }
+    }
+
+    public void testRelabelOverAbsentCollidingWithBuiltInColumnRejected() {
+        tsdb.error(
+            ABSENT_RANGE + "label_replace(absent(network.bytes_in{host=\"a\"}), \"step\", \"$1\", \"host\", \"(.*)\")",
+            containsString("label [step] collides with the built-in [step] output column")
+        );
+    }
+
+    public void testByGroupingOverAbsentKeepsDerivedLabel() {
+        var plan = tsdb.query(ABSENT_RANGE + "sum by (job) (absent(network.bytes_in{job=\"a\"}))");
+        assertTrue(plan.resolved());
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem("job"));
+    }
+
+    public void testOrWithAbsentOverNonKeywordLabelRejected() {
+        analyzer().addIndex("test", "promql-long-dimension-mappings.json", IndexMode.TIME_SERIES)
+            .stripErrorPrefix(true)
+            .error(
+                ABSENT_RANGE + "sum by (shard) (load) or absent(load{shard=\"7\"})",
+                containsString("Column [shard] has conflicting data types in subqueries: [long, keyword]")
+            );
     }
 
     /**

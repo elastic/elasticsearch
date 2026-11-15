@@ -2817,6 +2817,13 @@ public class EsqlCapabilities {
         FIX_PROMQL_OFFSET_PRECEDENCE(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL shapes the translation admits by reading labels through references bound after it, rather than from
+         * concrete label columns: the {@code and} and {@code unless} set operators and vector matching between operands whose
+         * labels stay in the label container. Gates test coverage of those shapes.
+         */
+        PROMQL_LABEL_REFERENCES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
          * into one multi-valued row per series.
          */
@@ -4352,6 +4359,12 @@ public class EsqlCapabilities {
          * applied over. Two series left with one label set fail the query, as in Prometheus.
          */
         PROMQL_LABEL_FUNCTIONS_OVERWRITE(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL {@code or} with {@code on(...)}/{@code ignoring(...)} keeps every left series and the right series no left
+         * series matches on the listed labels.
+         */
+        PROMQL_SET_OPERATOR_MATCHING,
 
         /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,

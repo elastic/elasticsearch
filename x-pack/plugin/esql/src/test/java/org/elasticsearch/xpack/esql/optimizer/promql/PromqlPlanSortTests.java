@@ -67,6 +67,14 @@ public class PromqlPlanSortTests extends AbstractPromqlPlanOptimizerTests {
         }
     }
 
+    /** and and unless keep the left operand's series in their order. */
+    public void testInstantSortLeftOfAndUnlessInjectsOrderBy() {
+        assumeTrue("set operators match without __name__, which needs a typed label container", typedLabelContainer());
+        for (String query : List.of("sort(network.bytes_in) and on(pod) network.cost", "sort_desc(network.bytes_in) unless network.cost")) {
+            assertEquals(query, 1, planInstant(query).collect(OrderBy.class).size());
+        }
+    }
+
     /** Below a step that changes the values or the series, ordering by the result's value would not give the sort's order. */
     public void testInstantSortBelowOtherStepsDoesNotInjectOrderBy() {
         for (String query : List.of(

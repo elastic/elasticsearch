@@ -182,19 +182,20 @@ addition_metric_metric_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h in_n_out=(network.eth0.rx + network.eth0.tx)
 | SORT in_n_out DESC;
 
 in_n_out:double | step:datetime            | _timeseries:keyword
-2857.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""two""}}"
-2778.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""one""}}"
-2345.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""three""}}"
-2331.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
-2237.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-1971.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
-1730.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-1702.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
-1251.0          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
+2857.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+2778.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+2345.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+2331.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+2237.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+1971.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+1730.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1702.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+1251.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 ;
 
 division_metric_metric_grouping_promql
@@ -263,19 +264,20 @@ chained_addition_metric_metric_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(network.eth0.tx + network.eth0.rx + network.eth0.tx)
 | SORT _timeseries, step;
 
 result:double | step:datetime            | _timeseries:keyword
-3386.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-2658.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-2669.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
-4158.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""one""}}"
-3586.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""three""}}"
-4573.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""two""}}"
-1832.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
-3540.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
-2944.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
+3386.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+2658.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+2669.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+4158.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+3586.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+4573.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+1832.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+3540.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+2944.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
 ;
 
 // Fails until vector matching between bare selectors of different metrics lands: the operands never share a series in the remote-write layout.
@@ -283,19 +285,20 @@ nested_operands_on_both_sides_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=((network.eth0.tx - network.eth0.rx) - (network.eth0.tx + network.eth0.rx))
 | SORT _timeseries, step;
 
 result:double | step:datetime            | _timeseries:keyword
--2176.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
--1604.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
--1470.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
--2796.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""one""}}"
--2208.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""three""}}"
--2282.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""two""}}"
--1340.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
--2244.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
--1996.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
+-2176.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+-1604.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+-1470.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+-2796.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+-2208.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+-2282.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+-1340.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+-2244.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+-1996.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
 ;
 
 // Fails until vector matching between bare selectors of different metrics lands: the operands never share a series in the remote-write layout.
@@ -303,20 +306,21 @@ scalar_arithmetic_in_or_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(network.eth0.tx / 1000 or network.eth0.rx / 1000)
 | EVAL result = ROUND(result, 6), step = step, _timeseries = _timeseries
 | SORT _timeseries, step;
 
 result:double | step:datetime            | _timeseries:keyword
-1.149         | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-0.928         | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}}"
-0.967         | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}}"
-1.38          | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""one""}}"
-1.241         | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""three""}}"
-1.716         | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""two""}}"
-0.581         | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
-1.209         | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""three"",""region"":""us""}}"
-0.973         | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""two"",""region"":""us""}}"
+1.149         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+0.928         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+0.967         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+1.38          | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+1.241         | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+1.716         | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+0.581         | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+1.209         | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+0.973         | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
 ;
 
 // Fails until vector matching between bare selectors of different metrics lands: the operands never share a series in the remote-write layout.
@@ -324,13 +328,14 @@ chained_addition_with_matchers_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(network.eth0.tx{pod="one"} + network.eth0.rx{pod="one"} + network.eth0.tx{pod="one"})
 | SORT _timeseries, step;
 
 result:double | step:datetime            | _timeseries:keyword
-3386.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}}"
-4158.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""one""}}"
-1832.0        | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""staging"",""pod"":""one"",""region"":""us""}}"
+3386.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+4158.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+1832.0        | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 ;
 
 // Fails until vector matching between bare selectors of different metrics lands: the operands never share a series in the remote-write layout.
@@ -338,13 +343,14 @@ nested_subtraction_with_matchers_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(network.eth0.tx{cluster="qa"} - network.eth0.rx{cluster="qa"} - (network.eth0.tx{cluster="qa"} + network.eth0.rx{cluster="qa"}))
 | SORT _timeseries, step;
 
 result:double | step:datetime            | _timeseries:keyword
--2796.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""one""}}"
--2208.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""three""}}"
--2282.0       | 2024-05-10T01:00:00.000Z | "{""labels"":{""cluster"":""qa"",""pod"":""two""}}"
+-2796.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+-2208.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+-2282.0       | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
 ;
 
 // Fails until vector matching between bare selectors of different metrics lands: the operands never share a series in the remote-write layout.

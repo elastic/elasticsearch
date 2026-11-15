@@ -36,7 +36,9 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryAri
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySetV2;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
@@ -431,27 +433,32 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             failures.add(fail(p, "range vector results are not supported at this time [{}]", p.sourceText()));
         }
 
-        // Validate entire plan
-        // UNION set operators that form a contiguous chain from the root (e.g. `(a or b) or c`) are all
-        // considered "top-level": they are flattened into a single UnionAll during translation.
+        // Validate entire plan. Each contiguous `or` chain without on/ignoring (top-level or nested) flattens to one UnionAll;
+        // reject chains that exceed the UnionAll branch limit here rather than during translation.
         Set<VectorBinarySet> topLevelUnions = collectTopLevelUnionChain(p);
-        if (topLevelUnions.isEmpty() == false) {
-            // A connected chain of U union nodes has U+1 leaf operands (branches), which the translator combines
-            // into a single UnionAll. Reject chains exceeding the UnionAll branch limit with a clear message here
-            // rather than failing later during translation.
-            int branchCount = topLevelUnions.size() + 1;
-            if (branchCount > maxBranches) {
+        Set<VectorBinarySet> countedUnionChains = new HashSet<>();
+        p.forEachDown(VectorBinarySet.class, setOp -> {
+            if (setOp.op() != VectorBinarySet.SetOp.UNION || countedUnionChains.contains(setOp)) {
+                return;
+            }
+            List<LogicalPlan> branches = VectorBinarySetV2.flattenUnion(setOp);
+            setOp.forEachDown(VectorBinarySet.class, nested -> {
+                if (nested.op() == VectorBinarySet.SetOp.UNION && nested.match().equals(VectorMatch.NONE)) {
+                    countedUnionChains.add(nested);
+                }
+            });
+            if (branches.size() > maxBranches) {
                 failures.add(
                     fail(
-                        p,
+                        setOp,
                         "PromQL set operator [or] supports up to [{}] operands, got [{}], exceeding the limit set by the {}",
                         maxBranches,
-                        branchCount,
+                        branches.size(),
                         limitSource
                     )
                 );
             }
-        }
+        });
         Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
             switch (lp) {
@@ -579,8 +586,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
                         }
                     }
+                    if ((binaryOperator.match().filter() == VectorMatch.Filter.ON
+                        && binaryOperator.match().filterLabels().contains(LabelMatcher.NAME))
+                        || binaryOperator.match().groupingLabels().contains(LabelMatcher.NAME)) {
+                        // A series whose metric is a field stores no __name__ and reads it as absent, so on(__name__) would
+                        // match the series of different metrics, which Prometheus keeps apart. Which series store it is
+                        // known only from the data, so it is rejected for all.
+                        // TODO: Match on __name__ once the metric name is a dimension value.
+                        // https://github.com/elastic/elasticsearch/issues/146989
+                        failures.add(fail(lp, "matching on __name__ is not supported at this time [{}]", lp.sourceText()));
+                    }
                     if (binaryOperator instanceof VectorBinarySet setOp) {
-                        verifySetOperator(failures, setOp, topLevelUnions.contains(setOp));
+                        verifySetOperator(failures, setOp, labelContainer, topLevelUnions.contains(setOp));
                     }
                     if (hasSourceBackedExpression(binaryOperator.left()) && hasSourceBackedExpression(binaryOperator.right())) {
                         verifySourceBackedOperands(failures, binaryOperator, labelContainer);
@@ -757,36 +774,32 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     /**
-     * Set operators ({@code and}/{@code or}/{@code unless}) are only partially supported. Phase 1 allows the
-     * {@code or} (UNION) operator when it appears at the top level of the expression and both operands are
-     * instant vectors. The failures here fall into two categories:
+     * Set operators ({@code and}/{@code or}/{@code unless}).
      * <ul>
-     *   <li>Scalar operands are illegal for set operators in PromQL itself, not just in our implementation. We
-     *       mirror Prometheus' wording ({@code set operator "or" not allowed in binary scalar expression}) and
-     *       check it first, so the message does not falsely imply the shape might be supported later.</li>
-     *   <li>Unsupported {@code and}/{@code unless} operators and non-top-level {@code or} are genuine current
-     *       implementation limitations, flagged with "at this time".</li>
+     *   <li>Scalar operands are illegal for set operators in PromQL itself; we mirror Prometheus' wording.</li>
+     *   <li>{@code and} (INTERSECT) keeps left series that match on the right (default or {@code on}/{@code ignoring}).</li>
+     *   <li>{@code unless} (SUBTRACT) keeps left series with no match on the right, by default matching or by
+     *       {@code on}/{@code ignoring}.</li>
+     *   <li>{@code or} (UNION) unions its branches, keeping one series per step and label set without {@code __name__};
+     *       with {@code on}/{@code ignoring} as {@code a or (b unless<M> a)}.</li>
      * </ul>
+     * Each of them matches series on their labels without {@code __name__}, which a keyword label container cannot leave out:
+     * there only a top-level chain of {@code or} without {@code on}/{@code ignoring} runs, as it did before.
      */
-    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean isTopLevelUnion) {
+    private static void verifySetOperator(Failures failures, VectorBinarySet setOp, boolean labelContainer, boolean topLevelUnion) {
         if (PromqlPlan.returnsScalar(setOp.left()) || PromqlPlan.returnsScalar(setOp.right())) {
             failures.add(fail(setOp, "set operator \"{}\" not allowed in binary scalar expression", setOp.op().keyword()));
             return;
         }
-        if (setOp.op() != VectorBinarySet.SetOp.UNION) {
-            // TODO: Support and/unless set operators.
-            // https://github.com/elastic/elasticsearch/issues/158179
-            failures.add(fail(setOp, "set operator [{}] is not supported at this time [{}]", setOp.op().keyword(), setOp.sourceText()));
+        if (labelContainer) {
             return;
         }
-        if (setOp.match() != VectorMatch.NONE) {
-            // TODO: Support or with on/ignoring modifiers.
-            // https://github.com/elastic/elasticsearch/issues/158181
-            failures.add(fail(setOp, "set operator [or] with on/ignoring is not supported at this time [{}]", setOp.sourceText()));
-        } else if (isTopLevelUnion == false) {
-            // TODO: Support or below the top level.
-            // https://github.com/elastic/elasticsearch/issues/158182
-            failures.add(fail(setOp, "set operator [or] is only supported at the top-level at this time [{}]", setOp.sourceText()));
+        if (setOp.op() != VectorBinarySet.SetOp.UNION) {
+            failures.add(fail(setOp, "set operator [{}] requires a typed label container [{}]", setOp.op().keyword(), setOp.sourceText()));
+        } else if (setOp.match() != VectorMatch.NONE) {
+            failures.add(fail(setOp, "set operator [or] with on/ignoring requires a typed label container [{}]", setOp.sourceText()));
+        } else if (topLevelUnion == false) {
+            failures.add(fail(setOp, "set operator [or] below the top level requires a typed label container [{}]", setOp.sourceText()));
         }
     }
 

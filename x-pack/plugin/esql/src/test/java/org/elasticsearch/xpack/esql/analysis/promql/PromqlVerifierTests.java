@@ -175,19 +175,29 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testLogicalSetBinaryOperators() {
-        List.of("and", "unless").forEach(op -> {
-            // metric op metric: and/unless (INTERSECT/SUBTRACT) are not supported yet.
-            tsdb.error(
-                "PROMQL index=test step=5m foo " + op + " bar",
-                containsString("set operator [" + op + "] is not supported at this time")
+        // and keeps left series that match on the right; unless keeps left series with no match on the right.
+        for (String op : List.of("and", "unless")) {
+            String message = "set operator [" + op + "] requires a typed label container";
+            assertSetOperatorNeedsTypedLabelContainer("network.bytes_in " + op + " network.connections", message);
+            assertSetOperatorNeedsTypedLabelContainer(
+                "sum by (host) (network.bytes_in) " + op + " sum by (host) (network.connections)",
+                message
             );
-            // Any scalar operand is illegal in PromQL itself; this takes precedence over the unsupported-op message.
-            // scalar op scalar
+        }
+        // Operands whose series can never share a group anti-join: the left operand comes back whole, as in Prometheus.
+        for (String query : List.of(
+            "sum by (host, metricset) (network.bytes_in) unless sum by (host) (network.connections)",
+            "sum by (host) (network.bytes_in) unless network.connections",
+            "network.bytes_in unless sum by (host) (network.connections)"
+        )) {
+            assertSetOperatorNeedsTypedLabelContainer(query, "set operator [unless] requires a typed label container");
+        }
+        List.of("and", "unless").forEach(op -> {
+            // Any scalar operand is illegal in PromQL itself.
             tsdb.error(
                 "PROMQL index=test step=5m 1 " + op + " 1",
                 containsString("set operator \"" + op + "\" not allowed in binary scalar expression")
             );
-            // metric op scalar and scalar op metric
             tsdb.error(
                 "PROMQL index=test step=5m network.bytes_in " + op + " 1",
                 containsString("set operator \"" + op + "\" not allowed in binary scalar expression")
@@ -211,6 +221,37 @@ public class PromqlVerifierTests extends ESTestCase {
         assertTrue(keywordTsdb.query(query).resolved());
     }
 
+    public void testKeywordUnionOperands() {
+        for (String query : List.of(
+            "rate(network.bytes_in[5m]) or irate(network.bytes_in[5m])",
+            "sum(network.bytes_in) or vector(0)",
+            "abs(network.bytes_in) or network.connections",
+            "sum by (host) (network.bytes_in) or sum by (host, metricset) (network.connections)"
+        )) {
+            assertTrue(query, keywordTsdb.query("PROMQL index=test step=5m " + query).resolved());
+        }
+        for (String query : List.of(
+            "sum by (host) (network.bytes_in) or network.connections",
+            "network.connections or max by (host) (network.bytes_in)"
+        )) {
+            assertSetOperatorNeedsTypedLabelContainer(query, "requires a typed label container");
+        }
+    }
+
+    /**
+     * A series whose metric is a field reads __name__ as absent, so matching on it would pair different metrics. Which
+     * series store it is known only from the data, so it is rejected whatever the mapping.
+     */
+    public void testMatchingOnMetricNameIsRejected() {
+        for (String query : List.of(
+            "network.bytes_in or on (__name__, host) network.connections",
+            "network.bytes_in / on (__name__, host) network.connections",
+            "network.bytes_in * on (host) group_left (__name__) network.connections"
+        )) {
+            tsdb.error("PROMQL index=test step=5m " + query, containsString("matching on __name__ is not supported at this time"));
+        }
+    }
+
     public void testUnionBetweenInstantVectorsIsSupported() {
         // Top-level `or` (UNION) between two instant vectors is supported.
         assertTrue(tsdb.query("PROMQL index=test step=5m network.bytes_in or network.connections").resolved());
@@ -219,6 +260,45 @@ public class PromqlVerifierTests extends ESTestCase {
         // Common fallback idioms.
         assertTrue(tsdb.query("PROMQL index=test step=5m rate(network.bytes_in[5m]) or irate(network.bytes_in[5m])").resolved());
         assertTrue(tsdb.query("PROMQL index=test step=5m sum(rate(network.bytes_in[5m])) or vector(0)").resolved());
+    }
+
+    public void testUnionWithMatchingIsSupported() {
+        // a or on(K) b keeps every series of a and the series of b no series of a matches on K, on () included.
+        for (String query : List.of(
+            "sum(network.bytes_in) or on () vector(1)",
+            "sum(network.bytes_in) / (sum(network.bytes_in) or on () vector(1))",
+            "sum by (host) (network.bytes_in) or on () vector(1)",
+            "sum by (host, metricset) (network.bytes_in) or on (host) sum by (host) (network.connections)",
+            "network.bytes_in or on (host) network.connections",
+            "network.bytes_in or ignoring (host) network.connections"
+        )) {
+            assertSetOperatorNeedsTypedLabelContainer(query, "set operator [or] with on/ignoring requires a typed label container");
+        }
+    }
+
+    /**
+     * Resolves {@code query} under a typed label container. A keyword label container rejects it: matching leaves labels out of an opaque
+     * operand's label container.
+     */
+    /**
+     * Set operators match series on their labels without {@code __name__}, which a keyword label container cannot leave out: only a
+     * top-level chain of {@code or} without {@code on}/{@code ignoring} runs there.
+     */
+    private void assertSetOperatorNeedsTypedLabelContainer(String query, String keywordMessage) {
+        if (EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled()) {
+            assertTrue(query, tsdb.query("PROMQL index=test step=5m " + query).resolved());
+        }
+        keywordTsdb.error("PROMQL index=test step=5m " + query, containsString(keywordMessage));
+    }
+
+    private void assertNeedsTypedLabelContainer(String query) {
+        if (EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled()) {
+            assertTrue(query, tsdb.query("PROMQL index=test step=5m " + query).resolved());
+        }
+        keywordTsdb.error(
+            "PROMQL index=test step=5m " + query,
+            containsString("leaving labels out of _timeseries requires a typed label container")
+        );
     }
 
     public void testUnionWithScalarOperandIsRejected() {
@@ -240,11 +320,11 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    public void testNestedUnionIsRejected() {
-        // `or` is only supported at the top level; nested inside an aggregation it is rejected.
-        tsdb.error(
-            "PROMQL index=test step=5m sum(network.bytes_in or network.connections)",
-            containsString("set operator [or] is only supported at the top-level at this time")
+    public void testNestedUnionIsAllowed() {
+        // Nested `or` under an aggregation translates as UnionAll + TopNBy (#158182).
+        assertSetOperatorNeedsTypedLabelContainer(
+            "sum(network.bytes_in or network.connections)",
+            "set operator [or] below the top level requires a typed label container"
         );
     }
 
@@ -587,6 +667,11 @@ public class PromqlVerifierTests extends ESTestCase {
      * A histogram function regroups by every label but {@code le}. A reduction or a {@code without} over raw series leaves those
      * labels packed in one {@code _timeseries} column, so the regrouping cannot be expressed.
      */
+    /** Prometheus labels are strings: label functions reject other label types instead of converting them. */
+    /**
+     * A histogram function regroups by every label but {@code le}. A reduction or a {@code without} over raw series leaves those
+     * labels packed in one {@code _timeseries} column, so the regrouping cannot be expressed.
+     */
     public void testHistogramOverReductionOrWithoutIsRejected() {
         for (String function : List.of("histogram_quantile(0.9, ", "histogram_fraction(0, 0.2, ")) {
             for (String buckets : List.of(
@@ -607,7 +692,7 @@ public class PromqlVerifierTests extends ESTestCase {
         }
     }
 
-    /** Over a {@code by} aggregate the labels are named columns, so a histogram function can regroup the buckets. */
+    /** Over a {@code by} aggregate the labels are named columns, so a histogram function can emitAggregate the buckets. */
     public void testHistogramOverReductionOrWithoutOfByAggregateIsAccepted() {
         TestAnalyzer classicHistograms = analyzer().addIndex("prom_hist", "mapping-promql-classic-histogram.json", IndexMode.TIME_SERIES);
         for (String function : List.of("histogram_quantile(0.9, ", "histogram_fraction(0, 0.2, ")) {
@@ -1267,5 +1352,72 @@ public class PromqlVerifierTests extends ESTestCase {
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
+    /**
+     * A keyword label container reads each WITHOUT view at the source: label pushdown reads the view leaving out every level's
+     * labels there, so nested WITHOUT plans on it too.
+     */
+    public void testNestedWithoutWithoutTypedLabelContainer() {
+        for (String expression : List.of(
+            "avg without(pod)(sum without(pod)(network.bytes_in))",
+            "max without()(sum without(pod)(network.bytes_in))",
+            "max without(region)(avg by(cluster, region)(sum without(pod)(network.bytes_in)))",
+            "count without(cluster)(sum(sum without(pod)(network.bytes_in)))",
+            "sum without(cluster)(max without(pod)(network.bytes_in))",
+            "avg without(cluster, region)(sum without(pod, region)(network.bytes_in))",
+            "avg without(pod)(sum without()(network.bytes_in))",
+            "count without(cluster)(max without(region)(sum without(pod)(network.bytes_in)))",
+            "avg without(missing_outer)(sum without(missing_inner)(network.bytes_in))",
+            "avg without(cluster)(sum without(pod)(rate(network.bytes_in[5m])))"
+        )) {
+            assertTrue(expression, keywordTsdb.query("PROMQL index=test step=5m result=(" + expression + ")").resolved());
+        }
+    }
+
+    /** The same shapes are legal aggregation trees on the current label container prototype. */
+    public void testNestedWithoutAggregationsWithTypedLabelContainer() {
+        assumeTrue("requires a functional label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        tsdb.minimumTransportVersion(TransportVersion.current());
+        for (String expression : nestedWithoutAggregations()) {
+            assertTrue(expression, tsdb.query("PROMQL index=test step=5m result=(" + expression + ")").resolved());
+        }
+    }
+
+    /** Label representation changes must not remove the independent restriction on the command's step column. */
+    public void testAggregationStepLabelCollision() {
+        assumeTrue("requires a functional label container", EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled());
+        tsdb.minimumTransportVersion(TransportVersion.current());
+        for (String expression : List.of(
+            "sum by(step)(network.bytes_in)",
+            "sum without(step)(network.bytes_in)",
+            "sum by(cluster)(max without(step)(network.bytes_in))"
+        )) {
+            tsdb.error(
+                "PROMQL index=test step=5m result=(" + expression + ")",
+                containsString("label [step] collides with the built-in [step] output column")
+            );
+        }
+        // value= sets the sample column name; by(value) collides the same way.
+        tsdb.error(
+            "PROMQL index=test step=5m value=(sum by(value)(network.bytes_in))",
+            containsString("label [value] collides with the built-in [value] output column")
+        );
+    }
+
+    /** The result's label container is its {@code _timeseries} column, so the value column cannot take that name. */
+    private static List<String> nestedWithoutAggregations() {
+        return List.of(
+            "sum without(cluster)(max without(pod)(network.bytes_in))",
+            "avg without(pod)(sum without(pod)(network.bytes_in))",
+            "avg without(cluster, region)(sum without(pod, region)(network.bytes_in))",
+            "max without()(sum without(pod)(network.bytes_in))",
+            "avg without(pod)(sum without()(network.bytes_in))",
+            "count without(cluster)(max without(region)(sum without(pod)(network.bytes_in)))",
+            "max without(region)(avg by(cluster, region)(sum without(pod)(network.bytes_in)))",
+            "count without(cluster)(sum(sum without(pod)(network.bytes_in)))",
+            "avg without(missing_outer)(sum without(missing_inner)(network.bytes_in))",
+            "avg without(cluster)(sum without(pod)(rate(network.bytes_in[5m])))"
+        );
     }
 }

@@ -156,7 +156,7 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         );
 
         assertThat(expressions(plan, TimeSeriesWithout.class), hasSize(1));
-        assertThat(expressions(plan, ToTimeSeriesMetadata.class), empty());
+        assertThat(expressions(plan, TimeSeriesWithout.class).getFirst().dataType(), sameInstance(DataType.KEYWORD));
         assertThat(expressions(plan, ToString.class), empty());
         assertThat(as(plan, Eval.class).fields().getFirst().dataType(), sameInstance(DataType.KEYWORD));
     }

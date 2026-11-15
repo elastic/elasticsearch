@@ -1170,10 +1170,24 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         assertThat(outputNames(analyzer().addK8s().addView("v", body).statement("FROM v")), equalTo(expected));
         for (Function<String, String> set : List.<Function<String, String>>of(
             AnalyzerUnmappedTestBase::setUnmappedNullify,
-            AnalyzerUnmappedTestBase::setUnmappedLoad
+            AnalyzerUnmappedTestBase::setUnmappedLoad,
+            AnalyzerUnmappedTestBase::setUnmappedLoadAll
         )) {
             assertThat(outputNames(analyzer().addK8s().addView("v", body).statement(set.apply("FROM v"))), equalTo(expected));
         }
+    }
+
+    /**
+     * The {@code LOAD_ALL} command allow-list checks a view body under the view's own mode, not the caller's: {@code TS} is allowed
+     * in a view the caller reads with {@code LOAD_ALL}, but still rejected in a plain subquery next to it, which the caller's mode
+     * does reach.
+     */
+    public void testLoadAllCommandAllowListStopsAtView() {
+        String body = "TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)";
+        analyzer().addK8s().addView("v", body).statement(setUnmappedLoadAll("FROM v"));
+        analyzer().addK8s()
+            .addView("v", body)
+            .statementError(setUnmappedLoadAll("FROM v, (" + body + ")"), containsString(Verifier.loadAllUnsupportedCommandMessage("TS")));
     }
 
     private static List<String> outputNames(LogicalPlan plan) {

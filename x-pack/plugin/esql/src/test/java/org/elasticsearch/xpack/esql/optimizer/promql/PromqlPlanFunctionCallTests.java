@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -585,5 +586,42 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             }
         });
         return nonFiniteExpressions;
+    }
+
+    /**
+     * Overwriting a stored label under an across-series aggregate checks that series stay apart where the label container can
+     * state their label sets.
+     */
+    public void testLabelReplaceOverStoredLabelUnderAggregate() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1h result=(count by (cluster) (label_replace(network.bytes_in, \"pod\", \"$1\", \"cluster\", \"(.*)\")))"
+        );
+        assertTrue(plan.resolved());
+    }
+
+    /**
+     * {@code label_replace(m) + m} cannot fold the pending metric into an Eval over an already-collapsed relabel: that
+     * would embed {@code LastOverTime} outside STATS. Asymmetric arithmetic joins two finished per-series pipelines.
+     */
+    public void testLabelReplacePlusSameMetricPlansWithoutLooseAggregate() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        assumeTrue("requires typed _timeseries", typedLabelContainer());
+        for (String expr : List.of(
+            "label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\") + network.bytes_in",
+            "network.bytes_in + label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\")"
+        )) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1h result=(" + expr + ")");
+            // forEachExpression (not Down): Down walks into Aggregate children and would false-flag their AFs.
+            plan.forEachDown(p -> {
+                if (p instanceof Aggregate) {
+                    return;
+                }
+                p.forEachExpression(AggregateFunction.class, af -> {
+                    fail("aggregate function [" + af.sourceText() + "] outside Aggregate in [" + expr + "]");
+                });
+            });
+            assertThat("expected a join of independent series pipelines for [" + expr + "]", plan.collect(HashJoin.class), not(empty()));
+        }
     }
 }

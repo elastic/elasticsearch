@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 
 import static java.util.function.Predicate.not;
@@ -64,7 +66,9 @@ final class AcrossSeriesAggregateV2 {
             return null;
         }
         if (aggregate.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
-            List<String> dropped = PromqlLabels.labelNames(aggregate.groupings());
+            // an aggregation drops the metric name, as Prometheus does
+            var dropped = new LinkedHashSet<>(PromqlLabels.labelNames(aggregate.groupings()));
+            dropped.add(LabelMatcher.NAME);
             return new TimeSeriesMetadataFilter(input.source(), input, PromqlLabels.labelLiterals(input.source(), dropped), true);
         }
         // absent labels and metric fields are no labels of a group

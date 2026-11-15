@@ -29,7 +29,7 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
     public SingletonDoubleBuilder(int expectedCount, BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
         this.expectedCount = expectedCount;
-        this.values = blockFactory.pollDoubles(expectedCount);
+        this.values = blockFactory.acquireDoubles(expectedCount);
     }
 
     @Override
@@ -73,7 +73,7 @@ public final class SingletonDoubleBuilder implements BlockLoader.SingletonDouble
         }
         DoubleVector vector = blockFactory.newDoubleArrayVector(values, count, valuesSize(values.length));
         built = true;
-        vector.pooled(true);
+        vector.enablePooling();
         return vector.asBlock();
     }
 

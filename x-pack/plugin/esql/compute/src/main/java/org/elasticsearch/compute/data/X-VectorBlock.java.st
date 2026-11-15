@@ -159,8 +159,8 @@ $endif$
 
 $if(int||long||double)$
     @Override
-    public void pooled(boolean pooled) {
-        vector.pooled(pooled);
+    public void enablePooling() {
+        vector.enablePooling();
     }
 
 $endif$

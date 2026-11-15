@@ -125,11 +125,9 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     void allowPassingToDifferentDriver();
 
     /**
-     * Whether the driver should reuse the values array once this is released.
+     * Lets the driver reuse the values array once this is released.
      */
-    default void pooled(boolean pooled) {
-
-    }
+    default void enablePooling() {}
 
     /**
      * Return a subset of this {@link Vector} from position {@code beginInclusive} to

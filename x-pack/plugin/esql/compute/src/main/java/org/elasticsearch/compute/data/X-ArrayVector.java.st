@@ -382,14 +382,14 @@ $if(BytesRef)$
     }
 $elseif(int||long||double)$
     @Override
-    public void pooled(boolean pooled) {
-        this.pooled = pooled;
+    public void enablePooling() {
+        pooled = true;
     }
 
     @Override
     protected void closeInternal() {
-        if (pooled && blockFactory().pooled()) {
-            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalBlockPool.usedBytesFor$Type$s(values.length)));
+        if (pooled && blockFactory().hasLocalPool()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalArrayPool.usedBytesFor$Type$s(values.length)));
             blockFactory().recycle$Type$s(values);
         } else {
             super.closeInternal();

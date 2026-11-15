@@ -120,8 +120,8 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
-    public void pooled(boolean pooled) {
-        vector.pooled(pooled);
+    public void enablePooling() {
+        vector.enablePooling();
     }
 
     @Override

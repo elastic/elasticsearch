@@ -33,7 +33,7 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
     private long reservedBytes;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private volatile Thread activeThread;
-    private final LocalBlockPool pool = new LocalBlockPool(this);
+    private final LocalArrayPool pool = new LocalArrayPool(this);
 
     public record SizeSettings(long overReservedBytes, long maxOverReservedBytes) {
 
@@ -99,7 +99,7 @@ public final class LocalCircuitBreaker implements CircuitBreaker, Releasable {
         return breaker;
     }
 
-    LocalBlockPool pool() {
+    LocalArrayPool pool() {
         return pool;
     }
 

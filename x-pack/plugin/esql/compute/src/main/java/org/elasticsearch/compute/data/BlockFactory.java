@@ -73,7 +73,7 @@ public class BlockFactory {
     private final BlockFactory parent;
     private final long bytesRefRamOverestimateThreshold;
     private final double bytesRefRamOverestimateFactor;
-    private final LocalBlockPool localPool;
+    private final LocalArrayPool localPool;
     protected volatile BufferAllocator arrowAllocator;
     private static final Cleaner cleaner = Cleaner.create();
 
@@ -768,16 +768,16 @@ public class BlockFactory {
         return ByteSizeValue.ofMb(4);
     }
 
-    public boolean pooled() {
+    public boolean hasLocalPool() {
         return localPool != null;
     }
 
-    public final long[] pollLongs(int size) {
+    public final long[] acquireLongs(int size) {
         final long[] arr = localPool != null ? localPool.pollLongs(size) : null;
         if (arr != null) {
             return arr;
         }
-        breaker.addEstimateBytesAndMaybeBreak(LocalBlockPool.usedBytesForLongs(size), "<esql_block_factory>");
+        breaker.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForLongs(size), "<esql_block_factory>");
         return new long[size];
     }
 
@@ -785,16 +785,16 @@ public class BlockFactory {
         if (localPool != null) {
             localPool.recycleLongs(values);
         } else {
-            breaker.addWithoutBreaking(-LocalBlockPool.usedBytesForLongs(values.length));
+            breaker.addWithoutBreaking(-LocalArrayPool.usedBytesForLongs(values.length));
         }
     }
 
-    public final int[] pollInts(int size) {
+    public final int[] acquireInts(int size) {
         final int[] arr = localPool != null ? localPool.pollInts(size) : null;
         if (arr != null) {
             return arr;
         }
-        breaker.addEstimateBytesAndMaybeBreak(LocalBlockPool.usedBytesForInts(size), "<esql_block_factory>");
+        breaker.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForInts(size), "<esql_block_factory>");
         return new int[size];
     }
 
@@ -802,16 +802,16 @@ public class BlockFactory {
         if (localPool != null) {
             localPool.recycleInts(values);
         } else {
-            breaker.addWithoutBreaking(-LocalBlockPool.usedBytesForInts(values.length));
+            breaker.addWithoutBreaking(-LocalArrayPool.usedBytesForInts(values.length));
         }
     }
 
-    public final double[] pollDoubles(int size) {
+    public final double[] acquireDoubles(int size) {
         final double[] arr = localPool != null ? localPool.pollDoubles(size) : null;
         if (arr != null) {
             return arr;
         }
-        breaker.addEstimateBytesAndMaybeBreak(LocalBlockPool.usedBytesForDoubles(size), "<esql_block_factory>");
+        breaker.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForDoubles(size), "<esql_block_factory>");
         return new double[size];
     }
 
@@ -819,7 +819,7 @@ public class BlockFactory {
         if (localPool != null) {
             localPool.recycleDoubles(values);
         } else {
-            breaker.addWithoutBreaking(-LocalBlockPool.usedBytesForDoubles(values.length));
+            breaker.addWithoutBreaking(-LocalArrayPool.usedBytesForDoubles(values.length));
         }
     }
 }

@@ -29,7 +29,7 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
     public SingletonIntBuilder(int expectedCount, BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
         this.expectedCount = expectedCount;
-        this.values = blockFactory.pollInts(expectedCount);
+        this.values = blockFactory.acquireInts(expectedCount);
     }
 
     @Override
@@ -73,7 +73,7 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
         }
         IntVector vector = blockFactory.newIntArrayVector(values, count, valuesSize(values.length));
         built = true;
-        vector.pooled(true);
+        vector.enablePooling();
         return vector.asBlock();
     }
 

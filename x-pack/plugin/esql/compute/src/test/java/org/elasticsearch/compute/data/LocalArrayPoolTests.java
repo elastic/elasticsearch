@@ -17,31 +17,31 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class LocalBlockPoolTests extends ComputeTestCase {
-    private static final int MIN_LONG_LENGTH = Math.toIntExact(LocalBlockPool.MIN_ARRAY_BYTES / Long.BYTES);
-    private static final int MIN_INT_LENGTH = Math.toIntExact(LocalBlockPool.MIN_ARRAY_BYTES / Integer.BYTES);
-    private static final int MAX_LONG_LENGTH = Math.toIntExact(LocalBlockPool.MAX_ARRAY_BYTES / Long.BYTES);
-    private static final int MAX_INT_LENGTH = Math.toIntExact(LocalBlockPool.MAX_ARRAY_BYTES / Integer.BYTES);
+public class LocalArrayPoolTests extends ComputeTestCase {
+    private static final int MIN_LONG_LENGTH = Math.toIntExact(LocalArrayPool.MIN_ARRAY_BYTES / Long.BYTES);
+    private static final int MIN_INT_LENGTH = Math.toIntExact(LocalArrayPool.MIN_ARRAY_BYTES / Integer.BYTES);
+    private static final int MAX_LONG_LENGTH = Math.toIntExact(LocalArrayPool.MAX_ARRAY_BYTES / Long.BYTES);
+    private static final int MAX_INT_LENGTH = Math.toIntExact(LocalArrayPool.MAX_ARRAY_BYTES / Integer.BYTES);
 
     private static void recycle(LocalCircuitBreaker local, long[] arr) {
-        local.addEstimateBytesAndMaybeBreak(LocalBlockPool.usedBytesForLongs(arr.length), "test");
+        local.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForLongs(arr.length), "test");
         local.pool().recycleLongs(arr);
     }
 
     private static void recycle(LocalCircuitBreaker local, int[] arr) {
-        local.addEstimateBytesAndMaybeBreak(LocalBlockPool.usedBytesForInts(arr.length), "test");
+        local.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForInts(arr.length), "test");
         local.pool().recycleInts(arr);
     }
 
     private static void recycle(LocalCircuitBreaker local, double[] arr) {
-        local.addEstimateBytesAndMaybeBreak(LocalBlockPool.usedBytesForDoubles(arr.length), "test");
+        local.addEstimateBytesAndMaybeBreak(LocalArrayPool.usedBytesForDoubles(arr.length), "test");
         local.pool().recycleDoubles(arr);
     }
 
     public void testTrackMemoryUsage() {
         CircuitBreaker breaker = blockFactory().breaker();
         LocalCircuitBreaker local = new LocalCircuitBreaker(breaker, 0, 0);
-        LocalBlockPool pool = local.pool();
+        LocalArrayPool pool = local.pool();
         long[] longs = new long[between(MIN_LONG_LENGTH, MAX_LONG_LENGTH)];
         int[] ints = new int[between(MIN_INT_LENGTH, MAX_INT_LENGTH)];
         double[] doubles = new double[between(MIN_LONG_LENGTH, MAX_LONG_LENGTH)];
@@ -67,7 +67,7 @@ public class LocalBlockPoolTests extends ComputeTestCase {
     public void testReuseDoesNotCallTheBreaker() {
         var breaker = new LocalCircuitBreakerTests.TrackingCircuitBreaker(blockFactory().breaker());
         LocalCircuitBreaker local = new LocalCircuitBreaker(breaker, 0, 0);
-        LocalBlockPool pool = local.pool();
+        LocalArrayPool pool = local.pool();
         long[] longs = new long[MIN_LONG_LENGTH];
         int[] ints = new int[MIN_INT_LENGTH];
         double[] doubles = new double[MIN_LONG_LENGTH];
@@ -91,7 +91,7 @@ public class LocalBlockPoolTests extends ComputeTestCase {
     public void testReleasesArrayThatIsTooSmall() {
         CircuitBreaker breaker = blockFactory().breaker();
         LocalCircuitBreaker local = new LocalCircuitBreaker(breaker, 0, 0);
-        LocalBlockPool pool = local.pool();
+        LocalArrayPool pool = local.pool();
         recycle(local, new long[2000]);
         recycle(local, new int[2000]);
         recycle(local, new double[2000]);
@@ -111,7 +111,7 @@ public class LocalBlockPoolTests extends ComputeTestCase {
     public void testReleasesArraysOutsideTheLimits() {
         CircuitBreaker breaker = blockFactory().breaker();
         LocalCircuitBreaker local = new LocalCircuitBreaker(breaker, 0, 0);
-        LocalBlockPool pool = local.pool();
+        LocalArrayPool pool = local.pool();
         recycle(local, new long[MIN_LONG_LENGTH - 1]);
         recycle(local, new int[MIN_INT_LENGTH - 1]);
         recycle(local, new double[MIN_LONG_LENGTH - 1]);
@@ -130,7 +130,7 @@ public class LocalBlockPoolTests extends ComputeTestCase {
         assertThat(pool.pollLongs(MAX_LONG_LENGTH + 1), nullValue());
         assertThat(pool.pollInts(MAX_INT_LENGTH + 1), nullValue());
         assertThat(pool.pollDoubles(MAX_LONG_LENGTH + 1), nullValue());
-        assertThat(pool.idleBytes(), equalTo(3 * LocalBlockPool.MAX_ARRAY_BYTES));
+        assertThat(pool.idleBytes(), equalTo(3 * LocalArrayPool.MAX_ARRAY_BYTES));
         assertThat(breaker.getUsed(), equalTo(pool.idleBytes()));
         local.close();
         assertThat(breaker.getUsed(), equalTo(0L));
@@ -139,15 +139,15 @@ public class LocalBlockPoolTests extends ComputeTestCase {
     public void testLimitsSlots() {
         CircuitBreaker breaker = blockFactory().breaker();
         LocalCircuitBreaker local = new LocalCircuitBreaker(breaker, 0, 0);
-        LocalBlockPool pool = local.pool();
-        for (int i = 0; i < LocalBlockPool.SLOTS + 10; i++) {
+        LocalArrayPool pool = local.pool();
+        for (int i = 0; i < LocalArrayPool.SLOTS + 10; i++) {
             recycle(local, new long[MIN_LONG_LENGTH]);
             recycle(local, new int[MIN_INT_LENGTH]);
             recycle(local, new double[MIN_LONG_LENGTH]);
         }
-        assertThat(pool.idleBytes(), equalTo(3 * LocalBlockPool.SLOTS * LocalBlockPool.MIN_ARRAY_BYTES));
+        assertThat(pool.idleBytes(), equalTo(3 * LocalArrayPool.SLOTS * LocalArrayPool.MIN_ARRAY_BYTES));
         assertThat(breaker.getUsed(), equalTo(pool.idleBytes()));
-        for (int i = 0; i < LocalBlockPool.SLOTS; i++) {
+        for (int i = 0; i < LocalArrayPool.SLOTS; i++) {
             assertThat(pool.pollLongs(MIN_LONG_LENGTH), not(nullValue()));
             assertThat(pool.pollInts(MIN_INT_LENGTH), not(nullValue()));
             assertThat(pool.pollDoubles(MIN_LONG_LENGTH), not(nullValue()));
@@ -156,7 +156,7 @@ public class LocalBlockPoolTests extends ComputeTestCase {
         assertThat(pool.pollInts(MIN_INT_LENGTH), nullValue());
         assertThat(pool.pollDoubles(MIN_LONG_LENGTH), nullValue());
         assertThat(pool.idleBytes(), equalTo(0L));
-        local.addWithoutBreaking(-3 * LocalBlockPool.SLOTS * LocalBlockPool.MIN_ARRAY_BYTES);
+        local.addWithoutBreaking(-3 * LocalArrayPool.SLOTS * LocalArrayPool.MIN_ARRAY_BYTES);
         local.close();
         assertThat(breaker.getUsed(), equalTo(0L));
     }
@@ -164,13 +164,13 @@ public class LocalBlockPoolTests extends ComputeTestCase {
     public void testLimitsIdleBytes() {
         CircuitBreaker breaker = blockFactory().breaker();
         LocalCircuitBreaker local = new LocalCircuitBreaker(breaker, 0, 0);
-        LocalBlockPool pool = local.pool();
+        LocalArrayPool pool = local.pool();
         for (int i = 0; i < 20; i++) {
             recycle(local, new long[MAX_LONG_LENGTH]);
         }
         assertThat(
             pool.idleBytes(),
-            equalTo(LocalBlockPool.MAX_IDLE_BYTES / LocalBlockPool.MAX_ARRAY_BYTES * LocalBlockPool.MAX_ARRAY_BYTES)
+            equalTo(LocalArrayPool.MAX_IDLE_BYTES / LocalArrayPool.MAX_ARRAY_BYTES * LocalArrayPool.MAX_ARRAY_BYTES)
         );
         assertThat(breaker.getUsed(), equalTo(pool.idleBytes()));
         local.close();
@@ -182,17 +182,17 @@ public class LocalBlockPoolTests extends ComputeTestCase {
         LocalCircuitBreaker local = new LocalCircuitBreaker(parent.breaker(), 0, 0);
         BlockFactory factory = parent.newChildFactory(local);
         int size = between(MIN_LONG_LENGTH, MAX_LONG_LENGTH);
-        long[] values = factory.pollLongs(size);
-        long arrayBytes = LocalBlockPool.usedBytesForLongs(values.length);
+        long[] values = factory.acquireLongs(size);
+        long arrayBytes = LocalArrayPool.usedBytesForLongs(values.length);
         assertThat(parent.breaker().getUsed(), equalTo(arrayBytes));
         LongVector vector = factory.newLongArrayVector(values, size, arrayBytes);
-        vector.pooled(true);
+        vector.enablePooling();
         assertThat(parent.breaker().getUsed(), equalTo(vector.ramBytesUsed()));
         vector.close();
         assertThat(local.pool().idleBytes(), equalTo(arrayBytes));
         assertThat(parent.breaker().getUsed(), equalTo(arrayBytes));
 
-        long[] again = factory.pollLongs(size);
+        long[] again = factory.acquireLongs(size);
         assertThat(again, sameInstance(values));
         assertThat(parent.breaker().getUsed(), equalTo(arrayBytes));
         factory.recycleLongs(again);
@@ -205,11 +205,11 @@ public class LocalBlockPoolTests extends ComputeTestCase {
         LocalCircuitBreaker local = new LocalCircuitBreaker(parent.breaker(), 0, 0);
         BlockFactory factory = parent.newChildFactory(local);
         int size = between(MIN_LONG_LENGTH, MAX_LONG_LENGTH);
-        double[] values = factory.pollDoubles(size);
-        DoubleBlock block = factory.newDoubleArrayVector(values, size, LocalBlockPool.usedBytesForDoubles(values.length)).asBlock();
-        block.pooled(true);
+        double[] values = factory.acquireDoubles(size);
+        DoubleBlock block = factory.newDoubleArrayVector(values, size, LocalArrayPool.usedBytesForDoubles(values.length)).asBlock();
+        block.enablePooling();
         block.close();
-        assertThat(factory.pollDoubles(size), sameInstance(values));
+        assertThat(factory.acquireDoubles(size), sameInstance(values));
         factory.recycleDoubles(values);
         local.close();
         assertThat(parent.breaker().getUsed(), equalTo(0L));
@@ -220,17 +220,17 @@ public class LocalBlockPoolTests extends ComputeTestCase {
         LocalCircuitBreaker local = new LocalCircuitBreaker(parent.breaker(), 0, 0);
         BlockFactory factory = parent.newChildFactory(local);
         int size = between(MIN_INT_LENGTH, MAX_INT_LENGTH);
-        int[] values = factory.pollInts(size);
-        long arrayBytes = LocalBlockPool.usedBytesForInts(values.length);
+        int[] values = factory.acquireInts(size);
+        long arrayBytes = LocalArrayPool.usedBytesForInts(values.length);
         BitSet nulls = new BitSet();
         nulls.set(between(0, size - 1));
         IntBlock block = factory.newIntArrayBlock(values, size, null, nulls, Block.MvOrdering.UNORDERED, arrayBytes);
-        block.pooled(true);
+        block.enablePooling();
         assertThat(parent.breaker().getUsed(), equalTo(block.ramBytesUsed()));
         block.close();
         assertThat(parent.breaker().getUsed(), equalTo(arrayBytes));
 
-        assertThat(factory.pollInts(size), sameInstance(values));
+        assertThat(factory.acquireInts(size), sameInstance(values));
         factory.recycleInts(values);
         local.close();
         assertThat(parent.breaker().getUsed(), equalTo(0L));
@@ -253,9 +253,9 @@ public class LocalBlockPoolTests extends ComputeTestCase {
         LocalCircuitBreaker local = new LocalCircuitBreaker(breaker, 0, 0);
         BlockFactory factory = parent.newChildFactory(local);
         int size = between(MIN_LONG_LENGTH, MAX_LONG_LENGTH);
-        double[] values = factory.pollDoubles(size);
-        DoubleVector vector = factory.newDoubleArrayVector(values, size, LocalBlockPool.usedBytesForDoubles(values.length));
-        vector.pooled(true);
+        double[] values = factory.acquireDoubles(size);
+        DoubleVector vector = factory.newDoubleArrayVector(values, size, LocalArrayPool.usedBytesForDoubles(values.length));
+        vector.enablePooling();
         vector.allowPassingToDifferentDriver();
         int calls = breaker.callTimes();
         vector.close();
@@ -268,14 +268,14 @@ public class LocalBlockPoolTests extends ComputeTestCase {
     public void testPooledVectorWithoutLocalBreaker() {
         BlockFactory factory = blockFactory();
         int size = between(MIN_LONG_LENGTH, MAX_LONG_LENGTH);
-        long[] values = factory.pollLongs(size);
-        long arrayBytes = LocalBlockPool.usedBytesForLongs(values.length);
+        long[] values = factory.acquireLongs(size);
+        long arrayBytes = LocalArrayPool.usedBytesForLongs(values.length);
         assertThat(factory.breaker().getUsed(), equalTo(arrayBytes));
         LongVector vector = factory.newLongArrayVector(values, size, arrayBytes);
-        vector.pooled(true);
+        vector.enablePooling();
         vector.close();
         assertThat(factory.breaker().getUsed(), equalTo(0L));
-        long[] again = factory.pollLongs(size);
+        long[] again = factory.acquireLongs(size);
         assertThat(again, not(sameInstance(values)));
         factory.recycleLongs(again);
         assertThat(factory.breaker().getUsed(), equalTo(0L));

@@ -13,9 +13,9 @@ import org.elasticsearch.core.Releasable;
 import java.util.Arrays;
 
 /**
- * A pool for blocks for a single driver
+ * A pool of arrays for a single driver
  */
-final class LocalBlockPool implements Releasable {
+final class LocalArrayPool implements Releasable {
     static final int SLOTS = 32;
     static final long MIN_ARRAY_BYTES = ByteSizeValue.ofKb(2).getBytes();
     static final long MAX_ARRAY_BYTES = ByteSizeValue.ofKb(256).getBytes();
@@ -30,7 +30,7 @@ final class LocalBlockPool implements Releasable {
     private int doubleCount;
     private long idleBytes;
 
-    LocalBlockPool(LocalCircuitBreaker breaker) {
+    LocalArrayPool(LocalCircuitBreaker breaker) {
         this.breaker = breaker;
     }
 

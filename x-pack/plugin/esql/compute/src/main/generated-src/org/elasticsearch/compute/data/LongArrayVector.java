@@ -187,14 +187,14 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
     }
 
     @Override
-    public void pooled(boolean pooled) {
-        this.pooled = pooled;
+    public void enablePooling() {
+        pooled = true;
     }
 
     @Override
     protected void closeInternal() {
-        if (pooled && blockFactory().pooled()) {
-            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalBlockPool.usedBytesForLongs(values.length)));
+        if (pooled && blockFactory().hasLocalPool()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalArrayPool.usedBytesForLongs(values.length)));
             blockFactory().recycleLongs(values);
         } else {
             super.closeInternal();

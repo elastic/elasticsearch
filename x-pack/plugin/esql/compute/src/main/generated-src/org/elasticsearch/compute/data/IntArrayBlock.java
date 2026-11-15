@@ -248,8 +248,8 @@ public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock 
     }
 
     @Override
-    public void pooled(boolean pooled) {
-        vector.pooled(pooled);
+    public void enablePooling() {
+        vector.enablePooling();
     }
 
     @Override

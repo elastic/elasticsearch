@@ -227,14 +227,14 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
-    public void pooled(boolean pooled) {
-        this.pooled = pooled;
+    public void enablePooling() {
+        pooled = true;
     }
 
     @Override
     protected void closeInternal() {
-        if (pooled && blockFactory().pooled()) {
-            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalBlockPool.usedBytesForInts(values.length)));
+        if (pooled && blockFactory().hasLocalPool()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalArrayPool.usedBytesForInts(values.length)));
             blockFactory().recycleInts(values);
         } else {
             super.closeInternal();

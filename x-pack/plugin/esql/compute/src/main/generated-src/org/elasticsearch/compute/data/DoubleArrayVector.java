@@ -187,14 +187,14 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
     }
 
     @Override
-    public void pooled(boolean pooled) {
-        this.pooled = pooled;
+    public void enablePooling() {
+        pooled = true;
     }
 
     @Override
     protected void closeInternal() {
-        if (pooled && blockFactory().pooled()) {
-            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalBlockPool.usedBytesForDoubles(values.length)));
+        if (pooled && blockFactory().hasLocalPool()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalArrayPool.usedBytesForDoubles(values.length)));
             blockFactory().recycleDoubles(values);
         } else {
             super.closeInternal();

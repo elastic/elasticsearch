@@ -29,7 +29,7 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
     public SingletonLongBuilder(int expectedCount, BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
         this.expectedCount = expectedCount;
-        this.values = blockFactory.pollLongs(expectedCount);
+        this.values = blockFactory.acquireLongs(expectedCount);
     }
 
     @Override
@@ -73,7 +73,7 @@ public final class SingletonLongBuilder implements BlockLoader.SingletonLongBuil
         }
         LongVector vector = blockFactory.newLongArrayVector(values, count, (long) values.length * Long.BYTES);
         built = true;
-        vector.pooled(true);
+        vector.enablePooling();
         return vector.asBlock();
     }
 

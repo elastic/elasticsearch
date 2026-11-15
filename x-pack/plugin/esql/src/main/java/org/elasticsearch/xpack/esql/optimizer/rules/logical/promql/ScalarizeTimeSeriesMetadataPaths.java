@@ -33,9 +33,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.ToTimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.promql.function.HashOffset;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
+import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -129,9 +130,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
 
     /** The source's label container, as translation reads it: every label of the series. */
     static boolean isSource(Expression expression) {
-        return expression instanceof ToTimeSeriesMetadata cast
-            && cast.field() instanceof TimeSeriesWithout without
-            && without.children().isEmpty();
+        return expression instanceof TimeSeriesWithout without && without.children().isEmpty();
     }
 
     /** Whether {@code node} is a PromQL time-series aggregate keyed by the source's labels: where every label container starts. */
@@ -191,7 +190,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         if (part instanceof Attribute attribute) {
             return attribute;
         }
-        Alias alias = new Alias(part.source(), Attribute.rawTemporaryName(name, "temp_name", new NameId().toString()), part);
+        Alias alias = new Alias(part.source(), TemporaryNameGenerator.locallyUniqueTemporaryName(name), part);
         evals.add(alias);
         return alias.toAttribute();
     }
@@ -218,7 +217,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         if (labels.isEmpty()) {
             return child;
         }
-        String name = Attribute.rawTemporaryName(PackDims.PACKED_FIELD_NAME, "key", new NameId().toString());
+        String name = TemporaryNameGenerator.locallyUniqueTemporaryName(PackDims.PACKED_FIELD_NAME);
         Attribute packed = new ReferenceAttribute(child.source(), null, name, DataType.KEYWORD);
         keys.add(packed);
         return new PackDims(child.source(), child, labels, packed);
@@ -546,14 +545,29 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                         var names = new ArrayList<String>();
                         var types = new ArrayList<DataType>();
                         var parts = new ArrayList<List<Expression>>();
+                        // The union's container is without a label only where every branch's is. A branch without a container
+                        // returns one holding its promoted labels, as the other branches' containers hold theirs.
                         var outGone = new TreeSet<String>();
-                        branches.forEach(branch -> outGone.addAll(without.getOrDefault(branch, Set.of())));
-                        boolean container = branches.stream().anyMatch(timeseries::containsKey);
+                        boolean container = false;
+                        for (NameId branch : branches) {
+                            if (timeseries.containsKey(branch)) {
+                                if (container) {
+                                    outGone.retainAll(without.get(branch));
+                                } else {
+                                    outGone.addAll(without.get(branch));
+                                }
+                                container = true;
+                            }
+                        }
+                        for (NameId branch : branches) {
+                            if (timeseries.containsKey(branch) == false) {
+                                outGone.removeAll(promoted.getOrDefault(branch, new TreeMap<>()).keySet());
+                            }
+                        }
                         if (container) {
                             var branchParts = new ArrayList<Expression>();
                             for (NameId branch : branches) {
-                                Expression part = timeseries.get(branch);
-                                branchParts.add(part != null ? part : typed ? new ToTimeSeriesMetadata(at, absent(at)) : absent(at));
+                                branchParts.add(timeseries.containsKey(branch) ? timeseries.get(branch) : whole(branch, at));
                             }
                             // Union outputs are named apart: the container's own name for the container, prefixed for its labels.
                             names.add(out.name());
@@ -864,11 +878,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                                 || projections.stream()
                                     .anyMatch(p -> p.name().equals(attribute.name()) && p.id().equals(attribute.id()) == false);
                             NamedExpression projected = shadows
-                                ? new Alias(
-                                    attribute.source(),
-                                    Attribute.rawTemporaryName(name, "temp_name", new NameId().toString()),
-                                    attribute
-                                )
+                                ? new Alias(attribute.source(), TemporaryNameGenerator.locallyUniqueTemporaryName(name), attribute)
                                 : attribute;
                             addIfAbsent(projections, projected);
                             return projected.toAttribute();
@@ -1029,7 +1039,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 }
                 // every label of the series; what it is without is left out where the aggregate loads it
                 container = under;
-            } else if (under instanceof ToTimeSeriesMetadata cast && cast.field() instanceof Literal || isAbsent(under)) {
+            } else if (under instanceof Literal) {
                 // the empty container
                 container = null;
             } else {
@@ -1165,8 +1175,21 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     fields.add(field);
                 }
             }
-            Expression loaded = new TimeSeriesWithout(Source.EMPTY, fields);
-            return typed ? new ToTimeSeriesMetadata(Source.EMPTY, loaded) : loaded;
+            return new TimeSeriesWithout(Source.EMPTY, fields, typed ? DataType.TIME_SERIES_METADATA_DATA_TYPE : DataType.KEYWORD);
+        }
+
+        /** The container {@code id} as a whole: the container with the promoted labels it is without written back. */
+        private Expression whole(NameId id, Source at) {
+            Expression whole = container(id);
+            if (whole == null) {
+                whole = typed ? TranslationContextV2.emptyLabels(at) : absent(at);
+            }
+            for (var label : promoted.getOrDefault(id, new TreeMap<>()).entrySet()) {
+                if (inContainer(id, label.getKey()) == false) {
+                    whole = new TimeSeriesMetadataSet(at, whole, Literal.keyword(at, label.getKey()), label.getValue());
+                }
+            }
+            return whole;
         }
 
         /** Whether the container {@code id} holds {@code name}, promoted or not. */
@@ -1200,18 +1223,8 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     yield label(timeseries.get(id), without.get(id), promoted.get(id), name, path.source());
                 }
                 case ToString render when render.field().dataType() == DataType.TIME_SERIES_METADATA_DATA_TYPE && reads(render.field()) -> {
-                    // the container as a whole: the labels it is without written back
                     Source at = render.source();
-                    NameId id = record(render.field());
-                    Expression whole = container(id);
-                    if (whole == null) {
-                        whole = typed ? new ToTimeSeriesMetadata(at, Literal.keyword(at, "{}")) : absent(at);
-                    }
-                    for (var label : promoted.get(id).entrySet()) {
-                        if (inContainer(id, label.getKey()) == false) {
-                            whole = new TimeSeriesMetadataSet(at, whole, Literal.keyword(at, label.getKey()), label.getValue());
-                        }
-                    }
+                    Expression whole = whole(record(render.field()), at);
                     yield typed ? new ToString(at, whole, configuration) : whole;
                 }
                 case HashOffset hash -> {
@@ -1243,7 +1256,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         private Expression containerKey(NameId id, Set<String> out, Source at) {
             Expression container = unset(container(id), without.get(id), out, at);
             if (container == null) {
-                container = typed ? new ToTimeSeriesMetadata(at, Literal.keyword(at, "{}")) : absent(at);
+                container = typed ? TranslationContextV2.emptyLabels(at) : absent(at);
             }
             return new Coalesce(at, typed ? new ToString(at, container, configuration) : container, List.of(Literal.keyword(at, "")));
         }

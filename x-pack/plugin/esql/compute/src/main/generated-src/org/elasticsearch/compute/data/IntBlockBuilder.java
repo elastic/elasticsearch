@@ -26,15 +26,16 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
 
     private int[] values;
     private final boolean enablePooling;
+    private long extraPooledBytes;
 
     IntBlockBuilder(int estimatedSize, BlockFactory blockFactory, boolean enablePooling) {
         super(blockFactory);
         this.enablePooling = enablePooling;
         int initialSize = Math.max(estimatedSize, 2);
         if (enablePooling) {
-            // Not zeroed and maybe longer than we asked for. Acquiring it accounted for its elements.
             values = blockFactory.acquireInts(initialSize);
             estimatedBytes = LocalArrayPool.usedBytesForInts(values.length);
+            extraPooledBytes = LocalArrayPool.usedBytesForInts(values.length - initialSize);
         } else {
             adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
             values = new int[initialSize];
@@ -64,6 +65,7 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
     @Override
     protected void growValuesArray(int newSize) {
         values = Arrays.copyOf(values, newSize);
+        extraPooledBytes = 0;
     }
 
     @Override
@@ -169,6 +171,11 @@ final class IntBlockBuilder extends AbstractBlockBuilder implements IntBlock.Bui
     public IntBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         this.mvOrdering = mvOrdering;
         return this;
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return isReleased() ? 0 : estimatedBytes - extraPooledBytes;
     }
 
     private IntBlock buildBigArraysBlock() {

@@ -14,9 +14,8 @@ import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * The search load, CPU time and waiting of a part of a query on this node, such as a phase of a shard or a compute, so the
- * query can report them. Its load and CPU time are what the targets it {@link #charging wraps} are charged, and its waiting
- * is what the {@link QueryScheduler} hands to the executors it is given to.
+ * The search load, CPU time and waiting of a part of a query on this node, such as a shard phase or a compute. Load and
+ * CPU time come from the targets it {@link #charging wraps}. Waiting comes from the {@link QueryScheduler}.
  */
 public final class QueryLoad {
 

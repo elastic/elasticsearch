@@ -176,8 +176,7 @@ public class TaskLoadAttributionTests extends ESTestCase {
     }
 
     /**
-     * Charging a task so far charges its target the time since its pool started it, less its parts charged elsewhere, and
-     * leaves its pool only the rest.
+     * Charging so far charges the target up to now. The pool charges only the rest.
      */
     public void testChargesTheTaskSoFar() {
         onPoolThread(clocks -> {
@@ -201,7 +200,7 @@ public class TaskLoadAttributionTests extends ESTestCase {
     }
 
     /**
-     * Only the task whose target is the one given is charged so far.
+     * Charging so far skips a task with another target.
      */
     public void testChargesSoFarOnlyTheTaskOfTheTarget() {
         onPoolThread(clocks -> {

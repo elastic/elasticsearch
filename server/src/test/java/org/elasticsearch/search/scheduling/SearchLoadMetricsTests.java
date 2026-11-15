@@ -36,7 +36,7 @@ public class SearchLoadMetricsTests extends ESTestCase {
     }
 
     /**
-     * The results of a search add up their loads, and the search reports the sums.
+     * A search reports the sum of the loads of its results.
      */
     public void testMergedLoadsReportTheirSums() {
         DirectoryMetrics merged = metrics(new SearchLoadMetrics(300, 200, 50)).merge(metrics(new SearchLoadMetrics(100, 10, 5)));
@@ -44,7 +44,7 @@ public class SearchLoadMetricsTests extends ESTestCase {
     }
 
     /**
-     * A node that knows the load reads it, and one that does not gets the other metrics without it.
+     * A node that doesn't know the load gets the other metrics without it.
      */
     public void testOnlyNodesThatKnowTheLoadGetIt() throws IOException {
         DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();

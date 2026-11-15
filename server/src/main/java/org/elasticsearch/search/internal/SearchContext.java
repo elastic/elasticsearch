@@ -159,7 +159,7 @@ public abstract class SearchContext implements Releasable {
     }
 
     /**
-     * Where the phase this context runs in is charged, which it reports with its result, or {@code null} if it reports none.
+     * Where the phase of this context is charged, or {@code null} if it reports no load.
      */
     public QueryLoad.Charging searchLoad() {
         return null;

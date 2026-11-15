@@ -462,7 +462,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     /**
-     * Nanos the query waited on the nodes it ran on, summed over them, while it had tasks queued there and none running.
+     * Nanos the query waited with tasks queued and none running, summed over nodes.
      */
     public long searchWaitingNanos() {
         return searchWaitingNanos;

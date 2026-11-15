@@ -23,7 +23,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * The search load, CPU time and waiting of the work behind a {@link DriverCompletionInfo} add up across computes and nodes.
+ * The search load of {@link DriverCompletionInfo} adds up across computes and nodes.
  */
 public class DriverCompletionInfoSearchLoadTests extends ESTestCase {
 
@@ -57,7 +57,7 @@ public class DriverCompletionInfoSearchLoadTests extends ESTestCase {
     }
 
     /**
-     * What a compute charged outside its drivers, such as its parallel workers, is part of its load.
+     * What a compute charges outside its drivers is part of its load.
      */
     public void testIncludesTheLoadOfTheComputeOutsideItsDrivers() {
         QueryLoad computeLoad = new QueryLoad();

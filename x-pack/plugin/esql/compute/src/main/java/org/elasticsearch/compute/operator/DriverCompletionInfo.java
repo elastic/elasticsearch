@@ -52,8 +52,8 @@ import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
  *                 the thread CPU time operators used on other threads ({@link DriverContext#meteredCpu}).
  * @param driverNanos Total time drivers held a thread (sum of per-driver {@link DriverProfile#driverNanos()}).
  *                    Includes time spent waiting for a core, GC pauses and time blocked inside an operator.
- * @param searchLoadNanos The search load charged to the shards for this work: the time the drivers charged, and the time
- *                        of the other tasks of their computes, such as parallel workers and acquiring search contexts.
+ * @param searchLoadNanos The search load charged for this work, by the drivers and by other compute tasks such as
+ *                        parallel workers.
  * @param searchCpuNanos The part of {@code searchLoadNanos} the threads spent on CPU.
  * @param searchWaitingNanos The time the query waited on the nodes of this work with tasks queued and none running.
  * @param driverProfiles {@link DriverProfile}s from each driver. These are fairly cheap to build but

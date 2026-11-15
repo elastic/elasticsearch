@@ -94,15 +94,14 @@ public class SearchLoadIT extends ESIntegTestCase {
     }
 
     /**
-     * A search reports the load its shard phases were charged: each phase is charged its task until its result leaves.
+     * A search reports the load of its shard phases.
      */
     public void testSearchReportsTheLoadItsShardsWereCharged() throws Exception {
         assertSearchReportsTheLoadItsShardsWereCharged(Settings.EMPTY, false, 0);
     }
 
     /**
-     * A search also reports the load of the segments its shard phases search in parallel, and of the data node merging their
-     * results.
+     * The reported load includes parallel segment searches and the merge on the data node.
      */
     public void testSearchReportsTheLoadOfParallelSegmentsAndMerges() throws Exception {
         assertSearchReportsTheLoadItsShardsWereCharged(
@@ -113,7 +112,7 @@ public class SearchLoadIT extends ESIntegTestCase {
     }
 
     /**
-     * Searches {@code size} hits, so with none only the query phase runs.
+     * With no hits, only the query phase runs.
      */
     private void assertSearchReportsTheLoadItsShardsWereCharged(Settings dataNodeSettings, boolean batched, int size) throws Exception {
         String dataNode = internalCluster().startNode(dataNodeSettings);
@@ -148,7 +147,7 @@ public class SearchLoadIT extends ESIntegTestCase {
 
         assertThat(reported.loadNanos(), greaterThan(0L));
         assertThat(reported.cpuNanos(), lessThanOrEqualTo(reported.loadNanos()));
-        // what the search reports was charged to its shards, which are also charged the tasks after their results left
+        // the shards are also charged after the results leave
         assertBusy(() -> assertThat(chargedToShards(dataNode) - chargedBefore, equalTo(search.getTotalTaskExecutionTime() - totalBefore)));
         assertThat(reported.loadNanos(), lessThanOrEqualTo(chargedToShards(dataNode) - chargedBefore));
     }

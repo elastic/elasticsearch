@@ -1259,8 +1259,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * The pool of {@code shard}, through the {@link QueryScheduler}, for the tasks of {@code task}, which hands their waiting
-     * to {@code load}.
+     * The pool of {@code shard} for the tasks of {@code task}, through the {@link QueryScheduler}. Their waiting goes to
+     * {@code load}.
      */
     private Executor shardExecutor(IndexShard shard, Task task, QueryLoad load) {
         return queryScheduler.executor(queryId(task), getExecutor(shard), shard, load);
@@ -1353,7 +1353,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Adds the load of the phase of {@code context}, once the task building its result is charged so far.
+     * Adds the load of the phase to its result, after charging the running task so far.
      */
     private static DirectoryMetrics withSearchLoad(DirectoryMetrics metrics, SearchContext context) {
         QueryLoad.Charging searchLoad = context.searchLoad();
@@ -2143,7 +2143,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         checkCancelled(task);
         final DefaultSearchContext context = createSearchContext(readerContext, request, defaultSearchTimeout, resultsType);
         resultsType.addResultsObject(context);
-        // the context is created by a task of its phase: its slices are charged with the phase, which reports its load
+        // slices are charged to the phase that creates the context
         if (TaskLoadAttribution.target() instanceof QueryLoad.Charging searchLoad) {
             context.searchLoad(searchLoad);
         }

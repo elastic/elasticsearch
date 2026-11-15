@@ -1015,7 +1015,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
 
         /**
-         * The load of merging the results of the shards so far, charged first, which the response reports with a shard result.
+         * The load of merging the shard results, reported with one of them.
          */
         private DirectoryMetrics mergeMetrics() {
             if (queryPhaseResultConsumer.mergeLoad() instanceof QueryLoad.Charging mergeLoad) {

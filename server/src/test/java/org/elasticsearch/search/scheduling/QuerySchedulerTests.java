@@ -125,8 +125,7 @@ public class QuerySchedulerTests extends ESTestCase {
     }
 
     /**
-     * The query's waiting goes once to the load of the executor whose task left the queue, so the loads of its executors
-     * add up to the query's waiting, while each shard accumulates the time it had work queued.
+     * The query's waiting is handed out once, so its executors add up to it.
      */
     public void testLoadsOfTheExecutorsAddUpToTheWaitingOfTheQuery() {
         Waits first = new Waits();
@@ -148,7 +147,7 @@ public class QuerySchedulerTests extends ESTestCase {
     }
 
     /**
-     * An executor without a load takes none of the query's waiting and leaves it to the next executor that has one.
+     * An executor without a load leaves the waiting to the next one with a load.
      */
     public void testExecutorWithoutLoadLeavesTheWaitingToOneWithALoad() {
         QueryLoad load = new QueryLoad();
@@ -166,7 +165,7 @@ public class QuerySchedulerTests extends ESTestCase {
     }
 
     /**
-     * A query forgotten while it had no task keeps adding its waiting to the load of an executor used again.
+     * A query forgotten while idle still hands its waiting to an executor used again.
      */
     public void testLoadKeepsTheWaitingOfAQueryTrackedAgain() {
         QueryLoad load = new QueryLoad();

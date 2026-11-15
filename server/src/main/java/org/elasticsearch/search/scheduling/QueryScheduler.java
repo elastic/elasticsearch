@@ -353,9 +353,8 @@ public final class QueryScheduler {
         }
 
         /**
-         * A task of the executor left the queue: hands the waiting of the query not handed out yet to the executor's load, if
-         * it has one, charges its shards if the query waited since the executor last charged them, and forgets them if it was
-         * the last task the executor had queued.
+         * A task of the executor left the queue. Hands the query's remaining waiting to the executor's load, if any, charges
+         * the shards their waiting, and forgets them if nothing else is queued.
          */
         private void leaveQueue(QueryExecutor executor) {
             if (executor.load != null && handedOutWaitedNanos != waitedNanos) {

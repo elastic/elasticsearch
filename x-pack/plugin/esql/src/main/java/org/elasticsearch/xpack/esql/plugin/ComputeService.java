@@ -2244,7 +2244,7 @@ public class ComputeService {
                 context.description().equals(DATA_DESCRIPTION) ? searchedShards(context.searchContexts()) : List.of(),
                 waitingLoad
             );
-            // the task that prepared the compute, such as acquiring its search contexts, reports what it did so far with it
+            // includes the task that prepared the compute, such as acquiring search contexts
             if (TaskLoadAttribution.target() instanceof QueryLoad.Charging charging && charging.load() == queryLoad) {
                 TaskLoadAttribution.chargeSoFar(charging, System.nanoTime());
             }

@@ -1466,7 +1466,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     /**
-     * The node response reports the load of merging the results of its shards, charged until the response is written.
+     * The node response reports the load of merging its shard results.
      */
     public void testBatchedNodeResponseReportsTheMergeLoad() throws Exception {
         AtomicLong merged = new AtomicLong();

@@ -215,7 +215,7 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
-                // the tasks searching segments in parallel work for this shard, and for the phase that runs them
+                // parallel segment searches are charged to the shard and the phase
                 TaskLoadAttribution.Target shardLoad = readerContext.indexShard().shardSearchStats().searchLoadTarget();
                 Executor shardExecutor = TaskLoadAttribution.charging(executor, (nanos, cpuNanos, finishNanos) -> {
                     TaskLoadAttribution.Target phaseLoad = searchLoad;

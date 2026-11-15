@@ -138,9 +138,8 @@ public final class TaskLoadAttribution {
     }
 
     /**
-     * Charges the task running on this thread, if its target is {@code target}, the time it ran until {@code nowNanos} and
-     * did not charge yet, so its pool charges only the rest. Code that reports what a task was charged calls it before the
-     * report, since the pool charges the task only when it completes.
+     * Charges the task running on this thread up to {@code nowNanos}, if its target is {@code target}. Its pool then charges
+     * only the rest. Call it before reporting what a task was charged, since the pool charges a task when it completes.
      */
     public static void chargeSoFar(Target target, long nowNanos) {
         Task task = task();

@@ -3872,8 +3872,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
      * parallel collection.
      */
     /**
-     * The segments a context searches in parallel are charged to the phase that created it, which charges its shard, so the
-     * phase reports all the shard was charged.
+     * Parallel segment searches are charged to the phase that created the context.
      */
     public void testSlicesAreChargedToThePhaseOfTheirContext() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY);

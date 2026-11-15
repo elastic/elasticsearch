@@ -142,7 +142,7 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
                         null,
                         null,
                         MetadataAttribute.TIMESERIES,
-                        timeSeriesField(),
+                        timeSeriesField(fn.dataType()),
                         Nullability.TRUE,
                         new NameId(),
                         false,

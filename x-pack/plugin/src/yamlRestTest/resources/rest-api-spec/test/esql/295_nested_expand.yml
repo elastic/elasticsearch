@@ -401,6 +401,29 @@ limit after expansion counts expanded rows:
     - [b1]
 
 ---
+limit by after expansion counts expanded rows per group:
+- requires:
+    test_runner_features: [capabilities, allowed_warnings_regex]
+    capabilities:
+    - method: POST
+      path: /_query
+      parameters: []
+      capabilities: [esql_limit_by]
+    reason: "LIMIT BY"
+- do:
+    esql.query:
+      allow_partial_results: false
+      body:
+        query: FROM ne_orders | WHERE order_id == "a" OR order_id == "b" | NESTED_EXPAND items | LIMIT 1 BY order_id
+          | STATS rows = COUNT(*) BY order_id | SORT order_id
+    allowed_warnings_regex:
+    - "No limit defined, adding default limit of \\[1000\\]"
+- match:
+    values:
+    - [1, a]
+    - [1, b]
+
+---
 expansion after a limit is rejected:
 # The data nodes can't tell which expanded rows belong to the parents the limit keeps.
 - do:

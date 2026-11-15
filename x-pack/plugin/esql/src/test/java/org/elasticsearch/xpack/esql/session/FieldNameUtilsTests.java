@@ -124,6 +124,11 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    /** A call without arguments asks for no collection, so analysis reports the wrong number of arguments. */
+    public void testNestedObjectWithoutArguments() {
+        assertFieldNames("from test | eval o = nested_object() | keep id", Set.of("id", "id.*", "_index", NestedScopeField.REQUEST_MARKER));
+    }
+
     /** NESTED_EXPAND turns every child field of its collection into a column. */
     public void testNestedExpandAsksForTheWholeCollection() {
         assumeTrue("NESTED_EXPAND is snapshot-only", Build.current().isSnapshot());

@@ -118,6 +118,7 @@ public class FieldNameUtils {
             if (NESTED_FUNCTIONS.contains(name)) {
                 nested[0] = true;
                 if ((name.equals("nested_json") || name.equals("nested_object"))
+                    && f.children().isEmpty() == false
                     && f.children().getFirst() instanceof UnresolvedAttribute collection) {
                     collections.add(collection.name());
                 }

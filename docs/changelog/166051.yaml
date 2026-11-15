@@ -1,0 +1,6 @@
+area: PromQL
+issues:
+ - 164001
+pr: 166051
+summary: "PromQL: add the absent function"
+type: feature

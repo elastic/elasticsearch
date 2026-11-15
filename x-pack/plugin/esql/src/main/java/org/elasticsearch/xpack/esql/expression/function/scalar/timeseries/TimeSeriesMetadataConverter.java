@@ -51,9 +51,11 @@ public final class TimeSeriesMetadataConverter implements ValuesSourceReaderOper
         return new ValuesSourceReaderOperator.ConverterEvaluator() {
             @Override
             public Block convert(Block block) {
-                BytesRefBlock source = (BytesRefBlock) block;
                 BytesRef value = new BytesRef();
-                try (BytesRefBlock.Builder result = context.blockFactory().newBytesRefBlockBuilder(source.getPositionCount())) {
+                try (
+                    BytesRefBlock source = (BytesRefBlock) block;
+                    BytesRefBlock.Builder result = context.blockFactory().newBytesRefBlockBuilder(source.getPositionCount())
+                ) {
                     for (int p = 0; p < source.getPositionCount(); p++) {
                         if (source.isNull(p)) {
                             result.appendNull();

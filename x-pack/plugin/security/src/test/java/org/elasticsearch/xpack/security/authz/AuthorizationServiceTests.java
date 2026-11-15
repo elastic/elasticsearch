@@ -2018,6 +2018,66 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(e, throwableWithMessage(not(containsString("because field level security excludes [@timestamp]"))));
     }
 
+    public void testMandatoryTimestampExclusionDeniesShardReadActionsWhenFeatureEnabled() {
+        final String index = "logs-" + randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT);
+        final RoleDescriptor role = timestampExcludingRole(index);
+        roleMap.put(role.getName(), role);
+        final Authentication authentication = createAuthentication(new User("timestamp_user", role.getName()));
+        final ClusterState clusterState = mockClusterState(
+            ProjectMetadata.builder(projectId).put(logsdbIndexMetadata(index), true).build()
+        );
+        final SearchRequest searchRequest = new SearchRequest(index).allowPartialSearchResults(false);
+        final ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            new OriginalIndices(searchRequest),
+            searchRequest,
+            new ShardId(clusterState.metadata().getProject(projectId).index(index).getIndex(), 0),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            System.currentTimeMillis(),
+            null
+        );
+        final Map<String, TransportRequest> shardActions = Map.of(
+            SearchTransportService.QUERY_ACTION_NAME,
+            shardSearchRequest,
+            TransportGetAction.TYPE.name() + "[s]",
+            new GetRequest(index).id("1")
+        );
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        this.setFakeOriginatingAction = false;
+
+        for (Map.Entry<String, TransportRequest> shardAction : shardActions.entrySet()) {
+            final String action = shardAction.getKey();
+            final TransportRequest request = shardAction.getValue();
+
+            when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.FLS_MANDATORY_TIMESTAMP))).thenReturn(false);
+            authorize(authentication, action, request);
+            verify(auditTrail).accessGranted(
+                eq(requestId),
+                any(),
+                eq(action),
+                eq(request),
+                authzInfoRoles(new String[] { role.getName() })
+            );
+
+            when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.FLS_MANDATORY_TIMESTAMP))).thenReturn(true);
+            final ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> authorize(authentication, action, request)
+            );
+            assertThat(action, e.status(), equalTo(RestStatus.FORBIDDEN));
+            assertThat(action, e, throwableWithMessage(containsString("because field level security excludes [@timestamp]")));
+            verify(auditTrail).accessDenied(
+                eq(requestId),
+                eq(authentication),
+                eq(action),
+                eq(request),
+                authzInfoRoles(new String[] { role.getName() })
+            );
+        }
+    }
+
     public void testDenialErrorMessagesForBulkIngest() throws Exception {
         final String index = randomAlphaOfLengthBetween(5, 12);
         RoleDescriptor role = new RoleDescriptor(

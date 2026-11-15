@@ -248,7 +248,10 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
         return parser;
     }
 
-    /** A JSON builder writing into breaker-accounted {@code buffer}; {@code TimeSeriesMetadataConverter} loads the canonical form with it. */
+    /**
+     * A JSON builder writing into breaker-accounted {@code buffer}; {@code TimeSeriesMetadataConverter} loads the canonical form
+     * with it.
+     */
     static XContentBuilder jsonBuilder(BreakingBytesRefBuilder buffer) throws IOException {
         return XContentFactory.jsonBuilder(new BytesRefBuilderOutputStream(buffer));
     }

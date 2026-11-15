@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
 
@@ -142,20 +143,38 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(partitionLabels(topNBy), hasItem("pod"));
     }
 
-    public void testTopkWithoutGroupingNotYetSupported() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(topk(2, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("topk"));
+    public void testTopkWithoutGroupingPartitionsByTheRest() {
+        assertWithoutPartitionsByTheRest("topk");
     }
 
-    public void testBottomkWithoutGroupingNotYetSupported() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(bottomk(2, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("bottomk"));
+    public void testBottomkWithoutGroupingPartitionsByTheRest() {
+        assertWithoutPartitionsByTheRest("bottomk");
+    }
+
+    /**
+     * {@code without (pod)} partitions the ranking by every label but {@code pod} and the metric name, as Prometheus groups a
+     * {@code without}: the series' label container leaving them out. The winning series keep their full identity. A keyword label
+     * container cannot leave labels out, so it requires a typed label container.
+     */
+    private void assertWithoutPartitionsByTheRest(String function) {
+        String query = "PROMQL index=k8s step=1h result=(" + function + "(2, network.bytes_in) without (pod))";
+        if (typedLabelContainer() == false) {
+            var e = expectThrows(VerificationException.class, () -> planPromql(query, true));
+            assertThat(e.getMessage(), containsString("requires a typed label container"));
+            return;
+        }
+        var plan = planPromql(query);
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItem(MetadataAttribute.TIMESERIES));
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        assertThat(topNBy.groupings(), hasSize(2));
+    }
+
+    /** Over named labels {@code without} partitions by the labels it does not list, whatever the label container representation. */
+    public void testTopkWithoutGroupingOverNamedLabelsPartitionsByTheRest() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(topk(1, sum by (pod, region) (network.bytes_in)) without (pod))");
+        var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
+        assertThat(partitionLabels(topNBy), hasItem("region"));
+        assertThat(partitionLabels(topNBy), not(hasItem("pod")));
     }
 
     /**
@@ -248,14 +267,9 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(partitionLabels(topNBy), hasItem("pod"));
     }
 
-    public void testLimitkWithoutGroupingNotYetSupported() {
+    public void testLimitkWithoutGroupingPartitionsByTheRest() {
         assumeTrue("Requires PROMQL_LIMITK capability", EsqlCapabilities.Cap.PROMQL_LIMITK.isEnabled());
-
-        var e = expectThrows(
-            VerificationException.class,
-            () -> planPromql("PROMQL index=k8s step=1h result=(limitk(2, network.bytes_in) without (pod))", true)
-        );
-        assertThat(e.getMessage(), containsString("limitk"));
+        assertWithoutPartitionsByTheRest("limitk");
     }
 
     public void testLimitkOverSumByRanksTheSum() {

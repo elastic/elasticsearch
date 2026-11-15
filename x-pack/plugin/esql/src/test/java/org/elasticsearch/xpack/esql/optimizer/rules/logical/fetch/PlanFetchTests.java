@@ -561,7 +561,8 @@ public class PlanFetchTests extends ESTestCase {
         assertEager(
             plan(
                 "FROM employees METADATA _id, _index, _score"
-                    + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                    + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50)"
+                    + " (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
                     + " | FUSE KEY BY first_name | SORT _score DESC | LIMIT 10 | KEEP first_name, emp_no, _score"
             )
         );

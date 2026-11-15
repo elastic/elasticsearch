@@ -25,8 +25,9 @@ import java.util.Objects;
  * <p>
  * The child produces the rows: the coordinator half of the cut over the exchange, narrowed to the {@code _doc} of each
  * row and the columns that crossed the exchange as values, sometimes under a filter that reads only those columns.
- * Those documents left the nodes that read them and carry their origins, see {@link DocVector#origins()}. Like {@link FieldExtractExec}, the output is the child's output
- * followed by the fetched columns, so the plan above this node doesn't change. It doesn't escape the coordinator.
+ * Those documents left the nodes that read them and carry their origins, see {@link DocVector#origins()}. Like
+ * {@link FieldExtractExec}, the output is the child's output followed by the fetched columns, so the plan above this node
+ * doesn't change. It doesn't escape the coordinator.
  */
 public final class FetchExec extends UnaryExec implements EstimatesRowSize {
     private final Attribute doc;

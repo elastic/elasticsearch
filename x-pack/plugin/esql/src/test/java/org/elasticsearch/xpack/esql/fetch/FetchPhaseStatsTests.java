@@ -23,8 +23,8 @@ public class FetchPhaseStatsTests extends ESTestCase {
     }
 
     /**
-     * The stats read the decisions as the planner records them, and report the one {@link FetchPhaseOutcomes#reported()} gives: a plan that got
-     * the fetch phase wins over one that didn't.
+     * The stats read the decisions as the planner records them, and report the one {@link FetchPhaseOutcomes#reported()}
+     * gives: a plan that got the fetch phase wins over one that didn't.
      */
     public void testTheOutcomeIsTheReportedOne() {
         FetchPhaseOutcomes outcomes = new FetchPhaseOutcomes();

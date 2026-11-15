@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AbsentFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
@@ -180,7 +181,9 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
             case SCALAR, TIME_EXTRACTION -> child == null
                 ? new ScalarFunction(unresolved.source(), metadata)
                 : new ValueTransformationFunction(unresolved.source(), child, metadata, extraParams);
-            case METADATA_MANIPULATION -> resolveMetadataManipulation(unresolved, child, metadata, extraParams);
+            case METADATA_MANIPULATION -> metadata == PromqlBuiltinFunctionDefinitions.ABSENT
+                ? new AbsentFunction(unresolved.source(), child, metadata, extraParams)
+                : resolveMetadataManipulation(unresolved, child, metadata, extraParams);
             case RESULT_ORDERING -> resolveResultOrdering(unresolved, child, metadata, extraParams);
             default -> throw new VerificationException(
                 List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))

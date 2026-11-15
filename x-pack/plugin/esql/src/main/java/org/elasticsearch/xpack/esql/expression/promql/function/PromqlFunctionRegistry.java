@@ -126,6 +126,7 @@ public class PromqlFunctionRegistry {
         //
         PromqlBuiltinFunctionDefinitions.LABEL_REPLACE,
         PromqlBuiltinFunctionDefinitions.LABEL_JOIN,
+        PromqlBuiltinFunctionDefinitions.ABSENT,
         PromqlBuiltinFunctionDefinitions.SORT,
         PromqlBuiltinFunctionDefinitions.SORT_DESC,
         PromqlBuiltinFunctionDefinitions.SORT_BY_LABEL,
@@ -216,7 +217,6 @@ public class PromqlFunctionRegistry {
         "resets",
 
         // Instant vector functions
-        "absent",
         // Prometheus 3.x: joins metric-info labels onto a vector; requires cross-metric label lookup.
         "info",
 

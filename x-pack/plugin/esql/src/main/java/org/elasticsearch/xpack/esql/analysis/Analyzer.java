@@ -227,6 +227,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.AbsentFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
@@ -1462,13 +1463,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
             LogicalPlan promqlPlan = promql.promqlPlan();
-            List<MetadataManipulationFunction> relabels = promqlPlan.collect(MetadataManipulationFunction.class);
+            List<Attribute> derivedLabels = derivedLabels(promqlPlan);
 
             // References against the stored labels (childrenOutput): a vector selector always matches on the labels as they
             // are stored, regardless of any relabeling applied downstream.
             Function<UnresolvedAttribute, Expression> storedScope = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
 
-            if (relabels.isEmpty()) {
+            if (derivedLabels.isEmpty()) {
                 return promql.withPromqlPlan(promqlPlan.transformExpressionsDown(UnresolvedAttribute.class, storedScope))
                     .transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
             }
@@ -1481,7 +1482,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // enclosing by(dst) binds to the derived destination. When several relabels on one path derive the same label the
             // outermost (last-applied) one wins, so same-named destinations are collapsed keeping the shallowest - which also
             // keeps an enclosing by(dst) from seeing two same-named attributes. childrenOutput is a fresh per-call list, so
-            // this is local to this command.
+            // this is local to this command. The labels of an `absent` result are derived the same way: they are visible to
+            // the nodes above it only.
             LogicalPlan resolvedPlan = promqlPlan.transformDown(node -> {
                 if (node instanceof Selector) {
                     return node.transformExpressionsOnly(UnresolvedAttribute.class, storedScope);
@@ -1491,36 +1493,50 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
 
             // The command's own output contract sees the full derived label set: every destination, same nearest-wins collapse.
-            List<Attribute> outputScope = shadowedResolutionScope(childrenOutput, collapseByName(relabels));
+            List<Attribute> outputScope = shadowedResolutionScope(childrenOutput, collapseByName(derivedLabels));
             return promql.withPromqlPlan(resolvedPlan)
                 .transformExpressionsOnly(UnresolvedAttribute.class, ua -> ResolveRefs.maybeResolveAttribute(ua, outputScope, log));
         }
 
         /**
-         * The relabel destinations visible to {@code node}'s own expressions: the destinations derived within the vector the
-         * node consumes - the {@link MetadataManipulationFunction}s in its child subtree(s) - collapsed by label name keeping
-         * the shallowest (outermost, last-applied) match, so a destination derived more than once on a path resolves to the
-         * one that wins in PromQL.
+         * The derived labels visible to {@code node}'s own expressions: the labels derived within the vector the node consumes
+         * (see {@link #derivedLabels}) in its child subtree(s), collapsed by label name keeping the shallowest (outermost,
+         * last-applied) match, so a label derived more than once on a path resolves to the one that wins in PromQL.
          */
         private static List<Attribute> activeDestinations(LogicalPlan node) {
-            List<MetadataManipulationFunction> relabels = new ArrayList<>();
+            List<Attribute> derived = new ArrayList<>();
             for (LogicalPlan child : node.children()) {
-                relabels.addAll(child.collect(MetadataManipulationFunction.class));
+                derived.addAll(derivedLabels(child));
             }
-            return collapseByName(relabels);
+            return collapseByName(derived);
         }
 
         /**
-         * The relabels' destination attributes, collapsed to one per label name keeping the first. The input is in pre-order
-         * (ancestors before descendants), so "first" is the shallowest/outermost relabel - PromQL's "last relabel wins" when a
-         * destination is derived more than once on a path.
+         * The labels that {@code plan} derives rather than reads from storage, in pre-order (ancestors before descendants): the
+         * destination of each {@link MetadataManipulationFunction} and the labels of each {@link AbsentFunction} result.
          */
-        private static List<Attribute> collapseByName(List<MetadataManipulationFunction> relabels) {
-            List<Attribute> destinations = new ArrayList<>(relabels.size());
+        private static List<Attribute> derivedLabels(LogicalPlan plan) {
+            List<Attribute> derived = new ArrayList<>();
+            plan.forEachDown(node -> {
+                if (node instanceof MetadataManipulationFunction relabel) {
+                    derived.add(relabel.destination());
+                } else if (node instanceof AbsentFunction absent) {
+                    derived.addAll(absent.output());
+                }
+            });
+            return derived;
+        }
+
+        /**
+         * The derived labels, collapsed to one per label name keeping the first. The input is in pre-order (ancestors before
+         * descendants), so "first" is the shallowest/outermost derivation - PromQL's "last relabel wins" when a label is
+         * derived more than once on a path.
+         */
+        private static List<Attribute> collapseByName(List<Attribute> derivedLabels) {
+            List<Attribute> destinations = new ArrayList<>(derivedLabels.size());
             Set<String> seen = new HashSet<>();
-            for (MetadataManipulationFunction relabel : relabels) {
-                Attribute destination = relabel.destination();
-                // A destination is minted as a bare ReferenceAttribute named after the label (no passthrough prefix), so its
+            for (Attribute destination : derivedLabels) {
+                // A derived label is minted as a bare ReferenceAttribute named after the label (no passthrough prefix), so its
                 // attribute name is already the canonical label name used for shadowing.
                 if (seen.add(destination.name())) {
                     destinations.add(destination);

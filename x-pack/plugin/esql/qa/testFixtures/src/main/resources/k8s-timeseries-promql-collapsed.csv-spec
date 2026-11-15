@@ -109,3 +109,17 @@ clients:double        | step:datetime                                           
 [205.0, 357.0]        | [2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z]                           | staging         | 281.0
 // end::ts_collapse_eval-result[]
 ;
+
+// Mirrors absent_series_starts_and_ends.
+absent_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: promql_absent
+PROMQL index=k8s step=5m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:40:00.000Z" result=(absent(network.cost{cluster="qa", pod="two"}))
+| TS_COLLAPSE;
+
+result:double        | step:datetime                                                                                                  | cluster:keyword | pod:keyword
+[1.0, 1.0, 1.0, 1.0] | [2024-05-10T00:00:00.000Z, 2024-05-10T00:30:00.000Z, 2024-05-10T00:35:00.000Z, 2024-05-10T00:40:00.000Z] | qa              | two
+;

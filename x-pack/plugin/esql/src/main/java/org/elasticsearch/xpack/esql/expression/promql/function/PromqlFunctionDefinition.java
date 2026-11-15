@@ -884,7 +884,7 @@ public final class PromqlFunctionDefinition {
             this.params = params;
             this.builder = (source, target, ctx, extraParams) -> {
                 throw new UnsupportedOperationException(
-                    "label metadata-manipulation functions are translated directly, not built via the generic function builder"
+                    "metadata-manipulation functions are translated directly, not built via the generic function builder"
                 );
             };
             return this;

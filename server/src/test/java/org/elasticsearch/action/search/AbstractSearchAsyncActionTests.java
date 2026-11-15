@@ -12,15 +12,19 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,7 +41,9 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.store.CacheMissWaitMetrics;
 import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.DirectoryMetricsTests;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -49,6 +55,8 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.snapshots.RestoringShardTestState;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -81,6 +89,7 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL;
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.INTERNAL_PARTIAL_RESULTS_CANCEL_REASON;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.CACHE_MISS_WAIT_HISTOGRAM_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.STORE_BYTES_READ_HISTOGRAM_NAME;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -90,6 +99,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AbstractSearchAsyncActionTests extends ESTestCase {
 
@@ -98,6 +109,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private TestThreadPool threadPool;
     private TransportService mockTransportService;
     private RecordingMeterRegistry meterRegistry;
+    /** The attributes the actions created by {@code createAction} record their search response metrics with. */
+    private Map<String, Object> searchRequestAttributes = Map.of();
+    /** The cluster state the actions under test are created with; tests that need restores in it replace it. */
+    private ClusterState clusterState = ClusterState.EMPTY_STATE;
 
     @After
     public void cleanTransportService() {
@@ -232,14 +247,14 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             shardsIterators,
             Collections.emptyMap(),
             timeProvider,
-            ClusterState.EMPTY_STATE,
+            clusterState,
             task,
             results,
             NoopCircuitBreaker.INSTANCE,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             searchResponseMetrics,
-            Map.of(),
+            searchRequestAttributes,
             false
         ) {
             @Override
@@ -407,6 +422,187 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
 
+    private static SearchShardIterator noCopyIterator(String clusterAlias, ShardId shardId) {
+        return new SearchShardIterator(clusterAlias, shardId, Collections.emptyList(), null, SplitShardCountSummary.UNSET);
+    }
+
+    private static SearchRequest disallowPartialResults() {
+        return new SearchRequest().allowPartialSearchResults(false);
+    }
+
+    /**
+     * With partial results disallowed, a search whose missing shards are all being restored by a restore that reports its shards is
+     * rejected with a {@link ShardRestoringException} as the cause, so that it is a 403 rather than a 503.
+     */
+    public void testMissingShardsBeingRestoredAreReported() {
+        final var first = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "a",
+            randomUUID(),
+            true
+        );
+        final var second = RestoringShardTestState.restoringIndex(first.state(), Metadata.DEFAULT_PROJECT_ID, "b", randomUUID(), true);
+        final var shardIterators = List.of(noCopyIterator(null, first.shardId()), noCopyIterator(null, second.shardId()));
+
+        final var e = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> SearchPhase.doCheckNoMissingShards("query", disallowPartialResults(), shardIterators, second.state())
+        );
+
+        assertThat(e.getCause(), instanceOf(ShardRestoringException.class));
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(e.getMessage(), containsString(first.shardId().toString()));
+        assertThat(e.getMessage(), containsString(second.shardId().toString()));
+        // the cause is the restore of the first missing shard, the first one the message names
+        assertThat(((ShardRestoringException) e.getCause()).recoveryId(), equalTo(first.restoreUuid()));
+    }
+
+    /**
+     * Only the shards that have no copy to search decide the rejection: a shard that can be searched, of an index that is not being
+     * restored, does not stop the restoring shard from being reported, and is not named as missing.
+     */
+    public void testShardsWithCopiesDoNotStopARestoringShardBeingReported() {
+        final var restoring = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "restoring",
+            randomUUID(),
+            true
+        );
+        final var searchable = new ShardId("searchable", randomUUID(), 0);
+        final var copy = TestShardRouting.shardRoutingBuilder(searchable, "node", true, ShardRoutingState.STARTED).build();
+        final var shardIterators = List.of(
+            new SearchShardIterator(null, searchable, List.of(copy), null, SplitShardCountSummary.UNSET),
+            noCopyIterator(null, restoring.shardId())
+        );
+
+        final var e = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> SearchPhase.doCheckNoMissingShards("query", disallowPartialResults(), shardIterators, restoring.state())
+        );
+
+        assertThat(e.getCause(), instanceOf(ShardRestoringException.class));
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(e.getMessage(), containsString(restoring.shardId().toString()));
+        assertThat(e.getMessage(), not(containsString(searchable.toString())));
+    }
+
+    /**
+     * Nothing changes from the rejection a search always got unless every one of the conditions for reporting holds.
+     */
+    public void testMissingShardsAreNotReportedAsRestoringUnlessAllAreReported() {
+        final var restoring = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "restoring",
+            randomUUID(),
+            true
+        );
+        final var notReporting = RestoringShardTestState.restoringIndex(
+            restoring.state(),
+            Metadata.DEFAULT_PROJECT_ID,
+            "not-reporting",
+            randomUUID(),
+            false
+        );
+        final var missing = new ShardId("missing", randomUUID(), 0);
+        // a remote index can share the restoring index's name, but has its own UUID
+        final var remote = new ShardId(restoring.shardId().getIndexName(), randomUUID(), restoring.shardId().id());
+
+        // the restore does not ask for its shards to be reported
+        assertRejectedWith503(notReporting.state(), List.of(noCopyIterator(null, notReporting.shardId())));
+        // one of the missing shards is not being restored at all
+        assertRejectedWith503(notReporting.state(), List.of(noCopyIterator(null, restoring.shardId()), noCopyIterator(null, missing)));
+        // one of the missing shards is being restored by a restore that does not report its shards
+        assertRejectedWith503(
+            notReporting.state(),
+            List.of(noCopyIterator(null, restoring.shardId()), noCopyIterator(null, notReporting.shardId()))
+        );
+        // a shard of a remote cluster, whose restores are not in this cluster state
+        assertRejectedWith503(restoring.state(), List.of(noCopyIterator(randomAlphaOfLength(5), remote)));
+        // there is no cluster state to look at
+        assertRejectedWith503(null, List.of(noCopyIterator(null, restoring.shardId())));
+    }
+
+    private static void assertRejectedWith503(ClusterState state, List<SearchShardIterator> shardIterators) {
+        final var e = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> SearchPhase.doCheckNoMissingShards("query", disallowPartialResults(), shardIterators, state)
+        );
+        assertThat(e.getCause(), nullValue());
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+    }
+
+    /**
+     * With partial results allowed there is no up-front rejection, so a missing shard that is being restored is recorded as a failure
+     * of that shard, which keeps its status and type.
+     */
+    public void testMissingShardBeingRestoredFailsOnlyThatShardWithPartialResults() {
+        final var restoring = RestoringShardTestState.restoringIndex(
+            ClusterState.EMPTY_STATE,
+            Metadata.DEFAULT_PROJECT_ID,
+            "restoring",
+            randomUUID(),
+            true
+        );
+        this.clusterState = restoring.state();
+        final var shardIt = noCopyIterator(null, restoring.shardId());
+        final var other = noCopyIterator(null, new ShardId("other", randomUUID(), 0));
+        final var searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(2)) {
+            final var action = createAction(
+                searchRequest,
+                phaseResults,
+                ActionListener.wrap(r -> {}, e -> {}),
+                false,
+                new AtomicLong(),
+                null,
+                null,
+                List.of(shardIt, other)
+            );
+
+            action.doRun(Map.of(shardIt, 0, other, 1));
+
+            List<ShardSearchFailure> failures = action.buildShardFailures();
+            assertThat(failures, hasSize(2));
+            final var restoringFailure = failures.stream().filter(f -> f.shard().getShardId().equals(restoring.shardId())).findAny();
+            assertTrue(restoringFailure.isPresent());
+            assertThat(restoringFailure.get().getCause(), instanceOf(ShardRestoringException.class));
+            assertThat(restoringFailure.get().status(), equalTo(RestStatus.FORBIDDEN));
+            final var otherFailure = failures.stream().filter(f -> f.shard().getShardId().equals(other.shardId())).findAny();
+            assertTrue(otherFailure.isPresent());
+            assertThat(otherFailure.get().getCause(), instanceOf(NoShardAvailableActionException.class));
+            assertThat(otherFailure.get().status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+    }
+
+    /**
+     * A shard-not-available failure that is not a restoring shard is still folded into the generic 503 failure, and a restoring shard's
+     * failure is not, whichever way it reaches {@code onShardFailure}.
+     */
+    public void testOnShardFailureKeepsShardRestoringButGroupsOtherUnavailableFailures() {
+        final var shardId = new ShardId("index", "_na_", 0);
+        final var target = new SearchShardTarget(null, shardId, null);
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(2)) {
+            final var action = createAction(
+                new SearchRequest().allowPartialSearchResults(true),
+                phaseResults,
+                ActionListener.wrap(r -> {}, e -> {}),
+                false,
+                new AtomicLong()
+            );
+            action.onShardFailure(0, target, new ShardRestoringException("index", randomUUID()));
+            action.onShardFailure(1, target, new ShardNotFoundException(shardId));
+
+            List<ShardSearchFailure> failures = action.buildShardFailures();
+            assertThat(failures.get(0).getCause(), instanceOf(ShardRestoringException.class));
+            assertThat(failures.get(0).status(), equalTo(RestStatus.FORBIDDEN));
+            assertThat(failures.get(1).getCause(), instanceOf(NoShardAvailableActionException.class));
+            assertThat(failures.get(1).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+    }
+
     public void testMaybeReEncode() {
         String[] nodeIds = new String[] { "node1", "node2", "node3" };
         AtomicInteger idGenerator = new AtomicInteger(0);
@@ -423,7 +619,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             )
         );
         PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(
-            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY)
+            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), List.of())
         );
 
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
@@ -926,6 +1122,93 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 .getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
             assertThat(measurements, empty());
         }
+    }
+
+    public void testRecordStoreMetricsReportsCacheMissWaitInMilliseconds() {
+        // 3.5 ms: a fractional millisecond must survive, a long histogram would have recorded 3
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait(1, 3_500_000));
+        assertThat(measurements, hasSize(1));
+        assertTrue(measurements.get(0).isDouble());
+        assertThat(measurements.get(0).getDouble(), equalTo(3.5));
+    }
+
+    public void testRecordStoreMetricsSkipsCacheMissWaitWhenThereWasNone() {
+        // no blob store cache metric at all, as on a stateful node, and a blob store cache metric that recorded no waits
+        assertThat(recordCacheMissWait(directoryMetricsOf(new DirectoryMetricsTests.Counter()), cacheMissWait(0, 0)), empty());
+    }
+
+    public void testRecordStoreMetricsRecordsCacheMissWaitOfZeroNanos() {
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait(1, 0));
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).getDouble(), equalTo(0.0));
+    }
+
+    public void testRecordStoreMetricsRecordsCacheMissWaitWithSearchRequestAttributes() {
+        // the attributes the other search response metrics carry, so the wait can be broken down the same way
+        searchRequestAttributes = Map.of("query_type", "match_all", "target", "datastream");
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait(1, 1_000_000));
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).attributes(), equalTo(searchRequestAttributes));
+    }
+
+    /**
+     * Runs {@code recordStoreMetrics} once for each of {@code calls}, and returns everything recorded to the cache miss wait
+     * histogram. A single action is used for all calls, because each {@code createAction} replaces the test's thread pool.
+     */
+    private List<Measurement> recordCacheMissWait(DirectoryMetrics... calls) {
+        try (ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                new SearchRequest(),
+                results,
+                ActionListener.noop(),
+                true,
+                new AtomicLong()
+            );
+            for (DirectoryMetrics directoryMetrics : calls) {
+                action.recordStoreMetrics(directoryMetrics);
+            }
+            return meterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, CACHE_MISS_WAIT_HISTOGRAM_NAME);
+        }
+    }
+
+    private static DirectoryMetrics cacheMissWait(long waits, long waitNanos) {
+        return directoryMetricsOf(new CacheMissWait(waits, waitNanos));
+    }
+
+    /**
+     * Stands in for the blob store cache metric of the stateless plugin, which is not on the classpath of this module. It is
+     * registered under the same name and implements the same interface.
+     */
+    private static class CacheMissWait extends DirectoryMetricsTests.Counter implements CacheMissWaitMetrics {
+        private final long waits;
+        private final long waitNanos;
+
+        CacheMissWait(long waits, long waitNanos) {
+            super(0);
+            this.waits = waits;
+            this.waitNanos = waitNanos;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return DirectoryMetrics.BLOB_STORE_CACHE_METRICS_NAME;
+        }
+
+        @Override
+        public long getWaits() {
+            return waits;
+        }
+
+        @Override
+        public long getWaitTime() {
+            return waitNanos;
+        }
+    }
+
+    private static DirectoryMetrics directoryMetricsOf(DirectoryMetricsTests.Counter metric) {
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(metric.getWriteableName(), metric);
+        return builder.build();
     }
 
     private static DirectoryMetrics storeMetrics(long bytesRead) {

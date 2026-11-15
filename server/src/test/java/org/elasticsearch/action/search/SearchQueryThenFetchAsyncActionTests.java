@@ -18,6 +18,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -63,17 +65,22 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.BytesTransportResponse;
+import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.SendRequestTransportException;
+import org.elasticsearch.transport.TestProxyConnections;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -86,14 +93,27 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.ToLongFunction;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -139,6 +159,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -289,6 +310,810 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         }
     }
 
+    /**
+     * A shard response that trips the breaker while it arrives fails the search once, without retrying shards or finishing the phase.
+     */
+    public void testPerShardResponseTripFailsSearch() throws Exception {
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node2");
+        lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
+        lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
+
+        Map<Integer, Integer> requestsPerShard = new ConcurrentHashMap<>();
+        List<ShardSearchContextId> freedContexts = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
+        Map<Integer, Runnable> responses = new ConcurrentHashMap<>();
+        var transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(primaryNode);
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                ShardResponseReservation reservation,
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                int shardId = request.shardId().id();
+                requestsPerShard.merge(shardId, 1, Integer::sum);
+                // Answered once all three are in flight, as a trip doesn't stop requests already sent
+                responses.put(shardId, () -> answer(shardId, connection, request, reservation, listener));
+            }
+
+            private void answer(
+                int shardId,
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                ShardResponseReservation reservation,
+                ActionListener<SearchPhaseResult> listener
+            ) {
+                switch (shardId) {
+                    case 0 -> trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener));
+                    case 1 -> {
+                        QuerySearchResult result = new QuerySearchResult(
+                            new ShardSearchContextId("late", shardId),
+                            new SearchShardTarget(connection.getNode().getId(), request.shardId(), null),
+                            null
+                        );
+                        result.topDocs(
+                            new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                            new DocValueFormat[0]
+                        );
+                        resultsToRelease.add(result);
+                        listener.onResponse(result);
+                    }
+                    case 2 -> listener.onFailure(new NoShardAvailableActionException(request.shardId()));
+                    default -> throw new AssertionError("unexpected shard [" + shardId + "]");
+                }
+            }
+
+            @Override
+            public void sendFreeContext(
+                Transport.Connection connection,
+                ShardSearchContextId contextId,
+                ActionListener<SearchFreeContextResponse> listener
+            ) {
+                freedContexts.add(contextId);
+            }
+        };
+        List<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
+            "idx",
+            new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            3,
+            true,
+            primaryNode,
+            replicaNode
+        );
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        try (QueryPhaseResultConsumer resultConsumer = newResultConsumer(shardsIter.size())) {
+            newSearchThatMustNotFinish(
+                searchTransportService,
+                lookup,
+                shardsIter,
+                resultConsumer,
+                false,
+                SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+                failures
+            ).start();
+            assertThat(responses.keySet(), containsInAnyOrder(0, 1, 2));
+            for (int shardId = 0; shardId < 3; shardId++) {
+                responses.get(shardId).run();
+            }
+            resultsToRelease.forEach(QuerySearchResult::decRef);
+
+            assertThat(failures, hasSize(1));
+            assertThat(failures.getFirst(), instanceOf(SearchPhaseExecutionException.class));
+            SearchPhaseExecutionException e = (SearchPhaseExecutionException) failures.getFirst();
+            assertThat(e.getPhaseName(), equalTo("query"));
+            assertThat(e.getCause(), sameInstance(trip.get()));
+            assertThat(e.shardFailures(), emptyArray());
+            // Shard 2 has a replica, but a retry would only add work to a search that has failed
+            assertThat(requestsPerShard, equalTo(Map.of(0, 1, 1, 1, 2, 1)));
+            assertThat(freedContexts, contains(new ShardSearchContextId("late", 1)));
+        }
+    }
+
+    /**
+     * A batched response that trips the breaker while it arrives fails the search once, without retrying shards or finishing the phase.
+     */
+    public void testBatchedResponseTripFailsSearch() throws Exception {
+        // An older data node takes the bwcHandleException route, which would fail the search a second time
+        assertBatchedResponseTripFailsSearch(TransportVersion.current());
+        assertBatchedResponseTripFailsSearch(TransportVersion.fromName("batched_query_phase_version"));
+    }
+
+    private void assertBatchedResponseTripFailsSearch(TransportVersion dataNodeVersion) throws Exception {
+        DiscoveryNode coordinator = DiscoveryNodeUtils.create("coordinator");
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        for (String nodeId : List.of("node1", "node2", "replicas")) {
+            DiscoveryNode node = DiscoveryNodeUtils.create(nodeId);
+            lookup.put(nodeId, new CloseableConnection() {
+                @Override
+                public DiscoveryNode getNode() {
+                    return node;
+                }
+
+                @Override
+                public TransportVersion getTransportVersion() {
+                    return dataNodeVersion;
+                }
+
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) {
+                    throw new UnsupportedOperationException();
+                }
+            });
+        }
+        // Two shards on each data node, so that each node gets a batch, and a second copy of every shard to retry on
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> shardsIter = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            shardsIter.add(
+                new SearchShardIterator(
+                    null,
+                    new ShardId("idx", "_na_", i),
+                    List.of(i < 2 ? "node1" : "node2", "replicas"),
+                    originalIndices,
+                    null,
+                    null,
+                    false,
+                    false,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+        }
+
+        Map<String, TransportResponseHandler<?>> batches = new ConcurrentHashMap<>();
+        var transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(coordinator);
+        doAnswer(invocation -> {
+            Transport.Connection connection = invocation.getArgument(0);
+            batches.put(connection.getNode().getId(), invocation.getArgument(4));
+            return null;
+        }).when(transportService)
+            .sendChildRequest(
+                any(Transport.Connection.class),
+                eq(SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME),
+                any(),
+                any(),
+                any()
+            );
+        AtomicInteger retries = new AtomicInteger();
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                ShardResponseReservation reservation,
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                retries.incrementAndGet();
+            }
+        };
+
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        try (QueryPhaseResultConsumer resultConsumer = newResultConsumer(shardsIter.size())) {
+            newSearchThatMustNotFinish(
+                searchTransportService,
+                lookup,
+                shardsIter,
+                resultConsumer,
+                true,
+                SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+                failures
+            ).start();
+            assertThat(batches.keySet(), containsInAnyOrder("node1", "node2"));
+
+            CircuitBreakingException trip = ShardResponseReservationTests.tripWhileArriving(batches.get("node1"));
+            batches.get("node2")
+                .handleException(new SendRequestTransportException(lookup.get("node2").getNode(), "action", new IOException("boom")));
+
+            assertThat(failures, hasSize(1));
+            SearchPhaseExecutionException e = (SearchPhaseExecutionException) failures.getFirst();
+            assertThat(e.getPhaseName(), equalTo("query"));
+            assertThat(e.getCause(), sameInstance(trip));
+            assertThat(e.shardFailures(), emptyArray());
+            assertThat("a shard was retried on another copy", retries.get(), equalTo(0));
+        }
+    }
+
+    /**
+     * A result that arrives while another shard trips is released, also when the trip releases the results it has after the late result
+     * passed its check but before it was added.
+     */
+    public void testResultArrivingDuringTripIsReleased() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node1");
+        Map<String, Transport.Connection> lookup = Map.of("node1", new SearchAsyncActionTests.MockConnection(node));
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> shardsIter = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            shardsIter.add(
+                new SearchShardIterator(
+                    null,
+                    new ShardId("idx", "_na_", i),
+                    List.of("node1"),
+                    originalIndices,
+                    null,
+                    null,
+                    false,
+                    false,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+        }
+
+        Map<Integer, Runnable> responses = new ConcurrentHashMap<>();
+        List<ShardSearchContextId> freedContexts = Collections.synchronizedList(new ArrayList<>());
+        List<QuerySearchResult> resultsToRelease = Collections.synchronizedList(new ArrayList<>());
+        var transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(DiscoveryNodeUtils.create("coordinator"));
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                ShardResponseReservation reservation,
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                int shardId = request.shardId().id();
+                if (shardId == 0) {
+                    responses.put(shardId, () -> ShardResponseReservationTests.tripWhileArriving(reservation, listener));
+                    return;
+                }
+                responses.put(shardId, () -> {
+                    QuerySearchResult result = new QuerySearchResult(
+                        new ShardSearchContextId("late", shardId),
+                        new SearchShardTarget(connection.getNode().getId(), request.shardId(), null),
+                        null
+                    );
+                    result.topDocs(
+                        new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                        new DocValueFormat[0]
+                    );
+                    resultsToRelease.add(result);
+                    listener.onResponse(result);
+                });
+            }
+
+            @Override
+            public void sendFreeContext(
+                Transport.Connection connection,
+                ShardSearchContextId contextId,
+                ActionListener<SearchFreeContextResponse> listener
+            ) {
+                freedContexts.add(contextId);
+            }
+        };
+
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        // Shard 0 trips while shard 1's result is being added, the order two threads can run them in
+        try (
+            QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(
+                new SearchRequest(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                NoopCircuitBreaker.INSTANCE,
+                new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder()),
+                () -> false,
+                SearchProgressListener.NOOP,
+                shardsIter.size(),
+                exc -> {}
+            ) {
+                @Override
+                public void consumeResult(SearchPhaseResult result, Runnable next) {
+                    responses.get(0).run();
+                    super.consumeResult(result, next);
+                }
+            }
+        ) {
+            newSearchThatMustNotFinish(
+                searchTransportService,
+                lookup,
+                shardsIter,
+                resultConsumer,
+                false,
+                SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+                failures
+            ).start();
+            assertThat(responses.keySet(), containsInAnyOrder(0, 1));
+
+            responses.get(1).run();
+            resultsToRelease.forEach(QuerySearchResult::decRef);
+
+            assertThat(failures, hasSize(1));
+            assertThat(freedContexts, contains(new ShardSearchContextId("late", 1)));
+        }
+    }
+
+    /**
+     * A shard that fails after the trip on its last copy isn't counted, so the phase doesn't finish with results the trip released.
+     */
+    public void testShardFailureAfterTripDoesNotFinishPhase() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node1");
+        Map<String, Transport.Connection> lookup = Map.of("node1", new SearchAsyncActionTests.MockConnection(node));
+        // One copy of each shard, so that a failure isn't retried
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> shardsIter = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            shardsIter.add(
+                new SearchShardIterator(
+                    null,
+                    new ShardId("idx", "_na_", i),
+                    List.of("node1"),
+                    originalIndices,
+                    null,
+                    null,
+                    false,
+                    false,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+        }
+
+        Map<Integer, Runnable> responses = new ConcurrentHashMap<>();
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        var transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(DiscoveryNodeUtils.create("coordinator"));
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                ShardResponseReservation reservation,
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                int shardId = request.shardId().id();
+                responses.put(
+                    shardId,
+                    shardId == 0
+                        ? () -> trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener))
+                        : () -> listener.onFailure(new NoShardAvailableActionException(request.shardId()))
+                );
+            }
+        };
+
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        try (QueryPhaseResultConsumer resultConsumer = newResultConsumer(shardsIter.size())) {
+            newSearchThatMustNotFinish(
+                searchTransportService,
+                lookup,
+                shardsIter,
+                resultConsumer,
+                false,
+                SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+                failures
+            ).start();
+            assertThat(responses.keySet(), containsInAnyOrder(0, 1));
+
+            responses.get(0).run();
+            responses.get(1).run();
+
+            assertThat(failures, hasSize(1));
+            assertThat(failures.getFirst().getCause(), sameInstance(trip.get()));
+        }
+    }
+
+    /**
+     * Shards queued behind a request that trips are not sent. The search task is gone by then, so a failed response would send no
+     * cancel_child, and the reader context the request opens would wait for the reaper.
+     */
+    public void testPerShardResponseTripSkipsQueuedShards() throws Exception {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node1");
+        Map<String, Transport.Connection> lookup = Map.of("node1", new SearchAsyncActionTests.MockConnection(node));
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> shardsIter = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            shardsIter.add(
+                new SearchShardIterator(
+                    null,
+                    new ShardId("idx", "_na_", i),
+                    List.of("node1"),
+                    originalIndices,
+                    null,
+                    null,
+                    false,
+                    false,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+        }
+
+        List<Integer> sentShards = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<Runnable> tripFirst = new AtomicReference<>();
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        var transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(DiscoveryNodeUtils.create("coordinator"));
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                ShardResponseReservation reservation,
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                sentShards.add(request.shardId().id());
+                tripFirst.compareAndSet(null, () -> trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener)));
+            }
+        };
+
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        try (QueryPhaseResultConsumer resultConsumer = newResultConsumer(shardsIter.size())) {
+            // One request at a time per node, so that the other two shards wait for the first
+            newSearchThatMustNotFinish(searchTransportService, lookup, shardsIter, resultConsumer, false, 1, failures).start();
+            assertThat(sentShards, contains(0));
+
+            tripFirst.get().run();
+
+            assertThat(failures, hasSize(1));
+            assertThat(failures.getFirst().getCause(), sameInstance(trip.get()));
+            assertThat("a queued shard was sent after the trip", sentShards, contains(0));
+        }
+    }
+
+    /**
+     * Node batches not yet sent when a sent one trips are not sent, for the reason
+     * {@link #testPerShardResponseTripSkipsQueuedShards} gives.
+     */
+    public void testBatchedResponseTripSkipsUnsentNodes() throws Exception {
+        DiscoveryNode coordinator = DiscoveryNodeUtils.create("coordinator");
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        for (String nodeId : List.of("node1", "node2")) {
+            lookup.put(nodeId, new SearchAsyncActionTests.MockConnection(DiscoveryNodeUtils.create(nodeId)));
+        }
+        // Two shards on each data node, so that each node gets a batch
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> shardsIter = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            shardsIter.add(
+                new SearchShardIterator(
+                    null,
+                    new ShardId("idx", "_na_", i),
+                    List.of(i < 2 ? "node1" : "node2"),
+                    originalIndices,
+                    null,
+                    null,
+                    false,
+                    false,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+        }
+
+        List<String> sentNodes = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        var transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(coordinator);
+        doAnswer(invocation -> {
+            Transport.Connection connection = invocation.getArgument(0);
+            sentNodes.add(connection.getNode().getId());
+            // The first node answers while the coordinator is still sending, and trips
+            if (sentNodes.size() == 1) {
+                trip.set(ShardResponseReservationTests.tripWhileArriving((TransportResponseHandler<?>) invocation.getArgument(4)));
+            }
+            return null;
+        }).when(transportService)
+            .sendChildRequest(
+                any(Transport.Connection.class),
+                eq(SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME),
+                any(),
+                any(),
+                any()
+            );
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null);
+
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        try (QueryPhaseResultConsumer resultConsumer = newResultConsumer(shardsIter.size())) {
+            newSearchThatMustNotFinish(
+                searchTransportService,
+                lookup,
+                shardsIter,
+                resultConsumer,
+                true,
+                SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+                failures
+            ).start();
+
+            assertThat(failures, hasSize(1));
+            assertThat(failures.getFirst().getCause(), sameInstance(trip.get()));
+            assertThat("a node batch was sent after the trip", sentNodes, hasSize(1));
+        }
+    }
+
+    /**
+     * The breaker trips after the coordinator decided to send a shard request, but before it was sent. The search must fail only
+     * once that request is sent. For the reasoning, see {@code AbstractSearchAsyncAction#deferCoordinatorTripFailure}.
+     */
+    public void testTripWhileSendingShardRequestFailsSearchAfterItIsSent() {
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> shardsIter = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            shardsIter.add(
+                new SearchShardIterator(
+                    null,
+                    new ShardId("idx", "_na_", i),
+                    List.of("node" + (i + 1)),
+                    originalIndices,
+                    null,
+                    null,
+                    false,
+                    false,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+        }
+
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        Map<Integer, Integer> failuresWhenSent = new ConcurrentHashMap<>();
+        AtomicReference<Runnable> tripShard0 = new AtomicReference<>();
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        // Unused, as sendExecuteQuery is overridden below, but SearchTransportService needs one; a real one needs a
+        // transport and thread pool
+        var transportService = mock(TransportService.class);
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                ShardSearchRequest request,
+                SearchTask task,
+                ShardResponseReservation reservation,
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                int shardId = request.shardId().id();
+                failuresWhenSent.put(shardId, failures.size());
+                if (shardId == 0) {
+                    tripShard0.set(() -> trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener)));
+                }
+            }
+        };
+        // Shard 0 trips while the coordinator gets the connection for shard 1, after shard 1 checked for a trip
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>() {
+            @Override
+            public Transport.Connection get(Object nodeId) {
+                Runnable tripNow = nodeId.equals("node2") ? tripShard0.getAndSet(null) : null;
+                if (tripNow != null) {
+                    tripNow.run();
+                }
+                return super.get(nodeId);
+            }
+        };
+        for (String nodeId : List.of("node1", "node2")) {
+            lookup.put(nodeId, new SearchAsyncActionTests.MockConnection(DiscoveryNodeUtils.create(nodeId)));
+        }
+
+        try (QueryPhaseResultConsumer resultConsumer = newResultConsumer(shardsIter.size())) {
+            newSearchThatMustNotFinish(
+                searchTransportService,
+                lookup,
+                shardsIter,
+                resultConsumer,
+                false,
+                SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+                failures
+            ).start();
+
+            assertThat("the search failed before shard 1 was sent", failuresWhenSent, equalTo(Map.of(0, 0, 1, 0)));
+            assertThat(failures, hasSize(1));
+            assertThat(failures.getFirst().getCause(), sameInstance(trip.get()));
+        }
+    }
+
+    /**
+     * Same as {@link #testTripWhileSendingShardRequestFailsSearchAfterItIsSent}, for a node batch.
+     */
+    public void testTripWhileSendingNodeBatchFailsSearchAfterItIsSent() {
+        // Two shards on each data node, so that each node gets a batch
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> shardsIter = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            shardsIter.add(
+                new SearchShardIterator(
+                    null,
+                    new ShardId("idx", "_na_", i),
+                    List.of(i < 2 ? "node1" : "node2"),
+                    originalIndices,
+                    null,
+                    null,
+                    false,
+                    false,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+        }
+
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        List<Integer> failuresWhenSent = Collections.synchronizedList(new ArrayList<>());
+        List<TransportResponseHandler<?>> sentBatches = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        // Only getLocalNode and sendChildRequest are used, to capture each batch's handler; a real TransportService needs a transport
+        // and thread pool
+        var transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(DiscoveryNodeUtils.create("coordinator"));
+        doAnswer(invocation -> {
+            failuresWhenSent.add(failures.size());
+            sentBatches.add(invocation.getArgument(4));
+            return null;
+        }).when(transportService)
+            .sendChildRequest(
+                any(Transport.Connection.class),
+                eq(SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME),
+                any(),
+                any(),
+                any()
+            );
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null);
+        // The batch sent first trips while the coordinator gets the connection for the other node, which checked for a trip already
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>() {
+            @Override
+            public Transport.Connection get(Object nodeId) {
+                if (sentBatches.size() == 1 && trip.get() == null) {
+                    trip.set(ShardResponseReservationTests.tripWhileArriving(sentBatches.getFirst()));
+                }
+                return super.get(nodeId);
+            }
+        };
+        for (String nodeId : List.of("node1", "node2")) {
+            lookup.put(nodeId, new SearchAsyncActionTests.MockConnection(DiscoveryNodeUtils.create(nodeId)));
+        }
+
+        try (QueryPhaseResultConsumer resultConsumer = newResultConsumer(shardsIter.size())) {
+            newSearchThatMustNotFinish(
+                searchTransportService,
+                lookup,
+                shardsIter,
+                resultConsumer,
+                true,
+                SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+                failures
+            ).start();
+
+            assertThat("the search failed before the second batch was sent", failuresWhenSent, contains(0, 0));
+            assertThat(failures, hasSize(1));
+            assertThat(failures.getFirst().getCause(), sameInstance(trip.get()));
+        }
+    }
+
+    /**
+     * A batch through a gateway node charges nothing while its response arrives, for the reason
+     * {@link SearchTransportService#unlessProxied} gives. {@link #testBatchedResponseTripFailsSearch} is the control, over direct
+     * connections.
+     */
+    public void testBatchedResponseThroughGatewayIsNotCharged() throws Exception {
+        Transport.Connection gateway = new SearchAsyncActionTests.MockConnection(DiscoveryNodeUtils.create("gateway"));
+        Map<String, Transport.Connection> lookup = Map.of(
+            "node1",
+            TestProxyConnections.newProxyConnection(gateway, DiscoveryNodeUtils.create("node1"))
+        );
+        // Two shards, so that the node gets a batch
+        OriginalIndices originalIndices = new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS);
+        List<SearchShardIterator> shardsIter = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            shardsIter.add(
+                new SearchShardIterator(
+                    null,
+                    new ShardId("idx", "_na_", i),
+                    List.of("node1"),
+                    originalIndices,
+                    null,
+                    null,
+                    false,
+                    false,
+                    SplitShardCountSummary.UNSET
+                )
+            );
+        }
+
+        AtomicReference<TransportResponseHandler<?>> batch = new AtomicReference<>();
+        var transportService = mock(TransportService.class);
+        when(transportService.getLocalNode()).thenReturn(DiscoveryNodeUtils.create("coordinator"));
+        doAnswer(invocation -> {
+            batch.set(invocation.getArgument(4));
+            return null;
+        }).when(transportService)
+            .sendChildRequest(
+                any(Transport.Connection.class),
+                eq(SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME),
+                any(),
+                any(),
+                any()
+            );
+        SearchTransportService searchTransportService = new SearchTransportService(transportService, null, null);
+
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        try (QueryPhaseResultConsumer resultConsumer = newResultConsumer(shardsIter.size())) {
+            newSearchThatMustNotFinish(
+                searchTransportService,
+                lookup,
+                shardsIter,
+                resultConsumer,
+                true,
+                SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+                failures
+            ).start();
+            assertNotNull(batch.get());
+
+            // Over the limit of the search's breaker, so a reservation would trip
+            assertThat(batch.get().reserveResponseBytes(1000), sameInstance(TransportResponseHandler.NO_RESERVATION));
+            assertThat(failures, empty());
+        }
+    }
+
+    private static QueryPhaseResultConsumer newResultConsumer(int numShards) {
+        return new QueryPhaseResultConsumer(
+            new SearchRequest(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            NoopCircuitBreaker.INSTANCE,
+            new SearchPhaseController((t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder()),
+            () -> false,
+            SearchProgressListener.NOOP,
+            numShards,
+            exc -> {}
+        );
+    }
+
+    /**
+     * Builds a search that charges shard responses to a breaker of {@link ShardResponseReservationTests#TRIPPING_LIMIT} and collects
+     * its failures. Its query phase must not finish.
+     */
+    private SearchQueryThenFetchAsyncAction newSearchThatMustNotFinish(
+        SearchTransportService searchTransportService,
+        Map<String, Transport.Connection> lookup,
+        List<SearchShardIterator> shardsIter,
+        QueryPhaseResultConsumer resultConsumer,
+        boolean batched,
+        int maxConcurrentShardRequests,
+        List<Exception> failures
+    ) {
+        SearchRequest request = new SearchRequest().allowPartialSearchResults(true);
+        request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        return new SearchQueryThenFetchAsyncAction(
+            logger,
+            null,
+            searchTransportService,
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
+            (clusterAlias, node) -> lookup.get(node),
+            Collections.singletonMap("_na_", AliasFilter.EMPTY),
+            Collections.emptyMap(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            resultConsumer,
+            newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT),
+            request,
+            ActionListener.wrap(r -> fail("the search must fail"), failures::add),
+            shardsIter,
+            Collections.emptyMap(),
+            new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime),
+            new ClusterState.Builder(new ClusterName("test")).build(),
+            new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
+            SearchResponse.Clusters.EMPTY,
+            null,
+            batched,
+            false,
+            new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
+            Map.of()
+        ) {
+            @Override
+            protected SearchPhase getNextPhase() {
+                throw new AssertionError("the query phase must not finish after a trip");
+            }
+        };
+    }
+
     static class BadRawDocValueFormat implements DocValueFormat {
         @Override
         public String getWriteableName() {
@@ -368,6 +1193,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 Transport.Connection connection,
                 ShardSearchRequest request,
                 SearchTask task,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -485,6 +1311,53 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     /**
+     * Like {@link #testBadFormatting}, but for the batched query handler on the data node. A bottom sort value that cannot be
+     * formatted must not drop the shard result, since that leaves its reader context open until the keep-alive expires.
+     */
+    public void testBatchedBadFormattingKeepsShardResults() throws Exception {
+        int numShards = 2;
+        List<ShardSearchContextId> openedContexts = Collections.synchronizedList(new ArrayList<>());
+        List<ShardSearchContextId> freedContexts = Collections.synchronizedList(new ArrayList<>());
+        RecordingChannel channel = runBatchedNodeQuery(
+            TransportVersion.current(),
+            newLimitedBreakerService(ByteSizeValue.ofMb(10)),
+            numShards,
+            false,
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {},
+            new SearchSourceBuilder().size(1).sort(SortBuilders.fieldSort("timestamp")),
+            result -> {
+                openedContexts.add(result.getContextId());
+                result.topDocs(
+                    new TopDocsAndMaxScore(
+                        new TopFieldDocs(
+                            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                            new FieldDoc[] { new FieldDoc(0, Float.NaN, new Object[] { Long.MAX_VALUE }) },
+                            new SortField[] { new SortField("timestamp", SortField.Type.LONG) }
+                        ),
+                        Float.NaN
+                    ),
+                    new DocValueFormat[] { new BadRawDocValueFormat() }
+                );
+                result.from(0);
+                result.size(1);
+            },
+            freedContexts::add
+        );
+        try {
+            assertNull("expected success response but got: " + channel.failure, channel.failure);
+            assertThat(openedContexts, hasSize(numShards));
+            // Both bottoms fail to format and are skipped. With size=1 only one shard is in the top hits, so the node asks to free
+            // the other shard's context and keeps the top one for the fetch phase.
+            assertThat(freedContexts, hasSize(numShards - 1));
+            assertTrue(openedContexts.containsAll(freedContexts));
+        } finally {
+            if (channel.response != null) {
+                channel.response.decRef();
+            }
+        }
+    }
+
+    /**
      * Ensure the batched query handler always responds to the coordinator channel even when an
      * exception is thrown during response serialization.
      */
@@ -562,16 +1435,104 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     /**
-     * Runs a request for {@code shards} shards through the batched query handler of a node whose shards return empty results, and
-     * returns the channel once the handler has responded on it.
-     *
-     * @param failWrites whether the response stream throws on its first write
+     * Without enough results to fork a merge, the node merges them when it builds its response, and charges it to its shards
+     * by the docs each matched, here its shard number.
      */
+    public void testBatchedNodeResponseChargesMergeToShards() throws Exception {
+        int shards = between(2, 5);
+        AtomicLong merged = new AtomicLong();
+        Map<ShardId, Long> weights = new ConcurrentHashMap<>();
+        RecordingChannel channel = runBatchedNodeQuery(
+            TransportVersion.current(),
+            newLimitedBreakerService(ByteSizeValue.ofMb(10)),
+            shards,
+            false,
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {
+                merged.addAndGet(nanos);
+                shardIds.forEach(shardId -> weights.put(shardId, weight.applyAsLong(shardId)));
+            }
+        );
+        assertNull(channel.failure);
+        assertTrue(channel.response.decRef());
+        assertThat(merged.get(), greaterThan(0L));
+        for (int i = 0; i < shards; i++) {
+            assertThat(weights.get(new ShardId("idx", "uuid", i)), equalTo((long) i));
+        }
+    }
+
     private RecordingChannel runBatchedNodeQuery(
         TransportVersion channelVersion,
         CircuitBreakerService breakerService,
         int shards,
         boolean failWrites
+    ) throws Exception {
+        return runBatchedNodeQuery(
+            channelVersion,
+            breakerService,
+            shards,
+            failWrites,
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {}
+        );
+    }
+
+    /**
+     * Runs a request for {@code shards} shards through the batched query handler of a node whose shards return no hits, each
+     * matching as many docs as its shard number, and returns the channel once the handler has responded on it.
+     *
+     * @param failWrites whether the response stream throws on its first write
+     * @param searchLoad builds the target the node charges merging the results of its shards to, from the shards and their weights
+     */
+    private RecordingChannel runBatchedNodeQuery(
+        TransportVersion channelVersion,
+        CircuitBreakerService breakerService,
+        int shards,
+        boolean failWrites,
+        BiFunction<List<ShardId>, ToLongFunction<ShardId>, TaskLoadAttribution.Target> searchLoad
+    ) throws Exception {
+        return runBatchedNodeQuery(
+            channelVersion,
+            breakerService,
+            shards,
+            failWrites,
+            searchLoad,
+            new SearchSourceBuilder().size(0),
+            result -> {
+                result.topDocs(
+                    new TopDocsAndMaxScore(
+                        new TopDocs(
+                            new TotalHits(result.getSearchShardTarget().getShardId().id(), TotalHits.Relation.EQUAL_TO),
+                            new ScoreDoc[0]
+                        ),
+                        Float.NaN
+                    ),
+                    new DocValueFormat[0]
+                );
+                result.from(0);
+                result.size(0);
+            },
+            contextId -> {}
+        );
+    }
+
+    /**
+     * Runs a request for {@code shards} shards through the batched query handler of a node, and returns the channel once the
+     * handler has responded on it. The caller must release the response.
+     *
+     * @param failWrites whether the response stream throws on its first write
+     * @param searchLoad builds the target the node charges merging the results of its shards to, from the shards and their weights
+     * @param source the search source of the request
+     * @param shardResult fills in the query result each shard returns
+     * @param onFreeContext called with the id of each reader context the node asks to free
+     */
+    private RecordingChannel runBatchedNodeQuery(
+        TransportVersion channelVersion,
+        CircuitBreakerService breakerService,
+        int shards,
+        boolean failWrites,
+        BiFunction<List<ShardId>, ToLongFunction<ShardId>, TaskLoadAttribution.Target> searchLoad,
+        SearchSourceBuilder source,
+        Consumer<QuerySearchResult> shardResult,
+        Consumer<ShardSearchContextId> onFreeContext
     ) throws Exception {
         TestThreadPool threadPool = new TestThreadPool(getTestName());
         var innerTransport = MockTransportService.newMockTransport(Settings.EMPTY, TransportVersion.current(), threadPool);
@@ -621,10 +1582,14 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new FetchPhase(Collections.emptyList()),
             breakerService,
             EmptySystemIndices.INSTANCE.getExecutorSelector(),
-            Tracer.NOOP,
             OnlinePrewarmingService.NOOP,
             transport.getTaskManager()
         ) {
+            @Override
+            public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> weight) {
+                return searchLoad.apply(shardIds, weight);
+            }
+
             @Override
             public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
                 QuerySearchResult result = new QuerySearchResult(
@@ -632,14 +1597,15 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     new SearchShardTarget(transport.getLocalNode().getId(), req.shardId(), null),
                     null
                 );
-                result.topDocs(
-                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-                    new DocValueFormat[0]
-                );
-                result.from(0);
-                result.size(0);
+                shardResult.accept(result);
                 resultsToRelease.add(result);
                 listener.onResponse(result);
+            }
+
+            @Override
+            public boolean freeReaderContext(ShardSearchContextId contextId) {
+                onFreeContext.accept(contextId);
+                return super.freeReaderContext(contextId);
             }
         };
         try {
@@ -653,7 +1619,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             );
 
             SearchRequest searchRequest = new SearchRequest();
-            searchRequest.source(new SearchSourceBuilder().size(0));
+            searchRequest.source(source);
             // The coordinator always sets it before sending. Unset, building each shard request fails.
             searchRequest.allowPartialSearchResults(true);
             var nodeQueryRequest = new SearchQueryThenFetchAsyncAction.NodeQueryRequest(searchRequest, shards, 0L, null);
@@ -764,10 +1730,14 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new FetchPhase(Collections.emptyList()),
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
             EmptySystemIndices.INSTANCE.getExecutorSelector(),
-            Tracer.NOOP,
             OnlinePrewarmingService.NOOP,
             transport.getTaskManager()
         ) {
+            @Override
+            public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> weight) {
+                return (nanos, cpuNanos, finishNanos) -> {};
+            }
+
             @Override
             public void executeQueryPhase(ShardSearchRequest req, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
                 QuerySearchResult result = new QuerySearchResult(
@@ -789,12 +1759,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         // SearchContextId.decode throws IllegalArgumentException for unknown versions.
         TransportVersion futureVersion = TransportVersionUtils.getNextVersion(TransportVersion.current(), true);
         assertFalse("futureVersion must be unknown to this node", futureVersion.isKnown());
-        BytesReference encodedPit = SearchContextId.encode(
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            futureVersion,
-            ShardSearchFailure.EMPTY_ARRAY
-        );
+        BytesReference encodedPit = SearchContextId.encode(Collections.emptyMap(), Collections.emptyMap(), futureVersion, List.of());
         expectThrows(IllegalArgumentException.class, () -> SearchContextId.decode(new NamedWriteableRegistry(List.of()), encodedPit));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> channelFailure = new AtomicReference<>();

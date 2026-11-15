@@ -7,12 +7,25 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class SharedSortBoundTests extends ESTestCase {
 
     private static final String FIELD = "@timestamp";
+    private static final List<SharedMinCompetitive.KeyConfig> KEYS = List.of(
+        new SharedMinCompetitive.KeyConfig(ElementType.LONG, TopNEncoder.DEFAULT_SORTABLE, false, false)
+    );
 
     public void testNothingOffered() {
         SharedSortBound bound = new SharedSortBound(1);
@@ -62,6 +75,23 @@ public class SharedSortBoundTests extends ESTestCase {
         assertFalse(bound.canSkip(FIELD, false, Resolution.MILLISECONDS, 0, 10));
     }
 
+    public void testMinCompetitiveOutlivesItsOperators() {
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (SharedSortBound bound = new SharedSortBound(1)) {
+            SharedMinCompetitive.Supplier supplier = bound.minCompetitive(FIELD, breaker, KEYS);
+            assertSame(supplier, bound.minCompetitive(FIELD, breaker, KEYS));
+            // The operators of a first batch publish a bound and close
+            try (SharedMinCompetitive channel = supplier.get()) {
+                assertTrue(channel.offer(new BytesRef(new byte[] { 1, 2, 3 })));
+            }
+            // The operators of the next batch get the same bound
+            try (SharedMinCompetitive channel = supplier.get()) {
+                assertThat(channel.generation(), equalTo(1L));
+            }
+            assertNull(bound.minCompetitive("other", breaker, KEYS));
+        }
+    }
+
     public void testSharedWithTheSameNumberOfSortKeys() {
         SharedSortBound bound = new SharedSortBound(2);
         assertTrue(bound.sharedWith(2));
@@ -70,9 +100,14 @@ public class SharedSortBoundTests extends ESTestCase {
     }
 
     public void testInvalidate() {
-        SharedSortBound bound = new SharedSortBound(1);
-        bound.offer(FIELD, false, Resolution.MILLISECONDS, 100);
-        bound.invalidate();
-        assertFalse(bound.canSkip(FIELD, false, Resolution.MILLISECONDS, 0, 10));
+        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (SharedSortBound bound = new SharedSortBound(1)) {
+            bound.offer(FIELD, false, Resolution.MILLISECONDS, 100);
+            assertNotNull(bound.minCompetitive(FIELD, breaker, KEYS));
+            bound.invalidate();
+            assertFalse(bound.canSkip(FIELD, false, Resolution.MILLISECONDS, 0, 10));
+            // The next batches build their own channel
+            assertNull(bound.minCompetitive(FIELD, breaker, KEYS));
+        }
     }
 }

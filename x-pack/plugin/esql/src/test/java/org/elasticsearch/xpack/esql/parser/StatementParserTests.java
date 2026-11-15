@@ -20,7 +20,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -3071,7 +3070,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3083,7 +3083,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3103,7 +3104,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 ),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3115,7 +3117,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", List.of(attribute("errors"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3127,7 +3130,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3139,7 +3143,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3151,7 +3156,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", List.of(attribute("b2"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3167,7 +3173,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 ),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
     }
@@ -4321,27 +4328,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         String error = "Only a single FORK command is supported, but found multiple";
         expectVerificationError("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0))", error);
         assertThat(query("EXPLAIN (FROM a | FORK (WHERE x > 0) (WHERE x < 0))"), instanceOf(Explain.class));
-    }
-
-    /**
-     * A LET binding body is a FORK scope of its own. Two FORKs that only meet once the binding is substituted are rejected by
-     * {@code LetResolver}.
-     */
-    public void testSecondForkOnOnePipelineInLetBindingRejectedAfterParsing() {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
-        String error = "Only a single FORK command is supported, but found multiple";
-        expectThrows(
-            VerificationException.class,
-            containsString(error),
-            () -> statement("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)); FROM q")
-        );
-        expectThrows(
-            VerificationException.class,
-            containsString(error),
-            () -> statement("LET q = (FROM a); FROM q | FORK (WHERE x > 0) (WHERE x < 0) | FORK (WHERE y > 0) (WHERE y < 0)")
-        );
-
-        statement("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q | FORK (WHERE y > 0) (WHERE y < 0)");
     }
 
     public void testForkWithBareFillNull() {

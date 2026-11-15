@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
@@ -336,7 +336,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /**
-     * Translates a vector-matched join operator into an {@link InnerJoin}: each operand becomes an independent series
+     * Translates a vector-matched join operator into an {@link HashJoin}: each operand becomes an independent series
      * pipeline, joined on shared {@code step} + label keys, and the result value is computed on the joined rows.
      * The operands compile against the labels the join requires, like any other schema push-down: a required label
      * comes back as a concrete column wherever the operand can carry it, and a label the operand dropped stays
@@ -443,7 +443,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
     /**
      * The build operand under fresh identities, so a self-join of structurally identical operands has distinct
-     * attributes on each side. Its value column is also renamed: {@link InnerJoin#output()} merges output by NAME (see
+     * attributes on each side. Its value column is also renamed: {@link HashJoin#output()} merges output by NAME (see
      * {@code NamedExpressions#mergeOutputAttributes}), so a build-side column still called {@code value} would shadow
      * the probe side's value column that the operator's expression references.
      */
@@ -469,7 +469,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         projection.addAll(added);
         LogicalPlan buildPlan = new Project(cmd.source(), buildInput.plan(), projection);
 
-        return new InnerJoin(
+        return new HashJoin(
             cmd.source(),
             probeInput.plan(),
             buildPlan,

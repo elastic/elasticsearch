@@ -125,7 +125,7 @@ public class PointInTimeIT extends ESIntegTestCase {
                 Map.of(entry1.getKey(), entry2.getValue()),
                 context1.aliasFilter(),
                 TransportVersion.current(),
-                ShardSearchFailure.EMPTY_ARRAY
+                List.of()
             );
 
             SearchPhaseExecutionException failure = expectThrows(

@@ -433,6 +433,30 @@ public class ViewIT extends AbstractEsqlIntegTestCase {
         assertThat(view, equalTo(new View("reserved", "ROW f1=1", null, true)));
     }
 
+    public void testForkOverViewWithForkIsAccepted() {
+        assertAcked(indicesAdmin().prepareCreate("fork-source").setMapping("f1", "type=integer"));
+        for (int f1 : new int[] { 1, 5, 10 }) {
+            prepareIndex("fork-source").setSource("f1", f1).get();
+        }
+        indicesAdmin().prepareRefresh("fork-source").get();
+
+        assertAcked(createView("fork-view-1", "FROM fork-source | FORK (WHERE f1 > 3) (WHERE f1 <= 3)"));
+        assertAcked(createView("fork-view-2", "FROM fork-view-1 | FORK (WHERE f1 > 7) (WHERE f1 <= 7)"));
+
+        try (EsqlQueryResponse response = run("FROM fork-view-2 | STATS c = COUNT(*) BY _fork | SORT _fork")) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1L, "fork1"), List.of(2L, "fork2"))));
+        }
+
+        expectThrows(
+            ElasticsearchException.class,
+            containsString("Only a single FORK command is supported, but found multiple"),
+            () -> createView(
+                "fork-view-bad",
+                "FROM fork-source | FORK (WHERE f1 > 3) (WHERE f1 <= 3) | FORK (WHERE f1 > 7) (WHERE f1 <= 7)"
+            )
+        );
+    }
+
     private Map<String, Object> getViewFromRest(String name) throws IOException {
         Response response = getRestClient().performRequest(new Request("GET", "/_query/view/" + name));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

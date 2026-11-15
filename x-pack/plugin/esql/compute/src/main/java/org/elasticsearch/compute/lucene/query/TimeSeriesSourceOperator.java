@@ -15,10 +15,7 @@ import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -138,14 +135,10 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
     }
 
     private static DataPartitioning.AutoStrategy partitioningStrategy(IndexedByShardId<? extends ShardContext> contexts) {
-        try {
-            for (ShardContext ctx : contexts.iterable()) {
-                if (PartitionedDocValues.canPartitionByTsidPrefix(ctx.searcher()) == false) {
-                    return limit -> (shardCtx, q) -> LuceneSliceQueue.PartitioningStrategy.SHARD;
-                }
+        for (ShardContext ctx : contexts.iterable()) {
+            if (ctx.canPartitionByTsidPrefix() == false) {
+                return limit -> (shardCtx, q) -> LuceneSliceQueue.PartitioningStrategy.SHARD;
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
         return limit -> (shardCtx, q) -> LuceneSliceQueue.PartitioningStrategy.TIME_SERIES;
     }

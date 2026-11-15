@@ -261,14 +261,20 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(Alias.unwrap(valueAgg), instanceOf(Sum.class));
     }
 
-    /** The labels {@code topNBy} partitions by: its grouping columns, a packed one standing for the labels it packs. */
+    /** The labels {@code topNBy} partitions by: its groupings, the packed key of a {@link PackDims} below standing for its labels. */
     private static List<String> partitionLabels(TopNBy topNBy) {
         var labels = new ArrayList<String>();
         for (var grouping : topNBy.groupings()) {
-            if (grouping instanceof Attribute attribute && attribute.name().equals(PackDims.PACKED_FIELD_NAME)) {
-                topNBy.forEachDown(PackDims.class, pack -> pack.dims().forEach(dim -> labels.add(dim.name())));
-            } else if (grouping instanceof Attribute attribute) {
-                labels.add(attribute.name());
+            if (grouping instanceof Attribute attribute) {
+                List<PackDims> packs = topNBy.collect(PackDims.class)
+                    .stream()
+                    .filter(pack -> pack.packed().id().equals(attribute.id()))
+                    .toList();
+                if (packs.isEmpty()) {
+                    labels.add(attribute.name());
+                } else {
+                    packs.forEach(pack -> pack.dims().forEach(dim -> labels.add(dim.name())));
+                }
             }
         }
         return labels;

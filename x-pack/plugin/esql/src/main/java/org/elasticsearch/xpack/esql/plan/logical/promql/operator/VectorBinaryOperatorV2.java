@@ -596,11 +596,16 @@ public final class VectorBinaryOperatorV2 {
         Alias stepAlias = new Alias(step.source(), step.name(), step, context.stepAttr().id());
         Alias valueAlias = new Alias(source(), cmd.valueColumnName(), value, new NameId());
         Alias labelsAlias = labels == null ? null : new Alias(source(), MetadataAttribute.TIMESERIES, labels, new NameId());
-        LogicalPlan plan = new Eval(
-            cmd.source(),
-            join,
-            labelsAlias == null ? List.of(valueAlias, stepAlias) : List.of(valueAlias, stepAlias, labelsAlias)
-        );
+        LogicalPlan plan = join;
+        if (labelsAlias != null) {
+            plan = new Eval(cmd.source(), plan, List.of(labelsAlias));
+            if (match().grouping() != Joining.NONE) {
+                // Prometheus fails a group_left/group_right match before it compares values: copying the one side's labels over
+                // the many side's can leave two many side series with the same labels. Below the value: it shadows the operands'.
+                plan = TranslationContextV2.uniqueSeries(cmd.source(), plan, step, labelsAlias.toAttribute());
+            }
+        }
+        plan = new Eval(cmd.source(), plan, List.of(valueAlias, stepAlias));
         if (filter != null) {
             plan = new Filter(source(), plan, filter);
         }

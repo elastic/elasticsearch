@@ -237,6 +237,103 @@ public class EsqlParserQueryAnalyzerTests extends ESTestCase {
         }
     }
 
+    public void testEvalDefinedGroupingShouldReportBucketAndGroupingColumn() {
+        TimeBucket bucket = bucket("FROM x | EVAL h = DATE_TRUNC(1 hour, @timestamp) | STATS c = COUNT(*) BY h, host");
+        assertThat(bucket, equalTo(new TimeBucket("@timestamp", TimeValue.timeValueHours(1), Set.of("h"))));
+    }
+
+    public void testChainedEvalShouldReportFieldAsWrittenInTimeFunction() {
+        assertBucket(
+            "FROM x | EVAL t = @timestamp | EVAL h = BUCKET(t, 1 hour) | STATS c = COUNT(*) BY h",
+            "t",
+            TimeValue.timeValueHours(1)
+        );
+    }
+
+    public void testRenameBelowStatsShouldReportRenamedField() {
+        assertBucket("FROM x | RENAME @timestamp AS ts | STATS c = COUNT(*) BY b = BUCKET(ts, 1 hour)", "ts", TimeValue.timeValueHours(1));
+    }
+
+    public void testRenamedGroupingBelowStatsShouldBeFollowed() {
+        assertBucket(
+            "FROM x | EVAL b = BUCKET(@timestamp, 1 hour) | RENAME b AS h | STATS c = COUNT(*) BY h",
+            "@timestamp",
+            TimeValue.timeValueHours(1)
+        );
+    }
+
+    public void testRegroupingLowerStatsBucketShouldReportBucketOnTopStats() {
+        TimeBucket bucket = bucket(
+            "FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour), host | STATS m = MAX(c) BY b | WHERE m > 0 | SORT b"
+        );
+        assertThat(bucket, equalTo(new TimeBucket("@timestamp", TimeValue.timeValueHours(1), Set.of("b"))));
+    }
+
+    public void testLowerStatsAggregateShouldNotBeReportedAsBucket() {
+        assertNoBucket("FROM x | STATS b = MAX(@timestamp) BY host | STATS c = COUNT(*) BY b");
+    }
+
+    public void testUnaliasedGroupingShouldBeNamedBySourceText() {
+        assertThat(
+            bucket("FROM x | STATS c = COUNT(*) BY BUCKET(@timestamp, 1 hour)").outputColumns(),
+            equalTo(Set.of("BUCKET(@timestamp, 1 hour)"))
+        );
+    }
+
+    public void testRenameAfterStatsShouldReplaceOutputColumn() {
+        assertThat(
+            bucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour) | RENAME b AS ts").outputColumns(),
+            equalTo(Set.of("ts"))
+        );
+    }
+
+    public void testEvalDerivedFromBucketShouldAddOutputColumn() {
+        TimeBucket bucket = bucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour) | EVAL ts = b + 1 hour - 1 millisecond");
+        assertThat(bucket.outputColumns(), equalTo(Set.of("b", "ts")));
+    }
+
+    public void testEvalOverwritingBucketShouldRemoveOutputColumn() {
+        TimeBucket bucket = bucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour) | EVAL b = c, d = b + c");
+        assertThat(bucket.outputColumns(), empty());
+    }
+
+    public void testKeepWithoutBucketShouldLeaveNoOutputColumns() {
+        assertThat(bucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour), host | KEEP c, host").outputColumns(), empty());
+    }
+
+    public void testKeepAndDropPatternsShouldFilterOutputColumns() {
+        String stats = "FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour) | EVAL ts = b";
+        assertThat(bucket(stats + " | KEEP t*").outputColumns(), equalTo(Set.of("ts")));
+        assertThat(bucket(stats + " | DROP b").outputColumns(), equalTo(Set.of("ts")));
+        assertThat(bucket(stats + " | KEEP *").outputColumns(), equalTo(Set.of("b", "ts")));
+    }
+
+    public void testLaterStatsNotGroupingByBucketShouldRemoveOutputColumn() {
+        // The top STATS has no bucket, so look at the lower one through the pipeline step list.
+        EsqlQueryStructure structure = analyzer.analyze("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour) | STATS n = SUM(c)");
+        List<PipelineStep> stats = structure.outerPipeline().stream().filter(s -> s.kind() == Kind.STATS).toList();
+        assertThat(stats.get(0).bucket(), nullValue());
+        assertThat(stats.get(1).bucket().outputColumns(), empty());
+    }
+
+    public void testNestedTimeFunctionGroupingShouldNotBeReported() {
+        assertNoBucket("FROM x | STATS c = COUNT(*) BY s = TO_STRING(DATE_TRUNC(1 hour, @timestamp))");
+        assertNoBucket("FROM x | STATS c = COUNT(*) BY b = BUCKET(@timestamp, 1 hour) + 1 hour");
+        assertNoBucket("FROM x | EVAL h = BUCKET(@timestamp, 1 hour) + 1 hour | STATS c = COUNT(*) BY h");
+    }
+
+    public void testEvalAboveForkOrLookupJoinShouldNotBeReported() {
+        assertNoBucket("FROM x | EVAL h = DATE_TRUNC(1 hour, @timestamp) | FORK (WHERE a > 1) (WHERE a < 1) | STATS c = COUNT(*) BY h");
+        assertNoBucket("FROM x | EVAL h = DATE_TRUNC(1 hour, @timestamp) | LOOKUP JOIN l ON k | STATS c = COUNT(*) BY h");
+        assertNoBucket("FROM x | EVAL h = DATE_TRUNC(1 hour, @timestamp) | INLINE STATS m = MAX(a) BY h | STATS c = COUNT(*) BY h");
+    }
+
+    private TimeBucket bucket(String query) {
+        TimeBucket bucket = stats(analyzer.analyze(query)).bucket();
+        assertThat(query, bucket, instanceOf(TimeBucket.class));
+        return bucket;
+    }
+
     private void assertBucket(String query, String field, TimeValue span) {
         TimeBucket bucket = stats(analyzer.analyze(query)).bucket();
         assertThat(query, bucket, instanceOf(TimeBucket.class));

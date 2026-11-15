@@ -10,21 +10,16 @@ package org.elasticsearch.xpack.esql.ml;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
@@ -41,20 +36,16 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryStructure;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryStructure.SourceKind;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.PipelineStep;
 import org.elasticsearch.xpack.ml.datafeed.esql.spi.PipelineStep.Kind;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.TimeBucket;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -165,6 +156,7 @@ public class EsqlParserQueryAnalyzer implements EsqlQueryAnalyzer {
 
     private static List<PipelineStep> outerPipeline(LogicalPlan plan) {
         List<PipelineStep> steps = new ArrayList<>();
+        List<LogicalPlan> above = new ArrayList<>();
         LogicalPlan node = plan;
         while (true) {
             if (node instanceof UnionAll) {
@@ -176,12 +168,15 @@ public class EsqlParserQueryAnalyzer implements EsqlQueryAnalyzer {
             } else if (node instanceof InlineStats inlineStats) {
                 // INLINE STATS wraps an Aggregate that is not a STATS command of the pipeline.
                 steps.add(new PipelineStep(Kind.OTHER, referencedFields(inlineStats.child())));
+                above.add(inlineStats);
                 node = inlineStats.child() instanceof Aggregate aggregate ? aggregate.child() : inlineStats.child();
             } else if (node instanceof Join join) {
                 steps.add(new PipelineStep(Kind.OTHER, referencedFields(join)));
+                above.add(join);
                 node = join.left();
             } else if (node instanceof UnaryPlan unary) {
-                steps.add(step(unary));
+                steps.add(step(unary, above));
+                above.add(unary);
                 node = unary.child();
             } else {
                 return steps;
@@ -189,11 +184,11 @@ public class EsqlParserQueryAnalyzer implements EsqlQueryAnalyzer {
         }
     }
 
-    private static PipelineStep step(UnaryPlan node) {
+    private static PipelineStep step(UnaryPlan node, List<LogicalPlan> above) {
         Set<String> fields = referencedFields(node);
         return switch (node) {
             case Limit ignored -> new PipelineStep(Kind.LIMIT, fields);
-            case Aggregate aggregate -> new PipelineStep(Kind.STATS, fields, timeBucket(aggregate));
+            case Aggregate aggregate -> new PipelineStep(Kind.STATS, fields, TimeBucketResolver.timeBucket(aggregate, above));
             case Filter ignored -> new PipelineStep(Kind.WHERE, fields);
             case OrderBy ignored -> new PipelineStep(Kind.SORT, fields);
             default -> new PipelineStep(Kind.OTHER, fields);
@@ -206,64 +201,4 @@ public class EsqlParserQueryAnalyzer implements EsqlQueryAnalyzer {
         return fields;
     }
 
-    /** The fixed-span time bucket among the groupings, or {@code null} if there is none or more than one. */
-    @Nullable
-    private static TimeBucket timeBucket(Aggregate aggregate) {
-        List<TimeBucket> buckets = new ArrayList<>();
-        for (Expression grouping : aggregate.groupings()) {
-            grouping.forEachDown(UnresolvedFunction.class, function -> {
-                TimeBucket bucket = timeBucket(function);
-                if (bucket != null) {
-                    buckets.add(bucket);
-                }
-            });
-        }
-        return buckets.size() == 1 ? buckets.getFirst() : null;
-    }
-
-    @Nullable
-    private static TimeBucket timeBucket(UnresolvedFunction function) {
-        List<Expression> args = function.arguments();
-        return switch (function.name().toLowerCase(Locale.ROOT)) {
-            case "bucket" -> args.size() >= 2 ? timeBucket(args.get(0), args.get(1)) : null;
-            case "date_trunc" -> args.size() == 2 ? timeBucket(args.get(1), args.get(0)) : null;
-            case "tbucket" -> args.size() == 1 ? timeBucket(null, args.get(0)) : null;
-            default -> null;
-        };
-    }
-
-    @Nullable
-    private static TimeBucket timeBucket(@Nullable Expression field, Expression span) {
-        if (field != null && field instanceof UnresolvedAttribute == false) {
-            return null;
-        }
-        TimeValue spanValue = span(span);
-        if (spanValue == null) {
-            return null;
-        }
-        return new TimeBucket(field == null ? null : ((UnresolvedAttribute) field).name(), spanValue);
-    }
-
-    /** A fixed span from a time-duration literal ({@code 1 hour}) or a string ({@code "1h"}); calendar periods are not fixed. */
-    @Nullable
-    private static TimeValue span(Expression span) {
-        if (span instanceof Literal == false) {
-            return null;
-        }
-        Literal literal = (Literal) span;
-        if (literal.dataType() == DataType.TIME_DURATION && literal.value() instanceof Duration duration) {
-            return TimeValue.timeValueMillis(duration.toMillis());
-        }
-        if (literal.dataType() == DataType.KEYWORD && literal.value() != null) {
-            // Parse as ES|QL does: "1d" is a calendar period there, not 24 hours.
-            try {
-                return EsqlDataTypeConverter.maybeParseTemporalAmount(BytesRefs.toString(literal.value())) instanceof Duration duration
-                    ? TimeValue.timeValueMillis(duration.toMillis())
-                    : null;
-            } catch (ParsingException | InvalidArgumentException | ArithmeticException e) {
-                return null;
-            }
-        }
-        return null;
-    }
 }

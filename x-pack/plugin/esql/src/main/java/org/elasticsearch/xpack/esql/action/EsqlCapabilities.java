@@ -4880,6 +4880,11 @@ public class EsqlCapabilities {
          */
         TS_FORK_BEFORE_STATS_NOT_SUPPORTED,
 
+        /**
+         * The {@code INTO} command, which writes a query's rows into an index and returns a summary row of total and created counts.
+         */
+        INTO_COMMAND(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

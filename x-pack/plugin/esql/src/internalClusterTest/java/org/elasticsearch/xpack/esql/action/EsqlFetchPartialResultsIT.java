@@ -96,6 +96,18 @@ public class EsqlFetchPartialResultsIT extends AbstractEsqlIntegTestCase {
         return plugins;
     }
 
+    /**
+     * The reaper runs often, so a context that nobody frees goes once its keep-alive passed, see
+     * {@link #testAPlainLimitComesBackShortWithoutTheRowsOfAFailedFetch}.
+     */
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100))
+            .build();
+    }
+
     @Before
     public void checkTheFetchPhaseIsAvailable() {
         assumeTrue("the fetch phase needs its feature flag", EsqlFlags.FETCH_PHASE_FEATURE_FLAG.isEnabled());
@@ -324,13 +336,26 @@ public class EsqlFetchPartialResultsIT extends AbstractEsqlIntegTestCase {
      * of a shard whose fetch failed drop out and nothing replaces them, so the result holds fewer rows than the limit
      * although other rows matched. The limit is above the rows of {@link #KEPT}, so it keeps some rows of {@link #LOST}
      * whatever order they arrive in.
+     * <p>
+     * The {@code LIMIT} can finish the exchange before the pages of some shards reach the coordinator. Their data nodes keep
+     * the contexts those pages name, and the coordinator never learns of them, so the reaper frees them once their keep-alive
+     * passed. The query runs with a keep-alive short enough for that to happen while the test waits for every context to
+     * close.
      */
     public void testAPlainLimitComesBackShortWithoutTheRowsOfAFailedFetch() {
         createIndices();
         freeContextsBeforeTheirFetch(shardId -> shardId.getIndexName().equals(LOST));
         int limit = DOCS_PER_INDEX + DOCS_PER_INDEX / 2;
         String query = "FROM " + KEPT + "," + LOST + " | LIMIT " + limit + " | KEEP ts, payload";
-        try (EsqlQueryResponse response = run(request(query, true))) {
+        updateClusterSettings(Settings.builder().put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(5)));
+        EsqlQueryResponse plainLimit;
+        try {
+            plainLimit = run(request(query, true));
+        } finally {
+            // a context keeps the keep-alive it got
+            updateClusterSettings(Settings.builder().putNull(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey()));
+        }
+        try (EsqlQueryResponse response = plainLimit) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.size(), lessThan(limit));
             for (List<Object> row : rows) {

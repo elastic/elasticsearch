@@ -344,6 +344,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                 List<Expression> keys = switch (node) {
                     case Aggregate aggregate -> aggregate.groupings();
                     case TopNBy topNBy -> topNBy.groupings();
+                    case PackDims pack -> List.<Expression>copyOf(pack.dims());
                     default -> List.of();
                 };
                 for (Expression key : keys) {
@@ -990,6 +991,28 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
                     }
                     LogicalPlan child = evaluate(topNBy.child(), evals);
                     return new TopNBy(topNBy.source(), pack(child, labels, groupings), topNBy.order(), topNBy.limitPerGroup(), groupings);
+                }
+                // The pack of the parts of its label containers: the container that is left, and each label it does not hold.
+                case PackDims pack -> {
+                    var evals = new ArrayList<Alias>();
+                    var dims = new ArrayList<Attribute>();
+                    for (Attribute dim : pack.dims()) {
+                        if (isContainer(dim) == false) {
+                            dims.add(dim);
+                            continue;
+                        }
+                        NameId id = record(dim);
+                        materialize(id, evals);
+                        if (timeseries.containsKey(id)) {
+                            dims.add((Attribute) timeseries.get(id));
+                        }
+                        promoted.get(id).forEach((name, label) -> {
+                            if (inContainer(id, name) == false) {
+                                addIfAbsent(dims, (Attribute) label);
+                            }
+                        });
+                    }
+                    return new PackDims(pack.source(), evaluate(pack.child(), evals), dims, pack.packed());
                 }
                 default -> {
                     return rewritten.transformExpressionsOnlyUp(Expression.class, this::scalar);

@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Describe;
+import org.elasticsearch.xpack.esql.plan.logical.DistinctBy;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -235,6 +236,7 @@ public class ApproximationSupportTests extends ESTestCase {
         SparklineGenerateEmptyBuckets.class,
 
         // internals
+        DistinctBy.class,
         Fetch.class,
         PackDims.class,
         UnpackDims.class,

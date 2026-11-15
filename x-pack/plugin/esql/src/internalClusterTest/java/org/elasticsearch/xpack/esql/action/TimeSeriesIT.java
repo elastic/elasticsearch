@@ -57,6 +57,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -73,6 +74,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressCodecs("*") // require production codecs
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
+    private static final String PROMQL_QUERY_TIME = "2024-05-10T00:01:00Z";
 
     public void testEmpty() {
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build();
@@ -1566,6 +1568,81 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * group_left copies the one side's labels over the many side's: two many side series left with the same labels fail the
+     * query, as in Prometheus, rather than come back as two series with one label set. Prometheus matches before it compares,
+     * so a comparison no series passes fails too; copying a label the series agree on keeps them apart.
+     */
+    public void testPromqlGroupLeftLabelCollisionFails() {
+        String index = "promql-group-left-collision";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "optional", "east", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "optional", "east", "tx", 3.0);
+        refresh(index);
+
+        for (String expression : List.of(
+            "tx * on(cluster) group_left(host) sum by (cluster) (tx)",
+            "tx > on(cluster) group_left(host) (sum by (cluster) (tx) * 100)"
+        )) {
+            var error = expectThrows(Exception.class, () -> run(promqlQuery(index, expression)));
+            assertThat(error.getMessage(), containsString("input must not have duplicates"));
+        }
+        try (
+            EsqlQueryResponse response = run(
+                promqlQuery(index, "tx * on(cluster) group_left(optional) sum by (cluster, optional) (tx)")
+                    + " | KEEP result, optional | SORT result"
+            )
+        ) {
+            assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(List.of(4.0, "east"), List.of(12.0, "east"))));
+        }
+    }
+
+    private void createOptionalLabelMetricsIndex(String index) {
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.mode", "time_series")
+                        .putList("index.routing_path", "cluster", "host")
+                        .put("index.time_series.start_time", "2024-05-10T00:00:00Z")
+                        .put("index.time_series.end_time", "2024-05-10T01:00:00Z")
+                )
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "cluster",
+                    "type=keyword,time_series_dimension=true",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "optional",
+                    "type=keyword,time_series_dimension=true",
+                    "tx",
+                    "type=double,time_series_metric=gauge"
+                )
+        );
+        ensureGreen(index);
+    }
+
+    private void indexPromqlSample(String index, Object... fields) {
+        Object[] source = new Object[fields.length + 2];
+        source[0] = "@timestamp";
+        source[1] = PROMQL_QUERY_TIME;
+        System.arraycopy(fields, 0, source, 2, fields.length);
+        client().prepareIndex(index).setSource(source).get();
+    }
+
+    private static String promqlQuery(String index, String expression) {
+        return "PROMQL index="
+            + index
+            + " start=\""
+            + PROMQL_QUERY_TIME
+            + "\" end=\""
+            + PROMQL_QUERY_TIME
+            + "\" step=1m result=("
+            + expression
+            + ")";
     }
 
     private static double round(double value) {

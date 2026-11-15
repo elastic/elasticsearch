@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
-import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -487,6 +487,21 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 case AcrossSeriesReduction reduction -> {
                     for (Attribute grouping : reduction.groupings()) {
                         checkBuiltInColumnCollision(reduction, PromqlLabels.labelName(grouping.name()), failures);
+                    }
+                    // A without partition leaves labels out of the series' label container, which a keyword one cannot do. limit_ratio
+                    // samples by series identity alone and ignores partitions.
+                    if (reduction.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT
+                        && reduction.definition() != PromqlBuiltinFunctionDefinitions.LIMIT_RATIO
+                        && labelContainer == false
+                        && hasConcreteLabels(reduction.child()) == false) {
+                        failures.add(
+                            fail(
+                                reduction,
+                                "[{}] with without(...) requires a typed label container [{}]",
+                                reduction.functionName(),
+                                reduction.sourceText()
+                            )
+                        );
                     }
                 }
                 case HistogramFunctionCall histogram -> {

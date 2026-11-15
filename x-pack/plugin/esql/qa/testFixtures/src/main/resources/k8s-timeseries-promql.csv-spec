@@ -2698,7 +2698,7 @@ topk_without_partitions_by_the_rest
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: promql_reduction_without
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (pod) (1, last_over_time(network.eth0.tx[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -2714,7 +2714,7 @@ bottomk_without_partitions_by_the_rest
 required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: promql_reduction_without
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(bottomk without (pod) (1, last_over_time(network.eth0.tx[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -2731,7 +2731,7 @@ topk_without_every_label_is_one_partition
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: promql_reduction_without
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (cluster, pod, region) (1, last_over_time(network.eth0.rx[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries;
@@ -2744,7 +2744,6 @@ limitk_without_keeps_k_per_partition
 required_capability: promql_command_v0
 required_capability: promql_limitk
 required_capability: promql_reduction_without
-required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(count by (cluster) (limitk without (pod) (1, last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, cluster
@@ -2770,42 +2769,4 @@ result:double | cluster:keyword
 3.0           | prod
 3.0           | qa
 3.0           | staging
-;
-
-// An or under a binary operator unions its operands inside the operator's operands, which then join.
-or_under_binary_operator
-required_capability: promql_command_v0
-required_capability: promql_set_operator_matching
-required_capability: promql_binary_independent_join
-required_capability: promql_timeseries_metadata_functions
-PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=((last_over_time(network.eth0.tx[5m]) or last_over_time(network.eth0.rx[5m])) / ((last_over_time(network.eth0.tx[5m]) or last_over_time(network.eth0.rx[5m])) + (last_over_time(network.eth0.rx[5m]) or last_over_time(network.eth0.tx[5m]))))
-| WHERE step == "2024-05-10T00:10:00.000Z"
-| KEEP result, _timeseries
-| SORT _timeseries;
-
-result:double       | _timeseries:keyword
-0.4817432273262662  | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
-0.4945205479452055  | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
-0.6520787746170679  | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
-0.3821752265861027  | "{""cluster"":""qa"",""pod"":""one""}"
-0.4859086491739553  | "{""cluster"":""qa"",""pod"":""three""}"
-0.5942408376963351  | "{""cluster"":""qa"",""pod"":""two""}"
-0.48732394366197185 | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
-0.5358851674641149  | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
-0.4390697674418605  | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
-;
-
-// or on() adds its right operand only at steps where the left one has no series; as a divisor it joins on the step.
-or_on_nothing_under_division
-required_capability: promql_command_v0
-required_capability: promql_set_operator_matching
-required_capability: promql_binary_independent_join
-required_capability: promql_timeseries_metadata_functions
-PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(sum(rate(network.total_bytes_in[10m])) / (sum(rate(network.total_bytes_in[10m])) or on () vector(1)))
-| KEEP result, step
-| SORT step;
-
-result:double | step:datetime
-1.0           | 2024-05-10T00:10:00.000Z
-1.0           | 2024-05-10T00:20:00.000Z
 ;

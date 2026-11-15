@@ -240,7 +240,7 @@ required_capability: promql_without_grouping
 required_capability: promql_nested_aggregates
 required_capability: promql_nested_without
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=otel-metrics step=1h result=(sum without (attributes.state) (max without (cpu) (metrics.cpu_time)))
 | KEEP result, step, _timeseries
 | SORT step, _timeseries;

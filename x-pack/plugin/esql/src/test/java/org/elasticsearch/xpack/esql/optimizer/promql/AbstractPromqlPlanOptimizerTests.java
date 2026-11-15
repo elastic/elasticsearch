@@ -135,22 +135,4 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         assertThat(bucketAlias.id(), equalTo(stepInTsAgg.id()));
         assertThat(bucketAlias.id(), equalTo(step.id()));
     }
-
-    /**
-     * The labels each view of the source's series in {@code plan} leaves out, sorted: the typed label container's
-     * {@link TimeSeriesWithout}, or the {@code _timeseries} attribute it is lowered to.
-     */
-    protected static Set<List<String>> sourceViews(LogicalPlan plan) {
-        var views = new LinkedHashSet<List<String>>();
-        plan.forEachDown(node -> node.forEachExpressionDown(Expression.class, e -> {
-            switch (e) {
-                case TimeSeriesWithout without -> views.add(without.children().stream().map(c -> ((Attribute) c).name()).sorted().toList());
-                case TimeSeriesMetadataAttribute lowered -> views.add(lowered.excludedFields().stream().sorted().toList());
-                case FieldAttribute field when field.name().equals(MetadataAttribute.TIMESERIES) -> views.add(List.of());
-                default -> {
-                }
-            }
-        }));
-        return views;
-    }
 }

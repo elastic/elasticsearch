@@ -36,6 +36,8 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
 
     private final double[] values;
 
+    private boolean pooled;
+
     DoubleArrayVector(double[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
@@ -184,4 +186,18 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';
     }
 
+    @Override
+    public void pooled(boolean pooled) {
+        this.pooled = pooled;
+    }
+
+    @Override
+    protected void closeInternal() {
+        if (pooled && blockFactory().pooled()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalBlockPool.usedBytesForDoubles(values.length)));
+            blockFactory().recycleDoubles(values);
+        } else {
+            super.closeInternal();
+        }
+    }
 }

@@ -238,6 +238,13 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     void allowPassingToDifferentDriver();
 
     /**
+     * Whether the driver should reuse the values array once this is released.
+     */
+    default void pooled(boolean pooled) {
+
+    }
+
+    /**
      * Tells if this block has been released. A block is released by calling its {@link Block#close()} or {@link Block#decRef()} methods.
      * @return true iff the block's reference count is zero.
      * */

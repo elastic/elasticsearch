@@ -120,6 +120,11 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
+    public void pooled(boolean pooled) {
+        vector.pooled(pooled);
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return vector.blockFactory();
     }

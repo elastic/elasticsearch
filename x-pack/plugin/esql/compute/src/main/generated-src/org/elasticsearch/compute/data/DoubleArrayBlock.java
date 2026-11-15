@@ -248,6 +248,11 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
     }
 
     @Override
+    public void pooled(boolean pooled) {
+        vector.pooled(pooled);
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return vector.blockFactory();
     }

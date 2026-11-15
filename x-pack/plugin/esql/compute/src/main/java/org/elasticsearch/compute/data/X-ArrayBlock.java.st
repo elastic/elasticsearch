@@ -307,6 +307,13 @@ $endif$
         vector.allowPassingToDifferentDriver();
     }
 
+$if(int||long||double)$
+    @Override
+    public void pooled(boolean pooled) {
+        vector.pooled(pooled);
+    }
+
+$endif$
     @Override
     public BlockFactory blockFactory() {
         return vector.blockFactory();

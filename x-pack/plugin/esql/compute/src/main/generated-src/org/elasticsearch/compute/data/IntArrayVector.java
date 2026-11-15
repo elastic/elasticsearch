@@ -46,6 +46,8 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
      */
     private Integer max;
 
+    private boolean pooled;
+
     IntArrayVector(int[] values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
@@ -224,4 +226,18 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';
     }
 
+    @Override
+    public void pooled(boolean pooled) {
+        this.pooled = pooled;
+    }
+
+    @Override
+    protected void closeInternal() {
+        if (pooled && blockFactory().pooled()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalBlockPool.usedBytesForInts(values.length)));
+            blockFactory().recycleInts(values);
+        } else {
+            super.closeInternal();
+        }
+    }
 }

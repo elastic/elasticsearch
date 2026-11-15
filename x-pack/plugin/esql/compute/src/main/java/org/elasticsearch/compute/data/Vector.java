@@ -125,6 +125,13 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     void allowPassingToDifferentDriver();
 
     /**
+     * Whether the driver should reuse the values array once this is released.
+     */
+    default void pooled(boolean pooled) {
+
+    }
+
+    /**
      * Return a subset of this {@link Vector} from position {@code beginInclusive} to
      * position {@code endExclusive}. This <strong>may</strong> return the same
      * instance if the range covers all positions, but if it does it

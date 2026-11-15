@@ -59,6 +59,10 @@ $if(int)$
     private Integer max;
 $endif$
 
+$if(int||long||double)$
+    private boolean pooled;
+
+$endif$
     $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
@@ -375,6 +379,21 @@ $if(BytesRef)$
         // of this class.
         blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed());
         Releasables.closeExpectNoException(values);
+    }
+$elseif(int||long||double)$
+    @Override
+    public void pooled(boolean pooled) {
+        this.pooled = pooled;
+    }
+
+    @Override
+    protected void closeInternal() {
+        if (pooled && blockFactory().pooled()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalBlockPool.usedBytesFor$Type$s(values.length)));
+            blockFactory().recycle$Type$s(values);
+        } else {
+            super.closeInternal();
+        }
     }
 $endif$
 }

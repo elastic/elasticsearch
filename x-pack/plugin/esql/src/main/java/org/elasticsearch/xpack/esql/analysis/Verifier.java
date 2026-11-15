@@ -179,24 +179,11 @@ public class Verifier {
         checkHighlightAnalyzersAgree(plan, failures, context.minimumVersion());
         checkDenseVectorSupported(plan, failures, context.minimumVersion());
         checkFillNullFieldCount(plan, failures, context.flags().maxFillNullFields());
-        if (context.minimumVersion().supports(Sequence.ESQL_SEQUENCE) == false) {
+        if (context.minimumVersion().supports(Sequence.ESQL_SEQUENCE_R5) == false) {
             plan.forEachDown(
                 Sequence.class,
                 sequence -> failures.add(fail(sequence, "SEQUENCE is not supported by all nodes in the cluster"))
             );
-        } else if (context.minimumVersion().supports(Sequence.ESQL_SEQUENCE_PER_LINK_TIME) == false) {
-            plan.forEachDown(Sequence.class, sequence -> {
-                if (sequence.hasLinkTimeLimits()) {
-                    failures.add(fail(sequence, "SEQUENCE per-link time limits are not supported by all nodes in the cluster"));
-                }
-            });
-        }
-        if (context.minimumVersion().supports(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE) == false) {
-            plan.forEachDown(Sequence.class, sequence -> {
-                if (sequence.pairing() == Sequence.Pairing.LATEST_VALID || sequence.hasConditions()) {
-                    failures.add(fail(sequence, "SEQUENCE latest_valid pairing is not supported by all nodes in the cluster"));
-                }
-            });
         }
 
         // collect plan checkers

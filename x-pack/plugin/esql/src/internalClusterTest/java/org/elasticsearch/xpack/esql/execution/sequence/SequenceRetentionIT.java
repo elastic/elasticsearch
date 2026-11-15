@@ -19,11 +19,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.action.SequenceMatchDescription;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 
@@ -52,42 +50,6 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), SequenceMappedFieldsIT.FailingRuntimeFieldPlugin.class);
     }
 
-    public void testCombinedSelectionMetadataAndLateValuesKeepExactOriginals() {
-        createIndex(FIRST, false);
-        createIndex(SECOND, false);
-        Map<String, Object> first = source(0, "SHARED", "A", List.of("z", "a", "z"));
-        Map<String, Object> second = source(1, "SHARED", "B", List.of("q", "q"));
-        first.put("body", Map.of("array", List.of(1, 2), "nested", Map.of("value", "first")));
-        second.put("body", Map.of("array", List.of(3, 4), "nested", Map.of("value", "second")));
-        seed(FIRST, "A", first);
-        seed(SECOND, "B", second);
-        String query = """
-            SEQUENCE BY normalized WITH {"maxspan":"30s"} PRIMARY 1
-            (FROM sequence-retention-a METADATA _id | EVAL normalized=TO_LOWER(key) | KEEP normalized,_id,payload),
-            (FROM sequence-retention-b METADATA _id | EVAL normalized=TO_LOWER(key) | KEEP normalized,_id,payload)
-            | EVAL other_payload=MEMBER(2,payload) | KEEP normalized,_id,payload,other_payload | RETURN MATCHES
-            """;
-        for (String preference : List.of("NONE", "STORED")) {
-            List<Object> left = ordinary(FIRST, "KEEP payload", preference).getFirst();
-            List<Object> right = ordinary(SECOND, "KEEP payload", preference).getFirst();
-            Observed result = observe(query, preference);
-            assertEquals(
-                List.of(List.of("shared", "A", left.getFirst(), right.getFirst())),
-                result.originals().stream().map(SequenceMatchDescription.Row::ordinary).toList()
-            );
-            assertEquals(
-                List.of(
-                    new SequenceMatchDescription.Member(1, FIRST, "A", first),
-                    new SequenceMatchDescription.Member(2, SECOND, "B", second)
-                ),
-                result.originals().getFirst().members()
-            );
-            assertTrue(result.warnings().isEmpty());
-            assertEquals("only candidate drivers run", 2L, result.status().stageDrivers());
-            assertEquals(2L, result.status().payloadRowsFetched());
-        }
-    }
-
     public void testRetainedNullMultivaluePrecisionAndNanosMatchOrdinaryValues() {
         createIndex(FIRST, false);
         createIndex(SECOND, false);
@@ -100,7 +62,7 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         }
         String pipeline = "EVAL kept=number*2 | WHERE kept>0 AND MV_COUNT(numbers)==3 AND nullable IS NULL AND @timestamp IS NOT NULL";
         String query = """
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-retention-a | %s | KEEP key,kept,numbers,nullable,@timestamp),
             (FROM sequence-retention-b | %s | KEEP key,kept,numbers,nullable,@timestamp)
             | EVAL other_kept=MEMBER(2,kept), other_numbers=MEMBER(2,numbers)
@@ -135,7 +97,7 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh(FIRST, SECOND);
         String query = """
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-retention-a | EVAL converted=TO_LONG(payload) | KEEP key,converted),
             (FROM sequence-retention-b | KEEP key)
             | KEEP key,converted | LIMIT 1
@@ -165,7 +127,7 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh(FIRST, SECOND);
         String query = """
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-retention-a | EVAL converted=TO_LONG(payload)
               | WHERE COALESCE(converted,-1)==-1 | KEEP key,converted),
             (FROM sequence-retention-b | KEEP key)
@@ -185,7 +147,7 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         seed(FIRST, "A", source(0, "shared", "A", "bad"));
         seed(SECOND, "B", source(1, "shared", "B", "unused"));
         String query = """
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-retention-a | KEEP key,failure),
             (FROM sequence-retention-b | WHERE phase=="%s" | KEEP key)
             | KEEP key,failure | LIMIT 1
@@ -196,7 +158,7 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         RuntimeException failure = expectThrows(RuntimeException.class, () -> observe(query.formatted("B"), "NONE"));
         assertThat(ExceptionsHelper.stackTrace(failure), containsString("sequence mapped loading failure"));
         Observed pruned = observe("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-retention-a | EVAL discarded=TO_LONG(payload) | DROP discarded | KEEP key),
             (FROM sequence-retention-b | KEEP key)
             | KEEP key | LIMIT 1
@@ -218,7 +180,7 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         seed(SECOND, "B-good", source(1, "good", "B", "unused"));
         seed(SECOND, "B-bad", source(3, "bad", "B", "unused"));
         String query = """
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-retention-a-* | KEEP key,failure), (FROM sequence-retention-b | KEEP key)
             | KEEP key,failure | LIMIT %s
             """;
@@ -229,7 +191,7 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         assertThat(ExceptionsHelper.stackTrace(failure), containsString("sequence mapped loading failure"));
     }
 
-    public void testProcessedMetadataNamesStaySeparateFromCapturedOriginals() {
+    public void testProcessedMetadataNamesAndExplicitSourceRemainOrdinaryValues() {
         createIndex(FIRST, false);
         createIndex(SECOND, false);
         Map<String, Object> first = source(0, "shared", "A", "first");
@@ -237,20 +199,16 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         seed(FIRST, "A", first);
         seed(SECOND, "B", second);
         Observed changed = observe("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-retention-a METADATA _id,_index,_source
               | EVAL _id=TO_UPPER(payload),_index="processed-index",_source="processed-source"
               | KEEP key,_id,_index,_source),
             (FROM sequence-retention-b | KEEP key)
-            | KEEP _id,_index,_source | RETURN MATCHES
+            | KEEP _id,_index,_source | LIMIT 1
             """, "NONE");
-        assertEquals(List.of("FIRST", "processed-index", "processed-source"), changed.originals().getFirst().ordinary());
-        assertEquals(
-            List.of(new SequenceMatchDescription.Member(1, FIRST, "A", first), new SequenceMatchDescription.Member(2, SECOND, "B", second)),
-            changed.originals().getFirst().members()
-        );
+        assertEquals(List.of(List.of("FIRST", "processed-index", "processed-source")), changed.values());
         Observed original = observe("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-retention-a METADATA _source | RENAME _source AS body | KEEP key,body),
             (FROM sequence-retention-b | KEEP key)
             | KEEP body | LIMIT 1
@@ -273,7 +231,7 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         String replayed = "(FROM sequence-retention-c | EVAL value=TO_UPPER(payload) | KEEP key,value)";
         for (boolean reverse : List.of(false, true)) {
             String query = """
-                SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+                SEQUENCE BY key WITHIN 30s PRIMARY 1
                 (FROM %s,%s), (FROM sequence-retention-b | KEEP key)
                 | KEEP key,value | LIMIT 10
                 """.formatted(reverse ? replayed : selected, reverse ? selected : replayed);
@@ -315,7 +273,7 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
                         .map(warning -> HeaderWarning.extractWarningValueFromWarningHeader(warning, false))
                         .filter(warning -> warning.startsWith("Line "))
                         .toList();
-                    copy = new ResponseCopy(values, List.copyOf(response.columns()), warnings, statuses, response.isPartial());
+                    copy = new ResponseCopy(values, warnings, statuses, response.isPartial());
                 }
                 future.onResponse(copy);
             } catch (AssertionError failure) {
@@ -326,15 +284,7 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
         ResponseCopy copy = future.actionGet(DEFAULT_REQUEST_TIMEOUT);
         assertFalse(copy.partial());
         assertEquals("one native source profile is required", 1, copy.statuses().size());
-        List<SequenceMatchDescription.Row> originals = List.of();
-        if (query.stripTrailing().endsWith("RETURN MATCHES")) {
-            var description = SequenceMatchDescription.fromColumns(copy.columns());
-            originals = copy.values()
-                .stream()
-                .map(row -> description.decodeRow(row, SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT))
-                .toList();
-        }
-        return new Observed(copy.values(), originals, copy.warnings(), copy.statuses().getFirst());
+        return new Observed(copy.values(), copy.warnings(), copy.statuses().getFirst());
     }
 
     private List<List<Object>> ordinary(String index, String pipeline, String preference) {
@@ -397,19 +347,8 @@ public class SequenceRetentionIT extends AbstractSequenceIntegTestCase {
     }
 
     /** All response-owned data is copied before release; warning headers come from the selected coordinator thread. */
-    private record Observed(
-        List<List<Object>> values,
-        List<SequenceMatchDescription.Row> originals,
-        List<String> warnings,
-        SequenceSourceStatus status
-    ) {}
+    private record Observed(List<List<Object>> values, List<String> warnings, SequenceSourceStatus status) {}
 
     /** Callback copies only immutable response data; all assertions and retained-row decoding run on the test thread. */
-    private record ResponseCopy(
-        List<List<Object>> values,
-        List<? extends ColumnInfo> columns,
-        List<String> warnings,
-        List<SequenceSourceStatus> statuses,
-        boolean partial
-    ) {}
+    private record ResponseCopy(List<List<Object>> values, List<String> warnings, List<SequenceSourceStatus> statuses, boolean partial) {}
 }

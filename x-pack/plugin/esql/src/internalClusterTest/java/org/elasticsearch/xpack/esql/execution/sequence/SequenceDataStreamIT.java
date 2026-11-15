@@ -131,7 +131,7 @@ public class SequenceDataStreamIT extends AbstractSequenceIntegTestCase {
     private static String query(String stream, int primary) {
         int member = primary == 1 ? 2 : 1;
         return """
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+            SEQUENCE BY key WITHIN 30s PRIMARY %s
             (FROM %s METADATA _id,_index | WHERE phase=="A"),
             (FROM %s METADATA _id,_index | WHERE phase=="B")
             | EVAL other_payload=MEMBER(%s,payload), other_id=MEMBER(%s,_id), other_index=MEMBER(%s,_index)

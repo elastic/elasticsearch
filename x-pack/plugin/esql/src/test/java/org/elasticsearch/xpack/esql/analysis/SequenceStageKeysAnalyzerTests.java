@@ -25,11 +25,9 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
-import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.junit.BeforeClass;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,34 +55,29 @@ public class SequenceStageKeysAnalyzerTests extends ESTestCase {
             String otherKey = primaryProcess ? "process.parent.entity_id" : "process.entity_id";
             String otherPayload = primaryProcess ? "process.entity_id" : "process.parent.entity_id";
             String query = """
-                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+                SEQUENCE BY host.id WITHIN 1m PRIMARY %s
                 (FROM a) AS proc BY process.entity_id,
                 (FROM b) AS conn BY process.parent.entity_id
                 | EVAL other_key=MEMBER(%s, %s), other_payload=MEMBER(%s, %s)
                 | KEEP host.id, %s, %s, other_key, other_payload | LIMIT 10
                 """.formatted(primary, other, otherKey, other, otherPayload, ownKey, ownPayload);
-            for (String retained : List.of("", " | RETURN MATCHES")) {
-                EsqlStatement parsed = EsqlTestUtils.TEST_PARSER.createStatement(query + retained);
-                LogicalPlan analyzed = configured(DataType.KEYWORD).buildAnalyzer().analyze(parsed.plan());
-                assertEquals(
-                    List.of("host.id", ownKey, ownPayload, "other_key", "other_payload"),
-                    analyzed.output().subList(0, 5).stream().map(Attribute::name).toList()
-                );
-                assertEquals(new Binding(0, "process.entity_id", true), binding(analyzed, ownKey));
-                assertEquals(new Binding(0, "process.entity_id", true), binding(analyzed, "other_key"));
-                assertEquals(new Binding(primaryProcess ? 0 : 1, ownPayload, false), binding(analyzed, ownPayload));
-                assertEquals(new Binding(primaryProcess ? 1 : 0, otherPayload, false), binding(analyzed, "other_payload"));
-                if (retained.isEmpty() == false) {
-                    assertEquals(List.of("host.id", ownKey), retainedKeyNames(parsed, analyzed));
-                }
-            }
+            EsqlStatement parsed = EsqlTestUtils.TEST_PARSER.createStatement(query);
+            LogicalPlan analyzed = configured(DataType.KEYWORD).buildAnalyzer().analyze(parsed.plan());
+            assertEquals(
+                List.of("host.id", ownKey, ownPayload, "other_key", "other_payload"),
+                analyzed.output().subList(0, 5).stream().map(Attribute::name).toList()
+            );
+            assertEquals(new Binding(0, "process.entity_id", true), binding(analyzed, ownKey));
+            assertEquals(new Binding(0, "process.entity_id", true), binding(analyzed, "other_key"));
+            assertEquals(new Binding(primaryProcess ? 0 : 1, ownPayload, false), binding(analyzed, ownPayload));
+            assertEquals(new Binding(primaryProcess ? 1 : 0, otherPayload, false), binding(analyzed, "other_payload"));
         }
     }
 
     /** Names differ legitimately; incompatible types at the same local position still fail normal key verification. */
     public void testLocalKeyTypesStillMatchByPosition() {
         configured(DataType.LONG).statementError("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY conn
+            SEQUENCE BY host.id WITHIN 1m PRIMARY conn
             (FROM a) AS proc BY process.entity_id,
             (FROM b) AS conn BY process.parent.entity_id
             | KEEP host.id | LIMIT 10
@@ -95,15 +88,13 @@ public class SequenceStageKeysAnalyzerTests extends ESTestCase {
     public void testOverallWithinLowersToTheExistingMaxspan() {
         for (String primary : List.of("proc", "conn")) {
             String legacy = """
-                SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY %s
+                SEQUENCE BY host.id WITHIN 30s PRIMARY %s
                 (FROM a) AS proc BY process.entity_id,
                 (FROM b) AS conn BY process.parent.entity_id
                 | KEEP host.id,process.entity_id,process.parent.entity_id | LIMIT 10
                 """.formatted(primary);
             LogicalPlan mapped = configured(DataType.KEYWORD).statement(legacy);
-            LogicalPlan shortened = configured(DataType.KEYWORD).statement(
-                legacy.replace("WITH {\"maxspan\":\"30s\"}", "WITHIN 30 seconds")
-            );
+            LogicalPlan shortened = configured(DataType.KEYWORD).statement(legacy.replace("WITHIN 30s", "WITHIN 30 seconds"));
             assertEquals(mapped.output().stream().map(Attribute::name).toList(), shortened.output().stream().map(Attribute::name).toList());
             assertEquals(
                 mapped.output().stream().map(Attribute::dataType).toList(),
@@ -142,25 +133,6 @@ public class SequenceStageKeysAnalyzerTests extends ESTestCase {
             attribute = (Attribute) value;
         }
         throw new AssertionError("cyclic alias binding for " + outputName);
-    }
-
-    private static List<String> retainedKeyNames(EsqlStatement parsed, LogicalPlan analyzed) {
-        for (Map<String, Object> metadata : SequenceMatchOutput.deliveryMetadata(parsed, analyzed.output(), Map.of()).values()) {
-            Object description = metadata.get("sequence");
-            if (description instanceof Map<?, ?> role && role.get("contract") instanceof Map<?, ?> contract) {
-                Object rawKeys = contract.get("keys");
-                assertTrue(rawKeys instanceof List<?>);
-                List<String> names = new ArrayList<>();
-                for (Object rawKey : (List<?>) rawKeys) {
-                    assertTrue(rawKey instanceof Map<?, ?>);
-                    Object name = ((Map<?, ?>) rawKey).get("name");
-                    assertTrue(name instanceof String);
-                    names.add((String) name);
-                }
-                return names;
-            }
-        }
-        throw new AssertionError("missing retained key descriptor");
     }
 
     private record Binding(int stage, String field, boolean key) {}

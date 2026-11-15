@@ -162,7 +162,6 @@ final class SequenceHitReader {
 
     Page read(SearchHit[] hits, BlockFactory factory) {
         Block[] blocks = new Block[attributes.size()];
-        boolean success = false;
         try {
             for (int column = 0; column < attributes.size(); column++) {
                 Attribute attribute = attributes.get(column);
@@ -197,12 +196,16 @@ final class SequenceHitReader {
                 }
             }
             Page page = new Page(hits.length, blocks);
-            success = true;
             return page;
-        } finally {
-            if (success == false) {
+        } catch (RuntimeException | Error e) {
+            try {
                 Releasables.close(blocks);
+            } catch (RuntimeException | Error cleanup) {
+                if (cleanup != e) {
+                    e.addSuppressed(cleanup);
+                }
             }
+            throw e;
         }
     }
 

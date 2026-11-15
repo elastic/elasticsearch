@@ -121,7 +121,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
                 // Fields used only in output load after matching without replaying the stage program.
                 String sequence = Strings.format(
                     """
-                        SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+                        SEQUENCE BY key WITHIN 30s PRIMARY %s
                         (FROM %s | WHERE phase=="A" | KEEP key,phase,%s),
                         (FROM %s | WHERE phase=="B" | KEEP key,phase,%s)
                         | EVAL other_phase=MEMBER(%s,phase), other_valid=MEMBER(%s,version_valid),
@@ -237,7 +237,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
             assertNull(getValuesList(response).getFirst().getFirst());
         }
         try (var response = run(syncEsqlQueryRequest("""
-            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
+            sequence by normalized within 30s PRIMARY 1
             (from sequence-disabled | where phase=="A" | eval normalized=TO_LOWER(text_delegate)),
             (from sequence-disabled | where phase=="B" | eval normalized=TO_LOWER(text_delegate))
             | keep normalized, text_delegate | limit 1
@@ -311,7 +311,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         );
         indexPair("sequence-loading-failure", Map.of());
         RuntimeException failure = expectThrows(RuntimeException.class, () -> run(syncEsqlQueryRequest("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-loading-failure | where phase=="A"),
             (from sequence-loading-failure | where phase=="B")
             | keep failure | limit 1
@@ -323,7 +323,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     public void testDeterministicRuntimeKeyAndPayloadReplay() {
         createRuntimeIndex("sequence-repeatable", "constant");
         try (var response = run("""
-            sequence by changing with {"maxspan":"30s"} PRIMARY 1
+            sequence by changing within 30s PRIMARY 1
             (from sequence-repeatable | where phase=="A" | eval payload=changing+1),
             (from sequence-repeatable | where phase=="B" | eval payload=changing+1)
             | EVAL member2_payload = MEMBER(2, payload)
@@ -337,11 +337,11 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     public void testNondeterministicRuntimeKeyAndPredicateAreRejected() {
         createRuntimeIndex("sequence-nondeterministic", "changing");
         for (String query : List.of("""
-            sequence by changing with {"maxspan":"30s"} PRIMARY 1
+            sequence by changing within 30s PRIMARY 1
             (from sequence-nondeterministic | where phase=="A"), (from sequence-nondeterministic | where phase=="B")
             | keep changing | limit 1
             """, """
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-nondeterministic | where phase=="A" and changing<0),
             (from sequence-nondeterministic | where phase=="B")
             | keep key | limit 1
@@ -361,7 +361,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         );
         indexPair("sequence-runtime-time", Map.of());
         assertNonRepeatable("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-runtime-time | where phase=="A"), (from sequence-runtime-time | where phase=="B")
             | keep key | limit 1
             """, "nondeterministic runtime field [@timestamp]");
@@ -372,7 +372,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     public void testNondeterministicOutputOnlyRuntimeIsRejectedWithoutMatch() {
         createRuntimeIndex("sequence-output-runtime", "changing");
         assertNonRepeatable("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-output-runtime | where phase=="A"), (from sequence-output-runtime | where phase=="missing")
             | keep changing | limit 1
             """, "nondeterministic runtime field [changing]");
@@ -402,7 +402,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         indexPair("sequence-runtime-first", Map.of("payload", "1"));
         createRuntimeIndex("sequence-runtime-later", "changing");
         return Strings.format("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-runtime-first | where phase=="A"
                 | eval eligible=LENGTH(phase)+TO_LONG(payload) | where eligible==%s),
             (from sequence-runtime-later | where phase=="B")
@@ -415,7 +415,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     public void testUnusedNondeterministicRuntimeIsPrunedAndOrdinaryQueryIsUnchanged() {
         createRuntimeIndex("sequence-unused-runtime", "changing");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-unused-runtime | where phase=="A"), (from sequence-unused-runtime | where phase=="B")
             | keep key | limit 1
             """)) {
@@ -443,7 +443,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
         );
         indexPair("sequence-runtime-dependency", Map.of());
         assertNonRepeatable("""
-            sequence by dependent with {"maxspan":"30s"} PRIMARY 1
+            sequence by dependent within 30s PRIMARY 1
             (from sequence-runtime-dependency | where phase=="A"), (from sequence-runtime-dependency | where phase=="B")
             | keep dependent | limit 1
             """, "nondeterministic runtime field [changing]");
@@ -454,7 +454,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
     public void testNondeterministicRequestFilterIsRejectedAndFixedNowRemainsSupported() {
         createRuntimeIndex("sequence-filter-runtime", "constant");
         String query = """
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-filter-runtime | where phase=="A"), (from sequence-filter-runtime | where phase=="B")
             | keep key | limit 1
             """;
@@ -524,7 +524,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
                 assertValues(ordinary.values(), List.of(List.of(2L)));
             }
             try (var fresh = run("""
-                sequence by changing with {"maxspan":"30s"} PRIMARY 1
+                sequence by changing within 30s PRIMARY 1
                 (from sequence-runtime-epoch | where phase=="A"), (from sequence-runtime-epoch | where phase=="B")
                 | keep changing | limit 1
                 """)) {
@@ -573,7 +573,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
                 }
             }
             try (var fresh = run("""
-                sequence by changing with {"maxspan":"30s"} PRIMARY 1
+                sequence by changing within 30s PRIMARY 1
                 (from sequence-unrelated-dynamic-field | where phase=="A"),
                 (from sequence-unrelated-dynamic-field | where phase=="B")
                 | keep changing | limit 1
@@ -739,7 +739,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
             );
         }
         String sequence = """
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-mixed-* | where phase=="A"),
             (from sequence-mixed-* | where phase=="B")
             """;
@@ -760,7 +760,7 @@ public class SequenceMappedFieldsIT extends AbstractSequenceIntegTestCase {
                 String phase = stage == 1 ? "A" : "B";
                 String ordinary = "from " + index + " | where phase==\"" + phase + "\" " + derivation;
                 String sequence = Strings.format("""
-                    sequence by key with {"maxspan":"30s"} PRIMARY %s
+                    sequence by key within 30s PRIMARY %s
                     (from %s | where phase=="A" %s), (from %s | where phase=="B" %s)
                     """, stage, index, derivation, index, derivation);
                 String projection = String.join(", ", columns);

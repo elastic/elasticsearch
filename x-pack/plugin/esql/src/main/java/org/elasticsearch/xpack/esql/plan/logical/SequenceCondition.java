@@ -119,13 +119,13 @@ public final class SequenceCondition extends UnaryPlan implements PostAnalysisVe
     }
 
     private static Source readSource(StreamInput in) throws IOException {
-        Sequence.checkPlanSupported(in.getTransportVersion(), false, true);
+        Sequence.checkPlanSupported(in.getTransportVersion());
         return Source.readFrom((PlanStreamInput) in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Sequence.checkPlanSupported(out.getTransportVersion(), false, true);
+        Sequence.checkPlanSupported(out.getTransportVersion());
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeVInt(ownStage);

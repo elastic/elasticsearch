@@ -34,7 +34,7 @@ import java.util.function.BooleanSupplier;
  * Calls, including closure, are serialized by the owning source. Returned matches own independent references.
  */
 final class SequenceLatestValidMatcher implements SequencePairing {
-    private static final String LABEL = "esql_sequence_latest_valid";
+    private static final String LABEL = "esql_sequence_matcher";
     private static final long ORDINAL_BYTES = RamUsageEstimator.shallowSizeOfInstance(SequenceOrdinal.class);
     private static final long HASH_ENTRY_BYTES = 2 * RamUsageEstimator.alignObjectSize(
         RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 9L * RamUsageEstimator.NUM_BYTES_OBJECT_REF + 12
@@ -79,8 +79,6 @@ final class SequenceLatestValidMatcher implements SequencePairing {
     private long searchSteps;
     private long maxSearchStepsPerFinalRow;
     private long conditionEvaluations;
-    private long conditionFalseOrNull;
-    private long candidatesUsedWithoutReport;
     private long expiredCandidates;
     private int largestRingFill;
     private boolean closed;
@@ -146,7 +144,13 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             positions = new int[stages - 1];
             view = new ValuesView();
         } catch (RuntimeException | Error e) {
-            close();
+            try {
+                close();
+            } catch (RuntimeException | Error cleanup) {
+                if (cleanup != e) {
+                    e.addSuppressed(cleanup);
+                }
+            }
             throw e;
         }
     }
@@ -182,24 +186,28 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             if (search(state) == false) {
                 return null;
             }
-            long substitutes = findDirectTargets(state);
+            findDirectTargets(state);
             SequenceMatch output = complete(state.key, ordinal, handle);
-            boolean committed = false;
             try {
                 commitUsed(state);
-                candidatesUsedWithoutReport = Math.addExact(candidatesUsedWithoutReport, substitutes);
-                committed = true;
                 return output;
-            } finally {
-                if (committed == false) {
+            } catch (RuntimeException | Error e) {
+                try {
                     output.close();
+                } catch (RuntimeException | Error cleanup) {
+                    if (cleanup != e) {
+                        e.addSuppressed(cleanup);
+                    }
                 }
+                throw e;
             }
         } catch (RuntimeException | Error e) {
             try {
                 close();
             } catch (RuntimeException | Error cleanup) {
-                e.addSuppressed(cleanup);
+                if (cleanup != e) {
+                    e.addSuppressed(cleanup);
+                }
             }
             throw e;
         } finally {
@@ -485,18 +493,13 @@ final class SequenceLatestValidMatcher implements SequencePairing {
         currentGroup = group;
         try {
             conditionEvaluations = Math.incrementExact(conditionEvaluations);
-            boolean pass = group.predicate().test(view);
-            if (pass == false) {
-                conditionFalseOrNull = Math.incrementExact(conditionFalseOrNull);
-            }
-            return pass;
+            return group.predicate().test(view);
         } finally {
             currentGroup = null;
         }
     }
 
-    private long findDirectTargets(KeyState state) {
-        long substitutes = 0;
+    private void findDirectTargets(KeyState state) {
         generation = Math.incrementExact(generation);
         for (int stage = 0; stage < stages - 1; stage++) {
             checkCancelled();
@@ -513,14 +516,12 @@ final class SequenceLatestValidMatcher implements SequencePairing {
                 try {
                     if (substitutionValid(stage)) {
                         directTarget(row);
-                        substitutes++;
                     }
                 } finally {
                     selected[stage] = emitted;
                 }
             }
         }
-        return substitutes;
     }
 
     private boolean substitutionValid(int stage) {
@@ -581,7 +582,6 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             + 2 * ORDINAL_BYTES + 64;
         breaker.addEstimateBytesAndMaybeBreak(bytes, LABEL);
         SequencePayloadHandle[] handles = null;
-        boolean success = false;
         try {
             handles = new SequencePayloadHandle[stages];
             BytesRef[] borrowed = new BytesRef[stages];
@@ -603,22 +603,34 @@ final class SequenceLatestValidMatcher implements SequencePairing {
                 handles,
                 borrowed
             );
-            success = true;
             return output;
-        } finally {
-            if (success == false) {
-                try {
-                    releaseHandles(handles);
-                } finally {
-                    breaker.addWithoutBreaking(-bytes, LABEL);
+        } catch (RuntimeException | Error e) {
+            try {
+                releaseHandles(handles);
+            } catch (RuntimeException | Error cleanup) {
+                if (cleanup != e) {
+                    e.addSuppressed(cleanup);
                 }
             }
+            try {
+                breaker.addWithoutBreaking(-bytes, LABEL);
+            } catch (RuntimeException | Error cleanup) {
+                if (cleanup != e) {
+                    e.addSuppressed(cleanup);
+                }
+            }
+            throw e;
         }
     }
 
     @Override
     public int retainedCandidates() {
         return expiry == null ? 0 : expiry.size();
+    }
+
+    @Override
+    public int retainedKeys() {
+        return keys == null ? 0 : keys.size();
     }
 
     @Override
@@ -640,9 +652,7 @@ final class SequenceLatestValidMatcher implements SequencePairing {
             searchSteps,
             maxSearchStepsPerFinalRow,
             conditionEvaluations,
-            conditionFalseOrNull,
-            largestRingFill,
-            candidatesUsedWithoutReport
+            largestRingFill
         );
     }
 

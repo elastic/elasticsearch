@@ -383,9 +383,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class LowerSequenceOutput extends AnalyzerRules.AnalyzerRule<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Originals originals) return originals.lower();
             if (plan instanceof org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Scope scope) return scope.lower();
-            if (plan instanceof org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Capture capture) return capture.lower();
             return plan;
         }
 
@@ -1533,15 +1531,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Keep k -> resolveKeep(k, context.unmappedResolution());
                 case MergePlan mergePlan -> resolveMergePlan(mergePlan, context);
                 case Sequence sequence -> sequence.resolveSchema();
-                case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Originals originals -> originals.resolve(
-                    context.unmappedResolution() == UnmappedResolution.NULLIFY
-                );
                 case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Scope scope -> scope.resolve(
                     context.unmappedResolution() == UnmappedResolution.NULLIFY
                 );
-                // NULLIFY projections can still recompute their user commands; append protected dependencies only after they finish.
-                case org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Capture capture -> context
-                    .unmappedResolution() == UnmappedResolution.NULLIFY ? capture : capture.lower();
                 case Eval p -> resolveEval(p, childrenOutput);
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);

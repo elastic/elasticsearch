@@ -59,9 +59,9 @@ final class SequenceConditionCompiler implements Releasable {
     private long heldBytes;
     private boolean closed;
 
-    private SequenceConditionCompiler(DriverContext ownerContext) {
+    private SequenceConditionCompiler(DriverContext ownerContext, @Nullable CircuitBreaker scopedBreaker) {
         this.ownerContext = ownerContext;
-        breaker = LocalCircuitBreaker.forAsyncIo(ownerContext.breaker());
+        breaker = scopedBreaker == null ? LocalCircuitBreaker.forAsyncIo(ownerContext.breaker()) : scopedBreaker;
     }
 
     /** Compiles native predicates and typed demands into one closeable owner for a source's matcher. */
@@ -72,16 +72,31 @@ final class SequenceConditionCompiler implements Releasable {
         DriverContext ownerContext,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
-        var result = new SequenceConditionCompiler(ownerContext);
-        boolean success = false;
+        return compile(sequence, maxCandidates, foldContext, ownerContext, analysisRegistry, null);
+    }
+
+    /** Uses the source's explicit-admission scope without replacing the predicate evaluator's factory or allocator. */
+    static SequenceConditionCompiler compile(
+        Sequence sequence,
+        int maxCandidates,
+        FoldContext foldContext,
+        DriverContext ownerContext,
+        @Nullable AnalysisRegistry analysisRegistry,
+        @Nullable CircuitBreaker scopedBreaker
+    ) {
+        var result = new SequenceConditionCompiler(ownerContext, scopedBreaker);
         try {
             result.prepare(sequence, maxCandidates, foldContext, analysisRegistry);
-            success = true;
             return result;
-        } finally {
-            if (success == false) {
+        } catch (RuntimeException | Error e) {
+            try {
                 result.close();
+            } catch (RuntimeException | Error cleanup) {
+                if (cleanup != e) {
+                    e.addSuppressed(cleanup);
+                }
             }
+            throw e;
         }
     }
 
@@ -172,10 +187,17 @@ final class SequenceConditionCompiler implements Releasable {
                         group::test
                     )
                 );
-            } finally {
+            } catch (RuntimeException | Error e) {
                 if (accepted == false) {
-                    evaluator.close();
+                    try {
+                        evaluator.close();
+                    } catch (RuntimeException | Error cleanup) {
+                        if (cleanup != e) {
+                            e.addSuppressed(cleanup);
+                        }
+                    }
                 }
+                throw e;
             }
         }
         config = SequenceLatestValidConfig.bounded(maxCandidates, demands, groups);

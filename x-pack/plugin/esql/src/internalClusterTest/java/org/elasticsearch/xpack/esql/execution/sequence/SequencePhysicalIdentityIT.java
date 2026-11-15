@@ -160,7 +160,7 @@ public class SequencePhysicalIdentityIT extends AbstractSequenceIntegTestCase {
 
     private static String sequence(int primary, boolean demand) {
         return """
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+            SEQUENCE BY key WITHIN 30s PRIMARY %s
             (FROM sequence-physical-identity-a METADATA _id,_score | WHERE disposition=="candidate"
               | EVAL computed_value=late_value+1 | KEEP key,_id,computed_value,_score),
             (FROM sequence-physical-identity-b METADATA _id,_score | WHERE disposition=="candidate" | KEEP key,_id,_score)

@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.containsString;
 /** Physical planning selects the guarded source and hands off its existing native analysis registry. */
 public class SequencePairingExecutionTests extends ESTestCase {
     /** The real registry is borrowed from planning; evaluator creation remains per source rather than per plan. */
-    public void testLatestValidSelectsPreparedFactoryAndReceivesThePlanningRegistry() throws Exception {
+    public void testEverySequenceSelectsPreparedFactoryAndReceivesThePlanningRegistry() throws Exception {
         try (
             var registry = new AnalysisRegistry(
                 TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build()),
@@ -58,7 +58,7 @@ public class SequencePairingExecutionTests extends ESTestCase {
                 Map.of()
             )
         ) {
-            for (Integer bound : new Integer[] { null, 1, 3, 1024 }) {
+            for (int stageCount : new int[] { 2, 4, 7, 22, 32 }) {
                 AtomicInteger factories = new AtomicInteger();
                 var selected = SequenceSourceOperator.sourceFactoryProvider((exec, stagePlanner) -> {
                     factories.incrementAndGet();
@@ -68,7 +68,7 @@ public class SequencePairingExecutionTests extends ESTestCase {
                     assertSame(registry, suppliedRegistry);
                     return selected.create(exec, stagePlanner, suppliedRegistry);
                 };
-                Sequence sequence = sequence(2, Sequence.Pairing.LATEST_VALID, bound);
+                Sequence sequence = sequence(stageCount);
                 var exec = new SequenceExec(Source.EMPTY, sequence);
                 assertEquals(sequence.output(), exec.output());
                 planner(observed, registry).plan(
@@ -84,65 +84,9 @@ public class SequencePairingExecutionTests extends ESTestCase {
         }
     }
 
-    /** Candidate ceilings are applied before even constructing the request dependency factory. */
-    public void testExcessivePlanBoundIsRefusedBeforeFactoryCreation() {
-        AtomicInteger factories = new AtomicInteger();
-        var selected = SequenceSourceOperator.sourceFactoryProvider((exec, stagePlanner) -> {
-            factories.incrementAndGet();
-            return factory(exec, stagePlanner);
-        });
-        var exec = new SequenceExec(Source.EMPTY, sequence(4, Sequence.Pairing.LATEST_VALID, 65));
-        assertThat(
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> planner(selected, null).plan(
-                    "sequence-limits",
-                    FoldContext.small(),
-                    PlannerSettings.DEFAULTS,
-                    exec,
-                    EmptyIndexedByShardId.instance(),
-                    true
-                )
-            ).getMessage(),
-            containsString("max_candidates [65] for [4] stages must be between [1] and [64]")
-        );
-        assertEquals(0, factories.get());
-    }
-
-    /** Large stage counts use a capped default rather than admitting the ordinary default16. */
-    public void testCappedDefaultsAndArbitraryLegalBoundsReachTheFactory() {
-        for (int[] shape : new int[][] { { 3, 380 }, { 4, 63 }, { 7, 0 }, { 22, 0 }, { 32, 0 } }) {
-            AtomicInteger factories = new AtomicInteger();
-            var selected = SequenceSourceOperator.sourceFactoryProvider((exec, stagePlanner) -> {
-                factories.incrementAndGet();
-                return factory(exec, stagePlanner);
-            });
-            var exec = new SequenceExec(Source.EMPTY, sequence(shape[0], Sequence.Pairing.LATEST_VALID, shape[1] == 0 ? null : shape[1]));
-            planner(selected, null).plan(
-                "sequence-limits",
-                FoldContext.small(),
-                PlannerSettings.DEFAULTS,
-                exec,
-                EmptyIndexedByShardId.instance(),
-                true
-            );
-            assertEquals(1, factories.get());
-        }
-    }
-
-    /** Today still returns the existing public nine-component factory, preserving default record behavior. */
-    public void testTodayProviderKeepsTheExistingFactory() {
-        var exec = new SequenceExec(Source.EMPTY, sequence(2, Sequence.Pairing.TODAY, null));
-        SequenceSourceOperator.StagePlanner stages = (physical, output) -> List::of;
-        var original = factory(exec, stages);
-        var selected = SequenceSourceOperator.sourceFactoryProvider((ignored, unused) -> original);
-        assertSame(original, selected.create(exec, stages, null));
-        assertEquals(9, SequenceSourceOperator.Factory.class.getRecordComponents().length);
-    }
-
     /** Missing production dependencies are still refused instead of silently using another pairing path. */
-    public void testTodayKeepsTheExistingExecutionFactoryPath() {
-        var exec = new SequenceExec(Source.EMPTY, sequence(2, Sequence.Pairing.TODAY, null));
+    public void testMissingNativeDependenciesAreRefused() {
+        var exec = new SequenceExec(Source.EMPTY, sequence(2));
         assertThat(
             expectThrows(
                 IllegalStateException.class,
@@ -159,11 +103,11 @@ public class SequencePairingExecutionTests extends ESTestCase {
         );
     }
 
-    private static Sequence sequence(int stages, Sequence.Pairing pairing, Integer bound) {
+    private static Sequence sequence(int stages) {
         Attribute key = new ReferenceAttribute(Source.EMPTY, null, "key", DataType.KEYWORD);
         var child = new LocalRelation(Source.EMPTY, List.of(key), EmptyLocalSupplier.EMPTY);
         var stage = new SequenceStage(Source.EMPTY, child, List.of(key));
-        return new Sequence(Source.EMPTY, Collections.nCopies(stages, stage), 1, pairing, bound).resolveSchema();
+        return new Sequence(Source.EMPTY, Collections.nCopies(stages, stage), 1).resolveSchema();
     }
 
     private static LocalExecutionPlanner planner() {

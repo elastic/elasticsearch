@@ -785,7 +785,7 @@ public class EsqlSession {
                             }
                             Versioned<Result> withAdditionalData = attachAdditionalData(
                                 r,
-                                deliveryMetadata(statement, r, columnMetadata.get()),
+                                columnMetadata.get(),
                                 approximationApplied,
                                 minimumVersion
                             );
@@ -918,22 +918,6 @@ public class EsqlSession {
                 throw new IllegalStateException("Should not produce metadata with the same key");
             })
         );
-    }
-
-    /** Validate original bindings on the buffered result and release its blocks if publication fails. */
-    private Map<NameId, Map<String, Object>> deliveryMetadata(
-        EsqlStatement statement,
-        Result result,
-        Map<NameId, Map<String, Object>> existing
-    ) {
-        try {
-            return org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.deliveryMetadata(statement, result.schema(), existing);
-        } catch (RuntimeException e) {
-            org.elasticsearch.core.Releasables.close(
-                () -> org.elasticsearch.common.collect.Iterators.map(result.pages().iterator(), page -> page::releaseBlocks)
-            );
-            throw e;
-        }
     }
 
     private Versioned<Result> attachAdditionalData(

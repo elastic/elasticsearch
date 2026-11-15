@@ -1370,6 +1370,81 @@
         },
         "max_pending_candidates" : {
           "type" : "integer"
+        },
+        "candidates_dropped_at_bound" : {
+          "type" : "integer"
+        },
+        "searches_abandoned_at_work_limit" : {
+          "type" : "integer"
+        },
+        "keys_that_hit_bound" : {
+          "type" : "integer"
+        },
+        "search_steps" : {
+          "type" : "integer"
+        },
+        "max_search_steps_per_final_row" : {
+          "type" : "integer"
+        },
+        "condition_evaluations" : {
+          "type" : "integer"
+        },
+        "largest_ring_fill" : {
+          "type" : "integer"
+        },
+        "runtime" : {
+          "type" : "object",
+          "properties" : {
+            "search_wait_nanos" : {
+              "type" : "integer"
+            },
+            "stage_run_nanos" : {
+              "type" : "integer"
+            },
+            "candidate_build_nanos" : {
+              "type" : "integer"
+            },
+            "matcher_nanos" : {
+              "type" : "integer"
+            },
+            "condition_nanos" : {
+              "type" : "integer"
+            },
+            "result_build_nanos" : {
+              "type" : "integer"
+            },
+            "rows_fetched" : {
+              "type" : "array",
+              "items" : {
+                "type" : "integer"
+              }
+            },
+            "candidates_admitted" : {
+              "type" : "array",
+              "items" : {
+                "type" : "integer"
+              }
+            },
+            "peak_keys" : {
+              "type" : "integer"
+            },
+            "peak_bytes_held" : {
+              "type" : "integer"
+            }
+          },
+          "required" : [
+            "search_wait_nanos",
+            "stage_run_nanos",
+            "candidate_build_nanos",
+            "matcher_nanos",
+            "condition_nanos",
+            "result_build_nanos",
+            "rows_fetched",
+            "candidates_admitted",
+            "peak_keys",
+            "peak_bytes_held"
+          ],
+          "additionalProperties" : false
         }
       },
       "required" : [
@@ -1384,7 +1459,14 @@
         "stage_driver_iterations",
         "candidate_search_took_millis",
         "payload_search_took_millis",
-        "max_pending_candidates"
+        "max_pending_candidates",
+        "candidates_dropped_at_bound",
+        "searches_abandoned_at_work_limit",
+        "keys_that_hit_bound",
+        "search_steps",
+        "max_search_steps_per_final_row",
+        "condition_evaluations",
+        "largest_ring_fill"
       ],
       "additionalProperties" : false
     },

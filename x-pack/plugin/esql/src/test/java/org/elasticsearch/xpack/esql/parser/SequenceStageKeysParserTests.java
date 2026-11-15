@@ -25,7 +25,7 @@ public class SequenceStageKeysParserTests extends ESTestCase {
     /** Shared keys precede local keys, whose names remain in their own stage scope. */
     public void testLocalKeysAppendToHeaderWithoutSyntheticEval() {
         Sequence sequence = parse("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY conn
+            SEQUENCE BY host.id WITHIN 1m PRIMARY conn
             (FROM a) AS proc BY process.entity_id,
             (FROM b) AS conn BY process.parent.entity_id
             | LIMIT 10
@@ -38,7 +38,7 @@ public class SequenceStageKeysParserTests extends ESTestCase {
     /** Local tuples can be the entire key and can use multiple ordinary or quoted field identifiers. */
     public void testMultipleLocalKeysWithoutHeaderOrStageNames() {
         Sequence sequence = parse("""
-            SEQUENCE WITH {"maxspan":"1m"} PRIMARY 2
+            SEQUENCE WITHIN 1m PRIMARY 2
             (FROM a) BY process.entity_id, `odd.name`,
             (FROM b) BY process.parent.entity_id, other
             | LIMIT 10
@@ -54,21 +54,21 @@ public class SequenceStageKeysParserTests extends ESTestCase {
             "(FROM a), (FROM b) BY second",
             "(FROM a) BY first, extra, (FROM b) BY second"
         )) {
-            rejected("SEQUENCE WITH {\"maxspan\":\"1m\"} PRIMARY 1 " + stages, "same number of local BY columns");
+            rejected("SEQUENCE WITHIN 1m PRIMARY 1 " + stages, "same number of local BY columns");
         }
     }
 
     /** Header/local duplicates are rejected by field name, while different member names remain legitimate. */
     public void testDuplicateNamesAcrossSharedAndLocalKeysAreRejected() {
         rejected(
-            "SEQUENCE BY key WITH {\"maxspan\":\"1m\"} PRIMARY 1 (FROM a) BY key, (FROM b) BY other",
+            "SEQUENCE BY key WITHIN 1m PRIMARY 1 (FROM a) BY key, (FROM b) BY other",
             "Duplicate SEQUENCE BY column [key] in member [1]"
         );
         rejected(
-            "SEQUENCE WITH {\"maxspan\":\"1m\"} PRIMARY 1 (FROM a) BY key, key, (FROM b) BY other, extra",
+            "SEQUENCE WITHIN 1m PRIMARY 1 (FROM a) BY key, key, (FROM b) BY other, extra",
             "Duplicate SEQUENCE BY column [key] in member [1]"
         );
-        Sequence sequence = parse("SEQUENCE BY key WITH {\"maxspan\":\"1m\"} PRIMARY 1 (FROM a), (FROM b)");
+        Sequence sequence = parse("SEQUENCE BY key WITHIN 1m PRIMARY 1 (FROM a), (FROM b)");
         assertEquals(List.of("key"), keys(sequence, 0));
         assertEquals(List.of("key"), keys(sequence, 1));
     }

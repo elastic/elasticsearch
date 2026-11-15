@@ -49,7 +49,7 @@ public class SequenceWarningsIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh("sequence-warning-a", "sequence-warning-b");
         String query = """
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-warning-a | where COALESCE(TO_LONG(payload), -1)==-1 | keep key, payload),
             (from sequence-warning-b | keep key, payload)
             | EVAL member2_payload = MEMBER(2, payload)
@@ -87,7 +87,7 @@ public class SequenceWarningsIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh("sequence-warning-a", "sequence-warning-b");
         Observed observed = runWithWarnings("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-warning-a | where COALESCE(TO_LONG(payload), -1)==-1 | keep key, payload),
             (from sequence-warning-b | where COALESCE(TO_LONG(payload), -1)==-1 | keep key, payload)
             | EVAL member2_payload = MEMBER(2, payload)

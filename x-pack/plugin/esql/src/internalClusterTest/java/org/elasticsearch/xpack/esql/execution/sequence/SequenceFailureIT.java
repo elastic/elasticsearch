@@ -56,7 +56,7 @@ import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicens
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.esql.action.SequenceMatchDescription;
+import org.elasticsearch.xpack.esql.action.SequenceProvenance;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 
@@ -194,22 +194,27 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
     }
 
     public void testSelectedPayloadsRemainInSnapshotAfterUpdateAndDelete() throws Exception {
-        assertSelectedPayloadsRemainInSnapshotAfterUpdateAndDelete(false);
+        assertSelectedPayloadsRemainInSnapshotAfterUpdateAndDelete(false, 1);
     }
 
     /** Full original sources must come from the same PIT as selection, even when live documents have changed or disappeared. */
     public void testStageSourcesRemainInSnapshotAfterUpdateAndDelete() throws Exception {
-        assertSelectedPayloadsRemainInSnapshotAfterUpdateAndDelete(true);
+        for (int primary : List.of(1, 2)) {
+            assertSelectedPayloadsRemainInSnapshotAfterUpdateAndDelete(true, primary);
+            if (primary == 1) {
+                assertAcked(indicesAdmin().prepareDelete("failure-a", "failure-b"));
+            }
+        }
     }
 
-    private void assertSelectedPayloadsRemainInSnapshotAfterUpdateAndDelete(boolean withSource) throws Exception {
+    private void assertSelectedPayloadsRemainInSnapshotAfterUpdateAndDelete(boolean withSource, int primary) throws Exception {
         populateIndices();
         Map<String, Object> originalAnchor = client().prepareGet("failure-a", "A" + (ANCHORS - 1)).get().getSource();
         Map<String, Object> originalCompletion = client().prepareGet("failure-b", "B").get().getSource();
         var gate = new SearchGate(false);
         ActionFuture<EsqlQueryResponse> future = null;
         try {
-            var query = withSource ? sourceRequest() : request();
+            var query = withSource ? sourceRequest(primary) : request();
             future = client(coordinator()).execute(EsqlQueryAction.INSTANCE, query);
             gate.awaitStarted(future);
             prepareIndex("failure-a").setId("A" + (ANCHORS - 1))
@@ -238,15 +243,8 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
                     List<List<Object>> rows = getValuesList(response);
                     assertThat(rows, hasSize(1));
                     assertEquals(List.of("shared", "anchor-" + (ANCHORS - 1), "completion"), rows.getFirst().subList(0, 3));
-                    var description = SequenceMatchDescription.fromColumns(response.columns());
-                    var decoded = description.decodeRow(rows.getFirst(), SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT);
-                    assertEquals(
-                        List.of(
-                            new SequenceMatchDescription.Member(1, "failure-a", "A" + (ANCHORS - 1), originalAnchor),
-                            new SequenceMatchDescription.Member(2, "failure-b", "B", originalCompletion)
-                        ),
-                        decoded.members()
-                    );
+                    assertEquals(primary == 1 ? originalAnchor : originalCompletion, rows.getFirst().get(3));
+                    assertSelectedProvenance(rows.getFirst().get(4));
                 } else {
                     assertValues(response.values(), List.of(List.of("shared", "anchor-" + (ANCHORS - 1), "completion")));
                 }
@@ -358,6 +356,12 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
 
     private void assertUndemandedRuntimeTimestampMutation(String script, long offset) throws Exception {
         populateMutationIndices();
+        for (int primary : List.of(1, 2)) {
+            assertUndemandedRuntimeTimestampMutation(script, offset, primary);
+        }
+    }
+
+    private void assertUndemandedRuntimeTimestampMutation(String script, long offset, int primary) throws Exception {
         setRuntimeTimestamp("timestamp", 0);
         Map<String, Object> originalAnchor = client().prepareGet("failure-a", "A" + (ANCHORS - 1)).get().getSource();
         Map<String, Object> originalCompletion = client().prepareGet("failure-b", "B").get().getSource();
@@ -365,7 +369,7 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         var gate = new SearchGate(false, true, true);
         ActionFuture<EsqlQueryResponse> future = null;
         try {
-            future = client(coordinator).execute(EsqlQueryAction.INSTANCE, sourceRequest().allowPartialResults(true));
+            future = client(coordinator).execute(EsqlQueryAction.INSTANCE, sourceRequest(primary).allowPartialResults(true));
             gate.awaitStarted(future);
             setRuntimeTimestamp(script, offset);
             gate.release();
@@ -375,14 +379,8 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
                 List<List<Object>> rows = getValuesList(response);
                 assertThat(rows, hasSize(1));
                 assertEquals(List.of("shared", "anchor-" + (ANCHORS - 1), "completion"), rows.getFirst().subList(0, 3));
-                var description = SequenceMatchDescription.fromColumns(response.columns());
-                assertEquals(
-                    List.of(
-                        new SequenceMatchDescription.Member(1, "failure-a", "A" + (ANCHORS - 1), originalAnchor),
-                        new SequenceMatchDescription.Member(2, "failure-b", "B", originalCompletion)
-                    ),
-                    description.decodeRow(rows.getFirst(), SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT).members()
-                );
+                assertEquals(primary == 1 ? originalAnchor : originalCompletion, rows.getFirst().get(3));
+                assertSelectedProvenance(rows.getFirst().get(4));
             }
             assertIdentityPayloadRequest(gate, false);
         } finally {
@@ -405,11 +403,11 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         ActionFuture<EsqlQueryResponse> future = null;
         try {
             future = client(coordinator).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest("""
-                SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
-                (FROM failure-a | KEEP key, payload, @timestamp),
+                SEQUENCE BY key WITHIN 30s PRIMARY 1
+                (FROM failure-a | EVAL payload=TO_LOWER(payload) | KEEP key, payload, @timestamp),
                 (FROM failure-b | WHERE phase=="target" | KEEP key, payload)
                 | EVAL member2_payload = MEMBER(2, payload)
-                | KEEP key, payload, member2_payload, @timestamp | LIMIT 1 | RETURN MATCHES
+                | KEEP key, payload, member2_payload, @timestamp | LIMIT 1
                 """).allowPartialResults(true));
             gate.awaitStarted(future);
             assertTrue(mappedFields(gate.source).contains("@timestamp"));
@@ -795,7 +793,7 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         ActionFuture<EsqlQueryResponse> future = null;
         try {
             var query = syncEsqlQueryRequest("""
-                sequence by key with {"maxspan":"30s"} PRIMARY 1
+                sequence by key within 30s PRIMARY 1
                 (from failure-a | eval request_started=NOW() | keep key, payload, request_started),
                 (from failure-b | where phase=="target" | eval request_started=NOW() | keep key, payload, request_started)
                 | EVAL member2_payload = MEMBER(2, payload), member2_request_started = MEMBER(2, request_started)
@@ -891,7 +889,7 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
 
     private static EsqlQueryRequest request() {
         return syncEsqlQueryRequest("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from failure-a | keep key, payload), (from failure-b | where phase=="target" | keep key, payload)
             | EVAL member2_payload = MEMBER(2, payload)
             | keep key, payload, member2_payload
@@ -900,37 +898,53 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
     }
 
     private static EsqlQueryRequest sourceRequest() {
-        return syncEsqlQueryRequest("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
-            (FROM failure-a | KEEP key, payload),
-            (FROM failure-b | WHERE phase=="target" | KEEP key, payload)
-            | EVAL member2_payload = MEMBER(2, payload)
-            | KEEP key, payload, member2_payload | LIMIT 1 | RETURN MATCHES
-            """);
+        return sourceRequest(1);
     }
 
-    /** Both demanded output-only scalars require the source replay boundary exercised by cancellation and failure tests. */
+    /** Explicit source plus a lowercase output scalar preserves both ordinary literals and the full-replay boundary. */
+    private static EsqlQueryRequest sourceRequest(int primary) {
+        return syncEsqlQueryRequest("""
+            SEQUENCE BY key WITHIN 30s PRIMARY %s
+            (FROM failure-a METADATA _source | EVAL payload=TO_LOWER(payload) | KEEP key, payload, _source),
+            (FROM failure-b METADATA _source | WHERE phase=="target"
+                | EVAL payload=TO_LOWER(payload) | KEEP key, payload, _source)
+            | EVAL first_payload=%s, member2_payload=%s
+            | KEEP key, first_payload, member2_payload, _source, sequence_provenance | LIMIT 1
+            """.formatted(primary, primary == 1 ? "payload" : "MEMBER(1,payload)", primary == 1 ? "MEMBER(2,payload)" : "payload"));
+    }
+
     private static EsqlQueryRequest stageSourceReplayRequest() {
-        return syncEsqlQueryRequest("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
-            (FROM failure-a | EVAL computed_payload = TO_UPPER(payload) | KEEP key, computed_payload),
-            (FROM failure-b | WHERE phase=="target"
-                | EVAL computed_payload = TO_UPPER(payload) | KEEP key, computed_payload)
-            | EVAL member2_computed_payload = MEMBER(2, computed_payload)
-            | KEEP key, computed_payload, member2_computed_payload | LIMIT 1 | RETURN MATCHES
-            """);
+        return stageSourceReplayRequest(1);
     }
 
-    /** Output-only computed values force full replay in both stages even if optional selection-output retention is enabled. */
+    /** Both output-only scalars retain the replay boundary; source is an ordinary column of the chosen primary. */
+    private static EsqlQueryRequest stageSourceReplayRequest(int primary) {
+        return syncEsqlQueryRequest(
+            """
+                SEQUENCE BY key WITHIN 30s PRIMARY %s
+                (FROM failure-a METADATA _source | EVAL computed_payload=TO_UPPER(payload) | KEEP key, computed_payload, _source),
+                (FROM failure-b METADATA _source | WHERE phase=="target"
+                    | EVAL computed_payload=TO_UPPER(payload) | KEEP key, computed_payload, _source)
+                | EVAL member1_computed_payload=%s, member2_computed_payload=%s
+                | KEEP key, member1_computed_payload, member2_computed_payload, _source, sequence_provenance | LIMIT 1
+                """.formatted(
+                primary,
+                primary == 1 ? "computed_payload" : "MEMBER(1,computed_payload)",
+                primary == 1 ? "MEMBER(2,computed_payload)" : "computed_payload"
+            )
+        );
+    }
+
+    /** Output-only computed values force both full replays, including ordinary key/predicate reconstruction checks. */
     private static EsqlQueryRequest replayRequiredRequest() {
         return syncEsqlQueryRequest("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
-            (FROM failure-a | WHERE phase=="start"
-                | EVAL computed_payload = TO_UPPER(payload) | KEEP key, computed_payload),
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM failure-a METADATA _source | WHERE phase=="start"
+                | EVAL computed_payload=TO_UPPER(payload) | KEEP key, computed_payload, _source),
             (FROM failure-b | WHERE phase=="target"
-                | EVAL computed_payload = TO_UPPER(payload) | KEEP key, computed_payload)
-            | EVAL member2_computed_payload = MEMBER(2, computed_payload)
-            | KEEP key, computed_payload, member2_computed_payload | LIMIT 1 | RETURN MATCHES
+                | EVAL computed_payload=TO_UPPER(payload) | KEEP key, computed_payload)
+            | EVAL member2_computed_payload=MEMBER(2, computed_payload)
+            | KEEP key, computed_payload, member2_computed_payload, _source, sequence_provenance | LIMIT 1
             """);
     }
 
@@ -980,40 +994,43 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
         assertReleased();
     }
 
-    /** Verify the same forced-replay request still returns both original sources after the injected terminal failure. */
+    /** First and last primary retain both original-source claims, with the same two real replay costs per query. */
     private void assertStageSourceReplayRecovery(String coordinator) throws Exception {
         Map<String, Object> anchor = client().prepareGet("failure-a", "A" + (ANCHORS - 1)).get().getSource();
         Map<String, Object> completion = client().prepareGet("failure-b", "B").get().getSource();
-        try (
-            var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, stageSourceReplayRequest().profile(true))
-                .actionGet(TIMEOUT)
-        ) {
-            var rows = getValuesList(response);
-            assertThat(rows, hasSize(1));
-            assertEquals(List.of("shared", "ANCHOR-" + (ANCHORS - 1), "COMPLETION"), rows.getFirst().subList(0, 3));
-            var description = SequenceMatchDescription.fromColumns(response.columns());
-            var decoded = description.decodeRow(rows.getFirst(), SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT);
-            assertEquals(
-                List.of(
-                    new SequenceMatchDescription.Member(1, "failure-a", "A" + (ANCHORS - 1), anchor),
-                    new SequenceMatchDescription.Member(2, "failure-b", "B", completion)
-                ),
-                decoded.members()
-            );
-            assertFalse(response.isPartial());
-            var statuses = response.profile()
-                .drivers()
-                .stream()
-                .flatMap(driver -> driver.operators().stream())
-                .map(OperatorStatus::status)
-                .filter(SequenceSourceStatus.class::isInstance)
-                .map(SequenceSourceStatus.class::cast)
-                .toList();
-            assertThat(statuses, hasSize(1));
-            assertEquals("both stages must replay their computed output", 4L, statuses.getFirst().stageDrivers());
-            assertEquals(2L, statuses.getFirst().payloadSearchRequests());
+        for (int primary : List.of(1, 2)) {
+            try (
+                var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, stageSourceReplayRequest(primary).profile(true))
+                    .actionGet(TIMEOUT)
+            ) {
+                var rows = getValuesList(response);
+                assertThat(rows, hasSize(1));
+                assertEquals(List.of("shared", "ANCHOR-" + (ANCHORS - 1), "COMPLETION"), rows.getFirst().subList(0, 3));
+                assertEquals(primary == 1 ? anchor : completion, rows.getFirst().get(3));
+                assertSelectedProvenance(rows.getFirst().get(4));
+                assertFalse(response.isPartial());
+                var statuses = response.profile()
+                    .drivers()
+                    .stream()
+                    .flatMap(driver -> driver.operators().stream())
+                    .map(OperatorStatus::status)
+                    .filter(SequenceSourceStatus.class::isInstance)
+                    .map(SequenceSourceStatus.class::cast)
+                    .toList();
+                assertThat(statuses, hasSize(1));
+                assertEquals("both stages must replay their computed output", 4L, statuses.getFirst().stageDrivers());
+                assertEquals(2L, statuses.getFirst().payloadSearchRequests());
+            }
+            assertReleased();
         }
-        assertReleased();
+    }
+
+    /** Genuine selected identity must not depend on ordinary metadata values or column descriptor annotations. */
+    private static void assertSelectedProvenance(Object cell) {
+        assertEquals(
+            List.of(new SequenceProvenance.Member(1, "failure-a", "A" + (ANCHORS - 1)), new SequenceProvenance.Member(2, "failure-b", "B")),
+            SequenceProvenance.decode(cell)
+        );
     }
 
     @After
@@ -1063,9 +1080,12 @@ public class SequenceFailureIT extends AbstractSequenceIntegTestCase {
                     SearchTransportService.QUERY_ACTION_NAME,
                     (handler, request, channel, task) -> {
                         clocks.add(request.nowInMillis());
+                        // Payload reads have the identity-only sort whether or not ordinary _source is demanded.
                         boolean payloadSearch = request.source() != null
-                            && request.source().fetchSource() != null
-                            && request.source().fetchSource().fetchSource();
+                            && request.source().sorts() != null
+                            && request.source().sorts().size() == 1
+                            && request.source().sorts().getFirst() instanceof FieldSortBuilder identity
+                            && identity.getFieldName().equals("_shard_doc");
                         if (request.source() != null && payloadSearch == false) {
                             candidates.add(request.source().shallowCopy());
                         }

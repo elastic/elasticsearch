@@ -60,7 +60,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.esql.action.SequenceMatchDescription;
+import org.elasticsearch.xpack.esql.action.SequenceProvenance;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 
@@ -492,25 +492,20 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
         }
         refresh(first, second);
         ensureGreen(first, second);
-        return new Fixture(
-            first,
-            second,
-            client().prepareGet(first, "A").get().getSource(),
-            client().prepareGet(second, "B").get().getSource()
-        );
+        return new Fixture(first, second, client().prepareGet(first, "A").get().getSource());
     }
 
     private static String query(Fixture fixture) {
         return """
-            SEQUENCE BY key WITH {"maxspan":"10s"} PRIMARY 1
-                (FROM %s METADATA _id | EVAL computed=TO_UPPER(payload) | KEEP key,value,computed,_id),
+            SEQUENCE BY key WITHIN 10s PRIMARY 1
+                (FROM %s METADATA _id,_source | EVAL computed=TO_UPPER(payload) | KEEP key,value,computed,_id,_source),
                 (FROM %s METADATA _id | KEEP key,payload,_id)
             | EVAL member_payload=MEMBER(2,payload), member_id=MEMBER(2,_id)
-            | KEEP key,value,computed,member_payload,_id,member_id | LIMIT 1 | RETURN MATCHES
+            | KEEP key,value,computed,member_payload,_id,member_id,_source,sequence_provenance | LIMIT 1
             """.formatted(fixture.first, fixture.second);
     }
 
-    /** The exact selected identities and both original documents must survive replay and relocation. */
+    /** The selected identities, old ordinary values and explicitly requested source survive replay and relocation. */
     private void assertResult(Fixture fixture, EsqlQueryResponse response) throws Exception {
         assertResult(fixture, response, 7L);
     }
@@ -521,14 +516,14 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(1));
             assertEquals(List.of("shared", expectedValue, "ANCHOR", "completion", "A", "B"), rows.getFirst().subList(0, 6));
-            var decoded = SequenceMatchDescription.fromColumns(response.columns())
-                .decodeRow(rows.getFirst(), SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT);
+            List<String> names = response.columns().stream().map(column -> column.name()).toList();
+            int source = names.indexOf("_source");
+            int provenance = names.indexOf("sequence_provenance");
+            assertTrue(source >= 0 && provenance >= 0);
+            assertEquals(fixture.firstSource, rows.getFirst().get(source));
             assertEquals(
-                List.of(
-                    new SequenceMatchDescription.Member(1, fixture.first, "A", fixture.firstSource),
-                    new SequenceMatchDescription.Member(2, fixture.second, "B", fixture.secondSource)
-                ),
-                decoded.members()
+                List.of(new SequenceProvenance.Member(1, fixture.first, "A"), new SequenceProvenance.Member(2, fixture.second, "B")),
+                SequenceProvenance.decode(rows.getFirst().get(provenance))
             );
         }
     }
@@ -617,7 +612,7 @@ public class SequenceDeploymentRecoveryIT extends AbstractSequenceIntegTestCase 
         }
     }
 
-    private record Fixture(String first, String second, Map<String, Object> firstSource, Map<String, Object> secondSource) {}
+    private record Fixture(String first, String second, Map<String, Object> firstSource) {}
 
     /** Selects a real read-only engine only for explicitly closed/reopened test indices. */
     public static class ReadOnlyFixturePlugin extends Plugin implements EnginePlugin, ActionPlugin {

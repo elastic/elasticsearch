@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -68,7 +70,7 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
 
     public void testRejectUnsupportedPeerBeforeWriting() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE));
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out)).getMessage(),
                 containsString("SEQUENCE is not supported")
@@ -77,43 +79,37 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
         }
     }
 
-    public void testLatestValidOptionsRoundTripAndOlderPeerRefusal() throws Exception {
-        for (Integer bound : new Integer[] { null, 1, 16, 1024 }) {
-            Sequence base = createTestInstance();
-            Sequence sequence = new Sequence(base.source(), base.children(), base.maxSpanNanos(), Sequence.Pairing.LATEST_VALID, bound);
-            Sequence restored = copyInstance(sequence);
-            assertEquals(sequence, restored);
-            assertEquals(Sequence.Pairing.LATEST_VALID, restored.pairing());
-            assertEquals(bound, restored.maxCandidates());
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE));
+    /** An empty input proves the version check precedes the source header and all child-plan reads. */
+    public void testOlderPeerIsRejectedBeforeReadingAnyLogicalPlanBytes() throws Exception {
+        for (var entry : List.of(Sequence.ENTRY, SequenceStage.ENTRY, SequenceCondition.ENTRY)) {
+            try (var in = StreamInput.wrap(new byte[0])) {
+                in.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
                 assertThat(
-                    expectThrows(IllegalArgumentException.class, () -> sequence.writeTo(out)).getMessage(),
-                    containsString("SEQUENCE latest_valid pairing is not supported")
+                    expectThrows(IllegalArgumentException.class, () -> entry.reader.read(in)).getMessage(),
+                    containsString("SEQUENCE is not supported")
                 );
-                assertEquals(0, out.size());
+                assertEquals(0, in.available());
             }
         }
     }
 
-    public void testDefaultPolicyPreservesPrePairingPeerBytes() throws Exception {
+    /** The wire state contains stages, window and resolved schema, with no public policy or candidate setting. */
+    public void testWireContainsOnlyWindowStagesAndSchema() throws Exception {
         Sequence sequence = createTestInstance();
-        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE);
         try (BytesStreamOutput actual = new BytesStreamOutput(); BytesStreamOutput expected = new BytesStreamOutput()) {
-            actual.setTransportVersion(old);
-            expected.setTransportVersion(old);
+            actual.setTransportVersion(TransportVersion.current());
+            expected.setTransportVersion(TransportVersion.current());
             sequence.writeTo(new PlanStreamOutput(actual, configuration()));
-            var legacy = new PlanStreamOutput(expected, configuration());
-            Source.EMPTY.writeTo(legacy);
-            legacy.writeNamedWriteableCollection(sequence.children());
-            legacy.writeVLong(sequence.maxSpanNanos());
-            legacy.writeNamedWriteableCollection(sequence.sourceAttributes());
-            legacy.writeCollection(sequence.sourceStages(), org.elasticsearch.common.io.stream.StreamOutput::writeVInt);
-            legacy.writeNamedWriteableCollection(sequence.output());
-            legacy.writeBoolean(sequence.expressionsResolved());
+            var minimal = new PlanStreamOutput(expected, configuration());
+            Source.EMPTY.writeTo(minimal);
+            minimal.writeNamedWriteableCollection(sequence.children());
+            minimal.writeVLong(sequence.maxSpanNanos());
+            minimal.writeNamedWriteableCollection(sequence.sourceAttributes());
+            minimal.writeCollection(sequence.sourceStages(), org.elasticsearch.common.io.stream.StreamOutput::writeVInt);
+            minimal.writeNamedWriteableCollection(sequence.output());
+            minimal.writeBoolean(sequence.expressionsResolved());
             assertEquals(expected.bytes(), actual.bytes());
         }
-        assertEquals(sequence, copyInstance(sequence, old));
     }
 
     public void testRegisteredConditionInsideSequenceRoundTripAndEnclosingOldPeerGuards() throws Exception {
@@ -130,30 +126,30 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
         );
         var earlier = new SequenceStage(Source.EMPTY, child, List.of());
         var later = new SequenceStage(Source.EMPTY, condition, List.of());
-        var sequence = new Sequence(Source.EMPTY, List.of(earlier, later), 1, Sequence.Pairing.LATEST_VALID, null).resolveSchema();
+        var sequence = new Sequence(Source.EMPTY, List.of(earlier, later), 1).resolveSchema();
         Sequence restored = copyInstance(sequence);
         assertEquals(sequence, restored);
         assertEquals(condition, restored.collect(SequenceCondition.class).getFirst());
         for (LogicalPlan plan : List.of(sequence, later, condition)) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE));
+                out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
                 assertThat(
                     expectThrows(IllegalArgumentException.class, () -> plan.writeTo(out)).getMessage(),
-                    containsString("SEQUENCE latest_valid pairing is not supported")
+                    containsString("SEQUENCE is not supported")
                 );
                 assertEquals(0, out.size());
             }
         }
     }
 
-    public void testRetainedConditionPlanRoundTripPreservesPublishedOriginalRoleIdentities() throws Exception {
+    public void testConditionPlanRoundTripPreservesOrdinaryPrimaryBindingsAndProvenance() throws Exception {
         assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
         var parsed = EsqlTestUtils.TEST_PARSER.createStatement("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY issued
+            SEQUENCE BY key WITHIN 30s PRIMARY issued
             (FROM a | KEEP key,label) AS issued,
             (FROM b | EVAL own=label | WHERE own != MEMBER(issued,label) | KEEP key,label
              | RENAME label AS renamed | DROP renamed) AS signed
-            | KEEP key,label | LIMIT 10 | RETURN MATCHES
+            | KEEP key,label,sequence_provenance | LIMIT 10
             """);
         var analyzer = EsqlTestUtils.analyzer().minimumTransportVersion(TransportVersion.current());
         Map<String, EsField> fields = Map.of(
@@ -168,7 +164,6 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
             analyzer.addIndex(new EsIndex(name, fields, Map.of(name, new IndexProperties(IndexMode.STANDARD, 0)), Map.of(), Map.of()));
         }
         LogicalPlan original = analyzer.buildAnalyzer().analyze(parsed.plan());
-        var roles = SequenceMatchOutput.deliveryMetadata(parsed, original.output(), Map.of());
         // A full query can contain any expression, including Not from !=; use the same complete plan/expression entries as production.
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(PlanWritables.getNamedWriteables());
         entries.addAll(ExpressionWritables.getNamedWriteables());
@@ -188,9 +183,9 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
                 LogicalPlan restored = in.readNamedWriteable(LogicalPlan.class);
                 assertEquals(original, restored);
                 assertEquals(original.output(), restored.output());
-                assertEquals(roles, SequenceMatchOutput.deliveryMetadata(parsed, restored.output(), Map.of()));
                 Sequence sequence = restored.collect(Sequence.class).getFirst();
-                assertEquals(Sequence.Pairing.LATEST_VALID, sequence.pairing());
+                assertEquals(1, sequence.sourceAttributes().stream().filter(Sequence::isProvenanceAttribute).count());
+                assertTrue(sequence.references().stream().noneMatch(Sequence::isProvenanceAttribute));
                 SequenceCondition condition = sequence.collect(SequenceCondition.class).getFirst();
                 assertEquals(1, condition.ownStage());
                 assertEquals(List.of(0), condition.referencedStages());
@@ -209,36 +204,27 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
         assertEquals(limit, ((SequenceStage) restored.children().get(1)).maxGapNanos());
         for (LogicalPlan plan : List.of(sequence, sequence.children().get(1))) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_PER_LINK_TIME));
+                out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
                 assertThat(
                     expectThrows(IllegalArgumentException.class, () -> plan.writeTo(out)).getMessage(),
-                    containsString("SEQUENCE per-link time limits are not supported")
+                    containsString("SEQUENCE is not supported")
                 );
                 assertEquals(0, out.size());
             }
         }
     }
 
-    /** The absent form can still use the old peer, and its stage layout has exactly the original fields. */
-    public void testUnconstrainedStagePreservesOlderPeerBytes() throws Exception {
-        Attribute key = new ReferenceAttribute(Source.EMPTY, null, "key", DataType.KEYWORD);
-        var input = new LocalRelation(Source.EMPTY, List.of(key), EmptyLocalSupplier.EMPTY);
-        SequenceStage stage = new SequenceStage(Source.EMPTY, input, List.of(key));
-        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_PER_LINK_TIME);
-        try (BytesStreamOutput actual = new BytesStreamOutput(); BytesStreamOutput expected = new BytesStreamOutput()) {
-            actual.setTransportVersion(old);
-            expected.setTransportVersion(old);
-            stage.writeTo(new PlanStreamOutput(actual, configuration()));
-            var legacy = new PlanStreamOutput(expected, configuration());
-            Source.EMPTY.writeTo(legacy);
-            legacy.writeNamedWriteable(stage.child());
-            legacy.writeNamedWriteableCollection(stage.keys());
-            assertEquals(expected.bytes(), actual.bytes());
+    /** Even an unconstrained stage refuses a peer which could otherwise execute the retired rule. */
+    public void testUnconstrainedStageRejectsOlderPeerBeforeWriting() throws Exception {
+        var stage = (SequenceStage) createTestInstance().children().getFirst();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> stage.writeTo(out)).getMessage(),
+                containsString("SEQUENCE is not supported")
+            );
+            assertEquals(0, out.size());
         }
-        Sequence original = new Sequence(Source.EMPTY, List.of(stage, stage), 1);
-        Sequence restored = copyInstance(original, old);
-        assertEquals(original, restored);
-        assertFalse(restored.hasLinkTimeLimits());
     }
 
     private static Sequence withIncomingLimit(Sequence sequence, long limit) {
@@ -262,15 +248,40 @@ public class SequenceSerializationTests extends AbstractLogicalPlanSerialization
         assertEquals(sequence, restored);
         assertEquals(
             List.of("key", "stage1.payload", "stage2.payload", "stage3.payload"),
-            restored.output().stream().map(Attribute::name).toList()
+            restored.output().subList(0, 4).stream().map(Attribute::name).toList()
         );
+        assertEquals(5, restored.output().size());
+        assertEquals(5, restored.sourceAttributes().size());
+        Attribute marker = restored.sourceAttributes().getLast();
+        assertEquals(MetadataAttribute.class, marker.getClass());
+        assertEquals("_sequence_provenance", marker.name());
+        assertTrue(marker.synthetic());
+        assertEquals(DataType.KEYWORD, marker.dataType());
+        assertTrue(Sequence.isProvenanceAttribute(marker));
+        assertEquals(1, restored.sourceAttributes().stream().filter(Sequence::isProvenanceAttribute).count());
+        assertEquals(ReferenceAttribute.class, restored.output().getLast().getClass());
+        assertEquals(DataType.KEYWORD, restored.output().getLast().dataType());
+        assertFalse(restored.output().getLast().synthetic());
+        assertNotEquals(marker.id(), restored.output().getLast().id());
         assertEquals(sequence.output().stream().map(Attribute::id).toList(), restored.output().stream().map(Attribute::id).toList());
         assertEquals(
             sequence.sourceAttributes().stream().map(Attribute::id).toList(),
             restored.sourceAttributes().stream().map(Attribute::id).toList()
         );
-        assertEquals(List.of(0, 0, 1, 2), restored.sourceStages());
+        assertEquals(List.of(0, 0, 1, 2, 0), restored.sourceStages());
         assertNotEquals(sequence.sourceAttributes().get(1).id(), sequence.output().get(1).id());
+    }
+
+    /** Each schema binding variant survives transport, including resolved and unresolved empty schemas. */
+    public void testSchemaFieldVariantsRoundTrip() throws Exception {
+        for (Sequence sequence : SequenceTests.schemaFieldVariants()) {
+            Sequence restored = copyInstance(sequence);
+            assertEquals(sequence, restored);
+            assertEquals(sequence.sourceAttributes(), restored.sourceAttributes());
+            assertEquals(sequence.sourceStages(), restored.sourceStages());
+            assertEquals(sequence.output(), restored.output());
+            assertEquals(sequence.expressionsResolved(), restored.expressionsResolved());
+        }
     }
 
     /** The resolved schema remains traversable and retains stage bindings after NodeInfo reconstruction. */

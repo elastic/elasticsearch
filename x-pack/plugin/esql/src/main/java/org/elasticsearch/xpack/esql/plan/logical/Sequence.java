@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -54,39 +54,32 @@ public final class Sequence extends LogicalPlan
         PostOptimizationVerificationAware.CoordinatorOnly,
         TelemetryAware {
     public static final TransportVersion ESQL_SEQUENCE = TransportVersion.fromName("esql_sequence_repeatable_input");
+    // Reserve private checkpoint IDs so generation cannot reuse them for the incompatible single-engine wire.
     public static final TransportVersion ESQL_SEQUENCE_PER_LINK_TIME = TransportVersion.fromName("esql_sequence_per_link_time");
     public static final TransportVersion ESQL_SEQUENCE_LATEST_VALID_LANGUAGE = TransportVersion.fromName(
         "esql_sequence_latest_valid_language"
     );
-
-    /** Selects matching policy independently of per-link timing and output presentation. */
-    public enum Pairing {
-        TODAY,
-        LATEST_VALID
-    }
+    public static final TransportVersion ESQL_SEQUENCE_SINGLE_ENGINE = TransportVersion.fromName("esql_sequence_single_engine");
+    public static final TransportVersion ESQL_SEQUENCE_R5 = TransportVersion.fromName("esql_sequence_r5");
 
     /** Matches EQL's syntax capacity; candidate cardinality is governed separately by paging and the request breaker. */
     public static final int MAX_STAGES = 256;
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Sequence", Sequence::new);
+
+    private static final String PROVENANCE_ATTRIBUTE = "_sequence_provenance";
 
     private final long maxSpanNanos;
     private final List<Attribute> sourceAttributes;
     private final List<Integer> sourceStages;
     private final List<Attribute> output;
     private final boolean schemaResolved;
-    private final Pairing pairing;
-    // NodeInfo properties must be non-null when children are immutable lists; zero denotes an unspecified request.
-    private final int maxCandidates;
 
+    /** Keeps the overall window independent of each incoming link's optional bound. */
     public Sequence(Source source, List<LogicalPlan> stages, long maxSpanNanos) {
         this(source, stages, maxSpanNanos, List.of(), List.of(), List.of(), false);
     }
 
-    /** Preserves an optional requested candidate bound for runtime validation and default selection. */
-    public Sequence(Source source, List<LogicalPlan> stages, long maxSpanNanos, Pairing pairing, @Nullable Integer maxCandidates) {
-        this(source, stages, maxSpanNanos, List.of(), List.of(), List.of(), false, pairing, maxCandidates);
-    }
-
+    /** Preserves protected schema bindings through analysis, optimization and transport. */
     public Sequence(
         Source source,
         List<LogicalPlan> stages,
@@ -96,21 +89,6 @@ public final class Sequence extends LogicalPlan
         List<Attribute> output,
         boolean schemaResolved
     ) {
-        this(source, stages, maxSpanNanos, sourceAttributes, sourceStages, output, schemaResolved, Pairing.TODAY, null);
-    }
-
-    /** Preserves policy and protected schema bindings across analysis, optimization and transport. */
-    public Sequence(
-        Source source,
-        List<LogicalPlan> stages,
-        long maxSpanNanos,
-        List<Attribute> sourceAttributes,
-        List<Integer> sourceStages,
-        List<Attribute> output,
-        boolean schemaResolved,
-        Pairing pairing,
-        @Nullable Integer maxCandidates
-    ) {
         super(source, List.copyOf(stages));
         if (stages.size() < 2 || stages.size() > MAX_STAGES || stages.stream().anyMatch(p -> p instanceof SequenceStage == false)) {
             throw new IllegalArgumentException("a sequence requires between 2 and " + MAX_STAGES + " SequenceStage children");
@@ -119,18 +97,13 @@ public final class Sequence extends LogicalPlan
             throw new IllegalArgumentException("The first SEQUENCE member cannot have an incoming link time limit");
         }
         if (maxSpanNanos <= 0) {
-            throw new IllegalArgumentException("sequence maxspan must be positive");
+            throw new IllegalArgumentException("SEQUENCE WITHIN duration must be positive");
         }
         this.maxSpanNanos = maxSpanNanos;
         this.sourceAttributes = List.copyOf(sourceAttributes);
         this.sourceStages = List.copyOf(sourceStages);
         this.output = List.copyOf(output);
         this.schemaResolved = schemaResolved;
-        this.pairing = Objects.requireNonNull(pairing);
-        if (maxCandidates != null && (maxCandidates < 1 || pairing != Pairing.LATEST_VALID)) {
-            throw new IllegalArgumentException("SEQUENCE [max_candidates] requires latest_valid pairing and a positive integer");
-        }
-        this.maxCandidates = maxCandidates == null ? 0 : maxCandidates;
         if (sourceAttributes.size() != output.size()
             || sourceStages.size() != output.size()
             || sourceStages.stream().anyMatch(stage -> stage < 0 || stage >= stages.size())) {
@@ -146,9 +119,7 @@ public final class Sequence extends LogicalPlan
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readCollectionAsList(StreamInput::readVInt),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.readBoolean(),
-            in.getTransportVersion().supports(ESQL_SEQUENCE_LATEST_VALID_LANGUAGE) ? in.readEnum(Pairing.class) : Pairing.TODAY,
-            in.getTransportVersion().supports(ESQL_SEQUENCE_LATEST_VALID_LANGUAGE) ? in.readOptionalVInt() : null
+            in.readBoolean()
         );
     }
 
@@ -164,30 +135,16 @@ public final class Sequence extends LogicalPlan
         }
     }
 
-    /** Rejects unsupported peers before any logical-plan bytes are read or written. */
+    /** Rejects peers which cannot run the current provenance and profiling contract before any enclosing plan bytes are read or written. */
     public static void checkPlanSupported(TransportVersion version) {
-        checkSupported(version);
-    }
-
-    /** Refuses unsupported link constraints before an enclosing logical or physical plan writes any bytes. */
-    public static void checkPlanSupported(TransportVersion version, boolean usesLinkTimeLimits) {
-        checkPlanSupported(version, usesLinkTimeLimits, false);
-    }
-
-    /** Rejects new policy and condition nodes before an enclosing plan writes even its source header. */
-    public static void checkPlanSupported(TransportVersion version, boolean usesLinkTimeLimits, boolean usesLatestValid) {
-        checkPlanSupported(version);
-        if (usesLinkTimeLimits && version.supports(ESQL_SEQUENCE_PER_LINK_TIME) == false) {
-            throw new IllegalArgumentException("SEQUENCE per-link time limits are not supported in transport version [" + version + "]");
-        }
-        if (usesLatestValid && version.supports(ESQL_SEQUENCE_LATEST_VALID_LANGUAGE) == false) {
-            throw new IllegalArgumentException("SEQUENCE latest_valid pairing is not supported in transport version [" + version + "]");
+        if (version.supports(ESQL_SEQUENCE_R5) == false) {
+            throw new IllegalArgumentException("SEQUENCE is not supported in transport version [" + version + "]");
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        checkPlanSupported(out.getTransportVersion(), hasLinkTimeLimits(), pairing == Pairing.LATEST_VALID || hasConditions());
+        checkPlanSupported(out.getTransportVersion());
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteableCollection(children());
         out.writeVLong(maxSpanNanos);
@@ -195,10 +152,6 @@ public final class Sequence extends LogicalPlan
         out.writeCollection(sourceStages, StreamOutput::writeVInt);
         out.writeNamedWriteableCollection(output);
         out.writeBoolean(schemaResolved);
-        if (out.getTransportVersion().supports(ESQL_SEQUENCE_LATEST_VALID_LANGUAGE)) {
-            out.writeEnum(pairing);
-            out.writeOptionalVInt(maxCandidates());
-        }
     }
 
     @Override
@@ -208,70 +161,16 @@ public final class Sequence extends LogicalPlan
 
     @Override
     protected NodeInfo<Sequence> info() {
-        return NodeInfo.create(
-            this,
-            Sequence::fromProperties,
-            children(),
-            maxSpanNanos,
-            sourceAttributes,
-            sourceStages,
-            output,
-            schemaResolved,
-            pairing,
-            maxCandidates
-        );
-    }
-
-    private static Sequence fromProperties(
-        Source source,
-        List<LogicalPlan> stages,
-        long maxSpanNanos,
-        List<Attribute> sourceAttributes,
-        List<Integer> sourceStages,
-        List<Attribute> output,
-        boolean schemaResolved,
-        Pairing pairing,
-        int maxCandidates
-    ) {
-        return new Sequence(
-            source,
-            stages,
-            maxSpanNanos,
-            sourceAttributes,
-            sourceStages,
-            output,
-            schemaResolved,
-            pairing,
-            maxCandidates == 0 ? null : maxCandidates
-        );
+        return NodeInfo.create(this, Sequence::new, children(), maxSpanNanos, sourceAttributes, sourceStages, output, schemaResolved);
     }
 
     @Override
     public Sequence replaceChildren(List<LogicalPlan> children) {
-        return new Sequence(
-            source(),
-            children,
-            maxSpanNanos,
-            sourceAttributes,
-            sourceStages,
-            output,
-            schemaResolved,
-            pairing,
-            maxCandidates()
-        );
+        return new Sequence(source(), children, maxSpanNanos, sourceAttributes, sourceStages, output, schemaResolved);
     }
 
     public long maxSpanNanos() {
         return maxSpanNanos;
-    }
-
-    public Pairing pairing() {
-        return pairing;
-    }
-
-    @Nullable
-    public Integer maxCandidates() {
-        return maxCandidates == 0 ? null : maxCandidates;
     }
 
     /** Conditions remain at their WHERE binding site until execution prepares their mandatory value section. */
@@ -279,7 +178,7 @@ public final class Sequence extends LogicalPlan
         return children().stream().anyMatch(stage -> stage.anyMatch(plan -> plan instanceof SequenceCondition));
     }
 
-    /** The unconstrained form needs no matcher limit array or new old-peer wire fields. */
+    /** Whether any incoming link has an additional time limit inside the overall window. */
     public boolean hasLinkTimeLimits() {
         for (int stage = 1; stage < children().size(); stage++) {
             if (((SequenceStage) children().get(stage)).maxGapNanos() > 0) {
@@ -304,7 +203,8 @@ public final class Sequence extends LogicalPlan
 
     @Override
     protected AttributeSet computeReferences() {
-        var references = AttributeSet.of(sourceAttributes).asBuilder();
+        var references = AttributeSet.of(sourceAttributes.stream().filter(attribute -> isProvenanceAttribute(attribute) == false).toList())
+            .asBuilder();
         for (SequenceCondition condition : collect(SequenceCondition.class)) {
             condition.activeInputs()
                 .stream()
@@ -352,10 +252,50 @@ public final class Sequence extends LogicalPlan
                 }
             }
         }
+        Attribute provenance = null;
+        Attribute previousProvenance = null;
+        for (int column = 0; column < sourceAttributes.size(); column++) {
+            if (isProvenanceAttribute(sourceAttributes.get(column))) {
+                provenance = sourceAttributes.get(column);
+                previousProvenance = output.get(column);
+                break;
+            }
+        }
+        if (provenance == null) {
+            provenance = new MetadataAttribute(Source.EMPTY, PROVENANCE_ATTRIBUTE, DataType.KEYWORD, Nullability.FALSE, null, true, false);
+        }
+        Set<String> names = new HashSet<>();
+        columns.forEach(column -> names.add(column.name()));
+        String base = Attribute.rawTemporaryName("sequence_provenance", provenance.id().toString());
+        String name = base;
+        int suffix = 1;
+        while (names.add(name) == false)
+            name = base + "_" + suffix++;
+        inputs.add(provenance);
+        stages.add(0);
+        columns.add(
+            new ReferenceAttribute(
+                Source.EMPTY,
+                null,
+                name,
+                DataType.KEYWORD,
+                Nullability.FALSE,
+                previousProvenance == null ? null : previousProvenance.id(),
+                false
+            )
+        );
         if (schemaResolved && sourceAttributes.equals(inputs) && sourceStages.equals(stages) && output.equals(columns)) {
             return this;
         }
-        return new Sequence(source(), children(), maxSpanNanos, inputs, stages, columns, true, pairing, maxCandidates());
+        return new Sequence(source(), children(), maxSpanNanos, inputs, stages, columns, true);
+    }
+
+    /** Only compiler-owned metadata can request match identities; public names never establish this output role. */
+    public static boolean isProvenanceAttribute(Attribute attribute) {
+        return attribute instanceof MetadataAttribute
+            && attribute.synthetic()
+            && attribute.name().equals(PROVENANCE_ATTRIBUTE)
+            && attribute.dataType() == DataType.KEYWORD;
     }
 
     /** Resolves backward demands before requiring every stage to resolve, avoiding a cross-stage analysis deadlock. */
@@ -387,7 +327,7 @@ public final class Sequence extends LogicalPlan
         }
         return columns.size() == output.size()
             ? this
-            : new Sequence(source(), children(), maxSpanNanos, inputs, stages, columns, schemaResolved, pairing, maxCandidates());
+            : new Sequence(source(), children(), maxSpanNanos, inputs, stages, columns, schemaResolved);
     }
 
     private static ReferenceAttribute reference(Attribute source, String name, Map<String, Attribute> previous) {
@@ -446,7 +386,7 @@ public final class Sequence extends LogicalPlan
             List<Attribute> payloads = new ArrayList<>();
             List<Attribute> mandatory = new ArrayList<>();
             for (int column = 0; column < sourceAttributes.size(); column++) {
-                if (sourceStages.get(column) == index) {
+                if (sourceStages.get(column) == index && isProvenanceAttribute(sourceAttributes.get(column)) == false) {
                     payloads.add(sourceAttributes.get(column));
                 }
             }
@@ -527,7 +467,7 @@ public final class Sequence extends LogicalPlan
 
     @Override
     public int hashCode() {
-        return Objects.hash(children(), maxSpanNanos, sourceAttributes, sourceStages, output, schemaResolved, pairing, maxCandidates);
+        return Objects.hash(children(), maxSpanNanos, sourceAttributes, sourceStages, output, schemaResolved);
     }
 
     @Override
@@ -539,8 +479,6 @@ public final class Sequence extends LogicalPlan
                 && sourceAttributes.equals(other.sourceAttributes)
                 && sourceStages.equals(other.sourceStages)
                 && output.equals(other.output)
-                && schemaResolved == other.schemaResolved
-                && pairing == other.pairing
-                && maxCandidates == other.maxCandidates;
+                && schemaResolved == other.schemaResolved;
     }
 }

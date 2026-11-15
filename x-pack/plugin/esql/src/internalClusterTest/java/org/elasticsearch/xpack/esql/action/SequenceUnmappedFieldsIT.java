@@ -48,79 +48,45 @@ public class SequenceUnmappedFieldsIT extends AbstractSequenceIntegTestCase {
 
     /** The ordinary source path establishes the requested NULLIFY semantics independently of SEQUENCE. */
     public void testOrdinaryNullifyReturnsNullForMissingField() {
-        assertValue(NULLIFY + "FROM " + B + " | EVAL observed = absent_optional | LIMIT 10", null, false);
+        assertValue(NULLIFY + "FROM " + B + " | EVAL observed = absent_optional | LIMIT 10", null);
     }
 
     /** Existing mapped values must remain usable under the setting in all ordinary sequence presentations. */
-    public void testMappedSequenceFieldsWithNullifyWithoutRetention() {
-        assertValue(primary("", "| EVAL observed = label", false), "second", false);
-        assertValue(primary("", "| EVAL observed = MEMBER(1, label)", false), "first", false);
-        assertValue(firstPrimary("label"), "first", false);
-    }
-
-    /** Retention is tested separately so a capture-specific failure cannot hide the ordinary controls. */
-    public void testMappedSequenceFieldsWithNullifyAndRetention() {
-        assertValue(primary("", "| EVAL observed = label", true), "second", true);
-        assertValue(primary("", "| EVAL observed = MEMBER(1, label)", true), "first", true);
+    public void testMappedSequenceFieldsWithNullify() {
+        assertValue(primary("", "| EVAL observed = label"), "second");
+        assertValue(primary("", "| EVAL observed = MEMBER(1, label)"), "first");
+        assertValue(firstPrimary("label"), "first");
     }
 
     /** A missing ordinary primary demand should acquire NULL without requiring an explicit stage alias. */
-    public void testMissingPrimaryFieldNullifiesWithoutRetention() {
-        assertValue(primary("", "| EVAL observed = absent_optional", false), null, false);
-    }
-
-    /** Adding an optional ordinary output must preserve both retained originals and their match association. */
-    public void testMissingPrimaryFieldNullifiesWithRetention() {
-        assertValue(primary("", "| EVAL observed = absent_optional", true), null, true);
+    public void testMissingPrimaryFieldNullifies() {
+        assertValue(primary("", "| EVAL observed = absent_optional"), null);
     }
 
     /** A direct missing member demand must retain its member identity when optional field handling runs. */
-    public void testMissingMemberFieldNullifiesWithoutRetention() {
-        assertValue(primary("", "| EVAL observed = MEMBER(1, absent_optional)", false), null, false);
-    }
-
-    /** A null-valued member output must not turn authentic original bindings into null-valued substitutes. */
-    public void testMissingMemberFieldNullifiesWithRetention() {
-        assertValue(primary("", "| EVAL observed = MEMBER(1, absent_optional)", true), null, true);
+    public void testMissingMemberFieldNullifies() {
+        assertValue(primary("", "| EVAL observed = MEMBER(1, absent_optional)"), null);
     }
 
     /** A user column matching the diagnostic label cannot satisfy or hide a protected member demand. */
-    public void testMissingMemberNullifiesDespiteDiagnosticNameCollisionWithoutRetention() {
-        assertValue(
-            primary("", "| EVAL `MEMBER(1, absent_optional)` = \"ordinary\" | EVAL observed = MEMBER(1, absent_optional)", false),
-            null,
-            false
-        );
-    }
-
-    /** Retained originals do not make the diagnostic label a valid substitute for the absent member field. */
-    public void testMissingMemberNullifiesDespiteDiagnosticNameCollisionWithRetention() {
-        assertValue(
-            primary("", "| EVAL `MEMBER(1, absent_optional)` = \"ordinary\" | EVAL observed = MEMBER(1, absent_optional)", true),
-            null,
-            true
-        );
+    public void testMissingMemberNullifiesDespiteDiagnosticNameCollision() {
+        assertValue(primary("", "| EVAL `MEMBER(1, absent_optional)` = \"ordinary\" | EVAL observed = MEMBER(1, absent_optional)"), null);
     }
 
     /** Selecting the first primary must route an absent ordinary field to that member. */
     public void testMissingFirstPrimaryFieldNullifies() {
-        assertValue(firstPrimary("absent_optional"), null, false);
+        assertValue(firstPrimary("absent_optional"), null);
     }
 
     /** An explicit stage expression may resolve the missing value before the sequence presentation is lowered. */
-    public void testStageLocalAliasNullifiesWithoutRetention() {
-        assertValue(primary(" | EVAL optional = absent_optional", "| EVAL observed = MEMBER(1, optional)", false), null, false);
+    public void testStageLocalAliasNullifies() {
+        assertValue(primary(" | EVAL optional = absent_optional", "| EVAL observed = MEMBER(1, optional)"), null);
     }
 
-    /** Retained-source capture must not hide a late null-filled input needed by a stage expression. */
-    public void testStageLocalAliasNullifiesWithRetention() {
-        assertValue(primary(" | EVAL optional = absent_optional", "| EVAL observed = MEMBER(1, optional)", true), null, true);
-    }
-
-    /** Late NULLIFY inputs remain visible to extraction without substituting nulls for the authentic originals. */
-    public void testRetainedParsingNullifiesMissingInput() {
+    /** Late NULLIFY inputs remain available to stage extraction and MEMBER output. */
+    public void testParsingNullifiesMissingInput() {
         for (String extraction : List.of("DISSECT absent_optional \"%{parsed}\"", "GROK absent_optional \"%{WORD:parsed}\"")) {
-            assertValue(primary(" | " + extraction, "| EVAL observed = MEMBER(1, parsed)", true), null, true, "keyword");
+            assertValue(primary(" | " + extraction, "| EVAL observed = MEMBER(1, parsed)"), null, "keyword");
         }
     }
 
@@ -128,43 +94,37 @@ public class SequenceUnmappedFieldsIT extends AbstractSequenceIntegTestCase {
     public void testNullifyDoesNotRestoreProjectedParsingOutput() {
         for (String extraction : List.of("DISSECT label \"%{parsed}\"", "GROK label \"%{WORD:parsed}\"")) {
             for (String projection : List.of(" | KEEP key", " | DROP parsed")) {
-                assertRemoved(primary(" | " + extraction + projection, "| EVAL observed = MEMBER(1, parsed)", true), "parsed");
+                assertRemoved(primary(" | " + extraction + projection, "| EVAL observed = MEMBER(1, parsed)"), "parsed");
             }
         }
     }
 
-    /** Membership filters preserve the event's optional-field scope and the retained source association. */
+    /** Membership filters preserve the event's optional-field scope. */
     public void testMissingMemberNullifiesThroughStageMembership() {
-        for (boolean retained : List.of(false, true)) {
-            for (String predicate : List.of("key IN (FROM " + B + " | KEEP key)", "key NOT IN (FROM " + B + " | KEEP label)")) {
-                assertValue(primary(" | WHERE " + predicate, "| EVAL observed = MEMBER(1, absent_optional)", retained), null, retained);
-            }
+        for (String predicate : List.of("key IN (FROM " + B + " | KEEP key)", "key NOT IN (FROM " + B + " | KEEP label)")) {
+            assertValue(primary(" | WHERE " + predicate, "| EVAL observed = MEMBER(1, absent_optional)"), null);
         }
     }
 
     /** Nullifying a genuinely absent source field must not resurrect mapped member fields removed by the author. */
     public void testStageKeepAndDropDoNotRestoreRemovedMemberFields() {
-        for (boolean retained : List.of(false, true)) {
-            for (String projection : List.of(" | KEEP key", " | DROP label")) {
-                assertRemoved(primary(projection, "| EVAL observed = MEMBER(1, label)", retained), "label");
-            }
+        for (String projection : List.of(" | KEEP key", " | DROP label")) {
+            assertRemoved(primary(projection, "| EVAL observed = MEMBER(1, label)"), "label");
         }
     }
 
     /** Ordinary primary fields continue to obey explicit outer projection lifetime under NULLIFY. */
     public void testOuterKeepAndDropDoNotRestoreRemovedPrimaryFields() {
-        for (boolean retained : List.of(false, true)) {
-            for (String projection : List.of("KEEP key", "DROP label")) {
-                assertRemoved(primary("", "| " + projection + " | EVAL observed = label", retained), "label");
-            }
+        for (String projection : List.of("KEEP key", "DROP label")) {
+            assertRemoved(primary("", "| " + projection + " | EVAL observed = label"), "label");
         }
     }
 
-    private void assertValue(String query, Object expected, boolean retained) {
-        assertValue(query, expected, retained, expected == null ? "null" : null);
+    private void assertValue(String query, Object expected) {
+        assertValue(query, expected, expected == null ? "null" : null);
     }
 
-    private void assertValue(String query, Object expected, boolean retained, String expectedType) {
+    private void assertValue(String query, Object expected, String expectedType) {
         try (var response = run(query)) {
             assertFalse(response.isPartial());
             var names = response.columns().stream().map(ColumnInfo::name).toList();
@@ -176,17 +136,6 @@ public class SequenceUnmappedFieldsIT extends AbstractSequenceIntegTestCase {
             var rows = getValuesList(response);
             assertEquals(1, rows.size());
             assertEquals(expected, rows.getFirst().get(column));
-            if (retained) {
-                var description = SequenceMatchDescription.fromColumns(response.columns());
-                assertEquals(2, description.primaryStage());
-                var decoded = description.decodeRow(rows.getFirst(), SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT);
-                assertEquals(List.of("shared"), decoded.keys());
-                assertEquals(2, decoded.members().size());
-                assertEquals(List.of(A, B), decoded.members().stream().map(SequenceMatchDescription.Member::index).toList());
-                assertEquals(List.of("A", "B"), decoded.members().stream().map(SequenceMatchDescription.Member::id).toList());
-                assertEquals(document(true), decoded.members().getFirst().source());
-                assertEquals(document(false), decoded.members().getLast().source());
-            }
         }
     }
 
@@ -196,18 +145,18 @@ public class SequenceUnmappedFieldsIT extends AbstractSequenceIntegTestCase {
         assertThat(failure.getMessage(), containsString(field));
     }
 
-    private static String primary(String firstStageCommands, String outputCommands, boolean retained) {
+    private static String primary(String firstStageCommands, String outputCommands) {
         return NULLIFY + """
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM %s%s), (FROM %s)
             %s
-            | LIMIT 10%s
-            """.formatted(A, firstStageCommands, B, outputCommands, retained ? " | RETURN MATCHES" : "");
+            | LIMIT 10
+            """.formatted(A, firstStageCommands, B, outputCommands);
     }
 
     private static String firstPrimary(String expression) {
         return NULLIFY + """
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM %s), (FROM %s)
             | EVAL observed = %s | LIMIT 10
             """.formatted(A, B, expression);

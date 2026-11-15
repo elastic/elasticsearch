@@ -20,11 +20,10 @@ import java.util.Set;
 
 /** Admits bounded production work separately from configurations reserved for direct matcher tests. */
 final class SequenceLatestValidConfig {
-    static final int DEFAULT_MAX_CANDIDATES = 16;
+    static final int DEFAULT_MAX_CANDIDATES = 8;
     static final int MAX_CANDIDATE_EXPONENT = 20;
     static final int MAX_CANDIDATES = 1024;
     static final long SEARCH_STEP_LIMIT = 131072;
-    static final int CANCELLATION_CHECK_INTERVAL = 1024;
 
     private final OptionalInt maxCandidates;
     private final long searchStepLimit;
@@ -101,7 +100,13 @@ final class SequenceLatestValidConfig {
         int maximum = maximumCandidates(stages);
         if (candidates < 1 || candidates > maximum) {
             throw new IllegalArgumentException(
-                "SEQUENCE max_candidates [" + candidates + "] for [" + stages + "] stages must be between [1] and [" + maximum + "]"
+                "SEQUENCE sequence_max_candidates pragma ["
+                    + candidates
+                    + "] for ["
+                    + stages
+                    + "] stages must be between [1] and ["
+                    + maximum
+                    + "]"
             );
         }
     }
@@ -115,6 +120,22 @@ final class SequenceLatestValidConfig {
             throw new IllegalArgumentException("sequence mandatory demand layouts must align with stages");
         }
         validateCandidateBound(maxCandidates.getAsInt(), stages);
+    }
+
+    /** Profile predicate work without changing limits, demand layout, or test-only provenance. */
+    SequenceLatestValidConfig withProfiledPredicates(SequenceRuntimeProfiler profiler) {
+        List<PredicateGroup> wrapped = new ArrayList<>(groups.size());
+        for (PredicateGroup group : groups) {
+            wrapped.add(new PredicateGroup(group.ownStage(), group.referencedStages(), values -> {
+                long started = profiler.start();
+                try {
+                    return group.predicate().test(values);
+                } finally {
+                    profiler.finish(SequenceRuntimeProfiler.Phase.CONDITION, started);
+                }
+            }));
+        }
+        return new SequenceLatestValidConfig(maxCandidates, searchStepLimit, testOnly, mandatoryDemands, wrapped);
     }
 
     long searchStepLimit() {

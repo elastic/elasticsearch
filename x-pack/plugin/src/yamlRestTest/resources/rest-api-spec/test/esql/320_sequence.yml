@@ -50,7 +50,7 @@ setup:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-http-a METADATA _id, _index, _version),
             (FROM sequence-http-b METADATA _id)
             | EVAL supporting_id = MEMBER(2, _id)
@@ -72,7 +72,7 @@ setup:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-http-a METADATA _id), (FROM sequence-http-b METADATA _id)
             | WHERE _id == "A1"
             | EVAL supporting_id = MEMBER(2, _id)
@@ -85,7 +85,7 @@ setup:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"2nanos"} PRIMARY 1
+            SEQUENCE BY key WITHIN 2nanos PRIMARY 1
             (FROM sequence-http-a | WHERE payload == "one"), (FROM sequence-http-b)
             | EVAL supporting_payload = MEMBER(2, payload)
             | KEEP key, payload, supporting_payload | LIMIT 1
@@ -94,7 +94,7 @@ setup:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"1nanos"} PRIMARY 1
+            SEQUENCE BY key WITHIN 1nanos PRIMARY 1
             (FROM sequence-http-a | WHERE payload == "one"), (FROM sequence-http-b)
             | KEEP key | LIMIT 1
   - length: { values: 0 }

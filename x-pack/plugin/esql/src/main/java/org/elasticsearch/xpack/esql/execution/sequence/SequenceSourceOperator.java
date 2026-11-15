@@ -10,11 +10,7 @@ package org.elasticsearch.xpack.esql.execution.sequence;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
@@ -35,8 +31,6 @@ import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -56,13 +50,11 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -71,10 +63,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ReceiveTimeoutTransportException;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -101,7 +90,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
@@ -119,18 +107,15 @@ import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
  * preserving selected expansion rows, computed fields and original metadata.
  * <p>
  * Matching and stage CPU work run on the owning driver. Callbacks hand off one completion and wake the driver.
- * Snapshot renewal runs independently of output pulls, but its callbacks can wait for driver work on the shared monitor.
- * Closing waits for in-flight ownership through DriverContext and closes even a PIT returned after early termination.
+ * Each search extends a fixed idle snapshot lease; a query that remains idle beyond it can lose its snapshot.
+ * Closing waits for in-flight ownership through DriverContext and dispatches a close even for a late PIT open.
  * Searches use the caller's credentials and a fixed PIT shard enumeration.
  * Retained output reuses values from its authorized selection read; each later payload read authorizes normally.
  * A fully retained result does not create a new search solely to reauthorize a value already read.
  */
 public final class SequenceSourceOperator extends SourceOperator {
     private static final Logger logger = LogManager.getLogger(SequenceSourceOperator.class);
-    private static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueMinutes(2);
-    private static final int MAX_PIT_CLOSE_ATTEMPTS = 3;
-    private static final TimeValue PIT_CLOSE_RETRY_DELAY = TimeValue.timeValueMillis(100);
-    private static final TimeValue PIT_CLOSE_ATTEMPT_TIMEOUT = TimeValue.timeValueSeconds(5);
+    private static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueMinutes(30);
     private static final int SEARCH_PAGE_SIZE = 256;
     private static final int PAYLOAD_BATCH_SIZE = 64;
     private static final String BREAKER_LABEL = "esql_sequence_reader";
@@ -156,47 +141,36 @@ public final class SequenceSourceOperator extends SourceOperator {
         SourceOperatorFactory create(SequenceExec sequence, StagePlanner planner, @Nullable AnalysisRegistry analysisRegistry);
     }
 
-    /** Selects bounded native compilation while keeping today's request factory and record equality unchanged. */
+    /** Every source compiles the same bounded matcher while borrowing the planner's native registry. */
     public static FactoryProvider sourceFactoryProvider(BiFunction<SequenceExec, StagePlanner, Factory> dependencies) {
         Objects.requireNonNull(dependencies);
-        return (plan, stagePlanner, analysisRegistry) -> {
-            Sequence sequence = plan.sequence();
-            return switch (sequence.pairing()) {
-                case TODAY -> {
-                    if (sequence.hasConditions()) {
-                        throw new IllegalArgumentException("SEQUENCE pairing [today] cannot evaluate in-stage MEMBER conditions");
-                    }
-                    yield dependencies.apply(plan, stagePlanner);
-                }
-                case LATEST_VALID -> {
-                    int maximum = SequenceLatestValidConfig.maximumCandidates(sequence.children().size());
-                    int candidates = sequence.maxCandidates() == null
-                        ? Math.min(SequenceLatestValidConfig.DEFAULT_MAX_CANDIDATES, maximum)
-                        : sequence.maxCandidates();
-                    validateConfiguredBound(sequence, candidates);
-                    yield new LatestValidFactory(dependencies.apply(plan, stagePlanner), candidates, analysisRegistry);
-                }
-            };
-        };
+        return (plan, stagePlanner, analysisRegistry) -> new PreparedFactory(dependencies.apply(plan, stagePlanner), analysisRegistry);
     }
 
-    /** The registry belongs to the node; only the per-source compiler and its evaluator resources transfer to the source. */
-    private record LatestValidFactory(Factory factory, int maxCandidates, @Nullable AnalysisRegistry analysisRegistry)
-        implements
-            SourceOperatorFactory {
-        private LatestValidFactory {
+    /** The registry belongs to the node; per-source evaluators transfer to their owning source. */
+    private record PreparedFactory(Factory factory, @Nullable AnalysisRegistry analysisRegistry) implements SourceOperatorFactory {
+        private PreparedFactory {
             Objects.requireNonNull(factory);
         }
 
         @Override
         public SourceOperator get(DriverContext context) {
-            return factory.getWithConditions(context, maxCandidates, analysisRegistry);
+            return factory.getWithConditions(context, configuredBound(factory), analysisRegistry);
         }
 
         @Override
         public String describe() {
             return factory.describe();
         }
+    }
+
+    private static int configuredBound(Factory factory) {
+        int stages = factory.plan.sequence().children().size();
+        int bound = factory.configuration.pragmas()
+            .sequenceMaxCandidates()
+            .orElse(Math.min(SequenceLatestValidConfig.DEFAULT_MAX_CANDIDATES, SequenceLatestValidConfig.maximumCandidates(stages)));
+        SequenceLatestValidConfig.validateCandidateBound(bound, stages);
+        return bound;
     }
 
     /** Request-scoped dependencies; each driver gets a separate matcher, snapshot and cursor set. */
@@ -213,7 +187,7 @@ public final class SequenceSourceOperator extends SourceOperator {
     ) implements SourceOperatorFactory {
         @Override
         public SourceOperator get(DriverContext context) {
-            return new SequenceSourceOperator(this, context);
+            return getWithConditions(context, configuredBound(this), null);
         }
 
         /** Admits prepared production state without adding components to the public request factory record. */
@@ -229,30 +203,35 @@ public final class SequenceSourceOperator extends SourceOperator {
 
         /** Compiles conditions per source and transfers evaluator ownership after successful source construction. */
         SourceOperator getWithConditions(DriverContext context, int maxCandidates, @Nullable AnalysisRegistry analysisRegistry) {
-            validateConfiguredBound(plan.sequence(), maxCandidates);
+            SequenceLatestValidConfig.validateCandidateBound(maxCandidates, plan.sequence().children().size());
+            HeldAccounting accounting = heldAccounting(this, context);
             var conditions = SequenceConditionCompiler.compile(
                 plan.sequence(),
                 maxCandidates,
                 configuration.newFoldContext(),
                 context,
-                analysisRegistry
+                analysisRegistry,
+                accounting == null ? null : accounting.breaker()
             );
-            boolean success = false;
             try {
-                var source = new SequenceSourceOperator(
+                return new SequenceSourceOperator(
                     this,
                     context,
                     DEFAULT_KEEP_ALIVE,
                     ArrayUtil.MAX_ARRAY_LENGTH,
                     conditions.config(),
-                    conditions
+                    conditions,
+                    accounting
                 );
-                success = true;
-                return source;
-            } finally {
-                if (success == false) {
-                    Releasables.closeWhileHandlingException(conditions);
+            } catch (RuntimeException | Error e) {
+                try {
+                    conditions.close();
+                } catch (RuntimeException | Error cleanup) {
+                    if (cleanup != e) {
+                        e.addSuppressed(cleanup);
+                    }
                 }
+                throw e;
             }
         }
 
@@ -262,18 +241,36 @@ public final class SequenceSourceOperator extends SourceOperator {
         }
     }
 
+    /** One timeline starts before compiler preparation and survives asynchronous Source cleanup. */
+    private static HeldAccounting heldAccounting(Factory factory, DriverContext context) {
+        if (factory.configuration.profile() == false) {
+            return null;
+        }
+        SequenceHeldMemory memory = new SequenceHeldMemory();
+        return new HeldAccounting(
+            memory,
+            new SequenceHeldBlocks(memory),
+            memory.newScope().breaker(LocalCircuitBreaker.forAsyncIo(context.breaker()))
+        );
+    }
+
+    /** Carries one Source scope across compiler preparation and later construction without wrapping it twice. */
+    private record HeldAccounting(SequenceHeldMemory memory, SequenceHeldBlocks blocks, CircuitBreaker breaker) {}
+
     private final Factory factory;
     private final DriverContext context;
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
     private final Sequence sequence;
     private final SequencePairing matcher;
+    private final SequenceRuntimeProfiler profiler;
+    private final @Nullable SequenceHeldMemory heldMemory;
+    private final @Nullable SequenceHeldBlocks heldBlocks;
     private final Releasable conditionResources;
     private final SequenceExecutionInfo executionInfo;
     private final TimeValue keepAlive;
     private final int retainedHandleCapacity;
-    private final int latestValidBound;
-    private final TimeValue renewalInterval;
+    private final int candidateBound;
     private final Warnings.Budget stageWarningsBudget = new Warnings.Budget();
     private final List<Cursor> cursors = new ArrayList<>();
     private final List<SequenceStageInput> payload = new ArrayList<>();
@@ -282,11 +279,6 @@ public final class SequenceSourceOperator extends SourceOperator {
     private boolean pending;
     private boolean finished;
     private boolean closed;
-    private boolean closingPit;
-    private int pitCloseAttempts;
-    private boolean renewalPending;
-    private Scheduler.ScheduledCancellable renewalTask;
-    private long renewalGeneration;
     private boolean asyncRegistered;
     private boolean asyncReleased;
     private BytesReference pit;
@@ -345,15 +337,40 @@ public final class SequenceSourceOperator extends SourceOperator {
         @Nullable SequenceLatestValidConfig latestValid,
         @Nullable Releasable conditionResources
     ) {
-        if (keepAlive.millis() < 3) {
-            throw new IllegalArgumentException("SEQUENCE snapshot keep-alive must be at least three milliseconds");
+        this(factory, context, keepAlive, retainedHandleCapacity, latestValid, conditionResources, heldAccounting(factory, context));
+    }
+
+    /** Prepared production sources share compiler, matcher, serialized packets and block leases on one held estimate. */
+    private SequenceSourceOperator(
+        Factory factory,
+        DriverContext context,
+        TimeValue keepAlive,
+        int retainedHandleCapacity,
+        @Nullable SequenceLatestValidConfig latestValid,
+        @Nullable Releasable conditionResources,
+        @Nullable HeldAccounting accounting
+    ) {
+        if (keepAlive.millis() < 1) {
+            throw new IllegalArgumentException("SEQUENCE snapshot keep-alive must be positive");
         }
         sequence = factory.plan.sequence();
-        if (latestValid != null) {
-            latestValid.validateForProduction(sequence.children().size());
-            validateConfiguredBound(sequence, latestValid.maxCandidates().orElseThrow());
+        profiler = new SequenceRuntimeProfiler(factory.configuration.profile(), sequence.children().size());
+        if (latestValid == null) {
+            if (sequence.hasConditions()) {
+                throw new IllegalStateException("SEQUENCE conditions require a prepared production configuration");
+            }
+            latestValid = SequenceLatestValidConfig.bounded(
+                configuredBound(factory),
+                java.util.Collections.nCopies(sequence.children().size(), List.of()),
+                List.of()
+            );
         }
-        latestValidBound = latestValid == null ? 0 : latestValid.maxCandidates().orElseThrow();
+        latestValid.validateForProduction(sequence.children().size());
+        SequenceLatestValidConfig.validateCandidateBound(latestValid.maxCandidates().orElseThrow(), sequence.children().size());
+        candidateBound = latestValid.maxCandidates().orElseThrow();
+        if (factory.configuration.profile()) {
+            latestValid = latestValid.withProfiledPredicates(profiler);
+        }
         this.factory = factory;
         this.conditionResources = conditionResources;
         this.context = context;
@@ -362,12 +379,10 @@ public final class SequenceSourceOperator extends SourceOperator {
             throw new IllegalArgumentException("invalid SEQUENCE retained handle capacity");
         }
         this.retainedHandleCapacity = retainedHandleCapacity;
-        renewalInterval = TimeValue.timeValueMillis(keepAlive.millis() / 3);
         blockFactory = context.blockFactory().parent();
-        breaker = LocalCircuitBreaker.forAsyncIo(context.breaker());
-        if (latestValid == null && (sequence.pairing() == Sequence.Pairing.LATEST_VALID || sequence.hasConditions())) {
-            throw new IllegalStateException("SEQUENCE latest_valid requires a prepared production configuration");
-        }
+        heldMemory = accounting == null ? null : accounting.memory();
+        heldBlocks = accounting == null ? null : accounting.blocks();
+        breaker = accounting == null ? LocalCircuitBreaker.forAsyncIo(context.breaker()) : accounting.breaker();
         executionInfo = new SequenceExecutionInfo(factory.executionInfo());
         long[] maxGapNanos = null;
         if (sequence.hasLinkTimeLimits()) {
@@ -376,65 +391,57 @@ public final class SequenceSourceOperator extends SourceOperator {
                 maxGapNanos[stage] = ((SequenceStage) sequence.children().get(stage)).maxGapNanos();
             }
         }
-        matcher = latestValid == null
-            ? SequencePairing.legacy(
-                sequence.children().size(),
-                new TimeValue(sequence.maxSpanNanos(), TimeUnit.NANOSECONDS),
-                breaker,
-                () -> factory.task != null && factory.task.isCancelled(),
-                SequenceKeyCodec::compare,
-                maxGapNanos
-            )
-            : new SequenceLatestValidMatcher(
-                sequence.children().size(),
-                new TimeValue(sequence.maxSpanNanos(), TimeUnit.NANOSECONDS),
-                breaker,
-                () -> factory.task != null && factory.task.isCancelled(),
-                SequenceKeyCodec::compare,
-                maxGapNanos,
-                latestValid
-            );
-        boolean success = false;
+        matcher = new SequenceLatestValidMatcher(
+            sequence.children().size(),
+            new TimeValue(sequence.maxSpanNanos(), TimeUnit.NANOSECONDS),
+            breaker,
+            () -> factory.task != null && factory.task.isCancelled(),
+            SequenceKeyCodec::compare,
+            maxGapNanos,
+            latestValid
+        );
         try {
             reserve(1024L + 256L * sequence.children().size() + 16L * sequence.output().size());
             for (int stage = 0; stage < sequence.children().size(); stage++) {
                 var logical = (SequenceStage) sequence.children().get(stage);
                 List<Attribute> payloads = new ArrayList<>();
                 for (int column = 0; column < sequence.sourceAttributes().size(); column++) {
-                    if (sequence.sourceStages().get(column) == stage) {
+                    if (sequence.sourceStages().get(column) == stage
+                        && Sequence.isProvenanceAttribute(sequence.sourceAttributes().get(column)) == false) {
                         payloads.add(sequence.sourceAttributes().get(column));
                     }
                 }
-                List<SequenceLatestValidConfig.ValueDemand> demands = latestValid == null
-                    ? List.of()
-                    : latestValid.mandatoryDemands().get(stage);
-                if (latestValid != null) {
-                    // Includes the canonical demand projection and its temporary identity set/list overlap.
-                    reserve(256L + 128L * demands.size());
-                }
-                var selection = latestValid == null
-                    ? SequenceStageInput.selection(logical, payloads, this::reserve, stage + 1)
-                    : SequenceStageInput.selection(logical, payloads, demands, this::reserve, stage + 1);
+                List<SequenceLatestValidConfig.ValueDemand> demands = latestValid.mandatoryDemands().get(stage);
+                // Includes the canonical demand projection and its temporary identity set/list overlap.
+                reserve(256L + 128L * demands.size());
+                var selection = SequenceStageInput.selection(logical, payloads, demands, this::reserve, stage + 1);
                 payload.add(new SequenceStageInput(logical, payloads, stage + 1));
                 for (int branch = 0; branch < selection.sourceCount(); branch++) {
                     reserve(1024);
                     cursors.add(new Cursor(stage, branch, selection, logical.keys(), demands));
                 }
             }
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.closeWhileHandlingException(this);
+        } catch (RuntimeException | Error e) {
+            try {
+                close();
+            } catch (RuntimeException | Error cleanup) {
+                if (cleanup != e) {
+                    e.addSuppressed(cleanup);
+                }
             }
+            throw e;
         }
     }
 
-    private static void validateConfiguredBound(Sequence sequence, int maxCandidates) {
-        SequenceLatestValidConfig.validateCandidateBound(maxCandidates, sequence.children().size());
-        if (sequence.maxCandidates() != null) {
-            SequenceLatestValidConfig.validateCandidateBound(sequence.maxCandidates(), sequence.children().size());
-            if (sequence.maxCandidates() != maxCandidates) {
-                throw new IllegalArgumentException("SEQUENCE max_candidates configuration does not match its plan");
+    /** Failure cleanup attempts every owner without replacing the operation's primary exception. */
+    private static void closeOnFailure(Throwable failure, Releasable... resources) {
+        for (Releasable resource : resources) {
+            try {
+                Releasables.close(resource);
+            } catch (RuntimeException | Error cleanup) {
+                if (cleanup != failure) {
+                    failure.addSuppressed(cleanup);
+                }
             }
         }
     }
@@ -521,7 +528,15 @@ public final class SequenceSourceOperator extends SourceOperator {
                 Candidate row = next.rows.set(next.offset++, null);
                 SequenceMatch selected;
                 try (row) {
-                    selected = matcher.match(next.stage, row.key.bytes(), row.ordinal, row.handle, row.takeValues());
+                    long started = profiler.start();
+                    try {
+                        selected = matcher.match(next.stage, row.key.bytes(), row.ordinal, row.handle, row.takeValues());
+                    } finally {
+                        profiler.finish(SequenceRuntimeProfiler.Phase.MATCHER, started);
+                        if (factory.configuration.profile()) {
+                            profiler.observeKeys(matcher.retainedKeys());
+                        }
+                    }
                     maxPendingCandidates = Math.max(maxPendingCandidates, matcher.retainedCandidates());
                 }
                 if (next.offset == next.rows.size()) {
@@ -560,8 +575,14 @@ public final class SequenceSourceOperator extends SourceOperator {
             throw e;
         } catch (Exception e) {
             recordFailure(e);
-            finish();
-            throw failure;
+            try {
+                finish();
+            } catch (RuntimeException | Error cleanup) {
+                if (cleanup != failure) {
+                    failure.addSuppressed(cleanup);
+                }
+            }
+            throw failure != null ? failure : asRuntime(e);
         }
     }
 
@@ -574,7 +595,7 @@ public final class SequenceSourceOperator extends SourceOperator {
                 return false;
             }
         }
-        // Legacy viability includes advanced prefixes; latest-valid viability counts unused starts only.
+        // Only unused first-stage rows can keep another match possible.
         return matcher.possibleMatch() == false;
     }
 
@@ -639,7 +660,13 @@ public final class SequenceSourceOperator extends SourceOperator {
     }
 
     private boolean needsPayload(int stage) {
-        return sequence.sourceStages().contains(stage);
+        for (int column = 0; column < sequence.sourceAttributes().size(); column++) {
+            if (sequence.sourceStages().get(column) == stage
+                && Sequence.isProvenanceAttribute(sequence.sourceAttributes().get(column)) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void prepareSnapshot() {
@@ -699,7 +726,6 @@ public final class SequenceSourceOperator extends SourceOperator {
         ActionListener<OpenPointInTimeResponse> listener = ActionListener.notifyOnce(ActionListener.wrap(response -> {
             synchronized (this) {
                 pit = response.getPointInTimeId();
-                schedulePitRenewal();
             }
             complete(() -> {
                 executionInfo.onOpen(response);
@@ -829,7 +855,7 @@ public final class SequenceSourceOperator extends SourceOperator {
                     hits,
                     blockFactory
                 );
-                try (raw) {
+                try (raw; var held = hold(raw)) {
                     runStage(cursor.input, cursor.branch, raw, pages -> {
                         try {
                             candidates(cursor, identities, pages);
@@ -846,6 +872,15 @@ public final class SequenceSourceOperator extends SourceOperator {
     }
 
     private void candidates(Cursor cursor, List<InputRow> identities, List<Page> pages) {
+        long started = profiler.start();
+        try {
+            buildCandidates(cursor, identities, pages);
+        } finally {
+            profiler.finish(SequenceRuntimeProfiler.Phase.CANDIDATE_BUILD, started);
+        }
+    }
+
+    private void buildCandidates(Cursor cursor, List<InputRow> identities, List<Page> pages) {
         long countBytes = 32L + Integer.BYTES * (long) identities.size();
         reserve(countBytes);
         try {
@@ -861,7 +896,6 @@ public final class SequenceSourceOperator extends SourceOperator {
                     if (key == null) {
                         continue;
                     }
-                    boolean success = false;
                     InputRow identity = identities.get(source);
                     long bytes = 0;
                     SequenceCandidateValues values = null;
@@ -873,7 +907,8 @@ public final class SequenceSourceOperator extends SourceOperator {
                                 cursor.demands,
                                 cursor.mandatoryChannels(),
                                 blockFactory,
-                                breaker
+                                breaker,
+                                heldBlocks
                             );
                         }
                         EncodedHandle encoded = handle(cursor, expansion, identity, page, row);
@@ -883,25 +918,32 @@ public final class SequenceSourceOperator extends SourceOperator {
                         bytes += admission;
                         cursor.add(new Candidate(key, identity.ordinal, encoded.value, bytes, values));
                         values = null;
-                        success = true;
-                    } finally {
-                        if (success == false) {
-                            try {
-                                Releasables.close(values, key);
-                            } finally {
-                                release(bytes);
-                            }
-                        }
+                    } catch (RuntimeException | Error e) {
+                        long failedBytes = bytes;
+                        closeOnFailure(e, values, key, () -> release(failedBytes));
+                        throw e;
                     }
+                    profiler.addCandidatesAdmitted(cursor.stage, 1);
                 }
             }
             cursor.rows.sort(CANDIDATE_ORDER);
-        } finally {
-            release(countBytes);
+        } catch (RuntimeException | Error e) {
+            closeOnFailure(e, () -> release(countBytes));
+            throw e;
         }
+        release(countBytes);
     }
 
     private Page materialize() throws IOException {
+        long started = profiler.start();
+        try {
+            return buildResult();
+        } finally {
+            profiler.finish(SequenceRuntimeProfiler.Phase.RESULT_BUILD, started);
+        }
+    }
+
+    private Page buildResult() throws IOException {
         while (batch.stage < payload.size()) {
             if (needsPayload(batch.stage) == false) {
                 batch.stage++;
@@ -933,6 +975,7 @@ public final class SequenceSourceOperator extends SourceOperator {
         }
         int count = batch.matches.size();
         Block[] blocks = new Block[sequence.output().size()];
+        SequenceHeldBlocks.Owner outputHeld = heldBlocks == null ? null : heldBlocks.newOwner(blocks);
         boolean transferred = false;
         try {
             for (int column = 0; column < blocks.length; column++) {
@@ -941,6 +984,19 @@ public final class SequenceSourceOperator extends SourceOperator {
                 ) {
                     for (int row = 0; row < count; row++) {
                         context.checkForEarlyTermination();
+                        if (Sequence.isProvenanceAttribute(sequence.sourceAttributes().get(column))) {
+                            SequenceHeldBlocks.Owner[] provenanceHeld = heldBlocks == null ? null : new SequenceHeldBlocks.Owner[1];
+                            try {
+                                try (Block value = provenance(batch.matches.get(row), provenanceHeld)) {
+                                    builder.copyFrom(value, 0, 1);
+                                }
+                            } finally {
+                                if (provenanceHeld != null) {
+                                    Releasables.close(provenanceHeld[0]);
+                                }
+                            }
+                            continue;
+                        }
                         Block value = batch.cells[row][column];
                         if (value == null) {
                             throw new IllegalStateException("SEQUENCE selected payload is unavailable during payload replay");
@@ -948,6 +1004,9 @@ public final class SequenceSourceOperator extends SourceOperator {
                         builder.copyFrom(value, 0, 1);
                     }
                     blocks[column] = builder.build();
+                    if (outputHeld != null) {
+                        outputHeld.claimNext();
+                    }
                 }
             }
             Page page = new Page(count, blocks);
@@ -957,14 +1016,51 @@ public final class SequenceSourceOperator extends SourceOperator {
             transferred = true;
             return page;
         } finally {
-            if (transferred == false) {
-                Releasables.close(blocks);
+            try {
+                if (transferred == false) {
+                    Releasables.close(blocks);
+                }
+            } finally {
+                // A successful Page is now downstream-owned; remove only Source attribution, never its real reservation.
+                Releasables.close(outputHeld);
             }
         }
     }
 
+    /** Provenance reads only captured identities, independently of ordinary columns and released predicate values. */
+    private Block provenance(SequenceMatch match, @Nullable SequenceHeldBlocks.Owner[] held) throws IOException {
+        long admission = 64L;
+        for (BytesRef handle : match.handles()) {
+            admission = Math.addExact(admission, handleIdentityBytes(handle));
+        }
+        reserve(admission); // Decoded strings and escaped JSON coexist until the output builder copies each entry.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(1)) {
+            builder.beginPositionEntry();
+            for (int stage = 0; stage < match.handles().size(); stage++) {
+                Handle handle = readHandle(match.handles().get(stage));
+                try (var json = JsonXContent.contentBuilder()) {
+                    json.startObject().field("stage", stage + 1).field("index", handle.index).field("id", handle.id).endObject();
+                    builder.appendBytesRef(BytesReference.bytes(json).toBytesRef());
+                }
+            }
+            builder.endPositionEntry();
+            Block result = builder.build();
+            try {
+                if (held != null) {
+                    held[0] = hold(result);
+                }
+                return result;
+            } catch (RuntimeException | Error e) {
+                closeOnFailure(e, result);
+                throw e;
+            }
+        } finally {
+            release(admission);
+        }
+    }
+
     private void runStage(SequenceStageInput input, int branch, Page raw, Consumer<List<Page>> consume, Runnable discard) {
-        var binding = input.bind(branch, raw, blockFactory);
+        var binding = input.bind(branch, raw, blockFactory, heldBlocks);
         var collected = new StagePages();
         List<Page> pages = collected.pages;
         List<Driver> drivers;
@@ -1011,13 +1107,17 @@ public final class SequenceSourceOperator extends SourceOperator {
                 failed(e);
             }
         }));
+        long started = profiler.start();
+        ActionListener<Void> timed = ActionListener.notifyOnce(
+            ActionListener.runBefore(listener, () -> profiler.finish(SequenceRuntimeProfiler.Phase.STAGE_RUN, started))
+        );
         try {
-            factory.stageExecutor.execute(drivers, listener);
+            factory.stageExecutor.execute(drivers, timed);
         } catch (Exception e) {
             try {
                 Releasables.close(drivers);
             } finally {
-                listener.onFailure(e);
+                timed.onFailure(e);
             }
         }
     }
@@ -1099,11 +1199,11 @@ public final class SequenceSourceOperator extends SourceOperator {
         source.pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(keepAlive));
         begin();
         ActionListener<SearchResponse> listener = ActionListener.notifyOnce(ActionListener.wrap(response -> {
+            profiler.addRowsFetched(stage, response.getHits().getHits().length);
             synchronized (this) {
                 if (response.pointInTimeId() != null) {
                     pit = response.pointInTimeId();
                 }
-                schedulePitRenewal();
             }
             long admitted;
             try {
@@ -1163,7 +1263,15 @@ public final class SequenceSourceOperator extends SourceOperator {
                 )
             );
             request.setPreFilterShardSize(Integer.MAX_VALUE);
-            factory.client.search(request, listener);
+            long started = profiler.start();
+            ActionListener<SearchResponse> timed = ActionListener.notifyOnce(
+                ActionListener.runBefore(listener, () -> profiler.finish(SequenceRuntimeProfiler.Phase.SEARCH_WAIT, started))
+            );
+            try {
+                factory.client.search(request, timed);
+            } catch (Exception e) {
+                timed.onFailure(e);
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -1235,234 +1343,35 @@ public final class SequenceSourceOperator extends SourceOperator {
         }
     }
 
-    /**
-     * Stage drivers and downstream exchanges may remain active for longer than the snapshot's idle lease. Renew
-     * independently of output pulls, including while a slow search leaves its already-completed shards idle.
-     * Only one renewal may be in flight, and terminal cleanup waits for its latest PIT token before closing it.
-     */
-    private void schedulePitRenewal() {
-        cancelPitRenewal();
-        if (closed || finished || failure != null || pit == null || renewalPending) {
-            return;
-        }
-        var threadPool = factory.client.threadPool();
-        try (var ignored = factory.requestContext.get()) {
-            long generation = renewalGeneration;
-            renewalTask = threadPool.schedule(() -> renewPit(generation), renewalInterval, threadPool.generic());
-        }
-    }
-
-    private void cancelPitRenewal() {
-        renewalGeneration++;
-        if (renewalTask != null) {
-            renewalTask.cancel();
-            renewalTask = null;
-        }
-    }
-
-    private void renewPit(long generation) {
-        var listener = ActionListener.notifyOnce(ActionListener.<SearchResponse>wrap(response -> {
-            Exception error = response.isTimedOut() || response.getFailedShards() != 0
-                ? new IllegalStateException("SEQUENCE requires a complete snapshot renewal response")
-                : null;
-            pitRenewed(response.pointInTimeId(), error);
-        }, e -> pitRenewed(null, e)));
-        try {
-            SearchRequest request;
-            synchronized (this) {
-                // Cancellation cannot retract a command already queued on GENERIC. Invalidate that command before
-                // it can replace the current scheduled handle or start another renewal.
-                if (generation != renewalGeneration) {
-                    return;
-                }
-                renewalTask = null;
-                if (closed || finished || failure != null || pit == null || renewalPending) {
-                    return;
-                }
-                renewalPending = true;
-                // Match-all forces acquisition of the reader rather than a match-none can-match shortcut, which
-                // may skip recreating a missing retryable reader. With size zero and total hits disabled, the
-                // collector terminates before visiting documents and no document fields are fetched.
-                var source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                    .size(0)
-                    .trackTotalHits(false)
-                    .fetchSource(false)
-                    .pointInTimeBuilder(new PointInTimeBuilder(pit).setKeepAlive(keepAlive));
-                request = new SearchRequest(factory.configuration.absoluteStartedTimeInMillis()).source(source)
-                    .allowPartialSearchResults(false);
-                // Documentless renewal carries the snapshot-opening union; candidate/payload searches use narrower
-                // stage authorization scopes. Retain every PIT shard position and the singleton node requests.
-                request.setPointInTimeAuthorization(pitAuthorizationIndices, pitAuthorizationIndices, new MatchAllQueryBuilder());
-                request.setPreFilterShardSize(Integer.MAX_VALUE);
-            }
-            try (var ignored = factory.requestContext.get()) {
-                if (factory.task != null) {
-                    factory.task.ensureNotCancelled();
-                }
-                factory.client.search(request, listener);
-            }
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    private void pitRenewed(@Nullable BytesReference token, @Nullable Exception error) {
-        SubscribableListener<Void> notify = null;
-        synchronized (this) {
-            renewalPending = false;
-            if (token != null) {
-                pit = token;
-            }
-            if (error != null) {
-                recordFailure(error);
-            }
-            try {
-                schedulePitRenewal();
-            } catch (Exception e) {
-                recordFailure(e);
-            }
-            if (closed || finished || failure != null) {
-                closePit();
-            }
-            if (failure != null) {
-                notify = wakeup;
-            }
-        }
-        // A renewal failure must wake a driver waiting for unrelated stage/search work without stealing that
-        // work's completion slot or releasing its ownership early.
-        if (notify != null) {
-            notify.onResponse(null);
-        }
-    }
-
-    /** Completion callbacks are detached so a timed-out request cannot retain the complete query owner. */
-    private record PitCloseCompletion(ActionListener<ClosePointInTimeResponse> listener, Consumer<Exception> timeoutRejected) {}
-
-    /** One close attempt owns its deadline and ignores late responses, failures and executor rejection. */
-    private static final class PitCloseAttempt extends AbstractRunnable implements ActionListener<ClosePointInTimeResponse> {
-        private final AtomicReference<PitCloseCompletion> completion;
-        private volatile Scheduler.ScheduledCancellable timeout;
-
-        private PitCloseAttempt(ActionListener<ClosePointInTimeResponse> listener, Consumer<Exception> timeoutRejected) {
-            completion = new AtomicReference<>(new PitCloseCompletion(listener, timeoutRejected));
-        }
-
-        private void setTimeout(Scheduler.ScheduledCancellable value) {
-            timeout = value;
-            if (completion.get() == null) {
-                // A deadline or rejection can complete the attempt before schedule returns its handle.
-                timeout = null;
-                value.cancel();
-            }
-        }
-
-        private boolean isDone() {
-            return completion.get() == null;
-        }
-
-        private PitCloseCompletion finish() {
-            var result = completion.getAndSet(null);
-            if (result != null) {
-                var currentTimeout = timeout;
-                timeout = null;
-                if (currentTimeout != null) {
-                    currentTimeout.cancel();
-                }
-            }
-            return result;
-        }
+    /** Cleanup callbacks are independent of the query so even an unanswered close cannot retain its resources. */
+    private static final class PitCloseListener implements ActionListener<ClosePointInTimeResponse> {
+        private static final PitCloseListener INSTANCE = new PitCloseListener();
 
         @Override
         public void onResponse(ClosePointInTimeResponse response) {
-            var result = finish();
-            if (result != null) {
-                result.listener().onResponse(response);
+            if (response.isSucceeded() == false) {
+                logger.warn(
+                    "Could not confirm complete PIT cleanup for SEQUENCE query; reason [{}], exception type [{}]",
+                    "incomplete_response",
+                    "none"
+                );
             }
         }
 
         @Override
         public void onFailure(Exception failure) {
-            var result = finish();
-            if (result != null) {
-                result.listener().onFailure(failure);
-            }
+            // A bounded type name is useful for diagnostics; the token, message and throwable may contain private data.
+            String type = failure.getClass().getSimpleName();
+            logger.warn(
+                "Could not confirm complete PIT cleanup for SEQUENCE query; reason [{}], exception type [{}]",
+                "close_failure",
+                type.length() > 128 ? type.substring(0, 128) : type
+            );
         }
-
-        @Override
-        protected void doRun() {
-            onFailure(new ElasticsearchTimeoutException("SEQUENCE PIT close attempt timed out"));
-        }
-
-        @Override
-        public void onRejection(Exception rejection) {
-            var result = finish();
-            if (result != null) {
-                result.timeoutRejected().accept(rejection);
-            }
-        }
-    }
-
-    /** Logs carry only fixed reason codes and bounded type names, never exception messages or the PIT token. */
-    private record PitCloseFailure(String reason, String exceptionType, boolean retryable) {}
-
-    private static PitCloseFailure pitCloseFailure(String reason, Throwable failure, boolean retryable) {
-        String type = failure == null ? "none" : failure.getClass().getSimpleName();
-        return new PitCloseFailure(reason, type.length() > 128 ? type.substring(0, 128) : type, retryable);
-    }
-
-    private static PitCloseFailure pitCloseFailure(Exception failure) {
-        if (failure == null) {
-            // The close response does not expose per-node causes; it also counts only newly freed contexts.
-            return pitCloseFailure("incomplete_response", null, true);
-        }
-        // unwrapCause can log the original exception for deep wrapper chains. This typed scan never logs it.
-        Throwable permanent = ExceptionsHelper.unwrap(
-            failure,
-            ElasticsearchSecurityException.class,
-            ActionRequestValidationException.class,
-            IllegalArgumentException.class,
-            IllegalStateException.class,
-            TaskCancelledException.class,
-            NodeClosedException.class
-        );
-        if (permanent != null) {
-            String reason;
-            if (permanent instanceof ElasticsearchSecurityException) {
-                reason = "authorization_failure";
-            } else if (permanent instanceof TaskCancelledException) {
-                reason = "cancelled";
-            } else if (permanent instanceof NodeClosedException) {
-                reason = "node_closed";
-            } else if (permanent instanceof IllegalStateException) {
-                reason = "invalid_state";
-            } else {
-                reason = "invalid_request";
-            }
-            return pitCloseFailure(reason, permanent, false);
-        }
-        Throwable rejected = ExceptionsHelper.unwrap(failure, EsRejectedExecutionException.class);
-        if (rejected instanceof EsRejectedExecutionException rejection && rejection.isExecutorShutdown()) {
-            return pitCloseFailure("executor_shutdown", rejected, false);
-        }
-        Throwable transientFailure = ExceptionsHelper.unwrap(
-            failure,
-            ConnectTransportException.class,
-            ReceiveTimeoutTransportException.class,
-            ElasticsearchTimeoutException.class,
-            EsRejectedExecutionException.class
-        );
-        if (transientFailure != null) {
-            String reason = transientFailure instanceof ConnectTransportException ? "connection_failure"
-                : transientFailure instanceof EsRejectedExecutionException ? "executor_rejection"
-                : "timeout";
-            return pitCloseFailure(reason, transientFailure, true);
-        }
-        return pitCloseFailure("unclassified_failure", failure, false);
     }
 
     private void closePit() {
-        cancelPitRenewal();
-        if (pending || renewalPending || closingPit) {
+        if (pending) {
             return;
         }
         if (pit == null) {
@@ -1470,103 +1379,23 @@ public final class SequenceSourceOperator extends SourceOperator {
             return;
         }
         BytesReference token = pit;
-        closingPit = true;
-        pitCloseAttempts++;
-        var attempt = new PitCloseAttempt(
-            ActionListener.wrap(response -> pitClosed(response.isSucceeded(), null), failure -> pitClosed(false, failure)),
-            failure -> pitCloseUnavailable("deadline_unavailable", failure)
-        );
-        try {
-            var threadPool = factory.cleanupClient.threadPool();
-            attempt.setTimeout(threadPool.schedule(attempt, PIT_CLOSE_ATTEMPT_TIMEOUT, threadPool.generic()));
-        } catch (Exception failure) {
-            attempt.onRejection(failure);
-            return;
-        }
-        if (attempt.isDone()) {
-            return;
-        }
-        try (var ignored = factory.requestContext.get()) {
-            // Cleanup must survive cancellation of the query's parent task, while retaining the same authorization.
-            // A timed-out attempt can still complete remotely; its detached callback must not complete a later attempt.
-            factory.cleanupClient.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(token), attempt);
-        } catch (Exception e) {
-            attempt.onFailure(e);
-        }
-    }
-
-    private synchronized void pitClosed(boolean succeeded, Exception failure) {
-        if (succeeded) {
-            finishPitClose();
-            return;
-        }
-        var description = pitCloseFailure(failure);
-        logger.debug(
-            "SEQUENCE PIT cleanup attempt [{}] failed; reason [{}], exception type [{}], retryable [{}]",
-            pitCloseAttempts,
-            description.reason(),
-            description.exceptionType(),
-            description.retryable()
-        );
-        if (description.retryable() == false || pitCloseAttempts >= MAX_PIT_CLOSE_ATTEMPTS) {
-            abandonPitClose(description);
-            return;
-        }
-        logger.debug("Retrying PIT cleanup after failed attempt [{}] of [{}]", pitCloseAttempts, MAX_PIT_CLOSE_ATTEMPTS);
-        // Keep the PIT and async ownership while the retry is queued. An AbstractRunnable also receives rejection
-        // after the timer dispatches to GENERIC; a plain lambda could otherwise lose its terminal callback.
-        var retry = new AbstractRunnable() {
-            @Override
-            protected void doRun() {
-                synchronized (SequenceSourceOperator.this) {
-                    closingPit = false;
-                    closePit();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                pitCloseUnavailable("retry_unavailable", e);
-            }
-        };
-        try {
-            var threadPool = factory.cleanupClient.threadPool();
-            threadPool.schedule(retry, PIT_CLOSE_RETRY_DELAY, threadPool.generic());
-        } catch (Exception e) {
-            retry.onFailure(e);
-        }
-    }
-
-    private synchronized void pitCloseUnavailable(String reason, Exception failure) {
-        abandonPitClose(pitCloseFailure(reason, failure, false));
-    }
-
-    private void abandonPitClose(PitCloseFailure failure) {
-        // A retried partial close can report false for contexts already freed by an earlier attempt. Preserve the
-        // original query outcome and report only that full cleanup could not be confirmed, without logging the ID.
-        logger.warn(
-            "Could not confirm complete PIT cleanup after [{}] attempts for SEQUENCE query; reason [{}], exception type [{}]",
-            pitCloseAttempts,
-            failure.reason(),
-            failure.exceptionType()
-        );
-        finishPitClose();
-    }
-
-    private void finishPitClose() {
         pit = null;
-        closingPit = false;
-        releaseAsyncIfFinished();
+        try (var ignored = factory.requestContext.get()) {
+            // Cleanup survives parent-task cancellation with the original authorization, but does not retain the source.
+            factory.cleanupClient.execute(
+                TransportClosePointInTimeAction.TYPE,
+                new ClosePointInTimeRequest(token),
+                PitCloseListener.INSTANCE
+            );
+        } catch (Exception e) {
+            PitCloseListener.INSTANCE.onFailure(e);
+        } finally {
+            releaseAsyncIfFinished();
+        }
     }
 
     private void releaseAsyncIfFinished() {
-        if (asyncRegistered
-            && asyncReleased == false
-            && (closed || finished || failure != null)
-            && pending == false
-            && renewalPending == false
-            && closingPit == false
-            && pit == null) {
+        if (asyncRegistered && asyncReleased == false && (closed || finished || failure != null) && pending == false && pit == null) {
             asyncReleased = true;
             context.removeAsyncAction();
         }
@@ -1579,6 +1408,9 @@ public final class SequenceSourceOperator extends SourceOperator {
 
     @Override
     public synchronized SequenceSourceStatus status() {
+        if (heldMemory != null) {
+            profiler.observeBytesHeld(heldMemory.peakBytes());
+        }
         return new SequenceSourceStatus(
             candidateSearchRequests,
             payloadSearchRequests,
@@ -1592,7 +1424,8 @@ public final class SequenceSourceOperator extends SourceOperator {
             candidateSearchTookMillis,
             payloadSearchTookMillis,
             maxPendingCandidates,
-            matcher.latestValidCounters()
+            matcher.latestValidCounters(),
+            profiler.snapshot()
         );
     }
 
@@ -1606,41 +1439,43 @@ public final class SequenceSourceOperator extends SourceOperator {
         if (finished == false) {
             finished = true;
             try {
-                try {
-                    publishLimitSummaries();
-                } finally {
-                    clear();
-                }
-            } finally {
-                closePit();
+                publishLimitSummaries();
+            } catch (RuntimeException | Error e) {
+                closeOnFailure(e, this::clear, this::closePit);
+                throw e;
             }
+            try {
+                clear();
+            } catch (RuntimeException | Error e) {
+                closeOnFailure(e, this::closePit);
+                throw e;
+            }
+            closePit();
         }
     }
 
     /** Terminal publication is separate from expression warning budgets and never runs in a PIT-close callback. */
     private void publishLimitSummaries() {
-        if (latestValidBound == 0 || context.warningsMode() != DriverContext.WarningsMode.COLLECT || context.isFinished()) {
+        if (context.warningsMode() != DriverContext.WarningsMode.COLLECT || context.isFinished()) {
             return;
         }
         var counters = matcher.latestValidCounters();
         if (counters.candidatesDroppedAtBound() > 0) {
             context.addWarning(
-                "SEQUENCE latest_valid dropped ["
+                "SEQUENCE dropped ["
                     + counters.candidatesDroppedAtBound()
-                    + "] candidates at max_candidates ["
-                    + latestValidBound
-                    + "] across ["
-                    + counters.keysThatHitBound()
-                    + "] key lifetimes"
+                    + "] candidates at the limit of ["
+                    + candidateBound
+                    + "] per stage and key; matches may be missing"
             );
         }
         if (counters.searchesAbandonedAtWorkLimit() > 0) {
             context.addWarning(
-                "SEQUENCE latest_valid abandoned ["
+                "SEQUENCE abandoned ["
                     + counters.searchesAbandonedAtWorkLimit()
-                    + "] final-row searches at the work limit ["
+                    + "] searches at the work limit of ["
                     + SequenceLatestValidConfig.SEARCH_STEP_LIMIT
-                    + "]"
+                    + "] steps; matches may be missing"
             );
         }
     }
@@ -1733,13 +1568,18 @@ public final class SequenceSourceOperator extends SourceOperator {
         long containerBytes = 64L + 8L * retained.size();
         reserve(containerBytes);
         Block[] cells = null;
+        SequenceHeldBlocks.Owner cellsHeld = null;
         try {
             cells = new Block[retained.size()];
+            cellsHeld = heldBlocks == null ? null : heldBlocks.newOwner(cells);
             for (int column = 0; column < retained.size(); column++) {
                 int channel = channels[column];
                 try (var builder = PlannerUtils.toElementType(retained.get(column).dataType()).newBlockBuilder(1, blockFactory)) {
                     builder.copyFrom(page.getBlock(channel), position, position + 1);
                     cells[column] = builder.build();
+                    if (cellsHeld != null) {
+                        cellsHeld.claimNext();
+                    }
                 }
             }
             var identity = new CountingStreamOutput();
@@ -1781,7 +1621,11 @@ public final class SequenceSourceOperator extends SourceOperator {
             try {
                 Releasables.close(cells);
             } finally {
-                release(containerBytes);
+                try {
+                    Releasables.close(cellsHeld);
+                } finally {
+                    release(containerBytes);
+                }
             }
         }
     }
@@ -1857,6 +1701,14 @@ public final class SequenceSourceOperator extends SourceOperator {
         heldBytes += bytes;
     }
 
+    private SequenceHeldBlocks.Owner hold(Page page) {
+        return heldBlocks == null ? null : heldBlocks.hold(page);
+    }
+
+    private SequenceHeldBlocks.Owner hold(Block block) {
+        return heldBlocks == null ? null : heldBlocks.hold(block);
+    }
+
     private void release(long bytes) {
         heldBytes -= bytes;
         breaker.addWithoutBreaking(-bytes);
@@ -1892,6 +1744,7 @@ public final class SequenceSourceOperator extends SourceOperator {
     private final class MatchBatch implements Releasable {
         private final int capacity;
         private final List<SequenceMatch> matches;
+        private final List<SequenceHeldBlocks.Owner> heldCells = heldBlocks == null ? null : new ArrayList<>();
         private Block[][] cells;
         private PayloadGroup group;
         private int stage;
@@ -1921,7 +1774,26 @@ public final class SequenceSourceOperator extends SourceOperator {
             if (cells != null) {
                 // Close every row even if one block fails to release; the outer wrap also closes matches and hits.
                 Iterable<Releasable> rows = Arrays.stream(cells).<Releasable>map(row -> () -> Releasables.close(row))::iterator;
-                Releasables.close(rows);
+                if (heldCells == null) {
+                    Releasables.close(rows);
+                } else {
+                    Releasables.close(() -> Releasables.close(rows), Releasables.wrap(heldCells));
+                }
+            }
+        }
+
+        /** Takes one actual cell reference; observation failures still release that reference. */
+        private void setCell(int row, int column, Block cell) {
+            SequenceHeldBlocks.Owner held = null;
+            try {
+                held = hold(cell);
+                if (heldCells != null) {
+                    heldCells.add(held);
+                }
+                cells[row][column] = cell;
+            } catch (RuntimeException | Error e) {
+                closeOnFailure(e, cell, held);
+                throw e;
             }
         }
 
@@ -1934,6 +1806,9 @@ public final class SequenceSourceOperator extends SourceOperator {
                 } finally {
                     group = null;
                     cells = null;
+                    if (heldCells != null) {
+                        heldCells.clear();
+                    }
                     matches.clear();
                     release(bytes);
                     bytes = 0;
@@ -1978,7 +1853,6 @@ public final class SequenceSourceOperator extends SourceOperator {
             breaker.addEstimateBytesAndMaybeBreak(admission, BREAKER_LABEL);
             bytes = admission;
             events = new TreeMap<>();
-            boolean success = false;
             try {
                 for (int row = 0; row < owner.matches.size(); row++) {
                     Handle handle = readHandle(owner.matches.get(row).handles().get(stage));
@@ -2015,11 +1889,9 @@ public final class SequenceSourceOperator extends SourceOperator {
                 if (events.isEmpty() == false) {
                     after = new Object[] { precedingShardDoc(events.firstKey()) };
                 }
-                success = true;
-            } finally {
-                if (success == false) {
-                    close();
-                }
+            } catch (IOException | RuntimeException | Error e) {
+                closeOnFailure(e, this::close);
+                throw e;
             }
         }
 
@@ -2092,7 +1964,10 @@ public final class SequenceSourceOperator extends SourceOperator {
         private void materializeDirect() {
             ReplayEvent[] ordered = events.values().toArray(ReplayEvent[]::new);
             SearchHit[] hits = Arrays.stream(ordered).map(event -> event.hit).toArray(SearchHit[]::new);
-            try (Page raw = new SequenceHitReader(retention.fetched(), factory.configuration).read(hits, blockFactory)) {
+            try (
+                Page raw = new SequenceHitReader(retention.fetched(), factory.configuration).read(hits, blockFactory);
+                var held = hold(raw)
+            ) {
                 for (int event = 0; event < ordered.length; event++) {
                     for (ReplayTarget target : ordered[event].targets) {
                         context.checkForEarlyTermination();
@@ -2109,7 +1984,7 @@ public final class SequenceSourceOperator extends SourceOperator {
                                         String value = binding.source().name().equals("_id") ? target.handle.id : target.handle.index;
                                         try (var builder = blockFactory.newBytesRefBlockBuilder(1)) {
                                             builder.appendBytesRef(new BytesRef(value));
-                                            try (Block cell = builder.build()) {
+                                            try (Block cell = builder.build(); var cellHeld = hold(cell)) {
                                                 putCell(target.row, binding.output(), cell);
                                             }
                                         }
@@ -2133,7 +2008,7 @@ public final class SequenceSourceOperator extends SourceOperator {
             }
             try (var bytes = new BytesArray(target.handle.cells).streamInput(); var in = new BlockStreamInput(bytes, blockFactory)) {
                 for (Attribute attribute : retention.retained()) {
-                    try (Block cell = Block.readTypedBlock(in)) {
+                    try (Block cell = Block.readTypedBlock(in); var held = hold(cell)) {
                         ElementType expected = PlannerUtils.toElementType(attribute.dataType());
                         if (cell.getPositionCount() != 1 || (cell.elementType() != expected && cell.elementType() != ElementType.NULL)) {
                             throw new IllegalStateException("SEQUENCE retained cell does not match its selected output type");
@@ -2153,7 +2028,7 @@ public final class SequenceSourceOperator extends SourceOperator {
             int channel = cursor.fetchedChannels()[column];
             try (var builder = PlannerUtils.toElementType(binding.output().dataType()).newBlockBuilder(1, blockFactory)) {
                 builder.copyFrom(raw.getBlock(channel), event, event + 1);
-                try (Block cell = builder.build()) {
+                try (Block cell = builder.build(); var held = hold(cell)) {
                     putCell(target.row, binding.output(), cell);
                 }
             }
@@ -2166,7 +2041,7 @@ public final class SequenceSourceOperator extends SourceOperator {
                         throw new IllegalStateException("SEQUENCE selected cell was materialized more than once");
                     }
                     cell.incRef();
-                    owner.cells[row][column] = cell;
+                    owner.setCell(row, column, cell);
                 }
             }
         }
@@ -2180,8 +2055,10 @@ public final class SequenceSourceOperator extends SourceOperator {
                 }
             }
             SearchHit[] hits = Arrays.stream(ordered).map(event -> event.hit).toArray(SearchHit[]::new);
-            try (Page raw = new SequenceHitReader(input.source(branch).output(), factory.configuration).read(hits, blockFactory)) {
-                boolean transferred = false;
+            try (
+                Page raw = new SequenceHitReader(input.source(branch).output(), factory.configuration).read(hits, blockFactory);
+                var held = hold(raw)
+            ) {
                 try {
                     replaying = true;
                     runStage(input, branch, raw, pages -> {
@@ -2189,26 +2066,29 @@ public final class SequenceSourceOperator extends SourceOperator {
                             select(ordered, pages);
                             owner.group = null;
                             owner.branch++;
-                        } finally {
+                        } catch (RuntimeException | Error e) {
                             replaying = false;
-                            close();
+                            closeOnFailure(e, this::close);
+                            throw e;
                         }
+                        replaying = false;
+                        close();
                     }, () -> {
                         replaying = false;
                         close();
                     });
-                    transferred = true;
-                } finally {
-                    if (transferred == false) {
-                        replaying = false;
-                        close();
-                    }
+                } catch (RuntimeException | Error e) {
+                    replaying = false;
+                    closeOnFailure(e, this::close);
+                    throw e;
                 }
-            } finally {
-                // The typed input binding now owns the copied values. Dropping selected hits before stage execution
-                // completes bounds their retention independently of expansion and the collected compute pages.
-                releaseHits();
+            } catch (RuntimeException | Error e) {
+                closeOnFailure(e, this::releaseHits);
+                throw e;
             }
+            // The typed input binding now owns the copied values. Dropping selected hits before stage execution
+            // completes bounds their retention independently of expansion and the collected compute pages.
+            releaseHits();
         }
 
         private void requireIdentityOnlyReplayHandle(Handle handle) {
@@ -2244,7 +2124,8 @@ public final class SequenceSourceOperator extends SourceOperator {
                             }
                         }
                         for (int column = 0; column < sequence.sourceAttributes().size(); column++) {
-                            if (sequence.sourceStages().get(column) == stage) {
+                            if (sequence.sourceStages().get(column) == stage
+                                && Sequence.isProvenanceAttribute(sequence.sourceAttributes().get(column)) == false) {
                                 int channel = channels[column];
                                 Block block = page.getBlock(channel);
                                 try (
@@ -2252,7 +2133,7 @@ public final class SequenceSourceOperator extends SourceOperator {
                                         .newBlockBuilder(1, blockFactory)
                                 ) {
                                     builder.copyFrom(block, row, row + 1);
-                                    owner.cells[target.row][column] = builder.build();
+                                    owner.setCell(target.row, column, builder.build());
                                 }
                             }
                         }
@@ -2353,6 +2234,7 @@ public final class SequenceSourceOperator extends SourceOperator {
     /** Async stage output owns its container admission until completion, even when the source closes first. */
     private final class StagePages implements Releasable {
         private final List<Page> pages = new ArrayList<>();
+        private final List<SequenceHeldBlocks.Owner> heldPages = heldBlocks == null ? null : new ArrayList<>();
         private long bytes;
         private boolean released;
 
@@ -2366,21 +2248,32 @@ public final class SequenceSourceOperator extends SourceOperator {
                 // Includes the Page, its block-reference array and both ArrayList arrays during growth. Blocks
                 // themselves retain their own independent breaker admission through the block factory.
                 long admission = 64L + 16L * page.getBlockCount();
+                int pageCount = pages.size();
+                int holderCount = heldPages == null ? 0 : heldPages.size();
                 boolean admitted = false;
-                boolean accepted = false;
+                SequenceHeldBlocks.Owner held = null;
                 try {
+                    held = hold(page);
                     breaker.addEstimateBytesAndMaybeBreak(admission, BREAKER_LABEL);
                     admitted = true;
+                    // Commit the page and its observer together; either ArrayList can fail while growing.
+                    if (heldPages != null) {
+                        heldPages.add(held);
+                    }
                     pages.add(page);
                     bytes += admission;
-                    accepted = true;
-                } finally {
-                    if (accepted == false) {
-                        if (admitted) {
-                            breaker.addWithoutBreaking(-admission);
+                } catch (RuntimeException | Error e) {
+                    long admittedBytes = admitted ? admission : 0;
+                    closeOnFailure(e, () -> {
+                        if (pages.size() > pageCount) {
+                            pages.remove(pageCount);
                         }
-                        page.releaseBlocks();
-                    }
+                    }, () -> {
+                        if (heldPages != null && heldPages.size() > holderCount) {
+                            heldPages.remove(holderCount);
+                        }
+                    }, page, held, () -> breaker.addWithoutBreaking(-admittedBytes));
+                    throw e;
                 }
             }
         }
@@ -2391,9 +2284,16 @@ public final class SequenceSourceOperator extends SourceOperator {
                 if (released == false) {
                     released = true;
                     try {
-                        Releasables.close(Releasables.wrap(pages));
+                        if (heldPages == null) {
+                            Releasables.close(Releasables.wrap(pages));
+                        } else {
+                            Releasables.close(Releasables.wrap(pages), Releasables.wrap(heldPages));
+                        }
                     } finally {
                         pages.clear();
+                        if (heldPages != null) {
+                            heldPages.clear();
+                        }
                         breaker.addWithoutBreaking(-bytes);
                         bytes = 0;
                     }
@@ -2498,8 +2398,9 @@ public final class SequenceSourceOperator extends SourceOperator {
                 replayChannels = channelArray(
                     sequence.sourceAttributes().size(),
                     column -> sequence.sourceStages().get(column) == stage
-                        ? SequenceStageInput.outputChannel(attributes, sequence.sourceAttributes().get(column), stageLabel)
-                        : -1
+                        && Sequence.isProvenanceAttribute(sequence.sourceAttributes().get(column)) == false
+                            ? SequenceStageInput.outputChannel(attributes, sequence.sourceAttributes().get(column), stageLabel)
+                            : -1
                 );
             }
             return replayChannels;

@@ -20,6 +20,19 @@ import static org.hamcrest.Matchers.hasItem;
  */
 public class QueryPragmasTests extends ESTestCase {
 
+    public void testSequenceCandidateOverrideIsAbsentByDefaultAndExplicitlyBounded() {
+        assertTrue(QueryPragmas.EMPTY.sequenceMaxCandidates().isEmpty());
+        assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem("sequence_max_candidates"));
+        for (int bound : new int[] { 1, 8, 63, 1024 }) {
+            var pragmas = new QueryPragmas(Settings.builder().put("sequence_max_candidates", bound).build());
+            assertEquals(bound, pragmas.sequenceMaxCandidates().orElseThrow());
+        }
+        for (int bound : new int[] { -1, 0, 1025 }) {
+            var pragmas = new QueryPragmas(Settings.builder().put("sequence_max_candidates", bound).build());
+            expectThrows(IllegalArgumentException.class, pragmas::sequenceMaxCandidates);
+        }
+    }
+
     public void testTimeSeriesTargetChunkRowsPragmaOverridesDefault() {
         QueryPragmas pragmas = new QueryPragmas(
             Settings.builder().put(PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS.getKey(), 4_096).build()

@@ -40,7 +40,7 @@ public class SequenceWithinParserTests extends ESTestCase {
         ).entrySet()) {
             assertEquals(entry.getKey(), entry.getValue().longValue(), parse("WITHIN " + entry.getKey()).maxSpanNanos());
         }
-        assertEquals(parse("WITH {\"maxspan\":\"30s\"}").maxSpanNanos(), parse("wItHiN 30 seconds").maxSpanNanos());
+        assertEquals(30_000_000_000L, parse("wItHiN 30 seconds").maxSpanNanos());
     }
 
     /** Decimals, calendars and overflow are errors rather than rounding, saturation or calendar arithmetic. */
@@ -61,7 +61,7 @@ public class SequenceWithinParserTests extends ESTestCase {
 
     /** Contextual WITHIN does not reserve existing field names, aliases or PRIMARY selectors. */
     public void testWithinRemainsAnIdentifierInExistingForms() {
-        for (String window : List.of("WITH {\"maxspan\":\"1m\"}", "WITHIN 1 minute")) {
+        for (String window : List.of("WITHIN 1m", "WITHIN 1 minute")) {
             var statement = parser.createStatement("""
                 SEQUENCE BY within %s PRIMARY within
                 (FROM a) AS other, (FROM b) AS within
@@ -80,12 +80,27 @@ public class SequenceWithinParserTests extends ESTestCase {
         expectThrows(ParsingException.class, () -> released.createStatement("SEQUENCE WITHIN 1s PRIMARY 1 (FROM a), (FROM b)"));
     }
 
-    /** The shortcut changes the window spelling, not the explicit PRIMARY requirement. */
+    /** The single window spelling retains the explicit PRIMARY requirement. */
     public void testWindowStillRequiresPrimary() {
         assertThat(
             expectThrows(ParsingException.class, () -> parser.createStatement("SEQUENCE WITHIN 1s (FROM a), (FROM b)")).getMessage(),
             containsString("SEQUENCE requires an explicit PRIMARY")
         );
+    }
+
+    /** Recognizing a retired map produces one useful diagnostic without evaluating any option. */
+    public void testWithMapsAreRefusedAndPointToWithin() {
+        for (String options : List.of(
+            "{}",
+            "{\"maxspan\":\"30s\"}",
+            "{\"maxspan\":\"30s\",\"pairing\":\"today\"}",
+            "{\"maxspan\":\"30s\",\"pairing\":\"latest_valid\"}",
+            "{\"maxspan\":\"30s\",\"max_candidates\":8}",
+            "{\"maxspan\":\"30s\",\"other\":true}"
+        )) {
+            rejected("WITH " + options, "SEQUENCE does not accept WITH options; use WITHIN <duration>");
+            rejected("WITHIN 30s WITH " + options, "SEQUENCE does not accept WITH options; use WITHIN <duration>");
+        }
     }
 
     private Sequence parse(String window) {

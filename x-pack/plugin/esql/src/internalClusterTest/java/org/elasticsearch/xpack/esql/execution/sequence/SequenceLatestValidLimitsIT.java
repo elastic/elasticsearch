@@ -33,14 +33,14 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 
-/** Exercises public selection, native predicates, bounded work, warning headers and profiling on real nodes. */
+/** Exercises native predicates, bounded work, warning headers and mandatory profiling on real nodes. */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
     private static final Instant BASE = Instant.parse("2026-09-25T21:14:51.389Z");
     private static final String PREFIX = "sequence-limits-";
 
-    /** A moved condition implicitly selects the same matcher as the explicit option and preserves WHERE-site values. */
-    public void testImplicitSelectionAndPrivateOwnValuesThroughProjections() {
+    /** Conditions retain their WHERE-site values through permitted projections, with default or overridden bounds. */
+    public void testPrivateOwnValuesThroughProjections() {
         createIndices(2);
         assertFalse(
             client().prepareBulk()
@@ -61,26 +61,19 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
         refresh(PREFIX + "a", PREFIX + "b");
         for (String projection : List.of("KEEP key,payload", "DROP own", "RENAME own AS renamed | KEEP key,renamed")) {
             boolean renamed = projection.startsWith("RENAME");
-            for (String options : List.of("", ",\"pairing\":\"latest_valid\",\"max_candidates\":3")) {
+            for (Integer bound : new Integer[] { null, 3 }) {
                 Observed observed = observe("""
-                    SEQUENCE BY key WITH {"maxspan":"30s"%s} PRIMARY 1
+                    SEQUENCE BY key WITHIN 30s PRIMARY 1
                     (FROM sequence-limits-a | EVAL artifact=TO_LOWER(payload) | KEEP key,artifact) AS download,
                     (FROM sequence-limits-b | MV_EXPAND payload | EVAL own=TO_LOWER(payload)
                       | WHERE own == MEMBER(download,artifact) | %s) AS execution
                     | EVAL observed=MEMBER(execution,%s) | KEEP key,artifact,observed | LIMIT 10
-                    """.formatted(options, projection, renamed ? "renamed" : "payload"));
+                    """.formatted(projection, renamed ? "renamed" : "payload"), bound);
                 assertEquals(List.of(List.of("shared", "alpha", renamed ? "alpha" : "ALPHA")), observed.values());
-                assertNotNull(observed.status().latestValidCounters());
                 assertEquals(1, observed.status().completedMatches());
                 assertEquals(List.of(), observed.warnings());
             }
         }
-        Exception conflict = expectThrows(Exception.class, () -> observe("""
-            SEQUENCE BY key WITH {"maxspan":"30s","pairing":"today"} PRIMARY 1
-            (FROM sequence-limits-a),(FROM sequence-limits-b | WHERE payload==MEMBER(1,payload))
-            | KEEP key | LIMIT 10
-            """));
-        assertThat(ExceptionsHelper.unwrapCause(conflict).getMessage(), containsString("today"));
         Exception removed = expectThrows(Exception.class, () -> observe("""
             SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
             (FROM sequence-limits-a | KEEP key),(FROM sequence-limits-b | WHERE payload==MEMBER(1,payload))
@@ -89,8 +82,8 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
         assertThat(ExceptionsHelper.unwrapCause(removed).getMessage(), containsString("payload"));
     }
 
-    /** Default, explicit today and a nonbinding incoming limit retain the original profile shape. */
-    public void testDefaultProfileAbsenceAndExplicitBoundsWithoutConditions() {
+    /** Every profile has seven counters; default N=8 drops the ninth start and hidden overrides remain bounded. */
+    public void testDefaultEightCandidateBoundAndHiddenOverridesWithoutConditions() {
         createIndices(3);
         var bulk = client().prepareBulk();
         for (int stage = 0; stage < 3; stage++) {
@@ -105,42 +98,70 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
                 )
             );
         }
+        for (int row = 0; row < 9; row++) {
+            bulk.add(
+                prepareIndex(PREFIX + "a").setSource(
+                    "@timestamp",
+                    BASE.plusMillis(10 + row).toString(),
+                    "key",
+                    "crowded",
+                    "payload",
+                    "start" + row
+                )
+            );
+        }
+        for (int stage = 1; stage < 3; stage++) {
+            bulk.add(
+                prepareIndex(PREFIX + (char) ('a' + stage)).setSource(
+                    "@timestamp",
+                    BASE.plusMillis(18 + stage).toString(),
+                    "key",
+                    "crowded",
+                    "payload",
+                    "final" + stage
+                )
+            );
+        }
         assertFalse(bulk.get().hasFailures());
         refresh(PREFIX + "a", PREFIX + "b", PREFIX + "c");
+        List<List<Object>> expected = List.of(List.of("shared", "row0"), List.of("crowded", "start8"));
         for (String suffix : List.of("", " AS completion WITHIN 30 seconds")) {
             Observed observed = observe("""
-                SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+                SEQUENCE BY key WITHIN 30s PRIMARY 1
                 (FROM sequence-limits-a | KEEP key,payload),(FROM sequence-limits-b | KEEP key)%s
                 | KEEP key,payload | LIMIT 10
                 """.formatted(suffix));
-            assertEquals(List.of(List.of("shared", "row0")), observed.values());
-            assertNull(observed.status().latestValidCounters());
-            assertFalse(Strings.toString(observed.status()).contains("search_steps"));
-            assertEquals(List.of(), observed.warnings());
+            assertEquals(expected, observed.values());
+            assertEquals(1, observed.status().latestValidCounters().candidatesDroppedAtBound());
+            assertEquals(1, observed.status().latestValidCounters().keysThatHitBound());
+            assertEquals(8, observed.status().latestValidCounters().largestRingFill());
+            assertEquals(
+                List.of("SEQUENCE dropped [1] candidates at the limit of [8] per stage and key; matches may be missing"),
+                observed.warnings()
+            );
         }
-        Observed today = observe("""
-            SEQUENCE BY key WITH {"maxspan":"30s","pairing":"today"} PRIMARY 1
-            (FROM sequence-limits-a | KEEP key,payload),(FROM sequence-limits-b | KEEP key)
+        String threeStages = """
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM sequence-limits-a | KEEP key,payload),(FROM sequence-limits-b | KEEP key),(FROM sequence-limits-c | KEEP key)
             | KEEP key,payload | LIMIT 10
-            """);
-        assertNull(today.status().latestValidCounters());
+            """;
         for (int bound : List.of(3, 63, 380)) {
-            Observed latest = observe("""
-                SEQUENCE BY key WITH {"maxspan":"30s","pairing":"latest_valid","max_candidates":%s} PRIMARY 1
-                (FROM sequence-limits-a | KEEP key,payload),(FROM sequence-limits-b | KEEP key),(FROM sequence-limits-c | KEEP key)
-                | KEEP key,payload | LIMIT 10
-                """.formatted(bound));
-            assertEquals(List.of(List.of("shared", "row0")), latest.values());
-            assertEquals(2, latest.status().latestValidCounters().searchSteps());
-            assertEquals(0, latest.status().latestValidCounters().candidatesDroppedAtBound());
-            assertEquals(List.of(), latest.warnings());
+            Observed observed = observe(threeStages, bound);
+            assertEquals(expected, observed.values());
+            assertEquals(4, observed.status().latestValidCounters().searchSteps());
+            assertEquals(bound == 3 ? 6 : 0, observed.status().latestValidCounters().candidatesDroppedAtBound());
+            assertEquals(Math.min(bound, 9), observed.status().latestValidCounters().largestRingFill());
+            assertEquals(
+                bound == 3
+                    ? List.of("SEQUENCE dropped [6] candidates at the limit of [3] per stage and key; matches may be missing")
+                    : List.of(),
+                observed.warnings()
+            );
         }
-        Exception excessive = expectThrows(Exception.class, () -> observe("""
-            SEQUENCE BY key WITH {"maxspan":"30s","pairing":"latest_valid","max_candidates":1025} PRIMARY 1
-            (FROM sequence-limits-a),(FROM sequence-limits-b) | KEEP key | LIMIT 10
-            """));
-        assertThat(ExceptionsHelper.unwrapCause(excessive).getMessage(), containsString("max_candidates [1025]"));
-        assertThat(ExceptionsHelper.unwrapCause(excessive).getMessage(), containsString("[1024]"));
+        Exception excessive = expectThrows(Exception.class, () -> observe(threeStages, 1025));
+        assertThat(ExceptionsHelper.unwrapCause(excessive).getMessage(), containsString("sequence_max_candidates"));
+        assertThat(ExceptionsHelper.unwrapCause(excessive).getMessage(), containsString("1025"));
+        assertThat(ExceptionsHelper.unwrapCause(excessive).getMessage(), containsString("1024"));
     }
 
     /** A single conjunct that reads two earlier stages waits until both values are bound. */
@@ -175,7 +196,7 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
         assertEquals(List.of(), observed.warnings());
     }
 
-    /** Frozen F4B grouping emits the oldest matching stage3 row after exactly66 unused-candidate visits. */
+    /** Frozen F4B grouping emits the oldest matching stage-3 row after exactly 66 unused-candidate visits. */
     public void testNativeF4BExactVisitsAndFourStageCeiling() {
         createIndices(4);
         var bulk = client().prepareBulk();
@@ -214,22 +235,22 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh(PREFIX + "a", PREFIX + "b", PREFIX + "c", PREFIX + "d");
         String query = """
-            SEQUENCE BY key WITH {"maxspan":"30s","max_candidates":64} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM sequence-limits-a | KEEP key,a,b,label),(FROM sequence-limits-b | KEEP key,a,b,label),
             (FROM sequence-limits-c | KEEP key,a,b,label),
             (FROM sequence-limits-d | WHERE a==MEMBER(3,a) AND b==MEMBER(1,b) | KEEP key,label)
             | EVAL middle=MEMBER(2,label),third=MEMBER(3,label),final=MEMBER(4,label)
             | KEEP label,middle,third,final | LIMIT 10
             """;
-        Observed observed = observe(query);
+        Observed observed = observe(query, 64);
         assertEquals(List.of(List.of("s1_63", "s2_63", "s3_0", "f")), observed.values());
         assertEquals(66, observed.status().latestValidCounters().searchSteps());
         assertEquals(66, observed.status().latestValidCounters().maxSearchStepsPerFinalRow());
         assertEquals(64, observed.status().latestValidCounters().largestRingFill());
         assertEquals(0, observed.status().latestValidCounters().searchesAbandonedAtWorkLimit());
         assertEquals(List.of(), observed.warnings());
-        Exception excessive = expectThrows(Exception.class, () -> observe(query.replace("\"max_candidates\":64", "\"max_candidates\":65")));
-        assertThat(ExceptionsHelper.unwrapCause(excessive).getMessage(), containsString("max_candidates [65]"));
+        Exception excessive = expectThrows(Exception.class, () -> observe(query, 65));
+        assertThat(ExceptionsHelper.unwrapCause(excessive).getMessage(), containsString("sequence_max_candidates pragma [65]"));
         assertThat(ExceptionsHelper.unwrapCause(excessive).getMessage(), containsString("[64]"));
     }
 
@@ -276,7 +297,7 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
             (FROM sequence-limits-d | KEEP key),(FROM sequence-limits-e | KEEP key),
             (FROM sequence-limits-f | WHERE TO_LONG(payload)==TO_LONG(MEMBER(1,payload)) | KEEP key)
             | KEEP key,payload | LIMIT 10
-            """);
+            """, 16);
         assertEquals(List.of(), observed.values());
         var counters = observed.status().latestValidCounters();
         assertEquals(2, counters.candidatesDroppedAtBound());
@@ -284,22 +305,121 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
         assertEquals(2, counters.searchesAbandonedAtWorkLimit());
         assertEquals(262144, counters.searchSteps());
         assertEquals(131072, counters.maxSearchStepsPerFinalRow());
-        assertEquals(0, counters.candidatesUsedWithoutReport());
         assertEquals(20, observed.warnings().stream().filter(warning -> warning.contains("Cannot parse number [bad-")).count());
         assertEquals(1, observed.warnings().stream().filter(warning -> warning.contains("Only first 20 failures recorded.")).count());
         assertEquals(
             List.of(
-                "SEQUENCE latest_valid dropped [2] candidates at max_candidates [16] across [2] key lifetimes",
-                "SEQUENCE latest_valid abandoned [2] final-row searches at the work limit [131072]"
+                "SEQUENCE dropped [2] candidates at the limit of [16] per stage and key; matches may be missing",
+                "SEQUENCE abandoned [2] searches at the work limit of [131072] steps; matches may be missing"
             ),
             observed.warnings().stream().filter(warning -> warning.startsWith("SEQUENCE ")).toList()
         );
     }
 
+    /** Default N=8 needs seven stages to exhaust the production search quota; LIMIT closes before the independent tail. */
+    public void testLimitOneKeepsDropAndWorkLimitSummaries() {
+        createIndices(7);
+        var bulk = client().prepareBulk();
+        for (int stage = 0; stage < 6; stage++) {
+            int rows = stage == 0 ? 9 : 8;
+            for (int row = 0; row < rows; row++) {
+                long time = stage == 0 ? row : 9 + (stage - 1) * 8L + row;
+                bulk.add(
+                    prepareIndex(PREFIX + (char) ('a' + stage)).setSource(
+                        "@timestamp",
+                        BASE.plusMillis(time).toString(),
+                        "key",
+                        "bad",
+                        "v",
+                        0,
+                        "label",
+                        "bad-" + stage + "-" + row
+                    )
+                );
+            }
+        }
+        bulk.add(
+            prepareIndex(PREFIX + "g").setSource("@timestamp", BASE.plusMillis(49).toString(), "key", "bad", "v", 1, "label", "bad-final")
+        );
+        for (String key : List.of("good", "tail")) {
+            for (int stage = 0; stage < 7; stage++) {
+                bulk.add(
+                    prepareIndex(PREFIX + (char) ('a' + stage)).setSource(
+                        "@timestamp",
+                        BASE.plusMillis((key.equals("good") ? 60 : 70) + stage).toString(),
+                        "key",
+                        key,
+                        "v",
+                        1,
+                        "label",
+                        key + "-" + (stage + 1)
+                    )
+                );
+            }
+        }
+        assertFalse(bulk.get().hasFailures());
+        refresh(PREFIX + "a", PREFIX + "b", PREFIX + "c", PREFIX + "d", PREFIX + "e", PREFIX + "f", PREFIX + "g");
+        Observed observed = observe("""
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM sequence-limits-a | KEEP key,v,label),(FROM sequence-limits-b | KEEP key),
+            (FROM sequence-limits-c | KEEP key),(FROM sequence-limits-d | KEEP key),
+            (FROM sequence-limits-e | KEEP key),(FROM sequence-limits-f | KEEP key),
+            (FROM sequence-limits-g | WHERE v==MEMBER(1,v) | KEEP key,label)
+            | KEEP key,label | LIMIT 1
+            """);
+        assertEquals(List.of(List.of("good", "good-1")), observed.values());
+        assertEquals(1, observed.status().completedMatches());
+        assertEquals(1, observed.status().rowsEmitted());
+        var counters = observed.status().latestValidCounters();
+        assertEquals(1, counters.candidatesDroppedAtBound());
+        assertEquals(1, counters.keysThatHitBound());
+        assertEquals(1, counters.searchesAbandonedAtWorkLimit());
+        assertEquals(131078, counters.searchSteps());
+        assertEquals(131072, counters.maxSearchStepsPerFinalRow());
+        assertEquals(8, counters.largestRingFill());
+        assertEquals(
+            List.of(
+                "SEQUENCE dropped [1] candidates at the limit of [8] per stage and key; matches may be missing",
+                "SEQUENCE abandoned [1] searches at the work limit of [131072] steps; matches may be missing"
+            ),
+            observed.warnings()
+        );
+    }
+
+    /** A nanosecond later event compares against an earlier date field through typed mandatory condition values. */
+    public void testDateAndDateNanosConditionValues() {
+        createIndices(2, "date", "date_nanos");
+        assertFalse(
+            client().prepareBulk()
+                .add(prepareIndex(PREFIX + "a").setSource("@timestamp", BASE.toString(), "key", "shared"))
+                .add(prepareIndex(PREFIX + "b").setSource("@timestamp", BASE.plusNanos(1).toString(), "key", "shared"))
+                .get()
+                .hasFailures()
+        );
+        refresh(PREFIX + "a", PREFIX + "b");
+        Observed observed = observe("""
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM sequence-limits-a | KEEP key,@timestamp),
+            (FROM sequence-limits-b | WHERE @timestamp>MEMBER(1,@timestamp) | KEEP key)
+            | KEEP key | LIMIT 10
+            """);
+        assertEquals(List.of(List.of("shared")), observed.values());
+        assertEquals(1, observed.status().latestValidCounters().searchSteps());
+        assertEquals(List.of(), observed.warnings());
+    }
+
     private Observed observe(String query) {
+        return observe(query, null);
+    }
+
+    private Observed observe(String query, Integer candidateBound) {
         var coordinator = randomFrom(clusterService().state().nodes().stream().toList());
         var future = new PlainActionFuture<Observed>();
-        var request = syncEsqlQueryRequest(query).profile(true).pragmas(new QueryPragmas(Settings.builder().put("page_size", 17).build()));
+        var pragmas = Settings.builder().put("page_size", 17);
+        if (candidateBound != null) {
+            pragmas.put("sequence_max_candidates", candidateBound);
+        }
+        var request = syncEsqlQueryRequest(query).profile(true).pragmas(new QueryPragmas(pragmas.build()));
         client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
             var threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
                 .getThreadPool()
@@ -324,10 +444,26 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
             }
             future.onResponse(new Observed(getValuesList(response), statuses.getFirst(), warnings));
         }, future::onFailure));
-        return future.actionGet(DEFAULT_REQUEST_TIMEOUT);
+        Observed observed = future.actionGet(DEFAULT_REQUEST_TIMEOUT);
+        assertNotNull(observed.status().latestValidCounters());
+        String profile = Strings.toString(observed.status());
+        for (String counter : List.of(
+            "candidates_dropped_at_bound",
+            "keys_that_hit_bound",
+            "searches_abandoned_at_work_limit",
+            "search_steps",
+            "max_search_steps_per_final_row",
+            "condition_evaluations",
+            "largest_ring_fill"
+        )) {
+            assertThat(profile, containsString("\"" + counter + "\""));
+        }
+        assertFalse(profile.contains("candidates_used_without_report"));
+        assertFalse(profile.contains("condition_false_or_null"));
+        return observed;
     }
 
-    private void createIndices(int stages) {
+    private void createIndices(int stages, String... timestampTypes) {
         for (int stage = 0; stage < stages; stage++) {
             assertAcked(
                 indicesAdmin().prepareCreate(PREFIX + (char) ('a' + stage))
@@ -336,7 +472,7 @@ public class SequenceLatestValidLimitsIT extends AbstractSequenceIntegTestCase {
                     )
                     .setMapping(
                         "@timestamp",
-                        "type=date",
+                        "type=" + (timestampTypes.length == 0 ? "date" : timestampTypes[stage]),
                         "key",
                         "type=keyword",
                         "payload",

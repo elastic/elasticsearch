@@ -38,7 +38,7 @@ public class SequenceLinkTimeParserTests extends ESTestCase {
     /** The existing map/numeric form can opt into only a later-stage bound, including a large long nanos quantity. */
     public void testLegacyHeaderAndNumericStagesAcceptIncomingNanos() {
         Sequence sequence = parse("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM a), (FROM b) WITHIN 5000000000 nanos
             | LIMIT 10
             """);

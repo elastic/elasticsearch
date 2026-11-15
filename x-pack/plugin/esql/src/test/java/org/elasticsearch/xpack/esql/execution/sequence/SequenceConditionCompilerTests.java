@@ -139,6 +139,43 @@ public class SequenceConditionCompilerTests extends ESTestCase {
         }
     }
 
+    /** Lowest-reference grouping distinguishes conjuncts reading {2} and {1, 2}, as numbered in query text. */
+    public void testGroupingUsesLowestReferencedStageRatherThanHighest() {
+        Attribute first = attribute("x", DataType.INTEGER);
+        Attribute second = attribute("y", DataType.INTEGER);
+        Attribute own = attribute("z", DataType.INTEGER);
+        var near = input(1, second);
+        LogicalPlan child = new SequenceCondition(
+            Source.EMPTY,
+            local(own),
+            2,
+            new Equals(Source.EMPTY, near.reference(), new Literal(Source.EMPTY, 1, DataType.INTEGER)),
+            List.of(1),
+            List.of(near)
+        );
+        var far = input(0, first);
+        var otherNear = input(1, second);
+        child = new SequenceCondition(
+            Source.EMPTY,
+            child,
+            2,
+            new Equals(Source.EMPTY, far.reference(), otherNear.reference()),
+            List.of(0, 1),
+            List.of(far, otherNear)
+        );
+        try (Resources resources = new Resources("1mb"); var compiler = compile(sequence(local(first), local(second), child), resources)) {
+            assertEquals(2, compiler.config().groups().size());
+            assertEquals(
+                Set.of(List.of(1), List.of(0, 1)),
+                compiler.config()
+                    .groups()
+                    .stream()
+                    .map(SequenceLatestValidConfig.PredicateGroup::referencedStages)
+                    .collect(Collectors.toSet())
+            );
+        }
+    }
+
     /** Scalar folding must not move a conjunct's search boundary or force storage of an eliminated input. */
     public void testFoldedAndOwnOnlyResidualsKeepOriginalReferencedStagesWithoutExtraDemands() {
         Attribute removed = attribute("removed", DataType.BOOLEAN);

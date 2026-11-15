@@ -67,7 +67,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testExpandedDerivedValuesKeepOriginalRow() {
         SequenceStage stage = firstStage("""
-            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
+            sequence by normalized WITHIN 30 seconds PRIMARY 1
             (from a | mv_expand labels
               | eval normalized = TO_LOWER(labels), payload = CONCAT(label, "/", labels)
               | where normalized != "skip" | keep normalized, payload),
@@ -98,7 +98,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testUnionBranchPreservesMergedExpressionIds() {
         SequenceStage stage = firstStage("""
-            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
+            sequence by normalized WITHIN 30 seconds PRIMARY 1
             (from (from a | eval branch = "A"), (from b | eval branch = "B")
               | mv_expand labels
               | eval normalized = TO_LOWER(labels), payload = CONCAT(branch, "/", label, "/", labels)
@@ -129,7 +129,7 @@ public class SequenceStageInputTests extends ESTestCase {
     /** A compiled local plan must create a fresh source for every separately bound source page. */
     public void testReusedLocalPlanReadsFreshBindings() {
         var prepared = new SequenceStageInput(firstStage("""
-            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
+            sequence by normalized WITHIN 30 seconds PRIMARY 1
             (from a | mv_expand labels
               | eval normalized = TO_LOWER(labels), payload = CONCAT(label, "/", labels)
               | keep normalized, payload),
@@ -158,7 +158,7 @@ public class SequenceStageInputTests extends ESTestCase {
     /** Prepared membership data belongs to the query and remains readable by each fresh stage driver. */
     public void testReusedLocalPlanKeepsPreparedMembershipTable() {
         SequenceStage logical = firstStage("""
-            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
+            sequence by normalized WITHIN 30 seconds PRIMARY 1
             (from a | where label IN (from b | keep label)
               | eval normalized = TO_LOWER(label), payload = CONCAT(label, "/", labels)
               | keep normalized, payload),
@@ -218,7 +218,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testIdentitySurvivesZeroVisibleColumns() {
         SequenceStage stage = firstStage("""
-            sequence with {"maxspan":"30s"} PRIMARY 1 (from a), (from b)
+            sequence WITHIN 30 seconds PRIMARY 1 (from a), (from b)
             | stats count(*)
             | limit 3
             """);
@@ -245,7 +245,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testBindingValidation() {
         SequenceStage stage = firstStage("""
-            sequence by label with {"maxspan":"30s"} PRIMARY 1 (from a | keep label), (from b | keep label) | limit 3
+            sequence by label WITHIN 30 seconds PRIMARY 1 (from a | keep label), (from b | keep label) | limit 3
             """);
         var prepared = new SequenceStageInput(stage);
         try (Page raw = new Page(1)) {
@@ -257,7 +257,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testSourcePredicatePushdownRechecksAndExcludesExpandedFields() {
         var source = new SequenceStageInput(firstStage("""
-            sequence by label with {"maxspan":"30s"} PRIMARY 1
+            sequence by label WITHIN 30 seconds PRIMARY 1
             (from a | where label=="fresh" | keep label), (from b | keep label) | limit 3
             """));
         assertNotNull(source.searchQuery(0));
@@ -273,7 +273,7 @@ public class SequenceStageInputTests extends ESTestCase {
             }
         }
         var expanded = new SequenceStageInput(firstStage("""
-            sequence by labels with {"maxspan":"30s"} PRIMARY 1
+            sequence by labels WITHIN 30 seconds PRIMARY 1
             (from a | mv_expand labels | where labels=="fresh" | keep labels),
             (from b | mv_expand labels | keep labels) | limit 3
             """));
@@ -282,7 +282,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testSelectionRetentionExportsExistingWhereValueWithoutOutputOnlyEval() {
         SequenceStage stage = firstStage("""
-            sequence by label with {"maxspan":"30s"} PRIMARY 1
+            sequence by label WITHIN 30 seconds PRIMARY 1
             (from a | eval lower=TO_LOWER(label), output_only=TO_LONG(label)
               | where lower!="skip" | keep label, lower, output_only),
             (from b | keep label) | limit 3
@@ -315,7 +315,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testSelectionRetentionTracesGenuineMetadataAndRawMappedAliases() {
         SequenceStage stage = firstStage("""
-            sequence by label with {"maxspan":"30s"} PRIMARY 1
+            sequence by label WITHIN 30 seconds PRIMARY 1
             (from a metadata _id, _index, _source | rename _id as original_id, _source as body, labels as values
               | keep label, original_id, _index, body, values),
             (from b | keep label) | limit 3
@@ -341,7 +341,7 @@ public class SequenceStageInputTests extends ESTestCase {
         assertEquals(List.of("_source", "labels"), retention.fetched().stream().map(Attribute::name).toList());
         assertEquals(List.of("label"), selection.source(0).output().stream().map(Attribute::name).toList());
         SequenceStage overwritten = firstStage("""
-            sequence by label with {"maxspan":"30s"} PRIMARY 1
+            sequence by label WITHIN 30 seconds PRIMARY 1
             (from a metadata _id | eval _id=TO_UPPER(label) | keep label, _id),
             (from b | keep label) | limit 3
             """);
@@ -351,7 +351,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testSelectionRetentionIsBranchLocalAcrossUnionProducerBindings() {
         SequenceStage stage = firstStage("""
-            sequence by label with {"maxspan":"30s"} PRIMARY 1
+            sequence by label WITHIN 30 seconds PRIMARY 1
             (from (from a | eval value=TO_LOWER(label) | where value!="skip" | keep label, value),
                   (from b | eval value=TO_UPPER(label) | keep label, value)),
             (from b | keep label) | limit 3
@@ -476,7 +476,7 @@ public class SequenceStageInputTests extends ESTestCase {
 
     public void testSelectionRetentionKeepsFullExtractorLayoutAndExpandedCellIdentity() {
         SequenceStage extracted = firstStage("""
-            sequence by extracted_key with {"maxspan":"30s"} PRIMARY 1
+            sequence by extracted_key WITHIN 30 seconds PRIMARY 1
             (from a | dissect label "%{extracted_key}/%{value}" | keep extracted_key, value),
             (from b | dissect label "%{extracted_key}/%{value}" | keep extracted_key, value) | limit 3
             """);
@@ -495,7 +495,7 @@ public class SequenceStageInputTests extends ESTestCase {
             }
         }
         SequenceStage expanded = firstStage("""
-            sequence by label with {"maxspan":"30s"} PRIMARY 1
+            sequence by label WITHIN 30 seconds PRIMARY 1
             (from a | mv_expand labels | keep label, labels), (from b | keep label) | limit 3
             """);
         Attribute labels = expanded.output().stream().filter(attribute -> attribute.name().equals("labels")).findFirst().orElseThrow();
@@ -518,7 +518,7 @@ public class SequenceStageInputTests extends ESTestCase {
     /** An output-free stage needs no eligibility proof or its temporary-plan admission. */
     public void testEmptyDemandSelectionSkipsRetentionProofAdmission() {
         SequenceStage stage = firstStage("""
-            sequence with {"maxspan":"30s"} PRIMARY 1 (from a), (from b)
+            sequence WITHIN 30 seconds PRIMARY 1 (from a), (from b)
             | stats count(*) | limit 3
             """);
         var selection = SequenceStageInput.selection(stage, List.of(), bytes -> {
@@ -554,7 +554,7 @@ public class SequenceStageInputTests extends ESTestCase {
     /** Empty payloads must still run key, predicate and expansion work on every fresh page binding. */
     public void testEmptyDemandSelectionPreservesKeysPredicatesAndExpansion() {
         SequenceStage stage = firstStage("""
-            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
+            sequence by normalized WITHIN 30 seconds PRIMARY 1
             (from a | mv_expand labels | eval normalized=TO_LOWER(labels)
               | where normalized!="skip" | keep normalized),
             (from b | eval normalized=label | keep normalized)
@@ -605,7 +605,7 @@ public class SequenceStageInputTests extends ESTestCase {
     /** The empty-demand shortcut must leave nonempty branch proofs lazy, admitted and memoized. */
     public void testNonemptyDemandSelectionStillAdmitsEachUsedBranchProof() {
         SequenceStage stage = firstStage("""
-            sequence by label with {"maxspan":"30s"} PRIMARY 1
+            sequence by label WITHIN 30 seconds PRIMARY 1
             (from (from a | eval value=TO_LOWER(label) | where value!="skip" | keep label, value),
                   (from b | eval value=TO_UPPER(label) | keep label, value)),
             (from b | keep label) | limit 3

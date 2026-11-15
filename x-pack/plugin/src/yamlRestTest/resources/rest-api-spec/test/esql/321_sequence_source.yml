@@ -6,8 +6,8 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ sequence_command ]
-      reason: "Native SEQUENCE is available on development snapshot builds"
+          capabilities: [ sequence_command, sequence_light_provenance ]
+      reason: "Requires native SEQUENCE with light provenance"
 
   - do:
       indices.create:
@@ -43,114 +43,53 @@ setup:
           - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
 
 ---
-"Retained primary and member originals render as objects in row JSON":
+"Removed RETURN MATCHES has a clear authoring error":
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: >-
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM sequence-source-http-a), (FROM sequence-source-http-b)
+            | KEEP key | LIMIT 1 | RETURN MATCHES
+  - match: { error.type: parsing_exception }
+  - match: { error.reason: "/(?-x)line [0-9]+:[0-9]+: RETURN MATCHES was removed; use .* MEMBER.*/" }
+
+---
+"Explicit primary source keeps ordinary JSON objects":
   - do:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
-            (FROM sequence-source-http-a), (FROM sequence-source-http-b)
-            | KEEP key | LIMIT 1 | RETURN MATCHES
-  - length: { columns: 8 }
-  - match: { columns.4.name: member_1_source }
-  - match: { columns.4.type: _source }
-  - match: { columns.7.name: member_2_source }
-  - match: { columns.7.type: _source }
-  - match:
-      columns.2._meta.sequence.contract:
-        version: 1
-        layout: columns
-        primary_stage: 1
-        member_count: 2
-        keys: [{ name: key, type: keyword, column: c1 }]
-        members:
-          - { stage: 1, index: c2, id: c3, source: c4 }
-          - { stage: 2, index: c5, id: c6, source: c7 }
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
+            (FROM sequence-source-http-a METADATA _source), (FROM sequence-source-http-b)
+            | KEEP key, _source | LIMIT 1
+  - length: { columns: 2 }
+  - match: { columns.1.name: _source }
+  - match: { columns.1.type: _source }
   - match:
       values:
         - - shared
-          - shared
-          - sequence-source-http-a
-          - A
           - { "@timestamp": "2026-09-25T21:14:51.389000000Z", key: shared, payload: first, number: 9007199254740993,
               unused: { array: [duplicate, null, duplicate], object: {nested: [{value: one}, {value: two}]}, explicit_null: null } }
-          - sequence-source-http-b
-          - B
-          - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
   - is_false: sequences
 
 ---
-"Retained primary and member originals retain objects in columnar JSON":
+"Ordinary provenance identifies the exact matched documents":
   - do:
       esql.query:
         body:
           query: >-
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM sequence-source-http-a), (FROM sequence-source-http-b)
-            | KEEP key | LIMIT 1 | RETURN MATCHES
-          columnar: true
-  - length: { columns: 8 }
-  - match: { columns.4.name: member_1_source }
-  - match: { columns.4.type: _source }
-  - match: { columns.7.name: member_2_source }
-  - match: { columns.7.type: _source }
-  - match:
-      columns.2._meta.sequence.contract:
-        version: 1
-        layout: columns
-        primary_stage: 1
-        member_count: 2
-        keys: [{ name: key, type: keyword, column: c1 }]
-        members:
-          - { stage: 1, index: c2, id: c3, source: c4 }
-          - { stage: 2, index: c5, id: c6, source: c7 }
-  - match:
-      values:
-        - [shared]
-        - [shared]
-        - [sequence-source-http-a]
-        - [A]
-        - - { "@timestamp": "2026-09-25T21:14:51.389000000Z", key: shared, payload: first, number: 9007199254740993,
-                unused: { array: [duplicate, null, duplicate], object: {nested: [{value: one}, {value: two}]}, explicit_null: null } }
-        - [sequence-source-http-b]
-        - [B]
-        - - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
-  - is_false: sequences
-
----
-"Retained primary and member originals retain objects with pretty JSON":
-  - do:
-      esql.query:
-        pretty: true
-        body:
-          query: >-
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
-            (FROM sequence-source-http-a), (FROM sequence-source-http-b)
-            | KEEP key | LIMIT 1 | RETURN MATCHES
-  - length: { columns: 8 }
-  - match: { columns.4.name: member_1_source }
-  - match: { columns.4.type: _source }
-  - match: { columns.7.name: member_2_source }
-  - match: { columns.7.type: _source }
-  - match:
-      columns.2._meta.sequence.contract:
-        version: 1
-        layout: columns
-        primary_stage: 1
-        member_count: 2
-        keys: [{ name: key, type: keyword, column: c1 }]
-        members:
-          - { stage: 1, index: c2, id: c3, source: c4 }
-          - { stage: 2, index: c5, id: c6, source: c7 }
+            | EVAL evidence = MV_SORT(sequence_provenance)
+            | KEEP key, evidence | LIMIT 1
+  - length: { columns: 2 }
+  - match: { columns.1.name: evidence }
+  - match: { columns.1.type: keyword }
   - match:
       values:
         - - shared
-          - shared
-          - sequence-source-http-a
-          - A
-          - { "@timestamp": "2026-09-25T21:14:51.389000000Z", key: shared, payload: first, number: 9007199254740993,
-              unused: { array: [duplicate, null, duplicate], object: {nested: [{value: one}, {value: two}]}, explicit_null: null } }
-          - sequence-source-http-b
-          - B
-          - { "@timestamp": "2026-09-25T21:14:51.389000001Z", key: shared, payload: second, explicit_null: null }
+          - - '{"stage":1,"index":"sequence-source-http-a","id":"A"}'
+            - '{"stage":2,"index":"sequence-source-http-b","id":"B"}'
   - is_false: sequences

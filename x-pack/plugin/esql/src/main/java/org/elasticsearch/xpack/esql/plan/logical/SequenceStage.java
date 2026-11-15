@@ -79,28 +79,22 @@ public final class SequenceStage extends UnaryPlan implements PostAnalysisVerifi
             readSource(in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
-            in.getTransportVersion().supports(Sequence.ESQL_SEQUENCE_PER_LINK_TIME) ? in.readVLong() : 0
+            in.readVLong()
         );
     }
 
     private static Source readSource(StreamInput in) throws IOException {
-        Sequence.checkSupported(in.getTransportVersion());
+        Sequence.checkPlanSupported(in.getTransportVersion());
         return Source.readFrom((PlanStreamInput) in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Sequence.checkPlanSupported(
-            out.getTransportVersion(),
-            maxGapNanos > 0,
-            child().anyMatch(plan -> plan instanceof SequenceCondition)
-        );
+        Sequence.checkPlanSupported(out.getTransportVersion());
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(keys);
-        if (out.getTransportVersion().supports(Sequence.ESQL_SEQUENCE_PER_LINK_TIME)) {
-            out.writeVLong(maxGapNanos);
-        }
+        out.writeVLong(maxGapNanos);
     }
 
     @Override

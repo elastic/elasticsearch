@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
@@ -17,13 +16,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -44,12 +38,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
-import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.execution.sequence.SequenceSourceStatus;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -77,7 +67,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Checks chosen scalar expansion values and authentic physical originals through real execution and consumers.
+ * Checks selected scalar expansion values and genuine member identities through real execution.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
@@ -90,7 +80,6 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
     private static final TimeValue CLEANUP_TIMEOUT = TimeValue.timeValueSeconds(60);
     private static final Object MISSING = new Object();
     private static final AtomicInteger LABELS = new AtomicInteger();
-    private MockBlockFactory consumerBlocks;
     private OwnedResponse active;
     private Throwable cleanupViolation;
     private String coordinator;
@@ -118,7 +107,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
             .build();
     }
 
-    /** Track native pages independently of the reference consumer's deserialized blocks. */
+    /** Track real native pages through ordinary execution and failure cleanup. */
     public static class TrackingPlugin extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
         protected BlockFactoryProvider blockFactoryProvider(BlockFactoryBuilder builder) {
@@ -126,35 +115,19 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Allocate only the private reference-reader breaker; no fixture namespace is touched before its ownership check. */
+    /** Use one stable coordinator for request ownership and cleanup assertions. */
     @Before
-    public void prepareConsumer() {
-        consumerBlocks = new MockBlockFactory(
-            BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(64)).withCircuitBreaking())
-        );
+    public void prepareCoordinator() {
         coordinator = Arrays.stream(internalCluster().getNodeNames()).sorted().findFirst().orElseThrow();
     }
 
-    /** Both primary choices preserve expanded scalar keys and authentic original events. */
-    public void testBothPrimaryChoicesKeepExpandedOriginals() throws Exception {
+    /** Both primary choices preserve expanded scalar keys and genuine event provenance. */
+    public void testBothPrimaryChoicesKeepExpandedValuesAndProvenance() throws Exception {
         List<Doc> docs = core();
         withDocs(docs, () -> {
             for (int primary : List.of(1, 2)) {
                 coreCheck(query(coreQuery(primary, 10)), docs, primary);
             }
-        });
-    }
-
-    /** The same physical originals under two scalar keys must survive actual row/columnar JSON and wire consumers. */
-    public void testExpandedKeysKeepBothAuthenticOriginals() throws Exception {
-        List<Doc> docs = core();
-        withDocs(docs, () -> {
-            for (int primary : List.of(1, 2))
-                for (boolean columnar : List.of(false, true)) {
-                    Result result = query(coreQuery(primary, 10), 1, columnar);
-                    coreCheck(result, docs, primary);
-                    assertEquals(2L, result.status.completedMatches());
-                }
         });
     }
 
@@ -165,7 +138,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
             for (int primary : List.of(1, 2)) {
                 String stage = "EVAL keys=MV_APPEND(keys,keys) | MV_EXPAND keys | KEEP keys,actor";
                 Result result = query(
-                    retained(
+                    projected(
                         sequence("keys", primary, stage, stage),
                         "EVAL other=MEMBER(" + (3 - primary) + ",actor) | KEEP keys,actor,other",
                         "keys",
@@ -183,7 +156,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         Doc first = core().getFirst();
         Doc last = document(A, "B", 1, List.of("alpha", "beta"), "second");
         String stage = "EVAL keys=MV_APPEND(keys,keys) | MV_EXPAND keys | KEEP keys,actor";
-        String text = retained(sequence("keys", 1, A, stage, A, stage), "EVAL other=MEMBER(2,actor) | KEEP keys,actor,other", "keys", 10);
+        String text = projected(sequence("keys", 1, A, stage, A, stage), "EVAL other=MEMBER(2,actor) | KEEP keys,actor,other", "keys", 10);
         withDocs(List.of(first), () -> check(query(text), 1, List.of("keys", "actor", "other"), keywords(3), List.of()));
         withDocs(
             List.of(first, last),
@@ -212,15 +185,15 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         verifyNonKey(true, true, false);
     }
 
-    /** A predicate-pinned non-key scalar keeps its original array; no general first-value API is introduced. */
-    public void testPinnedNonKeyExpansionKeepsFullOriginalArray() throws Exception {
+    /** A predicate-pinned non-key scalar keeps its selected position. */
+    public void testPinnedNonKeyExpansionKeepsSelectedScalar() throws Exception {
         List<Doc> docs = core();
         withDocs(docs, () -> {
             String stage = "MV_EXPAND tags | WHERE tags==\"tag-z\" | KEEP key,tags";
             for (int primary : List.of(1, 2))
                 check(
                     query(
-                        retained(
+                        projected(
                             sequence("key", primary, stage, stage),
                             "EVAL other=MEMBER(" + (3 - primary) + ",tags) | KEEP key,tags,other",
                             "key",
@@ -240,8 +213,8 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         verifyNonKey(true, true, true);
     }
 
-    /** Metadata-shaped processed targets must remain separate from the genuine protected index/id/SOURCE slots. */
-    public void testMetadataShapedExpansionTargetsKeepGenuineOriginals() throws Exception {
+    /** Metadata-shaped processed targets remain ordinary values beside genuine event provenance. */
+    public void testMetadataShapedExpansionTargetsKeepGenuineProvenance() throws Exception {
         List<Doc> docs = core();
         withDocs(docs, () -> {
             for (String target : List.of("_id", "_index", "_source"))
@@ -253,7 +226,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                         + " | KEEP keys,"
                         + target;
                     Result result = query(
-                        retained(
+                        projected(
                             sequence("keys", primary, stage, stage),
                             "EVAL other=MEMBER(" + (3 - primary) + "," + target + ") | KEEP keys," + target + ",other",
                             "keys",
@@ -284,7 +257,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                 String sequence = sequence("key", 1, A + " METADATA " + target, stage, B + " METADATA " + target, stage);
                 assertEquals(List.of(cells("shared")), query(sequence + " | KEEP key | LIMIT 10").values);
                 check(
-                    query(retained(sequence, "KEEP key", "key", 10)),
+                    query(projected(sequence, "KEEP key", "key", 10)),
                     1,
                     List.of("key"),
                     keywords(1),
@@ -294,8 +267,8 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         });
     }
 
-    /** Quoted compiler-shaped/mapped targets and a real diagnostic-name collision must be resolved by binding IDs. */
-    public void testQuotedAndDiagnosticNameCollisionsKeepOriginalBindings() throws Exception {
+    /** Quoted mapped/computed targets and diagnostic-name collisions keep distinct MEMBER bindings. */
+    public void testQuotedAndDiagnosticNameCollisionsKeepOrdinaryBindings() throws Exception {
         List<Doc> docs = core().stream().map(doc -> field(doc, QUOTED, List.of("mapped-z", "mapped-a"))).toList();
         withDocs(docs, () -> {
             for (int primary : List.of(1, 2))
@@ -316,7 +289,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                         + QUOTED
                         + "`";
                     Result result = query(
-                        retained(
+                        projected(
                             sequence("keys", primary, stage, stage),
                             "EVAL other=MEMBER("
                                 + (3 - primary)
@@ -377,7 +350,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Non-key null/empty/missing values preserve the ordinary null row; the source keeps their distinct original shapes. */
+    /** Non-key null/empty/missing values preserve the ordinary null row. */
     public void testNonKeyNullEmptyMissingAndScalarExpansion() throws Exception {
         for (Object tags : Arrays.asList(null, List.of(), MISSING, "one")) {
             List<Doc> docs = core().stream().map(doc -> tags == MISSING ? without(doc, "tags") : field(doc, "tags", tags)).toList();
@@ -388,7 +361,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                 Result ordinary = query(sequence + " | EVAL other=MEMBER(2,tags) | KEEP key,tags,other | LIMIT 10");
                 assertEquals(List.of(cells("shared", wanted, wanted)), ordinary.values);
                 check(
-                    query(retained(sequence, "EVAL other=MEMBER(2,tags) | KEEP key,tags,other", "key", 10)),
+                    query(projected(sequence, "EVAL other=MEMBER(2,tags) | KEEP key,tags,other", "key", 10)),
                     1,
                     List.of("key", "tags", "other"),
                     keywords(3),
@@ -407,7 +380,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
             for (int primary : List.of(1, 2))
                 check(
                     query(
-                        retained(
+                        projected(
                             sequence("keys", primary, stage, stage),
                             "EVAL other=MEMBER(" + (3 - primary) + ",value) | KEEP keys,value,other",
                             "keys",
@@ -429,8 +402,8 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         });
     }
 
-    /** Projection/rename and parsing after expansion cannot sever protected originals or the selected scalar key. */
-    public void testProjectionPruningAndParsingKeepExpandedOriginals() throws Exception {
+    /** Projection, rename and parsing preserve the selected scalar key and processed payload. */
+    public void testProjectionPruningAndParsingKeepExpandedValues() throws Exception {
         List<Doc> docs = core();
         withDocs(docs, () -> {
             for (boolean parsing : List.of(false, true))
@@ -441,7 +414,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                         : "EVAL expanded=keys | MV_EXPAND expanded | RENAME expanded AS chosen"
                             + " | EVAL unused=CONCAT(actor,\"/unused\") | DROP keys,unused | KEEP chosen,actor";
                     Result result = query(
-                        retained(
+                        projected(
                             sequence("chosen", primary, stage, stage),
                             "EVAL other=MEMBER(" + (3 - primary) + ",actor) | KEEP chosen,actor,other",
                             "chosen",
@@ -463,14 +436,14 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         });
     }
 
-    /** NULLIFY applies to a genuinely absent expansion input and does not replace authentic source slots with nulls. */
+    /** NULLIFY applies to a genuinely absent expansion input while genuine member identities stay available. */
     public void testNullifyMissingExpansionInput() throws Exception {
         List<Doc> docs = core();
         withDocs(docs, () -> {
             String prefix = "SET unmapped_fields=\"nullify\"; ";
             String stage = "EVAL pick=absent_optional | MV_EXPAND pick | KEEP key,pick";
             check(
-                query(prefix + retained(sequence("key", 1, stage, stage), "EVAL other=MEMBER(2,pick) | KEEP key,pick,other", "key", 10)),
+                query(prefix + projected(sequence("key", 1, stage, stage), "EVAL other=MEMBER(2,pick) | KEEP key,pick,other", "key", 10)),
                 1,
                 List.of("key", "pick", "other"),
                 List.of("keyword", "null", "null"),
@@ -479,7 +452,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
             String missingKey = "EVAL missing_key=absent_optional | MV_EXPAND missing_key | KEEP missing_key,actor";
             check(
                 query(
-                    prefix + retained(
+                    prefix + projected(
                         sequence("missing_key", 1, missingKey, missingKey),
                         "EVAL other=MEMBER(2,actor) | KEEP missing_key,actor,other",
                         "missing_key",
@@ -501,7 +474,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                 String target = generated ? "pick" : "tags";
                 String stage = (generated ? "EVAL pick=tags | " : "") + "MV_EXPAND " + target + " | DROP " + target + " | KEEP key,actor";
                 String text = "SET unmapped_fields=\"nullify\"; "
-                    + retained(sequence("key", 1, stage, stage), "EVAL observed=MEMBER(2," + target + ") | KEEP key,observed", "key", 10);
+                    + projected(sequence("key", 1, stage, stage), "EVAL observed=MEMBER(2," + target + ") | KEEP key,observed", "key", 10);
                 Exception failure = expectThrows(Exception.class, () -> query(text));
                 assertThat(failure.getMessage(), containsString("Unknown column"));
                 assertThat(failure.getMessage(), containsString(target));
@@ -509,8 +482,8 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         });
     }
 
-    /** The last physical candidate on page two must retain the exact pair of complete originals. */
-    public void testCandidatePageBoundariesKeepExpandedOriginals() throws Exception {
+    /** The last physical candidate on page two keeps its exact pair of event identities. */
+    public void testCandidatePageBoundariesKeepExpandedProvenance() throws Exception {
         for (int count : List.of(255, 256, 257)) {
             List<Doc> docs = new ArrayList<>();
             for (int i = 0; i < count; i++) {
@@ -535,7 +508,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Pragma variations and match batches preserve repeated originals; the separate 5001-value test proves actual expand chunks. */
+    /** Pragma variations and match batches preserve selected rows; the 5001-value test proves actual expand chunks. */
     public void testPragmaVariationsAndPayloadBatchesKeepSelectedExpansions() throws Exception {
         for (int count : List.of(63, 64, 65, 150)) {
             List<String> keys = new ArrayList<>();
@@ -565,7 +538,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                                 );
                             check(
                                 query(
-                                    retained(
+                                    projected(
                                         sequence("keys", primary, stage, stage),
                                         "EVAL other=MEMBER(" + (3 - primary) + ",value) | KEEP keys,value,other",
                                         "keys",
@@ -601,7 +574,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                     String other = replay ? "REPLACE(" + member + ",\"/replay\",\"\")" : member;
                     check(
                         query(
-                            retained(
+                            projected(
                                 sequence("key", primary, stage, stage),
                                 "EVAL present=" + present + ",other=" + other + " | KEEP key,present,other",
                                 "key",
@@ -619,7 +592,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         });
     }
 
-    /** Outer limit preserves the chosen row/body and closes all unused work; it need not visit every possible match. */
+    /** Outer limit preserves the chosen row and closes unused work. */
     public void testLimitClosesUnusedExpansions() throws Exception {
         List<Doc> docs = core();
         withDocs(docs, () -> {
@@ -641,20 +614,21 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         });
     }
 
-    /** Cancel actual parents with pending expanded candidates and with an already selected original awaiting second payload. */
+    /** Cancel actual parents with pending expanded candidates and an explicit SOURCE output awaiting payload. */
     public void testCancellationDrainsExpansionAndReplay() throws Exception {
         withDocs(core(), () -> {
             String stage = "MV_EXPAND keys | EVAL value=CONCAT(actor,\"/\",keys) | KEEP keys,value";
-            String text = retained(sequence("keys", 1, stage, stage), "EVAL other=MEMBER(2,value) | KEEP keys,value,other", "keys", 10);
+            String text = projected(sequence("keys", 1, stage, stage), "EVAL other=MEMBER(2,value) | KEEP keys,value,other", "keys", 10);
             for (GateMode mode : GateMode.values()) {
-                Exception failure = expectThrows(Exception.class, () -> query(text, 1, false, mode, true, false));
+                String gated = mode == GateMode.PAYLOAD ? payloadQuery(stage, 10) : text;
+                Exception failure = expectThrows(Exception.class, () -> query(gated, 1, false, mode, true, false));
                 assertNotNull(ExceptionsHelper.unwrap(failure, TaskCancelledException.class));
             }
         });
     }
 
     /** A real generous-limit fanout succeeds; lowering the breaker at the selected-payload gate must fail and release everything. */
-    public void testWideFanoutBreakerReleasesOriginals() throws Exception {
+    public void testWideFanoutBreakerReleasesExplicitSource() throws Exception {
         List<String> keys = new ArrayList<>();
         for (int i = 0; i < 512; i++)
             keys.add(key(i));
@@ -667,36 +641,52 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
             for (String key : keys)
                 wanted.add(expected(key, cells(key, "first", "second"), docs.get(0), docs.get(1)));
             check(query(coreQuery(1, 10000)), 1, List.of("keys", "actor", "other"), keywords(3), wanted);
-            Exception failure = expectThrows(Exception.class, () -> query(coreQuery(1, 10000), 1, false, GateMode.PAYLOAD, false, true));
+            String payloadText = payloadQuery("MV_EXPAND keys | EVAL value=actor | KEEP keys,value", 10000);
+            List<Expected> sourceExpected = new ArrayList<>();
+            for (String key : keys)
+                sourceExpected.add(expected(key, cells(key, "second", "first", docs.get(1).source), docs.get(0), docs.get(1)));
+            check(
+                query(payloadText),
+                2,
+                List.of("keys", "value", "other", "_source"),
+                List.of("keyword", "keyword", "keyword", "_source"),
+                sourceExpected
+            );
+            Exception failure = expectThrows(Exception.class, () -> query(payloadText, 1, false, GateMode.PAYLOAD, false, true));
             assertNotNull(ExceptionsHelper.unwrap(failure, CircuitBreakingException.class));
             coreCheckAfterFanoutRecovery(docs);
         });
     }
 
-    /** Only stage-local expansion is proposed: retained unions/outer expansion/timestamp overwrites/still-MV keys stay rejected. */
-    public void testOuterEvidenceAndScalarBoundariesStayNarrow() throws Exception {
+    /** Stage timestamp overwrites and unexpanded multivalue keys remain rejected. */
+    public void testStageTimestampAndScalarKeyBoundaries() throws Exception {
         withDocs(core(), () -> {
             String stage = "MV_EXPAND keys | KEEP keys,actor";
-            String seq = sequence("keys", 1, stage, stage);
-            Exception outer = expectThrows(Exception.class, () -> query(seq + " | MV_EXPAND keys | LIMIT 10 | RETURN MATCHES"));
-            assertThat(outer.getMessage(), containsString("outside the sequence output prototype"));
-            Exception union = expectThrows(Exception.class, () -> query("FROM (" + seq + "), (" + seq + ") | LIMIT 10 | RETURN MATCHES"));
-            assertThat(union.getMessage(), containsString("ordinary union"));
             String overwritten = "EVAL @timestamp=NOW() | MV_EXPAND keys | KEEP keys,actor";
             Exception time = expectThrows(
                 Exception.class,
-                () -> query(retained(sequence("keys", 1, overwritten, stage), "KEEP keys", "keys", 10))
+                () -> query(projected(sequence("keys", 1, overwritten, stage), "KEEP keys", "keys", 10))
             );
             assertThat(time.getMessage(), containsString("cannot overwrite the source [@timestamp]"));
             String unexpanded = sequence("keys", 1, "KEEP keys,actor", "KEEP keys,actor");
-            Exception mv = expectThrows(Exception.class, () -> query(retained(unexpanded, "KEEP keys", "keys", 10)));
+            Exception mv = expectThrows(Exception.class, () -> query(projected(unexpanded, "KEEP keys", "keys", 10)));
             assertThat(mv.getMessage(), containsString("use MV_EXPAND inside the stage"));
         });
     }
 
+    /** The real payload gate needs an explicit SOURCE demand after implicit source capture is removed. */
+    private static String payloadQuery(String stage, int limit) {
+        return projected(
+            sequence("keys", 2, A, stage, B + " METADATA _source", stage.replace("KEEP keys,value", "KEEP keys,value,_source")),
+            "EVAL other=MEMBER(1,value) | KEEP keys,value,other,_source",
+            "keys",
+            limit
+        );
+    }
+
     private static String coreQuery(int primary, int limit) {
         String stage = "MV_EXPAND keys | KEEP keys,actor";
-        return retained(
+        return projected(
             sequence("keys", primary, stage, stage),
             "EVAL other=MEMBER(" + (3 - primary) + ",actor) | KEEP keys,actor,other",
             "keys",
@@ -718,7 +708,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         );
     }
 
-    private void verifyNonKey(boolean expandedKeys, boolean duplicateValues, boolean capture) throws Exception {
+    private void verifyNonKey(boolean expandedKeys, boolean duplicateValues, boolean withProvenance) throws Exception {
         List<Doc> docs = core();
         withDocs(docs, () -> {
             String key = expandedKeys ? "keys" : "key";
@@ -744,13 +734,13 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                         String first = replay ? "REPLACE(value,\"/replay\",\"\")" : "value";
                         String member = "MEMBER(" + (3 - primary) + ",value)";
                         String other = replay ? "REPLACE(" + member + ",\"/replay\",\"\")" : member;
-                        String typedQuery = retained(
+                        String typedQuery = projected(
                             seq,
                             "EVAL present=" + first + ",other=" + other + " | KEEP " + key + ",present,other",
                             key,
                             10
                         );
-                        if (capture == false) typedQuery = typedQuery.substring(0, typedQuery.lastIndexOf(" | RETURN MATCHES"));
+                        if (withProvenance == false) typedQuery = typedQuery.replace("KEEP sequence_provenance,", "KEEP ");
                         Result typed = query(typedQuery, page, false);
                         List<Expected> wanted = new ArrayList<>();
                         for (String matchKey : expandedKeys ? List.of("alpha", "beta") : List.of("shared")) {
@@ -768,7 +758,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                                 )
                             );
                         }
-                        if (capture) check(typed, primary, List.of(key, "present", "other"), keywords(3), wanted);
+                        if (withProvenance) check(typed, primary, List.of(key, "present", "other"), keywords(3), wanted);
                         else {
                             assertEquals(List.of(key, "present", "other"), typed.names);
                             assertEquals(keywords(3), typed.types);
@@ -794,8 +784,8 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                                 expandedKeys,
                                 "duplicate_values",
                                 duplicateValues,
-                                "retained",
-                                capture,
+                                "provenance",
+                                withProvenance,
                                 "forced_replay",
                                 replay,
                                 "primary",
@@ -803,7 +793,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                                 "page",
                                 page,
                                 "ordinary_rows",
-                                capture ? typed.decoded.rows.stream().map(SequenceMatchDescription.Row::ordinary).toList() : typed.values,
+                                typed.values,
                                 "typed_stage_drivers",
                                 typed.status.stageDrivers(),
                                 "count_stage_drivers",
@@ -925,7 +915,7 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
     private static String sequence(String key, int primary, String first, String left, String last, String right) {
         return "SEQUENCE BY "
             + key
-            + " WITH {\"maxspan\":\"1m\"} PRIMARY "
+            + " WITHIN 1m PRIMARY "
             + primary
             + " (FROM "
             + first
@@ -938,8 +928,8 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
             + ")";
     }
 
-    private static String retained(String sequence, String pipeline, String sort, int limit) {
-        return sequence + " | " + pipeline + " | SORT " + sort + " | LIMIT " + limit + " | RETURN MATCHES";
+    private static String projected(String sequence, String pipeline, String sort, int limit) {
+        return sequence + " | " + pipeline.replace("KEEP ", "KEEP sequence_provenance,") + " | SORT " + sort + " | LIMIT " + limit;
     }
 
     private Result query(String query) throws Exception {
@@ -1051,19 +1041,24 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
                 .map(SequenceSourceStatus.class::cast)
                 .toList();
             assertEquals("one actual native sequence profile", 1, statuses.size());
-            Decoded decoded = query.contains("RETURN MATCHES") ? consumers(response) : null;
-            // The decoded retained rows already own their SOURCE maps. Do not keep a second full evidence copy per fanout row.
-            List<List<Object>> values = decoded == null
-                ? getValuesList(response).stream().map(row -> row.stream().map(SequenceRetainedExpansionIT::heapCell).toList()).toList()
-                : decoded.rows.stream().map(SequenceMatchDescription.Row::ordinary).toList();
-            int width = decoded == null ? response.columns().size() : decoded.names.size();
-            result = new Result(
-                decoded,
-                values,
-                response.columns().subList(0, width).stream().map(ColumnInfo::name).toList(),
-                response.columns().subList(0, width).stream().map(ColumnInfo::outputType).toList(),
-                statuses.getFirst()
-            );
+            List<List<Object>> rawValues = getValuesList(response).stream()
+                .map(row -> row.stream().map(SequenceRetainedExpansionIT::heapCell).toList())
+                .toList();
+            List<String> names = new ArrayList<>(response.columns().stream().map(ColumnInfo::name).toList());
+            List<String> types = new ArrayList<>(response.columns().stream().map(ColumnInfo::outputType).toList());
+            int provenanceColumn = names.indexOf("sequence_provenance");
+            List<List<SequenceProvenance.Member>> provenance = provenanceColumn < 0 ? null : new ArrayList<>();
+            List<List<Object>> values = new ArrayList<>();
+            for (List<Object> row : rawValues) {
+                List<Object> ordinary = new ArrayList<>(row);
+                if (provenanceColumn >= 0) provenance.add(SequenceProvenance.decode(ordinary.remove(provenanceColumn)));
+                values.add(ordinary);
+            }
+            if (provenanceColumn >= 0) {
+                names.remove(provenanceColumn);
+                types.remove(provenanceColumn);
+            }
+            result = new Result(provenance, values, names, types, statuses.getFirst());
         } catch (Exception | Error failure) {
             primary = failure;
             if (invoked == false && owned.terminal() == false) {
@@ -1129,81 +1124,6 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         return result;
     }
 
-    private Decoded consumers(EsqlQueryResponse response) throws Exception {
-        Decoded decoded = consume(response.responseInternal());
-        assertEquals(decoded, fromJson(json(response, false), response.columnar()));
-        assertEquals(decoded, fromJson(json(response, true), response.columnar()));
-        try (var output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersion.current());
-            response.writeTo(output);
-            try (
-                var input = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), internalCluster().getNamedWriteableRegistry())
-            ) {
-                input.setTransportVersion(TransportVersion.current());
-                try (var copy = EsqlQueryResponse.reader(consumerBlocks).read(input)) {
-                    assertEquals(decoded, consume(copy.responseInternal()));
-                    assertEquals(decoded, fromJson(json(copy, false), copy.columnar()));
-                }
-            }
-        }
-        return decoded;
-    }
-
-    private static Decoded consume(EsqlResponse response) {
-        List<List<Object>> rows = new ArrayList<>();
-        for (var row : response.rows()) {
-            List<Object> values = new ArrayList<>();
-            row.forEach(value -> values.add(heapCell(value)));
-            rows.add(values);
-        }
-        return decode(response.columns(), rows);
-    }
-
-    private static Decoded decode(List<? extends ColumnInfo> columns, List<List<Object>> rows) {
-        var description = SequenceMatchDescription.fromColumns(columns);
-        List<SequenceMatchDescription.Row> decoded = rows.stream()
-            .map(row -> description.decodeRow(row, SequenceMatchDescription.SourcePolicy.REQUIRE_PRESENT))
-            .toList();
-        return new Decoded(description.primaryStage(), description.ordinaryNames(), decoded);
-    }
-
-    private static Decoded fromJson(String value, boolean columnar) throws IOException {
-        List<ColumnInfo> columns = new ArrayList<>();
-        List<List<Object>> values = new ArrayList<>();
-        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, value)) {
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                String name = parser.currentName();
-                parser.nextToken();
-                if (name.equals("all_columns")) throw new IllegalArgumentException("column elision outside retained reader profile");
-                if (name.equals("columns")) {
-                    while (parser.nextToken() != XContentParser.Token.END_ARRAY)
-                        columns.add(ColumnInfoImpl.fromXContent(parser));
-                } else if (name.equals("values")) {
-                    for (Object item : parser.list()) {
-                        if (item instanceof List<?> list) values.add(list.stream().map(SequenceRetainedExpansionIT::heapCell).toList());
-                        else throw new IllegalArgumentException("array required");
-                    }
-                } else parser.skipChildren();
-            }
-        }
-        if (columnar) {
-            assertEquals(columns.size(), values.size());
-            int height = values.isEmpty() ? 0 : values.getFirst().size();
-            List<List<Object>> rows = new ArrayList<>();
-            for (int row = 0; row < height; row++) {
-                List<Object> cells = new ArrayList<>();
-                for (List<Object> column : values) {
-                    assertEquals(height, column.size());
-                    cells.add(column.get(row));
-                }
-                rows.add(cells);
-            }
-            values = rows;
-        }
-        return decode(columns, values);
-    }
-
     private static Object heapCell(Object value) {
         if (value == null
             || value instanceof String
@@ -1223,37 +1143,21 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
         throw new IllegalArgumentException("borrowed/unsupported result cell: " + value.getClass().getName());
     }
 
-    private static String json(EsqlQueryResponse response, boolean pretty) throws IOException {
-        try (var builder = JsonXContent.contentBuilder()) {
-            if (pretty) builder.prettyPrint();
-            var params = new ToXContent.MapParams(Map.of("drop_null_columns", "false"));
-            var chunks = response.toXContentChunked(params);
-            while (chunks.hasNext())
-                chunks.next().toXContent(builder, params);
-            return BytesReference.bytes(builder).utf8ToString();
-        }
-    }
-
     private static void check(Result result, int primary, List<String> names, List<String> types, List<Expected> expected) {
-        assertNotNull(result.decoded);
-        assertEquals(primary, result.decoded.primary);
-        assertEquals(names, result.names);
+        assertNotNull(result.provenance);
+        assertEquals("PRIMARY " + primary, names, result.names);
         assertEquals(types, result.types);
-        assertEquals(expected.size(), result.decoded.rows.size());
+        assertEquals(expected.size(), result.values.size());
+        assertEquals(expected.size(), result.provenance.size());
         for (int i = 0; i < expected.size(); i++) {
             Expected wanted = expected.get(i);
-            var actual = result.decoded.rows.get(i);
-            assertEquals(wanted.ordinary, actual.ordinary());
-            assertEquals(wanted.keys, actual.keys());
-            assertEquals(wanted.members.size(), actual.members().size());
+            assertEquals("keys " + wanted.keys, wanted.ordinary, result.values.get(i));
+            List<SequenceProvenance.Member> members = new ArrayList<>();
             for (int stage = 0; stage < wanted.members.size(); stage++) {
                 Doc doc = wanted.members.get(stage);
-                var member = actual.members().get(stage);
-                assertEquals(stage + 1, member.stage());
-                assertEquals(doc.index, member.index());
-                assertEquals(doc.id, member.id());
-                assertEquals(doc.source, member.source());
+                members.add(new SequenceProvenance.Member(stage + 1, doc.index, doc.id));
             }
+            assertEquals(members, result.provenance.get(i));
         }
     }
 
@@ -1335,10 +1239,6 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
             }));
         });
         ensureBlocksReleased();
-        if (consumerBlocks != null) {
-            consumerBlocks.ensureAllBlocksAreReleased();
-            assertEquals(0L, consumerBlocks.breaker().getUsed());
-        }
         if (cleanupViolation != null) throw new AssertionError(
             "a bounded cleanup failure cannot be accepted as an expected query error",
             cleanupViolation
@@ -1562,12 +1462,9 @@ public class SequenceRetainedExpansionIT extends AbstractSequenceIntegTestCase {
     /** Exact processed cells, scalar keys and row-local genuine members. */
     private record Expected(List<Object> keys, List<Object> ordinary, List<Doc> members) {}
 
-    /** Reference-reader output, with no global physical-event deduplication. */
-    private record Decoded(int primary, List<String> names, List<SequenceMatchDescription.Row> rows) {}
-
     /** Heap-owned consumer result and actual immutable native aggregate status. */
     private record Result(
-        Decoded decoded,
+        List<List<SequenceProvenance.Member>> provenance,
         List<List<Object>> values,
         List<String> names,
         List<String> types,

@@ -20,10 +20,9 @@ import static org.hamcrest.Matchers.containsString;
 /** Invalid declarations fail before searches rather than silently selecting a different field context. */
 public class SequenceQueryOutputParserTests extends ESTestCase {
     private static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(true, TEST_FUNCTION_REGISTRY));
-    private static final String BASE = "SEQUENCE BY key WITH {\"maxspan\":\"1m\"} PRIMARY 2 (FROM a), (FROM b)";
+    private static final String BASE = "SEQUENCE BY key WITHIN 1m PRIMARY 2 (FROM a), (FROM b)";
 
-    private static final String NAMED_BASE = "SEQUENCE BY key WITH {\"maxspan\":\"1m\"} PRIMARY finish "
-        + "(FROM a) AS start, (FROM b) AS finish";
+    private static final String NAMED_BASE = "SEQUENCE BY key WITHIN 1m PRIMARY finish " + "(FROM a) AS start, (FROM b) AS finish";
 
     /** Named and numbered references share the same protected field binding after lowering. */
     public void testNamedAndPositionalReferencesShareBinding() {
@@ -109,23 +108,12 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
         }
     }
 
-    /** Aliases are scoped to each ordinary union branch, exactly like positional MEMBER references. */
-    public void testNamedStageBranchAndSubqueryBoundaries() {
-        String first = NAMED_BASE + " | EVAL evidence = MEMBER(start, key) | KEEP key, evidence";
-        String second = NAMED_BASE.replace("PRIMARY finish", "PRIMARY start")
-            + " | EVAL evidence = MEMBER(finish, key) | KEEP key, evidence";
-        assertNotNull(TEST_PARSER.createStatement("FROM (" + first + "), (" + second + ") | STATS count = COUNT(*)"));
-        rejected("FROM (" + first + "), (FROM c) | EVAL x = MEMBER(start, key)", "MEMBER cannot escape its SEQUENCE branch");
-        rejected("FROM (" + first + "), (FROM c | EVAL x = MEMBER(start, key))", "MEMBER requires SEQUENCE with an explicit PRIMARY");
-        rejected(
-            "FROM (" + first + "), (" + NAMED_BASE.replace("AS start", "AS other") + " | EVAL x = MEMBER(start, key))",
-            "Unknown SEQUENCE stage name [start] in MEMBER"
-        );
+    /** Named MEMBER calls remain local to the top-level sequence pipeline. */
+    public void testNamedMemberCannotEscapeMembershipSubquery() {
         rejected(
             NAMED_BASE + " | WHERE key IN (FROM c | EVAL key = MEMBER(start, key) | KEEP key)",
             "MEMBER is not available inside an IN subquery"
         );
-        rejectedLetBody(NAMED_BASE);
     }
 
     public void testPrimaryReferenceUsesOrdinaryNames() {
@@ -140,10 +128,10 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
         rejected(BASE.replace("PRIMARY 2", "UNRELATED 2"), "Expected PRIMARY");
     }
 
-    /** Every sequence selects its ordinary field context, including queries without retained evidence. */
+    /** Every sequence selects its ordinary field context, through ordinary commands. */
     public void testMissingPrimaryRejected() {
         String sequence = BASE.replace(" PRIMARY 2", "");
-        for (String suffix : new String[] { "", " | KEEP stage1.*", " | RETURN MATCHES", " | EVAL x = MEMBER(1, user.name)" }) {
+        for (String suffix : new String[] { "", " | KEEP stage1.*", " | EVAL x = MEMBER(1, user.name)" }) {
             rejected(sequence + suffix, "SEQUENCE requires an explicit PRIMARY member");
         }
     }
@@ -156,149 +144,76 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
         rejected(BASE + " | EVAL x = MEMBER(3, user.name)", "one-based member");
     }
 
-    public void testExplicitPrimaryAndTerminalDeclarationRequired() {
+    public void testPrimaryRequiresExistingStage() {
         rejected(BASE.replace("PRIMARY 2", "PRIMARY 0"), "one-based member");
         rejected(BASE.replace("PRIMARY 2", "PRIMARY 3"), "one-based member");
-        rejected(BASE + " | RETURN MATCHES | LIMIT 1", "final command");
-        rejected(BASE + " | RETURN MATCHES | RETURN MATCHES", "final command");
     }
 
-    public void testUnsupportedGrainAndNestedMemberFailClosed() {
-        rejected(BASE + " | STATS c = COUNT(*) | RETURN MATCHES", "outside the sequence output prototype");
+    public void testNestedMemberFailsClosed() {
         rejected(
             BASE.replace("(FROM a)", "(FROM a | EVAL x = MEMBER(1, user.name))"),
             "only supported in the final WHERE of a SEQUENCE stage"
         );
-        rejected("FROM a | RETURN MATCHES", "explicit PRIMARY");
     }
 
-    /** Selecting a default member namespace does not impose retained-evidence grain restrictions. */
+    /** Selecting a primary namespace preserves ordinary unary commands. */
     public void testPrimaryPresentationAllowsOrdinaryUnaryCommands() {
         assertNotNull(TEST_PARSER.createStatement(BASE + " | STATS c = COUNT(*)"));
         assertNotNull(TEST_PARSER.createStatement(BASE + " | MV_EXPAND key"));
     }
 
-    /** Extraction preserves an event row and can keep its authentic originals for either primary. */
-    public void testRetainedStagesAllowExtraction() {
+    /** Extraction remains available in either selected primary stage. */
+    public void testStagesAllowExtraction() {
         for (String extraction : new String[] { "DISSECT key \"%{extracted}\"", "GROK key \"%{WORD:extracted}\"" }) {
             for (int primary : new int[] { 1, 2 }) {
                 String query = BASE.replace("PRIMARY 2", "PRIMARY " + primary)
                     .replace("(FROM a)", "(FROM a | " + extraction + " | KEEP key, extracted)");
-                assertNotNull(TEST_PARSER.createStatement(query + " | RETURN MATCHES"));
+                assertNotNull(TEST_PARSER.createStatement(query));
             }
         }
     }
 
-    /** Parsing inside an event stage does not grant outer commands a new retained-evidence grain. */
-    public void testRetainedExtractionKeepsOuterBoundary() {
-        for (String extraction : new String[] { "DISSECT key \"%{extracted}\"", "GROK key \"%{WORD:extracted}\"" }) {
-            rejected(BASE + " | " + extraction + " | RETURN MATCHES", "outside the sequence output prototype");
-        }
-    }
-
-    /** An ordinary union prepares each sequence branch before combining the public processed fields. */
-    public void testOrdinaryUnionPreparesIndependentSequenceBranches() {
-        String first = BASE + " | EVAL other = MEMBER(1, key) | KEEP key, other";
-        String second = BASE.replace("PRIMARY 2", "PRIMARY 1") + " | EVAL other = MEMBER(2, key) | KEEP key, other";
-        for (String branches : new String[] {
-            "(" + first + "), (FROM c | KEEP key)",
-            "(FROM c | KEEP key), (" + first + ")",
-            "(" + first + "), (" + second + ")",
-            "(" + second + "), (" + first + ")" }) {
-            var plan = TEST_PARSER.createStatement("FROM " + branches + " | STATS c = COUNT(*) | SORT c | LIMIT 10").plan();
-            assertTrue(plan.collect(SequenceMatchOutput.Declaration.class).isEmpty());
-            assertEquals(plan.collect(Sequence.class).size(), plan.collect(SequenceMatchOutput.Scope.class).size());
-            assertFalse(plan.collect(Sequence.class).isEmpty());
-        }
-    }
-
-    /** Unsupported multi-input composition must not blame an absent RETURN MATCHES command. */
-    public void testOrdinaryUnionCompositionNamesSequenceBoundary() {
-        String union = "FROM (" + BASE + " | KEEP key), (" + BASE.replace("PRIMARY 2", "PRIMARY 1") + " | KEEP key)";
-        assertNotNull(TEST_PARSER.createStatement(union + " | STATS c = COUNT(*)"));
-        for (String command : new String[] { "LOOKUP JOIN lookup_index ON key", "FORK (WHERE key IS NOT NULL) (WHERE key IS NULL)" }) {
-            var error = expectThrows(ParsingException.class, () -> TEST_PARSER.createStatement(union + " | " + command));
-            assertThat(error.getErrorMessage(), containsString("SEQUENCE output is outside the prototype in this command composition"));
-            assertFalse(error.getErrorMessage(), error.getErrorMessage().contains("RETURN MATCHES"));
-        }
-    }
-
-    /** A sequence's MEMBER scope is unavailable to its sibling branch and to commands above the union. */
-    public void testMemberCannotEscapeOrdinaryUnionBranch() {
-        String union = "FROM (" + BASE + " | KEEP key), (FROM c | KEEP key)";
-        rejected(union + " | EVAL other = MEMBER(1, key)", "MEMBER cannot escape its SEQUENCE branch");
-        rejected("FROM (" + BASE + "), (FROM c | EVAL other = MEMBER(1, key))", "MEMBER requires SEQUENCE with an explicit PRIMARY");
-        rejected(
-            "FROM (" + BASE + "), (" + BASE.replace("PRIMARY 2", "PRIMARY 1") + " | EVAL other = MEMBER(1, key))",
-            "Use ordinary field names for the PRIMARY member"
-        );
-    }
-
     /** Expression-held subqueries are separate scopes, including when their MEMBER call is hidden another IN deep. */
     public void testMemberCannotEscapeThroughMembershipSubquery() {
-        String union = "FROM (" + BASE + " | KEEP key), (FROM c | KEEP key)";
         for (String predicate : new String[] {
             "key IN (FROM c | EVAL key = MEMBER(1, key) | KEEP key)",
             "(key, key) IN (FROM c | EVAL other = MEMBER(1, key) | KEEP key, other)",
             "key IN (FROM c | WHERE key IN (FROM d | EVAL key = MEMBER(1, key) | KEEP key) | KEEP key)" }) {
-            rejected(union + " | WHERE " + predicate, "MEMBER is not available inside an IN subquery");
-            rejected("FROM (" + BASE + "), (FROM c | WHERE " + predicate + ")", "MEMBER is not available inside an IN subquery");
+            rejected(BASE + " | WHERE " + predicate, "MEMBER is not available inside an IN subquery");
         }
     }
 
-    /** Retained originals have one match context and cannot become ordinary union rows. */
-    public void testOrdinaryUnionRejectsRetainedMatchesBeforeLowering() {
-        rejected("FROM (" + BASE + " | RETURN MATCHES), (FROM c)", "RETURN MATCHES is not supported inside an ordinary union");
-        rejected("FROM (FROM c), (" + BASE + " | RETURN MATCHES)", "RETURN MATCHES is not supported inside an ordinary union");
-        rejected("FROM (" + BASE + "), (FROM c) | RETURN MATCHES", "RETURN MATCHES cannot retain an ordinary union");
-    }
-
-    /** Preparing an outer branch does not authorize sequence declarations hidden in event stages or IN/LET bodies. */
-    public void testUnionPreparationPreservesNestedRestrictions() {
-        rejected(
-            "FROM (" + BASE.replace("(FROM a)", "(FROM (" + BASE + "))") + "), (FROM c)",
-            "outside the prototype in this command composition"
-        );
-        rejected(
-            "FROM (" + BASE + "), (FROM c | WHERE key IN (FROM (" + BASE + ") | KEEP key))",
-            "SEQUENCE is not supported as an IN subquery source"
-        );
-        rejected("LET s = (FROM c); FROM (" + BASE + "), (FROM s)", "LET is outside the sequence output prototype");
-    }
-
-    /** Expansion inside either retained stage does not grant outer expansion a retained-evidence grain. */
-    public void testEvidenceStageBoundaryRemainsNarrow() {
+    /** Both stages keep ordinary expansion support for either primary. */
+    public void testStagesAllowExpansion() {
         for (int primary : new int[] { 1, 2 }) {
             for (String expansion : new String[] { "MV_EXPAND key", "MV_EXPAND other", "MV_EXPAND other | MV_EXPAND key" }) {
                 String query = BASE.replace("PRIMARY 2", "PRIMARY " + primary)
                     .replace("(FROM a)", "(FROM a\n  | " + expansion + ")")
                     .replace("(FROM b)", "(FROM b\n  | " + expansion + ")");
                 assertNotNull(TEST_PARSER.createStatement(query));
-                assertNotNull(TEST_PARSER.createStatement(query + " | RETURN MATCHES"));
             }
         }
-        rejected(BASE + " | MV_EXPAND key | RETURN MATCHES", "outside the sequence output prototype");
     }
 
-    /** PRIMARY declarations inside expression-held subqueries must fail before transient nodes reach analysis. */
-    public void testSequenceInMembershipSubqueryIsRejected() {
-        for (String retention : new String[] { "", " | RETURN MATCHES" }) {
-            String sequence = "FROM (" + BASE + retention + ")";
-            String scalar = "key IN (" + sequence + " | KEEP key)";
-            String tuple = "(key, user.name) NOT IN (" + sequence + " | KEEP key, user.name)";
-            for (String query : new String[] {
-                "FROM a | WHERE " + scalar,
-                "FROM a\n| WHERE " + tuple,
-                "FROM a | WHERE key IN (FROM b | WHERE " + scalar + " | KEEP key)",
-                "FROM a | WHERE (key, user.name) IN (FROM b | WHERE " + tuple + " | KEEP key, user.name)",
-                BASE.replace("(FROM a)", "(FROM a | WHERE " + scalar + ")"),
-                "EXPLAIN (FROM a | WHERE " + scalar + ")" }) {
-                var error = expectThrows(ParsingException.class, () -> TEST_PARSER.createStatement(query));
-                assertThat(error.getErrorMessage(), containsString("SEQUENCE is not supported as an IN subquery source"));
-                assertEquals(query.contains("\n") ? 2 : 1, error.getLineNumber());
-                assertTrue("The nested sequence must have a source column", error.getColumnNumber() > 0);
-            }
+    /** One SEQUENCE owns the request source; diagnostic grammar must never authorize a nested execution. */
+    public void testSequenceMustBeTopLevelSource() {
+        for (String query : List.of(
+            "FROM (" + BASE + ")",
+            "FROM (" + BASE + "), (FROM c)",
+            "FROM (FROM c), (" + NAMED_BASE + ")",
+            "FROM (" + BASE + "), (" + NAMED_BASE + ")",
+            "FROM a | WHERE key IN (FROM (" + BASE + ") | KEEP key)",
+            "FROM a | WHERE (key, user.name) NOT IN (FROM (" + BASE + ") | KEEP key, user.name)",
+            "FROM a | WHERE key IN (FROM b | WHERE key IN (FROM (" + BASE + ") | KEEP key) | KEEP key)",
+            BASE.replace("(FROM a)", "(FROM (" + BASE + "))"),
+            "LET s = (" + BASE + "); FROM s",
+            "EXPLAIN (FROM (" + BASE + "))"
+        )) {
+            rejected(query, "SEQUENCE must start the query; it is not supported inside a union or subquery");
         }
+        // The IN lexer requires an ordinary source command before this diagnostic-only nested declaration.
+        rejected("FROM a | WHERE key IN (" + BASE + " | KEEP key)", "mismatched input");
+        assertNotNull(TEST_PARSER.createStatement("EXPLAIN (" + BASE + ")"));
     }
 
     /** Ordinary membership filters remain available both before matching and after PRIMARY presentation. */
@@ -307,29 +222,12 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
             assertNotNull(TEST_PARSER.createStatement(BASE + " | WHERE " + predicate));
             String stages = BASE.replace("(FROM a)", "(FROM a | WHERE " + predicate + ")");
             assertNotNull(TEST_PARSER.createStatement(stages));
-            assertNotNull(TEST_PARSER.createStatement(stages + " | RETURN MATCHES"));
         }
-    }
-
-    /** A declaration hidden in a LET body must fail before the binding is expanded into the main query. */
-    public void testLetBoundPrimaryIsRejectedBeforeExpansion() {
-        rejectedLetBody(BASE);
-    }
-
-    /** Retention hidden inside a binding has the same explicit LET boundary as a top-level declaration. */
-    public void testLetBoundRetainedMatchesIsRejectedBeforeExpansion() {
-        rejectedLetBody(BASE + " | RETURN MATCHES");
     }
 
     /** MEMBER cannot hide in an otherwise ordinary binding and reach ordinary function resolution later. */
     public void testLetBoundMemberIsRejectedBeforeExpansion() {
         rejectedLetBody("FROM a | EVAL supporting = MEMBER(1, user.name)");
-    }
-
-    /** A declaration inside an expression-held subquery is still inside the unsupported LET body. */
-    public void testLetBoundOutputHiddenInMembershipSubqueriesIsRejected() {
-        rejectedLetBody("FROM a | WHERE key IN (FROM (" + BASE + ") | KEEP key)");
-        rejectedLetBody("FROM a | WHERE (key, user.name) IN (FROM (" + BASE + ") | KEEP key, user.name)");
     }
 
     /** MEMBER calls in a membership RHS must not evade the same LET boundary as calls in the binding's main pipeline. */
@@ -343,8 +241,11 @@ public class SequenceQueryOutputParserTests extends ESTestCase {
         assertEquals(1, ordinary.letBindings().size());
         assertEquals("s", ordinary.letBindings().getFirst().name());
         assertTrue(ordinary.letBindings().getFirst().plan().collect(Sequence.class).isEmpty());
-        rejectedLetBody(BASE);
-        rejected("LET s = (" + BASE.replace(" PRIMARY 2", "") + "); FROM s", "SEQUENCE requires an explicit PRIMARY member");
+    }
+
+    /** The retired ending is recognized solely to guide authors to the smaller output surface. */
+    public void testReturnMatchesIsRemoved() {
+        rejected(BASE + " | RETURN MATCHES", "use the ordinary sequence provenance column or MEMBER(stage, field)");
     }
 
     private static void rejectedLetBody(String body) {

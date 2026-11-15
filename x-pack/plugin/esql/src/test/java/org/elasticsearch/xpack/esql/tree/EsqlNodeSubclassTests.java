@@ -175,9 +175,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static final Set<String> SEQUENCE_COMPILER_HELPERS = Set.of(
         SequenceMatchOutput.BindingReference.class.getName(),
         SequenceMatchOutput.MemberReference.class.getName(),
-        SequenceMatchOutput.Originals.class.getName(),
-        SequenceMatchOutput.Scope.class.getName(),
-        SequenceMatchOutput.Capture.class.getName()
+        SequenceMatchOutput.Scope.class.getName()
     );
 
     private static final Predicate<String> CLASSNAME_FILTER = className -> {

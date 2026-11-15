@@ -27,7 +27,7 @@ public class SequenceConditionTests extends AbstractNodeTestCase<SequenceConditi
         Attribute source = new ReferenceAttribute(Source.EMPTY, null, "flag", DataType.BOOLEAN);
         Attribute reference = new ReferenceAttribute(Source.EMPTY, null, "flag", DataType.BOOLEAN, Nullability.FALSE, new NameId(), true);
         LogicalPlan child = new LocalRelation(Source.EMPTY, List.of(source), EmptyLocalSupplier.EMPTY);
-        int ownStage = between(1, 4);
+        int ownStage = between(2, 4);
         int earlier = between(0, ownStage - 1);
         return new SequenceCondition(
             Source.EMPTY,
@@ -44,16 +44,32 @@ public class SequenceConditionTests extends AbstractNodeTestCase<SequenceConditi
         return randomSequenceCondition();
     }
 
+    /** Changes the expression or one piece of scheduling/binding state for equality and wire-contract tests. */
+    public static SequenceCondition mutateSequenceCondition(SequenceCondition instance) {
+        int ownStage = instance.ownStage();
+        var condition = instance.condition();
+        List<Integer> referenced = instance.referencedStages();
+        List<SequenceCondition.Input> inputs = instance.inputs();
+        switch (randomInt(3)) {
+            case 0 -> condition = Literal.TRUE;
+            case 1 -> ownStage++;
+            case 2 -> {
+                int additional = referenced.contains(0) ? 1 : 0;
+                referenced = java.util.stream.Stream.concat(referenced.stream(), java.util.stream.Stream.of(additional)).sorted().toList();
+            }
+            case 3 -> {
+                SequenceCondition.Input input = inputs.getFirst();
+                Attribute source = new ReferenceAttribute(Source.EMPTY, null, "different_flag", DataType.BOOLEAN);
+                inputs = List.of(new SequenceCondition.Input(input.reference(), input.stage(), source));
+            }
+            default -> throw new AssertionError("unexpected mutation");
+        }
+        return new SequenceCondition(instance.source(), instance.child(), ownStage, condition, referenced, inputs);
+    }
+
     @Override
     protected SequenceCondition mutate(SequenceCondition instance) {
-        return new SequenceCondition(
-            instance.source(),
-            instance.child(),
-            instance.ownStage(),
-            Literal.TRUE,
-            instance.referencedStages(),
-            instance.inputs()
-        );
+        return mutateSequenceCondition(instance);
     }
 
     @Override
@@ -72,7 +88,10 @@ public class SequenceConditionTests extends AbstractNodeTestCase<SequenceConditi
     public void testTransform() {
         SequenceCondition node = randomSequenceCondition();
         SequenceCondition changed = (SequenceCondition) node.transformExpressionsOnly(expression -> Literal.TRUE);
-        assertEquals(mutate(node), changed);
+        assertEquals(
+            new SequenceCondition(node.source(), node.child(), node.ownStage(), Literal.TRUE, node.referencedStages(), node.inputs()),
+            changed
+        );
         assertEquals(node.referencedStages(), changed.referencedStages());
         assertEquals(node.inputs(), changed.inputs());
         assertTrue(changed.activeInputs().isEmpty());

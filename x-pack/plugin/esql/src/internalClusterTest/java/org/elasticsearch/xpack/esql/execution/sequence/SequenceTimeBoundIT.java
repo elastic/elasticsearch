@@ -462,7 +462,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
         );
     }
 
-    /** A fourth stage must not join partial or reversed chains, or change the selected competing predecessor. */
+    /** A fourth stage must reject partial or reversed chains and preserve the latest valid competing predecessor. */
     public void testFourStagesCompetingMiddleAndMissingStage() throws Exception {
         create("date", 2, A, B, C, D);
         var bulk = client().prepareBulk();
@@ -487,7 +487,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
             chain(A, B, C, D),
             List.of(
                 List.of("good", "good-A", "good-B", "good-C", "good-D"),
-                List.of("replace", "replace-A", "replace-B", "replace-C", "replace-D")
+                List.of("replace", "replace-A", "replace-B", "replace-new-C", "replace-D")
             )
         );
     }
@@ -647,9 +647,9 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
     private static String boundaryQuery(int primary, String span, boolean timestamps) {
         int other = primary == 1 ? 2 : 1;
         String projection = "key,_id" + (timestamps ? ",@timestamp" : "");
-        return "SEQUENCE BY key WITH {\"maxspan\":\""
+        return "SEQUENCE BY key WITHIN "
             + span
-            + "\"} PRIMARY "
+            + " PRIMARY "
             + primary
             + " (FROM "
             + A
@@ -1104,7 +1104,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
     }
 
     private static String upperSequence(String span, String... sources) {
-        StringBuilder query = new StringBuilder("SEQUENCE BY key WITH {\"maxspan\":\"").append(span).append("\"} PRIMARY 1 ");
+        StringBuilder query = new StringBuilder("SEQUENCE BY key WITHIN ").append(span).append(" PRIMARY 1 ");
         for (int stage = 0; stage < sources.length; stage++) {
             if (stage != 0) query.append(", ");
             query.append("(").append(sources[stage]).append(")");
@@ -1158,7 +1158,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
     private record UpperOutcome(Outcome outcome, List<CandidateRequest> requests) {}
 
     private static String chain(String... indices) {
-        StringBuilder query = new StringBuilder("sequence by key with {\"maxspan\":\"60s\"} PRIMARY 1 ");
+        StringBuilder query = new StringBuilder("sequence by key within 60s PRIMARY 1 ");
         for (int i = 0; i < indices.length; i++) {
             if (i > 0) query.append(", ");
             query.append("(").append(stage(indices[i])).append(")");
@@ -1255,7 +1255,7 @@ public class SequenceTimeBoundIT extends AbstractSequenceIntegTestCase {
     }
 
     private static String sequence(String first, String second) {
-        return "sequence by key with {\"maxspan\":\"60s\"} PRIMARY 1 ("
+        return "sequence by key within 60s PRIMARY 1 ("
             + first
             + "), ("
             + second

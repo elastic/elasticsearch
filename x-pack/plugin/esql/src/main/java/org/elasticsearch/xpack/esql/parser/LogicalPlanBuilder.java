@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
-import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -519,6 +518,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSequenceCommand(EsqlBaseParser.SequenceCommandContext ctx) {
+        if (ctx.getParent() instanceof EsqlBaseParser.SubquerySourceCommandContext) {
+            throw new ParsingException(source(ctx), "SEQUENCE must start the query; it is not supported inside a union or subquery");
+        }
+        if (ctx.rejectedOptions != null) {
+            throw new ParsingException(source(ctx.rejectedOptions), "SEQUENCE does not accept WITH options; use WITHIN <duration>");
+        }
         if (ctx.sequenceStage().size() > Sequence.MAX_STAGES) {
             throw new ParsingException(
                 source(ctx),
@@ -536,9 +541,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 throw new ParsingException(key.source(), "Duplicate SEQUENCE BY column [{}]", key.name());
             }
         }
-        SequenceOptions options = ctx.mapExpression() == null
-            ? new SequenceOptions(sequenceWithinNanos(ctx.windowKeyword, ctx.window), null, null)
-            : sequenceOptions(visitMapExpression(ctx.mapExpression()));
+        long maxSpanNanos = sequenceWithinNanos(ctx.windowKeyword, ctx.window);
         List<LogicalPlan> stages = new ArrayList<>(ctx.sequenceStage().size());
         Map<String, Integer> stageNames = new LinkedHashMap<>();
         int localKeyCount = -1;
@@ -628,34 +631,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     : new SequenceStage(source(stage), stagePlan, stageKeys, maxGapNanos)
             );
         }
-        boolean hasCondition = stages.stream()
-            .anyMatch(
-                stage -> stage.anyMatch(
-                    plan -> plan.expressions()
-                        .stream()
-                        .anyMatch(
-                            expression -> expression.anyMatch(
-                                e -> e instanceof UnresolvedFunction function && function.name().equalsIgnoreCase("member")
-                            )
-                        )
-                )
-            );
-        Sequence.Pairing pairing = options.pairing() == null
-            ? (hasCondition ? Sequence.Pairing.LATEST_VALID : Sequence.Pairing.TODAY)
-            : options.pairing();
-        if (hasCondition && pairing == Sequence.Pairing.TODAY) {
-            throw new ParsingException(
-                source(ctx),
-                "SEQUENCE [pairing: today] cannot evaluate an in-stage MEMBER condition; use [latest_valid]"
-            );
-        }
-        if (options.maxCandidates() != null && pairing != Sequence.Pairing.LATEST_VALID) {
-            throw new ParsingException(
-                source(ctx),
-                "SEQUENCE [max_candidates] requires [pairing: latest_valid] or an in-stage MEMBER condition"
-            );
-        }
-        LogicalPlan sequence = new Sequence(source(ctx), stages, options.maxSpanNanos(), pairing, options.maxCandidates());
+        LogicalPlan sequence = new Sequence(source(ctx), stages, maxSpanNanos);
         if (ctx.primary == null) {
             throw new ParsingException(source(ctx), "SEQUENCE requires an explicit PRIMARY member");
         }
@@ -691,10 +667,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitReturnMatchesCommand(EsqlBaseParser.ReturnMatchesCommandContext ctx) {
-        return child -> new org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput.Declaration(source(ctx), child, 0);
+        throw new ParsingException(
+            source(ctx),
+            "RETURN MATCHES was removed; use the ordinary sequence provenance column or MEMBER(stage, field)"
+        );
     }
 
-    /** A fixed-duration spelling must preserve the existing maxspan units without calendar or saturating conversions. */
+    /** Fixed durations must preserve nanosecond precision without calendar or saturating conversions. */
     private long sequenceWithinNanos(Token keyword, EsqlBaseParser.SequenceDurationContext duration) {
         if (keyword.getText().equalsIgnoreCase("within") == false) {
             throw new ParsingException(source(keyword), "Expected WITHIN before a SEQUENCE duration");
@@ -733,60 +712,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(duration), "Invalid SEQUENCE WITHIN duration: {}", e.getMessage());
         }
         throw new ParsingException(source(duration), "SEQUENCE WITHIN requires a positive integer fixed duration");
-    }
-
-    private record SequenceOptions(long maxSpanNanos, Sequence.Pairing pairing, Integer maxCandidates) {}
-
-    private static SequenceOptions sequenceOptions(MapExpression options) {
-        Expression maxSpan = null;
-        Sequence.Pairing pairing = null;
-        Integer maxCandidates = null;
-        Set<String> names = new HashSet<>();
-        for (var entry : options.entryExpressions()) {
-            String name = BytesRefs.toString(((Literal) entry.key()).value());
-            if (names.add(name) == false) {
-                throw new ParsingException(entry.source(), "Duplicate SEQUENCE option [{}]", name);
-            }
-            switch (name) {
-                case "maxspan" -> maxSpan = entry.value();
-                case "pairing" -> {
-                    Expression value = entry.value();
-                    if (value instanceof Literal literal && DataType.isString(literal.dataType()) && literal.value() != null) {
-                        pairing = switch (BytesRefs.toString(literal.value())) {
-                            case "today" -> Sequence.Pairing.TODAY;
-                            case "latest_valid" -> Sequence.Pairing.LATEST_VALID;
-                            default -> throw new ParsingException(value.source(), "SEQUENCE [pairing] must be [today] or [latest_valid]");
-                        };
-                    } else {
-                        throw new ParsingException(value.source(), "SEQUENCE [pairing] must be a [today] or [latest_valid] string");
-                    }
-                }
-                case "max_candidates" -> {
-                    if (entry.value() instanceof Literal literal && literal.value() instanceof Integer value && value > 0) {
-                        maxCandidates = value;
-                    } else {
-                        throw new ParsingException(entry.value().source(), "SEQUENCE [max_candidates] must be a positive integer");
-                    }
-                }
-                default -> throw new ParsingException(entry.source(), "Unknown SEQUENCE option [{}]", name);
-            }
-        }
-        if (maxSpan == null) {
-            throw new ParsingException(options.source(), "SEQUENCE requires a [maxspan] option");
-        }
-        if (maxSpan instanceof Literal literal && DataType.isString(literal.dataType()) && literal.value() != null) {
-            try {
-                TimeValue span = TimeValue.parseTimeValue(BytesRefs.toString(literal.value()), "maxspan");
-                // TimeValue.nanos() saturates on overflow. Reject instead of silently changing the requested span.
-                long nanos = Math.multiplyExact(span.duration(), span.timeUnit().toNanos(1));
-                if (nanos > 0) {
-                    return new SequenceOptions(nanos, pairing, maxCandidates);
-                }
-            } catch (IllegalArgumentException | ArithmeticException e) {
-                throw new ParsingException(maxSpan.source(), "Invalid SEQUENCE [maxspan]: {}", e.getMessage());
-            }
-        }
-        throw new ParsingException(maxSpan.source(), "SEQUENCE [maxspan] must be a positive duration string");
     }
 
     @Override

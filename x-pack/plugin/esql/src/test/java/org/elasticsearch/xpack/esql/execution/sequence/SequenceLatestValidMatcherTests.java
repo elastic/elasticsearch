@@ -37,7 +37,67 @@ public class SequenceLatestValidMatcherTests extends ESTestCase {
     private static final SequenceLatestValidConfig.ValueDemand VALUE = new SequenceLatestValidConfig.ValueDemand(
         new ReferenceAttribute(Source.EMPTY, null, "value", DataType.INTEGER)
     );
-    private static final List<Integer> BOUNDS = List.of(1, 2, 3, 16, Integer.MAX_VALUE);
+    private static final List<Integer> BOUNDS = List.of(1, 2, 3, 8, 16, Integer.MAX_VALUE);
+
+    /** Frozen retired two-stage history: no condition, both ordinary and per-link time windows. */
+    public void testTwoStageMatchesKeepFrozenRetiredMembersAndOrderAtEveryBound() {
+        for (int bound : BOUNDS) {
+            for (long[] gaps : new long[][] { null, { 0, 4_000_000 } }) {
+                try (Harness h = new Harness(config(bound, 2, false, List.of()), 30, gaps, () -> false)) {
+                    h.add(0, 0, 0, "k", "superseded", null);
+                    h.add(0, 1, 1, "k", "a", null);
+                    h.add(1, 2, 2, "k", "b", null);
+                    h.add(1, 3, 3, "k", "used-start", null);
+                    h.add(0, 4, 4, "k", "c", null);
+                    h.add(0, 5, 5, "other", "foreign", null);
+                    h.add(1, 6, 6, "k", "d", null);
+                    assertEquals(List.of("a b", "c d"), h.matches);
+                }
+            }
+        }
+    }
+
+    /** Specification P7: different installers remain available for their separate final events. */
+    public void testP7DifferentInstallersProduceTwoMatches() {
+        try (Harness h = new Harness(config(8, 3, true, List.of(equal(1, 0))), 30, null, () -> false)) {
+            h.add(0, 0, 0, "k", "dl_A", 1);
+            h.add(0, 1, 1, "k", "dl_B", 2);
+            h.add(1, 2, 2, "k", "msi_A", 1);
+            h.add(1, 3, 3, "k", "msi_B", 2);
+            h.add(2, 4, 4, "k", "file_1", 0);
+            h.add(2, 5, 5, "k", "file_2", 0);
+            assertEquals(List.of("dl_B msi_B file_1", "dl_A msi_A file_2"), h.matches);
+        }
+    }
+
+    /** Specification P6: substitutable downloads and executions produce one match even with two finals. */
+    public void testP6SameInstallerWithBothFinalsProducesOneMatch() {
+        try (Harness h = new Harness(config(8, 3, true, List.of(equal(1, 0))), 30, null, () -> false)) {
+            h.add(0, 0, 0, "k", "dl_1", 1);
+            h.add(0, 1, 1, "k", "dl_2", 1);
+            h.add(1, 2, 2, "k", "msi_1", 1);
+            h.add(1, 3, 3, "k", "msi_2", 1);
+            h.add(2, 4, 4, "k", "file_1", 0);
+            h.add(2, 5, 5, "k", "file_2", 0);
+            assertEquals(List.of("dl_2 msi_2 file_1"), h.matches);
+        }
+    }
+
+    /** The bound can evict the only start that precedes the middle member, even without a condition. */
+    public void testEightLaterStartsEvictTheOnlyCompleteChainAtDefaultBound() {
+        for (int bound : List.of(8, 9)) {
+            try (Harness h = new Harness(config(bound, 3, false, List.of()), 30, null, () -> false)) {
+                h.add(0, 0, 0, "k", "a", null);
+                h.add(1, 1, 1, "k", "b", null);
+                for (int later = 2; later <= 9; later++) {
+                    h.add(0, later, later, "k", "later-" + later, null);
+                }
+                h.add(2, 10, 10, "k", "c", null);
+                assertEquals(bound == 8 ? List.of() : List.of("a b c"), h.matches);
+                assertEquals(bound == 8 ? 1 : 0, h.matcher.boundDrops());
+            }
+        }
+    }
 
     public void testSameOrdinalFirstArrivalIsNewestAndCanSelfDrop() {
         for (int bound : BOUNDS) {
@@ -346,26 +406,6 @@ public class SequenceLatestValidMatcherTests extends ESTestCase {
                 assertEquals(0, h.breaker.getUsed());
             }
         }
-    }
-
-    public void testLegacyFacadeReturnsOriginalMatchWithoutWrappers() {
-        CircuitBreaker breaker = breaker();
-        try (
-            SequencePairing pairing = SequencePairing.legacy(
-                2,
-                TimeValue.timeValueMillis(10),
-                breaker,
-                () -> false,
-                BytesRef::compareTo,
-                null
-            )
-        ) {
-            assertNull(pairing.match(0, new BytesRef("k"), ordinal(0, 10), new BytesRef("a"), null));
-            try (SequenceMatch result = pairing.match(1, new BytesRef("k"), ordinal(1, 20), new BytesRef("b"), null)) {
-                assertTrue(result instanceof SequenceMatcher.Match);
-            }
-        }
-        assertEquals(0, breaker.getUsed());
     }
 
     public void testPartialMetadataAdmissionAndConstructorFailuresRefundReservations() {

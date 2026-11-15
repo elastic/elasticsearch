@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.stream.Stream;
 
 /**
@@ -256,6 +257,13 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
+    /**
+     * Hidden bounded override for native SEQUENCE qualification and cost measurements. The Setting default is never
+     * consumed: sequenceMaxCandidates() preserves absence so the source can choose min(8, the stage-count ceiling).
+     * Keep this private so callers cannot accidentally bypass that stage-dependent default through Setting.get().
+     */
+    private static final Setting<Integer> SEQUENCE_MAX_CANDIDATES = Setting.intSetting("sequence_max_candidates", 8, 1, 1024);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -284,6 +292,7 @@ public final class QueryPragmas implements Writeable {
         MAX_CONCURRENT_OPEN_SEGMENTS,
         MAX_RECORD_SIZE,
         FORCE_DOC_SEQUENCE,
+        SEQUENCE_MAX_CANDIDATES,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
         SINGLE_NODE_OPTIMIZATIONS
@@ -314,6 +323,11 @@ public final class QueryPragmas implements Writeable {
 
     public Settings getSettings() {
         return settings;
+    }
+
+    /** Absence lets SEQUENCE choose its stage-dependent default; explicit overrides must be positive. */
+    public OptionalInt sequenceMaxCandidates() {
+        return SEQUENCE_MAX_CANDIDATES.exists(settings) ? OptionalInt.of(SEQUENCE_MAX_CANDIDATES.get(settings)) : OptionalInt.empty();
     }
 
     public int exchangeBufferSize() {

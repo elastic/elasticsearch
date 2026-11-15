@@ -45,7 +45,7 @@ public class EsqlProfileSchemaRegistryTests extends ESTestCase {
         assertEquals(registered, described);
     }
 
-    public void testSequenceLatestValidFieldsAreOptionalIntegers() {
+    public void testSequenceWorkFieldsAreRequiredIntegers() {
         var variant = EsqlProfileSchemaRegistry.operatorStatusVariants()
             .stream()
             .filter(item -> item.name().equals("sequence_source"))
@@ -63,12 +63,12 @@ public class EsqlProfileSchemaRegistryTests extends ESTestCase {
             "search_steps",
             "max_search_steps_per_final_row",
             "condition_evaluations",
-            "condition_false_or_null",
-            "largest_ring_fill",
-            "candidates_used_without_report"
+            "largest_ring_fill"
         )) {
             assertEquals(Map.of("type", "integer"), properties.get(field));
-            assertFalse(required.contains(field));
+            assertTrue(required.contains(field));
         }
+        assertFalse(properties.containsKey("condition_false_or_null"));
+        assertFalse(properties.containsKey("candidates_used_without_report"));
     }
 }

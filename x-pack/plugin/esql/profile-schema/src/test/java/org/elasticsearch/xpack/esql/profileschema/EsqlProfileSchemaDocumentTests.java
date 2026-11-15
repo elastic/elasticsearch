@@ -50,6 +50,20 @@ public class EsqlProfileSchemaDocumentTests {
         assertNotNull(definitions.get("EsqlProfile"));
         assertNotNull(definitions.get("OperatorStatus"));
         assertNotNull(definitions.get("FormatReaderStatus"));
+        Map<String, Object> sequenceStatus = object(definitions.get("OperatorStatus_sequence_source"));
+        assertTrue(
+            ((List<?>) sequenceStatus.get("required")).containsAll(
+                List.of(
+                    "candidates_dropped_at_bound",
+                    "keys_that_hit_bound",
+                    "searches_abandoned_at_work_limit",
+                    "search_steps",
+                    "max_search_steps_per_final_row",
+                    "condition_evaluations",
+                    "largest_ring_fill"
+                )
+            )
+        );
         for (var variant : EsqlProfileSchemaRegistry.operatorStatusVariants()) {
             assertTrue(definitions.containsKey("OperatorStatus_" + variant.name().replaceAll("[^A-Za-z0-9_]", "_")));
         }
@@ -115,7 +129,24 @@ public class EsqlProfileSchemaDocumentTests {
             1,
             List.of(
                 new OperatorStatus("MMR", new MMROperator.Status(1, 1, 1, 1, 1)),
-                new OperatorStatus("SequenceSource", new SequenceSourceStatus(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)),
+                new OperatorStatus(
+                    "SequenceSource",
+                    new SequenceSourceStatus(
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        new SequenceSourceStatus.LatestValidCounters(1, 2, 3, 4, 5, 6, 7)
+                    )
+                ),
                 new OperatorStatus("Limit", null)
             ),
             new DriverSleeps(Map.of("exchange empty", 1L), List.of(sleep), List.of(sleep))

@@ -4586,6 +4586,9 @@ public class EsqlCapabilities {
         /** Development command for ordered positive event stages with one row per completed sequence. */
         SEQUENCE_COMMAND(Build.current().isSnapshot()),
 
+        /** Every sequence row exposes ordinary stage-tagged genuine member identities. */
+        SEQUENCE_LIGHT_PROVENANCE(Build.current().isSnapshot()),
+
         /** Parse-time stage aliases may select PRIMARY and MEMBER without changing positional sequence plans. */
         SEQUENCE_NAMED_STAGES(Build.current().isSnapshot()),
 

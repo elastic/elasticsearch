@@ -23,6 +23,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.SequenceProvenance;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -38,6 +39,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 
@@ -62,7 +64,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         try (var response = run(syncEsqlQueryRequest("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-empty-a | keep key), (from sequence-b | keep key)
             | limit 10
             """).includeExecutionMetadata(true))) {
@@ -102,7 +104,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         refresh("sequence-a", "sequence-b");
         for (String projection : List.of("payload, completion_payload", "*payload")) {
             try (var response = run(Strings.format("""
-                sequence by key with {"maxspan":"30s"} PRIMARY 1 (from sequence-a), (from sequence-b)
+                sequence by key within 30s PRIMARY 1 (from sequence-a), (from sequence-b)
                 | EVAL completion_payload = MEMBER(2, payload)
                 | keep key, %s | limit 1
                 """, projection))) {
@@ -110,7 +112,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
             }
         }
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-a | eval selected=CONCAT(payload, "/done")), (from sequence-b)
             | keep key, selected | limit 1
             """)) {
@@ -123,7 +125,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         createIndices();
         for (String field : List.of("stage1.payload", "stage2.payload")) {
             VerificationException failure = expectThrows(VerificationException.class, () -> run("""
-                sequence by key with {"maxspan":"30s"} PRIMARY 1 (from sequence-a), (from sequence-b)
+                sequence by key within 30s PRIMARY 1 (from sequence-a), (from sequence-b)
                 | keep %s
                 """.formatted(field)));
             assertThat(failure.getMessage(), containsString("Unknown column [" + field + "]"));
@@ -147,7 +149,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         for (int primary : List.of(1, 2)) {
             for (String pattern : List.of("payload", "*payload", "*")) {
                 try (var response = run(syncEsqlQueryRequest(Strings.format("""
-                    sequence by key with {"maxspan":"30s"} PRIMARY %s (from sequence-a), (from sequence-b)
+                    sequence by key within 30s PRIMARY %s (from sequence-a), (from sequence-b)
                     | keep key, %s | limit 1
                     """, primary, pattern)).pragmas(getPragmas()).includeExecutionMetadata(true))) {
                     var rows = response.values();
@@ -183,7 +185,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         String query = """
-            sequence by key with {"maxspan":"30s"} PRIMARY 1 (from sequence-a), (from sequence-b)
+            sequence by key within 30s PRIMARY 1 (from sequence-a), (from sequence-b)
             | eval view_marker = "matched" | keep key, view_marker
             """;
         // The same body executes outside a view, proving that the fixture has a completed match.
@@ -234,7 +236,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         for (boolean multiColumn : List.of(false, true)) {
-            String sequence = "sequence by key with {\"maxspan\":\"30s\"} PRIMARY 1 (from sequence-a), (from sequence-b)"
+            String sequence = "sequence by key within 30s PRIMARY 1 (from sequence-a), (from sequence-b)"
                 + (multiColumn ? " | eval key_copy = key | keep key, key_copy" : " | keep key");
             String template = "from sequence-a | where "
                 + (multiColumn ? "(key, key)" : "key")
@@ -254,7 +256,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
                     fail("A SEQUENCE cannot supply the IN subquery source");
                 }
             });
-            assertThat(parsing.getMessage(), containsString("SEQUENCE is not supported as an IN subquery source"));
+            assertThat(parsing.getMessage(), containsString("SEQUENCE must start the query"));
             assertEquals(1, parsing.getLineNumber());
             assertTrue(parsing.getColumnNumber() > 0);
             String viewName = multiColumn ? "sequence-in-view-multi" : "sequence-in-view";
@@ -295,7 +297,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1 (from sequence-a), (from sequence-b)
+            sequence by key within 30s PRIMARY 1 (from sequence-a), (from sequence-b)
             | EVAL member2_payload = MEMBER(2, payload)
             | keep key, payload, member2_payload
             | sort payload desc | limit 1 by key
@@ -319,7 +321,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         refresh("sequence-a", "sequence-b");
         for (String firstSource : List.of("sequence-a", "sequence-*,-sequence-b", "sequence-a,sequence-missing")) {
             try (var response = run(Strings.format("""
-                sequence by key with {"maxspan":"30s"} PRIMARY 1
+                sequence by key within 30s PRIMARY 1
                 (from %s), (from sequence-*,-sequence-a)
                 | EVAL member2_payload = MEMBER(2, payload)
                 | keep key, payload, member2_payload | limit 10
@@ -345,7 +347,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh("sequence-a", "sequence-b");
         try (var response = run(syncEsqlQueryRequest("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-a metadata _id, _index, _version | keep key, payload, _id, _index, _version),
             (from sequence-b metadata _id, _index, _version | eval derived = CONCAT(payload, "/done")
               | keep key, derived, _id, _index, _version)
@@ -362,7 +364,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
             assertEquals(Integer.valueOf(0), metadata.getFailedShards());
         }
         try (var response = run("""
-            sequence with {"maxspan":"30s"} PRIMARY 1 (from sequence-a), (from sequence-b)
+            sequence within 30s PRIMARY 1 (from sequence-a), (from sequence-b)
             | stats count(*)
             | limit 1
             """)) {
@@ -387,7 +389,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
+            sequence by normalized within 30s PRIMARY 1
             (from sequence-a | where MV_COUNT(labels)==2
               | mv_expand labels | eval normalized=TO_LOWER(labels), selected=CONCAT(payload, "/", labels)
               | keep normalized, selected),
@@ -399,42 +401,6 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
             | limit 10
             """)) {
             assertValues(response.values(), List.of(List.of("a", "anchor/a", "completion/A"), List.of("b", "anchor/B", "completion/b")));
-        }
-    }
-
-    /** Native and ordinary UNION arms must retain independent output contexts. */
-    public void testSequenceUnionArmPreservesOrdinaryUnionMetadata() {
-        createIndices();
-        assertFalse(
-            client().prepareBulk()
-                .add(prepareIndex("sequence-a").setId("A").setSource("@timestamp", BASE.toString(), "key", "shared"))
-                .add(prepareIndex("sequence-b").setId("B").setSource("@timestamp", BASE.plusNanos(1).toString(), "key", "shared"))
-                .get()
-                .hasFailures()
-        );
-        refresh("sequence-a", "sequence-b");
-        try (var response = run("""
-            from (
-                sequence by key with {"maxspan":"30s"} PRIMARY 1
-                (from sequence-a | keep key), (from sequence-b | keep key)
-                | keep key
-            ), (from sequence-a | keep key)
-            | stats count(*)
-            | limit 1
-            """)) {
-            assertValues(response.values(), List.of(List.of(2L)));
-        }
-        try (var response = run(syncEsqlQueryRequest("""
-            from (from sequence-a | keep key), (from sequence-b | keep key)
-            | stats count(*)
-            | limit 1
-            """).includeExecutionMetadata(true))) {
-            assertValues(response.values(), List.of(List.of(2L)));
-            EsqlExecutionInfo.Cluster metadata = response.getExecutionInfo().getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            assertEquals(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, metadata.getStatus());
-            assertEquals(Integer.valueOf(4), metadata.getTotalShards());
-            assertEquals(Integer.valueOf(4), metadata.getSuccessfulShards());
-            assertEquals(Integer.valueOf(0), metadata.getFailedShards());
         }
     }
 
@@ -456,7 +422,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         var request = syncEsqlQueryRequest("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-a metadata _id | keep key, _id),
             (from sequence-b metadata _id | keep key, _id)
             | EVAL member2__id = MEMBER(2, _id)
@@ -508,7 +474,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-a metadata _id | keep key, payload, _id),
             (from sequence-b metadata _id | where payload=="middle" | keep key, _id),
             (from sequence-b metadata _id | where payload=="end" | keep key, _id)
@@ -538,7 +504,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
+            sequence by normalized within 30s PRIMARY 1
             (from sequence-a | mv_expand labels | eval normalized=TO_LOWER(labels), selected=labels | keep normalized, selected),
             (from sequence-b | mv_expand labels | eval normalized=TO_LOWER(labels) | keep normalized)
             | keep normalized, selected
@@ -569,7 +535,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-no-source");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-no-source metadata _id | where _id=="A" | keep key, _id),
             (from sequence-no-source metadata _id | where _id=="B" | keep key, _id)
             | EVAL member2__id = MEMBER(2, _id)
@@ -607,7 +573,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         refresh("sequence-a");
         for (String terminal : List.of("sequence-end", "sequence-a")) {
             try (var response = run(Strings.format("""
-                sequence by key with {"maxspan":"30s"} PRIMARY 1
+                sequence by key within 30s PRIMARY 1
                 (from sequence-source metadata _id | keep key, _id),
                 (from %s metadata _id | where payload=="end" | keep key, _id)
                 | EVAL member2__id = MEMBER(2, _id)
@@ -650,7 +616,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-routed metadata _id | where payload=="source" | keep key, _id),
             (from sequence-a metadata _id | where payload=="end" | keep key, _id)
             | EVAL member2__id = MEMBER(2, _id)
@@ -680,7 +646,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-a metadata _id | keep key, _id),
             (from sequence-b metadata _id | keep key, _id)
             | EVAL member2__id = MEMBER(2, _id)
@@ -705,7 +671,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b", "sequence-unmapped");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-a,sequence-unmapped metadata _id | keep key, _id),
             (from sequence-b metadata _id | keep key, _id)
             | EVAL member2__id = MEMBER(2, _id)
@@ -773,19 +739,34 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
             try (
                 var ordinary = run(firstStage + " | limit 1");
                 var sequence = run(
-                    "sequence by key with {\"maxspan\":\"30s\"} PRIMARY 1 ("
+                    "sequence by key within 30s PRIMARY 1 ("
                         + firstStage
                         + "), (from "
                         + index
                         + " | where phase==\"B\" | keep key) | keep key, * | limit 1"
                 )
             ) {
-                assertEquals(133, sequence.columns().size());
+                assertEquals(133, ordinary.columns().size());
+                assertEquals(134, sequence.columns().size());
+                assertEquals(
+                    ordinary.columns().stream().map(column -> column.name()).toList(),
+                    sequence.columns().subList(0, 133).stream().map(column -> column.name()).toList()
+                );
                 assertEquals(
                     ordinary.columns().stream().map(column -> column.type()).toList(),
-                    sequence.columns().stream().map(column -> column.type()).toList()
+                    sequence.columns().subList(0, 133).stream().map(column -> column.type()).toList()
                 );
-                assertValues(sequence.values(), ordinary.rows());
+                assertEquals("sequence_provenance", sequence.columns().getLast().name());
+                assertEquals("keyword", sequence.columns().getLast().outputType());
+                List<List<Object>> rows = getValuesList(sequence.values());
+                assertEquals(1, rows.size());
+                List<Object> row = rows.getFirst();
+                assertEquals(134, row.size());
+                assertEquals(getValuesList(ordinary.values()), List.of(row.subList(0, 133)));
+                assertEquals(
+                    List.of(new SequenceProvenance.Member(1, index, "A"), new SequenceProvenance.Member(2, index, "B")),
+                    SequenceProvenance.decode(row.get(133))
+                );
             }
         }
     }
@@ -826,7 +807,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from (from sequence-a metadata _id, _index | where payload=="anchor" | keep key, payload, _id, _index),
                   (from sequence-b metadata _id, _index | where payload=="extra" | keep key, payload, _id, _index)),
             (from sequence-b metadata _id | where payload=="completion" | keep key, _id)
@@ -836,7 +817,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
             assertValues(response.values(), List.of(List.of("shared", "extra", "sequence-b", "extra", "complete")));
         }
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-a metadata _id
               | where key IN (from sequence-b | where payload=="lookup" | stats by key | keep key)
               | keep key, _id),
@@ -868,7 +849,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         );
         refresh("sequence-a", "sequence-b");
         try (var response = run("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-a | eval key=payload, payload="shadow" | keep key, payload),
             (from sequence-b | where key=="shared" AND payload=="completion" | keep key, payload)
             | EVAL member2_payload = MEMBER(2, payload)
@@ -890,7 +871,7 @@ public class SequenceNativeIT extends AbstractSequenceIntegTestCase {
         refresh("sequence-a", "sequence-b");
         for (String predicate : List.of("", "| where _score == 0", "| where NOT (_score != 0)")) {
             try (var response = run(Strings.format("""
-                sequence by key with {"maxspan":"30s"} PRIMARY 1
+                sequence by key within 30s PRIMARY 1
                 (from sequence-a metadata _score %s | keep key, _score),
                 (from sequence-b metadata _score %s | keep key, _score)
                 | EVAL member2__score = MEMBER(2, _score)

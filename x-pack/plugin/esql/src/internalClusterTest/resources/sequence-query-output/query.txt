@@ -1,5 +1,5 @@
-// Regression query for processed PRIMARY/MEMBER fields and retained original events.
-SEQUENCE BY host.id, match_hash WITH {"maxspan":"1m"} PRIMARY 2
+// Regression query for processed PRIMARY/MEMBER fields.
+SEQUENCE BY host.id, match_hash WITHIN 1m PRIMARY 2
   (FROM demo-downloads
    | WHERE MV_CONTAINS(event.category, "file") AND
        MV_CONTAINS(event.type, "creation")
@@ -17,4 +17,3 @@ SEQUENCE BY host.id, match_hash WITH {"maxspan":"1m"} PRIMARY 2
 | KEEP process.name, user.name, download_domain, delay_seconds
 | SORT delay_seconds ASC
 | LIMIT 101
-| RETURN MATCHES

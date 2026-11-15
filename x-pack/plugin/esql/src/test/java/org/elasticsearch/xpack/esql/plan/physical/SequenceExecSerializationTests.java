@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -63,7 +64,7 @@ public class SequenceExecSerializationTests extends AbstractPhysicalPlanSerializ
 
     public void testRejectUnsupportedPeerBeforeWriting() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE));
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out)).getMessage(),
                 containsString("SEQUENCE is not supported")
@@ -72,32 +73,14 @@ public class SequenceExecSerializationTests extends AbstractPhysicalPlanSerializ
         }
     }
 
-    public void testLatestValidPolicySurvivesPhysicalTransportAndRejectsOlderPeer() throws Exception {
-        SequenceExec original = createTestInstance();
-        Sequence sequence = original.sequence();
-        var latest = new Sequence(
-            sequence.source(),
-            sequence.children(),
-            sequence.maxSpanNanos(),
-            sequence.sourceAttributes(),
-            sequence.sourceStages(),
-            sequence.output(),
-            true,
-            Sequence.Pairing.LATEST_VALID,
-            16
-        );
-        var exec = new SequenceExec(original.source(), latest, original.esFilter());
-        SequenceExec restored = copyInstance(exec);
-        assertEquals(exec, restored);
-        assertEquals(Sequence.Pairing.LATEST_VALID, restored.sequence().pairing());
-        assertEquals(Integer.valueOf(16), restored.sequence().maxCandidates());
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE));
+    public void testOlderPeerIsRejectedBeforeReadingAnyPhysicalPlanBytes() throws Exception {
+        try (var in = StreamInput.wrap(new byte[0])) {
+            in.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
             assertThat(
-                expectThrows(IllegalArgumentException.class, () -> exec.writeTo(out)).getMessage(),
-                containsString("SEQUENCE latest_valid pairing is not supported")
+                expectThrows(IllegalArgumentException.class, () -> SequenceExec.ENTRY.reader.read(in)).getMessage(),
+                containsString("SEQUENCE is not supported")
             );
-            assertEquals(0, out.size());
+            assertEquals(0, in.available());
         }
     }
 
@@ -112,16 +95,15 @@ public class SequenceExecSerializationTests extends AbstractPhysicalPlanSerializ
         SequenceExec restored = copyInstance(constrained, TransportVersion.current());
         assertEquals(constrained, restored);
         assertEquals(limit, ((SequenceStage) restored.sequence().children().get(1)).maxGapNanos());
-        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_PER_LINK_TIME);
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(old);
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> constrained.writeTo(out)).getMessage(),
-                containsString("SEQUENCE per-link time limits are not supported")
+                containsString("SEQUENCE is not supported")
             );
             assertEquals(0, out.size());
         }
-        assertEquals(original, copyInstance(original, old));
     }
 
     public void testResolvedOutputAndBindingsSurviveTransport() throws Exception {

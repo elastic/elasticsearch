@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.execution.sequence;
 
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -47,7 +46,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.action.AbstractSequenceIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -147,7 +145,7 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
         );
         SequenceMappedFieldsIT.FailingRuntimeFieldPlugin.EXECUTIONS.set(0);
         EsqlQueryRequest request = syncEsqlQueryRequest("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM %s METADATA _id | WHERE phase=="A" | KEEP key,_id),
             (FROM %s METADATA _id | WHERE phase=="B" | KEEP key,_id)
             | EVAL other_id=MEMBER(2,_id) | KEEP key,_id,other_id | LIMIT 1
@@ -336,80 +334,11 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** The actual query response waits for local cleanup's terminal decision, even when server closes answer later. */
-    public void testSuccessfulQueryWaitsForBoundedPitCleanup() throws Exception {
-        createPair(false);
-        try (
-            var gate = new Gate(
-                TransportClosePointInTimeAction.TYPE.name(),
-                TransportClosePointInTimeAction.TYPE.name(),
-                TransportClosePointInTimeAction.TYPE.name()
-            );
-            var log = MockLog.capture(SequenceSourceOperator.class)
-        ) {
-            log.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "the successful response follows bounded cleanup exhaustion",
-                    SequenceSourceOperator.class.getCanonicalName(),
-                    Level.WARN,
-                    "Could not confirm complete PIT cleanup after [3] attempts for SEQUENCE query*"
-                )
-            );
-            ActionFuture<EsqlQueryResponse> future = client(coordinator).execute(
-                EsqlQueryAction.INSTANCE,
-                request(FIRST + "," + SECOND, false)
-            );
-            Throwable primary = null;
-            try {
-                for (int position = 0; position < 3; position++) {
-                    gate.await(position);
-                    assertFalse("the query must still own its pending cleanup attempt", future.isDone());
-                    gate.armNextWhileHolding(position);
-                }
-                long firstCloseNanos = gate.pauses.getFirst().startedNanos;
-                try (var response = future.actionGet(TimeValue.timeValueSeconds(30))) {
-                    future = null;
-                    long responseNanos = System.nanoTime();
-                    assertFalse(response.isPartial());
-                    assertEquals(List.of(List.of("shared", "A", "B")), getValuesList(response));
-                    assertTrue("all actual server closes are still held", gate.pauses.stream().noneMatch(pause -> pause.released));
-                    logger.info(
-                        "SEQUENCE_PIT_CLOSE_RESPONSE_BOUNDARY attempts=[3] first_close_to_response_millis=[{}] "
-                            + "held_close_offsets_millis=[{}] server_closes_still_held=[true] original_result_preserved=[true]",
-                        TimeUnit.NANOSECONDS.toMillis(responseNanos - firstCloseNanos),
-                        gate.pauses.stream().map(pause -> TimeUnit.NANOSECONDS.toMillis(pause.startedNanos - firstCloseNanos)).toList()
-                    );
-                }
-                log.assertAllExpectationsMatched();
-            } catch (Exception | Error failure) {
-                primary = failure;
-                throw failure;
-            } finally {
-                // Resume the actual close actions, not a fabricated success response. Their late callbacks and
-                // request references must drain before the existing fixture teardown checks contexts and tasks.
-                gate.close();
-                if (future != null) {
-                    try (var response = future.actionGet()) {
-                        // Also release a successful response if an earlier assertion failed before consuming it.
-                    } catch (Exception | Error cleanup) {
-                        if (primary != null) {
-                            if (primary != cleanup) {
-                                primary.addSuppressed(cleanup);
-                            }
-                        } else {
-                            throw cleanup;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     private static EsqlQueryRequest request(String source, boolean extra) {
         String field = extra ? ",only_b" : "";
         String output = extra ? ",other_value=MEMBER(2,only_b) | KEEP key,_id,other_id,only_b,other_value" : " | KEEP key,_id,other_id";
         return syncEsqlQueryRequest("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 30s PRIMARY 1
             (FROM %s METADATA _id | WHERE phase=="A" | KEEP key,_id%s),
             (FROM %s METADATA _id | WHERE phase=="B" | KEEP key,_id%s)
             | EVAL other_id=MEMBER(2,_id)%s | LIMIT 1
@@ -617,11 +546,6 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
             pauses.get(position).release();
         }
 
-        /** Let a timed-out attempt's retry pause independently while the earlier server action remains owned. */
-        private void armNextWhileHolding(int position) {
-            assertTrue("the held attempt must own the current gate phase", phase.compareAndSet(position, position + 1));
-        }
-
         private Pause claim(String action) {
             int position = phase.get();
             if (position < pauses.size()) {
@@ -647,7 +571,6 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
         private final String action;
         private final AtomicBoolean claimed = new AtomicBoolean();
         private final CountDownLatch started = new CountDownLatch(1);
-        private long startedNanos;
         private boolean released;
         private Runnable continuation;
 
@@ -663,7 +586,6 @@ public class SequencePitNarrowingIT extends AbstractSequenceIntegTestCase {
                     continuation = next;
                 }
             }
-            startedNanos = System.nanoTime();
             started.countDown();
             if (run) {
                 next.run();

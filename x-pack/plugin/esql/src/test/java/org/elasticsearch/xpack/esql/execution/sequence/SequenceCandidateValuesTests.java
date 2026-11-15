@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -28,6 +29,96 @@ import java.util.List;
 
 /** Mandatory cells keep their complete typed position even after the input page is released. */
 public class SequenceCandidateValuesTests extends ESTestCase {
+    /** Fresh retained cells outlive their input and join their container in one simultaneous held estimate. */
+    public void testProfiledFreshCellsShareTheCombinedHeldEstimate() {
+        CircuitBreaker breaker = breaker("1mb");
+        MockBlockFactory blocks = new MockBlockFactory(BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker));
+        SequenceHeldMemory memory = new SequenceHeldMemory();
+        SequenceHeldBlocks held = new SequenceHeldBlocks(memory);
+        CircuitBreaker explicit = memory.newScope().breaker(breaker);
+        SequenceCandidateValues values;
+        try (
+            Page source = new Page(
+                1,
+                BlockUtils.fromArrayRow(TestBlockFactory.getNonBreakingInstance(), new Object[] { List.of(4, 5), null })
+            )
+        ) {
+            values = SequenceCandidateValues.copyRow(
+                source,
+                0,
+                List.of(demand("many"), demand("null")),
+                new int[] { 0, 1 },
+                blocks,
+                explicit,
+                held
+            );
+            assertNotSame(source.getBlock(0), values.block(0));
+            assertSame(blocks, values.block(0).blockFactory());
+        }
+        long expected = values.containerBytes() + values.block(0).ramBytesUsed() + values.block(1).ramBytesUsed();
+        assertEquals(expected, memory.currentBytes());
+        assertEquals(expected, memory.peakBytes());
+        assertEquals(2, held.distinctBlocks());
+        values.close();
+        values.close();
+        assertEquals(0, memory.currentBytes());
+        assertEquals(0, held.distinctBlocks());
+        assertEquals(0, breaker.getUsed());
+        blocks.ensureAllBlocksAreReleased();
+    }
+
+    /** Both early admission failure and a later invalid channel leave no copied-cell ownership behind. */
+    public void testProfiledPartialCopyAndContainerFailureReleaseHeldCells() {
+        for (String limit : List.of("1mb", "1b")) {
+            CircuitBreaker breaker = breaker(limit);
+            MockBlockFactory blocks = new MockBlockFactory(BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker));
+            SequenceHeldMemory memory = new SequenceHeldMemory();
+            SequenceHeldBlocks held = new SequenceHeldBlocks(memory);
+            CircuitBreaker explicit = memory.newScope().breaker(breaker);
+            try (Page source = new Page(1, BlockUtils.fromArrayRow(TestBlockFactory.getNonBreakingInstance(), new Object[] { 4, 5 }))) {
+                Class<? extends Exception> failure = limit.equals("1b") ? CircuitBreakingException.class : IllegalArgumentException.class;
+                expectThrows(
+                    failure,
+                    () -> SequenceCandidateValues.copyRow(
+                        source,
+                        0,
+                        List.of(demand("a"), demand("b")),
+                        new int[] { 0, -1 },
+                        blocks,
+                        explicit,
+                        held
+                    )
+                );
+                assertEquals(0, memory.currentBytes());
+                assertEquals(0, held.distinctBlocks());
+                assertEquals(0, breaker.getUsed());
+                assertEquals(limit.equals("1b"), memory.peakBytes() == 0);
+            }
+            blocks.ensureAllBlocksAreReleased();
+        }
+    }
+
+    /** The default and explicit-null paths preserve the ordinary owner layout, admission size and supplied factory. */
+    public void testUnprofiledCopyKeepsTheOrdinaryOwnerAndFactory() {
+        CircuitBreaker breaker = breaker("1mb");
+        MockBlockFactory blocks = new MockBlockFactory(BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker));
+        try (Page source = new Page(1, BlockUtils.fromArrayRow(TestBlockFactory.getNonBreakingInstance(), new Object[] { 4 }))) {
+            long container;
+            try (var values = SequenceCandidateValues.copyRow(source, 0, List.of(demand("a")), new int[] { 0 }, blocks, breaker)) {
+                assertEquals(SequenceCandidateValues.class, values.getClass());
+                assertSame(blocks, values.block(0).blockFactory());
+                container = values.containerBytes();
+            }
+            try (var values = SequenceCandidateValues.copyRow(source, 0, List.of(demand("a")), new int[] { 0 }, blocks, breaker, null)) {
+                assertEquals(SequenceCandidateValues.class, values.getClass());
+                assertEquals(container, values.containerBytes());
+                assertSame(blocks, values.block(0).blockFactory());
+            }
+        }
+        assertEquals(0, breaker.getUsed());
+        blocks.ensureAllBlocksAreReleased();
+    }
+
     public void testOwnedNullAndMultivaluedCellsOutliveInputAndReleaseExactlyOnce() {
         CircuitBreaker breaker = breaker("1mb");
         BlockFactory blocks = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(breaker).build();
@@ -100,7 +191,7 @@ public class SequenceCandidateValuesTests extends ESTestCase {
 
     public void testConfigurationValidatesBoundsAndGroupedReferences() {
         List<List<SequenceLatestValidConfig.ValueDemand>> demands = List.of(List.of(), List.of());
-        assertEquals(16, SequenceLatestValidConfig.defaults(demands, List.of()).maxCandidates().orElseThrow());
+        assertEquals(8, SequenceLatestValidConfig.defaults(demands, List.of()).maxCandidates().orElseThrow());
         assertTrue(SequenceLatestValidConfig.unboundedForTests(demands, List.of()).maxCandidates().isEmpty());
         expectThrows(IllegalArgumentException.class, () -> SequenceLatestValidConfig.bounded(0, demands, List.of()));
         expectThrows(IllegalArgumentException.class, () -> new SequenceLatestValidConfig.PredicateGroup(1, List.of(), rows -> true));

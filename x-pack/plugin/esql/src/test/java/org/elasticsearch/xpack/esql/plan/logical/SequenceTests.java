@@ -21,6 +21,11 @@ import java.util.List;
 
 /** Supplies valid stages and aligned output bindings to the generic node-contract tests. */
 public class SequenceTests extends AbstractNodeTestCase<Sequence, LogicalPlan> {
+    public void testSingleEngineVersionFollowsPrivateCheckpoint() {
+        assertTrue(Sequence.ESQL_SEQUENCE_R5.supports(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE));
+        assertFalse(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE.supports(Sequence.ESQL_SEQUENCE_R5));
+    }
+
     /** Supplies the generic node generator with coherent stage outputs. */
     public static Sequence randomSequence() {
         List<LogicalPlan> stages = new ArrayList<>();
@@ -30,11 +35,7 @@ public class SequenceTests extends AbstractNodeTestCase<Sequence, LogicalPlan> {
             var input = new LocalRelation(Source.EMPTY, List.of(key, payload), EmptyLocalSupplier.EMPTY);
             stages.add(new SequenceStage(Source.EMPTY, input, List.of(key)));
         }
-        Sequence.Pairing pairing = randomFrom(Sequence.Pairing.values());
-        Integer maxCandidates = pairing == Sequence.Pairing.LATEST_VALID && randomBoolean() ? between(1, 1024) : null;
-        Sequence sequence = new Sequence(Source.EMPTY, stages, randomLongBetween(1, Long.MAX_VALUE), pairing, maxCandidates)
-            .resolveSchema();
-        return sequence;
+        return new Sequence(Source.EMPTY, stages, randomLongBetween(1, Long.MAX_VALUE)).resolveSchema();
     }
 
     @Override
@@ -60,9 +61,7 @@ public class SequenceTests extends AbstractNodeTestCase<Sequence, LogicalPlan> {
             instance.sourceAttributes(),
             instance.sourceStages(),
             instance.output(),
-            instance.expressionsResolved(),
-            instance.pairing(),
-            instance.maxCandidates()
+            instance.expressionsResolved()
         );
     }
 
@@ -87,41 +86,57 @@ public class SequenceTests extends AbstractNodeTestCase<Sequence, LogicalPlan> {
                 node.sourceAttributes(),
                 node.sourceStages(),
                 node.output(),
-                node.expressionsResolved(),
-                node.pairing(),
-                node.maxCandidates()
+                node.expressionsResolved()
             ),
             node.replaceChildren(children)
         );
     }
 
-    public void testUnspecifiedCandidateBoundSurvivesNodeReconstruction() {
-        Sequence base = randomSequence();
-        for (Sequence.Pairing pairing : Sequence.Pairing.values()) {
-            var node = new Sequence(
-                base.source(),
-                base.children(),
-                1,
-                base.sourceAttributes(),
-                base.sourceStages(),
-                base.output(),
-                true,
-                pairing,
-                null
-            );
-            assertNull(node.maxCandidates());
-            assertSame(node, node.transformExpressionsOnly(expression -> expression));
-            Sequence changed = (Sequence) node.transformPropertiesOnly(Long.class, span -> span + 1);
-            assertEquals(2, changed.maxSpanNanos());
-            assertEquals(pairing, changed.pairing());
-            assertNull(changed.maxCandidates());
-            assertEquals(node.output(), changed.output());
-            assertNull(node.replaceChildren(node.children()).maxCandidates());
-        }
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new Sequence(base.source(), base.children(), 1, Sequence.Pairing.LATEST_VALID, 0)
+    public void testSchemaSurvivesNodeReconstruction() {
+        Sequence node = randomSequence();
+        assertSame(node, node.transformExpressionsOnly(expression -> expression));
+        Sequence changed = (Sequence) node.transformPropertiesOnly(Long.class, span -> span == Long.MAX_VALUE ? span - 1 : span + 1);
+        assertNotEquals(node.maxSpanNanos(), changed.maxSpanNanos());
+        assertEquals(node.output(), changed.output());
+        assertEquals(node.sourceAttributes(), changed.sourceAttributes());
+        assertEquals(node.sourceStages(), changed.sourceStages());
+        assertEquals(node, node.replaceChildren(node.children()));
+    }
+
+    /** Each preserved schema component affects identity, even when its list lengths remain valid. */
+    public void testSchemaFieldsParticipateInEquality() {
+        List<Sequence> variants = schemaFieldVariants();
+        Sequence baseline = variants.get(0);
+        assertNotEquals("source attributes", baseline, variants.get(1));
+        assertNotEquals("source stages", baseline, variants.get(2));
+        assertNotEquals("output attributes", baseline, variants.get(3));
+        assertNotEquals("schema resolved", variants.get(4), variants.get(5));
+    }
+
+    /** Builds distinct, aligned bindings with a shared source attribute valid in either stage. */
+    static List<Sequence> schemaFieldVariants() {
+        Attribute shared = new ReferenceAttribute(Source.EMPTY, null, "shared", DataType.KEYWORD);
+        Attribute alternate = new ReferenceAttribute(Source.EMPTY, null, "alternate", DataType.KEYWORD);
+        Attribute output = new ReferenceAttribute(Source.EMPTY, null, "output", DataType.KEYWORD);
+        Attribute alternateOutput = new ReferenceAttribute(Source.EMPTY, null, "alternate_output", DataType.KEYWORD);
+        var input = new LocalRelation(Source.EMPTY, List.of(shared, alternate), EmptyLocalSupplier.EMPTY);
+        List<LogicalPlan> stages = List.of(
+            new SequenceStage(Source.EMPTY, input, List.of()),
+            new SequenceStage(Source.EMPTY, input, List.of())
         );
+        Sequence baseline = new Sequence(Source.EMPTY, stages, 1, List.of(shared), List.of(0), List.of(output), true);
+        Sequence changedSource = new Sequence(Source.EMPTY, stages, 1, List.of(alternate), List.of(0), List.of(output), true);
+        Sequence changedStage = new Sequence(Source.EMPTY, stages, 1, List.of(shared), List.of(1), List.of(output), true);
+        Sequence changedOutput = new Sequence(Source.EMPTY, stages, 1, List.of(shared), List.of(0), List.of(alternateOutput), true);
+        var emptyInput = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
+        List<LogicalPlan> emptyStages = List.of(
+            new SequenceStage(Source.EMPTY, emptyInput, List.of()),
+            new SequenceStage(Source.EMPTY, emptyInput, List.of())
+        );
+        Sequence unresolved = new Sequence(Source.EMPTY, emptyStages, 1);
+        Sequence resolved = unresolved.resolveSchema();
+        assertTrue(resolved.expressionsResolved());
+        return List.of(baseline, changedSource, changedStage, changedOutput, unresolved, resolved);
     }
 
     /** A limit constrains an incoming link, so the first member cannot have one. */

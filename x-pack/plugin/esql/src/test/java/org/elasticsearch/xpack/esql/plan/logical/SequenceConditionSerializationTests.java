@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -22,14 +21,7 @@ public class SequenceConditionSerializationTests extends AbstractLogicalPlanSeri
 
     @Override
     protected SequenceCondition mutateInstance(SequenceCondition instance) {
-        return new SequenceCondition(
-            instance.source(),
-            instance.child(),
-            instance.ownStage(),
-            Literal.TRUE,
-            instance.referencedStages(),
-            instance.inputs()
-        );
+        return SequenceConditionTests.mutateSequenceCondition(instance);
     }
 
     @Override
@@ -51,10 +43,10 @@ public class SequenceConditionSerializationTests extends AbstractLogicalPlanSeri
 
     public void testOlderPeerIsRejectedBeforeAnyConditionBytes() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE));
+            out.setTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5));
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> createTestInstance().writeTo(out)).getMessage(),
-                containsString("SEQUENCE latest_valid pairing is not supported")
+                containsString("SEQUENCE is not supported")
             );
             assertEquals(0, out.size());
         }

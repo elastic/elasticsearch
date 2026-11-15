@@ -59,7 +59,7 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
     private static final Instant BASE = Instant.parse("2026-09-25T21:14:51.389Z");
     private static final String PAYLOAD_SUFFIX = "/" + "x".repeat(512);
     private static final String SEQUENCE = """
-        sequence by key with {"maxspan":"30s"} PRIMARY 1
+        sequence by key within 30s PRIMARY 1
         (from sequence-capacity-a metadata _id | where disposition=="candidate" | keep key, _id, payload),
         (from sequence-capacity-b metadata _id | where disposition=="candidate" | keep key, _id, payload)
         """;
@@ -279,7 +279,7 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         refresh(FIRST, SECOND);
         String query = """
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from sequence-capacity-a metadata _id | where disposition=="candidate" | mv_expand key
               | eval expanded_payload=concat(payload,"/",key) | keep key, _id, expanded_payload),
             (from sequence-capacity-b metadata _id | where disposition=="candidate" | mv_expand key
@@ -432,7 +432,7 @@ public class SequenceCapacityIT extends AbstractSequenceIntegTestCase {
         for (int primary : List.of(1, 2)) {
             int other = primary == 1 ? 2 : 1;
             String query = """
-                SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY %s
+                SEQUENCE BY key WITHIN 30s PRIMARY %s
                 (FROM sequence-capacity-a METADATA _id, _source | WHERE disposition=="candidate"
                   | EVAL computed_payload=CONCAT(payload, "/computed") | KEEP key, _id, _source, computed_payload),
                 (FROM sequence-capacity-b METADATA _id, _source | WHERE disposition=="candidate"

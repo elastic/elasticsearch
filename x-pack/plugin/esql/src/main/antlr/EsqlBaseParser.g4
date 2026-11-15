@@ -125,8 +125,10 @@ returnMatchesCommand
     ;
 
 sequenceCommand
+    // The map branch exists only to diagnose the retired spelling; it is always rejected by the plan builder.
     // PRIMARY is required by the plan builder; keep the slot optional here to report a clear missing-primary diagnostic.
-    : DEV_SEQUENCE (BY qualifiedNames)? (WITH mapExpression | windowKeyword=UNQUOTED_IDENTIFIER window=sequenceDuration)
+    : DEV_SEQUENCE (BY qualifiedNames)? (WITH rejectedOptions=mapExpression
+      | windowKeyword=UNQUOTED_IDENTIFIER window=sequenceDuration (WITH rejectedOptions=mapExpression)?)
       (primaryKeyword=UNQUOTED_IDENTIFIER primary=(INTEGER_LITERAL | UNQUOTED_IDENTIFIER))?
       sequenceStage (COMMA sequenceStage)+
     ;
@@ -157,6 +159,7 @@ subquerySourceCommand
     : fromCommand
     | rowCommand
     | timeSeriesCommand
+    // Parse only to report the top-level-only diagnostic; the plan builder always rejects this branch.
     | {this.isDevVersion()}? sequenceCommand
     ;
 

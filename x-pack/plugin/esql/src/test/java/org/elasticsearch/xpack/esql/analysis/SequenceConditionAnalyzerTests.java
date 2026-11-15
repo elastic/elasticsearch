@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
@@ -26,11 +25,9 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceCondition;
-import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.junit.BeforeClass;
@@ -55,14 +52,13 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
 
     public void testBackwardBindingsResolveIncrementallyIncludingEarlierPrimaryAndKeys() {
         Sequence sequence = analyzed("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY start_event
+            SEQUENCE BY key WITHIN 30s PRIMARY start_event
             (FROM a | KEEP key,number) AS start_event,
             (FROM b | WHERE number > MEMBER(start_event,number) | KEEP key,number) AS middle_event,
             (FROM c | WHERE number == MEMBER(1,number) + MEMBER(middle_event,number) AND key == MEMBER(start_event,key))
             | KEEP key | LIMIT 10
             """);
         assertTrue(sequence.resolved());
-        assertEquals(Sequence.Pairing.LATEST_VALID, sequence.pairing());
         assertEquals(3, sequence.collect(SequenceCondition.class).size());
         SequenceCondition multi = sequence.collect(SequenceCondition.class)
             .stream()
@@ -79,24 +75,24 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testOlderClusterRejectsLatestValidAndStillAcceptsToday() {
-        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_LATEST_VALID_LANGUAGE);
-        for (String query : List.of(
-            "SEQUENCE WITH {\"maxspan\":\"30s\",\"pairing\":\"latest_valid\"} PRIMARY 2 (FROM a),(FROM b) | KEEP key | LIMIT 10",
-            "SEQUENCE WITH {\"maxspan\":\"30s\"} PRIMARY 2 (FROM a),(FROM b | WHERE label == MEMBER(1,label)) | KEEP key | LIMIT 10"
+    public void testOlderClusterRejectsEverySequenceShape() {
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5);
+        for (String stages : List.of(
+            "(FROM a),(FROM b)",
+            "(FROM a),(FROM b) WITHIN 5s",
+            "(FROM a),(FROM b | WHERE label == MEMBER(1,label))"
         )) {
             configured().minimumTransportVersion(old)
-                .statementError(query, containsString("SEQUENCE latest_valid pairing is not supported by all nodes in the cluster"));
+                .statementError(
+                    "SEQUENCE WITHIN 30s PRIMARY 2 " + stages + " | KEEP key | LIMIT 10",
+                    containsString("SEQUENCE is not supported by all nodes in the cluster")
+                );
         }
-        Sequence today = configured().minimumTransportVersion(old).statement("""
-            SEQUENCE WITH {"maxspan":"30s"} PRIMARY 2 (FROM a),(FROM b) WITHIN 5s | KEEP key | LIMIT 10
-            """).collect(Sequence.class).getFirst();
-        assertEquals(Sequence.Pairing.TODAY, today.pairing());
     }
 
     public void testEarlierComputedAndRenamedOutputSurvivesPruningWithoutPublicConditionColumns() {
         LogicalPlan plan = configured().statement("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM a | EVAL computed = TO_UPPER(label) | KEEP key,computed | RENAME computed AS visible),
             (FROM b | WHERE label == MEMBER(1,visible))
             | KEEP key | LIMIT 10
@@ -114,7 +110,7 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
         for (String projection : List.of("KEEP key", "DROP label", "RENAME label AS renamed")) {
             configured().statementError(
                 """
-                    SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+                    SEQUENCE BY key WITHIN 30s PRIMARY 2
                     (FROM a | %s), (FROM b | WHERE label == MEMBER(1,label))
                     | KEEP key | LIMIT 10
                     """.formatted(projection),
@@ -129,7 +125,7 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
             );
         }
         analyzed("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM a | RENAME label AS renamed), (FROM b | WHERE label == MEMBER(1,renamed))
             | KEEP key | LIMIT 10
             """);
@@ -137,7 +133,7 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
 
     public void testOwnInputsBindBeforeTrailingProjectionAndStayPrivate() {
         Sequence sequence = analyzed("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM a | KEEP key,label),
             (FROM b | EVAL own = TO_UPPER(label) | WHERE own == MEMBER(1,label)
              | DROP own | RENAME label AS renamed | KEEP key,renamed)
@@ -154,39 +150,23 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
         assertTrue(sequence.output().stream().noneMatch(a -> a.name().contains("own") || a.synthetic()));
     }
 
-    public void testRetainedMatchesPreserveAuthenticRolesAcrossAnEarlierPrimaryCondition() {
-        List<String> expected = List.of(
-            "key",
-            "label",
-            "match_key_1",
-            "member_1_index",
-            "member_1_id",
-            "member_1_source",
-            "member_2_index",
-            "member_2_id",
-            "member_2_source"
-        );
+    public void testEarlierPrimaryConditionPreservesOrdinaryBindings() {
+        List<String> expected = List.of("key", "label");
         for (String stage : List.of(
             "FROM b | WHERE label != MEMBER(issued,label)",
             "FROM b | EVAL own=label | WHERE own != MEMBER(issued,label) | KEEP key,label | RENAME label AS renamed | DROP renamed"
         )) {
             var parsed = EsqlTestUtils.TEST_PARSER.createStatement("""
-                SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY issued
+                SEQUENCE BY key WITHIN 30s PRIMARY issued
                 (FROM a | KEEP key,label) AS issued, (%s) AS signed
-                | KEEP key,label | LIMIT 10 | RETURN MATCHES
+                | KEEP key,label | LIMIT 10
                 """.formatted(stage));
             LogicalPlan analyzed = configured().buildAnalyzer().analyze(parsed.plan());
             LogicalPlan optimized = optimizer().optimize(analyzed);
             for (LogicalPlan plan : List.of(analyzed, optimized)) {
                 assertEquals(expected, plan.output().stream().map(Attribute::name).toList());
                 assertEquals(expected.size(), plan.output().stream().map(Attribute::id).distinct().count());
-                assertEquals(expected.size(), SequenceMatchOutput.deliveryMetadata(parsed, plan.output(), Map.of()).size());
-                assertEquals(
-                    List.of(DataType.SOURCE, DataType.SOURCE),
-                    plan.output().stream().filter(attribute -> attribute.name().endsWith("_source")).map(Attribute::dataType).toList()
-                );
                 Sequence sequence = plan.collect(Sequence.class).getFirst();
-                assertEquals(Sequence.Pairing.LATEST_VALID, sequence.pairing());
                 SequenceCondition condition = sequence.collect(SequenceCondition.class).getFirst();
                 SequenceCondition.Input earlier = condition.activeInputs()
                     .stream()
@@ -200,38 +180,13 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
                 assertEquals(Integer.valueOf(0), sequence.sourceStages().get(primaryColumn));
                 assertEquals("label", sequence.sourceAttributes().get(primaryColumn).name());
                 assertFalse(sequence.sourceAttributes().get(primaryColumn).synthetic());
-                Set<NameId> capturedSources = new HashSet<>();
-                for (int stageNumber = 0; stageNumber < sequence.children().size(); stageNumber++) {
-                    String role = "member_" + (stageNumber + 1) + "_source";
-                    Attribute published = plan.output()
-                        .stream()
-                        .filter(attribute -> attribute.name().equals(role))
-                        .findFirst()
-                        .orElseThrow();
-                    int sourceColumn = sequenceColumn(plan, sequence, published);
-                    assertEquals(Integer.valueOf(stageNumber), sequence.sourceStages().get(sourceColumn));
-                    Attribute captured = sequence.sourceAttributes().get(sourceColumn);
-                    assertEquals(DataType.SOURCE, captured.dataType());
-                    assertTrue(captured.synthetic());
-                    assertTrue(capturedSources.add(captured.id()));
-                    SequenceStage stagePlan = (SequenceStage) sequence.children().get(stageNumber);
-                    assertEquals(1, stagePlan.output().stream().filter(attribute -> attribute.id().equals(captured.id())).count());
-                    List<Attribute> rawSources = stagePlan.collect(EsRelation.class)
-                        .getFirst()
-                        .output()
-                        .stream()
-                        .filter(attribute -> attribute instanceof MetadataAttribute && attribute.name().equals("_source"))
-                        .toList();
-                    assertEquals(1, rawSources.size());
-                    assertNotEquals(rawSources.getFirst().id(), captured.id());
-                }
             }
         }
     }
 
     public void testOriginalSchedulingSetSurvivesScalarFoldingWithoutKeepingDeadValues() {
         LogicalPlan plan = configured().statement("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM a | KEEP key,flag),(FROM b | WHERE true OR MEMBER(1,flag))
             | KEEP key | LIMIT 10
             """);
@@ -240,12 +195,11 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
         assertEquals(List.of(0), condition.referencedStages());
         assertEquals(Boolean.TRUE, condition.condition().fold(FoldContext.small()));
         assertTrue(condition.activeInputs().isEmpty());
-        assertEquals(Sequence.Pairing.LATEST_VALID, sequence.pairing());
     }
 
     public void testDiscoveryAndCanonicalBindingsAcrossAnEarlierMultiIndexBranch() {
         String query = """
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM (FROM a | EVAL computed=TO_UPPER(label) | KEEP key,computed),
                   (FROM c | EVAL computed=TO_UPPER(label) | KEEP key,computed) | RENAME computed AS visible),
             (FROM b | WHERE label == MEMBER(1,visible) AND key == MEMBER(1,key))
@@ -273,16 +227,30 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
 
     public void testConditionMustBeBooleanAndCannotUseFullTextOrScoring() {
         configured().statementError("""
-            SEQUENCE WITH {"maxspan":"30s"} PRIMARY 2 (FROM a),(FROM b | WHERE MEMBER(1,number))
+            SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),(FROM b | WHERE MEMBER(1,number))
             | LIMIT 10
             """, containsString("Condition expression needs to be boolean"));
         for (String predicate : List.of("MATCH(label,\"term\")", "SCORE(MATCH(label,\"term\")) > 0")) {
             configured().statementError("""
-                SEQUENCE WITH {"maxspan":"30s"} PRIMARY 2
+                SEQUENCE WITHIN 30s PRIMARY 2
                 (FROM a),(FROM b | WHERE MEMBER(1,flag) OR %s)
                 | LIMIT 10
                 """.formatted(predicate), containsString("SEQUENCE MEMBER condition"));
         }
+    }
+
+    /** Cross-stage comparisons use the same scalar type rules as ordinary WHERE. */
+    public void testCrossStageComparisonTypes() {
+        configured().statementError("""
+            SEQUENCE WITHIN 30s PRIMARY 2 (FROM a),(FROM b | WHERE label == MEMBER(1,number))
+            | KEEP key | LIMIT 10
+            """, allOf(containsString("keyword"), containsString("long")));
+        Sequence sequence = analyzed("""
+            SEQUENCE WITHIN 30s PRIMARY 2
+            (FROM a | EVAL nanos = TO_DATE_NANOS(@timestamp)),(FROM b | WHERE @timestamp == MEMBER(1,nanos))
+            | KEEP key | LIMIT 10
+            """);
+        assertTrue(sequence.collect(SequenceCondition.class).getFirst().expressionsResolved());
     }
 
     public void testConditionOnlySourceTypesAreVerifiedAfterPruning() {
@@ -290,9 +258,7 @@ public class SequenceConditionAnalyzerTests extends ESTestCase {
             "(FROM a | KEEP key,shape),(FROM b | WHERE MEMBER(1,shape) IS NULL)",
             "(FROM a | KEEP key,flag),(FROM b | WHERE MEMBER(1,flag) OR shape IS NULL | DROP shape)"
         )) {
-            LogicalPlan plan = configured().statement(
-                "SEQUENCE BY key WITH {\"maxspan\":\"30s\"} PRIMARY 2 " + stages + " | KEEP key | LIMIT 10"
-            );
+            LogicalPlan plan = configured().statement("SEQUENCE BY key WITHIN 30s PRIMARY 2 " + stages + " | KEEP key | LIMIT 10");
             assertThat(
                 expectThrows(VerificationException.class, () -> optimizer().optimize(plan)).getMessage(),
                 containsString("cannot read source column [shape]")

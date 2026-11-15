@@ -71,7 +71,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testSequenceMemberAndQuotedFieldAreSeparateDemands() {
         assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
         var parsed = TEST_PARSER.createStatement("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM test | WHERE phase == "A"), (FROM test | WHERE phase == "B")
             | EVAL ordinary = `MEMBER(1, payload)`, other_value = MEMBER(1, payload)
             | KEEP ordinary, other_value
@@ -95,7 +95,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testSequenceStageNamedWildcardHasExactDemands() {
         assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
         assertSequenceStatementFieldNames("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM first | WHERE phase == "A"), (FROM second | WHERE phase == "B")
             | KEEP stage*
             """, Set.of("_index", "key", "key.*", "phase", "phase.*", "@timestamp", "@timestamp.*", "stage*"));
@@ -110,7 +110,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             expected.add("stage1");
         }
         assertSequenceStatementFieldNames(Strings.format("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM first | WHERE phase == "A"), (FROM second | WHERE phase == "B")
             | %s
             """, pipeline), expected);
@@ -127,7 +127,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             String first = "(FROM first" + (projectedStage == 1 ? " | KEEP key" : "") + ")";
             String second = "(FROM second" + (projectedStage == 2 ? " | KEEP key" : "") + ")";
             assertSequenceStatementFieldNames(
-                "SEQUENCE BY key WITH {\"maxspan\":\"30s\"} PRIMARY " + (3 - projectedStage) + " " + first + ", " + second + " | LIMIT 10",
+                "SEQUENCE BY key WITHIN 30s PRIMARY " + (3 - projectedStage) + " " + first + ", " + second + " | LIMIT 10",
                 ALL_FIELDS
             );
         }
@@ -142,7 +142,7 @@ public class FieldNameUtilsTests extends ESTestCase {
                 String first = "(FROM first" + (wideStage == 1 ? membership : " | KEEP key") + ")";
                 String second = "(FROM second" + (wideStage == 2 ? membership : " | KEEP key") + ")";
                 assertSequenceStatementFieldNames(
-                    "SEQUENCE BY key WITH {\"maxspan\":\"30s\"} PRIMARY " + wideStage + " " + first + ", " + second + " | LIMIT 10",
+                    "SEQUENCE BY key WITHIN 30s PRIMARY " + wideStage + " " + first + ", " + second + " | LIMIT 10",
                     ALL_FIELDS
                 );
             }
@@ -153,7 +153,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testSequenceOuterProjectionNarrowsSiblingOutput() {
         assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
         assertSequenceStatementFieldNames("""
-            SEQUENCE BY key WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY key WITHIN 30s PRIMARY 2
             (FROM first | KEEP key), (FROM second)
             | KEEP payload
             """, Set.of("_index", "key", "key.*", "payload", "payload.*", "@timestamp", "@timestamp.*"));
@@ -163,7 +163,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testSequenceForkNamedFieldRemainsAnIndexDemand() {
         assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
         assertSequenceStatementFieldNames("""
-            SEQUENCE BY _fork WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY _fork WITHIN 30s PRIMARY 1
             (FROM first | KEEP _fork), (FROM second | KEEP _fork)
             | KEEP _fork
             """, Set.of("_index", "_fork", "_fork.*", "@timestamp", "@timestamp.*"));
@@ -194,7 +194,7 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     private void assertSequenceFieldNames(String pipeline, String... required) {
         var parsed = TEST_PARSER.createStatement(Strings.format("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from test | where phase=="A"), (from test | where phase=="B")
             | %s
             """, pipeline)).plan();

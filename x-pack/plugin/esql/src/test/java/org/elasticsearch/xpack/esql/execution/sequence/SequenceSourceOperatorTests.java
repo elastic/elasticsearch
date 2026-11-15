@@ -10,13 +10,10 @@ package org.elasticsearch.xpack.esql.execution.sequence;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -35,7 +32,6 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -46,9 +42,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -73,7 +67,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
@@ -86,11 +79,8 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -98,6 +88,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
+import org.elasticsearch.xpack.esql.action.SequenceProvenance;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -121,18 +112,16 @@ import org.elasticsearch.xpack.esql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.session.ConfigurationBuilder;
 import org.junit.BeforeClass;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -149,6 +138,223 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     @BeforeClass
     public static void requireSequenceCommand() {
         assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
+    }
+
+    /** A failed stage releases raw/bound cells and the prepared compiler on the same held-memory timeline. */
+    public void testProfiledHeldEstimateReleasesAfterStageFailure() {
+        try (var harness = new Harness(true, true)) {
+            SequenceHeldMemory memory = sourceHeldMemory(harness.source);
+            assertNotNull(memory);
+            assertTrue(memory.currentBytes() > 0);
+            assertEquals(memory.peakBytes(), harness.source.status().runtime().peakBytesHeld());
+            harness.failStage = 1;
+            harness.prepareOpen().listener.onResponse(openResponse());
+            assertNull(harness.source.getOutput());
+            harness.respond(harness.client.take(TransportSearchAction.TYPE), 0);
+            assertThat(
+                expectThrows(IllegalStateException.class, harness.source::getOutput).getMessage(),
+                containsString("controlled synchronous stage failure")
+            );
+            harness.finishDriver();
+            harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
+            harness.assertFinished();
+            assertEquals(0, memory.currentBytes());
+            assertEquals(memory.peakBytes(), harness.source.status().runtime().peakBytesHeld());
+        }
+    }
+
+    /** A secondary condition close failure cannot strand scoped admissions or replace a real admission failure. */
+    public void testProfiledHeldEstimatePreservesPrimaryFailureWhenCleanupThrows() {
+        try (var harness = new Harness(true, true)) {
+            harness.source.close();
+            var cleanup = new IllegalStateException("secondary profiled condition cleanup");
+            try (
+                var source = new SequenceSourceOperator(
+                    harness.operatorFactory,
+                    harness.context,
+                    TimeValue.timeValueMinutes(2),
+                    1,
+                    latestConfig(harness.sequence),
+                    () -> {
+                        throw cleanup;
+                    }
+                )
+            ) {
+                SequenceHeldMemory memory = sourceHeldMemory(source);
+                assertNull(source.getOutput());
+                harness.client.take(EsqlSearchShardsAction.TYPE).listener.onResponse(shards("a"));
+                long limit = harness.breaker.getLimit();
+                double overhead = harness.breaker.getOverhead();
+                harness.breaker.setLimitAndOverhead(harness.breaker.getUsed(), 1);
+                try {
+                    CircuitBreakingException failure = expectThrows(CircuitBreakingException.class, source::getOutput);
+                    assertEquals(1, failure.getSuppressed().length);
+                    assertSame(cleanup, failure.getSuppressed()[0]);
+                    assertEquals(0, memory.currentBytes());
+                    assertEquals(0, harness.breaker.getUsed());
+                } finally {
+                    harness.breaker.setLimitAndOverhead(limit, overhead);
+                }
+            }
+        }
+    }
+
+    /** Collected output and bound input remain Source-held after close until the delayed terminal callback cleans them. */
+    public void testProfiledHeldPagesSurviveCloseUntilDeferredStageCleanup() {
+        try (var harness = new Harness(true, true)) {
+            SequenceHeldMemory memory = sourceHeldMemory(harness.source);
+            harness.deferStage = 1;
+            harness.prepareOpen().listener.onResponse(openResponse());
+            assertNull(harness.source.getOutput());
+            harness.respond(harness.client.take(TransportSearchAction.TYPE), 0);
+            assertNull(harness.source.getOutput());
+            assertNotNull(harness.deferredStage);
+            assertTrue(memory.currentBytes() > 0);
+            harness.finishDriver();
+            assertFalse(harness.done.isDone());
+            assertTrue("the late callback still owns its bound/collected data", memory.currentBytes() > 0);
+            harness.deferredStage.onResponse(null);
+            assertEquals(0, memory.currentBytes());
+            harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
+            harness.assertFinished();
+            assertEquals(memory.peakBytes(), harness.source.status().runtime().peakBytesHeld());
+        }
+    }
+
+    /** Returning a Page ends Source attribution while preserving its original factory and downstream breaker ownership. */
+    public void testHeldEstimateResultHandoffPreservesFactoryWithProfilingOnAndOff() {
+        Sequence sequence = plan("""
+            SEQUENCE BY key WITHIN 30 seconds PRIMARY 1
+            (FROM a | KEEP key), (FROM b | KEEP key) | KEEP key | LIMIT 1
+            """);
+        for (boolean profile : List.of(false, true)) {
+            try (
+                var harness = new Harness(true, null, null, sequence, null, null, null, false, DriverContext.WarningsMode.COLLECT, profile)
+            ) {
+                SequenceHeldMemory memory = sourceHeldMemory(harness.source);
+                assertEquals(profile, memory != null);
+                assertEquals(profile, harness.source.status().runtime() != null);
+                harness.prepareOpen().listener.onResponse(openResponse());
+                Page result = null;
+                try {
+                    for (int attempt = 0; attempt < 30 && result == null; attempt++) {
+                        result = harness.source.getOutput();
+                        if (result == null && harness.client.pending.isEmpty() == false) {
+                            var pending = harness.client.take(TransportSearchAction.TYPE);
+                            var request = (SearchRequest) pending.request;
+                            int stage = request.getPointInTimeAuthorizationScope().indices()[0].equals("a") ? 0 : 1;
+                            harness.respond(pending, stage);
+                        }
+                    }
+                    assertNotNull(result);
+                    assertEquals(1, result.getPositionCount());
+                    for (int column = 0; column < result.getBlockCount(); column++) {
+                        assertSame(harness.blocks, result.getBlock(column).blockFactory());
+                    }
+                    harness.finishDriver();
+                    if (profile) {
+                        assertEquals(0, memory.currentBytes());
+                        assertTrue(memory.peakBytes() > 0);
+                        assertEquals(memory.peakBytes(), harness.source.status().runtime().peakBytesHeld());
+                    }
+                    assertTrue("the unclosed outgoing Page keeps its real breaker reservation", harness.breaker.getUsed() > 0);
+                    harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
+                } finally {
+                    Releasable owned = result;
+                    if (owned != null) {
+                        owned.close();
+                    }
+                }
+                harness.assertFinished();
+            }
+        }
+    }
+
+    /** Both append failures must leave the collector empty, release its Page, and preserve the original failure. */
+    public void testProfiledStagePagesAppendFailureIsAtomic() throws Exception {
+        for (boolean failHolder : List.of(true, false)) {
+            for (boolean appendBeforeThrow : List.of(false, true)) {
+                try (var harness = new Harness(true, true)) {
+                    SequenceHeldMemory memory = sourceHeldMemory(harness.source);
+                    long heldBefore = memory.currentBytes();
+                    long breakerBefore = harness.breaker.getUsed();
+                    Error primary = new AssertionError("controlled collector append failure");
+                    Class<?> type = Class.forName(SequenceSourceOperator.class.getName() + "$StagePages");
+                    var constructor = type.getDeclaredConstructor(SequenceSourceOperator.class);
+                    constructor.setAccessible(true);
+                    Object collector = constructor.newInstance(harness.source);
+                    var pagesField = type.getDeclaredField("pages");
+                    var heldField = type.getDeclaredField("heldPages");
+                    pagesField.setAccessible(true);
+                    heldField.setAccessible(true);
+                    List<Page> pages = failHolder ? new ArrayList<>() : rejectingAppend(primary, appendBeforeThrow);
+                    List<SequenceHeldBlocks.Owner> holders = failHolder ? rejectingAppend(primary, appendBeforeThrow) : new ArrayList<>();
+                    pagesField.set(collector, pages);
+                    heldField.set(collector, holders);
+                    var add = type.getDeclaredMethod("add", Page.class);
+                    add.setAccessible(true);
+                    // The private collector implements Releasable; reflection isolates faults without a production callback.
+                    try (Releasable ignored = (Releasable) collector) {
+                        Page accepted = new Page(harness.blocks.newConstantBytesRefBlockWith(new BytesRef("accepted"), 1));
+                        add.invoke(collector, accepted);
+                        SequenceHeldBlocks.Owner acceptedHolder = holders.getFirst();
+                        long acceptedHeld = memory.currentBytes();
+                        long acceptedBreaker = harness.breaker.getUsed();
+                        Page page = new Page(harness.blocks.newConstantBytesRefBlockWith(new BytesRef("retained"), 1));
+                        InvocationTargetException failure = expectThrows(
+                            InvocationTargetException.class,
+                            () -> add.invoke(collector, page)
+                        );
+                        assertSame(primary, failure.getCause());
+                        assertEquals("failed append must preserve only the earlier page", List.of(accepted), pages);
+                        assertEquals("failed append must preserve only its earlier lease", List.of(acceptedHolder), holders);
+                        assertEquals(acceptedHeld, memory.currentBytes());
+                        assertEquals(acceptedBreaker, harness.breaker.getUsed());
+                    }
+                    assertEquals(heldBefore, memory.currentBytes());
+                    assertEquals(breakerBefore, harness.breaker.getUsed());
+                    harness.blocks.ensureAllBlocksAreReleased();
+                    harness.finishDriver();
+                    harness.assertFinished();
+                    assertEquals(0, memory.currentBytes());
+                }
+            }
+        }
+    }
+
+    /** Only container append is synthetic; the Page, blocks, reservations, ledger and Source are real. */
+    private static <E> List<E> rejectingAppend(Error failure, boolean appendBeforeThrow) {
+        return new ArrayList<>() {
+            private int calls;
+
+            @Override
+            public boolean add(E value) {
+                if (++calls == 1) {
+                    return super.add(value);
+                }
+                if (appendBeforeThrow) {
+                    super.add(value);
+                }
+                throw failure;
+            }
+        };
+    }
+
+    /** Read every MV entry so provenance checks never silently discard later selected members. */
+    private static void assertProvenance(Page page, int row, int channel, List<SequenceProvenance.Member> expected) {
+        assertEquals(expected.size(), page.<BytesRefBlock>getBlock(channel).getValueCount(row));
+        assertEquals(expected, SequenceProvenance.decode(strings(page.getBlock(channel), row)));
+    }
+
+    /** Inspect cleanup of unpublished current state without adding a test-only accessor to the production source. */
+    private static SequenceHeldMemory sourceHeldMemory(SequenceSourceOperator source) {
+        try {
+            var field = SequenceSourceOperator.class.getDeclaredField("heldMemory");
+            field.setAccessible(true);
+            return (SequenceHeldMemory) field.get(source);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
     }
 
     /** The physical hint excludes foreign indices without broadening the logical authorization carrier. */
@@ -363,181 +569,54 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
-    public void testQueuedRenewalCannotReplaceANewerSchedule() {
-        var queue = new DeterministicTaskQueue() {
-            @Override
-            public ThreadPool getThreadPool() {
-                return new DeterministicThreadPool(Function.identity()) {
-                    @Override
-                    public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
-                        // Model the real scheduler's two phases: its timer queues work on GENERIC, which may run
-                        // after cancellation. The ordinary deterministic pool runs commands directly on the timer.
-                        return super.schedule(() -> executor.execute(command), delay, executor);
-                    }
-                };
-            }
-        };
+    /** A search extends the fixed lease without introducing another background owner. */
+    public void testEachSearchExtendsThirtyMinuteLeaseWithoutHeartbeat() {
+        var queue = new DeterministicTaskQueue();
         try (var harness = new Harness(false, queue)) {
-            harness.prepareOpen().listener.onResponse(openResponse());
+            var open = harness.prepareOpen();
+            assertEquals(TimeValue.timeValueMinutes(30), ((OpenPointInTimeRequest) open.request).keepAlive());
+            open.listener.onResponse(openResponse());
             assertNull(harness.source.getOutput());
             var search = harness.client.take(TransportSearchAction.TYPE);
-            queue.advanceTime();
-            queue.runRandomTask();
-            assertTrue(queue.hasRunnableTasks());
-            var response = SearchResponse.emptyResponseBuilder().build();
-            try (Releasable ignored = response::decRef) {
-                search.listener.onResponse(response);
-            }
-            queue.runAllRunnableTasks();
-            assertTrue("the already-queued renewal was superseded by the successful search", harness.client.pending.isEmpty());
-            queue.runTasksUpToTimeInOrder(80_000);
-            var renewal = harness.client.take(TransportSearchAction.TYPE);
-            assertRenewalRequest((SearchRequest) renewal.request);
-            harness.finishDriver();
-            renewal.listener.onFailure(new IllegalStateException("cancelled"));
-            harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
-            harness.assertFinished();
-            queue.runAllTasksInTimeOrder();
-            assertTrue(harness.client.pending.isEmpty());
-        }
-    }
-
-    public void testRenewalDuringStageWaitPreservesBlockingAndCompletion() {
-        var queue = new DeterministicTaskQueue();
-        try (var harness = new Harness(true, queue)) {
-            harness.deferStage = 1;
-            harness.prepareOpen().listener.onResponse(openResponse());
-            assertNull(harness.source.getOutput());
-            harness.respond(harness.client.take(TransportSearchAction.TYPE), 0);
-            assertNull(harness.source.getOutput());
-            var blocked = harness.source.isBlocked().listener();
-            assertFalse(blocked.isDone());
-            assertNull(harness.source.getOutput());
-            assertFalse(harness.source.isFinished());
-            assertTrue(harness.client.pending.isEmpty());
-            for (long time : new long[] { 40_000, 80_000, 120_000, 160_000 }) {
-                queue.runTasksUpToTimeInOrder(time);
-                var renewal = harness.client.take(TransportSearchAction.TYPE);
-                assertRenewalRequest((SearchRequest) renewal.request);
-                var response = renewalResponse("renewed-" + time);
-                try (Releasable ignored = response::decRef) {
-                    renewal.listener.onResponse(response);
-                }
-                assertFalse("successful heartbeats must not turn a blocked stage into a busy loop", blocked.isDone());
-                assertTrue(harness.client.pending.isEmpty());
-            }
-            harness.deferredStage.onResponse(null);
-            assertTrue(blocked.isDone());
-            assertNull(harness.source.getOutput());
-            var next = harness.client.take(TransportSearchAction.TYPE);
-            assertEquals(new BytesArray("renewed-160000"), ((SearchRequest) next.request).source().pointInTimeBuilder().getEncodedId());
-            harness.finishDriver();
-            next.listener.onFailure(new IllegalStateException("closed"));
-            harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
-            harness.assertFinished();
-            queue.runAllTasksInTimeOrder();
-            assertTrue(harness.client.pending.isEmpty());
-        }
-    }
-
-    public void testCloseWaitsForRenewalAndSearchInEitherCallbackOrder() {
-        for (boolean renewalFirst : List.of(false, true)) {
-            var queue = new DeterministicTaskQueue();
-            try (var harness = new Harness(false, queue)) {
-                harness.prepareOpen().listener.onResponse(openResponse());
-                assertNull(harness.source.getOutput());
-                var search = harness.client.take(TransportSearchAction.TYPE);
-                queue.runTasksUpToTimeInOrder(40_000);
-                var renewal = harness.client.take(TransportSearchAction.TYPE);
-                assertRenewalRequest((SearchRequest) renewal.request);
-                harness.finishDriver();
-                assertFalse(harness.done.isDone());
-                Runnable deliverRenewal = () -> {
-                    var response = renewalResponse("latest-renewed");
-                    try (Releasable ignored = response::decRef) {
-                        renewal.listener.onResponse(response);
-                    }
-                };
-                Runnable deliverSearch = () -> search.listener.onFailure(new IllegalStateException("search cancelled"));
-                (renewalFirst ? deliverRenewal : deliverSearch).run();
-                assertFalse("both outstanding callbacks must release ownership before PIT close", harness.done.isDone());
-                assertTrue(harness.client.pending.isEmpty());
-                (renewalFirst ? deliverSearch : deliverRenewal).run();
-                var close = harness.client.take(TransportClosePointInTimeAction.TYPE);
-                assertEquals(new BytesArray("latest-renewed"), ((ClosePointInTimeRequest) close.request).getId());
-                close.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                harness.assertFinished();
-                queue.runAllTasksInTimeOrder();
-                assertTrue(harness.client.pending.isEmpty());
-            }
-        }
-    }
-
-    public void testRenewalFailureWakesStageWithoutStealingItsOwnership() {
-        var queue = new DeterministicTaskQueue();
-        try (var harness = new Harness(true, queue)) {
-            harness.deferStage = 1;
-            harness.prepareOpen().listener.onResponse(openResponse());
-            assertNull(harness.source.getOutput());
-            harness.respond(harness.client.take(TransportSearchAction.TYPE), 0);
-            assertNull(harness.source.getOutput());
-            var blocked = harness.source.isBlocked().listener();
-            queue.runTasksUpToTimeInOrder(40_000);
-            harness.client.take(TransportSearchAction.TYPE).listener.onFailure(new IllegalStateException("snapshot renewal failed"));
-            assertTrue(blocked.isDone());
-            assertThat(
-                expectThrows(IllegalStateException.class, harness.source::getOutput).getMessage(),
-                containsString("snapshot renewal failed")
-            );
+            assertEquals(TimeValue.timeValueMinutes(30), ((SearchRequest) search.request).source().pointInTimeBuilder().getKeepAlive());
+            queue.runTasksUpToTimeInOrder(TimeValue.timeValueMinutes(40).millis());
+            assertTrue("an idle search must not schedule heartbeat requests", harness.client.pending.isEmpty());
             harness.finishDriver();
             assertFalse(harness.done.isDone());
-            assertTrue("the stage still owns its bound input until terminal delivery", harness.breaker.getUsed() > 0);
-            harness.deferredStage.onResponse(null);
+            search.listener.onFailure(new IllegalStateException("search cancelled"));
             harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
             harness.assertFinished();
-            queue.runAllTasksInTimeOrder();
-            assertTrue(harness.client.pending.isEmpty());
         }
     }
 
-    private static void assertRenewalRequest(SearchRequest request) {
-        assertEquals(0, request.source().size());
-        assertEquals("match_all", request.source().query().getName());
-        assertArrayEquals(new String[] { "a", "b" }, request.getPointInTimeAuthorizationIndices().indices());
-        assertArrayEquals(new String[] { "a", "b" }, request.getPointInTimeAuthorizationScope().indices());
-        assertEquals(Integer.valueOf(Integer.MAX_VALUE), request.getPreFilterShardSize());
-        assertFalse(request.allowPartialSearchResults());
+    /** Removing renewal must preserve the stage's ownership and blocked listener during a long pause. */
+    public void testStageWaitKeepsOwnershipWithoutBackgroundHeartbeat() {
+        var queue = new DeterministicTaskQueue();
+        try (var harness = new Harness(true, queue)) {
+            harness.deferStage = 1;
+            harness.prepareOpen().listener.onResponse(openResponse());
+            assertNull(harness.source.getOutput());
+            harness.respond(harness.client.take(TransportSearchAction.TYPE), 0);
+            assertNull(harness.source.getOutput());
+            var blocked = harness.source.isBlocked().listener();
+            queue.runTasksUpToTimeInOrder(TimeValue.timeValueMinutes(40).millis());
+            assertFalse(blocked.isDone());
+            assertTrue(harness.client.pending.isEmpty());
+            harness.finishDriver();
+            assertFalse(harness.done.isDone());
+            harness.deferredStage.onResponse(null);
+            harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
+            harness.assertFinished();
+        }
     }
 
-    private static SearchResponse renewalResponse(String token) {
-        return new SearchResponse(
-            SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),
-            InternalAggregations.EMPTY,
-            null,
-            false,
-            null,
-            null,
-            1,
-            null,
-            2,
-            2,
-            0,
-            1,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY,
-            new BytesArray(token),
-            null,
-            null
-        );
-    }
-
-    public void testLatePitOpenWaitsForCleanupAfterDriverContextFinish() {
+    public void testLatePitOpenClosesSnapshotAfterDriverContextFinish() {
         try (var harness = new Harness()) {
             var open = harness.prepareOpen();
             harness.finishDriver();
             assertFalse(harness.done.isDone());
             open.listener.onResponse(openResponse());
-            assertFalse("the driver must still own PIT cleanup", harness.done.isDone());
+            assertTrue("close dispatch releases the driver without awaiting the response", harness.done.isDone());
             var close = harness.client.take(TransportClosePointInTimeAction.TYPE);
             assertEquals(new BytesArray("snapshot"), ((ClosePointInTimeRequest) close.request).getId());
             close.listener.onResponse(new ClosePointInTimeResponse(true, 2));
@@ -576,449 +655,94 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             try (Releasable ignored = response::decRef) {
                 search.listener.onResponse(response);
                 assertTrue(response.hasReferences());
-                assertFalse(harness.done.isDone());
+                assertTrue(harness.done.isDone());
             }
             harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
             harness.assertFinished();
         }
     }
 
-    public void testLateSearchFailureWaitsForSnapshotCleanupFailure() {
-        var queue = new DeterministicTaskQueue();
-        try (var harness = new Harness(false, queue); var log = pitCleanupLog(3)) {
+    public void testLateSearchFailureReleasesOwnershipAfterCloseDispatch() {
+        try (var harness = new Harness()) {
             harness.prepareOpen().listener.onResponse(openResponse());
             assertNull(harness.source.getOutput());
             var search = harness.client.take(TransportSearchAction.TYPE);
             harness.finishDriver();
+            assertFalse(harness.done.isDone());
             search.listener.onFailure(new IllegalStateException("search failed after cancellation"));
-            assertFalse(harness.done.isDone());
-            for (int attempt = 0; attempt < 3; attempt++) {
-                assertFalse(harness.done.isDone());
-                var close = harness.client.take(TransportClosePointInTimeAction.TYPE);
-                assertEquals(new BytesArray("snapshot"), ((ClosePointInTimeRequest) close.request).getId());
-                close.listener.onFailure(new ConnectTransportException(null, "cleanup failed for snapshot"));
-                if (attempt < 2) {
-                    assertFalse(harness.done.isDone());
-                    advancePitCloseRetry(queue);
-                } else {
-                    queue.runAllTasksInTimeOrder();
-                }
-            }
+            var close = harness.client.take(TransportClosePointInTimeAction.TYPE);
+            assertEquals(new BytesArray("snapshot"), ((ClosePointInTimeRequest) close.request).getId());
             harness.assertFinished();
+            close.listener.onResponse(new ClosePointInTimeResponse(true, 2));
             assertTrue(harness.client.pending.isEmpty());
-            log.assertAllExpectationsMatched();
         }
     }
 
-    /** A transient close failure must retain async ownership and the token until the retry completes. */
-    public void testPitCloseFailureRetriesBeforeReleasingOwnership() {
-        var queue = new DeterministicTaskQueue();
-        try (var harness = new Harness(false, queue)) {
+    /** A hung cleanup response must own neither the query nor another close attempt. */
+    public void testPitCloseIsSentOnceWithoutWaitingForCallback() {
+        try (var harness = new Harness()) {
             harness.prepareOpen().listener.onResponse(openResponse());
             harness.finishDriver();
-            var first = harness.client.take(TransportClosePointInTimeAction.TYPE);
-            first.listener.onFailure(new ConnectTransportException(null, "transient cleanup failure"));
-            assertFalse("a failed close must not release the PIT's async ownership", harness.done.isDone());
-            advancePitCloseRetry(queue);
-            var retry = harness.client.take(TransportClosePointInTimeAction.TYPE);
-            assertEquals(new BytesArray("snapshot"), ((ClosePointInTimeRequest) retry.request).getId());
-            assertFalse(harness.done.isDone());
-            retry.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-            harness.assertFinished();
-            queue.runAllTasksInTimeOrder();
-            assertTrue(harness.client.pending.isEmpty());
-        }
-    }
-
-    /** A partial close response cannot be treated as confirmed cleanup, including on a repeated close request. */
-    public void testIncompletePitCloseResponsesRetryAndReleaseAtTheBound() {
-        var queue = new DeterministicTaskQueue();
-        try (var harness = new Harness(false, queue); var log = pitCleanupLog(3)) {
-            harness.prepareOpen().listener.onResponse(openResponse());
-            harness.finishDriver();
-            for (int attempt = 0; attempt < 3; attempt++) {
-                var close = harness.client.take(TransportClosePointInTimeAction.TYPE);
-                assertEquals(new BytesArray("snapshot"), ((ClosePointInTimeRequest) close.request).getId());
-                close.listener.onResponse(new ClosePointInTimeResponse(false, attempt == 0 ? 1 : 0));
-                if (attempt < 2) {
-                    assertFalse(harness.done.isDone());
-                    harness.source.close();
-                    assertTrue("finishing twice must not dispatch a duplicate close", harness.client.pending.isEmpty());
+            var close = harness.client.take(TransportClosePointInTimeAction.TYPE);
+            try {
+                harness.assertFinished();
+                for (var field : close.listener.getClass().getDeclaredFields()) {
+                    assertTrue("cleanup listener must have no query state", java.lang.reflect.Modifier.isStatic(field.getModifiers()));
                 }
-                if (attempt < 2) {
-                    advancePitCloseRetry(queue);
-                } else {
-                    queue.runAllTasksInTimeOrder();
-                }
+                harness.source.finish();
+                harness.source.close();
+                assertTrue(harness.client.pending.isEmpty());
+            } finally {
+                close.listener.onResponse(new ClosePointInTimeResponse(true, 2));
             }
-            harness.assertFinished();
-            assertTrue(harness.client.pending.isEmpty());
-            log.assertAllExpectationsMatched();
         }
     }
 
-    /** Timer admission and delayed executor rejection must both terminate the retry's async ownership. */
-    public void testRejectedPitCloseRetryReleasesOwnership() {
-        for (boolean delayed : List.of(false, true)) {
-            var queue = new DeterministicTaskQueue() {
-                @Override
-                public ThreadPool getThreadPool() {
-                    return new DeterministicThreadPool(Function.identity()) {
-                        @Override
-                        public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
-                            if (delay.millis() == 100) {
-                                var rejection = new EsRejectedExecutionException("controlled PIT retry rejection");
-                                if (delayed == false) {
-                                    throw rejection;
-                                }
-                                // The queue controls only the executor's rejection callback; the real source still
-                                // owns the PIT and its DriverContext until the scheduled callback is delivered.
-                                return super.schedule(() -> {
-                                    if (command instanceof AbstractRunnable retry) {
-                                        retry.onRejection(rejection);
-                                    } else {
-                                        throw new AssertionError("PIT retries must handle delayed rejection");
-                                    }
-                                }, delay, executor);
+    /** Failure and incomplete-response diagnostics must not expose the token, exception text or stack. */
+    public void testPitCloseDiagnosticsNeverIncludeTokenOrExceptionText() {
+        Exception failure = new IllegalStateException("raw private details for snapshot");
+        for (int depth = 0; depth < 12; depth++) {
+            failure = new RemoteTransportException("wrapper containing snapshot", failure);
+        }
+        for (boolean incomplete : List.of(false, true)) {
+            try (var harness = new Harness(); var log = MockLog.capture(SequenceSourceOperator.class, ExceptionsHelper.class)) {
+                log.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "safe cleanup diagnostic",
+                        SequenceSourceOperator.class.getCanonicalName(),
+                        Level.WARN,
+                        "Could not confirm complete PIT cleanup for SEQUENCE query; reason ["
+                            + (incomplete
+                                ? "incomplete_response], exception type [none]"
+                                : "close_failure], exception type [RemoteTransportException]")
+                    )
+                );
+                for (Class<?> loggerClass : List.of(SequenceSourceOperator.class, ExceptionsHelper.class)) {
+                    log.addExpectation(
+                        new MockLog.UnseenEventExpectation("private token", loggerClass.getCanonicalName(), Level.WARN, "*snapshot*")
+                    );
+                    log.addExpectation(
+                        new MockLog.UnseenEventExpectation("raw cleanup throwable", loggerClass.getCanonicalName(), Level.WARN, "*") {
+                            @Override
+                            public boolean innerMatch(LogEvent event) {
+                                return event.getThrown() != null;
                             }
-                            return super.schedule(command, delay, executor);
                         }
-                    };
+                    );
                 }
-            };
-            try (var harness = new Harness(false, queue); var log = pitCleanupLog(1)) {
                 harness.prepareOpen().listener.onResponse(openResponse());
                 harness.finishDriver();
-                harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onFailure(
-                    new ConnectTransportException(null, "cleanup failed")
-                );
-                if (delayed) {
-                    assertFalse(harness.done.isDone());
+                var close = harness.client.take(TransportClosePointInTimeAction.TYPE);
+                if (incomplete) {
+                    close.listener.onResponse(new ClosePointInTimeResponse(false, 0));
+                } else {
+                    close.listener.onFailure(failure);
                 }
-                queue.runAllTasksInTimeOrder();
                 harness.assertFinished();
                 assertTrue(harness.client.pending.isEmpty());
                 log.assertAllExpectationsMatched();
             }
         }
-    }
-
-    /** A close that never answers must not keep the completed driver's ownership indefinitely. */
-    public void testHungPitCloseReleasesOwnershipAtDeadlineBound() {
-        var queue = new DeterministicTaskQueue();
-        try (var harness = new Harness(false, queue)) {
-            harness.prepareOpen().listener.onResponse(openResponse());
-            harness.finishDriver();
-            var first = harness.client.take(TransportClosePointInTimeAction.TYPE);
-            try {
-                assertFalse(harness.done.isDone());
-                queue.runAllTasksInTimeOrder();
-                assertTrue("three unanswered close attempts must reach a terminal deadline", harness.done.isDone());
-                assertEquals("only two retries may follow the first timed-out close", 2, harness.client.pending.size());
-                harness.assertFinished();
-                first.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                first.listener.onFailure(new IllegalStateException("late failure containing snapshot"));
-                drainPitCloseCallbacks(harness, queue);
-                harness.assertFinished();
-            } finally {
-                first.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                drainPitCloseCallbacks(harness, queue);
-            }
-        }
-    }
-
-    /** Rejection after a deadline timer is admitted must still complete the attempt's ownership. */
-    public void testDelayedPitCloseDeadlineRejectionReleasesOwnership() throws Exception {
-        try (var deadlinePool = new TestThreadPool("sequence-pit-deadline-rejection")) {
-            var captured = new AtomicReference<Runnable>();
-            var admitted = new CountDownLatch(1);
-            var deadlines = new AtomicInteger();
-            // GENERIC force-queues after shutdown, so use this owned pool's fixed WRITE executor to exercise
-            // actual rejection. The real timeout scheduler still supplies the context-preserving task.
-            var rejectionExecutor = deadlinePool.executor(ThreadPool.Names.WRITE);
-            rejectionExecutor.shutdown();
-            var queue = new DeterministicTaskQueue() {
-                @Override
-                public ThreadPool getThreadPool() {
-                    return new DeterministicThreadPool(Function.identity()) {
-                        @Override
-                        public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
-                            if (delay.millis() == 5_000) {
-                                deadlines.incrementAndGet();
-                                return deadlinePool.schedule(command, TimeValue.timeValueMillis(1), scheduled -> {
-                                    captured.set(scheduled);
-                                    admitted.countDown();
-                                });
-                            }
-                            return super.schedule(command, delay, executor);
-                        }
-                    };
-                }
-            };
-            try (var harness = new Harness(false, queue)) {
-                harness.prepareOpen().listener.onResponse(openResponse());
-                harness.finishDriver();
-                var first = harness.client.take(TransportClosePointInTimeAction.TYPE);
-                try {
-                    assertTrue("the actual timeout scheduler must reach its target executor", admitted.await(10, TimeUnit.SECONDS));
-                    assertEquals("every sent close requires one admitted deadline", 1, deadlines.get());
-                    assertTrue("context preservation must retain rejection handling", captured.get() instanceof AbstractRunnable);
-                    assertFalse(harness.done.isDone());
-                    rejectionExecutor.execute(captured.getAndSet(null));
-                    harness.assertFinished();
-                    assertTrue("a rejected deadline must not start another attempt", harness.client.pending.isEmpty());
-                    first.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                    harness.assertFinished();
-                } finally {
-                    first.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                    drainPitCloseCallbacks(harness, queue);
-                }
-            }
-        }
-    }
-
-    /** Retrying the same denied request and credentials cannot make authorization succeed. */
-    public void testWrappedPermanentPitCloseFailureStopsWithoutRetry() {
-        var queue = new DeterministicTaskQueue();
-        try (var harness = new Harness(false, queue)) {
-            harness.prepareOpen().listener.onResponse(openResponse());
-            harness.finishDriver();
-            var first = harness.client.take(TransportClosePointInTimeAction.TYPE);
-            try {
-                first.listener.onFailure(
-                    new RemoteTransportException(
-                        "wrapper containing snapshot",
-                        new ElasticsearchSecurityException("authorization denied for snapshot", RestStatus.FORBIDDEN)
-                    )
-                );
-                assertTrue("a permanent close failure must terminate without retrying", harness.done.isDone());
-                harness.assertFinished();
-                queue.runAllTasksInTimeOrder();
-                assertTrue(harness.client.pending.isEmpty());
-            } finally {
-                first.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                drainPitCloseCallbacks(harness, queue);
-            }
-        }
-    }
-
-    /** No request may be dispatched if its deadline cannot be admitted to the scheduler. */
-    public void testRejectedPitCloseDeadlineAdmissionDoesNotDispatchRequest() {
-        var queue = new DeterministicTaskQueue() {
-            @Override
-            public ThreadPool getThreadPool() {
-                return new DeterministicThreadPool(Function.identity()) {
-                    @Override
-                    public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
-                        if (delay.millis() == 5_000) {
-                            throw new EsRejectedExecutionException("deadline admission failed for snapshot");
-                        }
-                        return super.schedule(command, delay, executor);
-                    }
-                };
-            }
-        };
-        try (var harness = new Harness(false, queue); var log = pitCleanupLog(1)) {
-            harness.prepareOpen().listener.onResponse(openResponse());
-            harness.finishDriver();
-            harness.assertFinished();
-            assertTrue("a request without an admitted deadline must not be sent", harness.client.pending.isEmpty());
-            queue.runAllTasksInTimeOrder();
-            harness.assertFinished();
-            log.assertAllExpectationsMatched();
-        }
-    }
-
-    /** A timed-out attempt's late callback cannot cancel or complete the next attempt's independent deadline. */
-    public void testLatePitCloseCallbackCannotCompleteNewAttempt() {
-        for (boolean lateSuccess : List.of(false, true)) {
-            var queue = new DeterministicTaskQueue();
-            try (var harness = new Harness(false, queue)) {
-                harness.prepareOpen().listener.onResponse(openResponse());
-                harness.finishDriver();
-                var first = harness.client.take(TransportClosePointInTimeAction.TYPE);
-                try {
-                    queue.advanceTime();
-                    queue.runAllRunnableTasks();
-                    advancePitCloseRetry(queue);
-                    var retry = harness.client.take(TransportClosePointInTimeAction.TYPE);
-                    if (lateSuccess) {
-                        first.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                    } else {
-                        first.listener.onFailure(new IllegalArgumentException("late permanent failure for snapshot"));
-                    }
-                    assertFalse("a previous attempt must not release the current attempt", harness.done.isDone());
-                    retry.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                    harness.assertFinished();
-                    queue.runAllTasksInTimeOrder();
-                    assertTrue("successful close cancels every remaining attempt deadline", harness.client.pending.isEmpty());
-                } finally {
-                    first.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                    drainPitCloseCallbacks(harness, queue);
-                }
-            }
-        }
-    }
-
-    /** Only recognized transient classes justify retrying the same PIT close with the same credentials. */
-    public void testKnownTransientPitCloseFailuresRetry() {
-        List<Exception> failures = List.of(
-            new ConnectTransportException(null, "transient connection failure for snapshot"),
-            new ElasticsearchTimeoutException("transient timeout for snapshot"),
-            new EsRejectedExecutionException("temporary rejection for snapshot"),
-            new ReceiveTimeoutTransportException(DiscoveryNodeUtils.create("node"), "close_pit", "receive timeout for snapshot"),
-            new RemoteTransportException("wrapper containing snapshot", new ConnectTransportException(null, "snapshot connection failed"))
-        );
-        for (Exception failure : failures) {
-            var queue = new DeterministicTaskQueue();
-            try (var harness = new Harness(false, queue)) {
-                harness.prepareOpen().listener.onResponse(openResponse());
-                harness.finishDriver();
-                harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onFailure(failure);
-                assertFalse(harness.done.isDone());
-                advancePitCloseRetry(queue);
-                var retry = harness.client.take(TransportClosePointInTimeAction.TYPE);
-                assertEquals(new BytesArray("snapshot"), ((ClosePointInTimeRequest) retry.request).getId());
-                retry.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                harness.assertFinished();
-                queue.runAllTasksInTimeOrder();
-                assertTrue(harness.client.pending.isEmpty());
-            }
-        }
-    }
-
-    /** Deep wrappers and token-bearing messages must not escape through failure classification or diagnostics. */
-    @TestLogging(
-        value = "org.elasticsearch.xpack.esql.execution.sequence.SequenceSourceOperator:DEBUG",
-        reason = "verify both retry and terminal logs report only sanitized causes"
-    )
-    public void testPitCloseDiagnosticsNeverIncludeTokenOrExceptionText() {
-        Exception authorization = new ElasticsearchSecurityException("denied for snapshot", RestStatus.FORBIDDEN);
-        for (int depth = 0; depth < 12; depth++) {
-            authorization = new RemoteTransportException("wrapper containing snapshot", authorization);
-        }
-        var validation = new ActionRequestValidationException();
-        validation.addValidationError("invalid PIT snapshot");
-        /** Explicit expectations do not derive their classification from the implementation under test. */
-        record FailureCase(Exception failure, String reason, String type) {}
-        List<FailureCase> failures = List.of(
-            new FailureCase(authorization, "authorization_failure", "ElasticsearchSecurityException"),
-            new FailureCase(validation, "invalid_request", "ActionRequestValidationException"),
-            new FailureCase(new IllegalArgumentException("malformed snapshot"), "invalid_request", "IllegalArgumentException"),
-            new FailureCase(new IllegalStateException("invalid state for snapshot"), "invalid_state", "IllegalStateException"),
-            new FailureCase(new TaskCancelledException("cancelled snapshot"), "cancelled", "TaskCancelledException"),
-            new FailureCase(
-                new EsRejectedExecutionException("shutdown for snapshot", true),
-                "executor_shutdown",
-                "EsRejectedExecutionException"
-            ),
-            new FailureCase(new Exception("unclassified failure for snapshot"), "unclassified_failure", "Exception")
-        );
-        for (FailureCase failure : failures) {
-            var queue = new DeterministicTaskQueue();
-            try (var harness = new Harness(false, queue); var log = MockLog.capture(SequenceSourceOperator.class, ExceptionsHelper.class)) {
-                log.addExpectation(
-                    new MockLog.SeenEventExpectation(
-                        "safe classified cause",
-                        SequenceSourceOperator.class.getCanonicalName(),
-                        Level.DEBUG,
-                        "*reason [" + failure.reason() + "], exception type [" + failure.type() + "], retryable [false]"
-                    )
-                );
-                log.addExpectation(
-                    new MockLog.SeenEventExpectation(
-                        "safe terminal cause",
-                        SequenceSourceOperator.class.getCanonicalName(),
-                        Level.WARN,
-                        "*reason [" + failure.reason() + "], exception type [" + failure.type() + "]"
-                    )
-                );
-                for (Level level : List.of(Level.DEBUG, Level.WARN)) {
-                    log.addExpectation(
-                        new MockLog.UnseenEventExpectation(
-                            "PIT token must not appear in " + level,
-                            SequenceSourceOperator.class.getCanonicalName(),
-                            level,
-                            "*snapshot*"
-                        )
-                    );
-                    for (Class<?> loggerClass : List.of(SequenceSourceOperator.class, ExceptionsHelper.class)) {
-                        log.addExpectation(
-                            new MockLog.UnseenEventExpectation(
-                                "raw throwable must not appear in cleanup diagnostics",
-                                loggerClass.getCanonicalName(),
-                                level,
-                                "*"
-                            ) {
-                                @Override
-                                public boolean innerMatch(LogEvent event) {
-                                    return event.getThrown() != null;
-                                }
-                            }
-                        );
-                    }
-                }
-                log.addExpectation(
-                    new MockLog.UnseenEventExpectation(
-                        "cause unwrapping must not log a deep raw exception",
-                        ExceptionsHelper.class.getCanonicalName(),
-                        Level.WARN,
-                        "*snapshot*"
-                    )
-                );
-                harness.prepareOpen().listener.onResponse(openResponse());
-                harness.finishDriver();
-                var close = harness.client.take(TransportClosePointInTimeAction.TYPE);
-                try {
-                    close.listener.onFailure(failure.failure());
-                    harness.assertFinished();
-                    queue.runAllTasksInTimeOrder();
-                    assertTrue(harness.client.pending.isEmpty());
-                    log.assertAllExpectationsMatched();
-                } finally {
-                    close.listener.onResponse(new ClosePointInTimeResponse(true, 2));
-                    drainPitCloseCallbacks(harness, queue);
-                }
-            }
-        }
-    }
-
-    /** Advance one queued retry without also firing the next unanswered request's deadline. */
-    private static void advancePitCloseRetry(DeterministicTaskQueue queue) {
-        queue.runAllRunnableTasks();
-        assertTrue("the next cleanup retry must be scheduled", queue.hasDeferredTasks());
-        queue.advanceTime();
-        queue.runAllRunnableTasks();
-    }
-
-    /** Complete owned test callbacks even when a pre-fix assertion fails, without leaving a PIT to expire. */
-    private static void drainPitCloseCallbacks(Harness harness, DeterministicTaskQueue queue) {
-        queue.runAllTasksInTimeOrder();
-        while (harness.client.pending.isEmpty() == false) {
-            harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
-        }
-        queue.runAllTasksInTimeOrder();
-    }
-
-    private static MockLog pitCleanupLog(int attempts) {
-        MockLog log = MockLog.capture(SequenceSourceOperator.class);
-        log.addExpectation(
-            new MockLog.SeenEventExpectation(
-                "bounded PIT cleanup warning",
-                SequenceSourceOperator.class.getCanonicalName(),
-                Level.WARN,
-                "Could not confirm complete PIT cleanup after [" + attempts + "] attempts for SEQUENCE query*"
-            )
-        );
-        log.addExpectation(
-            new MockLog.UnseenEventExpectation(
-                "PIT tokens must not appear in cleanup logs",
-                SequenceSourceOperator.class.getCanonicalName(),
-                Level.WARN,
-                "*snapshot*"
-            )
-        );
-        return log;
     }
 
     public void testTimedOutSearchFailsAndReleasesResources() {
@@ -1117,10 +841,16 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             try (Page page = harness.source.getOutput()) {
                 assertNotNull(page);
                 assertEquals(1, page.getPositionCount());
-                assertEquals(2, page.getBlockCount());
+                assertEquals(3, page.getBlockCount());
                 BytesRefBlock key = page.getBlock(0), value = page.getBlock(1);
                 assertEquals("shared", key.getBytesRef(key.getFirstValueIndex(0), new BytesRef()).utf8ToString());
                 assertEquals("shared/replay", value.getBytesRef(value.getFirstValueIndex(0), new BytesRef()).utf8ToString());
+                assertProvenance(
+                    page,
+                    0,
+                    2,
+                    List.of(new SequenceProvenance.Member(1, "a", "event-a"), new SequenceProvenance.Member(2, "b", "event-b"))
+                );
             }
             assertEquals(3, harness.stageExecutions);
             assertEquals(1L, harness.source.status().payloadSearchRequests());
@@ -1173,7 +903,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     /** A failing later member identifies the explicit BY name and still releases its PIT, blocks and breaker reservations. */
     public void testMultivaluedKeyNamesMemberAndKey() {
         Sequence sequence = plan("""
-            SEQUENCE BY account WITH {"maxspan":"1m"} PRIMARY 1
+            SEQUENCE BY account WITHIN 1 minutes PRIMARY 1
             (FROM a | RENAME key AS account), (FROM b | RENAME key AS account) | KEEP account | LIMIT 10
             """);
         try (var harness = new Harness(true, null, null, sequence)) {
@@ -1292,7 +1022,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 }
                 assertEquals("terminal delivery must refund payload query admission", 0, harness.breaker.getUsed());
                 assertEquals("closed sources must not plan payload replay", 2, harness.stageExecutions);
-                assertFalse(harness.done.isDone());
+                assertTrue("close dispatch must not await the PIT response", harness.done.isDone());
                 harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
                 harness.assertFinished();
             }
@@ -1302,7 +1032,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     /** Physical fetch order differs from match order in the second batch, including each shard's first document. */
     public void testPhysicalPayloadOrderPreservesSelectedCellsAcrossBatches() {
         Sequence sequence = plan("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key WITHIN 30 seconds PRIMARY 1
             (from a metadata _id, _source | keep key, _id, _source, payload),
             (from b metadata _id, _source | keep key, _id, _source, payload)
             | eval other_id=MEMBER(2, _id), other_payload=MEMBER(2, payload)
@@ -1319,7 +1049,20 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                         for (int row = 0; row < page.getPositionCount(); row++) {
                             Map<String, String> values = new LinkedHashMap<>();
                             for (int column = 0; column < page.getBlockCount(); column++) {
+                                if (Sequence.isProvenanceAttribute(sequence.sourceAttributes().get(column))) {
+                                    assertProvenance(
+                                        page,
+                                        row,
+                                        column,
+                                        List.of(
+                                            new SequenceProvenance.Member(1, "a", "event-a-" + actual.size()),
+                                            new SequenceProvenance.Member(2, "b", "event-b-" + actual.size())
+                                        )
+                                    );
+                                    continue;
+                                }
                                 BytesRefBlock block = page.getBlock(column);
+                                assertEquals(1, block.getValueCount(row));
                                 values.put(
                                     sequence.sourceStages().get(column) + ":" + sequence.sourceAttributes().get(column).name(),
                                     block.getBytesRef(block.getFirstValueIndex(row), new BytesRef()).utf8ToString()
@@ -1411,7 +1154,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 assertEquals("terminal replay delivery must refund its metadata and blocks", 0, harness.breaker.getUsed());
                 harness.blocks.ensureAllBlocksAreReleased();
                 assertEquals(0L, harness.source.status().rowsEmitted());
-                assertFalse(harness.done.isDone());
+                assertTrue("close dispatch must not await the PIT response", harness.done.isDone());
                 harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
                 harness.assertFinished();
             }
@@ -1450,7 +1193,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
 
     public void testRetainedSelectionAndOriginalIdsNeedNoPayloadSearch() {
         Sequence sequence = plan("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key WITHIN 30 seconds PRIMARY 1
             (from a metadata _id, _index | keep key, _id, _index),
             (from b metadata _id, _index | keep key, _id, _index)
             | eval other_id=MEMBER(2, _id) | keep key, _id, _index, other_id | limit 1
@@ -1464,11 +1207,18 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     if (page != null) {
                         assertEquals(1, page.getPositionCount());
                         List<String> actual = new ArrayList<>();
-                        for (int column = 0; column < page.getBlockCount(); column++) {
+                        for (int column = 0; column < 5; column++) {
                             BytesRefBlock block = page.getBlock(column);
                             actual.add(block.getBytesRef(block.getFirstValueIndex(0), new BytesRef()).utf8ToString());
                         }
                         assertEquals(List.of("shared", "event-a", "a", "event-b", "b"), actual);
+                        assertEquals(6, page.getBlockCount());
+                        assertProvenance(
+                            page,
+                            0,
+                            5,
+                            List.of(new SequenceProvenance.Member(1, "a", "event-a"), new SequenceProvenance.Member(2, "b", "event-b"))
+                        );
                         emitted = true;
                     }
                 }
@@ -1786,7 +1536,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     /** Stage metadata must reach the real matcher without changing retained source identities or cleanup. */
     public void testIncomingLinkLimitIsAppliedBySourceOperator() {
         Sequence base = plan("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key WITHIN 30 seconds PRIMARY 1
             (from a metadata _id, _index | keep key, _id, _index),
             (from b metadata _id, _index | keep key, _id, _index)
             | eval other_id=MEMBER(2, _id) | keep key, _id, _index, other_id | limit 1
@@ -1806,11 +1556,18 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                             rows += page.getPositionCount();
                             assertEquals(1, page.getPositionCount());
                             List<String> actual = new ArrayList<>();
-                            for (int column = 0; column < page.getBlockCount(); column++) {
+                            for (int column = 0; column < 5; column++) {
                                 BytesRefBlock block = page.getBlock(column);
                                 actual.add(block.getBytesRef(block.getFirstValueIndex(0), new BytesRef()).utf8ToString());
                             }
                             assertEquals(List.of("shared", "event-a", "a", "event-b", "b"), actual);
+                            assertEquals(6, page.getBlockCount());
+                            assertProvenance(
+                                page,
+                                0,
+                                5,
+                                List.of(new SequenceProvenance.Member(1, "a", "event-a"), new SequenceProvenance.Member(2, "b", "event-b"))
+                            );
                         }
                     }
                     if (searches < 2 && harness.client.pending.isEmpty() == false) {
@@ -1831,7 +1588,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
 
     public void testCloseWhileDirectPayloadPendingReleasesRetainedCells() {
         Sequence sequence = plan("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key WITHIN 30 seconds PRIMARY 1
             (from a metadata _source | keep key, _source, payload), (from b | keep key)
             | keep key, _source, payload | limit 1
             """);
@@ -1857,7 +1614,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
 
     public void testMixedRetainedOverflowFallsBackAndDropsBackingBeforeDeferredReplayClose() {
         Sequence sequence = plan("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key WITHIN 30 seconds PRIMARY 1
             (from a | eval selected=TO_UPPER(payload) | where selected!="skip" | keep key,selected),
             (from b | keep key)
             | keep key,selected | limit 3
@@ -1936,7 +1693,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
 
     private void assertRawTimestampPages(long startTimestamp, long endTimestamp, DataType timestampType) {
         Sequence sequence = plan("""
-            SEQUENCE BY key WITH {"maxspan":"2ms"} PRIMARY 1
+            SEQUENCE BY key WITHIN 2 milliseconds PRIMARY 1
             (FROM a | KEEP key), (FROM b | KEEP key) | KEEP key | LIMIT 1000
             """, timestampType);
         try (var harness = new Harness(true, null, null, sequence)) {
@@ -2060,7 +1817,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
 
     private void assertUpperTimeBoundPublicationBarrier(boolean deferComputation, boolean latestValid) {
         Sequence sequence = plan("""
-            SEQUENCE BY key WITH {"maxspan":"10ms"} PRIMARY 1
+            SEQUENCE BY key WITHIN 10 milliseconds PRIMARY 1
             (FROM a | MV_EXPAND key | EVAL accepted=LENGTH(key)+LENGTH(payload) | WHERE accepted==7 | KEEP key),
             (FROM b | KEEP key) | KEEP key | LIMIT 10
             """);
@@ -2312,7 +2069,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     /** With unformattable dates the raw-tail guard must stop even when compute exports no later rows. */
     public void testLatestValidRawTailRejectedByEvalWhereStillStops() {
         Sequence sequence = plan("""
-            SEQUENCE BY key WITH {"maxspan":"10ms"} PRIMARY 1
+            SEQUENCE BY key WITHIN 10 milliseconds PRIMARY 1
             (FROM a | KEEP key),
             (FROM b | EVAL accepted=TO_LOWER(payload) | WHERE accepted=="keep" | KEEP key),
             (FROM c | KEEP key) | KEEP key | LIMIT 10
@@ -2627,7 +2384,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     /** A later merged row expires old markers before the second batch reconstructs their selected payload. */
     public void testLatestValidLatePayloadReplaySurvivesUsedRecordExpiry() {
         Sequence sequence = optimizedPlan("""
-            SEQUENCE BY key WITH {"maxspan":"10s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 10 seconds PRIMARY 1
             (FROM a | EVAL visible=TO_LOWER(payload), late=CONCAT(key,"/late") | KEEP key,visible,late),
             (FROM b | KEEP key), (FROM c | KEEP key) | KEEP key,visible,late | LIMIT 10
             """);
@@ -2716,7 +2473,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
 
     private static Sequence latestThreeStagePlan() {
         return optimizedPlan("""
-            SEQUENCE BY key WITH {"maxspan":"10s"} PRIMARY 1
+            SEQUENCE BY key WITHIN 10 seconds PRIMARY 1
             (FROM a | KEEP key), (FROM b | KEEP key), (FROM c | KEEP key) | KEEP key | LIMIT 10
             """);
     }
@@ -2736,7 +2493,6 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             assertFalse(sequence.children().get(1).output().stream().anyMatch(attribute -> attribute.name().equals("own")));
             for (Integer capacity : new Integer[] { null, 1 }) {
                 try (var harness = new Harness(sequence, capacity)) {
-                    expectThrows(IllegalStateException.class, () -> harness.operatorFactory.get(harness.context));
                     harness.prepareLatestOpen();
                     List<List<List<String>>> rows = drainLatest(harness, request -> {
                         String index = request.getPointInTimeAuthorizationScope().indices()[0];
@@ -2829,16 +2585,9 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             assertEquals(before, harness.breaker.getUsed());
             assertTrue(harness.client.pending.isEmpty());
             assertEquals(0, harness.stagePlans);
-            assertNull(harness.source.status().latestValidCounters());
+            assertNotNull(harness.source.status().latestValidCounters());
         }
-        Sequence excessivePlan = plan("""
-            SEQUENCE BY key WITH {"maxspan":"30s","pairing":"latest_valid","max_candidates":1025} PRIMARY 1
-            (FROM a | KEEP key),(FROM b | KEEP key) | KEEP key | LIMIT 10
-            """);
-        assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new Harness(excessivePlan, null, latestConfig(excessivePlan))).getMessage(),
-            containsString("max_candidates [1025]")
-        );
+
     }
 
     /** A secondary close failure cannot replace the original constructor admission failure or prevent refunds. */
@@ -2888,6 +2637,8 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     )
                 );
                 assertThat(failure.getMessage(), containsString("[esql_sequence_reader]"));
+                assertEquals(1, failure.getSuppressed().length);
+                assertEquals("secondary condition cleanup failure", failure.getSuppressed()[0].getMessage());
             } finally {
                 harness.breaker.setLimitAndOverhead(limit, overhead);
                 assertEquals(1, closes.get());
@@ -2897,6 +2648,79 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 harness.blocks.ensureAllBlocksAreReleased();
                 harness.finishDriver();
                 harness.assertFinished();
+            }
+        }
+    }
+
+    /** A real scope-admission breaker failure remains primary when terminal condition cleanup also fails. */
+    public void testGetOutputKeepsPrimaryFailureAndSuppressesConditionCleanup() {
+        try (var harness = new Harness()) {
+            harness.source.close();
+            var cleanup = new IllegalStateException("secondary output cleanup failure");
+            AtomicInteger closes = new AtomicInteger();
+            try (
+                var source = new SequenceSourceOperator(
+                    harness.operatorFactory,
+                    harness.context,
+                    TimeValue.timeValueMinutes(2),
+                    1,
+                    latestConfig(harness.sequence),
+                    () -> {
+                        closes.incrementAndGet();
+                        throw cleanup;
+                    }
+                )
+            ) {
+                assertNull(source.getOutput());
+                harness.client.take(EsqlSearchShardsAction.TYPE).listener.onResponse(shards("a"));
+                long limit = harness.breaker.getLimit();
+                double overhead = harness.breaker.getOverhead();
+                harness.breaker.setLimitAndOverhead(harness.breaker.getUsed(), 1);
+                try {
+                    CircuitBreakingException failure = expectThrows(CircuitBreakingException.class, source::getOutput);
+                    assertEquals(1, failure.getSuppressed().length);
+                    assertSame(cleanup, failure.getSuppressed()[0]);
+                    assertEquals(1, closes.get());
+                    assertEquals(0, harness.breaker.getUsed());
+                } finally {
+                    harness.breaker.setLimitAndOverhead(limit, overhead);
+                }
+            }
+        }
+    }
+
+    /** Empty input reaches finish inside getOutput, so a terminal cleanup failure must survive the finished flag. */
+    public void testEmptyInputKeepsTerminalCleanupFailureInsteadOfThrowingNull() {
+        try (var harness = new Harness()) {
+            harness.source.close();
+            var primary = new IllegalStateException("terminal condition cleanup failure");
+            try (
+                var source = new SequenceSourceOperator(
+                    harness.operatorFactory,
+                    harness.context,
+                    TimeValue.timeValueMinutes(2),
+                    1,
+                    latestConfig(harness.sequence),
+                    () -> {
+                        throw primary;
+                    }
+                )
+            ) {
+                for (String index : List.of("a", "b")) {
+                    assertNull(source.getOutput());
+                    harness.client.take(EsqlSearchShardsAction.TYPE).listener.onResponse(shards(index));
+                }
+                assertNull(source.getOutput());
+                harness.client.take(TransportOpenPointInTimeAction.TYPE).listener.onResponse(openResponse());
+                assertNull(source.getOutput());
+                harness.respond(harness.client.take(TransportSearchAction.TYPE), 0, SearchResponse.emptyResponseBuilder().build());
+                try {
+                    assertSame(primary, expectThrows(IllegalStateException.class, source::getOutput));
+                } finally {
+                    harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
+                }
+                assertEquals(0, harness.breaker.getUsed());
+                assertTrue(harness.client.pending.isEmpty());
             }
         }
     }
@@ -2942,7 +2766,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 assertEquals(before, harness.source.status().latestValidCounters());
                 assertEquals(
                     mode == DriverContext.WarningsMode.COLLECT
-                        ? List.of("SEQUENCE latest_valid dropped [127] candidates at max_candidates [1] across [1] key lifetimes")
+                        ? List.of("SEQUENCE dropped [127] candidates at the limit of [1] per stage and key; matches may be missing")
                         : List.of(),
                     harness.observedWarnings
                 );
@@ -2991,12 +2815,11 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             assertEquals(2 * SequenceLatestValidConfig.SEARCH_STEP_LIMIT, counters.searchSteps());
             assertEquals(SequenceLatestValidConfig.SEARCH_STEP_LIMIT, counters.maxSearchStepsPerFinalRow());
             assertEquals(16, counters.largestRingFill());
-            assertEquals(0, counters.candidatesUsedWithoutReport());
             assertEquals(21, harness.observedWarnings.stream().filter(warning -> warning.startsWith("SEQUENCE ") == false).count());
             assertEquals(
                 List.of(
-                    "SEQUENCE latest_valid dropped [2] candidates at max_candidates [16] across [2] key lifetimes",
-                    "SEQUENCE latest_valid abandoned [2] final-row searches at the work limit [131072]"
+                    "SEQUENCE dropped [2] candidates at the limit of [16] per stage and key; matches may be missing",
+                    "SEQUENCE abandoned [2] searches at the work limit of [131072] steps; matches may be missing"
                 ),
                 harness.observedWarnings.stream().filter(warning -> warning.startsWith("SEQUENCE ")).toList()
             );
@@ -3005,6 +2828,40 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             finishLatest(harness);
             assertEquals(counters, harness.source.status().latestValidCounters());
             assertEquals(23, harness.context.warnings().size());
+        }
+    }
+
+    /** Ordinary conditionless queries retain eight rows, drop the ninth, and publish the exact summary once. */
+    public void testDefaultBoundDropsNinthCandidateAndWarnsForEverySequence() {
+        Sequence sequence = plan("""
+            SEQUENCE BY key WITHIN 30 seconds PRIMARY 1 (FROM a | KEEP key),(FROM b | KEEP key)
+            | KEEP key | LIMIT 10
+            """);
+        try (var harness = new Harness(sequence, null)) {
+            harness.prepareLatestOpen();
+            List<List<List<String>>> rows = drainLatest(harness, request -> {
+                String index = request.getPointInTimeAuthorizationScope().indices()[0];
+                List<LatestRow> candidates = new ArrayList<>();
+                if (index.equals("a")) {
+                    for (int row = 0; row < 9; row++) {
+                        candidates.add(new LatestRow(row, row, "shared", List.of("0")));
+                    }
+                } else {
+                    candidates.add(new LatestRow(10, 0, "shared", List.of("1")));
+                }
+                return latestPage(index, index.equals("a") ? 0 : 1, candidates);
+            });
+            assertEquals(1, rows.size());
+            var counters = harness.source.status().latestValidCounters();
+            assertEquals(1, counters.candidatesDroppedAtBound());
+            assertEquals(1, counters.keysThatHitBound());
+            assertEquals(8, counters.largestRingFill());
+            assertEquals(
+                List.of("SEQUENCE dropped [1] candidates at the limit of [8] per stage and key; matches may be missing"),
+                harness.observedWarnings
+            );
+            assertFalse(harness.source.status().toString().contains("latest_valid"));
+            finishLatest(harness);
         }
     }
 
@@ -3330,7 +3187,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
     /** Lifecycle tests deliberately demand one output-only computation to keep the full-replay path covered. */
     private static Sequence replayPlan() {
         return plan("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key WITHIN 30 seconds PRIMARY 1
             (from a | eval replay_payload=CONCAT(key,"/replay") | keep key,replay_payload), (from b | keep key)
             | keep key,replay_payload | limit 1
             """);
@@ -3403,6 +3260,10 @@ public class SequenceSourceOperatorTests extends ESTestCase {
 
         private Harness(boolean realStages) {
             this(realStages, null);
+        }
+
+        private Harness(boolean realStages, boolean profile) {
+            this(realStages, null, null, null, null, null, null, false, DriverContext.WarningsMode.COLLECT, profile);
         }
 
         private Harness(boolean realStages, DeterministicTaskQueue queue) {
@@ -3492,6 +3353,32 @@ public class SequenceSourceOperatorTests extends ESTestCase {
             boolean compileConditions,
             DriverContext.WarningsMode warningsMode
         ) {
+            this(
+                realStages,
+                queue,
+                executionInfo,
+                suppliedSequence,
+                retainedHandleCapacity,
+                requestFilter,
+                latestValid,
+                compileConditions,
+                warningsMode,
+                false
+            );
+        }
+
+        private Harness(
+            boolean realStages,
+            DeterministicTaskQueue queue,
+            EsqlExecutionInfo executionInfo,
+            Sequence suppliedSequence,
+            Integer retainedHandleCapacity,
+            QueryBuilder requestFilter,
+            SequenceLatestValidConfig latestValid,
+            boolean compileConditions,
+            DriverContext.WarningsMode warningsMode,
+            boolean profile
+        ) {
             realThreadPool = queue == null ? new TestThreadPool("sequence-callbacks") : null;
             threadPool = queue == null ? realThreadPool : queue.getThreadPool();
             client = new PendingClient(threadPool);
@@ -3529,7 +3416,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                     client,
                     client,
                     null,
-                    EsqlTestUtils.TEST_CFG,
+                    profile ? new ConfigurationBuilder(EsqlTestUtils.TEST_CFG).profile(true).build() : EsqlTestUtils.TEST_CFG,
                     (physical, output) -> {
                         if (realStages == false) {
                             throw new AssertionError("stage execution is not expected");
@@ -3547,9 +3434,13 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 );
                 if (compileConditions) {
                     if (retainedHandleCapacity == null) {
-                        source = (SequenceSourceOperator) operatorFactory.getWithConditions(context, 16, null);
+                        source = (SequenceSourceOperator) operatorFactory.getWithConditions(
+                            context,
+                            sequence.children().size() == 6 ? 16 : 8,
+                            null
+                        );
                     } else {
-                        var conditions = SequenceConditionCompiler.compile(sequence, 16, FoldContext.small(), context, null);
+                        var conditions = SequenceConditionCompiler.compile(sequence, 8, FoldContext.small(), context, null);
                         boolean success = false;
                         try {
                             source = new SequenceSourceOperator(

@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -40,17 +42,13 @@ import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType.NONE;
@@ -68,7 +66,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
     /** Stage aliases lower before field discovery; they can share ordinary field names without changing bindings. */
     public void testNamedStagesPreservePositionalSchemaAndDemands() {
         String numeric = """
-            SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 2
+            SEQUENCE BY host.id WITHIN 30s PRIMARY 2
             (FROM a | KEEP host.id, label), (FROM b | KEEP host.id, label)
             | EVAL from_name = MEMBER(1, label), from_number = MEMBER(1, label)
             | KEEP host.id, label, from_name, from_number | LIMIT 1
@@ -77,128 +75,61 @@ public class SequenceAnalyzerTests extends ESTestCase {
             .replace("(FROM a | KEEP host.id, label)", "(FROM a | KEEP host.id, label) AS label")
             .replace("(FROM b | KEEP host.id, label)", "(FROM b | KEEP host.id, label) AS execution")
             .replace("from_name = MEMBER(1, label)", "from_name = MEMBER(label, label)");
-        for (String retention : List.of("", " | RETURN MATCHES")) {
-            LogicalPlan numbered = configured().statement(numeric + retention);
-            LogicalPlan aliased = configured().statement(named + retention);
-            assertEquals(numbered.output().stream().map(Attribute::name).toList(), aliased.output().stream().map(Attribute::name).toList());
-            assertEquals(
-                numbered.output().stream().map(Attribute::dataType).toList(),
-                aliased.output().stream().map(Attribute::dataType).toList()
-            );
-            Sequence numberedSequence = numbered.collect(Sequence.class).getFirst();
-            Sequence namedSequence = aliased.collect(Sequence.class).getFirst();
-            assertEquals(numberedSequence.sourceStages(), namedSequence.sourceStages());
-            assertEquals(
-                numberedSequence.sourceAttributes().stream().map(Attribute::dataType).toList(),
-                namedSequence.sourceAttributes().stream().map(Attribute::dataType).toList()
-            );
-            assertEquals(numberedSequence.maxSpanNanos(), namedSequence.maxSpanNanos());
-            assertTrue(aliased.collect(SequenceMatchOutput.Declaration.class).isEmpty());
-            assertTrue(aliased.collect(SequenceMatchOutput.Scope.class).isEmpty());
-        }
+        LogicalPlan numbered = configured().statement(numeric);
+        LogicalPlan aliased = configured().statement(named);
+        assertEquals(numbered.output().stream().map(Attribute::name).toList(), aliased.output().stream().map(Attribute::name).toList());
+        assertEquals(
+            numbered.output().stream().map(Attribute::dataType).toList(),
+            aliased.output().stream().map(Attribute::dataType).toList()
+        );
+        Sequence numberedSequence = numbered.collect(Sequence.class).getFirst();
+        Sequence namedSequence = aliased.collect(Sequence.class).getFirst();
+        assertEquals(numberedSequence.sourceStages(), namedSequence.sourceStages());
+        assertEquals(
+            numberedSequence.sourceAttributes().stream().map(Attribute::dataType).toList(),
+            namedSequence.sourceAttributes().stream().map(Attribute::dataType).toList()
+        );
+        assertEquals(numberedSequence.maxSpanNanos(), namedSequence.maxSpanNanos());
+        assertTrue(aliased.collect(SequenceMatchOutput.Declaration.class).isEmpty());
+        assertTrue(aliased.collect(SequenceMatchOutput.Scope.class).isEmpty());
     }
 
-    /** Quoted aliases can spell the original's actual generated name; ID-preserved KEEP must still carry genuine originals. */
-    public void testQuotedTemporaryOriginalSurvivesStageEdits() throws Exception {
-        for (int primary : List.of(1, 2)) {
-            for (String edit : List.of("EVAL `placeholder` = \"ordinary\"", "EVAL value = \"ordinary\" | RENAME value AS `placeholder`")) {
-                String value = primary == 1 ? "`placeholder`" : "MEMBER(1, `placeholder`)";
-                EsqlStatement parsed = quotedCollision("""
-                    SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY %s
-                    (FROM a | %s | KEEP host.id, label, `placeholder`), (FROM b | KEEP host.id, label)
-                    | EVAL ordinary = %s | KEEP ordinary | LIMIT 1 | RETURN MATCHES
-                    """.formatted(primary, edit, value), "input");
-                assertCompleteOriginalSchema(parsed, configured(), List.of("ordinary"));
-            }
-        }
-    }
-
-    /** Reserve original, key and MEMBER names, including occupied fallback suffixes, before any outer user edit. */
+    /** Reserve MEMBER names, including occupied fallback suffixes, before outer user edits. */
     public void testQuotedTemporaryBindingsSurviveOuterEdits() throws Exception {
         for (int primary : List.of(1, 2)) {
-            for (String binding : List.of("output", "key", "member")) {
-                for (String edit : List.of(
-                    "EVAL `placeholder` = \"ordinary\"",
-                    "EVAL value = \"ordinary\" | RENAME value AS `placeholder`"
-                )) {
-                    EsqlStatement parsed = quotedCollision("""
-                        SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY %s
-                        (FROM a | KEEP host.id, label), (FROM b | KEEP host.id, label)
-                        | %s
-                        | EVAL `placeholder_1` = "reserved", `placeholder_2` = "reserved", ordinary = MEMBER(%s, label)
-                        | KEEP `placeholder`, ordinary | LIMIT 1 | RETURN MATCHES
-                        """.formatted(primary, edit, 3 - primary), binding);
-                    assertCompleteOriginalSchema(parsed, configured(), List.of(quotedName(parsed, binding), "ordinary"));
-                }
+            for (String edit : List.of("EVAL `placeholder` = \"ordinary\"", "EVAL value = \"ordinary\" | RENAME value AS `placeholder`")) {
+                EsqlStatement parsed = quotedCollision("""
+                    SEQUENCE BY host.id WITHIN 30s PRIMARY %s
+                    (FROM a | KEEP host.id, label), (FROM b | KEEP host.id, label)
+                    | %s
+                    | EVAL `placeholder_1` = "reserved", `placeholder_2` = "reserved", ordinary = MEMBER(%s, label)
+                    | KEEP `placeholder`, ordinary | LIMIT 1
+                    """.formatted(primary, edit, 3 - primary));
+                LogicalPlan analyzed = configured().buildAnalyzer().analyze(parsed.plan());
+                assertEquals(List.of(quotedName(parsed), "ordinary"), analyzed.output().stream().map(Attribute::name).toList());
+                assertEquals(2, analyzed.output().stream().map(Attribute::id).distinct().count());
             }
-        }
-    }
-
-    /** Resolved mapped names were not all present at parse time; rebinding KEEP by ID must follow the new source alias name. */
-    public void testMappedTemporaryOriginalSurvivesStageKeep() throws Exception {
-        for (int primary : List.of(1, 2)) {
-            EsqlStatement parsed = quotedCollision("""
-                SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY %s
-                (FROM a | KEEP host.id, label), (FROM b | KEEP host.id, label)
-                | KEEP label | LIMIT 1 | RETURN MATCHES
-                """.formatted(primary), "input");
-            String mappedName = quotedName(parsed, "input");
-            Map<String, EsField> fields = new HashMap<>(mapping());
-            for (String name : List.of(mappedName, mappedName + "_1", mappedName + "_2")) {
-                fields.put(name, new EsField(name, DataType.KEYWORD, Map.of(), true, NONE));
-            }
-            assertCompleteOriginalSchema(
-                parsed,
-                analyzer().minimumTransportVersion(TransportVersion.current()).addIndex(index("a", fields)).addIndex(index("b", fields)),
-                List.of("label")
-            );
-        }
-    }
-
-    /** Compiler-only KEEP references are not mapped-field demands, while an ordinary equal-name field remains a demand. */
-    public void testProtectedKeepReferencesDoNotHideOrdinaryFieldDiscovery() throws Exception {
-        EsqlStatement parsed = quotedCollision("""
-            SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 1
-            (FROM a | KEEP host.id, label, `placeholder`), (FROM b | KEEP host.id, label)
-            | KEEP label | LIMIT 1 | RETURN MATCHES
-            """, "input");
-        Set<String> fields = FieldNameUtils.resolveFieldNames(parsed.plan(), false, false).fieldNames();
-        assertTrue(fields.contains(quotedName(parsed, "input")));
-        Set<String> compilerNames = new HashSet<>();
-        parsed.plan().forEachExpressionDown(SequenceMatchOutput.BindingReference.class, ref -> compilerNames.add(ref.name()));
-        compilerNames.remove(quotedName(parsed, "input"));
-        assertFalse(compilerNames.isEmpty());
-        assertTrue(compilerNames.stream().noneMatch(fields::contains));
-    }
-
-    /** Capture names participate in reservation even when no ordinary alias declares the colliding name. */
-    public void testExtractedTemporaryOriginalSurvivesStageKeep() throws Exception {
-        for (int primary : List.of(1, 2)) {
-            EsqlStatement parsed = quotedCollision("""
-                SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY %s
-                (FROM a | DISSECT label "%%{placeholder}" | KEEP host.id, `placeholder`), (FROM b)
-                | EVAL ordinary = %s | KEEP ordinary | LIMIT 1 | RETURN MATCHES
-                """.formatted(primary, primary == 1 ? "`placeholder`" : "MEMBER(1, `placeholder`)"), "input");
-            assertCompleteOriginalSchema(parsed, configured(), List.of("ordinary"));
         }
     }
 
     /** Extracted keys resolve independently, while typed payloads survive pruning and MEMBER publication. */
-    public void testRetainedExtractionKeysAndTypedPayload() {
+    public void testExtractionKeysAndTypedPayload() {
         for (String extraction : List.of(
             "DISSECT label \"%{parsed_key}:%{payload}:%{unused}\"",
             "GROK label \"%{WORD:parsed_key}:%{INT:payload:int}:%{WORD:unused}\""
         )) {
             for (int primary : List.of(1, 2)) {
                 String query = """
-                    SEQUENCE BY parsed_key WITH {"maxspan":"30s"} PRIMARY %s
+                    SEQUENCE BY parsed_key WITHIN 30s PRIMARY %s
                     (FROM a | %s | RENAME payload AS parsed_value | DROP unused | KEEP parsed_key, parsed_value),
                     (FROM b | %s | RENAME payload AS parsed_value | DROP unused | KEEP parsed_key, parsed_value)
                     | EVAL other_value = MEMBER(%s, parsed_value)
-                    | KEEP parsed_key, parsed_value, other_value | LIMIT 1 | RETURN MATCHES
+                    | KEEP parsed_key, parsed_value, other_value | LIMIT 1
                     """.formatted(primary, extraction, extraction, 3 - primary);
-                EsqlStatement parsed = EsqlTestUtils.TEST_PARSER.createStatement(query);
-                assertCompleteOriginalSchema(parsed, configured(), List.of("parsed_key", "parsed_value", "other_value"));
+                assertEquals(
+                    List.of("parsed_key", "parsed_value", "other_value"),
+                    configured().statement(query).output().stream().map(Attribute::name).toList()
+                );
                 LogicalPlan analyzed = configured().statement(query);
                 DataType payloadType = extraction.startsWith("GROK") ? DataType.INTEGER : DataType.KEYWORD;
                 assertEquals(
@@ -210,29 +141,19 @@ public class SequenceAnalyzerTests extends ESTestCase {
                 assertEquals(2, optimized.collect(RegexExtract.class).size());
                 Sequence sequence = optimized.collect(Sequence.class).getFirst();
                 assertTrue(sequence.sourceAttributes().stream().noneMatch(attribute -> attribute.name().equals("unused")));
-                assertEquals(2L, sequence.sourceAttributes().stream().filter(a -> a.dataType() == DataType.SOURCE).count());
+                assertEquals(0L, sequence.sourceAttributes().stream().filter(a -> a.dataType() == DataType.SOURCE).count());
             }
         }
     }
 
     /** A nullified expansion input keeps the ordinary schema independently of retained evidence. */
     public void testNullifyExpandedOrdinaryPrimaryOne() {
-        assertNullifyExpandedBindings(1, false);
+        assertNullifyExpandedBindings(1);
     }
 
     /** The second primary has the same ordinary null-typed expansion contract. */
     public void testNullifyExpandedOrdinaryPrimaryTwo() {
-        assertNullifyExpandedBindings(2, false);
-    }
-
-    /** Compiler-owned key and original bindings survive late NULLIFY projection recomputation. */
-    public void testNullifyExpandedRetainedPrimaryOne() {
-        assertNullifyExpandedBindings(1, true);
-    }
-
-    /** Retained dependencies survive with the second primary as well as the first. */
-    public void testNullifyExpandedRetainedPrimaryTwo() {
-        assertNullifyExpandedBindings(2, true);
+        assertNullifyExpandedBindings(2);
     }
 
     /** LOAD must report the member's missing field rather than trying to load the MEMBER display spelling. */
@@ -242,7 +163,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
             configured().statementError(
                 """
                     SET unmapped_fields="load";
-                    SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s (FROM a), (FROM b)
+                    SEQUENCE BY host.id WITHIN 1m PRIMARY %s (FROM a), (FROM b)
                     | EVAL missing = MEMBER(%s, absent_optional) | KEEP missing | LIMIT 10
                     """.formatted(primary, other),
                 containsString(
@@ -267,7 +188,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
             for (String memberField : List.of("label", "stage_value")) {
                 var analyzed = configured().statement("""
                     SET unmapped_fields="load";
-                    SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+                    SEQUENCE BY host.id WITHIN 1m PRIMARY %s
                     (FROM a | EVAL stage_value=label), (FROM b | EVAL stage_value=label)
                     | EVAL other=MEMBER(%s, %s) | KEEP other | LIMIT 10
                     """.formatted(primary, other, memberField));
@@ -277,93 +198,77 @@ public class SequenceAnalyzerTests extends ESTestCase {
         }
     }
 
-    private void assertNullifyExpandedBindings(int primary, boolean capture) {
+    private void assertNullifyExpandedBindings(int primary) {
         String query = """
             SET unmapped_fields="nullify";
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+            SEQUENCE BY host.id WITHIN 1m PRIMARY %s
             (FROM a | EVAL pick=absent_optional | MV_EXPAND pick | KEEP host.id,pick),
             (FROM b | EVAL pick=absent_optional | MV_EXPAND pick | KEEP host.id,pick)
             | EVAL other=MEMBER(%s,pick) | KEEP host.id,pick,other | SORT host.id | LIMIT 10
-            """.formatted(primary, 3 - primary) + (capture ? " | RETURN MATCHES" : "");
+            """.formatted(primary, 3 - primary);
         EsqlStatement parsed = EsqlTestUtils.TEST_PARSER.createStatement(query);
         LogicalPlan analyzed = configured().unmappedResolution(parsed.setting(QuerySettings.UNMAPPED_FIELDS))
             .buildAnalyzer()
             .analyze(parsed.plan());
-        List<String> names = new ArrayList<>(List.of("host.id", "pick", "other"));
-        List<DataType> types = new ArrayList<>(List.of(DataType.KEYWORD, DataType.NULL, DataType.NULL));
-        if (capture) {
-            names.addAll(
-                List.of(
-                    "match_key_1",
-                    "member_1_index",
-                    "member_1_id",
-                    "member_1_source",
-                    "member_2_index",
-                    "member_2_id",
-                    "member_2_source"
-                )
-            );
-            types.addAll(
-                List.of(
-                    DataType.KEYWORD,
-                    DataType.KEYWORD,
-                    DataType.KEYWORD,
-                    DataType.SOURCE,
-                    DataType.KEYWORD,
-                    DataType.KEYWORD,
-                    DataType.SOURCE
-                )
-            );
-        }
-        assertEquals(names, analyzed.output().stream().map(Attribute::name).toList());
-        assertEquals(types, analyzed.output().stream().map(Attribute::dataType).toList());
+        assertEquals(List.of("host.id", "pick", "other"), analyzed.output().stream().map(Attribute::name).toList());
+        assertEquals(List.of(DataType.KEYWORD, DataType.NULL, DataType.NULL), analyzed.output().stream().map(Attribute::dataType).toList());
         assertEquals(analyzed.output().size(), analyzed.output().stream().map(Attribute::id).distinct().count());
-        assertEquals(capture ? 10 : 0, SequenceMatchOutput.deliveryMetadata(parsed, analyzed.output(), Map.of()).size());
-        assertTrue(analyzed.collect(SequenceMatchOutput.Capture.class).isEmpty());
         assertTrue(analyzed.collect(SequenceMatchOutput.Scope.class).isEmpty());
-        assertTrue(analyzed.collect(SequenceMatchOutput.Originals.class).isEmpty());
         LogicalPlan optimized = optimizer().optimize(analyzed);
         assertEquals(analyzed.output(), optimized.output());
         assertEquals(
-            capture ? 2L : 0L,
+            0L,
             optimized.collect(Sequence.class).getFirst().sourceAttributes().stream().filter(a -> a.dataType() == DataType.SOURCE).count()
         );
     }
 
-    /** Public metadata-shaped captures remain processed values, separate from the protected source slots. */
-    public void testExtractedMetadataNamesPreserveOriginals() {
+    /** Metadata-shaped stage captures remain ordinary processed PRIMARY and MEMBER values. */
+    public void testExtractedMetadataNamesRemainOrdinary() {
         for (String extraction : List.of(
             "DISSECT label \"%{_id}:%{_index}:%{_source}\"",
             "GROK label \"%{WORD:_id}:%{WORD:_index}:%{WORD:_source}\""
         )) {
-            assertProtectedBindings("| " + extraction, "", "_id", "_index", "_source");
+            for (int primary : List.of(1, 2)) {
+                LogicalPlan analyzed = configured().statement("""
+                    SEQUENCE BY host.id WITHIN 30s PRIMARY %s
+                    (FROM a | %s), (FROM b | %s)
+                    | EVAL other_id=MEMBER(%s,_id), other_index=MEMBER(%s,_index), other_source=MEMBER(%s,_source)
+                    | KEEP _id,_index,_source,other_id,other_index,other_source | LIMIT 1
+                    """.formatted(primary, extraction, extraction, 3 - primary, 3 - primary, 3 - primary));
+                assertEquals(
+                    List.of("_id", "_index", "_source", "other_id", "other_index", "other_source"),
+                    analyzed.output().stream().map(Attribute::name).toList()
+                );
+                assertTrue(analyzed.output().stream().allMatch(attribute -> attribute.dataType() == DataType.KEYWORD));
+                assertEquals(analyzed.output().size(), analyzed.output().stream().map(Attribute::id).distinct().count());
+            }
         }
     }
 
-    /** Original retention does not relax the event-time source contract for extracted fields. */
-    public void testRetainedExtractionCannotOverwriteTimestamp() {
+    /** Extraction cannot replace the source timestamp needed by the matcher. */
+    public void testExtractionCannotOverwriteTimestamp() {
         for (String extraction : List.of("DISSECT label \"%{@timestamp}\"", "GROK label \"%{WORD:@timestamp}\"")) {
             configured().statementError("""
-                SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 1
+                SEQUENCE BY host.id WITHIN 30s PRIMARY 1
                 (FROM a | %s), (FROM b)
-                | KEEP host.id | LIMIT 1 | RETURN MATCHES
+                | KEEP host.id | LIMIT 1
                 """.formatted(extraction), containsString("cannot overwrite the source [@timestamp]"));
         }
     }
 
-    /** Retaining authentic originals does not keep an extraction whose processed outputs are all unused. */
-    public void testUnusedRetainedExtractionIsPruned() {
+    /** An extraction whose processed outputs are all unused is pruned. */
+    public void testUnusedExtractionIsPruned() {
         for (String extraction : List.of("DISSECT label \"%{unused}\"", "GROK label \"%{WORD:unused}\"")) {
             LogicalPlan analyzed = configured().statement("""
-                SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 2
+                SEQUENCE BY host.id WITHIN 30s PRIMARY 2
                 (FROM a | %s), (FROM b | %s)
-                | KEEP host.id | LIMIT 1 | RETURN MATCHES
+                | KEEP host.id | LIMIT 1
                 """.formatted(extraction, extraction));
             LogicalPlan optimized = optimizer().optimize(analyzed);
             assertEquals(analyzed.output(), optimized.output());
             assertTrue(optimized.collect(RegexExtract.class).isEmpty());
             assertEquals(
-                2L,
+                0L,
                 optimized.collect(Sequence.class)
                     .getFirst()
                     .sourceAttributes()
@@ -374,77 +279,67 @@ public class SequenceAnalyzerTests extends ESTestCase {
         }
     }
 
-    /** Independent union branches resolve ordinary PRIMARY names and MEMBER demands against their own stages. */
-    public void testUnionResolvesIndependentPrimaryAndMemberContexts() {
-        String first = """
-            SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 1
-            (FROM a | KEEP host.id, label), (FROM b | KEEP host.id, label)
-            | EVAL other = MEMBER(2, label) | KEEP label, other
-            """;
-        String second = """
-            SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 2
-            (FROM a | KEEP host.id, label), (FROM b | KEEP host.id, label)
-            | EVAL other = MEMBER(1, label) | KEEP label, other
-            """;
-        for (List<String> branches : List.of(List.of(first, second), List.of(second, first))) {
-            LogicalPlan analyzed = configured().statement(
-                "FROM (" + branches.get(0) + "), (" + branches.get(1) + ") | STATS n = COUNT(*) BY label, other | SORT label | LIMIT 10"
+    /** The generated match column is an ordinary projection, separate from user metadata-shaped values. */
+    public void testProvenanceIsOrdinaryAndCollisionSafe() {
+        for (int primary : List.of(1, 2)) {
+            String base = """
+                SEQUENCE BY host.id WITHIN 30s PRIMARY %s
+                (FROM a | KEEP host.id,label), (FROM b | KEEP host.id,label)
+                """.formatted(primary);
+            LogicalPlan kept = configured().statement(base + " | KEEP sequence_provenance | RENAME sequence_provenance AS events");
+            assertEquals(List.of("events"), kept.output().stream().map(Attribute::name).toList());
+            assertEquals(DataType.KEYWORD, kept.output().getFirst().dataType());
+            Sequence sequence = kept.collect(Sequence.class).getFirst();
+            List<Attribute> markers = sequence.sourceAttributes().stream().filter(Sequence::isProvenanceAttribute).toList();
+            assertEquals(1, markers.size());
+            assertFalse(sequence.references().contains(markers.getFirst()));
+            assertEquals(1, sequence.resolveSchema().sourceAttributes().stream().filter(Sequence::isProvenanceAttribute).count());
+            assertEquals(sequence.output(), sequence.resolveSchema().output());
+            LogicalPlan dropped = optimizer().optimize(configured().statement(base + " | DROP sequence_provenance | KEEP label"));
+            assertTrue(dropped.collect(Sequence.class).getFirst().sourceAttributes().stream().noneMatch(Sequence::isProvenanceAttribute));
+            LogicalPlan replaced = optimizer().optimize(
+                configured().statement(base + " | EVAL sequence_provenance=\"ordinary\" | KEEP sequence_provenance")
             );
-            assertEquals(List.of("n", "label", "other"), analyzed.output().stream().map(Attribute::name).toList());
+            assertTrue(replaced.collect(Sequence.class).getFirst().sourceAttributes().stream().noneMatch(Sequence::isProvenanceAttribute));
+            String collisions = base.replace(
+                "KEEP host.id,label",
+                "EVAL sequence_provenance=\"caller\", sequence_provenance_1=\"reserved\", _sequence_provenance=\"private-name-caller\" | KEEP host.id,label,sequence_provenance,sequence_provenance_1,_sequence_provenance"
+            );
+            LogicalPlan collision = configured().statement(
+                collisions + " | KEEP sequence_provenance,sequence_provenance_1,_sequence_provenance,sequence_provenance_2"
+            );
             assertEquals(
-                List.of(DataType.LONG, DataType.KEYWORD, DataType.KEYWORD),
-                analyzed.output().stream().map(Attribute::dataType).toList()
+                List.of("sequence_provenance", "sequence_provenance_1", "_sequence_provenance", "sequence_provenance_2"),
+                collision.output().stream().map(Attribute::name).toList()
             );
-            assertEquals(2, analyzed.collect(Sequence.class).size());
-            assertTrue(analyzed.collect(SequenceMatchOutput.Scope.class).isEmpty());
-            LogicalPlan optimized = optimizer().optimize(analyzed);
-            assertEquals(analyzed.output(), optimized.output());
-            assertEquals(2, optimized.collect(Sequence.class).size());
+            Sequence owned = collision.collect(Sequence.class).getFirst();
+            assertEquals(1, owned.sourceAttributes().stream().filter(Sequence::isProvenanceAttribute).count());
+            assertFalse(
+                Sequence.isProvenanceAttribute(
+                    new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
+                        Source.EMPTY,
+                        null,
+                        "_sequence_provenance",
+                        DataType.KEYWORD
+                    )
+                )
+            );
+            assertFalse(
+                Sequence.isProvenanceAttribute(
+                    new org.elasticsearch.xpack.esql.core.expression.MetadataAttribute(
+                        Source.EMPTY,
+                        "_sequence_provenance",
+                        DataType.KEYWORD,
+                        false
+                    )
+                )
+            );
         }
+        assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
-    /** Ordinary union alignment retains its normal null-fill and conflicting-type behavior for sequence branches. */
-    public void testUnionSequenceUsesOrdinarySchemaAlignment() {
-        String sequence = """
-            SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 2 (FROM a), (FROM b)
-            | EVAL supporting = MEMBER(1, label) | KEEP label, supporting
-            """;
-        for (String branches : List.of("(" + sequence + "), (FROM a | KEEP label)", "(FROM a | KEEP label), (" + sequence + ")")) {
-            LogicalPlan analyzed = configured().statement("FROM " + branches + " | KEEP label, supporting | SORT label | LIMIT 10");
-            assertEquals(List.of("label", "supporting"), analyzed.output().stream().map(Attribute::name).toList());
-            assertEquals(List.of(DataType.KEYWORD, DataType.KEYWORD), analyzed.output().stream().map(Attribute::dataType).toList());
-        }
-        // Bare conflicting columns are published as UNSUPPORTED, just as in an ordinary source union.
-        // Only a downstream operation that needs a usable type must reject that conflict.
-        String integerLabel = "FROM a | EVAL label = 1 | KEEP label";
-        for (String keywordLabel : List.of("FROM b | KEEP label", sequence)) {
-            for (List<String> branches : List.of(List.of(keywordLabel, integerLabel), List.of(integerLabel, keywordLabel))) {
-                LogicalPlan analyzed = configured().statement(
-                    "FROM (" + branches.get(0) + "), (" + branches.get(1) + ") | KEEP label | LIMIT 10"
-                );
-                assertEquals(List.of("label"), analyzed.output().stream().map(Attribute::name).toList());
-                assertEquals(List.of(DataType.UNSUPPORTED), analyzed.output().stream().map(Attribute::dataType).toList());
-            }
-        }
-    }
-
-    /** Validate the same final typed roles used by delivery, not just a familiar set of display labels. */
-    private static void assertCompleteOriginalSchema(EsqlStatement parsed, TestAnalyzer analyzer, List<String> ordinary) {
-        LogicalPlan analyzed = analyzer.buildAnalyzer().analyze(parsed.plan());
-        List<String> expected = new ArrayList<>(ordinary);
-        expected.addAll(
-            List.of("match_key_1", "member_1_index", "member_1_id", "member_1_source", "member_2_index", "member_2_id", "member_2_source")
-        );
-        assertEquals(expected, analyzed.output().stream().map(Attribute::name).toList());
-        assertEquals(analyzed.output().size(), analyzed.output().stream().map(Attribute::id).distinct().count());
-        assertEquals(analyzed.output().size(), SequenceMatchOutput.deliveryMetadata(parsed, analyzed.output(), Map.of()).size());
-    }
-
-    /**
-     * Calibrate an actual process-local ID without resetting the counter or mutating a plan. An ordinary caller could
-     * supply this quoted name too; reflection only makes the exact collision deterministic for this regression.
-     */
-    private static EsqlStatement quotedCollision(String template, String binding) throws Exception {
+    /** Calibrate a real process-local MEMBER identity without resetting or replacing the ID generator. */
+    private static EsqlStatement quotedCollision(String template) throws Exception {
         var parser = EsqlTestUtils.TEST_PARSER;
         var counterField = org.elasticsearch.xpack.esql.core.expression.NameId.class.getDeclaredField("COUNTER");
         counterField.setAccessible(true);
@@ -452,132 +347,71 @@ public class SequenceAnalyzerTests extends ESTestCase {
         parser.createStatement(template);
         long before = counter.get();
         EsqlStatement calibration = parser.createStatement(template);
-        long offset = bindingId(calibration.plan(), binding) - before;
-        String name = Attribute.rawTemporaryName(
-            binding.equals("key") ? "sequence_key" : binding.equals("member") ? "sequence_member" : "sequence_original",
-            Long.toString(counter.get() + offset)
-        );
+        long offset = bindingId(calibration.plan()) - before;
+        String name = Attribute.rawTemporaryName("sequence_member", Long.toString(counter.get() + offset));
         EsqlStatement parsed = parser.createStatement(template.replace("placeholder", name));
-        assertEquals(name, quotedName(parsed, binding));
+        assertEquals(name, quotedName(parsed));
         return parsed;
     }
 
-    private static String quotedName(EsqlStatement parsed, String binding) {
-        String prefix = binding.equals("key") ? "sequence_key" : binding.equals("member") ? "sequence_member" : "sequence_original";
-        return Attribute.rawTemporaryName(prefix, Long.toString(bindingId(parsed.plan(), binding)));
+    private static String quotedName(EsqlStatement parsed) {
+        return Attribute.rawTemporaryName("sequence_member", Long.toString(bindingId(parsed.plan())));
     }
 
-    /** Obtain compiler identities from the actual parsed context rather than introducing test-only IDs into a plan. */
-    private static long bindingId(LogicalPlan parsed, String binding) {
-        var contexts = parsed.collect(SequenceMatchOutput.Scope.class)
-            .getFirst()
-            .nodeProperties()
-            .stream()
-            .filter(property -> property.getClass().getName().equals(SequenceMatchOutput.class.getName() + "$Context"))
-            .toList();
-        assertEquals(1, contexts.size());
-        String context = contexts.getFirst().toString();
-        String expression = switch (binding) {
-            case "input", "output" -> "Role\\[stage=0, metadata=_id, input=(\\d+), output=(\\d+)\\]";
-            case "key" -> "keys=\\[(\\d+)\\]";
-            case "member" -> "Member\\[stage=\\d+, field=label\\]=(\\d+)";
-            default -> throw new IllegalArgumentException("unknown binding " + binding);
-        };
-        var matcher = Pattern.compile(expression).matcher(context);
-        assertTrue(context, matcher.find());
-        return Long.parseLong(matcher.group(binding.equals("output") ? 2 : 1));
+    /** Read the compiler-created binding rather than introducing test-only IDs into a plan. */
+    private static long bindingId(LogicalPlan parsed) {
+        var references = new ArrayList<SequenceMatchOutput.MemberReference>();
+        parsed.forEachExpressionDown(SequenceMatchOutput.MemberReference.class, references::add);
+        assertFalse(references.isEmpty());
+        assertEquals(1, references.stream().map(Attribute::id).distinct().count());
+        return Long.parseLong(references.getFirst().id().toString());
     }
 
-    /** A public calculation must not replace the protected identity retained for the first member. */
-    public void testProtectedOriginalSurvivesOrdinaryEval() {
-        assertProtectedBindings("", "| EVAL member_1_id = \"ordinary\"", "member_1_id");
-    }
-
-    /** Reusing a published key name must leave the original correlation value available for delivery. */
-    public void testFrozenKeySurvivesOrdinaryEval() {
-        assertProtectedBindings("", "| EVAL match_key_1 = \"ordinary\"", "match_key_1");
-    }
-
-    /** A stage calculation may use a former internal name without removing authentic source metadata. */
-    public void testStageOriginalSurvivesOrdinaryEval() {
-        assertProtectedBindings("| EVAL sequence_input0_id = \"ordinary\"", "", "sequence_input0_id");
-    }
-
-    /** Renaming a processed stage field must preserve the separately captured original identity. */
-    public void testStageOriginalSurvivesOrdinaryRename() {
-        assertProtectedBindings("| RENAME label AS sequence_input0_id", "", "sequence_input0_id");
-    }
-
-    /** Publication must preserve ordinary fields even when both a preferred label and its first suffix are occupied. */
-    public void testProtectedPublicationReservesOrdinaryNames() {
-        assertProtectedBindings(
-            "",
-            "| EVAL member_1_id = \"ordinary\", member_1_id_1 = \"reserved\", match_key_1 = \"ordinary\", match_key_1_1 = \"reserved\"",
-            "member_1_id",
-            "member_1_id_1",
-            "match_key_1",
-            "match_key_1_1"
-        );
-    }
-
-    /** Ordinary output names must not remove the distinct bindings needed to publish a complete match. */
-    private void assertProtectedBindings(String stageCommand, String outerCommand, String... ordinaryNames) {
-        var ordinary = List.of(ordinaryNames);
-        var expectedNames = new ArrayList<>(ordinary);
-        for (String name : List.of(
-            "match_key_1",
-            "member_1_index",
-            "member_1_id",
-            "member_1_source",
-            "member_2_index",
-            "member_2_id",
-            "member_2_source"
-        )) {
-            expectedNames.add(ordinary.contains(name) ? name + (ordinary.contains(name + "_1") ? "_2" : "_1") : name);
-        }
-        var expectedTypes = new ArrayList<DataType>();
-        ordinary.forEach(ignored -> expectedTypes.add(DataType.KEYWORD));
-        expectedTypes.addAll(
-            List.of(
-                DataType.KEYWORD,
-                DataType.KEYWORD,
-                DataType.KEYWORD,
-                DataType.SOURCE,
-                DataType.KEYWORD,
-                DataType.KEYWORD,
-                DataType.SOURCE
-            )
-        );
-        for (int primary : List.of(1, 2)) {
-            var plan = configured().statement(Strings.format("""
-                SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY %s
-                (FROM a %s), (FROM b %s)
-                %s | KEEP %s | LIMIT 1 | RETURN MATCHES
-                """, primary, stageCommand, stageCommand, outerCommand, String.join(", ", ordinary)));
-            assertEquals(expectedNames, plan.output().stream().map(Attribute::name).toList());
-            assertEquals(expectedTypes, plan.output().stream().map(Attribute::dataType).toList());
-            assertEquals(plan.output().size(), plan.output().stream().map(Attribute::id).distinct().count());
-        }
+    /** The ordinary schema prefix is unchanged; one exact compiler-only marker has its own stable binding IDs. */
+    private static List<Attribute> ordinarySequenceOutput(Sequence sequence, int ordinaryColumns) {
+        assertEquals(ordinaryColumns + 1, sequence.output().size());
+        assertEquals(ordinaryColumns + 1, sequence.sourceAttributes().size());
+        assertEquals(ordinaryColumns + 1, sequence.sourceStages().size());
+        Attribute marker = sequence.sourceAttributes().getLast();
+        assertEquals(MetadataAttribute.class, marker.getClass());
+        assertEquals("_sequence_provenance", marker.name());
+        assertTrue(marker.synthetic());
+        assertEquals(DataType.KEYWORD, marker.dataType());
+        assertTrue(Sequence.isProvenanceAttribute(marker));
+        assertEquals(1, sequence.sourceAttributes().stream().filter(Sequence::isProvenanceAttribute).count());
+        assertEquals(Integer.valueOf(0), sequence.sourceStages().getLast());
+        Attribute output = sequence.output().getLast();
+        assertEquals(ReferenceAttribute.class, output.getClass());
+        assertFalse(output.synthetic());
+        assertEquals(DataType.KEYWORD, output.dataType());
+        assertNotEquals(marker.id(), output.id());
+        assertEquals(marker.id(), sequence.resolveSchema().sourceAttributes().getLast().id());
+        assertEquals(output.id(), sequence.resolveSchema().output().getLast().id());
+        return sequence.output().subList(0, ordinaryColumns);
     }
 
     public void testTypedPrimaryOutputAndPostSequenceMemberFilter() {
         var plan = configured().statement("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from a | eval label = "network" | keep host.id, @timestamp, label),
             (from b | eval label = "process" | keep host.id, @timestamp, label)
             | where MEMBER(2, @timestamp) >= @timestamp
             | eval second_label = MEMBER(2, label)
             """);
         Sequence sequence = plan.collect(Sequence.class).getFirst();
+        List<Attribute> ordinary = ordinarySequenceOutput(sequence, 5);
         assertEquals(
             List.of("host.id", "stage1.@timestamp", "stage1.label", "stage2.@timestamp", "stage2.label"),
-            sequence.output().stream().map(Attribute::name).toList()
+            ordinary.stream().map(Attribute::name).toList()
         );
         assertEquals(
             List.of(DataType.KEYWORD, DataType.DATETIME, DataType.KEYWORD, DataType.DATETIME, DataType.KEYWORD),
-            sequence.output().stream().map(Attribute::dataType).toList()
+            ordinary.stream().map(Attribute::dataType).toList()
         );
-        assertEquals(List.of("host.id", "@timestamp", "label", "second_label"), plan.output().stream().map(Attribute::name).toList());
+        assertEquals(
+            List.of("host.id", "@timestamp", "label", "sequence_provenance", "second_label"),
+            plan.output().stream().map(Attribute::name).toList()
+        );
         assertTrue(sequence.childrenResolved());
         assertEquals(1, plan.collect(Limit.class).size());
         for (var stage : sequence.children()) {
@@ -592,11 +426,12 @@ public class SequenceAnalyzerTests extends ESTestCase {
     public void testLegacyStageQualifiedFieldsAreNotPublicAliases() {
         for (int primary : List.of(1, 2)) {
             String query = """
-                SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY %s
+                SEQUENCE BY host.id WITHIN 30s PRIMARY %s
                 (FROM a | KEEP host.id, label), (FROM b | KEEP host.id, label)
                 """.formatted(primary);
             var plan = configured().statement(query + " | LIMIT 1");
-            assertEquals(List.of("host.id", "label"), plan.output().stream().map(Attribute::name).toList());
+            assertEquals(List.of("host.id", "label", "sequence_provenance"), plan.output().stream().map(Attribute::name).toList());
+            ordinarySequenceOutput(plan.collect(Sequence.class).getFirst(), 3);
             configured().statementError(query + " | KEEP stage1.label | LIMIT 1", containsString("Unknown column [stage1.label]"));
             configured().statementError(query + " | KEEP stage2.label | LIMIT 1", containsString("Unknown column [stage2.label]"));
         }
@@ -616,7 +451,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
             )
         );
         var plan = configured().addIndex(index("named_events", fields)).statement("""
-            SEQUENCE BY host.id WITH {"maxspan":"30s"} PRIMARY 1
+            SEQUENCE BY host.id WITHIN 30s PRIMARY 1
             (FROM named_events), (FROM b)
             | KEEP stage1.label | LIMIT 1
             """);
@@ -625,7 +460,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testDerivedExpandedKeysResolveInEachStage() {
         var plan = configured().statement("""
-            sequence by commonkey with {"maxspan":"2m"} PRIMARY 1
+            sequence by commonkey WITHIN 2m PRIMARY 1
             (from a | eval commonkey = TO_LOWER(host.id) | mv_expand commonkey | keep commonkey, label),
             (from b | eval commonkey = TO_LOWER(label) | mv_expand commonkey | keep commonkey, label)
             | eval second_label = MEMBER(2, label)
@@ -638,14 +473,17 @@ public class SequenceAnalyzerTests extends ESTestCase {
         assertTrue(first.keys().getFirst().resolved());
         assertTrue(second.keys().getFirst().resolved());
         assertNotEquals(first.keys().getFirst().id(), second.keys().getFirst().id());
-        assertEquals(List.of("commonkey", "stage1.label", "stage2.label"), sequence.output().stream().map(Attribute::name).toList());
+        assertEquals(
+            List.of("commonkey", "stage1.label", "stage2.label"),
+            ordinarySequenceOutput(sequence, 3).stream().map(Attribute::name).toList()
+        );
         assertTrue(first.child().collect(Limit.class).isEmpty());
         assertTrue(second.child().collect(Limit.class).isEmpty());
     }
 
     public void testKeysMustSurviveProjection() {
         configured().statementError("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from a | keep label), (from b | keep host.id)
             """, containsString("Unknown column [host.id]"));
         assertWarnings("No limit defined, adding default limit of [1000]");
@@ -687,7 +525,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
     public void testIndexedSearchRequiresAnExplicitStageBoundary() {
         for (String predicate : List.of("MATCH(label, \"term\")", "QSTR(\"label:term\")", "KQL(\"label:term\")")) {
             configured().statementError(Strings.format("""
-                sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+                sequence by host.id WITHIN 30s PRIMARY 1
                 (from a | where %s | keep host.id), (from b | keep host.id) | limit 1
                 """, predicate), containsString("is not supported inside a SEQUENCE stage"));
         }
@@ -695,7 +533,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testViewStagesRequireTheirOwnRequestFilterScope() {
         configured().addView("computed_events", "FROM a | EVAL computed = \"yes\"").statementError("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from computed_events,a | keep host.id, computed), (from b | keep host.id)
             | limit 1
             """, containsString("Views are not supported inside a SEQUENCE stage"));
@@ -710,7 +548,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
             Map.of("remote", List.of("logs"))
         );
         String message = configured().addIndex(remote).statementError("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from remote:logs | keep host.id), (from b | keep host.id)
             | limit 1
             """, containsString("Cross-cluster sources are not supported inside a SEQUENCE stage"));
@@ -719,7 +557,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testConflictingKeyTypes() {
         configured().statementError("""
-            sequence by commonkey with {"maxspan":"30s"} PRIMARY 1
+            sequence by commonkey WITHIN 30s PRIMARY 1
             (from a | eval commonkey = host.id),
             (from b | eval commonkey = 1)
             """, containsString("SEQUENCE BY column [commonkey] has conflicting types"));
@@ -728,10 +566,10 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testSourceTimestampRequiredDespiteProjection() {
         configured().addIndex(index("c", Map.of("host", host()))).statementError("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1 (from a | keep host.id), (from c | keep host.id)
+            sequence by host.id WITHIN 30s PRIMARY 1 (from a | keep host.id), (from c | keep host.id)
             """, containsString("require a source [@timestamp]"));
         configured().statementError("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from a | eval @timestamp = NOW()), (from b)
             """, containsString("cannot overwrite the source [@timestamp]"));
         assertWarnings("No limit defined, adding default limit of [1000]");
@@ -739,25 +577,29 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testEmptyKeyAndThreeStages() {
         var plan = configured().statement("""
-            sequence with {"maxspan":"30s"} PRIMARY 1
+            sequence WITHIN 30s PRIMARY 1
             (from a | keep label), (from b | keep label), (from a | keep label)
             | eval second_label = MEMBER(2, label), third_label = MEMBER(3, label)
             """);
-        assertEquals(List.of("label", "second_label", "third_label"), plan.output().stream().map(Attribute::name).toList());
+        assertEquals(
+            List.of("label", "sequence_provenance", "second_label", "third_label"),
+            plan.output().stream().map(Attribute::name).toList()
+        );
+        ordinarySequenceOutput(plan.collect(Sequence.class).getFirst(), 3);
         assertEquals(3, plan.collect(Sequence.class).getFirst().children().size());
         assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
     public void testOldClusterRejectedBeforePlanning() {
-        configured().minimumTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE)).statementError("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1 (from a), (from b)
+        configured().minimumTransportVersion(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5)).statementError("""
+            sequence by host.id WITHIN 30s PRIMARY 1 (from a), (from b)
             """, containsString("SEQUENCE is not supported by all nodes in the cluster"));
         assertWarnings("No limit defined, adding default limit of [1000]");
     }
 
     public void testOptimizerKeepsCompletedRowLimitsOutsideStages() {
         var analyzed = configured().statement("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from a | eval transformed = TO_LOWER(label) | keep host.id, transformed),
             (from b | eval transformed = TO_LOWER(label) | keep host.id, transformed)
             | eval second_transformed = MEMBER(2, transformed)
@@ -783,13 +625,18 @@ public class SequenceAnalyzerTests extends ESTestCase {
         var nanosMapping = new HashMap<>(mapping());
         nanosMapping.put("@timestamp", new EsField("@timestamp", DataType.DATE_NANOS, Map.of(), true, NONE));
         var plan = configured().addIndex(index("nanos", nanosMapping)).statement("""
-            sequence by host.id with {"maxspan":"1nanos"} PRIMARY 1
+            sequence by host.id WITHIN 1nanos PRIMARY 1
             (from nanos | keep host.id, @timestamp), (from nanos | keep host.id, @timestamp)
             | eval other_time = MEMBER(2, @timestamp)
             | limit 3
             """);
         assertEquals(
-            List.of(DataType.KEYWORD, DataType.DATE_NANOS, DataType.DATE_NANOS),
+            List.of("host.id", "@timestamp", "sequence_provenance", "other_time"),
+            plan.output().stream().map(Attribute::name).toList()
+        );
+        ordinarySequenceOutput(plan.collect(Sequence.class).getFirst(), 3);
+        assertEquals(
+            List.of(DataType.KEYWORD, DataType.DATE_NANOS, DataType.KEYWORD, DataType.DATE_NANOS),
             plan.output().stream().map(Attribute::dataType).toList()
         );
     }
@@ -801,12 +648,12 @@ public class SequenceAnalyzerTests extends ESTestCase {
             "from a | rename label as time | rename time as @timestamp"
         )) {
             configured().statementError(
-                "sequence by host.id with {\"maxspan\":\"30s\"} PRIMARY 1 (" + stage + "), (from b) | limit 1",
+                "sequence by host.id WITHIN 30s PRIMARY 1 (" + stage + "), (from b) | limit 1",
                 containsString("cannot overwrite the source [@timestamp]")
             );
         }
         var restored = configured().statement("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from a | rename @timestamp as original | rename original as @timestamp), (from b)
             | limit 1
             """);
@@ -818,7 +665,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testTimestampRenameThroughUnion() {
         var restored = configured().statement("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from (from a), (from b) | rename @timestamp as original | rename original as @timestamp), (from a)
             | limit 1
             """);
@@ -827,7 +674,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
             restored.output().stream().filter(a -> a.name().equals("@timestamp")).findFirst().orElseThrow().dataType()
         );
         configured().statementError("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from (from a), (from b | eval other_time = @timestamp + 1 second | rename other_time as @timestamp)), (from a)
             | limit 1
             """, containsString("cannot overwrite the source [@timestamp]"));
@@ -835,7 +682,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testUnusedStagePayloadColumnsArePruned() {
         var analyzed = configured().statement("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from a | eval unused = TO_LOWER(label)), (from b | eval unused = TO_LOWER(label))
             | keep host.id
             | limit 3
@@ -857,9 +704,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
             for (int stage = 0; stage < 3; stage++) {
                 stages.add("(from a" + (stage == emptyStage ? " | where false" : "") + " | keep host.id, label)");
             }
-            var analyzed = configured().statement(
-                "sequence by host.id with {\"maxspan\":\"30s\"} PRIMARY 1 " + String.join(", ", stages) + " | limit 3"
-            );
+            var analyzed = configured().statement("sequence by host.id WITHIN 30s PRIMARY 1 " + String.join(", ", stages) + " | limit 3");
             var optimized = optimizer().optimize(analyzed);
             assertEquals(analyzed.output(), optimized.output());
             assertTrue(optimized.collect(Sequence.class).isEmpty());
@@ -869,7 +714,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testKeylessCountRetainsEventStages() {
         var analyzed = configured().statement("""
-            sequence with {"maxspan":"30s"} PRIMARY 1 (from a), (from b)
+            sequence WITHIN 30s PRIMARY 1 (from a), (from b)
             | stats count(*)
             | limit 3
             """);
@@ -894,7 +739,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
             var mapping = new HashMap<>(mapping());
             mapping.put("special", new EsField("special", type, Map.of(), true, NONE));
             var analyzed = configured().addIndex(index("special_events", mapping)).statement("""
-                sequence by host.id with {"maxspan":"30s"} PRIMARY 1 (from special_events), (from b)
+                sequence by host.id WITHIN 30s PRIMARY 1 (from special_events), (from b)
                 | keep host.id, special | limit 3
                 """);
             var error = expectThrows(VerificationException.class, () -> optimizer().optimize(analyzed));
@@ -914,7 +759,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
             "from (from spatial), (from spatial)"
         )) {
             var analyzed = configured().addIndex(index("spatial", mapping))
-                .statement("sequence by host.id with {\"maxspan\":\"30s\"} PRIMARY 1 (" + stage + "), (from b) | keep host.id | limit 3");
+                .statement("sequence by host.id WITHIN 30s PRIMARY 1 (" + stage + "), (from b) | keep host.id | limit 3");
             var optimized = optimizer().optimize(analyzed);
             assertEquals(List.of("host.id"), optimized.output().stream().map(Attribute::name).toList());
         }
@@ -923,7 +768,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
     public void testRequiredMixedMappingConversionIsRejectedAfterOptimization() {
         var mapping = mixedMapping();
         var analyzed = configured().addIndex(index("mixed_events", mapping)).statement("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1 (from mixed_events), (from b)
+            sequence by host.id WITHIN 30s PRIMARY 1 (from mixed_events), (from b)
             | keep host.id, mixed | limit 3
             """);
         assertThat(
@@ -935,7 +780,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
     public void testUnusedMixedMappingConversionCanBePruned() {
         for (String stage : List.of("from mixed_events", "from mixed_events | eval unused=mixed+1")) {
             var analyzed = configured().addIndex(index("mixed_events", mixedMapping()))
-                .statement("sequence by host.id with {\"maxspan\":\"30s\"} PRIMARY 1 (" + stage + "), (from b) | keep host.id | limit 3");
+                .statement("sequence by host.id WITHIN 30s PRIMARY 1 (" + stage + "), (from b) | keep host.id | limit 3");
             assertEquals(List.of("host.id"), optimizer().optimize(analyzed).output().stream().map(Attribute::name).toList());
         }
     }
@@ -961,11 +806,11 @@ public class SequenceAnalyzerTests extends ESTestCase {
         var mapping = new HashMap<>(mapping());
         mapping.put("location", new EsField("location", DataType.GEO_POINT, Map.of(), true, NONE));
         for (String query : List.of("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from spatial | where ST_X(location)>0 | keep host.id), (from b | keep host.id)
             | keep host.id | limit 3
             """, """
-            sequence by normalized with {"maxspan":"30s"} PRIMARY 1
+            sequence by normalized WITHIN 30s PRIMARY 1
             (from spatial | eval normalized=TO_STRING(location) | keep normalized),
             (from b | eval normalized=label | keep normalized)
             | stats count(*) | limit 3
@@ -982,7 +827,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
         var mapping = new HashMap<>(mapping());
         mapping.put("location", new EsField("location", DataType.GEO_POINT, Map.of(), true, NONE));
         var analyzed = configured().addIndex(index("spatial", mapping)).statement("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from a | where host.id IN (from spatial | where ST_X(location)>0 | keep host.id) | keep host.id),
             (from b | keep host.id) | keep host.id | limit 3
             """);
@@ -992,7 +837,7 @@ public class SequenceAnalyzerTests extends ESTestCase {
 
     public void testPhysicalPlanningKeepsStagesBehindCoordinatorSource() {
         var analyzed = configured().statement("""
-            sequence by host.id with {"maxspan":"30s"} PRIMARY 1
+            sequence by host.id WITHIN 30s PRIMARY 1
             (from a | eval normalized = TO_LOWER(label)), (from b | eval normalized = TO_LOWER(label))
             | eval second_normalized = MEMBER(2, normalized)
             | where normalized != second_normalized

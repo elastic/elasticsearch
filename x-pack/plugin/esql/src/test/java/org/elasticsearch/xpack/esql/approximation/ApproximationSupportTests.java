@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
+import org.elasticsearch.xpack.esql.plan.logical.SequenceCondition;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceMatchOutput;
 import org.elasticsearch.xpack.esql.plan.logical.SequenceStage;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
@@ -162,6 +163,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // Sequence selection requires the complete, ordered event stream.
         Sequence.class,
         SequenceStage.class,
+        SequenceCondition.class,
 
         // HIGHLIGHT is not supported;
         Highlight.class,
@@ -231,9 +233,7 @@ public class ApproximationSupportTests extends ESTestCase {
         ResolvingProject.class,
         SemiJoin.class,
         // Sequence output scaffolding is removed during preparation or lowered before optimization.
-        SequenceMatchOutput.Capture.class,
         SequenceMatchOutput.Declaration.class,
-        SequenceMatchOutput.Originals.class,
         SequenceMatchOutput.Scope.class,
         SparklineGenerateEmptyBuckets.class,
 

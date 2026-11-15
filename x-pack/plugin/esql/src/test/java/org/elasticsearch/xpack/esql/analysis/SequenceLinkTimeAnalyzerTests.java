@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.containsString;
 /** Verifies feature transport gating independently of the new grammar's surface spelling. */
 public class SequenceLinkTimeAnalyzerTests extends ESTestCase {
     private static final String QUERY = """
-        SEQUENCE BY key WITH {"maxspan":"1m"} PRIMARY 1 (FROM a), (FROM b)
+        SEQUENCE BY key WITHIN 1m PRIMARY 1 (FROM a), (FROM b)
         | KEEP key | LIMIT 10
         """;
 
@@ -49,11 +49,10 @@ public class SequenceLinkTimeAnalyzerTests extends ESTestCase {
         assumeTrue("requires native SEQUENCE", EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled());
     }
 
-    /** The old form remains valid on an older cluster, while a constrained plan requires all nodes to support its meaning. */
+    /** Every query requires the sole engine, including a query with no incoming limit. */
     public void testIncomingLimitRequiresSupportingCluster() {
-        TransportVersion older = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_PER_LINK_TIME);
-        assertTrue(older.supports(Sequence.ESQL_SEQUENCE));
-        LogicalPlan unconstrained = configured(older).statement(QUERY);
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5);
+        LogicalPlan unconstrained = configured(TransportVersion.current()).statement(QUERY);
         assertFalse(unconstrained.collect(Sequence.class).getFirst().hasLinkTimeLimits());
         LogicalPlan constrained = configured(TransportVersion.current()).buildAnalyzer().analyze(withLimit());
         assertTrue(constrained.collect(Sequence.class).getFirst().hasLinkTimeLimits());
@@ -61,20 +60,21 @@ public class SequenceLinkTimeAnalyzerTests extends ESTestCase {
             unconstrained.output().stream().map(Attribute::name).toList(),
             constrained.output().stream().map(Attribute::name).toList()
         );
+        configured(older).statementError(QUERY, containsString("SEQUENCE is not supported by all nodes in the cluster"));
         VerificationException failure = expectThrows(
             VerificationException.class,
             () -> configured(older).buildAnalyzer().analyze(withLimit())
         );
-        assertThat(failure.getMessage(), containsString("SEQUENCE per-link time limits are not supported by all nodes in the cluster"));
+        assertThat(failure.getMessage(), containsString("SEQUENCE is not supported by all nodes in the cluster"));
     }
 
     /** Named suffix limits survive retained-output preparation and normal optimizer reconstruction. */
-    public void testSurfaceBoundsSurviveRetainedResolutionAndOptimization() {
+    public void testSurfaceBoundsSurviveResolutionAndOptimization() {
         String query = """
             SEQUENCE WITHIN 1 minute PRIMARY later
             (FROM a) AS earlier_event BY key,
             (FROM b) AS later BY key WITHIN 5 seconds
-            | EVAL earlier=MEMBER(earlier_event,key) | KEEP key,earlier | LIMIT 10 | RETURN MATCHES
+            | EVAL earlier=MEMBER(earlier_event,key) | KEEP key,earlier | LIMIT 10
             """;
         // Labels must also be valid bare field identifiers when no MEMBER expression is present.
         String declaration = query.substring(0, query.indexOf("| EVAL"));
@@ -104,9 +104,9 @@ public class SequenceLinkTimeAnalyzerTests extends ESTestCase {
         LogicalPlan optimized = optimizer.optimize(analyzed);
         assertEquals(analyzed.output(), optimized.output());
         assertEquals(5_000_000_000L, ((SequenceStage) optimized.collect(Sequence.class).getFirst().children().get(1)).maxGapNanos());
-        configured(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_PER_LINK_TIME)).statementError(
+        configured(TransportVersionUtils.getPreviousVersion(Sequence.ESQL_SEQUENCE_R5)).statementError(
             query,
-            containsString("SEQUENCE per-link time limits are not supported by all nodes in the cluster")
+            containsString("SEQUENCE is not supported by all nodes in the cluster")
         );
     }
 

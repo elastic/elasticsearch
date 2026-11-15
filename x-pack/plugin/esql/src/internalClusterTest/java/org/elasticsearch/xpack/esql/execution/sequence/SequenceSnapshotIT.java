@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.execution.sequence;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -15,8 +14,6 @@ import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
@@ -90,6 +87,12 @@ public class SequenceSnapshotIT extends ESIntegTestCase {
                 refresh("sequence-a", "sequence-b");
             });
             assertEquals(first.toString(), 16, first.size());
+            // Cross-index ties can arrive in either order, but each completion has a pinned pair of possible starts.
+            for (int cycle = 0; cycle < 16; cycle++) {
+                List<String> pair = first.get(cycle);
+                assertEquals("sequence-b#B" + cycle, pair.get(1));
+                assertTrue(List.of("sequence-a#A" + (cycle * 2), "sequence-a#A" + (cycle * 2 + 1)).contains(pair.get(0)));
+            }
             for (int pageSize : new int[] { 2, 7, 100 }) {
                 assertEquals(first, readMerged(snapshot, List.of("sequence-a", "sequence-b"), pageSize, () -> {}));
             }
@@ -140,6 +143,11 @@ public class SequenceSnapshotIT extends ESIntegTestCase {
         try (Snapshot snapshot = new Snapshot("sequence-a")) {
             List<List<String>> sequences = readMerged(snapshot, List.of("sequence-a", "sequence-a"), 1, () -> {});
             assertEquals(11, sequences.size());
+            // The frozen two-stage expectation is adjacent pairs of the twelve distinct PIT documents.
+            for (int i = 1; i < sequences.size(); i++) {
+                assertEquals(sequences.get(i - 1).get(1), sequences.get(i).get(0));
+            }
+            assertEquals(12L, sequences.stream().flatMap(List::stream).distinct().count());
             assertEquals(sequences, readMerged(snapshot, List.of("sequence-a", "sequence-a"), 5, () -> {}));
             for (List<String> sequence : sequences) {
                 assertNotEquals("one source event cannot satisfy two stages of the same sequence", sequence.get(0), sequence.get(1));
@@ -184,30 +192,29 @@ public class SequenceSnapshotIT extends ESIntegTestCase {
         }
         afterInitialPages.run();
         List<List<String>> result = new ArrayList<>();
-        try (
-            SequenceMatcher matcher = new SequenceMatcher(
-                stageIndices.size(),
-                TimeValue.timeValueSeconds(30),
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                () -> false
-            )
-        ) {
-            while (true) {
-                Cursor selected = null;
-                for (Cursor cursor : cursors) {
-                    Row row = cursor.peek();
-                    if (row != null && (selected == null || ROW_ORDER.compare(row, selected.peek()) < 0)) {
-                        selected = cursor;
-                    }
+        // The R4 two-stage, no-condition contract agrees with the retired pairing.
+        // Keep this small independent reference for exercising PIT paging; native command tests
+        // verify the actual matcher separately. Each completion consumes the latest earlier start.
+        Map<String, Row> starts = new HashMap<>();
+        while (true) {
+            Cursor selected = null;
+            for (Cursor cursor : cursors) {
+                Row row = cursor.peek();
+                if (row != null && (selected == null || ROW_ORDER.compare(row, selected.peek()) < 0)) {
+                    selected = cursor;
                 }
-                if (selected == null) {
-                    break;
-                }
-                Row row = selected.take();
-                try (SequenceMatcher.Match match = matcher.match(row.stage, new BytesRef(row.key), row.ordinal, new BytesRef(row.handle))) {
-                    if (match != null) {
-                        result.add(match.handles().stream().map(BytesRef::utf8ToString).toList());
-                    }
+            }
+            if (selected == null) {
+                break;
+            }
+            Row row = selected.take();
+            if (row.stage == 0) {
+                starts.put(row.key, row);
+            } else {
+                Row start = starts.get(row.key);
+                if (start != null && start.ordinal.compareTo(row.ordinal) < 0) {
+                    result.add(List.of(start.handle, row.handle));
+                    starts.remove(row.key);
                 }
             }
         }

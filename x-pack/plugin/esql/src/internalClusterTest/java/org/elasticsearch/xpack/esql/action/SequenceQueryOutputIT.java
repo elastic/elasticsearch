@@ -6,11 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -18,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
@@ -26,21 +21,14 @@ import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
-import org.elasticsearch.xpack.esql.execution.sequence.SequenceDocValuesSearchExt;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
 
@@ -49,13 +37,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -74,7 +58,6 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         var plugins = new ArrayList<>(super.nodePlugins());
         assertTrue(plugins.removeIf(EsqlPlugin.class::isAssignableFrom));
         plugins.add(TrackingPlugin.class);
-        plugins.add(MockTransportService.TestPlugin.class);
         return plugins;
     }
 
@@ -125,57 +108,35 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
             Decoded decoded = checkConsumers(response);
             assertEquals(List.of("process.name", "user.name", "download_domain", "delay_seconds"), decoded.ordinaryNames);
             assertEquals(List.of("demotool.exe", "runner", "example.test", 2), decoded.rows.getFirst().ordinary);
-            assertEquals(2, decoded.primary);
-            assertEquals(List.of("D1", "E1"), decoded.rows.getFirst().members.stream().map(Member::id).toList());
-            for (int i = 0; i < 2; i++) {
-                assertEquals(object(list(fixture.get("documents")).get(i)).get("_source"), decoded.rows.getFirst().members.get(i).source);
-            }
         }
     }
 
-    /** Projecting the other stage must preserve the selected primary payloads, including retained output. */
+    /** Projecting the other stage must preserve the selected primary payloads. */
     public void testAsymmetricStageProjectionPreservesSiblingSchema() throws Exception {
         for (int primary : List.of(1, 2)) {
             String first = "(FROM demo-downloads" + (primary == 2 ? " | KEEP host.id" : "") + ")";
             String second = "(FROM demo-executions" + (primary == 1 ? " | KEEP host.id" : "") + ")";
-            String actor = primary == 1 ? "downloader" : "runner";
-            for (int mode : List.of(1, 2)) {
-                String presentation = " PRIMARY " + primary;
-                String retention = mode == 2 ? " | RETURN MATCHES" : "";
-                try (var response = query("""
-                    SEQUENCE BY host.id WITH {"maxspan":"1m"}%s
-                    %s, %s
-                    | LIMIT 10%s
-                    """.formatted(presentation, first, second, retention))) {
-                    var names = response.columns().stream().map(ColumnInfo::name).toList();
-                    String payload = "user.name";
-                    int column = names.indexOf(payload);
-                    assertTrue("Missing sibling payload [" + payload + "] in " + names, column >= 0);
-                    var values = response.column(column);
-                    assertTrue(values.hasNext());
-                    assertEquals(actor, values.next());
-                    assertFalse(values.hasNext());
-                    assertFalse(names.stream().anyMatch(name -> name.startsWith("stage1.") || name.startsWith("stage2.")));
-                    if (mode == 2) {
-                        Decoded decoded = checkConsumers(response);
-                        assertEquals(1, decoded.rows.size());
-                        assertEquals(List.of("D1", "E1"), decoded.rows.getFirst().members.stream().map(Member::id).toList());
-                        for (int i = 0; i < 2; i++) {
-                            assertEquals(
-                                object(list(fixture.get("documents")).get(i)).get("_source"),
-                                decoded.rows.getFirst().members.get(i).source
-                            );
-                        }
-                    }
-                }
+            try (var response = query("""
+                SEQUENCE BY host.id WITHIN 1m PRIMARY %s
+                %s, %s
+                | LIMIT 10
+                """.formatted(primary, first, second))) {
+                var names = response.columns().stream().map(ColumnInfo::name).toList();
+                int column = names.indexOf("user.name");
+                assertTrue("Missing sibling payload in " + names, column >= 0);
+                var values = response.column(column);
+                assertTrue(values.hasNext());
+                assertEquals(primary == 1 ? "downloader" : "runner", values.next());
+                assertFalse(values.hasNext());
+                assertFalse(names.stream().anyMatch(name -> name.startsWith("stage1.") || name.startsWith("stage2.")));
             }
         }
     }
 
     /** Explaining primary-only sequence output keeps the ordinary plan-table response. */
-    public void testExplainSequenceWithoutRetentionUsesOrdinaryPlanSchema() {
+    public void testExplainSequenceUsesOrdinaryPlanSchema() {
         assertExplainedSequence("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 1
+            SEQUENCE BY host.id WITHIN 1m PRIMARY 1
             (FROM demo-downloads), (FROM demo-executions)
             | KEEP host.id, user.name | LIMIT 10
             """);
@@ -184,25 +145,15 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
     /** EXPLAIN must prepare PRIMARY and MEMBER before their plans reach analysis. */
     public void testExplainPrimarySequenceUsesOrdinaryPlanSchema() {
         assertExplainedSequence("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            SEQUENCE BY host.id WITHIN 1m PRIMARY 2
             (FROM demo-downloads), (FROM demo-executions)
             | EVAL download_actor = MEMBER(1, user.name)
             | KEEP user.name, download_actor | LIMIT 10
             """);
     }
 
-    /** Inner retained originals must not turn EXPLAIN's plan-table columns into evidence columns. */
-    public void testExplainRetainedSequenceUsesOrdinaryPlanSchema() {
-        assertExplainedSequence("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
-            (FROM demo-downloads), (FROM demo-executions)
-            | EVAL download_actor = MEMBER(1, user.name)
-            | KEEP user.name, download_actor | LIMIT 10 | RETURN MATCHES
-            """);
-    }
-
-    /** Stage membership filters the event population before matching; probe its original retention independently of outer joins. */
-    public void testRetainedStageMembershipPreservesMatchedOriginals() throws Exception {
+    /** Stage membership filters the event population before matching. */
+    public void testStageMembershipPreservesOrdinaryOutput() throws Exception {
         for (String predicate : List.of(
             "host.id IN (FROM demo-executions | KEEP host.id)",
             "host.id NOT IN (FROM demo-executions | WHERE user.name == \"missing\" | KEEP host.id)",
@@ -210,45 +161,22 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
                 + " | EVAL file.hash.sha256 = process.hash.sha256 | KEEP host.id, file.hash.sha256)"
         )) {
             try (var response = query("""
-                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+                SEQUENCE BY host.id WITHIN 1m PRIMARY 2
                 (FROM demo-downloads | WHERE %s), (FROM demo-executions)
-                | KEEP user.name | LIMIT 10 | RETURN MATCHES
+                | KEEP user.name | LIMIT 10
                 """.formatted(predicate))) {
                 Decoded decoded = checkConsumers(response);
                 assertEquals(1, decoded.rows.size());
                 assertEquals(List.of("runner"), decoded.rows.getFirst().ordinary);
-                assertEquals(List.of("demo-host-1"), decoded.rows.getFirst().keys);
-                assertEquals(List.of("D1", "E1"), decoded.rows.getFirst().members.stream().map(Member::id).toList());
-                for (int i = 0; i < 2; i++) {
-                    assertEquals(
-                        object(list(fixture.get("documents")).get(i)).get("_source"),
-                        decoded.rows.getFirst().members.get(i).source
-                    );
-                }
             }
         }
     }
 
-    /** Retained output must reject its unsupported lowered outer join with a located author-facing error. */
-    public void testRetainedOuterInSubqueryHasLocatedRejection() {
-        assertRetainedOuterSubqueryRejected("host.id IN (FROM demo-executions | KEEP host.id)");
-    }
-
-    /** Negated membership has the same retained-output boundary as positive membership. */
-    public void testRetainedOuterNotInSubqueryHasLocatedRejection() {
-        assertRetainedOuterSubqueryRejected("host.id NOT IN (FROM demo-executions | KEEP host.id)");
-    }
-
-    /** Tuple membership must not bypass the retained-output boundary through a different expression node. */
-    public void testRetainedOuterMultiColumnInSubqueryHasLocatedRejection() {
-        assertRetainedOuterSubqueryRejected("(host.id, user.name) IN (FROM demo-executions | KEEP host.id, user.name)");
-    }
-
-    /** Aggregation consumes ordinary selected rows when complete-match evidence was not requested. */
+    /** Aggregation consumes ordinary selected rows. */
     public void testPrimaryPresentationSupportsOrdinaryAggregation() throws Exception {
         for (int primary : List.of(1, 2)) {
             try (var response = query("""
-                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+                SEQUENCE BY host.id WITHIN 1m PRIMARY %s
                 (FROM demo-downloads), (FROM demo-executions)
                 | EVAL other = MEMBER(%s, user.name)
                 | STATS matches = COUNT(*) BY user.name, other
@@ -275,7 +203,7 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         refresh(A, B);
         for (int primary : List.of(1, 2)) {
             try (var response = query("""
-                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+                SEQUENCE BY host.id WITHIN 1m PRIMARY %s
                 (FROM demo-downloads | MV_EXPAND host.id), (FROM demo-executions | MV_EXPAND host.id)
                 | EVAL other = MEMBER(%s, user.name)
                 | KEEP host.id, user.name, other
@@ -289,12 +217,12 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Existing event-stage extraction remains ordinary processing when no original-evidence contract is requested. */
+    /** Event-stage extraction remains ordinary processing. */
     public void testPrimaryPresentationSupportsStageExtraction() throws Exception {
         for (String extraction : List.of("DISSECT user.name \"%{actor}\"", "GROK user.name \"%{WORD:actor}\"")) {
             for (int primary : List.of(1, 2)) {
                 try (var response = query("""
-                    SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+                    SEQUENCE BY host.id WITHIN 1m PRIMARY %s
                     (FROM demo-downloads | %s | KEEP host.id, actor),
                     (FROM demo-executions | %s | KEEP host.id, actor)
                     | EVAL other = MEMBER(%s, actor)
@@ -310,8 +238,8 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Parsed stage keys and projected payloads retain the complete selected physical events through all consumers. */
-    public void testRetainedParsingUsesParsedKeysAndAuthenticOriginals() throws Exception {
+    /** Parsed keys and projected PRIMARY/MEMBER payloads survive all ordinary consumers. */
+    public void testParsingUsesParsedKeysAndProcessedValues() throws Exception {
         for (String extraction : List.of(
             "DISSECT raw \"%{parsed_key}:%{payload}:%{unused}\"",
             "GROK raw \"^%{DATA:parsed_key}:%{WORD:payload}:%{WORD:unused}$\""
@@ -321,13 +249,12 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
                     + extraction
                     + " | RENAME payload AS actor | DROP unused | KEEP parsed_key, actor";
                 try (var response = query("""
-                    SEQUENCE BY parsed_key WITH {"maxspan":"1m"} PRIMARY %s
+                    SEQUENCE BY parsed_key WITHIN 1m PRIMARY %s
                     (FROM demo-downloads | %s), (FROM demo-executions | %s)
                     | EVAL other = MEMBER(%s, actor)
-                    | KEEP actor, other | LIMIT 10 | RETURN MATCHES
+                    | KEEP actor, other | LIMIT 10
                     """.formatted(primary, stage, stage, 3 - primary))) {
                     Decoded decoded = checkConsumers(response);
-                    assertRetainedFixture(decoded, primary);
                     assertEquals(List.of("actor", "other"), decoded.ordinaryNames);
                     assertEquals(
                         List.of(primary == 1 ? "downloader" : "runner", primary == 1 ? "runner" : "downloader"),
@@ -339,19 +266,18 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
     }
 
     /** GROK numeric captures keep their types and physical output positions after a sibling capture is removed. */
-    public void testRetainedGrokTypedCapturesAfterPartialProjection() throws Exception {
+    public void testGrokTypedCapturesAfterPartialProjection() throws Exception {
         String extraction = "GROK raw \"^%{DATA:parsed_key}:%{INT:number:int}:%{NUMBER:ratio:double}:%{WORD:unused}$\""
             + " | DROP unused | RENAME number AS parsed_number | KEEP parsed_key, parsed_number, ratio";
         for (int primary : List.of(1, 2)) {
             try (var response = query("""
-                SEQUENCE BY parsed_key WITH {"maxspan":"1m"} PRIMARY %s
+                SEQUENCE BY parsed_key WITHIN 1m PRIMARY %s
                 (FROM demo-downloads | EVAL raw = CONCAT(host.id, ":7:1.5:unused") | %s),
                 (FROM demo-executions | EVAL raw = CONCAT(host.id, ":9:2.5:unused") | %s)
                 | EVAL other_number = MEMBER(%s, parsed_number), other_ratio = MEMBER(%s, ratio)
-                | KEEP parsed_number, ratio, other_number, other_ratio | LIMIT 10 | RETURN MATCHES
+                | KEEP parsed_number, ratio, other_number, other_ratio | LIMIT 10
                 """.formatted(primary, extraction, extraction, 3 - primary, 3 - primary))) {
                 Decoded decoded = checkConsumers(response);
-                assertRetainedFixture(decoded, primary);
                 assertEquals(
                     List.of("integer", "double", "integer", "double"),
                     response.columns().subList(0, 4).stream().map(ColumnInfo::outputType).toList()
@@ -361,8 +287,8 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Null, unmatched and multivalued parsing payloads follow ordinary extraction without changing their supporting events. */
-    public void testRetainedParsingNullNoMatchAndMultivaluedInput() throws Exception {
+    /** Null, unmatched and multivalued parsing payloads follow ordinary extraction. */
+    public void testParsingNullNoMatchAndMultivaluedInput() throws Exception {
         for (String extraction : List.of("DISSECT raw \"%{parsed}:%{unused}\"", "GROK raw \"^%{WORD:parsed}:%{INT:unused:int}$\"")) {
             for (String input : List.of("null", "\"unmatched\"", "MV_APPEND(\"left:1\", \"right:2\")")) {
                 Object expected = input.startsWith("MV_APPEND") ? List.of("left", "right") : null;
@@ -380,14 +306,13 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
                 }
                 for (int primary : List.of(1, 2)) {
                     try (var response = query("""
-                        SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+                        SEQUENCE BY host.id WITHIN 1m PRIMARY %s
                         (FROM demo-downloads | EVAL raw = %s | %s | KEEP host.id, parsed),
                         (FROM demo-executions | EVAL raw = %s | %s | KEEP host.id, parsed)
                         | EVAL other = MEMBER(%s, parsed)
-                        | KEEP parsed, other | LIMIT 10 | RETURN MATCHES
+                        | KEEP parsed, other | LIMIT 10
                         """.formatted(primary, input, extraction, input, extraction, 3 - primary))) {
                         Decoded decoded = checkConsumers(response);
-                        assertRetainedFixture(decoded, primary);
                         assertEquals(List.of("parsed", "other"), decoded.ordinaryNames);
                         assertEquals(Collections.nCopies(2, expected), decoded.rows.getFirst().ordinary);
                     }
@@ -396,20 +321,19 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    /** Parsed public metadata names can change presentation without replacing the retained identity or body. */
-    public void testRetainedParsingMetadataTargetsPreserveOriginals() throws Exception {
+    /** Parsed metadata-shaped names remain ordinary PRIMARY/MEMBER values. */
+    public void testParsingMetadataTargetsRemainOrdinary() throws Exception {
         for (String field : List.of("_id", "_index", "_source")) {
             for (String extraction : List.of("DISSECT user.name \"%{" + field + "}\"", "GROK user.name \"%{WORD:" + field + "}\"")) {
                 for (int primary : List.of(1, 2)) {
                     try (var response = query("""
-                        SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+                        SEQUENCE BY host.id WITHIN 1m PRIMARY %s
                         (FROM demo-downloads | %s | KEEP host.id, %s),
                         (FROM demo-executions | %s | KEEP host.id, %s)
                         | EVAL other = MEMBER(%s, %s)
-                        | KEEP %s, other | LIMIT 10 | RETURN MATCHES
+                        | KEEP %s, other | LIMIT 10
                         """.formatted(primary, extraction, field, extraction, field, 3 - primary, field, field))) {
                         Decoded decoded = checkConsumers(response);
-                        assertRetainedFixture(decoded, primary);
                         assertEquals(List.of(field, "other"), decoded.ordinaryNames);
                         assertEquals(
                             List.of(primary == 1 ? "downloader" : "runner", primary == 1 ? "runner" : "downloader"),
@@ -422,257 +346,15 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
     }
 
     /** A multivalued parsed key requires explicit MV_EXPAND before it reaches the matcher. */
-    public void testRetainedParsingRejectsMultivaluedKeys() {
+    public void testParsingRejectsMultivaluedKeys() {
         for (String extraction : List.of("DISSECT raw \"%{parsed_key}\"", "GROK raw \"^%{WORD:parsed_key}$\"")) {
             Exception failure = expectThrows(Exception.class, () -> { try (var ignored = query("""
-                SEQUENCE BY parsed_key WITH {"maxspan":"1m"} PRIMARY 2
+                SEQUENCE BY parsed_key WITHIN 1m PRIMARY 2
                 (FROM demo-downloads | EVAL raw = MV_APPEND("left", "right") | %s),
                 (FROM demo-executions | EVAL raw = "left" | %s)
-                | KEEP parsed_key | LIMIT 10 | RETURN MATCHES
+                | KEEP parsed_key | LIMIT 10
                 """.formatted(extraction, extraction))) {} });
             assertThat(failure.getMessage(), containsString("is multivalued; use MV_EXPAND inside the stage"));
-        }
-    }
-
-    /** Direct and correlated branches remain ordinary rows, including duplicates of the same selected event. */
-    public void testOrdinaryUnionPreservesDirectAndCorrelatedDuplicates() throws Exception {
-        String correlated = """
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
-            (FROM demo-downloads), (FROM demo-executions METADATA _id)
-            | KEEP _id, user.name
-            """;
-        String direct = "FROM demo-executions METADATA _id | KEEP _id, user.name";
-        for (int degree : List.of(1, 2)) {
-            for (List<String> branches : List.of(List.of(correlated, direct), List.of(direct, correlated))) {
-                String union = "FROM (" + branches.get(0) + "), (" + branches.get(1) + ")";
-                try (var response = query(union + " | WHERE user.name == \"runner\" | SORT _id | LIMIT 10", degree)) {
-                    assertOrdinaryUnionConsumers(
-                        response,
-                        List.of("_id", "user.name"),
-                        List.of(List.of("E1", "runner"), List.of("E1", "runner"))
-                    );
-                }
-                try (var response = query(union + " | STATS copies = COUNT(*) BY _id | SORT _id | LIMIT 1", degree)) {
-                    assertOrdinaryUnionConsumers(response, List.of("copies", "_id"), List.of(List.of(2L, "E1")));
-                }
-            }
-        }
-    }
-
-    /** Two sequence branches use different PRIMARY and MEMBER contexts while sharing ordinary union schema alignment. */
-    public void testOrdinaryUnionKeepsIndependentSequenceContexts() throws Exception {
-        String first = """
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 1
-            (FROM demo-downloads), (FROM demo-executions)
-            | EVAL other = MEMBER(2, user.name), branch = "first"
-            | KEEP branch, user.name, other
-            """;
-        String second = """
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
-            (FROM demo-downloads), (FROM demo-executions)
-            | EVAL other = MEMBER(1, user.name), branch = "second"
-            | KEEP branch, user.name, other
-            """;
-        for (int degree : List.of(1, 2)) {
-            for (List<String> branches : List.of(List.of(first, second), List.of(second, first))) {
-                try (var response = query("FROM (" + branches.get(0) + "), (" + branches.get(1) + ") | SORT branch | LIMIT 10", degree)) {
-                    assertOrdinaryUnionConsumers(
-                        response,
-                        List.of("branch", "user.name", "other"),
-                        List.of(List.of("first", "downloader", "runner"), List.of("second", "runner", "downloader"))
-                    );
-                    var accounting = response.getExecutionInfo().getCluster("");
-                    assertEquals(Integer.valueOf(4), accounting.getTotalShards());
-                    assertEquals(Integer.valueOf(4), accounting.getSuccessfulShards());
-                    assertEquals(Integer.valueOf(0), accounting.getFailedShards());
-                }
-            }
-        }
-    }
-
-    /** The same request filter reaches each direct source and each independent sequence's PIT reads. */
-    public void testOrdinaryUnionAppliesRequestFilterToEveryBranch() throws Exception {
-        for (int stage = 0; stage < 2; stage++) {
-            Map<String, Object> document = object(list(fixture.get("documents")).get(stage));
-            Map<String, Object> source = object(document.get("_source"));
-            source.put("@timestamp", "2026-11-08T12:01:0" + (stage * 2) + ".000Z");
-            prepareIndex((String) document.get("_index")).setId(stage == 0 ? "D2" : "E2").setSource(source).get();
-        }
-        refresh(A, B);
-        String sequence = """
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
-            (FROM demo-downloads), (FROM demo-executions METADATA _id)
-            | KEEP _id
-            """;
-        for (int degree : List.of(1, 2)) {
-            try (
-                var response = query(
-                    "FROM (" + sequence + "), (" + sequence + "), (FROM demo-executions METADATA _id | KEEP _id) | SORT _id | LIMIT 10",
-                    degree
-                )
-            ) {
-                assertOrdinaryUnionConsumers(response, List.of("_id"), List.of(List.of("E1"), List.of("E1"), List.of("E1")));
-            }
-        }
-    }
-
-    /** Failure in a sibling sequence must release any completed or concurrently running branch resources. */
-    public void testOrdinaryUnionSequenceFailureReleasesBranches() throws Exception {
-        String successful = """
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
-            (FROM demo-downloads), (FROM demo-executions)
-            | KEEP host.id
-            """;
-        String failing = successful.replace(
-            "(FROM demo-downloads)",
-            "(FROM demo-downloads | EVAL host.id = MV_APPEND(host.id, \"other\"))"
-        );
-        for (int degree : List.of(1, 2)) {
-            for (List<String> branches : List.of(List.of(successful, failing), List.of(failing, successful))) {
-                Exception failure = expectThrows(Exception.class, () -> {
-                    try (var ignored = query("FROM (" + branches.get(0) + "), (" + branches.get(1) + ") | LIMIT 10", degree)) {}
-                });
-                assertThat(failure.getMessage(), containsString("is multivalued; use MV_EXPAND inside the stage"));
-                for (SearchService service : internalCluster().getInstances(SearchService.class)) {
-                    assertBusy(() -> assertEquals(0, service.getActiveContexts()));
-                }
-            }
-        }
-    }
-
-    /** Cancellation releases both live sequence PITs, or the live PIT plus an undispatched branch at degree one. */
-    public void testOrdinaryUnionCancellationClosesEveryOwnedPit() throws Exception {
-        String sequence = """
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
-            (FROM demo-downloads), (FROM demo-executions)
-            | KEEP host.id
-            """;
-        for (int degree : List.of(1, 2)) {
-            try (var gate = new UnionSearchGate()) {
-                var request = EsqlQueryRequest.syncEsqlQueryRequest("FROM (" + sequence + "), (" + sequence + ") | LIMIT 10")
-                    .pragmas(new QueryPragmas(Settings.builder().put("branch_parallel_degree", degree).build()));
-                var future = client().execute(EsqlQueryAction.INSTANCE, request);
-                try {
-                    assertBusy(() -> {
-                        assertFalse("query finished before its native sources were parked", future.isDone());
-                        int contexts = 0;
-                        for (SearchService service : internalCluster().getInstances(SearchService.class)) {
-                            contexts += service.getActiveContexts();
-                        }
-                        assertEquals("each dispatched sequence owns both source shards", degree * 2, contexts);
-                        assertTrue(gate.pending.get() > 0);
-                    });
-                    var roots = client().admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks();
-                    assertEquals(1, roots.size());
-                    var cancellation = new CancelTasksRequest().setTargetTaskId(roots.getFirst().taskId()).setReason("sequence union test");
-                    cancellation.setWaitForCompletion(false);
-                    client().execute(TransportCancelTasksAction.TYPE, cancellation).actionGet();
-                    gate.release();
-                    Exception failure = expectThrows(Exception.class, () -> future.actionGet(30, TimeUnit.SECONDS));
-                    assertNotNull(ExceptionsHelper.unwrap(failure, TaskCancelledException.class));
-                } finally {
-                    gate.release();
-                    try {
-                        future.actionGet(30, TimeUnit.SECONDS).close();
-                    } catch (Exception failure) {
-                        assertTrue("cancelled query must finish after its gate is released", future.isDone());
-                    }
-                }
-            }
-            for (SearchService service : internalCluster().getInstances(SearchService.class)) {
-                assertBusy(() -> assertEquals(0, service.getActiveContexts()));
-            }
-            assertBusy(
-                () -> assertTrue(client().admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks().isEmpty())
-            );
-        }
-    }
-
-    /** Park actual shard requests off transport threads, retaining each request until delegation or failure completes. */
-    private final class UnionSearchGate implements AutoCloseable {
-        private final CountDownLatch proceed = new CountDownLatch(1);
-        private final AtomicInteger pending = new AtomicInteger();
-        private volatile boolean closed;
-
-        private UnionSearchGate() {
-            for (String node : internalCluster().getNodeNames()) {
-                MockTransportService transport = MockTransportService.getInstance(node);
-                transport.<ShardSearchRequest>addRequestHandlingBehavior(
-                    SearchTransportService.QUERY_ACTION_NAME,
-                    (handler, request, channel, task) -> {
-                        if (closed
-                            || request.source() == null
-                            || request.source().ext().stream().noneMatch(SequenceDocValuesSearchExt.class::isInstance)) {
-                            handler.messageReceived(request, channel, task);
-                            return;
-                        }
-                        request.incRef();
-                        pending.incrementAndGet();
-                        transport.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
-                            @Override
-                            protected void doRun() throws Exception {
-                                if (proceed.await(30, TimeUnit.SECONDS) == false) {
-                                    throw new IllegalStateException("sequence union search gate was not released");
-                                }
-                                handler.messageReceived(request, channel, task);
-                            }
-
-                            @Override
-                            public void onFailure(Exception failure) {
-                                if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
-                                channel.sendResponse(failure);
-                            }
-
-                            @Override
-                            public void onAfter() {
-                                request.decRef();
-                                pending.decrementAndGet();
-                            }
-                        });
-                    }
-                );
-            }
-        }
-
-        private void release() {
-            proceed.countDown();
-        }
-
-        @Override
-        public void close() throws Exception {
-            closed = true;
-            release();
-            for (String node : internalCluster().getNodeNames()) {
-                MockTransportService.getInstance(node).clearAllRules();
-            }
-            assertBusy(() -> assertEquals(0, pending.get()));
-        }
-    }
-
-    /** Ordinary union responses carry no retained-match metadata and remain ordinary through JSON and transport. */
-    private void assertOrdinaryUnionConsumers(EsqlQueryResponse response, List<String> names, List<Iterable<Object>> rows)
-        throws Exception {
-        assertEquals(names, response.columns().stream().map(ColumnInfo::name).toList());
-        assertTrue(response.columns().stream().noneMatch(column -> column.meta() != null && column.meta().containsKey("sequence")));
-        assertValues(response.values(), rows);
-        // JSON carries numeric values without Java's boxed width; compare both through the same JSON parser.
-        try (var expected = JsonXContent.contentBuilder()) {
-            expected.startObject().field("values", rows).endObject();
-            assertEquals(
-                objectJson(BytesReference.bytes(expected).utf8ToString()).get("values"),
-                objectJson(json(response, false, false)).get("values")
-            );
-        }
-        try (var output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersion.current());
-            response.writeTo(output);
-            try (var input = output.bytes().streamInput()) {
-                input.setTransportVersion(TransportVersion.current());
-                try (var copy = EsqlQueryResponse.reader(blocks).read(input)) {
-                    assertEquals(names, copy.columns().stream().map(ColumnInfo::name).toList());
-                    assertValues(copy.values(), rows);
-                }
-            }
         }
     }
 
@@ -680,241 +362,16 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
     public void testOtherMemberCorrelationKeyAvailableForEitherPrimary() throws Exception {
         for (int primary : List.of(2, 1)) {
             String query = """
-                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
+                SEQUENCE BY host.id WITHIN 1m PRIMARY %s
                 (FROM demo-downloads), (FROM demo-executions)
                 | EVAL other_host = MEMBER(%s, host.id)
-                | KEEP host.id, other_host | LIMIT 10 | RETURN MATCHES
+                | KEEP host.id, other_host | LIMIT 10
                 """.formatted(primary, 3 - primary);
             try (var response = query(query)) {
                 Decoded result = checkConsumers(response);
                 assertEquals(1, result.rows.size());
                 assertEquals(List.of("demo-host-1", "demo-host-1"), result.rows.getFirst().ordinary);
-                assertEquals(List.of("D1", "E1"), result.rows.getFirst().members.stream().map(Member::id).toList());
             }
-        }
-    }
-
-    public void testKeylessAndEmptyResultsKeepDescription() throws Exception {
-        String query = resource("query.txt").replace(" BY host.id, match_hash", "");
-        try (var response = query(query)) {
-            Decoded decoded = checkConsumers(response);
-            assertEquals(1, decoded.rows.size());
-            assertEquals(List.of(), decoded.rows.getFirst().keys);
-            assertEquals(10, response.columns().size());
-        }
-        try (var response = query(query.replace("user.name == \"runner\"", "user.name == \"absent\""))) {
-            Decoded decoded = checkConsumers(response);
-            assertEquals(0, decoded.rows.size());
-            assertEquals(2, decoded.primary);
-            assertEquals(10, response.columns().size());
-            expectThrows(IllegalArgumentException.class, () -> fromJson(json(response, false, true)));
-        }
-    }
-
-    public void testOuterEditsAndForgedNamesPreserveAuthenticMembers() throws Exception {
-        String query = resource("query.txt").replace("| SORT delay_seconds ASC", """
-            | EVAL user.name = "calculated", _id = "forged", _index = "forged"
-            | RENAME user.name AS actor
-            | SORT delay_seconds ASC
-            """);
-        try (var response = query(query)) {
-            Decoded decoded = checkConsumers(response);
-            assertEquals(List.of("process.name", "download_domain", "delay_seconds", "actor", "_id", "_index"), decoded.ordinaryNames);
-            assertEquals(List.of("demotool.exe", "example.test", 2, "calculated", "forged", "forged"), decoded.rows.getFirst().ordinary);
-            assertEquals("runner", object(decoded.rows.getFirst().members.get(1).source.get("user")).get("name"));
-            assertEquals("E1", decoded.rows.getFirst().members.get(1).id);
-            assertEquals(B, decoded.rows.getFirst().members.get(1).index);
-        }
-    }
-
-    /** Ordinary calculations may use published role names without replacing protected originals or frozen keys. */
-    public void testOuterEvalDoesNotShadowOriginalsOrKeys() throws Exception {
-        List<String> names = List.of(
-            "member_1_index",
-            "member_1_id",
-            "member_1_id_1",
-            "member_1_source",
-            "member_2_index",
-            "member_2_id",
-            "member_2_source",
-            "match_key_1",
-            "match_key_1_1"
-        );
-        for (int primary : List.of(1, 2)) {
-            String fields = String.join(", ", names);
-            String calculations = String.join(", ", names.stream().map(name -> name + " = \"ordinary\"").toList());
-            try (var response = query("""
-                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
-                (FROM demo-downloads), (FROM demo-executions)
-                | EVAL %s
-                | KEEP %s | LIMIT 10 | RETURN MATCHES
-                """.formatted(primary, calculations, fields))) {
-                Decoded decoded = checkConsumers(response);
-                assertRetainedFixture(decoded, primary);
-                assertEquals(names, decoded.ordinaryNames);
-                assertEquals(names.stream().map(ignored -> "ordinary").toList(), decoded.rows.getFirst().ordinary);
-                List<String> columnNames = response.columns().stream().map(ColumnInfo::name).toList();
-                assertEquals(columnNames.size(), new HashSet<>(columnNames).size());
-            }
-        }
-    }
-
-    /** Rename targets must remain ordinary query fields even when their names also label protected output roles. */
-    public void testOuterRenameDoesNotShadowOriginalsOrKeys() throws Exception {
-        for (int primary : List.of(1, 2)) {
-            try (var response = query("""
-                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
-                (FROM demo-downloads), (FROM demo-executions)
-                | EVAL identity = "ordinary-id", key = "ordinary-key"
-                | RENAME identity AS member_1_id, key AS match_key_1
-                | KEEP member_1_id, match_key_1 | LIMIT 10 | RETURN MATCHES
-                """.formatted(primary))) {
-                Decoded decoded = checkConsumers(response);
-                assertRetainedFixture(decoded, primary);
-                assertEquals(List.of("member_1_id", "match_key_1"), decoded.ordinaryNames);
-                assertEquals(List.of("ordinary-id", "ordinary-key"), decoded.rows.getFirst().ordinary);
-            }
-        }
-    }
-
-    /** Stage calculations must not overwrite the authentic metadata captured below the stage pipeline. */
-    public void testStageEvalDoesNotShadowOriginalInputBindings() throws Exception {
-        for (int primary : List.of(1, 2)) {
-            String value = primary == 1 ? "sequence_input0_id" : "MEMBER(1, sequence_input0_id)";
-            try (var response = query("""
-                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
-                (FROM demo-downloads
-                 | EVAL sequence_input0_index = "ordinary-index", sequence_input0_id = "ordinary-id",
-                        sequence_input0_source = "ordinary-source"),
-                (FROM demo-executions)
-                | EVAL ordinary = %s
-                | KEEP ordinary | LIMIT 10 | RETURN MATCHES
-                """.formatted(primary, value))) {
-                Decoded decoded = checkConsumers(response);
-                assertRetainedFixture(decoded, primary);
-                assertEquals(List.of("ordinary"), decoded.ordinaryNames);
-                assertEquals(List.of("ordinary-id"), decoded.rows.getFirst().ordinary);
-            }
-        }
-    }
-
-    /** A stage rename can replace an ordinary field without removing an internal original-event binding. */
-    public void testStageRenameDoesNotShadowOriginalInputBindings() throws Exception {
-        for (int primary : List.of(1, 2)) {
-            String value = primary == 1 ? "sequence_input0_id" : "MEMBER(1, sequence_input0_id)";
-            try (var response = query("""
-                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
-                (FROM demo-downloads | EVAL ordinary = "ordinary-id" | RENAME ordinary AS sequence_input0_id),
-                (FROM demo-executions)
-                | EVAL ordinary = %s
-                | KEEP ordinary | LIMIT 10 | RETURN MATCHES
-                """.formatted(primary, value))) {
-                Decoded decoded = checkConsumers(response);
-                assertRetainedFixture(decoded, primary);
-                assertEquals(List.of("ordinary"), decoded.ordinaryNames);
-                assertEquals(List.of("ordinary-id"), decoded.rows.getFirst().ordinary);
-            }
-        }
-    }
-
-    /** An existing mapping must not become ambiguous when original-event retention adds its own bindings. */
-    public void testMappedFieldDoesNotShadowOriginalInputBinding() throws Exception {
-        String field = "sequence_input1_id";
-        assertAcked(indicesAdmin().preparePutMapping(B).setSource(Map.of("properties", Map.of(field, Map.of("type", "keyword")))));
-        Map<String, Object> original = object(object(list(fixture.get("documents")).get(1)).get("_source"));
-        original.put(field, "ordinary-mapped");
-        prepareIndex(B).setId("E1").setSource(original).get();
-        refresh(B);
-        for (int primary : List.of(1, 2)) {
-            String value = primary == 2 ? field : "MEMBER(2, " + field + ")";
-            try (var response = query("""
-                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
-                (FROM demo-downloads), (FROM demo-executions)
-                | EVAL ordinary = %s
-                | KEEP ordinary | LIMIT 10 | RETURN MATCHES
-                """.formatted(primary, value))) {
-                Decoded decoded = checkConsumers(response);
-                assertEquals(primary, decoded.primary);
-                assertEquals(1, decoded.rows.size());
-                Row row = decoded.rows.getFirst();
-                assertEquals(List.of("ordinary-mapped"), row.ordinary);
-                assertEquals(List.of("demo-host-1"), row.keys);
-                assertEquals(List.of("D1", "E1"), row.members.stream().map(Member::id).toList());
-                assertEquals(List.of(A, B), row.members.stream().map(Member::index).toList());
-                assertEquals(object(object(list(fixture.get("documents")).getFirst()).get("_source")), row.members.getFirst().source);
-                assertEquals(original, row.members.get(1).source);
-            }
-        }
-    }
-
-    /** The compiler-name convention remains legal user data through stage/outer edits and normal result consumers. */
-    public void testQuotedTemporaryNamesRemainOrdinaryFields() throws Exception {
-        for (int primary : List.of(1, 2)) {
-            for (String stageEdit : List.of(
-                "EVAL `$$sequence_original$1` = \"stage-value\"",
-                "EVAL value = \"stage-value\" | RENAME value AS `$$sequence_original$1`"
-            )) {
-                String stageValue = primary == 1 ? "`$$sequence_original$1`" : "MEMBER(1, `$$sequence_original$1`)";
-                try (var response = query("""
-                    SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
-                    (FROM demo-downloads | %s | KEEP host.id, `$$sequence_original$1`), (FROM demo-executions)
-                    | EVAL stage_value = %s, `$$sequence_key$1` = "key-value", value = "member-value"
-                    | RENAME value AS `$$sequence_member$1`
-                    | KEEP stage_value, `$$sequence_key$1`, `$$sequence_member$1`
-                    | LIMIT 10 | RETURN MATCHES
-                    """.formatted(primary, stageEdit, stageValue))) {
-                    Decoded decoded = checkConsumers(response);
-                    assertRetainedFixture(decoded, primary);
-                    assertEquals(List.of("stage_value", "$$sequence_key$1", "$$sequence_member$1"), decoded.ordinaryNames);
-                    assertEquals(List.of("stage-value", "key-value", "member-value"), decoded.rows.getFirst().ordinary);
-                }
-            }
-        }
-    }
-
-    /** Quoted compiler-shaped mapped names do not become reserved or disappear from the caller-visible original source. */
-    public void testMappedQuotedTemporaryNamesPreserveCallerValues() throws Exception {
-        List<String> fields = List.of("$$sequence_original$1", "$$sequence_original$1_1", "$$sequence_key$1", "$$sequence_member$1");
-        Map<String, Object> properties = new LinkedHashMap<>();
-        fields.forEach(name -> properties.put(name, Map.of("type", "keyword")));
-        List<Map<String, Object>> originals = new ArrayList<>();
-        for (Object value : list(fixture.get("documents"))) {
-            Map<String, Object> document = object(value);
-            String index = (String) document.get("_index");
-            assertAcked(indicesAdmin().preparePutMapping(index).setSource(Map.of("properties", properties)));
-            Map<String, Object> original = object(document.get("_source"));
-            fields.forEach(name -> original.put(name, "mapped-value"));
-            originals.add(original);
-            prepareIndex(index).setId((String) document.get("_id")).setSource(original).get();
-        }
-        refresh(A, B);
-        String kept = String.join(", ", fields.stream().map(name -> "`" + name + "`").toList());
-        for (int primary : List.of(1, 2)) {
-            try (var response = query("""
-                SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY %s
-                (FROM demo-downloads | KEEP host.id, %s), (FROM demo-executions | KEEP host.id, %s)
-                | KEEP %s | LIMIT 10 | RETURN MATCHES
-                """.formatted(primary, kept, kept, kept))) {
-                Decoded decoded = checkConsumers(response);
-                assertEquals(primary, decoded.primary);
-                assertEquals(fields, decoded.ordinaryNames);
-                assertEquals(List.of("mapped-value", "mapped-value", "mapped-value", "mapped-value"), decoded.rows.getFirst().ordinary);
-                assertEquals(List.of("demo-host-1"), decoded.rows.getFirst().keys);
-                assertEquals(List.of("D1", "E1"), decoded.rows.getFirst().members.stream().map(Member::id).toList());
-                assertEquals(originals, decoded.rows.getFirst().members.stream().map(Member::source).toList());
-            }
-        }
-    }
-
-    private void assertRetainedFixture(Decoded decoded, int primary) {
-        assertEquals(primary, decoded.primary);
-        assertEquals(1, decoded.rows.size());
-        Row row = decoded.rows.getFirst();
-        assertEquals(List.of("demo-host-1"), row.keys);
-        assertEquals(List.of("D1", "E1"), row.members.stream().map(Member::id).toList());
-        assertEquals(List.of(A, B), row.members.stream().map(Member::index).toList());
-        for (int i = 0; i < 2; i++) {
-            assertEquals(object(object(list(fixture.get("documents")).get(i)).get("_source")), row.members.get(i).source);
         }
     }
 
@@ -938,18 +395,22 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         assertThat(removedPrimary.getMessage(), containsString("Unknown column"));
     }
 
+    /** A post-match predicate must not backtrack to an older predecessor. */
     public void testOuterFilterDoesNotChooseAnotherPredecessor() throws Exception {
         Map<String, Object> newer = object(object(list(fixture.get("documents")).getFirst()).get("_source"));
         newer.put("@timestamp", "2026-11-08T12:00:01.000Z");
         newer.put("url", Map.of("domain", "other.test"));
         prepareIndex(A).setId("D2").setSource(newer).get();
         refresh(A);
-        String original = resource("query.txt");
+        String original = resource("query.txt").replace("FROM demo-downloads", "FROM demo-downloads METADATA _id")
+            .replace(
+                "| KEEP process.name, user.name, download_domain, delay_seconds",
+                "| EVAL selected_id=MEMBER(1,_id) | KEEP selected_id,delay_seconds"
+            );
         String unfiltered = original.replaceAll(" AND\\s+MEMBER\\(1, url\\.domain\\) == \"example\\.test\"", "");
         assertNotEquals(original, unfiltered);
         try (var response = query(unfiltered)) {
-            Decoded decoded = checkConsumers(response);
-            assertEquals("D2", decoded.rows.getFirst().members.getFirst().id);
+            assertEquals(List.of(List.of("D2", 1)), checkConsumers(response).rows.stream().map(Row::ordinary).toList());
         }
         try (var response = query(original)) {
             assertEquals(0, checkConsumers(response).rows.size());
@@ -959,10 +420,10 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
     /** A quoted ordinary field must not acquire MEMBER semantics from a neighboring call. */
     public void testQuotedMemberNameDoesNotResolveMissingOrdinaryField() throws Exception {
         Exception missing = expectThrows(Exception.class, () -> { try (var ignored = query("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            SEQUENCE BY host.id WITHIN 1m PRIMARY 2
             (FROM demo-downloads), (FROM demo-executions)
             | EVAL ordinary = `MEMBER(1, url.domain)`, other_domain = MEMBER(1, url.domain)
-            | KEEP ordinary, other_domain | LIMIT 10 | RETURN MATCHES
+            | KEEP ordinary, other_domain | LIMIT 10
             """)) {} });
         assertThat(missing.getMessage(), containsString("Unknown column [MEMBER(1, url.domain)]"));
     }
@@ -970,11 +431,11 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
     /** An ordinary alias cannot shadow a structurally different member binding. */
     public void testQuotedMemberAliasDoesNotShadowMember() throws Exception {
         try (var response = query("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            SEQUENCE BY host.id WITHIN 1m PRIMARY 2
             (FROM demo-downloads), (FROM demo-executions)
             | EVAL `MEMBER(1, url.domain)` = "ordinary"
             | EVAL ordinary = `MEMBER(1, url.domain)`, other_domain = MEMBER(1, url.domain)
-            | KEEP ordinary, other_domain | LIMIT 10 | RETURN MATCHES
+            | KEEP ordinary, other_domain | LIMIT 10
             """)) {
             Decoded result = checkConsumers(response);
             assertEquals(1, result.rows.size());
@@ -991,10 +452,10 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         prepareIndex(B).setId("E1").setSource(original).get();
         refresh(B);
         try (var response = query("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            SEQUENCE BY host.id WITHIN 1m PRIMARY 2
             (FROM demo-downloads | EVAL payload = url.domain), (FROM demo-executions)
             | EVAL ordinary = `MEMBER(1, payload)`, other_domain = MEMBER(1, payload)
-            | KEEP ordinary, other_domain | LIMIT 10 | RETURN MATCHES
+            | KEEP ordinary, other_domain | LIMIT 10
             """)) {
             Decoded result = checkConsumers(response);
             assertEquals(1, result.rows.size());
@@ -1005,7 +466,7 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
     /** Normal pipeline operations keep a live member demand, without publishing its internal binding. */
     public void testMemberBindingSurvivesStarAndUnrelatedEdits() throws Exception {
         try (var response = query("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            SEQUENCE BY host.id WITHIN 1m PRIMARY 2
             (FROM demo-downloads), (FROM demo-executions)
             | KEEP * | DROP process.command_line
             | EVAL domain = MEMBER(1, url.domain)
@@ -1021,29 +482,171 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
     /** A forged public alias must not restore a member binding removed by KEEP. */
     public void testProjectedMemberCannotBeRestoredByQuotedAlias() throws Exception {
         Exception missing = expectThrows(Exception.class, () -> { try (var ignored = query("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            SEQUENCE BY host.id WITHIN 1m PRIMARY 2
             (FROM demo-downloads), (FROM demo-executions)
             | EVAL initial = MEMBER(1, url.domain)
             | KEEP initial
             | EVAL `MEMBER(1, url.domain)` = "forged"
             | EVAL restored = MEMBER(1, url.domain)
-            | KEEP restored | LIMIT 10 | RETURN MATCHES
+            | KEEP restored | LIMIT 10
             """)) {} });
         assertThat(missing.getMessage(), containsString("Unknown column [MEMBER(1, url.domain)]"));
     }
 
-    /** Explicit public SOURCE is an additional query column, separate from each system-retained original. */
-    public void testExplicitPublicSourceRemainsSeparateFromRetainedOriginal() throws Exception {
+    /** Explicit METADATA _source remains an ordinary requested output. */
+    public void testExplicitPublicSourceRemainsOrdinary() throws Exception {
         try (var response = query("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
+            SEQUENCE BY host.id WITHIN 1m PRIMARY 2
             (FROM demo-downloads), (FROM demo-executions METADATA _source)
-            | KEEP _source | LIMIT 10 | RETURN MATCHES
+            | KEEP _source | LIMIT 10
             """)) {
             Decoded result = checkConsumers(response);
             assertEquals(1, result.rows.size());
             assertEquals(List.of("_source"), result.ordinaryNames);
-            assertEquals(result.rows.getFirst().members.get(1).source, result.rows.getFirst().ordinary.getFirst());
-            assertEquals(3L, response.columns().stream().filter(column -> column.outputType().equals("_source")).count());
+            assertEquals(object(list(fixture.get("documents")).get(1)).get("_source"), result.rows.getFirst().ordinary.getFirst());
+            assertEquals(1L, response.columns().stream().filter(column -> column.outputType().equals("_source")).count());
+        }
+    }
+
+    /** Every entry carries its own stage and authentic document identity, independently of edited stage fields. */
+    public void testProvenanceIncludesEveryStageForFirstAndLastPrimary() throws Exception {
+        Map<String, Object> third = object(object(list(fixture.get("documents")).get(1)).get("_source"));
+        third.put("@timestamp", "2026-11-08T12:00:04.000Z");
+        third.put("user", Map.of("name", "last"));
+        prepareIndex(B).setId("E2").setSource(third).get();
+        refresh(B);
+        for (int stages : List.of(2, 3)) {
+            for (int primary : List.of(1, stages)) {
+                String first = "(FROM demo-downloads | EVAL role=\"first\", _id=\"edited-1\", _index=\"edited-index-1\")";
+                String second =
+                    "(FROM demo-executions | WHERE user.name==\"runner\" | EVAL role=\"second\", _id=\"edited-2\", _index=\"edited-index-2\")";
+                String last = stages == 2
+                    ? ""
+                    : ", (FROM demo-executions | WHERE user.name==\"last\" | EVAL role=\"third\", _id=\"edited-3\", _index=\"edited-index-3\")";
+                try (
+                    var response = query(
+                        "SEQUENCE BY host.id WITHIN 1m PRIMARY "
+                            + primary
+                            + " "
+                            + first
+                            + ", "
+                            + second
+                            + last
+                            + " | KEEP role,_id,_index,sequence_provenance | LIMIT 10"
+                    )
+                ) {
+                    Decoded decoded = checkConsumers(response);
+                    assertEquals(1, decoded.rows.size());
+                    List<Object> row = decoded.rows.getFirst().ordinary;
+                    assertEquals(primary == 1 ? "first" : stages == 2 ? "second" : "third", row.get(0));
+                    assertEquals("edited-" + primary, row.get(1));
+                    assertEquals("edited-index-" + primary, row.get(2));
+                    List<SequenceProvenance.Member> expected = new ArrayList<>(
+                        List.of(new SequenceProvenance.Member(1, A, "D1"), new SequenceProvenance.Member(2, B, "E1"))
+                    );
+                    if (stages == 3) expected.add(new SequenceProvenance.Member(3, B, "E2"));
+                    assertEquals(expected, SequenceProvenance.decode(row.get(3)));
+                }
+            }
+        }
+    }
+
+    /** Expanded rows preserve the supporting document id rather than inventing a row id. */
+    public void testProvenanceExpandedRowsKeepDocumentIdentity() throws Exception {
+        for (Object value : list(fixture.get("documents"))) {
+            Map<String, Object> document = object(value);
+            Map<String, Object> source = object(document.get("_source"));
+            source.put("host", Map.of("id", List.of("one", "two")));
+            prepareIndex((String) document.get("_index")).setId((String) document.get("_id")).setSource(source).get();
+        }
+        refresh(A, B);
+        for (int primary : List.of(1, 2)) {
+            try (var response = query("""
+                SEQUENCE BY host.id WITHIN 1m PRIMARY %s
+                (FROM demo-downloads | MV_EXPAND host.id), (FROM demo-executions | MV_EXPAND host.id)
+                | KEEP host.id,sequence_provenance | SORT host.id | LIMIT 10
+                """.formatted(primary))) {
+                Decoded decoded = checkConsumers(response);
+                assertEquals(List.of("one", "two"), decoded.rows.stream().map(row -> row.ordinary.getFirst()).toList());
+                for (Row row : decoded.rows) {
+                    assertEquals(
+                        List.of(new SequenceProvenance.Member(1, A, "D1"), new SequenceProvenance.Member(2, B, "E1")),
+                        SequenceProvenance.decode(row.ordinary.get(1))
+                    );
+                }
+            }
+        }
+    }
+
+    /** A consumer can associate each row's ordinary values with exactly that row's selected events. */
+    public void testProvenanceAssociatesValuesWithEachMatch() throws Exception {
+        for (int stage = 0; stage < 2; stage++) {
+            Map<String, Object> document = object(list(fixture.get("documents")).get(stage));
+            Map<String, Object> source = object(document.get("_source"));
+            source.put("@timestamp", stage == 0 ? "2026-11-08T12:00:03.000Z" : "2026-11-08T12:00:04.000Z");
+            source.put("user", Map.of("name", stage == 0 ? "later-downloader" : "later-runner"));
+            prepareIndex(stage == 0 ? A : B).setId(stage == 0 ? "D2" : "E2").setSource(source).get();
+        }
+        refresh(A, B);
+        for (int primary : List.of(1, 2)) {
+            try (var response = query("""
+                SEQUENCE BY host.id WITHIN 1m PRIMARY %s (FROM demo-downloads), (FROM demo-executions)
+                | KEEP user.name,sequence_provenance | LIMIT 10
+                """.formatted(primary))) {
+                Decoded decoded = checkConsumers(response);
+                assertEquals(2, decoded.rows.size());
+                assertEquals(
+                    primary == 1 ? List.of("downloader", "later-downloader") : List.of("later-runner", "runner"),
+                    decoded.rows.stream().map(row -> (String) row.ordinary.getFirst()).sorted().toList()
+                );
+                for (Row row : decoded.rows) {
+                    String actor = (String) row.ordinary.getFirst();
+                    boolean later = actor.startsWith("later-");
+                    assertEquals(primary == 1 ? (later ? "later-downloader" : "downloader") : (later ? "later-runner" : "runner"), actor);
+                    assertEquals(
+                        List.of(
+                            new SequenceProvenance.Member(1, A, later ? "D2" : "D1"),
+                            new SequenceProvenance.Member(2, B, later ? "E2" : "E1")
+                        ),
+                        SequenceProvenance.decode(row.ordinary.get(1))
+                    );
+                }
+            }
+        }
+    }
+
+    /** Public projection and edits remain ordinary even when their names resemble the compiler marker. */
+    public void testProvenanceCanBeDroppedRenamedAndReplacedWithoutNameCapture() throws Exception {
+        String base = "SEQUENCE BY host.id WITHIN 1m PRIMARY 2 (FROM demo-downloads), (FROM demo-executions)";
+        try (var response = query(base + " | DROP sequence_provenance | KEEP user.name")) {
+            assertEquals(List.of(List.of("runner")), checkConsumers(response).rows.stream().map(Row::ordinary).toList());
+        }
+        try (var response = query(base + " | KEEP sequence_provenance | RENAME sequence_provenance AS events")) {
+            assertEquals(List.of("events"), response.columns().stream().map(ColumnInfo::name).toList());
+            assertEquals(
+                List.of(new SequenceProvenance.Member(1, A, "D1"), new SequenceProvenance.Member(2, B, "E1")),
+                SequenceProvenance.decode(checkConsumers(response).rows.getFirst().ordinary.getFirst())
+            );
+        }
+        try (var response = query(base + " | EVAL sequence_provenance=\"replacement\" | KEEP sequence_provenance")) {
+            assertEquals(List.of(List.of("replacement")), checkConsumers(response).rows.stream().map(Row::ordinary).toList());
+        }
+        String collisions = base.replace(
+            "FROM demo-executions",
+            "FROM demo-executions | EVAL sequence_provenance=\"caller\", sequence_provenance_1=\"reserved\", value=\"private-name-caller\" | RENAME value AS _sequence_provenance"
+        );
+        try (
+            var response = query(
+                collisions
+                    + " | KEEP sequence_provenance,sequence_provenance_1,_sequence_provenance,sequence_provenance_2 | RENAME sequence_provenance_2 AS events"
+            )
+        ) {
+            List<Object> row = checkConsumers(response).rows.getFirst().ordinary;
+            assertEquals(List.of("caller", "reserved", "private-name-caller"), row.subList(0, 3));
+            assertEquals(
+                List.of(new SequenceProvenance.Member(1, A, "D1"), new SequenceProvenance.Member(2, B, "E1")),
+                SequenceProvenance.decode(row.get(3))
+            );
         }
     }
 
@@ -1062,27 +665,8 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         }
     }
 
-    private void assertRetainedOuterSubqueryRejected(String predicate) {
-        ParsingException error = expectThrows(ParsingException.class, () -> { try (var ignored = query("""
-            SEQUENCE BY host.id WITH {"maxspan":"1m"} PRIMARY 2
-            (FROM demo-downloads), (FROM demo-executions)
-            | WHERE %s
-            | LIMIT 10 | RETURN MATCHES
-            """.formatted(predicate))) {} });
-        assertEquals(3, error.getLineNumber());
-        assertTrue("The unsupported predicate must have a source column", error.getColumnNumber() > 0);
-        assertThat(error.getErrorMessage(), containsString("outside the sequence output prototype"));
-    }
-
     private EsqlQueryResponse query(String text) {
         return query(EsqlQueryRequest.syncEsqlQueryRequest(text));
-    }
-
-    private EsqlQueryResponse query(String text, int branchParallelDegree) {
-        return query(
-            EsqlQueryRequest.syncEsqlQueryRequest(text)
-                .pragmas(new QueryPragmas(Settings.builder().put("branch_parallel_degree", branchParallelDegree).build()))
-        );
     }
 
     private EsqlQueryResponse query(EsqlQueryRequest request) {
@@ -1111,11 +695,9 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
         return decoded;
     }
 
-    private record Member(int stage, String index, String id, Map<String, Object> source) {}
+    private record Row(List<Object> ordinary) {}
 
-    private record Row(List<Object> ordinary, List<Object> keys, List<Member> members) {}
-
-    private record Decoded(int primary, List<String> ordinaryNames, List<Row> rows) {}
+    private record Decoded(List<String> ordinaryNames, List<Row> rows) {}
 
     private static Decoded consume(EsqlResponse response) {
         List<List<Object>> rows = new ArrayList<>();
@@ -1149,19 +731,7 @@ public class SequenceQueryOutputIT extends AbstractSequenceIntegTestCase {
     }
 
     private static Decoded decode(List<? extends ColumnInfo> columns, List<List<Object>> rows) {
-        var description = SequenceMatchDescription.fromColumns(columns);
-        List<Row> decoded = new ArrayList<>();
-        for (List<Object> values : rows) {
-            var row = description.decodeRow(values, SequenceMatchDescription.SourcePolicy.ALLOW_NULL);
-            decoded.add(
-                new Row(
-                    row.ordinary(),
-                    row.keys(),
-                    row.members().stream().map(member -> new Member(member.stage(), member.index(), member.id(), member.source())).toList()
-                )
-            );
-        }
-        return new Decoded(description.primaryStage(), description.ordinaryNames(), decoded);
+        return new Decoded(columns.stream().map(ColumnInfo::name).toList(), rows.stream().map(Row::new).toList());
     }
 
     private static Map<String, Object> object(Object value) {

@@ -12,7 +12,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -275,20 +277,31 @@ public final class SequenceStageInput {
      * Close the binding after execution, or on planning, execution or cancellation failure.
      */
     public Bound bind(int source, Page raw, BlockFactory blockFactory) {
+        return bind(source, raw, blockFactory, null);
+    }
+
+    /** Optional Source ownership observes the completed marker-bearing input while its ordinary binding holds it. */
+    Bound bind(int source, Page raw, BlockFactory blockFactory, @Nullable SequenceHeldBlocks heldBlocks) {
         Template template = template(source);
         if (raw.getBlockCount() != template.source.output().size()) {
             throw new IllegalArgumentException("sequence source page does not match its resolved input schema");
         }
         Page input = withRowPositions(raw, blockFactory);
+        SequenceHeldBlocks.Owner held = null;
         boolean success = false;
         try {
+            held = heldBlocks == null ? null : heldBlocks.hold(input);
             template.slot.bind(input);
-            var result = new Bound(template, input);
+            var result = new Bound(template, input, held);
             success = true;
             return result;
         } finally {
             if (success == false) {
-                input.releaseBlocks();
+                try {
+                    input.releaseBlocks();
+                } finally {
+                    Releasables.close(held);
+                }
             }
         }
     }
@@ -642,12 +655,14 @@ public final class SequenceStageInput {
     public static final class Bound implements Releasable {
         private final Template template;
         private final Page input;
+        private final @Nullable SequenceHeldBlocks.Owner held;
         private boolean outputBound;
         private boolean closed;
 
-        private Bound(Template template, Page input) {
+        private Bound(Template template, Page input, @Nullable SequenceHeldBlocks.Owner held) {
             this.template = template;
             this.input = input;
+            this.held = held;
         }
 
         public PhysicalPlan plan() {
@@ -679,8 +694,15 @@ public final class SequenceStageInput {
                         template.output.unbind();
                     }
                 } finally {
-                    template.slot.unbind(input);
-                    input.releaseBlocks();
+                    try {
+                        template.slot.unbind(input);
+                    } finally {
+                        try {
+                            input.releaseBlocks();
+                        } finally {
+                            Releasables.close(held);
+                        }
+                    }
                 }
             }
         }

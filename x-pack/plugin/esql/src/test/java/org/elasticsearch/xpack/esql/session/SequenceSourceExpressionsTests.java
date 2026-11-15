@@ -27,7 +27,7 @@ public class SequenceSourceExpressionsTests extends ESTestCase {
 
     public void testSourceNamesResolveBeforeAnalysisAgainstFixedClock() {
         LogicalPlan original = parse("""
-            sequence by key with {"maxspan":"30s"} PRIMARY 1
+            sequence by key within 30s PRIMARY 1
             (from <events-{now/d}> metadata _id, _index),
             (from <events-{now-1d/d}>) | keep key, _id
             """);
@@ -45,7 +45,7 @@ public class SequenceSourceExpressionsTests extends ESTestCase {
 
     public void testExclusionsSelectorsTimezoneAndAliasExpressionsSurvive() {
         LogicalPlan resolved = SequenceSourceExpressions.resolve(parse("""
-            sequence with {"maxspan":"30s"} PRIMARY 1
+            sequence within 30s PRIMARY 1
             (from events-*, -<events-{now-1d/d}>, routed-alias),
             (from "<events-{now/d{yyyy.MM.dd|+02:00}}>::data")
             """), STARTED);
@@ -55,7 +55,7 @@ public class SequenceSourceExpressionsTests extends ESTestCase {
     /** Exercise internal sibling traversal without claiming public support for an outer union containing a sequence. */
     public void testOrdinarySiblingSourcesRemainUntouched() {
         LogicalPlan sequence = parse("""
-            sequence with {"maxspan":"30s"} PRIMARY 1 (from <a-{now/d}>), (from <b-{now/d}>)
+            sequence within 30s PRIMARY 1 (from <a-{now/d}>), (from <b-{now/d}>)
             """);
         LogicalPlan ordinary = parse("from <ordinary-{now/d}>");
         LogicalPlan original = new UnionAll(Source.EMPTY, List.of(sequence, ordinary), List.of());

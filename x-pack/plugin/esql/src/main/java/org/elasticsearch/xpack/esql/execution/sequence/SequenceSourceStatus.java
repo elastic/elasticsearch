@@ -12,21 +12,23 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.ProfileSchema;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Sequence;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * A bounded snapshot of native sequence search, matching and stage execution work. Child stages create separate
  * drivers for candidate pages and selected payload; their cumulative CPU and iterations belong here because the
  * parent driver's CPU measures only its own work. Hits are counted before ordinary stage filtering or expansion,
  * including repeated reads of selected events. Server-reported search took values include distributed work and
- * should not be added to driver CPU. Pending candidates count live matcher prefixes, rather than distinct keys.
+ * should not be added to driver CPU. The historical max-pending counter counts retained candidate slots, including used markers; it is not a key count.
  */
 public record SequenceSourceStatus(
     long candidateSearchRequests,
@@ -41,14 +43,18 @@ public record SequenceSourceStatus(
     long candidateSearchTookMillis,
     long payloadSearchTookMillis,
     long maxPendingCandidates,
-    @Nullable LatestValidCounters latestValidCounters
+    LatestValidCounters latestValidCounters,
+    RuntimeProfile runtime
 ) implements Operator.Status {
-    /** The unmerged sequence feature has one transport definition; private intermediate checkpoints are not wire peers. */
-    public static final TransportVersion ESQL_SEQUENCE_LATEST_VALID_STATUS = TransportVersion.fromName(
-        "esql_sequence_latest_valid_language"
-    );
+    /** Historical reservation for the simplified sequence status wire form. */
+    public static final TransportVersion ESQL_SEQUENCE_SINGLE_ENGINE_STATUS = Sequence.ESQL_SEQUENCE_SINGLE_ENGINE;
 
-    /** Preserves callers and the exact profile shape for today's pairing. */
+    /** Counters are mandatory even before a source has processed its first row. */
+    public SequenceSourceStatus {
+        Objects.requireNonNull(latestValidCounters);
+    }
+
+    /** Preserve the aggregate-only constructor for existing status producers. */
     public SequenceSourceStatus(
         long candidateSearchRequests,
         long payloadSearchRequests,
@@ -61,7 +67,8 @@ public record SequenceSourceStatus(
         long stageDriverIterations,
         long candidateSearchTookMillis,
         long payloadSearchTookMillis,
-        long maxPendingCandidates
+        long maxPendingCandidates,
+        LatestValidCounters latestValidCounters
     ) {
         this(
             candidateSearchRequests,
@@ -76,9 +83,26 @@ public record SequenceSourceStatus(
             candidateSearchTookMillis,
             payloadSearchTookMillis,
             maxPendingCandidates,
+            latestValidCounters,
             null
         );
     }
+
+    private static final ProfileSchema<RuntimeProfile> RUNTIME_SCHEMA = ProfileSchema.of(
+        RuntimeProfile.class,
+        (builder, runtime, params) -> runtime.writeProfile(builder)
+    )
+        .required("search_wait_nanos", ProfileSchema.integer())
+        .required("stage_run_nanos", ProfileSchema.integer())
+        .required("candidate_build_nanos", ProfileSchema.integer())
+        .required("matcher_nanos", ProfileSchema.integer())
+        .required("condition_nanos", ProfileSchema.integer())
+        .required("result_build_nanos", ProfileSchema.integer())
+        .required("rows_fetched", ProfileSchema.array(ProfileSchema.integer()))
+        .required("candidates_admitted", ProfileSchema.array(ProfileSchema.integer()))
+        .required("peak_keys", ProfileSchema.integer())
+        .required("peak_bytes_held", ProfileSchema.integer())
+        .build();
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Operator.Status.class,
@@ -105,20 +129,19 @@ public record SequenceSourceStatus(
         .optional("candidate_search_took", ProfileSchema.string())
         .optional("payload_search_took", ProfileSchema.string())
         .required("max_pending_candidates", ProfileSchema.integer())
-        .optional("candidates_dropped_at_bound", ProfileSchema.integer())
-        .optional("searches_abandoned_at_work_limit", ProfileSchema.integer())
-        .optional("keys_that_hit_bound", ProfileSchema.integer())
-        .optional("search_steps", ProfileSchema.integer())
-        .optional("max_search_steps_per_final_row", ProfileSchema.integer())
-        .optional("condition_evaluations", ProfileSchema.integer())
-        .optional("condition_false_or_null", ProfileSchema.integer())
-        .optional("largest_ring_fill", ProfileSchema.integer())
-        .optional("candidates_used_without_report", ProfileSchema.integer())
+        .required("candidates_dropped_at_bound", ProfileSchema.integer())
+        .required("searches_abandoned_at_work_limit", ProfileSchema.integer())
+        .required("keys_that_hit_bound", ProfileSchema.integer())
+        .required("search_steps", ProfileSchema.integer())
+        .required("max_search_steps_per_final_row", ProfileSchema.integer())
+        .required("condition_evaluations", ProfileSchema.integer())
+        .required("largest_ring_fill", ProfileSchema.integer())
+        .optional("runtime", RUNTIME_SCHEMA.schema())
         .build();
 
     /** Restores only the aggregate snapshot, avoiding per-page histories in task and response profiles. */
     public static SequenceSourceStatus readFrom(StreamInput in) throws IOException {
-        Sequence.checkSupported(in.getTransportVersion());
+        Sequence.checkPlanSupported(in.getTransportVersion());
         return new SequenceSourceStatus(
             in.readVLong(),
             in.readVLong(),
@@ -132,25 +155,22 @@ public record SequenceSourceStatus(
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
-            in.getTransportVersion().supports(ESQL_SEQUENCE_LATEST_VALID_STATUS) && in.readBoolean()
-                ? new LatestValidCounters(
-                    in.readVLong(),
-                    in.readVLong(),
-                    in.readVLong(),
-                    in.readVLong(),
-                    in.readVLong(),
-                    in.readVLong(),
-                    in.readVLong(),
-                    in.readVLong(),
-                    in.readVLong()
-                )
-                : null
+            new LatestValidCounters(
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong()
+            ),
+            in.readOptionalWriteable(RuntimeProfile::new)
         );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Sequence.checkSupported(out.getTransportVersion());
+        Sequence.checkPlanSupported(out.getTransportVersion());
         out.writeVLong(candidateSearchRequests);
         out.writeVLong(payloadSearchRequests);
         out.writeVLong(candidateRowsFetched);
@@ -163,20 +183,14 @@ public record SequenceSourceStatus(
         out.writeVLong(candidateSearchTookMillis);
         out.writeVLong(payloadSearchTookMillis);
         out.writeVLong(maxPendingCandidates);
-        if (out.getTransportVersion().supports(ESQL_SEQUENCE_LATEST_VALID_STATUS)) {
-            out.writeBoolean(latestValidCounters != null);
-            if (latestValidCounters != null) {
-                out.writeVLong(latestValidCounters.candidatesDroppedAtBound());
-                out.writeVLong(latestValidCounters.searchesAbandonedAtWorkLimit());
-                out.writeVLong(latestValidCounters.keysThatHitBound());
-                out.writeVLong(latestValidCounters.searchSteps());
-                out.writeVLong(latestValidCounters.maxSearchStepsPerFinalRow());
-                out.writeVLong(latestValidCounters.conditionEvaluations());
-                out.writeVLong(latestValidCounters.conditionFalseOrNull());
-                out.writeVLong(latestValidCounters.largestRingFill());
-                out.writeVLong(latestValidCounters.candidatesUsedWithoutReport());
-            }
-        }
+        out.writeVLong(latestValidCounters.candidatesDroppedAtBound());
+        out.writeVLong(latestValidCounters.searchesAbandonedAtWorkLimit());
+        out.writeVLong(latestValidCounters.keysThatHitBound());
+        out.writeVLong(latestValidCounters.searchSteps());
+        out.writeVLong(latestValidCounters.maxSearchStepsPerFinalRow());
+        out.writeVLong(latestValidCounters.conditionEvaluations());
+        out.writeVLong(latestValidCounters.largestRingFill());
+        out.writeOptionalWriteable(runtime);
     }
 
     @Override
@@ -186,7 +200,7 @@ public record SequenceSourceStatus(
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return Sequence.ESQL_SEQUENCE;
+        return Sequence.ESQL_SEQUENCE_R5;
     }
 
     @Override
@@ -215,16 +229,16 @@ public record SequenceSourceStatus(
             builder.field("payload_search_took", TimeValue.timeValueMillis(payloadSearchTookMillis).toString());
         }
         builder.field("max_pending_candidates", maxPendingCandidates);
-        if (latestValidCounters != null) {
-            builder.field("candidates_dropped_at_bound", latestValidCounters.candidatesDroppedAtBound());
-            builder.field("searches_abandoned_at_work_limit", latestValidCounters.searchesAbandonedAtWorkLimit());
-            builder.field("keys_that_hit_bound", latestValidCounters.keysThatHitBound());
-            builder.field("search_steps", latestValidCounters.searchSteps());
-            builder.field("max_search_steps_per_final_row", latestValidCounters.maxSearchStepsPerFinalRow());
-            builder.field("condition_evaluations", latestValidCounters.conditionEvaluations());
-            builder.field("condition_false_or_null", latestValidCounters.conditionFalseOrNull());
-            builder.field("largest_ring_fill", latestValidCounters.largestRingFill());
-            builder.field("candidates_used_without_report", latestValidCounters.candidatesUsedWithoutReport());
+        builder.field("candidates_dropped_at_bound", latestValidCounters.candidatesDroppedAtBound());
+        builder.field("searches_abandoned_at_work_limit", latestValidCounters.searchesAbandonedAtWorkLimit());
+        builder.field("keys_that_hit_bound", latestValidCounters.keysThatHitBound());
+        builder.field("search_steps", latestValidCounters.searchSteps());
+        builder.field("max_search_steps_per_final_row", latestValidCounters.maxSearchStepsPerFinalRow());
+        builder.field("condition_evaluations", latestValidCounters.conditionEvaluations());
+        builder.field("largest_ring_fill", latestValidCounters.largestRingFill());
+        if (runtime != null) {
+            builder.field("runtime");
+            RUNTIME_SCHEMA.write(builder, runtime, params);
         }
         return builder.endObject();
     }
@@ -239,10 +253,7 @@ public record SequenceSourceStatus(
         return Strings.toString(this);
     }
 
-    /**
-     * Scalar-only latest-valid work. Used-without-report counts direct substitute rows, excluding rows marked
-     * solely because another stage consumed their document. Bound-hit keys count lifetimes and fill is one ring.
-     */
+    /** Aggregate work only. Bound-hit keys count lifetimes, and fill measures a single stage/key ring. */
     public record LatestValidCounters(
         long candidatesDroppedAtBound,
         long searchesAbandonedAtWorkLimit,
@@ -250,8 +261,85 @@ public record SequenceSourceStatus(
         long searchSteps,
         long maxSearchStepsPerFinalRow,
         long conditionEvaluations,
-        long conditionFalseOrNull,
-        long largestRingFill,
-        long candidatesUsedWithoutReport
+        long largestRingFill
     ) {}
+
+    /** Detailed measurements captured only when profiling is enabled. Matcher time includes condition time. */
+    public record RuntimeProfile(
+        long searchWaitNanos,
+        long stageRunNanos,
+        long candidateBuildNanos,
+        long matcherNanos,
+        long conditionNanos,
+        long resultBuildNanos,
+        List<Long> rowsFetched,
+        List<Long> candidatesAdmitted,
+        long peakKeys,
+        long peakBytesHeld
+    ) implements Writeable {
+        public RuntimeProfile {
+            rowsFetched = List.copyOf(rowsFetched);
+            candidatesAdmitted = List.copyOf(candidatesAdmitted);
+            if (rowsFetched.size() != candidatesAdmitted.size()) {
+                throw new IllegalArgumentException("runtime stage counts must have the same size");
+            }
+            if (searchWaitNanos < 0
+                || stageRunNanos < 0
+                || candidateBuildNanos < 0
+                || matcherNanos < 0
+                || conditionNanos < 0
+                || resultBuildNanos < 0
+                || peakKeys < 0
+                || peakBytesHeld < 0
+                || rowsFetched.stream().anyMatch(value -> value < 0)
+                || candidatesAdmitted.stream().anyMatch(value -> value < 0)) {
+                throw new IllegalArgumentException("runtime measurements must be nonnegative");
+            }
+        }
+
+        private RuntimeProfile(StreamInput in) throws IOException {
+            this(
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
+                in.readCollectionAsList(StreamInput::readVLong),
+                in.readCollectionAsList(StreamInput::readVLong),
+                in.readVLong(),
+                in.readVLong()
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(searchWaitNanos);
+            out.writeVLong(stageRunNanos);
+            out.writeVLong(candidateBuildNanos);
+            out.writeVLong(matcherNanos);
+            out.writeVLong(conditionNanos);
+            out.writeVLong(resultBuildNanos);
+            out.writeCollection(rowsFetched, StreamOutput::writeVLong);
+            out.writeCollection(candidatesAdmitted, StreamOutput::writeVLong);
+            out.writeVLong(peakKeys);
+            out.writeVLong(peakBytesHeld);
+        }
+
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.field("search_wait_nanos", searchWaitNanos);
+            builder.field("stage_run_nanos", stageRunNanos);
+            builder.field("candidate_build_nanos", candidateBuildNanos);
+            builder.field("matcher_nanos", matcherNanos);
+            builder.field("condition_nanos", conditionNanos);
+            builder.field("result_build_nanos", resultBuildNanos);
+            builder.field("rows_fetched", rowsFetched);
+            builder.field("candidates_admitted", candidatesAdmitted);
+            builder.field("peak_keys", peakKeys);
+            builder.field("peak_bytes_held", peakBytesHeld);
+            return builder.endObject();
+        }
+    }
+
 }

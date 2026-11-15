@@ -12,13 +12,11 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
@@ -35,29 +33,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Prototype coordinator bindings for processed primary fields and row-associated authentic originals. */
+/** Coordinator bindings for processed PRIMARY fields and explicit MEMBER references. */
 public final class SequenceMatchOutput {
     private SequenceMatchOutput() {}
 
     /** A member field demand resolved against the stage's processed output, never an original-source lookup. */
     public record Member(int stage, String field) {}
 
-    /** Original input and exported slots have separate identities; names never establish provenance. */
-    private record Role(int stage, String metadata, NameId input, NameId output) {
-        String diagnosticName() {
-            return "member_" + (stage + 1) + metadata;
-        }
-    }
-
-    private record Context(
-        int primary,
-        Map<Member, NameId> members,
-        List<Role> roles,
-        List<NameId> keys,
-        Map<NameId, NameId> published,
-        List<String> keyNames,
-        Set<String> reservedNames
-    ) {}
+    private record Context(int primary, Map<Member, NameId> members, Set<String> reservedNames) {}
 
     /** Parse-time declarations disappear before analysis and never acquire a wire representation. */
     public static final class Declaration extends UnaryPlan {
@@ -105,7 +88,7 @@ public final class SequenceMatchOutput {
         }
     }
 
-    /** Compile the narrow authoring surface before field discovery, retaining genuine metadata by identity. */
+    /** Compile stage selections and MEMBER demands before ordinary field discovery. */
     public static EsqlStatement prepare(EsqlStatement statement) {
         LogicalPlan plan = statement.plan();
         if (plan instanceof Explain explain) {
@@ -117,73 +100,35 @@ public final class SequenceMatchOutput {
             rejectSequenceOutputInLet(binding.plan());
         }
         rejectSequenceOutputInMembershipSubqueries(plan);
-        plan = prepareUnionBranches(plan, statement);
         List<Declaration> declarations = plan.collect(Declaration.class);
         if (declarations.isEmpty()) {
-            boolean branchContext = plan.collect(Scope.class).isEmpty() == false;
             plan.forEachExpressionDown(UnresolvedFunction.class, f -> {
                 if (f.name().equalsIgnoreCase("member")) {
-                    if (branchContext) {
-                        throw new ParsingException(f.source(), "MEMBER cannot escape its SEQUENCE branch");
-                    }
                     throw new ParsingException(f.source(), "MEMBER requires SEQUENCE with an explicit PRIMARY");
                 }
             });
             return plan == statement.plan() ? statement : new EsqlStatement(plan, statement.settings(), statement.letBindings());
         }
-        List<Declaration> headers = declarations.stream().filter(d -> d.primary > 0).toList();
-        if (headers.size() != 1 || (headers.getFirst().child() instanceof Sequence) == false) {
-            boolean retained = declarations.stream().anyMatch(d -> d.primary == 0);
-            throw new ParsingException(
-                plan.source(),
-                retained
-                    ? "RETURN MATCHES requires one SEQUENCE with an explicit PRIMARY"
-                    : "SEQUENCE output is outside the prototype in this command composition"
-            );
+        if (declarations.size() != 1 || declarations.getFirst().child() instanceof Sequence == false) {
+            throw new ParsingException(plan.source(), "SEQUENCE must start the query; it is not supported inside a union or subquery");
         }
-        Declaration header = headers.getFirst();
+        Declaration header = declarations.getFirst();
         Sequence sequence = prepareStageConditions((Sequence) header.child(), header.stageNames);
-        boolean capture = declarations.size() == 2;
-        if (declarations.size() > 2
-            || (capture && (plan instanceof Declaration) == false)
-            || (capture && ((Declaration) plan).primary != 0)) {
-            throw new ParsingException(plan.source(), "RETURN MATCHES must be the final command");
-        }
         if (statement.letBindings().isEmpty() == false) {
             throw new ParsingException(plan.source(), "LET is outside the sequence output prototype");
         }
         if (header.primary > sequence.children().size()) {
             throw new ParsingException(header.source(), "PRIMARY must name an existing one-based member");
         }
-        // PRIMARY is ordinary presentation. Only retained evidence needs the row-preserving outer boundary.
-        LogicalPlan cursor = capture ? ((Declaration) plan).child() : plan;
+        LogicalPlan cursor = plan;
         while (cursor != header) {
-            if ((cursor instanceof UnaryPlan) == false
-                || (capture
-                    && (cursor instanceof Eval
-                        || cursor instanceof Keep
-                        || cursor instanceof Drop
-                        || cursor instanceof Rename
-                        || cursor instanceof Filter
-                        || cursor instanceof OrderBy
-                        || cursor instanceof Limit) == false)) {
+            if (cursor instanceof UnaryPlan == false) {
                 throw new ParsingException(cursor.source(), "Command [{}] is outside the sequence output prototype", cursor.nodeName());
-            }
-            if (capture) {
-                // Membership inside a stage filters events before matching; only the outer retained pipeline excludes joins.
-                cursor.forEachExpression(expression -> {
-                    if (expression instanceof InSubquery || expression instanceof MultiColumnInSubquery) {
-                        throw new ParsingException(
-                            expression.source(),
-                            "IN subqueries are outside the sequence output prototype with RETURN MATCHES"
-                        );
-                    }
-                });
             }
             cursor = ((UnaryPlan) cursor).child();
         }
         Map<Member, NameId> members = new LinkedHashMap<>();
-        plan = plan.transformUp(Declaration.class, declaration -> declaration.primary > 0 ? sequence : declaration.child());
+        plan = plan.transformUp(Declaration.class, declaration -> sequence);
         plan = plan.transformExpressionsUp(UnresolvedFunction.class, f -> {
             if (f.name().equalsIgnoreCase("member") == false) return f;
             if (f.children().size() != 2 || (f.children().get(1) instanceof UnresolvedAttribute) == false) {
@@ -225,7 +170,7 @@ public final class SequenceMatchOutput {
             NameId binding = members.computeIfAbsent(member, ignored -> new NameId());
             return new MemberReference(f.source(), member, binding);
         });
-        return prepare(new EsqlStatement(plan, statement.settings(), statement.letBindings()), header.primary - 1, capture, members);
+        return prepare(new EsqlStatement(plan, statement.settings(), statement.letBindings()), header.primary - 1, members);
     }
 
     /** Splits only the final WHERE, preserving its own-row binding point through the permitted trailing projections. */
@@ -344,44 +289,6 @@ public final class SequenceMatchOutput {
             new Member(stage - 1, ((UnresolvedAttribute) function.children().get(1)).name()),
             new NameId()
         );
-    }
-
-    /** Ordinary unions publish each branch's processed schema after binding its own PRIMARY and MEMBER context. */
-    private static LogicalPlan prepareUnionBranches(LogicalPlan plan, EsqlStatement statement) {
-        if (plan instanceof Declaration declaration) {
-            if (declaration.primary == 0 && hasOrdinaryUnion(declaration.child())) {
-                throw new ParsingException(declaration.source(), "RETURN MATCHES cannot retain an ordinary union");
-            }
-            // A sequence owns its event stages; branch preparation must not make nested declarations valid there.
-            return plan;
-        }
-        if (plan instanceof Sequence) return plan;
-        if (plan instanceof UnionAll union) {
-            List<Declaration> declarations = union.collect(Declaration.class);
-            if (declarations.isEmpty()) return plan;
-            for (Declaration declaration : declarations) {
-                if (declaration.primary == 0) {
-                    throw new ParsingException(declaration.source(), "RETURN MATCHES is not supported inside an ordinary union");
-                }
-            }
-            List<LogicalPlan> branches = new ArrayList<>();
-            for (LogicalPlan branch : union.children()) {
-                branches.add(prepare(new EsqlStatement(branch, statement.settings(), statement.letBindings())).plan());
-            }
-            return union.replaceChildren(branches);
-        }
-        if (plan instanceof UnaryPlan unary) {
-            LogicalPlan child = prepareUnionBranches(unary.child(), statement);
-            return child == unary.child() ? plan : unary.replaceChild(child);
-        }
-        return plan;
-    }
-
-    /** A stage-local union is behind its sequence declaration and does not merge independent output contexts. */
-    private static boolean hasOrdinaryUnion(LogicalPlan plan) {
-        if (plan instanceof Declaration || plan instanceof Sequence) return false;
-        if (plan instanceof UnionAll) return true;
-        return plan.children().stream().anyMatch(SequenceMatchOutput::hasOrdinaryUnion);
     }
 
     /** LET plans are expanded after preparation, so inspect their expression-held subqueries before declarations can escape. */
@@ -505,103 +412,15 @@ public final class SequenceMatchOutput {
         }
     }
 
-    /** Projects one sequence's primary fields, adding source bindings only for the narrow retained-evidence surface. */
-    private static EsqlStatement prepare(EsqlStatement statement, int primary, boolean capture, Map<Member, NameId> members) {
-        List<Sequence> sequences = statement.plan().collect(Sequence.class);
-        if (sequences.size() != 1) throw new IllegalArgumentException("sequence output requires one sequence");
-        Sequence sequence = sequences.getFirst();
-        if (primary < 0 || primary >= sequence.children().size()) throw new IllegalArgumentException("invalid sequence primary");
+    /** Publish processed PRIMARY fields and explicitly demanded MEMBER bindings through ordinary projections. */
+    private static EsqlStatement prepare(EsqlStatement statement, int primary, Map<Member, NameId> members) {
         Set<String> names = new HashSet<>();
         statement.plan().forEachExpressionDown(Alias.class, alias -> names.add(alias.name()));
         statement.plan().forEachExpressionDown(Attribute.class, attribute -> names.add(attribute.name()));
         members.keySet().forEach(member -> names.add(member.field()));
-        Set<String> reservedNames = Set.copyOf(names);
-        Set<String> inputNames = new HashSet<>(reservedNames);
-        List<Role> roles = new ArrayList<>();
-        List<LogicalPlan> stages = new ArrayList<>();
-        for (int i = 0; i < sequence.children().size(); i++) {
-            SequenceStage stage = (SequenceStage) sequence.children().get(i);
-            if (capture == false) {
-                // The ordinary SequenceStage verifier owns the event-stage contract without retained originals.
-                stages.add(stage);
-                continue;
-            }
-            requireSimpleStage(stage.child());
-            List<UnresolvedRelation> relations = stage.child().collect(UnresolvedRelation.class);
-            if (relations.size() != 1) throw new IllegalArgumentException("sequence output requires one event relation per stage");
-            UnresolvedRelation relation = relations.getFirst();
-            List<Alias> originals = new ArrayList<>();
-            for (String name : List.of("_index", "_id", "_source")) {
-                MetadataAttribute metadata = null;
-                for (NamedExpression field : relation.metadataFields()) {
-                    if (field instanceof MetadataAttribute m && m.name().equals(name)) metadata = m;
-                }
-                if (metadata == null) {
-                    MetadataAttribute original = (MetadataAttribute) MetadataAttribute.create(Source.EMPTY, name);
-                    metadata = new MetadataAttribute(
-                        Source.EMPTY,
-                        name,
-                        original.dataType(),
-                        original.nullable(),
-                        original.id(),
-                        true,
-                        original.searchable()
-                    );
-                    relation = relation.addMetadataField(metadata);
-                }
-                Role role = new Role(i, name, new NameId(), new NameId());
-                roles.add(role);
-                originals.add(
-                    new Alias(Source.EMPTY, temporaryName(inputNames, "sequence_original", role.input()), metadata, role.input(), true)
-                );
-            }
-            UnresolvedRelation replacement = relation;
-            LogicalPlan retained = stage.child().transformUp(p -> {
-                if (p instanceof UnresolvedRelation) return new Originals(p.source(), replacement, originals, reservedNames);
-                if (p instanceof Keep keep) {
-                    List<NamedExpression> projections = new ArrayList<>(keep.projections());
-                    // The source may rename this binding after mapped fields resolve; KEEP follows its ID, not that old name.
-                    originals.forEach(a -> projections.add(new BindingReference(a.source(), a.name(), a.id())));
-                    return new Keep(keep.source(), keep.child(), projections);
-                }
-                return p;
-            });
-            stages.add(stage.replaceChild(retained));
-        }
-        List<NameId> keys = new ArrayList<>();
-        if (capture) for (Attribute ignored : ((SequenceStage) sequence.children().getFirst()).keys())
-            keys.add(new NameId());
-        Map<NameId, NameId> published = new LinkedHashMap<>();
-        roles.forEach(role -> published.put(role.output(), new NameId()));
-        keys.forEach(key -> published.put(key, new NameId()));
-        List<String> keyNames = ((SequenceStage) sequence.children().get(primary)).keys().stream().map(Attribute::name).toList();
-        Context context = new Context(
-            primary,
-            Map.copyOf(members),
-            List.copyOf(roles),
-            List.copyOf(keys),
-            Map.copyOf(published),
-            keyNames,
-            reservedNames
-        );
-        LogicalPlan plan = statement.plan().transformUp(Sequence.class, s -> new Scope(s.source(), s.replaceChildren(stages), context));
-        if (capture) plan = new Capture(Source.EMPTY, plan, context);
+        Context context = new Context(primary, Map.copyOf(members), Set.copyOf(names));
+        LogicalPlan plan = statement.plan().transformUp(Sequence.class, sequence -> new Scope(sequence.source(), sequence, context));
         return new EsqlStatement(plan, statement.settings(), statement.letBindings());
-    }
-
-    private static void requireSimpleStage(LogicalPlan plan) {
-        if (plan instanceof UnresolvedRelation) return;
-        if (plan instanceof Eval || plan instanceof Keep || plan instanceof Drop || plan instanceof Rename || plan instanceof Filter
-        // Deferred predicates preserve the event rows and public schema carrying the authentic original bindings.
-            || plan instanceof SequenceCondition
-            || plan instanceof Dissect
-            || plan instanceof Grok
-            || plan instanceof MvExpand
-            || plan instanceof UnresolvedMetadata) {
-            requireSimpleStage(((UnaryPlan) plan).child());
-            return;
-        }
-        throw new ParsingException(plan.source(), "outside sequence output stage boundary: {}", plan.nodeName());
     }
 
     /** Adds actual member field demands without removing ordinary fields that happen to match a diagnostic label. */
@@ -620,96 +439,6 @@ public final class SequenceMatchOutput {
             name = base + "_" + suffix++;
         }
         return name;
-    }
-
-    /** Capture genuine source slots by projection; SOURCE is not an EVAL result type. */
-    public static final class Originals extends UnaryPlan {
-        private final List<Alias> originals;
-        private final Set<String> reservedNames;
-        private final boolean keepUnmapped;
-
-        private Originals(Source source, LogicalPlan child, List<Alias> originals, Set<String> reservedNames) {
-            this(source, child, originals, reservedNames, false);
-        }
-
-        private Originals(Source source, LogicalPlan child, List<Alias> originals, Set<String> reservedNames, boolean keepUnmapped) {
-            super(source, child);
-            this.originals = List.copyOf(originals);
-            this.reservedNames = reservedNames;
-            this.keepUnmapped = keepUnmapped;
-        }
-
-        @Override
-        protected NodeInfo<Originals> info() {
-            return NodeInfo.create(this, Originals::new, child(), originals, reservedNames, keepUnmapped);
-        }
-
-        @Override
-        public Originals replaceChild(LogicalPlan child) {
-            return new Originals(source(), child, originals, reservedNames, keepUnmapped);
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return super.equals(other) && keepUnmapped == ((Originals) other).keepUnmapped;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), keepUnmapped);
-        }
-
-        @Override
-        public boolean expressionsResolved() {
-            return keepUnmapped;
-        }
-
-        @Override
-        public List<Attribute> output() {
-            return keepUnmapped ? Expressions.asAttributes(projections()) : child().output();
-        }
-
-        /** Keep compiler projections responsive to NULLIFY until the analysis fixpoint finishes. */
-        public LogicalPlan resolve(boolean keepUnmapped) {
-            return keepUnmapped ? new Originals(source(), child(), originals, reservedNames, true) : lower();
-        }
-
-        @Override
-        public boolean skipTelemetry() {
-            return true;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            throw new UnsupportedOperationException("analysis-only sequence output node");
-        }
-
-        @Override
-        public String getWriteableName() {
-            throw new UnsupportedOperationException("analysis-only sequence output node");
-        }
-
-        public LogicalPlan lower() {
-            return new Project(source(), child(), projections());
-        }
-
-        private List<NamedExpression> projections() {
-            List<NamedExpression> output = new ArrayList<>(child().output());
-            Set<String> usedNames = new HashSet<>(reservedNames);
-            output.forEach(field -> usedNames.add(field.name()));
-            for (Alias original : originals) {
-                output.add(
-                    new Alias(
-                        original.source(),
-                        temporaryName(usedNames, "sequence_original", original.id()),
-                        original.child(),
-                        original.id(),
-                        true
-                    )
-                );
-            }
-            return output;
-        }
     }
 
     /** Analysis-only context lowered to ordinary typed projections after its sequence resolves. */
@@ -797,6 +526,21 @@ public final class SequenceMatchOutput {
                 Attribute input = sequence.sourceAttributes().get(i);
                 Attribute value = sequence.output().get(i);
                 int stage = sequence.sourceStages().get(i);
+                if (Sequence.isProvenanceAttribute(input)) {
+                    Set<String> names = new HashSet<>();
+                    ((SequenceStage) sequence.children().get(context.primary())).output()
+                        .stream()
+                        .filter(attribute -> attribute.synthetic() == false)
+                        .forEach(attribute -> names.add(attribute.name()));
+                    String name = "sequence_provenance";
+                    int suffix = 1;
+                    while (names.add(name) == false)
+                        name = "sequence_provenance_" + suffix++;
+                    output.add(
+                        keepUnmapped ? new Alias(value.source(), name, value, value.id(), false) : new Alias(value.source(), name, value)
+                    );
+                    continue;
+                }
                 if (input.synthetic() == false && (i < keyCount || stage == context.primary())) {
                     String name = i < keyCount
                         ? ((SequenceStage) sequence.children().get(context.primary())).keys().get(i).name()
@@ -819,196 +563,9 @@ public final class SequenceMatchOutput {
                         output.add(new Alias(value.source(), temporaryName(usedNames, "sequence_member", binding), value, binding, true));
                     }
                 }
-                for (Role role : context.roles()) {
-                    if (stage == role.stage() && input.id().equals(role.input())) {
-                        output.add(
-                            new Alias(
-                                value.source(),
-                                temporaryName(usedNames, "sequence_original", role.output()),
-                                value,
-                                role.output(),
-                                true
-                            )
-                        );
-                    }
-                }
-                if (i < context.keys().size()) {
-                    NameId key = context.keys().get(i);
-                    output.add(new Alias(value.source(), temporaryName(usedNames, "sequence_key", key), value, key, true));
-                }
             }
             return output;
         }
     }
 
-    /** Explicit complete-match dependencies published as ordinary typed output columns. */
-    public static final class Capture extends UnaryPlan {
-        private final Context context;
-
-        private Capture(Source source, LogicalPlan child, Context context) {
-            super(source, child);
-            this.context = context;
-        }
-
-        @Override
-        protected NodeInfo<Capture> info() {
-            return NodeInfo.create(this, Capture::new, child(), context);
-        }
-
-        @Override
-        public Capture replaceChild(LogicalPlan child) {
-            return new Capture(source(), child, context);
-        }
-
-        @Override
-        public boolean expressionsResolved() {
-            return false;
-        }
-
-        @Override
-        public boolean skipTelemetry() {
-            return true;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-            throw new UnsupportedOperationException("analysis-only sequence output node");
-        }
-
-        @Override
-        public String getWriteableName() {
-            throw new UnsupportedOperationException("analysis-only sequence output node");
-        }
-
-        /** Adds real passthrough dependencies only after ordinary projection references have resolved. */
-        public LogicalPlan lower() {
-            Set<NameId> ids = new HashSet<>(context.keys());
-            context.roles().forEach(role -> ids.add(role.output()));
-            LogicalPlan retained = retain(child(), ids);
-            List<NamedExpression> output = new ArrayList<>();
-            Set<NameId> found = new HashSet<>();
-            Map<NameId, Attribute> protectedFields = new LinkedHashMap<>();
-            for (Attribute attribute : retained.output()) {
-                if (ids.contains(attribute.id())) {
-                    found.add(attribute.id());
-                    protectedFields.put(attribute.id(), attribute);
-                } else if (attribute.synthetic() == false) {
-                    output.add(attribute);
-                }
-            }
-            Map<NameId, String> names = new LinkedHashMap<>();
-            for (int i = 0; i < context.keys().size(); i++) {
-                names.put(context.keys().get(i), "match_key_" + (i + 1));
-            }
-            context.roles().forEach(role -> names.put(role.output(), role.diagnosticName()));
-            Set<String> usedNames = new HashSet<>();
-            output.forEach(field -> usedNames.add(field.name()));
-            for (var entry : names.entrySet()) {
-                NameId id = entry.getKey();
-                Attribute attribute = protectedFields.get(id);
-                if (attribute == null) throw new IllegalStateException("missing authentic sequence role");
-                // Assign display names only after user commands finish, preserving ordinary names on collision.
-                String name = entry.getValue();
-                int suffix = 1;
-                while (usedNames.add(name) == false) {
-                    name = entry.getValue() + "_" + suffix++;
-                }
-                output.add(new Alias(attribute.source(), name, attribute, context.published().get(id), false));
-            }
-            if (found.equals(ids) == false) throw new IllegalStateException("missing authentic sequence role");
-            return new Project(source(), retained, output);
-        }
-
-        private static LogicalPlan retain(LogicalPlan plan, Set<NameId> ids) {
-            if (plan instanceof Sequence || plan instanceof Scope) return plan;
-            if ((plan instanceof Project
-                || plan instanceof Eval
-                || plan instanceof Filter
-                || plan instanceof OrderBy
-                || plan instanceof Limit) == false) {
-                throw new IllegalArgumentException("outside sequence output boundary: " + plan.nodeName());
-            }
-            UnaryPlan unary = (UnaryPlan) plan;
-            LogicalPlan child = retain(unary.child(), ids);
-            UnaryPlan result = unary.replaceChild(child);
-            if (result instanceof Project project) {
-                List<NamedExpression> projections = new ArrayList<>(project.projections());
-                for (Attribute attribute : child.output()) {
-                    if (ids.contains(attribute.id()) && project.outputSet().contains(attribute) == false) projections.add(attribute);
-                }
-                result = project.withProjections(projections);
-            }
-            return result;
-        }
-    }
-
-    /**
-     * Verify the actual final schema against compiler-created original bindings, then attach a response-local description.
-     * No role is inferred from a display name or from a response position supplied by the consumer.
-     */
-    public static Map<NameId, Map<String, Object>> deliveryMetadata(
-        EsqlStatement statement,
-        List<Attribute> schema,
-        Map<NameId, Map<String, Object>> existing
-    ) {
-        if ((statement.plan() instanceof Capture) == false) return existing;
-        Context context = ((Capture) statement.plan()).context;
-        Map<NameId, Attribute> fields = new LinkedHashMap<>();
-        Map<NameId, String> responseIds = new LinkedHashMap<>();
-        for (int i = 0; i < schema.size(); i++) {
-            Attribute field = schema.get(i);
-            if (fields.put(field.id(), field) != null) throw new IllegalStateException("duplicate final attribute binding");
-            responseIds.put(field.id(), "c" + i);
-        }
-        if (fields.keySet().containsAll(context.published().values()) == false) {
-            throw new IllegalStateException("missing final original binding");
-        }
-        List<Map<String, Object>> keys = new ArrayList<>();
-        for (int i = 0; i < context.keys().size(); i++) {
-            NameId id = context.published().get(context.keys().get(i));
-            keys.add(
-                Map.of("name", context.keyNames().get(i), "type", fields.get(id).dataType().outputType(), "column", responseIds.get(id))
-            );
-        }
-        int memberCount = context.roles().size() / 3;
-        List<Map<String, Object>> members = new ArrayList<>();
-        for (int stage = 0; stage < memberCount; stage++) {
-            Map<String, Object> member = new LinkedHashMap<>();
-            member.put("stage", stage + 1);
-            for (Role role : context.roles()) {
-                if (role.stage() != stage) continue;
-                NameId id = context.published().get(role.output());
-                DataType expected = role.metadata().equals("_source") ? DataType.SOURCE : DataType.KEYWORD;
-                if (fields.get(id).dataType() != expected) throw new IllegalStateException("wrong final original type");
-                member.put(role.metadata().substring(1), responseIds.get(id));
-            }
-            if (member.size() != 4) throw new IllegalStateException("incomplete member binding");
-            members.add(Map.copyOf(member));
-        }
-        Map<String, Object> contract = Map.of(
-            "version",
-            1,
-            "layout",
-            "columns",
-            "primary_stage",
-            context.primary() + 1,
-            "member_count",
-            memberCount,
-            "keys",
-            keys,
-            "members",
-            members
-        );
-        NameId anchor = context.published().get(context.roles().getFirst().output());
-        Map<NameId, Map<String, Object>> result = new LinkedHashMap<>(existing);
-        for (Attribute field : schema) {
-            Map<String, Object> role = new LinkedHashMap<>();
-            role.put("column_id", responseIds.get(field.id()));
-            if (field.id().equals(anchor)) role.put("contract", contract);
-            Map<String, Object> metadata = new LinkedHashMap<>(result.getOrDefault(field.id(), Map.of()));
-            if (metadata.put("sequence", Map.copyOf(role)) != null) throw new IllegalStateException("duplicate delivery metadata");
-            result.put(field.id(), Map.copyOf(metadata));
-        }
-        return Map.copyOf(result);
-    }
 }

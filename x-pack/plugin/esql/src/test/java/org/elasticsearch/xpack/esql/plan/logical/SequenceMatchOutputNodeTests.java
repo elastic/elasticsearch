@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class SequenceMatchOutputNodeTests extends ESTestCase {
     private static final EsqlParser PARSER = new EsqlParser(new EsqlConfig(true, TEST_FUNCTION_REGISTRY));
 
-    /** A declaration's branch-local alias table survives node copying and cannot be mutated after parsing. */
+    /** A declaration's stage alias table survives node copying and cannot be mutated after parsing. */
     public void testDeclarationCopiesPreserveStageAliases() {
         Sequence sequence = parsed().collect(Sequence.class).getFirst();
         Map<String, Integer> names = new HashMap<>(Map.of("download", 1, "execution", 2));
@@ -52,7 +52,6 @@ public class SequenceMatchOutputNodeTests extends ESTestCase {
     public void testReferenceCopiesPreserveProtectedIdentity() {
         List<SequenceMatchOutput.BindingReference> references = new ArrayList<>();
         parsed().forEachExpressionDown(SequenceMatchOutput.BindingReference.class, references::add);
-        assertTrue(references.stream().anyMatch(reference -> reference.getClass() == SequenceMatchOutput.BindingReference.class));
         assertTrue(references.stream().anyMatch(SequenceMatchOutput.MemberReference.class::isInstance));
         for (var reference : references) {
             NameId replacementId = new NameId();
@@ -85,20 +84,6 @@ public class SequenceMatchOutputNodeTests extends ESTestCase {
     /** Child replacement and property copying must retain the shared context while NULLIFY-style resolution is still open. */
     public void testPlanCopiesPreserveSequenceContext() {
         LogicalPlan plan = parsed();
-        var originals = plan.collect(SequenceMatchOutput.Originals.class);
-        assertThat(originals, hasSize(2));
-        for (var original : originals) {
-            LogicalPlan replacement = new Filter(original.source(), original.child(), Literal.TRUE);
-            var copy = original.replaceChild(replacement);
-            assertEquals(replacement, copy.child());
-            assertPreservedProperties(original, copy);
-            assertEquals(copy, original.replaceChildren(List.of(replacement)));
-            assertEquals(
-                original.resolve(true).nodeProperties(),
-                original.transformPropertiesOnly(Boolean.class, ignored -> true).nodeProperties()
-            );
-            assertEquals(original.resolve(true).replaceChildren(List.of(replacement)), copy.resolve(true));
-        }
         var scopes = plan.collect(SequenceMatchOutput.Scope.class);
         assertThat(scopes, hasSize(1));
         var scope = scopes.getFirst();
@@ -116,16 +101,6 @@ public class SequenceMatchOutputNodeTests extends ESTestCase {
         assertEquals(scope.resolve(true).nodeProperties(), scope.transformPropertiesOnly(Boolean.class, ignored -> true).nodeProperties());
         assertEquals(scope.resolve(true).replaceChildren(List.of(replacement)), scopeCopy.resolve(true));
 
-        var captures = plan.collect(SequenceMatchOutput.Capture.class);
-        assertThat(captures, hasSize(1));
-        var capture = captures.getFirst();
-        LogicalPlan filtered = new Filter(capture.source(), capture.child(), Literal.TRUE);
-        var captureCopy = capture.replaceChild(filtered);
-        assertEquals(filtered, captureCopy.child());
-        assertPreservedProperties(capture, captureCopy);
-        assertEquals(captureCopy, capture.replaceChildren(List.of(filtered)));
-        assertEquals(capture, captureCopy.replaceChild(capture.child()));
-        assertEquals(capture.hashCode(), captureCopy.replaceChild(capture.child()).hashCode());
     }
 
     private static void assertPreservedProperties(UnaryPlan original, UnaryPlan copy) {
@@ -138,8 +113,8 @@ public class SequenceMatchOutputNodeTests extends ESTestCase {
 
     private static LogicalPlan parsed() {
         return PARSER.createStatement("""
-            SEQUENCE BY key WITH {"maxspan":"1m"} PRIMARY 2 (FROM a | KEEP key), (FROM b | KEEP key)
-            | EVAL supporting = MEMBER(1, key) | RETURN MATCHES
+            SEQUENCE BY key WITHIN 1m PRIMARY 2 (FROM a | KEEP key), (FROM b | KEEP key)
+            | EVAL supporting = MEMBER(1, key)
             """).plan();
     }
 }

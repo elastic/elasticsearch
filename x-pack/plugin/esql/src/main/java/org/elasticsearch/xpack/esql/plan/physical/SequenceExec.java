@@ -63,11 +63,7 @@ public final class SequenceExec extends LeafExec {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Sequence.checkPlanSupported(
-            out.getTransportVersion(),
-            sequence.hasLinkTimeLimits(),
-            sequence.pairing() == Sequence.Pairing.LATEST_VALID || sequence.hasConditions()
-        );
+        Sequence.checkPlanSupported(out.getTransportVersion());
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(sequence);
         out.writeOptionalNamedWriteable(esFilter);

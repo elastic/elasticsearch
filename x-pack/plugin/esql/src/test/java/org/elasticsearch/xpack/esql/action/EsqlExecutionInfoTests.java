@@ -53,10 +53,10 @@ public class EsqlExecutionInfoTests extends ESTestCase {
     public void testHasMetadataPartial() {
         EsqlExecutionInfo info = createEsqlExecutionInfo(false);
         String key = randomFrom(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, "remote");
-        info.swapCluster(key, (k, v) -> createEsqlExecutionInfoCluster(k, "test", false, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        info.swapCluster(key, (k, v) -> createEsqlExecutionInfoCluster(k, "test", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         assertFalse(info.isPartial());
         assertFalse(info.hasMetadataToReport());
-        info.swapCluster(key, (k, v) -> createEsqlExecutionInfoCluster(k, "test", false, EsqlExecutionInfo.Cluster.Status.PARTIAL));
+        info.swapCluster(key, (k, v) -> createEsqlExecutionInfoCluster(k, "test", EsqlExecutionInfo.Cluster.Status.PARTIAL));
         assertTrue(info.isPartial());
         assertFalse(info.hasMetadataToReport());
         info.swapCluster(key, (k, v) -> {
@@ -90,7 +90,6 @@ public class EsqlExecutionInfoTests extends ESTestCase {
             clusterAlias,
             clusterAlias,
             indexExpression,
-            true,
             EsqlExecutionInfo.Cluster.Status.RUNNING,
             null,
             null,
@@ -104,21 +103,8 @@ public class EsqlExecutionInfoTests extends ESTestCase {
     public static EsqlExecutionInfo.Cluster createEsqlExecutionInfoCluster(
         String clusterAlias,
         String indexExpression,
-        boolean skipUnavailable,
         EsqlExecutionInfo.Cluster.Status status
     ) {
-        return new EsqlExecutionInfo.Cluster(
-            clusterAlias,
-            clusterAlias,
-            indexExpression,
-            skipUnavailable,
-            status,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        return new EsqlExecutionInfo.Cluster(clusterAlias, clusterAlias, indexExpression, status, null, null, null, null, null, null);
     }
 }

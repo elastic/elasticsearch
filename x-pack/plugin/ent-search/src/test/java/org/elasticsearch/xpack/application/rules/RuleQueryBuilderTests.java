@@ -132,6 +132,24 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
         assertThat(rewritten, instanceOf(RuleQueryBuilder.class));
     }
 
+    /**
+     * When no rule matches, the rule query's own name and boost must survive the rewrite even if the organic query has its own.
+     */
+    public void testRewriteWithoutMatchingRulesKeepsNameAndBoost() throws IOException {
+        QueryBuilder organic = new TermQueryBuilder(TEXT_FIELD_NAME, "elastic").queryName("organic").boost(3f);
+        Map<String, Object> noMatch = Map.of("query_string", "no_rule_matches_this");
+
+        RuleQueryBuilder named = new RuleQueryBuilder(organic, noMatch, List.of("ruleset")).queryName("rule").boost(2f);
+        QueryBuilder rewritten = rewriteQuery(named, createQueryRewriteContext(), createSearchExecutionContext());
+        assertThat(rewritten, instanceOf(BoolQueryBuilder.class));
+        assertEquals("rule", rewritten.queryName());
+        assertEquals(2f, rewritten.boost(), 0f);
+        assertEquals(List.of(organic), ((BoolQueryBuilder) rewritten).must());
+
+        RuleQueryBuilder plain = new RuleQueryBuilder(organic, noMatch, List.of("ruleset"));
+        assertEquals(organic, rewriteQuery(plain, createQueryRewriteContext(), createSearchExecutionContext()));
+    }
+
     @Override
     protected boolean canSimulateMethod(Method method, Object[] args) throws NoSuchMethodException {
         if (method.getDeclaringClass().equals(ElasticsearchClient.class) && method.getName().equals("execute")) {

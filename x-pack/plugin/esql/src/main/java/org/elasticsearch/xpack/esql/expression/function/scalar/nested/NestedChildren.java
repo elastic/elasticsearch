@@ -25,6 +25,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -106,6 +107,10 @@ public final class NestedChildren implements Releasable {
                         settings.blockLoaderSizeOrdinals(),
                         settings.blockLoaderSizeScript()
                     );
+                    if (loader instanceof FallbackSyntheticSourceBlockLoader fallback) {
+                        // The child's own _ignored_source misses the values the nested object or an object above it keeps whole
+                        loader = new NestedChildSourceBlockLoader(fallback, name);
+                    }
                     if (loader.rowStrideStoredFieldSpec().requiresSource() && context.storesFilteredSource()) {
                         driverContext.addWarning(
                             Strings.format(

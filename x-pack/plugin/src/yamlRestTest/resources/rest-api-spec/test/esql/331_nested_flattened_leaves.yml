@@ -854,6 +854,108 @@ lookup join reads fields under a nested object in the lookup index:
 - contains: { error.reason: "LOOKUP JOIN cannot match on [items.sku]: matching on nested child fields is not supported yet" }
 
 ---
+a nested object that keeps all of its synthetic source reads each object's values:
+# With synthetic_source_keep: all the parent keeps the nested object's whole source, and its children keep none of their own.
+- do:
+    indices.create:
+      index: sb_nested_keep_all
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              synthetic_source_keep: all
+              properties:
+                note:
+                  type: text
+                sku:
+                  type: keyword
+                kw:
+                  type: keyword
+                  doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: sb_nested_keep_all
+      - id: a
+        items:
+        - { note: hello, sku: x, kw: a, num: 1 }
+        - { note: bye, sku: y, kw: b, num: 2 }
+      - index:
+          _index: sb_nested_keep_all
+      - id: b
+        items:
+        - { note: ciao, sku: z, kw: c, num: 3 }
+- do:
+    esql.query:
+      body:
+        query: FROM sb_nested_keep_all | KEEP id, items.note, items.sku, items.kw, items.num | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, [hello, bye], [x, y], [a, b], [1, 2]]
+    - [b, ciao, z, c, 3]
+# An object above the nested object that keeps its whole source keeps the nested object's too.
+- do:
+    indices.create:
+      index: sb_outer_keep_all
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            outer:
+              synthetic_source_keep: all
+              properties:
+                items:
+                  type: nested
+                  properties:
+                    kw:
+                      type: keyword
+                      doc_values: false
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: sb_outer_keep_all
+      - id: a
+        outer:
+          items:
+          - { kw: a }
+          - { kw: b }
+      - index:
+          _index: sb_outer_keep_all
+      - id: b
+        outer:
+          items:
+          - { kw: c }
+- do:
+    esql.query:
+      body:
+        query: FROM sb_outer_keep_all | KEEP id, outer.items.kw | SORT id | LIMIT 10
+- match:
+    values:
+    - [a, [a, b]]
+    - [b, c]
+
+---
 source-backed fields read each object's values in every source mode:
 # A field without doc values reads the source. Under a nested object it reads its child's object, which gives what a plain
 # object gives, whether the parent's _source is stored or synthetic.

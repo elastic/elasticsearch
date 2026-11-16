@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -28,6 +29,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -334,6 +336,27 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(stopTaskCapture.getValue().getModelId(), equalTo(failedModelToLoad));
 
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
+    }
+
+    public void testLoadFailureLogsOnceAtWarn() throws InterruptedException {
+        String modelId = "missing-model";
+        String deploymentId = "missing-deployment";
+        givenAssignmentsInClusterStateForModels(List.of(deploymentId), List.of(modelId));
+        withLoadFailure(modelId);
+        TrainedModelAssignmentNodeService service = createService();
+        service.prepareModelToLoad(newParams(deploymentId, modelId));
+
+        String loggerName = TrainedModelAssignmentNodeService.class.getCanonicalName();
+        try (var mockLog = MockLog.capture(TrainedModelAssignmentNodeService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no duplicate warn", loggerName, Level.WARN, "*Start deployment failed*")
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("failure warn", loggerName, Level.WARN, "*model [missing-model] failed to load")
+            );
+            loadQueuedModels(service);
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testClusterChangedWithResetMode() throws InterruptedException {

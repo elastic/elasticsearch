@@ -238,7 +238,6 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             .andThen(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), threadPool.getThreadContext(), this::handleLoadSuccess)
             .addListener(retryListener.delegateResponse((retryL, ex) -> {
                 var deploymentId = loadingTask.getDeploymentId();
-                logger.warn(() -> "[" + deploymentId + "] Start deployment failed", ex);
                 if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
                     var modelId = loadingTask.getParams().getModelId();
                     logger.debug(() -> "[" + deploymentId + "] Start deployment failed as model [" + modelId + "] was not found", ex);

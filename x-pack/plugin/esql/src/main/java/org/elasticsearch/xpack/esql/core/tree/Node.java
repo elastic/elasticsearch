@@ -38,6 +38,24 @@ import static java.util.Collections.emptyList;
  * the use of streams and iterators is not really useful and brings too much baggage which
  * might be used incorrectly.
  *
+ * <h2>Thread safety</h2>
+ * A node is shared by every thread that holds the plan it belongs to: on a data node, the drivers for all shards run the
+ * same physical plan, and some of them call back into its expressions while they run (for example to build a converter for
+ * each shard). Nodes are not otherwise synchronized, so they must be safe to read from several threads at once:
+ * <ul>
+ *     <li>Every instance field is {@code final}, unless it caches a value that is computed lazily.</li>
+ *     <li>A lazily computed field is {@code volatile}. Compute its value in a local variable and assign the field once,
+ *     when the value is complete: never assign a partly built collection or array and fill it in afterwards, and never
+ *     store an intermediate result in the field. Two threads may both compute the value; that's fine as long as they
+ *     compute the same one.</li>
+ *     <li>A helper object that memoizes something, such as a {@link java.util.function.Supplier}, must be thread-safe
+ *     itself; prefer {@code org.elasticsearch.common.util.CachedSupplier}.</li>
+ *     <li>Never mutate an object reachable from a node after the node is constructed, other than by such a lazy
+ *     assignment.</li>
+ * </ul>
+ * {@code PlanFieldSafePublicationTests} checks the first three rules for all subclasses of {@link Node} and
+ * {@link org.elasticsearch.xpack.esql.core.type.EsField}.
+ *
  * @param <T> node type
  */
 public abstract class Node<T extends Node<T>> implements NamedWriteable {

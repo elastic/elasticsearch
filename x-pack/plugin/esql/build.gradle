@@ -138,6 +138,9 @@ dependencies {
   testImplementation project(path: ':modules:user-agent')
   testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('ch.obermuhlner:big-math:2.3.2')
+  // PlanFieldSafePublicationTests reads the bytecode of plan classes to check how they assign lazily computed fields.
+  testImplementation 'org.ow2.asm:asm:9.11.1'
+  testImplementation 'org.ow2.asm:asm-tree:9.11.1'
 
   internalClusterTestImplementation(project('qa:testFixtures')) {
       transitive = false

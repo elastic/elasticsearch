@@ -370,7 +370,8 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             false,
             () -> 0L,
             QueryWarnings.EMIT,
-            null
+            null,
+            false
         );
         var op2 = new LuceneSourceOperator(
             shardContexts,
@@ -382,7 +383,8 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
             false,
             () -> 0L,
             QueryWarnings.EMIT,
-            null
+            null,
+            false
         );
         try {
             Thread thread1 = new Thread(() -> {

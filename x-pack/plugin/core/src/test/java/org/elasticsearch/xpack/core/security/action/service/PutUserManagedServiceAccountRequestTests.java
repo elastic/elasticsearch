@@ -45,63 +45,43 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
             randomRoles(),
             randomBoolean(),
             randomDescription(),
+            randomFullName(),
+            randomInitials(),
             randomFrom(WriteRequest.RefreshPolicy.values())
         );
     }
 
     @Override
     protected PutUserManagedServiceAccountRequest mutateInstance(PutUserManagedServiceAccountRequest instance) {
-        return switch (between(0, 5)) {
-            case 0 -> new PutUserManagedServiceAccountRequest(
-                randomValueOtherThan(instance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
-                instance.getServiceName(),
-                instance.getRoles(),
-                instance.isEnabled(),
-                instance.getDescription(),
-                instance.getRefreshPolicy()
-            );
-            case 1 -> new PutUserManagedServiceAccountRequest(
-                instance.getNamespace(),
-                randomValueOtherThan(instance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
-                instance.getRoles(),
-                instance.isEnabled(),
-                instance.getDescription(),
-                instance.getRefreshPolicy()
-            );
-            case 2 -> new PutUserManagedServiceAccountRequest(
-                instance.getNamespace(),
-                instance.getServiceName(),
-                randomValueOtherThan(instance.getRoles(), PutUserManagedServiceAccountRequestTests::randomRoles),
-                instance.isEnabled(),
-                instance.getDescription(),
-                instance.getRefreshPolicy()
-            );
-            case 3 -> new PutUserManagedServiceAccountRequest(
-                instance.getNamespace(),
-                instance.getServiceName(),
-                instance.getRoles(),
-                instance.isEnabled() == false,
-                instance.getDescription(),
-                instance.getRefreshPolicy()
-            );
-            case 4 -> new PutUserManagedServiceAccountRequest(
-                instance.getNamespace(),
-                instance.getServiceName(),
-                instance.getRoles(),
-                instance.isEnabled(),
-                randomValueOtherThan(instance.getDescription(), PutUserManagedServiceAccountRequestTests::randomDescription),
-                instance.getRefreshPolicy()
-            );
-            case 5 -> new PutUserManagedServiceAccountRequest(
-                instance.getNamespace(),
-                instance.getServiceName(),
-                instance.getRoles(),
-                instance.isEnabled(),
-                instance.getDescription(),
-                randomValueOtherThan(instance.getRefreshPolicy(), () -> randomFrom(WriteRequest.RefreshPolicy.values()))
-            );
-            default -> throw new AssertionError("between(0, 5) returned something outside its own bounds");
-        };
+        String namespace = instance.getNamespace();
+        String serviceName = instance.getServiceName();
+        List<String> roles = instance.getRoles();
+        boolean enabled = instance.isEnabled();
+        String description = instance.getDescription();
+        String fullName = instance.getFullName();
+        String initials = instance.getInitials();
+        WriteRequest.RefreshPolicy refreshPolicy = instance.getRefreshPolicy();
+        switch (between(0, 7)) {
+            case 0 -> namespace = randomValueOtherThan(namespace, () -> randomAlphaOfLengthBetween(3, 8));
+            case 1 -> serviceName = randomValueOtherThan(serviceName, () -> randomAlphaOfLengthBetween(3, 8));
+            case 2 -> roles = randomValueOtherThan(roles, PutUserManagedServiceAccountRequestTests::randomRoles);
+            case 3 -> enabled = enabled == false;
+            case 4 -> description = randomValueOtherThan(description, PutUserManagedServiceAccountRequestTests::randomDescription);
+            case 5 -> fullName = randomValueOtherThan(fullName, PutUserManagedServiceAccountRequestTests::randomFullName);
+            case 6 -> initials = randomValueOtherThan(initials, PutUserManagedServiceAccountRequestTests::randomInitials);
+            case 7 -> refreshPolicy = randomValueOtherThan(refreshPolicy, () -> randomFrom(WriteRequest.RefreshPolicy.values()));
+            default -> throw new AssertionError("between(0, 7) returned something outside its own bounds");
+        }
+        return new PutUserManagedServiceAccountRequest(
+            namespace,
+            serviceName,
+            roles,
+            enabled,
+            description,
+            fullName,
+            initials,
+            refreshPolicy
+        );
     }
 
     public void testParseTakesTheAccountFromThePathAndTheRestFromTheBody() throws IOException {
@@ -110,7 +90,9 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
             {
               "roles": ["role-a", "role-b"],
               "enabled": false,
-              "description": "Deploys my-app"
+              "description": "Deploys my-app",
+              "full_name": "AlertZero",
+              "initials": "AZ"
             }
             """);
         assertThat(request.getNamespace(), equalTo("my-team"));
@@ -119,6 +101,8 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
         assertThat(request.getRoles(), equalTo(List.of("role-a", "role-b")));
         assertThat(request.isEnabled(), is(false));
         assertThat(request.getDescription(), equalTo("Deploys my-app"));
+        assertThat(request.getFullName(), equalTo("AlertZero"));
+        assertThat(request.getInitials(), equalTo("AZ"));
         assertThat(request.getRefreshPolicy(), equalTo(refreshPolicy));
     }
 
@@ -128,7 +112,9 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
             "worker",
             List.of("role-a"),
             randomBoolean(),
-            randomDescription()
+            randomDescription(),
+            randomFullName(),
+            randomInitials()
         );
         assertThat(request.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.WAIT_UNTIL));
     }
@@ -167,6 +153,54 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
         assertThat(e.getMessage(), containsString("description doesn't support values of type: START_ARRAY"));
     }
 
+    public void testParseTreatsAMissingFullNameAsNone() throws IOException {
+        assertThat(parse("my-team", "worker", """
+            {"roles": ["role-a"]}
+            """).getFullName(), nullValue());
+    }
+
+    /**
+     * An explicit null is the same as leaving the field out, as with the description, so that a client that always
+     * sends every field can clear it.
+     */
+    public void testParseTreatsANullFullNameAsNone() throws IOException {
+        assertThat(parse("my-team", "worker", """
+            {"roles": ["role-a"], "full_name": null}
+            """).getFullName(), nullValue());
+    }
+
+    public void testParseRejectsAFullNameThatIsNotAString() {
+        final XContentParseException e = expectThrows(XContentParseException.class, () -> parse("my-team", "worker", """
+            {"roles": ["role-a"], "full_name": {"first": "Alert"}}
+            """));
+        assertThat(e.getMessage(), containsString("full_name doesn't support values of type: START_OBJECT"));
+    }
+
+    public void testParseTreatsMissingInitialsAsNone() throws IOException {
+        assertThat(parse("my-team", "worker", """
+            {"roles": ["role-a"]}
+            """).getInitials(), nullValue());
+    }
+
+    public void testParseTreatsNullInitialsAsNone() throws IOException {
+        assertThat(parse("my-team", "worker", """
+            {"roles": ["role-a"], "initials": null}
+            """).getInitials(), nullValue());
+    }
+
+    public void testParseKeepsInitialsExactlyAsGiven() throws IOException {
+        assertThat(parse("my-team", "worker", """
+            {"roles": ["role-a"], "initials": "aZ"}
+            """).getInitials(), equalTo("aZ"));
+    }
+
+    public void testParseRejectsInitialsThatAreNotAString() {
+        final XContentParseException e = expectThrows(XContentParseException.class, () -> parse("my-team", "worker", """
+            {"roles": ["role-a"], "initials": ["A", "Z"]}
+            """));
+        assertThat(e.getMessage(), containsString("initials doesn't support values of type: START_ARRAY"));
+    }
+
     /**
      * A node that predates the description is sent the request without it rather than being refused the request, so
      * that the account is still written there, only without its description.
@@ -178,6 +212,8 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
             randomRoles(),
             randomBoolean(),
             randomAlphaOfLengthBetween(1, 20),
+            null,
+            null,
             randomFrom(WriteRequest.RefreshPolicy.values())
         );
         final TransportVersion beforeDescription = TransportVersionUtils.getPreviousVersion(
@@ -192,10 +228,61 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
                     request.getRoles(),
                     request.isEnabled(),
                     null,
+                    null,
+                    null,
                     request.getRefreshPolicy()
                 )
             )
         );
+    }
+
+    /**
+     * A node that predates the full name and initials is sent the request without them, and keeps the fields that
+     * came before them.
+     */
+    public void testTheFullNameAndInitialsAreDroppedForNodesThatDoNotKnowThem() throws IOException {
+        final PutUserManagedServiceAccountRequest request = new PutUserManagedServiceAccountRequest(
+            "my-team",
+            "worker",
+            List.of("role-a"),
+            false,
+            "Triages alerts",
+            "AlertZero",
+            "AZ",
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        );
+        final TransportVersion beforeFullName = TransportVersionUtils.getPreviousVersion(
+            ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_FULL_NAME
+        );
+        assertThat(
+            copyInstance(request, beforeFullName),
+            equalTo(
+                new PutUserManagedServiceAccountRequest(
+                    "my-team",
+                    "worker",
+                    List.of("role-a"),
+                    false,
+                    "Triages alerts",
+                    null,
+                    null,
+                    WriteRequest.RefreshPolicy.IMMEDIATE
+                )
+            )
+        );
+    }
+
+    public void testTheFullNameAndInitialsAreKeptForNodesThatKnowThem() throws IOException {
+        final PutUserManagedServiceAccountRequest request = new PutUserManagedServiceAccountRequest(
+            "my-team",
+            "worker",
+            List.of("role-a"),
+            true,
+            null,
+            "AlertZero",
+            "AZ",
+            WriteRequest.RefreshPolicy.IMMEDIATE
+        );
+        assertThat(copyInstance(request, ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_FULL_NAME), equalTo(request));
     }
 
     public void testParseRequiresRoles() {
@@ -217,13 +304,21 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
 
     public void testAnAccountThatCouldExistIsAccepted() {
         assertThat(
-            new PutUserManagedServiceAccountRequest("my-team", "worker", List.of("role-a"), randomBoolean(), randomDescription())
-                .validate(),
+            new PutUserManagedServiceAccountRequest(
+                "my-team",
+                "worker",
+                List.of("role-a"),
+                randomBoolean(),
+                randomDescription(),
+                randomFullName(),
+                randomInitials()
+            ).validate(),
             nullValue()
         );
         // An account with no roles can authenticate and do nothing, which is a state an admin is allowed to ask for.
         assertThat(
-            new PutUserManagedServiceAccountRequest("my-team", "worker", List.of(), randomBoolean(), randomDescription()).validate(),
+            new PutUserManagedServiceAccountRequest("my-team", "worker", List.of(), randomBoolean(), randomDescription(), null, null)
+                .validate(),
             nullValue()
         );
     }
@@ -235,7 +330,9 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
                 "worker",
                 List.of("role-a"),
                 randomBoolean(),
-                randomDescription()
+                randomDescription(),
+                null,
+                null
             ).validate();
             assertThat("namespace [" + namespace + "] should be reserved", e, notNullValue());
             assertThat(e.validationErrors(), contains("the [elastic] namespace is reserved for built-in service accounts"));
@@ -272,13 +369,45 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
         );
     }
 
+    public void testAnOverlongFullNameIsRejected() {
+        final int max = Validation.UserManagedServiceAccounts.MAX_FULL_NAME_LENGTH;
+        assertThat(newRequestWithFullName("a".repeat(max)).validate(), nullValue());
+
+        final ActionRequestValidationException e = newRequestWithFullName("a".repeat(max + 1)).validate();
+        assertThat(e, notNullValue());
+        assertThat(
+            e.validationErrors(),
+            contains("a service account full name may not be more than " + max + " characters long, but [" + (max + 1) + "] were given")
+        );
+    }
+
+    public void testABlankFullNameIsAccepted() {
+        assertThat(newRequestWithFullName("  ").validate(), nullValue());
+    }
+
+    public void testInitialsOfTwoCharactersAreAccepted() {
+        assertThat(newRequestWithInitials("AZ").validate(), nullValue());
+    }
+
+    public void testInitialsOfThreeCharactersAreRejected() {
+        final ActionRequestValidationException e = newRequestWithInitials("AZB").validate();
+        assertThat(e, notNullValue());
+        assertThat(e.validationErrors(), contains("service account initials may not be more than 2 characters long, but [3] were given"));
+    }
+
+    public void testBlankInitialsAreAccepted() {
+        assertThat(newRequestWithInitials("").validate(), nullValue());
+    }
+
     public void testEveryProblemWithTheRequestIsReportedAtOnce() {
         final ActionRequestValidationException e = new PutUserManagedServiceAccountRequest(
             "my*team",
             "worker*",
             List.of(" role-a", "role-b"),
             randomBoolean(),
-            randomAlphaOfLength(Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH + 1)
+            randomAlphaOfLength(Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH + 1),
+            "a".repeat(Validation.UserManagedServiceAccounts.MAX_FULL_NAME_LENGTH + 1),
+            "AZB"
         ).validate();
         assertThat(e, notNullValue());
         assertThat(
@@ -287,17 +416,27 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
                 containsString("service account namespace [my*team] must begin with a letter or digit"),
                 containsString("service account service name [worker*] must begin with a letter or digit"),
                 containsString("Role names must be at least"),
-                containsString("a service account description may not be more than")
+                containsString("a service account description may not be more than"),
+                containsString("a service account full name may not be more than"),
+                containsString("service account initials may not be more than 2 characters long")
             )
         );
     }
 
     private static PutUserManagedServiceAccountRequest newRequestWithRoles(List<String> roles) {
-        return new PutUserManagedServiceAccountRequest("my-team", "worker", roles, randomBoolean(), randomDescription());
+        return new PutUserManagedServiceAccountRequest("my-team", "worker", roles, randomBoolean(), randomDescription(), null, null);
     }
 
     private static PutUserManagedServiceAccountRequest newRequestWithDescription(String description) {
-        return new PutUserManagedServiceAccountRequest("my-team", "worker", List.of("role-a"), randomBoolean(), description);
+        return new PutUserManagedServiceAccountRequest("my-team", "worker", List.of("role-a"), randomBoolean(), description, null, null);
+    }
+
+    private static PutUserManagedServiceAccountRequest newRequestWithFullName(String fullName) {
+        return new PutUserManagedServiceAccountRequest("my-team", "worker", List.of("role-a"), true, null, fullName, null);
+    }
+
+    private static PutUserManagedServiceAccountRequest newRequestWithInitials(String initials) {
+        return new PutUserManagedServiceAccountRequest("my-team", "worker", List.of("role-a"), true, null, null, initials);
     }
 
     private static List<String> roleNames(int count) {
@@ -325,5 +464,13 @@ public class PutUserManagedServiceAccountRequestTests extends AbstractWireSerial
 
     private static String randomDescription() {
         return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+    }
+
+    private static String randomFullName() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+    }
+
+    private static String randomInitials() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 2);
     }
 }

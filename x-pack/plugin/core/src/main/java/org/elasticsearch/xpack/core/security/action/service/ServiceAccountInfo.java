@@ -50,6 +50,13 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
      */
     TransportVersion USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION = TransportVersion.fromName("user_managed_service_account_attribution");
 
+    /**
+     * Gates the optional full name and initials of a user-managed account, written after the attribution both in this
+     * wire form and, after the description, in that of the request that writes an account. As with the description, a
+     * node before this version is sent the account without them: they describe the account, not what it may do.
+     */
+    TransportVersion USER_MANAGED_SERVICE_ACCOUNT_FULL_NAME = TransportVersion.fromName("user_managed_service_account_full_name");
+
     String principal();
 
     ServiceAccountType type();
@@ -73,7 +80,8 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
     /**
      * An account created through the API, whose privileges are the named roles resolved when it authenticates. The
      * roles are reported as the caller gave them. The description is free text that means nothing to Elasticsearch,
-     * carried for the caller's benefit, and is {@code null} when the account has none.
+     * carried for the caller's benefit, and is {@code null} when the account has none. The full name and the initials are
+     * likewise optional and carried for the caller; each is {@code null} when the account has none.
      * <p>
      * The two authors record who created the account and who last replaced it, and the two timestamps when. Each is
      * {@code null} when unknown: the updating author and its timestamp until the account is first replaced, and the
@@ -87,6 +95,8 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         List<String> roles,
         boolean enabled,
         @Nullable String description,
+        @Nullable String fullName,
+        @Nullable String initials,
         @Nullable ServiceAccountAuthor createdBy,
         @Nullable Instant createdAt,
         @Nullable ServiceAccountAuthor updatedBy,
@@ -101,10 +111,10 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         }
 
         /**
-         * An account with no attribution, as one written before attribution was recorded reads back.
+         * An account with no full name, initials or attribution, as one written before any of them existed reads back.
          */
         public UserManaged(String principal, List<String> roles, boolean enabled, @Nullable String description) {
-            this(principal, roles, enabled, description, null, null, null, null);
+            this(principal, roles, enabled, description, null, null, null, null, null, null);
         }
 
         /**
@@ -115,12 +125,14 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
             List<String> roles,
             boolean enabled,
             @Nullable String description,
+            @Nullable String fullName,
+            @Nullable String initials,
             @Nullable ServiceAccountAuthor createdBy,
             @Nullable Instant createdAt,
             @Nullable ServiceAccountAuthor updatedBy,
             @Nullable Instant updatedAt
         ) {
-            this(principal, roles, enabled, description, createdBy, createdAt, updatedBy, updatedAt, null, null);
+            this(principal, roles, enabled, description, fullName, initials, createdBy, createdAt, updatedBy, updatedAt, null, null);
         }
 
         /**
@@ -133,6 +145,8 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
                 roles,
                 enabled,
                 description,
+                fullName,
+                initials,
                 createdBy,
                 createdAt,
                 updatedBy,
@@ -168,17 +182,28 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
         if (in.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION) == false) {
             return new UserManaged(principal, roles, enabled, description);
         }
+        final ServiceAccountAuthor createdBy = in.readOptionalWriteable(ServiceAccountAuthor::readFrom);
+        final Instant createdAt = in.readOptionalInstant();
+        final ServiceAccountAuthor updatedBy = in.readOptionalWriteable(ServiceAccountAuthor::readFrom);
+        final Instant updatedAt = in.readOptionalInstant();
+        final String createdByProfileUid = in.readOptionalString();
+        final String updatedByProfileUid = in.readOptionalString();
+        final boolean hasFullName = in.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_FULL_NAME);
+        final String fullName = hasFullName ? in.readOptionalString() : null;
+        final String initials = hasFullName ? in.readOptionalString() : null;
         return new UserManaged(
             principal,
             roles,
             enabled,
             description,
-            in.readOptionalWriteable(ServiceAccountAuthor::readFrom),
-            in.readOptionalInstant(),
-            in.readOptionalWriteable(ServiceAccountAuthor::readFrom),
-            in.readOptionalInstant(),
-            in.readOptionalString(),
-            in.readOptionalString()
+            fullName,
+            initials,
+            createdBy,
+            createdAt,
+            updatedBy,
+            updatedAt,
+            createdByProfileUid,
+            updatedByProfileUid
         );
     }
 
@@ -215,6 +240,10 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
                     out.writeOptionalString(userManaged.createdByProfileUid());
                     out.writeOptionalString(userManaged.updatedByProfileUid());
                 }
+                if (out.getTransportVersion().supports(USER_MANAGED_SERVICE_ACCOUNT_FULL_NAME)) {
+                    out.writeOptionalString(userManaged.fullName());
+                    out.writeOptionalString(userManaged.initials());
+                }
             }
         }
     }
@@ -246,6 +275,12 @@ public sealed interface ServiceAccountInfo extends Writeable, ToXContent {
                 builder.field("enabled", userManaged.enabled());
                 if (userManaged.description() != null) {
                     builder.field("description", userManaged.description());
+                }
+                if (userManaged.fullName() != null) {
+                    builder.field("full_name", userManaged.fullName());
+                }
+                if (userManaged.initials() != null) {
+                    builder.field("initials", userManaged.initials());
                 }
                 if (userManaged.createdBy() != null) {
                     builder.field("created_by", userManaged.createdBy());

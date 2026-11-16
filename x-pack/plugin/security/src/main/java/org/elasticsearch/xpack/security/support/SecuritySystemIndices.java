@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_ESQL_GLOBAL_DATASOURCE_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_MANAGE_ROLES_PRIVILEGE;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_SERVICE_ACCOUNT_INITIALS_FIELD;
 
 /**
  * Responsible for handling system indices for the Security plugin
@@ -634,6 +635,14 @@ public class SecuritySystemIndices {
                         builder.endObject();
                     }
 
+                    if (mappingVersion.onOrAfter(ADD_SERVICE_ACCOUNT_INITIALS_FIELD)) {
+                        // The initials of a user-managed service account. Its full name shares the top-level
+                        // "full_name" field with native users.
+                        builder.startObject("initials");
+                        builder.field("type", "keyword");
+                        builder.endObject();
+                    }
+
                     builder.startObject("rules");
                     builder.field("type", "object");
                     builder.field("dynamic", false);
@@ -1211,6 +1220,12 @@ public class SecuritySystemIndices {
          * {@code api_key}.
          */
         ADD_SERVICE_ACCOUNT_ATTRIBUTION_FIELDS(6),
+
+        /**
+         * Mapping for the {@code initials} of a user-managed service account. Its full name reuses the existing
+         * top-level {@code full_name} field that native users store theirs in.
+         */
+        ADD_SERVICE_ACCOUNT_INITIALS_FIELD(7),
 
         ;
 

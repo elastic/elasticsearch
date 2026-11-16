@@ -82,6 +82,8 @@ public class TransportQueryServiceAccountActionTests extends ESTestCase {
             List.of(),
             true,
             null,
+            null,
+            null,
             alice,
             now,
             bob,
@@ -198,7 +200,7 @@ public class TransportQueryServiceAccountActionTests extends ESTestCase {
             null,
             null,
             null,
-            List.of(new FieldSortBuilder(randomFrom("version", "doc_type", "full_name"))),
+            List.of(new FieldSortBuilder(randomFrom("version", "doc_type", "password"))),
             null
         );
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> execute(request));

@@ -360,6 +360,151 @@ public class ValidationTests extends ESTestCase {
         );
     }
 
+    public void testUserManagedServiceAccountFullNameIsOptional() {
+        assertThat(UserManagedServiceAccounts.validateFullName(null), nullValue());
+    }
+
+    public void testUserManagedServiceAccountFullNameAllowsAnyCharacters() {
+        assertThat(UserManagedServiceAccounts.validateFullName("AlertZero"), nullValue());
+        assertThat(UserManagedServiceAccounts.validateFullName("Alert Zero 🤖 — SOC triage (EU/US) *"), nullValue());
+        assertThat(UserManagedServiceAccounts.validateFullName(" padded "), nullValue());
+    }
+
+    public void testUserManagedServiceAccountFullNameAtTheLimitIsAccepted() {
+        final int max = UserManagedServiceAccounts.MAX_FULL_NAME_LENGTH;
+        assertThat(UserManagedServiceAccounts.validateFullName("a".repeat(max)), nullValue());
+    }
+
+    public void testUserManagedServiceAccountFullNameOverTheLimitIsRejected() {
+        final int max = UserManagedServiceAccounts.MAX_FULL_NAME_LENGTH;
+        assertThat(
+            UserManagedServiceAccounts.validateFullName("a".repeat(max + 1)).toString(),
+            containsString(
+                "a service account full name may not be more than " + max + " characters long, but [" + (max + 1) + "] were given"
+            )
+        );
+    }
+
+    /**
+     * Each character here is outside the Basic Multilingual Plane, so it is two UTF-16 code units. The limit counts code
+     * units, the same as the description, so only half as many of them fit.
+     */
+    public void testUserManagedServiceAccountFullNameCountsUtf16Units() {
+        final int max = UserManagedServiceAccounts.MAX_FULL_NAME_LENGTH;
+        final String mathematicalScriptA = new String(Character.toChars(0x1D49C));
+        final String atLimit = mathematicalScriptA.repeat(max / 2);
+        assertThat(atLimit.length(), equalTo(max));
+        assertThat(UserManagedServiceAccounts.validateFullName(atLimit), nullValue());
+        assertThat(
+            UserManagedServiceAccounts.validateFullName(atLimit + mathematicalScriptA).toString(),
+            containsString("but [" + (max + 2) + "] were given")
+        );
+    }
+
+    public void testUserManagedServiceAccountFullNameMayBeEmpty() {
+        assertThat(UserManagedServiceAccounts.validateFullName(""), nullValue());
+    }
+
+    public void testUserManagedServiceAccountFullNameMayBeOnlyWhitespace() {
+        assertThat(UserManagedServiceAccounts.validateFullName(" \t\n"), nullValue());
+    }
+
+    public void testUserManagedServiceAccountInitialsAreOptional() {
+        assertThat(UserManagedServiceAccounts.validateInitials(null), nullValue());
+    }
+
+    public void testUserManagedServiceAccountInitialsOfOneOrTwoLettersAreAccepted() {
+        assertThat(UserManagedServiceAccounts.validateInitials("A"), nullValue());
+        assertThat(UserManagedServiceAccounts.validateInitials("AZ"), nullValue());
+        assertThat(UserManagedServiceAccounts.validateInitials("az"), nullValue());
+        assertThat(UserManagedServiceAccounts.validateInitials("李"), nullValue()); // 李
+    }
+
+    public void testUserManagedServiceAccountInitialsOfThreeLettersAreRejected() {
+        assertThat(
+            UserManagedServiceAccounts.validateInitials("AZB").toString(),
+            containsString("service account initials may not be more than 2 characters long, but [3] were given")
+        );
+    }
+
+    /**
+     * A thumbs-up with a skin tone modifier is two code points, and three with a variation selector between them.
+     * Either way a person sees one character.
+     */
+    public void testUserManagedServiceAccountInitialsCountAnEmojiWithASkinToneAsOneCharacter() {
+        final String thumbsUp = "👍";
+        final String mediumSkinTone = "🏽";
+        assertThat(UserManagedServiceAccounts.validateInitials(thumbsUp + mediumSkinTone), nullValue());
+        assertThat(UserManagedServiceAccounts.validateInitials(thumbsUp + "️" + mediumSkinTone), nullValue());
+        assertThat(UserManagedServiceAccounts.validateInitials(thumbsUp + mediumSkinTone + thumbsUp), nullValue());
+        assertThat(
+            UserManagedServiceAccounts.validateInitials(thumbsUp + mediumSkinTone + thumbsUp + "️" + thumbsUp).toString(),
+            containsString("but [3] were given")
+        );
+    }
+
+    /**
+     * A family is four people joined by zero-width joiners, seven code points and eleven UTF-16 code units in all. Two
+     * of them still fit under the code unit cap.
+     */
+    public void testUserManagedServiceAccountInitialsCountAZeroWidthJoinerSequenceAsOneCharacter() {
+        final String family = "👨‍👩‍👧‍👦";
+        assertThat(family.length(), equalTo(11));
+        assertThat(UserManagedServiceAccounts.validateInitials(family), nullValue());
+        assertThat(UserManagedServiceAccounts.validateInitials(family + family), nullValue());
+    }
+
+    public void testUserManagedServiceAccountInitialsCountAFlagAsOneCharacter() {
+        final String regionalIndicatorFlag = "🇺🇦"; // two regional indicator symbols
+        assertThat(UserManagedServiceAccounts.validateInitials(regionalIndicatorFlag), nullValue());
+        assertThat(UserManagedServiceAccounts.validateInitials(regionalIndicatorFlag + "A"), nullValue());
+
+        // A black flag followed by tag characters and a cancel tag: seven code points, fourteen UTF-16 code units.
+        final String tagSequenceFlag = new StringBuilder().appendCodePoint(0x1F3F4)
+            .appendCodePoint(0xE0067)
+            .appendCodePoint(0xE0062)
+            .appendCodePoint(0xE0065)
+            .appendCodePoint(0xE006E)
+            .appendCodePoint(0xE0067)
+            .appendCodePoint(0xE007F)
+            .toString();
+        assertThat(tagSequenceFlag.length(), equalTo(14));
+        assertThat(UserManagedServiceAccounts.validateInitials(tagSequenceFlag), nullValue());
+        assertThat(UserManagedServiceAccounts.validateInitials(tagSequenceFlag + tagSequenceFlag), nullValue());
+    }
+
+    public void testUserManagedServiceAccountInitialsCountALetterWithACombiningMarkAsOneCharacter() {
+        final String eWithCombiningAcute = "é";
+        assertThat(UserManagedServiceAccounts.validateInitials(eWithCombiningAcute), nullValue());
+        assertThat(UserManagedServiceAccounts.validateInitials("A" + eWithCombiningAcute), nullValue());
+        assertThat(
+            UserManagedServiceAccounts.validateInitials("AB" + eWithCombiningAcute).toString(),
+            containsString("but [3] were given")
+        );
+    }
+
+    /**
+     * One grapheme cluster can hold any number of combining marks, so the code unit cap is what bounds it.
+     */
+    public void testUserManagedServiceAccountInitialsAreCappedInUtf16Units() {
+        final int max = UserManagedServiceAccounts.MAX_INITIALS_UTF16_LENGTH;
+        assertThat(UserManagedServiceAccounts.validateInitials("a" + "́".repeat(max - 1)), nullValue());
+        assertThat(
+            UserManagedServiceAccounts.validateInitials("a" + "́".repeat(max)).toString(),
+            containsString(
+                "service account initials may not be more than " + max + " UTF-16 code units long, but [" + (max + 1) + "] were given"
+            )
+        );
+    }
+
+    public void testUserManagedServiceAccountInitialsMayBeEmpty() {
+        assertThat(UserManagedServiceAccounts.validateInitials(""), nullValue());
+    }
+
+    public void testUserManagedServiceAccountInitialsMayBeOnlyWhitespace() {
+        assertThat(UserManagedServiceAccounts.validateInitials("  "), nullValue());
+    }
+
     public void testUserManagedServiceAccountIdRejectsMalformedPrincipal() {
         final String noSeparator = randomUserManagedComponent();
         assertThat(

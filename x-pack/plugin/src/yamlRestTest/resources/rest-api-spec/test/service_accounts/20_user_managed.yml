@@ -55,6 +55,14 @@ teardown:
         ignore: 404
 
   - do:
+      security.invalidate_api_key:
+        body: >
+          {
+            "name": "named-account-key"
+          }
+        ignore: 404
+
+  - do:
       security.delete_user_managed_service_account:
         namespace: apps
         service: worker_1
@@ -374,3 +382,214 @@ teardown:
             "description": ["not", "a", "string"]
           }
   - match: { error.type: x_content_parse_exception }
+
+---
+"Test user-managed service account full name and initials":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "description": "Triages alerts for the SOC",
+            "full_name": "AlertZero",
+            "initials": "AZ"
+          }
+  - match: { created: true }
+
+  - do:
+      security.get_service_accounts:
+        namespace: apps
+        service: worker_1
+  - match: { "apps/worker_1.type": user_managed }
+  - match: { "apps/worker_1.description": "Triages alerts for the SOC" }
+  - match: { "apps/worker_1.full_name": "AlertZero" }
+  - match: { "apps/worker_1.initials": "AZ" }
+
+  # The account acts under its full name, while the principal stays its identity. The initials are not part of the user.
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: worker_1
+        name: token-1
+  - set: { "token.value": named_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${named_service_token}
+      security.authenticate: {}
+  - match: { username: "apps/worker_1" }
+  - match: { full_name: "AlertZero" }
+  - is_false: metadata.initials
+  - is_false: initials
+
+  # A write replaces the account wholesale, so writing it again without either field leaves it with neither, and it
+  # authenticates under the fixed name again straight away.
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"]
+          }
+  - match: { created: false }
+
+  - do:
+      security.get_service_accounts:
+        namespace: apps
+        service: worker_1
+  - match: { "apps/worker_1.roles": ["user_managed_monitor"] }
+  - is_false: "apps/worker_1.full_name"
+  - is_false: "apps/worker_1.initials"
+
+  - do:
+      headers:
+        Authorization: Bearer ${named_service_token}
+      security.authenticate: {}
+  - match: { username: "apps/worker_1" }
+  - match: { full_name: "User-managed service account - apps/worker_1" }
+
+  # An explicit null is the same as leaving the field out.
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "full_name": "AlertZero",
+            "initials": "AZ"
+          }
+  - match: { created: false }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "full_name": null,
+            "initials": null
+          }
+  - match: { created: false }
+
+  - do:
+      security.get_service_accounts:
+        namespace: apps
+        service: worker_1
+  - is_false: "apps/worker_1.full_name"
+  - is_false: "apps/worker_1.initials"
+
+  # Initials are counted as the characters a person sees, so one emoji with a skin tone is one character.
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "initials": "👍🏽A"
+          }
+  - match: { created: false }
+
+  - do:
+      security.get_service_accounts:
+        namespace: apps
+        service: worker_1
+  - match: { "apps/worker_1.initials": "👍🏽A" }
+
+  - do:
+      catch: bad_request
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "full_name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "initials": "AZB"
+          }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "/a.service.account.full.name.may.not.be.more.than.50.characters.long,.but.\\[51\\].were.given.*service.account.initials.may.not.be.more.than.2.characters.long,.but.\\[3\\].were.given/" }
+
+  - do:
+      catch: bad_request
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_monitor"],
+            "full_name": ["not", "a", "string"]
+          }
+  - match: { error.type: x_content_parse_exception }
+
+---
+"Test an API key created by a user-managed service account records its full name":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_api_key"],
+            "full_name": "AlertZero"
+          }
+  - match: { created: true }
+
+  - do:
+      security.create_service_token:
+        namespace: apps
+        service: worker_1
+        name: token-1
+  - set: { "token.value": named_service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${named_service_token}
+      security.create_api_key:
+        body: >
+          {
+            "name": "named-account-key"
+          }
+  - match: { name: "named-account-key" }
+  - set: { encoded: named_account_api_key }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${named_account_api_key}
+      security.authenticate: {}
+  - match: { username: "apps/worker_1" }
+  - match: { full_name: "AlertZero" }
+  - match: { authentication_type: "api_key" }
+  - match: { api_key.name: "named-account-key" }
+
+  # The key records its creator when it is created. Replacing the account later does not change what the key reports,
+  # while the account's own token picks up the new full name straight away.
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["user_managed_api_key"],
+            "full_name": "AlertOne"
+          }
+  - match: { created: false }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${named_account_api_key}
+      security.authenticate: {}
+  - match: { username: "apps/worker_1" }
+  - match: { full_name: "AlertZero" }
+
+  - do:
+      headers:
+        Authorization: Bearer ${named_service_token}
+      security.authenticate: {}
+  - match: { username: "apps/worker_1" }
+  - match: { full_name: "AlertOne" }

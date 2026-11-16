@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.Details;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
@@ -181,6 +182,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         featureService = mock(FeatureService.class);
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(true);
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION))).thenReturn(true);
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNT_INITIALS))).thenReturn(true);
         authentication = AuthenticationTestHelper.builder().realm().build(false);
 
         securityIndex = mock(SecurityIndexManager.class);
@@ -263,6 +265,8 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         corruptions.put("missing enabled", source -> source.remove("enabled"));
         corruptions.put("enabled that is not a boolean", source -> source.put("enabled", "true"));
         corruptions.put("description that is not a string", source -> source.put("description", List.of("a", "b")));
+        corruptions.put("full_name that is not a string", source -> source.put("full_name", Map.of("first", "Alert")));
+        corruptions.put("initials that are not a string", source -> source.put("initials", 42));
 
         corruptions.forEach((description, corruption) -> {
             final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
@@ -290,6 +294,71 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         final String description = randomAlphaOfLengthBetween(1, 30);
         respondToGetWith(accountDocument(PRINCIPAL, List.of(ROLE_A), true, description));
         assertThat(getByPrincipal(PRINCIPAL).description(), equalTo(description));
+    }
+
+    /**
+     * The full name is what the account authenticates under, while the initials only describe the account record and
+     * so stay off the user.
+     */
+    public void testAStoredFullNameAndInitialsAreLoaded() {
+        final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        source.put("full_name", "Deploy Bot");
+        source.put("initials", "DB");
+        respondToGetWith(source);
+
+        final UserManagedServiceAccount account = getByPrincipal(PRINCIPAL);
+        assertThat(account.fullName(), equalTo("Deploy Bot"));
+        assertThat(account.initials(), equalTo("DB"));
+        assertThat(account.asUser().fullName(), equalTo("Deploy Bot"));
+        assertThat(account.asUser().metadata().keySet(), contains(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD));
+    }
+
+    /**
+     * Documents written before the fields existed have neither, and read back as an account with neither, which
+     * authenticates under the fixed name every account had before.
+     */
+    public void testAnAccountWrittenBeforeTheFullNameAndInitialsReadsBackWithoutThem() {
+        final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true, "Deploys things");
+        source.put("version", 2);
+        respondToGetWith(source);
+
+        final UserManagedServiceAccount account = getByPrincipal(PRINCIPAL);
+        assertThat(account.description(), equalTo("Deploys things"));
+        assertThat(account.fullName(), nullValue());
+        assertThat(account.initials(), nullValue());
+        assertThat(account.asUser().fullName(), equalTo("User-managed service account - " + PRINCIPAL));
+    }
+
+    /**
+     * Written as explicit nulls by a replacement that cleared them, and read back as absent.
+     */
+    public void testANullFullNameAndInitialsReadBackAsNone() {
+        final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        source.put("full_name", null);
+        source.put("initials", null);
+        respondToGetWith(source);
+
+        final UserManagedServiceAccount account = getByPrincipal(PRINCIPAL);
+        assertThat(account.fullName(), nullValue());
+        assertThat(account.initials(), nullValue());
+    }
+
+    /**
+     * As with the description, the length rules apply on write only.
+     */
+    public void testAStoredFullNameAndInitialsThatWouldFailWriteValidationAreStillLoaded() {
+        final String storedFullName = "a".repeat(Validation.UserManagedServiceAccounts.MAX_FULL_NAME_LENGTH + 1);
+        final String storedInitials = "ABC";
+        assertNotNull(Validation.UserManagedServiceAccounts.validateFullName(storedFullName));
+        assertNotNull(Validation.UserManagedServiceAccounts.validateInitials(storedInitials));
+        final Map<String, Object> source = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        source.put("full_name", storedFullName);
+        source.put("initials", storedInitials);
+        respondToGetWith(source);
+
+        final UserManagedServiceAccount account = getByPrincipal(PRINCIPAL);
+        assertThat(account.fullName(), equalTo(storedFullName));
+        assertThat(account.initials(), equalTo(storedInitials));
     }
 
     public void testStoredAttributionIsLoaded() {
@@ -440,7 +509,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             ACCOUNT_ID,
             List.of(ROLE_B, ROLE_A, ROLE_B),
             false,
-            "Deploys things",
+            new Details("Deploys things", "Deploy Bot", "DB"),
             authentication,
             RefreshPolicy.WAIT_UNTIL,
             future
@@ -458,6 +527,8 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         // Sorted and de-duplicated, so that the document does not depend on how the caller ordered the roles.
         assertThat(upsert.get("roles"), equalTo(List.of(ROLE_A, ROLE_B)));
         assertThat(upsert.get("description"), equalTo("Deploys things"));
+        assertThat(upsert.get("full_name"), equalTo("Deploy Bot"));
+        assertThat(upsert.get("initials"), equalTo("DB"));
 
         // The changes carry the same account fields, so that an existing document ends up the same as a new one would.
         final Map<String, Object> changes = changesDocument();
@@ -465,6 +536,8 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         assertThat(changes.get("enabled"), is(false));
         assertThat(changes.get("roles"), equalTo(List.of(ROLE_A, ROLE_B)));
         assertThat(changes.get("description"), equalTo("Deploys things"));
+        assertThat(changes.get("full_name"), equalTo("Deploy Bot"));
+        assertThat(changes.get("initials"), equalTo("DB"));
         assertThat(changes, not(hasKey("doc_type")));
         assertThat(changes, not(hasKey("username")));
 
@@ -485,7 +558,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         final ServiceAccountAuthor author = ServiceAccountAuthor.fromAuthentication(authentication);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDetails(), authentication, RefreshPolicy.NONE, future);
         future.actionGet();
 
         final Map<String, Object> upsert = upsertDocument();
@@ -512,7 +585,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(DocWriteResponse.Result.CREATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, Details.NONE, authentication, RefreshPolicy.NONE, future);
         future.actionGet();
 
         @SuppressWarnings("unchecked")
@@ -544,7 +617,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(DocWriteResponse.Result.CREATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDetails(), authentication, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
 
         for (Map<String, Object> document : List.of(upsertDocument(), changesDocument())) {
@@ -564,13 +637,98 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(DocWriteResponse.Result.CREATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, Details.NONE, authentication, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.CREATED));
 
         assertThat(upsertDocument(), not(hasKey("description")));
         final Map<String, Object> changes = changesDocument();
         assertThat(changes, hasKey("description"));
         assertThat(changes.get("description"), nullValue());
+    }
+
+    /**
+     * The full name and initials are handled as the description is: left out of a new document when the write has
+     * none, and cleared in an existing one with an explicit null.
+     */
+    public void testPutAccountLeavesTheFullNameAndInitialsOutOfANewDocumentAndClearsThemInAnExistingOne() {
+        respondWithUpdateResult(DocWriteResponse.Result.UPDATED);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, Details.NONE, authentication, RefreshPolicy.NONE, future);
+        assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
+
+        final Map<String, Object> upsert = upsertDocument();
+        assertThat(upsert, not(hasKey("full_name")));
+        assertThat(upsert, not(hasKey("initials")));
+        final Map<String, Object> changes = changesDocument();
+        assertThat(changes, hasKey("full_name"));
+        assertThat(changes.get("full_name"), nullValue());
+        assertThat(changes, hasKey("initials"));
+        assertThat(changes.get("initials"), nullValue());
+
+        // Merged into a stored account that had both, the replacement clears them.
+        final Map<String, Object> stored = accountDocument(PRINCIPAL, List.of(ROLE_A), true);
+        stored.put("full_name", "Deploy Bot");
+        stored.put("initials", "DB");
+        XContentHelper.update(stored, changes, false);
+        respondToGetWith(stored);
+        final UserManagedServiceAccount account = getByPrincipal(PRINCIPAL);
+        assertThat(account.fullName(), nullValue());
+        assertThat(account.initials(), nullValue());
+    }
+
+    /**
+     * Until every node declares the initials field the strict mapping may not hold it, so not even an explicit null is
+     * written for it. The full name needs no such care, because its mapping already exists.
+     */
+    public void testPutAccountNeverWritesTheInitialsUntilEveryNodeSupportsThem() {
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNT_INITIALS))).thenReturn(false);
+        respondWithUpdateResult(DocWriteResponse.Result.UPDATED);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(
+            ACCOUNT_ID,
+            List.of(ROLE_A),
+            true,
+            new Details(null, "Deploy Bot", null),
+            authentication,
+            RefreshPolicy.NONE,
+            future
+        );
+        assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
+
+        final Map<String, Object> upsert = upsertDocument();
+        assertThat(upsert.get("full_name"), equalTo("Deploy Bot"));
+        assertThat(upsert, not(hasKey("initials")));
+        final Map<String, Object> changes = changesDocument();
+        assertThat(changes.get("full_name"), equalTo("Deploy Bot"));
+        assertThat(changes, not(hasKey("initials")));
+    }
+
+    /**
+     * Unlike the attribution, which the server makes up and can leave out, the initials are the caller's, so a write
+     * that sets them is refused rather than stored without them.
+     */
+    public void testPutAccountRefusesInitialsUntilEveryNodeSupportsThem() {
+        when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNT_INITIALS))).thenReturn(false);
+
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(
+            ACCOUNT_ID,
+            List.of(ROLE_A),
+            true,
+            new Details(null, "Deploy Bot", "DB"),
+            authentication,
+            RefreshPolicy.NONE,
+            future
+        );
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            equalTo("cannot set the initials of a user-managed service account because not all nodes in the cluster support them yet")
+        );
+        assertThat(requests, empty());
     }
 
     /**
@@ -585,7 +743,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(DocWriteResponse.Result.UPDATED);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, Details.NONE, authentication, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
 
         @SuppressWarnings("unchecked")
@@ -613,7 +771,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             requests.clear();
 
             final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-            store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, null, authentication, RefreshPolicy.NONE, future);
+            store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, Details.NONE, authentication, RefreshPolicy.NONE, future);
             assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
 
             // Apply the same recursive merge used by UpdateHelper for a partial document update.
@@ -628,7 +786,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         respondWithUpdateResult(randomFrom(DocWriteResponse.Result.UPDATED, DocWriteResponse.Result.NOOP));
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDetails(), authentication, RefreshPolicy.NONE, future);
         assertThat(future.actionGet(), is(UserManagedServiceAccountStore.PutResult.UPDATED));
         assertThat(clearedCacheKeys, contains(PRINCIPAL));
     }
@@ -639,24 +797,38 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
             new ServiceAccountId(reservedNamespace(), "deploy bot"),
             List.of("a role name that is far too long".repeat(32)),
             true,
-            randomAlphaOfLength(Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH + 1),
+            new Details(
+                randomAlphaOfLength(Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH + 1),
+                "a".repeat(Validation.UserManagedServiceAccounts.MAX_FULL_NAME_LENGTH + 1),
+                "ABC"
+            ),
             authentication,
             RefreshPolicy.NONE,
             future
         );
 
         final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
-        assertThat(e.validationErrors(), hasSize(4));
+        assertThat(e.validationErrors(), hasSize(6));
         assertThat(e.getMessage(), containsString("the [elastic] namespace is reserved for built-in service accounts"));
         assertThat(e.getMessage(), containsString("service account service name [deploy bot]"));
         assertThat(e.getMessage(), containsString("Role names must be at least"));
         assertThat(e.getMessage(), containsString("a service account description may not be more than"));
+        assertThat(e.getMessage(), containsString("a service account full name may not be more than"));
+        assertThat(e.getMessage(), containsString("service account initials may not be more than 2 characters long, but [3] were given"));
     }
 
     public void testPutAccountRejectsAnOverlongDescription() {
         final int max = Validation.UserManagedServiceAccounts.MAX_DESCRIPTION_LENGTH;
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomAlphaOfLength(max + 1), authentication, RefreshPolicy.NONE, future);
+        store.putAccount(
+            ACCOUNT_ID,
+            List.of(ROLE_A),
+            true,
+            new Details(randomAlphaOfLength(max + 1), null, null),
+            authentication,
+            RefreshPolicy.NONE,
+            future
+        );
 
         final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
         assertThat(
@@ -665,13 +837,34 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         );
     }
 
+    public void testPutAccountRejectsAnOverlongFullName() {
+        final int max = Validation.UserManagedServiceAccounts.MAX_FULL_NAME_LENGTH;
+        final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
+        store.putAccount(
+            ACCOUNT_ID,
+            List.of(ROLE_A),
+            true,
+            new Details(null, "a".repeat(max + 1), null),
+            authentication,
+            RefreshPolicy.NONE,
+            future
+        );
+
+        final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
+        assertThat(
+            e.validationErrors(),
+            contains("a service account full name may not be more than " + max + " characters long, but [" + (max + 1) + "] were given")
+        );
+        assertThat(requests, empty());
+    }
+
     public void testPutAccountRejectsMoreRolesThanAnAccountMayHold() {
         final int max = Validation.UserManagedServiceAccounts.MAX_ROLES;
         final List<String> tooMany = randomBoolean()
             ? IntStream.range(0, max + 1).mapToObj(i -> "role-" + i).toList()
             : Collections.nCopies(max + 1, "role-a");
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, tooMany, true, randomDescription(), authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, tooMany, true, randomDetails(), authentication, RefreshPolicy.NONE, future);
 
         final ValidationException e = expectThrows(ValidationException.class, future::actionGet);
         assertThat(
@@ -684,7 +877,7 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         when(featureService.clusterHasFeature(any(), eq(SecurityFeatures.USER_MANAGED_SERVICE_ACCOUNTS))).thenReturn(false);
 
         final PlainActionFuture<UserManagedServiceAccountStore.PutResult> future = new PlainActionFuture<>();
-        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDescription(), authentication, RefreshPolicy.NONE, future);
+        store.putAccount(ACCOUNT_ID, List.of(ROLE_A), true, randomDetails(), authentication, RefreshPolicy.NONE, future);
 
         final IllegalStateException e = expectThrows(IllegalStateException.class, future::actionGet);
         assertThat(
@@ -1239,8 +1432,12 @@ public class UserManagedServiceAccountStoreTests extends ESTestCase {
         return source;
     }
 
-    private static String randomDescription() {
-        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+    private static Details randomDetails() {
+        return new Details(
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 2)
+        );
     }
 
     @SuppressWarnings("unchecked")

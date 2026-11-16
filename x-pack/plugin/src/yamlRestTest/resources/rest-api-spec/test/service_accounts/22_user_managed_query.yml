@@ -521,3 +521,86 @@ teardown:
           }
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "sorting is not supported for field [description]" }
+
+---
+"Test query by full name and initials":
+  - do:
+      security.put_user_managed_service_account:
+        namespace: apps
+        service: worker_1
+        body: >
+          {
+            "roles": ["query_sa_monitor"],
+            "full_name": "Alert Zero",
+            "initials": "AZ"
+          }
+  - match: { created: false }
+
+  - do:
+      security.put_user_managed_service_account:
+        namespace: batch
+        service: nightly_job
+        body: >
+          {
+            "roles": ["query_sa_api_key"],
+            "full_name": "Nightly Job",
+            "initials": "NJ"
+          }
+  - match: { created: false }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "match": { "full_name": "alert" } }
+          }
+  - match: { total: 1 }
+  - match: { count: 1 }
+  - match: { service_accounts.0.username: "apps/worker_1" }
+  - match: { service_accounts.0.full_name: "Alert Zero" }
+  - match: { service_accounts.0.initials: "AZ" }
+
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "initials": "NJ" } }
+          }
+  - match: { total: 1 }
+  - match: { service_accounts.0.username: "batch/nightly_job" }
+  - match: { service_accounts.0.full_name: "Nightly Job" }
+
+  # Accounts without either do not report them.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "term": { "username": "apps/worker_2" } }
+          }
+  - match: { total: 1 }
+  - is_false: service_accounts.0.full_name
+  - is_false: service_accounts.0.initials
+
+  # The initials are a keyword, so they can be sorted on.
+  - do:
+      security.query_service_accounts:
+        body: >
+          {
+            "query": { "terms": { "username": ["apps/worker_1", "batch/nightly_job"] } },
+            "sort": [ { "initials": { "order": "desc" } } ]
+          }
+  - match: { total: 2 }
+  - match: { service_accounts.0.username: "batch/nightly_job" }
+  - match: { service_accounts.0._sort: ["NJ"] }
+  - match: { service_accounts.1.username: "apps/worker_1" }
+
+  # The full name shares the text field native users store theirs in, which has no fielddata to sort on.
+  - do:
+      catch: bad_request
+      security.query_service_accounts:
+        body: >
+          {
+            "sort": ["full_name"]
+          }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "sorting is not supported for field [full_name]" }

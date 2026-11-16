@@ -16,6 +16,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -24,6 +27,7 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.security.authc.service.UserManagedServiceAccountStore.SERVICE_ACCOUNT_DOC_TYPE;
+import static org.elasticsearch.xpack.security.support.FieldNameTranslators.SERVICE_ACCOUNT_FIELD_NAME_TRANSLATORS;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -46,6 +50,8 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
         "roles",
         "enabled",
         "description",
+        "full_name",
+        "initials",
         "updated_by.realm",
         "updated_by.realm_type",
         "updated_by.api_key.id",
@@ -107,6 +113,41 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Field [" + indexField + "] is not allowed for querying or aggregation"));
     }
 
+    /**
+     * The full name shares the top-level {@code text} field that native users store theirs in, which has no
+     * fielddata, so like the description it can be queried but not sorted on.
+     */
+    public void testTheFullNameCanBeQueriedButNotSortedOn() {
+        final QueryBuilder fullNameQuery = QueryBuilders.matchQuery("full_name", "alert");
+        assertThat(ServiceAccountBoolQueryBuilder.build(fullNameQuery).must(), contains(fullNameQuery));
+
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> SERVICE_ACCOUNT_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(
+                List.of(new FieldSortBuilder("full_name")),
+                SearchSourceBuilder.searchSource(),
+                null
+            )
+        );
+        assertThat(e.getMessage(), equalTo("sorting is not supported for field [full_name]"));
+    }
+
+    /**
+     * The initials are a {@code keyword}, so they can be both queried and sorted on.
+     */
+    public void testTheInitialsCanBeQueriedAndSortedOn() {
+        final QueryBuilder initialsQuery = QueryBuilders.termQuery("initials", "AZ");
+        assertThat(ServiceAccountBoolQueryBuilder.build(initialsQuery).must(), contains(initialsQuery));
+
+        final SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource();
+        SERVICE_ACCOUNT_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(
+            List.of(new FieldSortBuilder("initials").order(SortOrder.DESC)),
+            searchSource,
+            null
+        );
+        assertThat(searchSource.sorts(), contains(new FieldSortBuilder("initials").order(SortOrder.DESC)));
+    }
+
     public void testABoolQueryIsTranslatedClauseByClause() {
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
         if (randomBoolean()) {
@@ -149,7 +190,6 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
             "doc_type",
             "version",
             "password",
-            "full_name",
             "metadata_flattened",
             "creator.metadata",
             "created_by.metadata",
@@ -219,7 +259,6 @@ public class ServiceAccountBoolQueryBuilderTests extends ESTestCase {
                 "version",
                 "password",
                 "type",
-                "full_name",
                 "metadata_flattened",
                 "creator.metadata",
                 "creator.full_name",

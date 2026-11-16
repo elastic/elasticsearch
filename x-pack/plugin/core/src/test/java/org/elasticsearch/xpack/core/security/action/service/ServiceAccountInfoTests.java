@@ -58,6 +58,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
                 ),
                 withEnabled(userManaged, userManaged.enabled() == false),
                 withDescription(userManaged, randomValueOtherThan(userManaged.description(), ServiceAccountInfoTests::randomDescription)),
+                withFullName(userManaged, randomValueOtherThan(userManaged.fullName(), ServiceAccountInfoTests::randomFullName)),
+                withInitials(userManaged, randomValueOtherThan(userManaged.initials(), ServiceAccountInfoTests::randomInitials)),
                 withCreatedBy(userManaged, randomValueOtherThan(userManaged.createdBy(), ServiceAccountInfoTests::randomOptionalAuthor)),
                 withCreatedAt(userManaged, randomValueOtherThan(userManaged.createdAt(), ServiceAccountInfoTests::randomOptionalInstant)),
                 withUpdatedBy(userManaged, randomValueOtherThan(userManaged.updatedBy(), ServiceAccountInfoTests::randomOptionalAuthor)),
@@ -81,6 +83,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             info.enabled(),
             info.description(),
+            info.fullName(),
+            info.initials(),
             info.createdBy(),
             info.createdAt(),
             info.updatedBy(),
@@ -96,6 +100,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             roles,
             info.enabled(),
             info.description(),
+            info.fullName(),
+            info.initials(),
             info.createdBy(),
             info.createdAt(),
             info.updatedBy(),
@@ -111,6 +117,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             enabled,
             info.description(),
+            info.fullName(),
+            info.initials(),
             info.createdBy(),
             info.createdAt(),
             info.updatedBy(),
@@ -126,6 +134,42 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             info.enabled(),
             description,
+            info.fullName(),
+            info.initials(),
+            info.createdBy(),
+            info.createdAt(),
+            info.updatedBy(),
+            info.updatedAt(),
+            info.createdByProfileUid(),
+            info.updatedByProfileUid()
+        );
+    }
+
+    private static ServiceAccountInfo.UserManaged withFullName(ServiceAccountInfo.UserManaged info, String fullName) {
+        return new ServiceAccountInfo.UserManaged(
+            info.principal(),
+            info.roles(),
+            info.enabled(),
+            info.description(),
+            fullName,
+            info.initials(),
+            info.createdBy(),
+            info.createdAt(),
+            info.updatedBy(),
+            info.updatedAt(),
+            info.createdByProfileUid(),
+            info.updatedByProfileUid()
+        );
+    }
+
+    private static ServiceAccountInfo.UserManaged withInitials(ServiceAccountInfo.UserManaged info, String initials) {
+        return new ServiceAccountInfo.UserManaged(
+            info.principal(),
+            info.roles(),
+            info.enabled(),
+            info.description(),
+            info.fullName(),
+            initials,
             info.createdBy(),
             info.createdAt(),
             info.updatedBy(),
@@ -141,6 +185,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             info.enabled(),
             info.description(),
+            info.fullName(),
+            info.initials(),
             createdBy,
             info.createdAt(),
             info.updatedBy(),
@@ -156,6 +202,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             info.enabled(),
             info.description(),
+            info.fullName(),
+            info.initials(),
             info.createdBy(),
             createdAt,
             info.updatedBy(),
@@ -171,6 +219,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             info.enabled(),
             info.description(),
+            info.fullName(),
+            info.initials(),
             info.createdBy(),
             info.createdAt(),
             updatedBy,
@@ -186,6 +236,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             info.enabled(),
             info.description(),
+            info.fullName(),
+            info.initials(),
             info.createdBy(),
             info.createdAt(),
             info.updatedBy(),
@@ -201,6 +253,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             info.enabled(),
             info.description(),
+            info.fullName(),
+            info.initials(),
             info.createdBy(),
             info.createdAt(),
             info.updatedBy(),
@@ -216,6 +270,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             info.roles(),
             info.enabled(),
             info.description(),
+            info.fullName(),
+            info.initials(),
             info.createdBy(),
             info.createdAt(),
             info.updatedBy(),
@@ -291,6 +347,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8)),
             randomBoolean(),
             randomDescription(),
+            null,
+            null,
             ServiceAccountAuthorTests.randomAuthor(),
             randomInstant(),
             ServiceAccountAuthorTests.randomAuthor(),
@@ -317,6 +375,110 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
     }
 
     /**
+     * As with the description and attribution, a node that does not know the full name and initials is sent the
+     * account without them, and keeps everything that came before them.
+     */
+    public void testTheFullNameAndInitialsAreDroppedForNodesThatDoNotKnowThem() throws IOException {
+        final ServiceAccountAuthor createdBy = new ServiceAccountAuthor("alice", "Alice", null, "native1", "native", null);
+        final Instant createdAt = Instant.ofEpochMilli(1_700_000_000_000L);
+        final ServiceAccountInfo.UserManaged userManaged = new ServiceAccountInfo.UserManaged(
+            "soc/alert_zero",
+            List.of("viewer"),
+            true,
+            "Triages alerts for the SOC",
+            "AlertZero",
+            "AZ",
+            createdBy,
+            createdAt,
+            null,
+            null,
+            "u_alice",
+            null
+        );
+        final TransportVersion beforeFullName = TransportVersionUtils.getPreviousVersion(
+            ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_FULL_NAME
+        );
+        assertTrue(beforeFullName.supports(ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_ATTRIBUTION));
+        assertThat(
+            copyInstance(userManaged, beforeFullName),
+            equalTo(
+                new ServiceAccountInfo.UserManaged(
+                    "soc/alert_zero",
+                    List.of("viewer"),
+                    true,
+                    "Triages alerts for the SOC",
+                    null,
+                    null,
+                    createdBy,
+                    createdAt,
+                    null,
+                    null,
+                    "u_alice",
+                    null
+                )
+            )
+        );
+    }
+
+    public void testTheFullNameAndInitialsAreKeptForNodesThatKnowThem() throws IOException {
+        final ServiceAccountInfo.UserManaged userManaged = new ServiceAccountInfo.UserManaged(
+            "soc/alert_zero",
+            List.of("viewer"),
+            true,
+            null,
+            "AlertZero",
+            "AZ",
+            null,
+            null,
+            null,
+            null
+        );
+        assertThat(copyInstance(userManaged, ServiceAccountInfo.USER_MANAGED_SERVICE_ACCOUNT_FULL_NAME), equalTo(userManaged));
+    }
+
+    public void testTheFullNameAndInitialsAreRenderedWhenSet() throws IOException {
+        final Map<String, Object> rendered = innerToMap(
+            new ServiceAccountInfo.UserManaged(
+                "soc/alert_zero",
+                List.of("viewer"),
+                true,
+                "Triages alerts for the SOC",
+                "AlertZero",
+                "AZ",
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        assertThat(
+            rendered,
+            equalTo(
+                Map.of(
+                    "type",
+                    "user_managed",
+                    "roles",
+                    List.of("viewer"),
+                    "enabled",
+                    true,
+                    "description",
+                    "Triages alerts for the SOC",
+                    "full_name",
+                    "AlertZero",
+                    "initials",
+                    "AZ"
+                )
+            )
+        );
+    }
+
+    public void testTheFullNameAndInitialsAreLeftOutWhenUnset() throws IOException {
+        final Map<String, Object> rendered = innerToMap(new ServiceAccountInfo.UserManaged("soc/alert_zero", List.of(), true, null));
+        assertThat(rendered, not(hasKey("full_name")));
+        assertThat(rendered, not(hasKey("initials")));
+    }
+
+    /**
      * The two authors are rendered as nested objects, the timestamps as epoch milliseconds, and whatever is
      * unknown is left out.
      */
@@ -327,6 +489,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             "apps/worker",
             List.of("role-a"),
             true,
+            null,
+            null,
             null,
             createdBy,
             createdAt,
@@ -362,6 +526,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
                 List.of("role-a"),
                 true,
                 null,
+                null,
+                null,
                 createdBy,
                 createdAt,
                 updatedBy,
@@ -386,6 +552,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             "apps/worker",
             List.of(),
             true,
+            null,
+            null,
             null,
             createdBy,
             Instant.ofEpochMilli(1_700_000_000_000L),
@@ -430,6 +598,8 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
             randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8)),
             randomBoolean(),
             randomDescription(),
+            randomFullName(),
+            randomInitials(),
             randomOptionalAuthor(),
             randomOptionalInstant(),
             randomOptionalAuthor(),
@@ -445,6 +615,14 @@ public class ServiceAccountInfoTests extends AbstractWireSerializingTestCase<Ser
 
     private static String randomDescription() {
         return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+    }
+
+    private static String randomFullName() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
+    }
+
+    private static String randomInitials() {
+        return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 2);
     }
 
     private static ServiceAccountAuthor randomOptionalAuthor() {

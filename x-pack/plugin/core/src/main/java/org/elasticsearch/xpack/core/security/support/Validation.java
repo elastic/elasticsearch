@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 
+import java.text.BreakIterator;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
@@ -288,6 +289,11 @@ public final class Validation {
         public static final int MAX_COMPONENT_LENGTH = 128;
         public static final int MAX_ROLES = 1000;
         public static final int MAX_DESCRIPTION_LENGTH = 1000;
+        public static final int MAX_FULL_NAME_LENGTH = 50;
+        /** In extended grapheme clusters, the characters a person sees. */
+        public static final int MAX_INITIALS_LENGTH = 2;
+        /** In UTF-16 code units, like every other length limit here. */
+        public static final int MAX_INITIALS_UTF16_LENGTH = 32;
 
         private static final Pattern VALID_COMPONENT = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9_-]*$");
 
@@ -332,6 +338,71 @@ public final class Validation {
                 );
             }
             return null;
+        }
+
+        /**
+         * Checks the account's optional full name. Like the description it means nothing to Elasticsearch, so any
+         * characters are allowed, and like the description it is counted in UTF-16 code units.
+         */
+        public static Error validateFullName(@Nullable String fullName) {
+            if (fullName == null) {
+                return null;
+            }
+            if (fullName.length() > MAX_FULL_NAME_LENGTH) {
+                return new Error(
+                    "a service account full name may not be more than "
+                        + MAX_FULL_NAME_LENGTH
+                        + " characters long, but ["
+                        + fullName.length()
+                        + "] were given"
+                );
+            }
+            return null;
+        }
+
+        /**
+         * Checks the account's optional initials. They are counted as the characters a person sees, extended
+         * grapheme clusters, so that an emoji with a skin tone or a joined family counts as one however many code
+         * points it is made of, and with or without a variation selector.
+         * <p>
+         * One grapheme cluster can hold any number of combining code points, so the value is also capped in UTF-16
+         * code units. The cap leaves room for two of the longest emoji in common use, such as a subdivision flag,
+         * which is fourteen code units.
+         */
+        public static Error validateInitials(@Nullable String initials) {
+            if (initials == null) {
+                return null;
+            }
+            final int characters = countGraphemeClusters(initials);
+            if (characters > MAX_INITIALS_LENGTH) {
+                return new Error(
+                    "service account initials may not be more than "
+                        + MAX_INITIALS_LENGTH
+                        + " characters long, but ["
+                        + characters
+                        + "] were given"
+                );
+            }
+            if (initials.length() > MAX_INITIALS_UTF16_LENGTH) {
+                return new Error(
+                    "service account initials may not be more than "
+                        + MAX_INITIALS_UTF16_LENGTH
+                        + " UTF-16 code units long, but ["
+                        + initials.length()
+                        + "] were given"
+                );
+            }
+            return null;
+        }
+
+        private static int countGraphemeClusters(String value) {
+            final BreakIterator characters = BreakIterator.getCharacterInstance(Locale.ROOT);
+            characters.setText(value);
+            int count = 0;
+            while (characters.next() != BreakIterator.DONE) {
+                count++;
+            }
+            return count;
         }
 
         public static Error validatePrincipal(String principal) {

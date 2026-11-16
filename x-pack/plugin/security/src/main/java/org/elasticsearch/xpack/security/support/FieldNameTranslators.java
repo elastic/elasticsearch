@@ -88,7 +88,9 @@ public final class FieldNameTranslators {
      * The stored principal is the whole {@code namespace/service} pair, so a namespace is selected with a prefix
      * query on {@code username} and there are no separate namespace or service fields to translate. The description
      * shares the {@code text} field that role descriptions are stored in, so it answers to the same kinds of query,
-     * and like the other text fields of the index it has no fielddata to sort on. The creator is stored in the
+     * and like the other text fields of the index it has no fielddata to sort on. The full name shares the top-level
+     * {@code text} field that native users store theirs in, and so likewise cannot be sorted on; the initials are a
+     * {@code keyword} and can. The creator is stored in the
      * {@code creator} object that API keys established and the creation time in their {@code creation_time} field, so
      * both are translated; the updater is stored under the names the response uses, except that either author's
      * {@code username} is stored as {@code principal}, as an API key's creator is. Either author's realm domain, full
@@ -101,6 +103,8 @@ public final class FieldNameTranslators {
             idemFieldNameTranslator("roles"),
             idemFieldNameTranslator("enabled"),
             idemFieldNameTranslator("description", false),
+            idemFieldNameTranslator("full_name", false),
+            idemFieldNameTranslator("initials"),
             new SimpleFieldNameTranslator("creator.principal", "created_by.username"),
             new SimpleFieldNameTranslator("creator.realm", "created_by.realm"),
             new SimpleFieldNameTranslator("creator.realm_type", "created_by.realm_type"),

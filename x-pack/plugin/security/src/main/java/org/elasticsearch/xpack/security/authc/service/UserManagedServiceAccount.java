@@ -28,8 +28,14 @@ import java.util.Objects;
  * user's metadata: without the marker the authorization layer would look for a built-in account of the same name
  * instead, so every instance must set it.
  * <p>
- * The description is free text carried for whoever administers the account. It means nothing to Elasticsearch and
- * so is deliberately kept out of the {@link User}, which is what authorization and audit see. The same goes for the
+ * The full name goes on the {@link User} as its full name, the same as for a user, so it is what {@code _authenticate},
+ * audit records and the credentials the account creates report as the actor's full name. The principal stays the
+ * identity. An account without a full name keeps the fixed name it has always had, so that nothing that already reads
+ * the value sees it change.
+ * <p>
+ * The description and the initials are carried for the clients that read the account. Neither means anything to
+ * Elasticsearch, and a user has no field for either, so both are deliberately kept out of the {@link User}, which is
+ * what authorization and audit see. The same goes for the
  * attribution: who created the account and who last replaced it, and when. Each of those is {@code null} when the
  * document does not record it, which is the case for the updating author until the account is first replaced and
  * for the creating author of an account written before attribution was recorded.
@@ -42,9 +48,10 @@ final class UserManagedServiceAccount implements ServiceAccount {
      * Elasticsearch release that wrote it.
      * <p>
      * Version 2 added the {@code creator}, {@code creation_time}, {@code updated_by} and {@code update_time} fields.
+     * Version 3 added the optional {@code full_name} and {@code initials} fields.
      */
     record Version(int version) implements VersionId<Version> {
-        static final Version CURRENT = new Version(2);
+        static final Version CURRENT = new Version(3);
 
         @Override
         public int id() {
@@ -55,8 +62,7 @@ final class UserManagedServiceAccount implements ServiceAccount {
     private final ServiceAccountId id;
     private final List<String> roles;
     private final boolean enabled;
-    @Nullable
-    private final String description;
+    private final UserManagedServiceAccountStore.Details details;
     @Nullable
     private final ServiceAccountAuthor createdBy;
     @Nullable
@@ -67,15 +73,15 @@ final class UserManagedServiceAccount implements ServiceAccount {
     private final Instant updatedAt;
     private final User user;
 
-    UserManagedServiceAccount(ServiceAccountId id, List<String> roles, boolean enabled, @Nullable String description) {
-        this(id, roles, enabled, description, null, null, null, null);
+    UserManagedServiceAccount(ServiceAccountId id, List<String> roles, boolean enabled, UserManagedServiceAccountStore.Details details) {
+        this(id, roles, enabled, details, null, null, null, null);
     }
 
     UserManagedServiceAccount(
         ServiceAccountId id,
         List<String> roles,
         boolean enabled,
-        @Nullable String description,
+        UserManagedServiceAccountStore.Details details,
         @Nullable ServiceAccountAuthor createdBy,
         @Nullable Instant createdAt,
         @Nullable ServiceAccountAuthor updatedBy,
@@ -84,7 +90,7 @@ final class UserManagedServiceAccount implements ServiceAccount {
         this.id = Objects.requireNonNull(id, "service account id cannot be null");
         this.roles = List.copyOf(Objects.requireNonNull(roles, "roles cannot be null"));
         this.enabled = enabled;
-        this.description = description;
+        this.details = Objects.requireNonNull(details, "details cannot be null");
         this.createdBy = createdBy;
         this.createdAt = createdAt;
         this.updatedBy = updatedBy;
@@ -92,7 +98,7 @@ final class UserManagedServiceAccount implements ServiceAccount {
         this.user = new User(
             id.asPrincipal(),
             this.roles.toArray(String[]::new),
-            "User-managed service account - " + id,
+            details.fullName() != null ? details.fullName() : "User-managed service account - " + id,
             null,
             Map.of(ServiceAccountSettings.USER_MANAGED_SERVICE_ACCOUNT_FIELD, true),
             enabled
@@ -117,9 +123,23 @@ final class UserManagedServiceAccount implements ServiceAccount {
         return enabled;
     }
 
+    UserManagedServiceAccountStore.Details details() {
+        return details;
+    }
+
     @Nullable
     String description() {
-        return description;
+        return details.description();
+    }
+
+    @Nullable
+    String fullName() {
+        return details.fullName();
+    }
+
+    @Nullable
+    String initials() {
+        return details.initials();
     }
 
     @Nullable
@@ -150,8 +170,8 @@ final class UserManagedServiceAccount implements ServiceAccount {
             + roles
             + ", enabled="
             + enabled
-            + ", description="
-            + description
+            + ", details="
+            + details
             + ", createdBy="
             + createdBy
             + ", createdAt="

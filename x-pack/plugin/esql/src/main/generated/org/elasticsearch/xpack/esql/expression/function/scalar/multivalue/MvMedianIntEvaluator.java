@@ -39,7 +39,7 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     }
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       MvMedian.Ints work = new MvMedian.Ints();
       for (int p = 0; p < positionCount; p++) {
         if (v.isNull(p)) {
@@ -93,7 +93,7 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
   private Block evalAscendingNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       MvMedian.Ints work = new MvMedian.Ints();
       for (int p = 0; p < positionCount; p++) {
         if (v.isNull(p)) {

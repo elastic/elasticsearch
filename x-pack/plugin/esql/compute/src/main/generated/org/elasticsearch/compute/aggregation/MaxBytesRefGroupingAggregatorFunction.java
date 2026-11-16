@@ -411,7 +411,7 @@ public final class MaxBytesRefGroupingAggregatorFunction implements GroupingAggr
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

@@ -89,7 +89,7 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
         assumeTrue("partitioned block hashes are not supported on this platform", PartitionedBlockHash.supportPartitioning());
         DriverContext driverContext = driverContext();
         try (var agg = aggregatorFunction().groupingAggregator(driverContext, channels(AggregatorMode.SINGLE))) {
-            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning());
+            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning(AggregatorMode.SINGLE));
         }
         var pages = pagesWithKeys(driverContext.blockFactory());
         try {
@@ -109,7 +109,7 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
         assumeTrue("partitioned block hashes are not supported on this platform", PartitionedBlockHash.supportPartitioning());
         DriverContext driverContext = driverContext();
         try (var agg = aggregatorFunction().groupingAggregator(driverContext, channels(AggregatorMode.SINGLE))) {
-            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning());
+            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning(AggregatorMode.SINGLE));
         }
         var pages = pagesWithKeys(driverContext.blockFactory());
         try {
@@ -133,7 +133,7 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
         assumeTrue("partitioned block hashes are not supported on this platform", PartitionedBlockHash.supportPartitioning());
         DriverContext driverContext = driverContext();
         try (var agg = aggregatorFunction().groupingAggregator(driverContext, channels(AggregatorMode.SINGLE))) {
-            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning());
+            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning(AggregatorMode.SINGLE));
             assumeTrue("aggregator [" + agg + "] has no partition codec", agg.supportsPartitionCodec());
         }
         MemorySpillStore store = new MemorySpillStore(
@@ -172,7 +172,7 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
         assumeTrue("partitioned block hashes are not supported on this platform", PartitionedBlockHash.supportPartitioning());
         DriverContext driverContext = driverContext();
         try (var agg = aggregatorFunction().groupingAggregator(driverContext, channels(AggregatorMode.SINGLE))) {
-            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning());
+            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning(AggregatorMode.SINGLE));
             assumeTrue("aggregator [" + agg + "] has no partition codec", agg.supportsPartitionCodec());
         }
         var pages = pagesWithKeys(driverContext.blockFactory());
@@ -566,7 +566,7 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
     private void runTimeSeriesPartitioningTest(AggregatorFunctionSupplier supplier) {
         DriverContext driverContext = driverContext();
         try (var agg = supplier.groupingAggregator(driverContext, channels(AggregatorMode.SINGLE))) {
-            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning());
+            assumeTrue("aggregator [" + agg + "] doesn't support partitioning", agg.supportPartitioning(AggregatorMode.SINGLE));
         }
         var pages = pagesWithTimeSeriesKeys(driverContext.blockFactory());
         try {

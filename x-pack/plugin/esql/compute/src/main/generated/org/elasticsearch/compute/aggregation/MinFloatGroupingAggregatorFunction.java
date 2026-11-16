@@ -406,7 +406,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

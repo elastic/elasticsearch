@@ -552,7 +552,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
-    public boolean supportPartitioning() {
+    public boolean supportPartitioning(AggregatorMode mode) {
         return true;
     }
 

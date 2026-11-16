@@ -443,7 +443,7 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

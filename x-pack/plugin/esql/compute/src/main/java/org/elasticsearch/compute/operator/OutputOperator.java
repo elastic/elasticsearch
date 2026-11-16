@@ -176,14 +176,18 @@ public class OutputOperator extends SinkOperator {
     }
 
     private final List<String> columns;
-    private final Consumer<Page> pageConsumer;
+    private final PageConsumer pageConsumer;
     private final Function<Page, Page> mapper;
     private int pagesReceived;
     private long rowsReceived;
 
-    public record OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer)
+    public record OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, PageConsumer.Factory pageConsumerFactory)
         implements
             SinkOperatorFactory {
+
+        public OutputOperatorFactory(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer) {
+            this(columns, mapper, PageConsumer.Factory.from(pageConsumer));
+        }
 
         @Override
         public SinkOperator get(DriverContext driverContext) {
@@ -193,7 +197,7 @@ public class OutputOperator extends SinkOperator {
                 return new OutputOperator(columns, mapper, collectedPages::add);
             } else {
                 // Normal execution path: use the provided pageConsumer
-                return new OutputOperator(columns, mapper, pageConsumer);
+                return new OutputOperator(columns, mapper, pageConsumerFactory.create(driverContext));
             }
         }
 
@@ -204,6 +208,10 @@ public class OutputOperator extends SinkOperator {
     }
 
     public OutputOperator(List<String> columns, Function<Page, Page> mapper, Consumer<Page> pageConsumer) {
+        this(columns, mapper, PageConsumer.from(pageConsumer));
+    }
+
+    public OutputOperator(List<String> columns, Function<Page, Page> mapper, PageConsumer pageConsumer) {
         this.columns = columns;
         this.mapper = mapper;
         this.pageConsumer = pageConsumer;
@@ -217,12 +225,13 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     public boolean isFinished() {
-        return finished;
+        return finished && pageConsumer.isFinished();
     }
 
     @Override
     public void finish() {
         finished = true;
+        pageConsumer.finish();
     }
 
     @Override
@@ -232,14 +241,14 @@ public class OutputOperator extends SinkOperator {
 
     @Override
     public IsBlockedResult isBlocked() {
-        return pageConsumer instanceof BlockingPageConsumer blocking ? blocking.isBlocked() : NOT_BLOCKED;
+        return pageConsumer.isBlocked();
     }
 
     @Override
     protected void doAddInput(Page page) {
         pagesReceived++;
         rowsReceived += page.getPositionCount();
-        pageConsumer.accept(mapper.apply(page));
+        pageConsumer.consume(mapper.apply(page));
     }
 
     /**

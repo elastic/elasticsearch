@@ -252,9 +252,9 @@ public interface GroupingAggregatorFunction extends Releasable {
     }
 
     /**
-     * Whether this grouping aggregation function supports partitioning
+     * Whether this grouping aggregation function supports partitioning when running in the given mode
      */
-    default boolean supportPartitioning() {
+    default boolean supportPartitioning(AggregatorMode mode) {
         return false;
     }
 
@@ -264,9 +264,18 @@ public interface GroupingAggregatorFunction extends Releasable {
      * spills to disk relies on, by freezing its groups and routing the rows of new groups to disk. A function that
      * partitions is bounded by construction; one whose state grows with the values, a list of values, a top-N, a
      * digest, is not, and the default says so. Wrappers answer for the function they wrap.
+     * <p>
+     * The default takes only a function that partitions whatever its mode: one that partitions in some modes alone,
+     * as a rate does over partial input, makes no such promise about its state, whose intervals grow with the slices
+     * a group receives.
      */
     default boolean freezeEligible() {
-        return supportPartitioning();
+        for (AggregatorMode mode : AggregatorMode.values()) {
+            if (supportPartitioning(mode) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     interface PartitionedState {
@@ -323,7 +332,7 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Creates a splitter for this grouping aggregation state.
-     * Callers must check {@link #supportPartitioning()} first; otherwise this method throws {@link UnsupportedOperationException}.
+     * Callers must check {@link #supportPartitioning} first; otherwise this method throws {@link UnsupportedOperationException}.
      */
     default PartitionSplitter createPartitioningSplitter(CircuitBreaker breaker) {
         throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
@@ -331,7 +340,7 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Combines one partition into this grouping aggregation state.
-     * Callers must check {@link #supportPartitioning()} first; otherwise this method throws {@link UnsupportedOperationException}.
+     * Callers must check {@link #supportPartitioning} first; otherwise this method throws {@link UnsupportedOperationException}.
      *
      * @param source     the partitioned state
      * @param partition  the partition to combine

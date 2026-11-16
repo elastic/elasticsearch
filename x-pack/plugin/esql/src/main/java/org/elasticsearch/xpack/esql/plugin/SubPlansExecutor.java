@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -109,6 +109,10 @@ final class SubPlansExecutor {
     private final PlanTimeProfile rootPlanTimeProfile;
     private final ExecutionMerge rootExecution;
 
+    /**
+     * @param maxResultSize limit on the root's collected result pages, or {@code null} for no limit, see
+     *                      {@link BoundedPageCollector}
+     */
     SubPlansExecutor(
         ComputeService computeService,
         ExchangeService exchangeService,
@@ -123,6 +127,7 @@ final class SubPlansExecutor {
         PlanTimeProfile planTimeProfile,
         SubPlan.Merge rootPlan,
         @Nullable ResultCollector collector,
+        @Nullable ByteSizeValue maxResultSize,
         ActionListener<Result> listener
     ) {
         this.computeService = computeService;
@@ -138,7 +143,8 @@ final class SubPlansExecutor {
         this.executionPermits = new AtomicInteger(queryPragmas.branchParallelDegree());
         this.cancelOnFailure = new RunOnce(computeService.cancelQueryOnFailure(rootTask));
         this.rootPlanTimeProfile = planTimeProfile;
-        final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
+        final BoundedPageCollector pageCollector = new BoundedPageCollector(maxResultSize);
+        final List<Page> collectedPages = pageCollector.pages();
         final PageStreamPublisher streamPublisher = rootPlan.plan() instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
             : null;
@@ -171,7 +177,7 @@ final class SubPlansExecutor {
             rootPlan,
             rootPlan.plan() instanceof StreamingOutputExec
                 ? rootPlan.plan()
-                : new OutputExec(rootPlan.plan(), collector != null ? collector : collectedPages::add),
+                : new OutputExec(rootPlan.plan(), collector != null ? collector : pageCollector),
             "main.final",
             rootPlanTimeProfile,
             null,
@@ -337,6 +343,7 @@ final class SubPlansExecutor {
                     rootTask,
                     new ComputeContext(
                         childSessionId,
+                        computeService.queryId(rootTask),
                         description,
                         LOCAL_CLUSTER,
                         flags,
@@ -431,7 +438,8 @@ final class SubPlansExecutor {
                     initialClusterStatuses,
                     configuration.profile() ? new PlanTimeProfile() : null,
                     warnIndexCoordinatorOnce,
-                    SiblingPlacement.forMerge(mergeKind, siblingIndex, siblingCount)
+                    SiblingPlacement.forMerge(mergeKind, siblingIndex, siblingCount),
+                    null
                 );
             } catch (Exception e) {
                 resultListener.onFailure(e);

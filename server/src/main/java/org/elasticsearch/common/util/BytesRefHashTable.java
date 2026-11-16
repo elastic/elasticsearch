@@ -26,7 +26,9 @@ public interface BytesRefHashTable extends Accountable, Releasable {
 
     /**
      * Finds the id associated with the given key, or -1 is the key is
-     * not contained in the hash.
+     * not contained in the hash. Safe to call from several threads at once
+     * as long as no thread adds to or clears the table meanwhile, so
+     * implementations must not write any state here, scratch buffers included.
      */
     long find(BytesRef key);
 

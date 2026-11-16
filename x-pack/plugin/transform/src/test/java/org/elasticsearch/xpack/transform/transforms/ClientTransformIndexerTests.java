@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -20,7 +21,6 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -41,6 +41,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -967,6 +968,39 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testHandlePitSecurityException() throws InterruptedException {
+        // simulate a pit holding a backing index that ILM swapped out of the data stream, which is no longer authorized
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            ClientTransformIndexer indexer = createTestIndexer(new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")));
+            SearchRequest searchRequest = new SearchRequest("data-stream").source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("the_pit_id_on_orphaned_index")))
+            );
+            Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test-handle-pit-security-exception", searchRequest);
+            this.<SearchResponse>assertAsync(listener -> indexer.doSearch(namedSearchRequest, listener), response -> {
+                // if the pit got deleted, we know it retried
+                assertNull(response.pointInTimeId());
+            });
+        }
+
+        // simulate missing privileges on the source, search must fail (after a retry without pit)
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
+            ClientTransformIndexer indexer = createTestIndexer(new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")));
+            SearchRequest searchRequest = new SearchRequest("unauthorized-index").source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("the_pit_id_unauthorized-index")))
+            );
+            Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test-handle-pit-security-exception", searchRequest);
+            var e = safeAwaitFailure(
+                ElasticsearchSecurityException.class,
+                SearchResponse.class,
+                listener -> indexer.doSearch(namedSearchRequest, listener)
+            );
+            assertEquals("unauthorized for [unauthorized-index]", e.getMessage());
+            assertNull(searchRequest.pointInTimeBuilder());
+        }
+    }
+
     public void testIndexBlocked() {
         var service = serviceWithBlockCheck(true);
         var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock());
@@ -1047,11 +1081,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
                                 1,
                                 0,
                                 0,
-                                ShardSearchFailure.EMPTY_ARRAY,
-                                SearchResponse.Clusters.EMPTY,
-                                null,
-                                null,
-                                null
+                                List.of(),
+                                SearchResponse.Clusters.EMPTY
                             )
                         );
                         return;
@@ -1312,6 +1343,19 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     return;
                 }
 
+                if (searchRequest.pointInTimeBuilder() != null
+                    && searchRequest.pointInTimeBuilder().getEncodedId().equals(new BytesArray("the_pit_id_on_orphaned_index"))) {
+                    listener.onFailure(new ElasticsearchSecurityException("unauthorized for [orphaned-index]", RestStatus.FORBIDDEN));
+                    return;
+                }
+
+                if ((searchRequest.pointInTimeBuilder() != null
+                    && searchRequest.pointInTimeBuilder().getEncodedId().equals(new BytesArray("the_pit_id_unauthorized-index")))
+                    || (searchRequest.indices().length > 0 && searchRequest.indices()[0].equals("unauthorized-index"))) {
+                    listener.onFailure(new ElasticsearchSecurityException("unauthorized for [unauthorized-index]", RestStatus.FORBIDDEN));
+                    return;
+                }
+
                 // throw search context missing for the 4th run
                 if (searchRequest.pointInTimeBuilder() != null
                     && new BytesArray("the_pit_id+++").equals(searchRequest.pointInTimeBuilder().getEncodedId())) {
@@ -1336,7 +1380,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                         1,
                         0,
                         0,
-                        ShardSearchFailure.EMPTY_ARRAY,
+                        List.of(),
                         SearchResponse.Clusters.EMPTY,
                         // copy the pit from the request
                         searchRequest.pointInTimeBuilder() != null

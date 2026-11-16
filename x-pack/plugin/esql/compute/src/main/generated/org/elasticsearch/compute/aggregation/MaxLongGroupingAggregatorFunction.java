@@ -406,7 +406,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

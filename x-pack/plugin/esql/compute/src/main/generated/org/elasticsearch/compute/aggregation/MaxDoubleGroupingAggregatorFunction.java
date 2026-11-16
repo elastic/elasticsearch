@@ -406,7 +406,7 @@ public final class MaxDoubleGroupingAggregatorFunction implements GroupingAggreg
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

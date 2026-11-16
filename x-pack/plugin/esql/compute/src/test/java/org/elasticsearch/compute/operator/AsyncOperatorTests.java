@@ -280,6 +280,38 @@ public class AsyncOperatorTests extends ESTestCase {
     }
 
     /**
+     * Closing the operator doesn't call {@link AsyncOperator#finish()}. A subclass reacts there to the end of its input,
+     * for example by sending the input it held back, and an operator that closes early never saw that end. A result that
+     * arrives after the close is released.
+     */
+    public void testCloseDoesNotFinish() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        AtomicInteger finishes = new AtomicInteger();
+        TestOp operator = new TestOp(driverContext, between(1, 3)) {
+            @Override
+            public void finish() {
+                finishes.incrementAndGet();
+                super.finish();
+            }
+        };
+        Page input = null;
+        if (randomBoolean()) {
+            input = new Page(driverContext.blockFactory().newConstantNullBlock(1));
+            operator.addInput(input);
+        }
+
+        operator.close();
+
+        assertThat("close doesn't run the end of the input", finishes.get(), equalTo(0));
+        if (input != null) {
+            operator.handlers.remove(input).onResponse(new Page(driverContext.blockFactory().newConstantNullBlock(2)));
+            input.releaseBlocks();
+        }
+        assertTrue(operator.isFinished());
+    }
+
+    /**
      * A failed request unblocks the operator while an earlier request is still in flight, so the failure surfaces at once.
      * The result that arrives later is released.
      */

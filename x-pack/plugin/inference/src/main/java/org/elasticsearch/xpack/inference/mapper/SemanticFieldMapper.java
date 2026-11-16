@@ -434,6 +434,10 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
             Builder semanticIncoming = (Builder) incoming;
 
+            // Keep the existing inference_id when omitted: the default may now resolve to a different endpoint
+            if (semanticIncoming.inferenceId.isSet() == false) {
+                semanticIncoming.setInferenceId(inferenceId.get());
+            }
             final boolean isInferenceIdUpdate = semanticIncoming.inferenceId.get().equals(inferenceId.get()) == false;
             final boolean hasExplicitModelSettings = modelSettings.get() != null;
 
@@ -605,8 +609,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 builderParams,
                 indexVersionCreated,
                 indexSettings.getMode(),
-                modelRegistry,
-                vectorsFormatProviders,
                 sourceColumnarStored
             );
         }
@@ -635,8 +637,6 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
     }
 
-    protected final ModelRegistry modelRegistry;
-    protected final List<VectorsFormatProvider> vectorsFormatProviders;
     protected final IndexVersion indexCreatedVersion;
     protected final IndexMode indexMode;
     /** Whether the original input is left out of the {@code columnar_stored} {@code _source} and patched back from doc values. */
@@ -648,16 +648,12 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         BuilderParams builderParams,
         IndexVersion indexCreatedVersion,
         IndexMode indexMode,
-        ModelRegistry modelRegistry,
-        List<VectorsFormatProvider> vectorsFormatProviders,
         boolean sourceColumnarStored
     ) {
         super(simpleName, mappedFieldType, builderParams);
         ensureMultiFields(builderParams.multiFields().iterator());
         this.indexCreatedVersion = indexCreatedVersion;
         this.indexMode = indexMode;
-        this.modelRegistry = modelRegistry;
-        this.vectorsFormatProviders = vectorsFormatProviders;
         this.patchedIntoSource = sourceColumnarStored && mappedFieldType.storesOriginalValuesInDocValues;
     }
 

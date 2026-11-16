@@ -62,7 +62,7 @@ public final class RoundToLongBinarySearchUpEvaluator implements ExpressionEvalu
   }
 
   public LongBlock eval(int positionCount, LongBlock fieldBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldBlock.isNull(p)) {
           result.appendNull();

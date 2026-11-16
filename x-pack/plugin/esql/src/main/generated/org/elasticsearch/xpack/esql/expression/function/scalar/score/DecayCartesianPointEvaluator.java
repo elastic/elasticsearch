@@ -78,7 +78,7 @@ public final class DecayCartesianPointEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleBlock eval(int positionCount, BytesRefBlock valueBlock) {
-    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       BytesRef valueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p)) {

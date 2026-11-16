@@ -70,7 +70,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     /**
      * Factory hold released from {@link #close()} so a producer that finishes during pipeline
      * construction cannot drop the last {@code operatorRefCount} before later {@code get()} calls.
-     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory}.
+     * No-op when this operator was not created by {@link AsyncExternalSourceOperatorFactory} or
+     * {@link AsyncConnectorSourceOperatorFactory}.
      */
     private final Releasable onOperatorClose;
     /**
@@ -95,6 +96,11 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null, null, null);
+    }
+
+    /** Connector-factory path: {@code onOperatorClose} is the factory's operator hold. */
+    public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext, Releasable onOperatorClose) {
+        this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null, onOperatorClose, null);
     }
 
     public AsyncExternalSourceOperator(

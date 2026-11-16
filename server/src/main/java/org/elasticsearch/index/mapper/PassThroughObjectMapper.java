@@ -110,6 +110,26 @@ public final class PassThroughObjectMapper extends ObjectMapper implements PassT
         }
 
         @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(leafName());
+            builder.field("type", CONTENT_TYPE);
+            if (timeSeriesDimensionSubFields.explicit()) {
+                builder.field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, timeSeriesDimensionSubFields.value());
+            }
+            if (priority >= 0) {
+                builder.field(PRIORITY_PARAM_NAME, priority);
+            }
+            if (dynamic != null) {
+                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
+            }
+            if (enabled.value() != Defaults.ENABLED) {
+                builder.field("enabled", enabled.value());
+            }
+            serializeChildren(builder, params);
+            return builder.endObject();
+        }
+
+        @Override
         public PassThroughObjectMapper build(MapperBuilderContext context) {
             return new PassThroughObjectMapper(
                 leafName(),
@@ -211,26 +231,6 @@ public final class PassThroughObjectMapper extends ObjectMapper implements PassT
             && (objectMapper.subobjects == null
                 || objectMapper.subobjects.explicit() == false
                 || objectMapper.subobjects.value().equals(Subobjects.DISABLED));
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(leafName());
-        builder.field("type", CONTENT_TYPE);
-        if (timeSeriesDimensionSubFields.explicit()) {
-            builder.field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, timeSeriesDimensionSubFields.value());
-        }
-        if (priority >= 0) {
-            builder.field(PRIORITY_PARAM_NAME, priority);
-        }
-        if (dynamic != null) {
-            builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
-        }
-        if (isEnabled() != Defaults.ENABLED) {
-            builder.field("enabled", enabled.value());
-        }
-        serializeMappers(builder, params);
-        return builder.endObject();
     }
 
     public static class TypeParser extends ObjectMapper.TypeParser {

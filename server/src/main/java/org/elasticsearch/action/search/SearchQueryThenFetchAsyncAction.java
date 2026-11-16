@@ -35,7 +35,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -183,6 +185,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             connection,
             request,
             getTask(),
+            newShardResponseReservation(getName(), ShardResponseReservation.BREAKER_LABEL),
             listener,
             this::trackPhaseResultBytesRead,
             this::trackPhaseRequestBytesWritten
@@ -212,17 +215,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
             }
-            try {
-                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
-            } catch (Exception e) {
-                // In case the collecting fails, e.g. because of a formatting error, we log the error and continue
-                logger.debug(
-                    "failed to consume top docs for shard [{}] with sort fields [{}]: {}",
-                    result.getShardIndex(),
-                    Arrays.toString(topDocs.fields),
-                    e
-                );
-            }
+            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
         }
         super.onShardResult(result);
     }
@@ -533,7 +526,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             super.doRun(shardIndexMap);
             return;
         }
-        AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts);
+        AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts, clusterState);
         final Map<CanMatchPreFilterSearchPhase.SendingTarget, NodeQueryRequest> perNodeQueries = new HashMap<>();
         final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
         final int numberOfShardsTotal = shardsIts.size();
@@ -578,6 +571,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 executeAsSingleRequest(routing, request.shards.getFirst());
                 return;
             }
+            if (failedOnCoordinatorTrip()) {
+                // A node that already answered tripped, see doPerformPhaseOnShard for why the rest aren't sent
+                return;
+            }
             String nodeId = routing.nodeId();
             final Transport.Connection connection;
             try {
@@ -602,6 +599,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 connection,
                 this::trackPhaseRequestBytesWritten
             );
+            final ShardResponseReservation reservation = SearchTransportService.unlessProxied(
+                connection,
+                newShardResponseReservation(getName(), ShardResponseReservation.BREAKER_LABEL)
+            );
             searchTransportService.transportService()
                 .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, wrapper, task, new TransportResponseHandler<NodeQueryResponse>() {
                     @Override
@@ -612,6 +613,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     @Override
                     public Executor executor() {
                         return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                    }
+
+                    @Override
+                    public Releasable reserveResponseBytes(int bytes) {
+                        return reservation == null ? NO_RESERVATION : reservation.reserve(bytes);
                     }
 
                     @Override
@@ -657,6 +663,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
                     @Override
                     public void handleException(TransportException e) {
+                        if (reservation != null && reservation.reportTrip()) {
+                            // The search has failed. On an older node, bwcHandleException would fail it a second time.
+                            return;
+                        }
                         if (connection.getTransportVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) == false) {
                             bwcHandleException(e);
                             return;
@@ -761,6 +771,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     dependencies,
                     namedWriteableRegistry
                 );
+                // merging the results of the shards of the request is work for them, by the docs each matched
+                List<ShardId> shardIds = request.shards.stream().map(ShardToQuery::shardId).toList();
+                var consumer = state.queryPhaseResultConsumer;
+                consumer.mergeLoad(searchService.searchLoad(shardIds, consumer::docsMatched));
                 // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
                     executeShardTasks(state);
@@ -849,27 +863,28 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 var pitBuilder = searchRequest.pointInTimeBuilder();
                 var shardToQuery = nodeQueryRequest.shards.get(dataNodeLocalIdx);
                 final var shardId = shardToQuery.shardId;
+                final ShardSearchRequest shardRequest = buildShardSearchRequest(
+                    shardId,
+                    nodeQueryRequest.localClusterAlias,
+                    shardToQuery.shardIndex,
+                    shardToQuery.contextId,
+                    new OriginalIndices(shardToQuery.originalIndices, nodeQueryRequest.indicesOptions()),
+                    nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
+                    pitBuilder == null ? null : pitBuilder.getKeepAlive(),
+                    shardToQuery.boost,
+                    searchRequest,
+                    nodeQueryRequest.totalShards,
+                    nodeQueryRequest.absoluteStartMillis,
+                    state.hasResponse.getAcquire(),
+                    shardToQuery.splitShardCountSummary,
+                    nodeQueryRequest.enableShardResultsSkipRequest
+                );
+                // The coordinating node cancels the node-level request if it drops the response, so the contexts the shards open
+                // belong to that request.
+                shardRequest.setParentTask(nodeQueryRequest.getParentTask());
+                shardRequest.setRequestId(nodeQueryRequest.getRequestId());
                 state.dependencies.searchService.executeQueryPhase(
-                    tryRewriteWithUpdatedSortValue(
-                        state.bottomSortCollector,
-                        state.trackTotalHitsUpTo,
-                        buildShardSearchRequest(
-                            shardId,
-                            nodeQueryRequest.localClusterAlias,
-                            shardToQuery.shardIndex,
-                            shardToQuery.contextId,
-                            new OriginalIndices(shardToQuery.originalIndices, nodeQueryRequest.indicesOptions()),
-                            nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
-                            pitBuilder == null ? null : pitBuilder.getKeepAlive(),
-                            shardToQuery.boost,
-                            searchRequest,
-                            nodeQueryRequest.totalShards,
-                            nodeQueryRequest.absoluteStartMillis,
-                            state.hasResponse.getAcquire(),
-                            shardToQuery.splitShardCountSummary,
-                            nodeQueryRequest.enableShardResultsSkipRequest
-                        )
-                    ),
+                    tryRewriteWithUpdatedSortValue(state.bottomSortCollector, state.trackTotalHitsUpTo, shardRequest),
                     state.task,
                     new SearchActionListener<>(
                         new SearchShardTarget(null, shardToQuery.shardId, nodeQueryRequest.localClusterAlias),
@@ -964,6 +979,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             }
             ChannelActionListener<BytesTransportResponse> channelListener = new ChannelActionListener<>(channel);
             final BytesTransportResponse response;
+            long startNanos = TaskLoadAttribution.startPart();
             try {
                 response = buildResponse();
             } catch (Exception e) {
@@ -974,8 +990,22 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
                 channelListener.onFailure(e);
                 return;
+            } finally {
+                chargeMerge(startNanos);
             }
             ActionListener.respondAndRelease(channelListener, response);
+        }
+
+        /**
+         * Charges building the response to the shards of the request, as it merges their results in the task of the shard that
+         * completed last.
+         */
+        private void chargeMerge(long startNanos) {
+            TaskLoadAttribution.Target mergeLoad = queryPhaseResultConsumer.mergeLoad();
+            if (mergeLoad != null) {
+                long finishNanos = System.nanoTime();
+                TaskLoadAttribution.charge(mergeLoad, finishNanos - startNanos, finishNanos);
+            }
         }
 
         private BytesTransportResponse buildResponse() throws Exception {

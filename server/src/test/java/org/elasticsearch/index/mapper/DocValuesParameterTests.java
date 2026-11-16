@@ -11,8 +11,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -21,7 +24,10 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,6 +35,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -73,11 +80,15 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         }
     }
 
-    public void testColumnarRejectsDocValuesFalseOnRootField() {
+    public void testColumnarRejectsDocValuesFalseOnRootFieldBeforeNoOpGate() {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)))
+            () -> createMapperService(
+                randomVersionBeforeDocValuesNoOp(),
+                settings,
+                fieldMapping(b -> b.field("type", "keyword").field("doc_values", false))
+            )
         );
         assertThat(
             e.getMessage(),
@@ -88,11 +99,11 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         );
     }
 
-    public void testColumnarAllowsDocValuesFalseOnMultiField() throws IOException {
+    public void testColumnarAllowsDocValuesFalseOnMultiFieldBeforeNoOpGate() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        // A search-only multi-field may opt out of doc values: it never appears in _source, so it needs no columnar
-        // representation (the user accepts they can't aggregate on it).
-        MapperService mapperService = createMapperService(settings, mapping(b -> {
+        // Before the no-op gate, a search-only multi-field could opt out of doc values: it never appears in _source, so it needs
+        // no columnar representation.
+        MapperService mapperService = createMapperService(randomVersionBeforeDocValuesNoOp(), settings, mapping(b -> {
             b.startObject("field");
             {
                 b.field("type", "keyword");
@@ -203,6 +214,65 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                     FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
                 )
             )
+        );
+    }
+
+    /**
+     * 9_111_0_xx index versions were backported to 9.5 without the change that made all mappers honor the index-level
+     * {@code doc_values} settings, so on stateful those indices keep ignoring them, while stateless honors them from the original gate.
+     */
+    public void testDocValuesDefaultsGateForBackportedVersionsDependsOnStateless() {
+        Settings statelessNode = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            .build();
+        for (IndexVersion backported : List.of(
+            IndexVersions.UPGRADE_TO_LUCENE_10_5_1,
+            IndexVersions.UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5
+        )) {
+            assertThat(
+                "stateful ignores the setting for " + backported,
+                scaledFloatLikeDefaults(indexSettings, backported, Settings.EMPTY).multiValue(),
+                equalTo(true)
+            );
+        }
+        assertThat(
+            "stateless honors the setting from the original gate",
+            scaledFloatLikeDefaults(indexSettings, IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS, statelessNode).multiValue(),
+            equalTo(false)
+        );
+        assertThat(
+            "stateless ignores the setting before the original gate",
+            scaledFloatLikeDefaults(
+                indexSettings,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS),
+                statelessNode
+            ).multiValue(),
+            equalTo(true)
+        );
+        assertThat(
+            "stateful honors the setting from the first non-backported version",
+            scaledFloatLikeDefaults(indexSettings, IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, Settings.EMPTY).multiValue(),
+            equalTo(false)
+        );
+    }
+
+    private static FieldMapper.DocValuesParameter.Values scaledFloatLikeDefaults(
+        Settings indexSettings,
+        IndexVersion version,
+        Settings nodeSettings
+    ) {
+        IndexSettings settings = IndexSettingsModule.newIndexSettings(
+            new Index("index", IndexMetadata.INDEX_UUID_NA_VALUE),
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).put(indexSettings).build(),
+            nodeSettings
+        );
+        return FieldMapper.DocValuesParameter.defaultValues(
+            settings,
+            FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+            FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+            IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
         );
     }
 
@@ -526,7 +596,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                 // serialized at top level, not nested in doc_values
                 String quote = original instanceof String ? "\"" : "";
                 assertThat(
-                    Strings.toString(mapperService.documentMapper().mapping()),
+                    mapperService.documentMapper().mappingSource().string(),
                     containsString("\"" + name + "\":" + quote + original + quote)
                 );
                 // re-sending the same value is a no-op
@@ -1177,8 +1247,8 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         KeywordFieldMapper tm = (KeywordFieldMapper) topLevel.documentMapper().mappers().getMapper("field");
         assertThat(nm.docValuesParameters(), equalTo(tm.docValuesParameters()));
         // both serialize to top-level on a new index
-        assertThat(Strings.toString(nested.documentMapper().mapping()), containsString("\"multi_value\":false"));
-        assertThat(Strings.toString(nested.documentMapper().mapping()), not(containsString("\"doc_values\":{")));
+        assertThat(nested.documentMapper().mappingSource().string(), containsString("\"multi_value\":false"));
+        assertThat(nested.documentMapper().mappingSource().string(), not(containsString("\"doc_values\":{")));
         assertWarnings(NESTED_ATTRIBUTES_DEPRECATION);
     }
 
@@ -1282,5 +1352,115 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             doc.rootDoc().getFields("_ignored").stream().anyMatch(f -> "field.raw".equals(f.stringValue())),
             equalTo(true)
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // doc_values attribute is a no-op in strict-columnar modes
+    // -----------------------------------------------------------------------
+
+    /**
+     * An ECS-style {@code event.original}: a non-indexed keyword with {@code doc_values: false}. In strict-columnar modes the attribute
+     * is ignored, so the field keeps its doc values and the attribute is not persisted.
+     */
+    private static String docValuesIgnoredWarning(String field) {
+        return "The [doc_values] parameter of field ["
+            + field
+            + "] is ignored in columnar index modes, because doc values are always enabled. Remove the parameter.";
+    }
+
+    public void testColumnarIgnoresDocValuesFalse() throws Exception {
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {
+                b.startObject("event.original");
+                b.field("type", "keyword").field("index", false).field("doc_values", false).field("ignore_above", 1024);
+                b.endObject();
+                b.startObject("count").field("type", "long").field("doc_values", false).endObject();
+            }));
+            assertWarnings(docValuesIgnoredWarning("event.original"), docValuesIgnoredWarning("count"));
+            assertTrue(mapperService.fieldType("event.original").hasDocValues());
+            assertTrue(mapperService.fieldType("count").hasDocValues());
+            assertThat(mapperService.documentMapper().mappingSource().string(), not(containsString("doc_values")));
+        }
+    }
+
+    public void testColumnarIgnoresDocValuesTrue() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").field("doc_values", true))
+        );
+        // doc_values: true is accepted silently: only an explicit false is worth warning about.
+        ensureNoWarnings();
+        assertTrue(mapperService.fieldType("field").hasDocValues());
+        assertThat(mapperService.documentMapper().mappingSource().string(), not(containsString("doc_values")));
+    }
+
+    public void testColumnarDocValuesFalseWithMultiValueFalse() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(
+            settings,
+            fieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("multi_value", false))
+        );
+        assertWarnings(docValuesIgnoredWarning("field"));
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().enabled(), equalTo(true));
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(false));
+        String serialized = mapperService.documentMapper().mappingSource().string();
+        assertThat(serialized, containsString("\"multi_value\":false"));
+        assertThat(serialized, not(containsString("\"doc_values\"")));
+    }
+
+    public void testColumnarDocValuesFalseMergesWithOmittedDocValues() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "keyword")));
+        merge(mapperService, fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)));
+        assertWarnings(docValuesIgnoredWarning("field"));
+        assertTrue(mapperService.fieldType("field").hasDocValues());
+    }
+
+    public void testColumnarDocValuesFalseInDynamicTemplate() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, topMapping(b -> {
+            b.startArray("dynamic_templates");
+            b.startObject().startObject("no_dv");
+            b.field("match", "tmpl_*");
+            b.startObject("mapping").field("type", "keyword").field("index", false).field("doc_values", false).endObject();
+            b.endObject().endObject();
+            b.endArray();
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("tmpl_a", "value")));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
+        assertWarnings(docValuesIgnoredWarning("__dynamic__no_dv"), docValuesIgnoredWarning("tmpl_a"));
+        assertTrue(mapperService.fieldType("tmpl_a").hasDocValues());
+        // The field mapped from the template does not persist doc_values.
+        // The dynamic template itself still carries doc_values, so inspect only the mapped field.
+        ObjectPath mapping = ObjectPath.createFromXContent(
+            JsonXContent.jsonXContent,
+            new BytesArray(mapperService.documentMapper().mappingSource().string())
+        );
+        Map<String, Object> tmplA = mapping.evaluate("_doc.properties.tmpl_a");
+        assertThat(tmplA.keySet(), not(hasItem("doc_values")));
+    }
+
+    public void testColumnarDocValuesNonBooleanStillRejected() {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("doc_values", "not-a-boolean")))
+        );
+        assertThat(e.getMessage(), containsString("Could not convert [doc_values] to boolean"));
+    }
+
+    public void testNonColumnarDocValuesFalseStillHonoured() throws Exception {
+        for (IndexMode mode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
+            MapperService mapperService = createMapperService(
+                settings,
+                fieldMapping(b -> b.field("type", "keyword").field("doc_values", false))
+            );
+            assertFalse(mapperService.fieldType("field").hasDocValues());
+        }
     }
 }

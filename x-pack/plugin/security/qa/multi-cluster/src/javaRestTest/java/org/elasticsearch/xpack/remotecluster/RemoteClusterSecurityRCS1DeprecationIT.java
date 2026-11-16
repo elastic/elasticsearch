@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * Tests the deprecation of RCS1.0 (certificate-based) security model.
@@ -111,10 +112,9 @@ public class RemoteClusterSecurityRCS1DeprecationIT extends AbstractRemoteCluste
         {
             // verify that the deprecation warning is logged
             try (InputStream log = queryCluster.getNodeLog(0, LogType.DEPRECATION)) {
-                Streams.readAllLines(
-                    log,
-                    line -> assertThat(
-                        line,
+                assertThat(
+                    Streams.readAllLines(log),
+                    hasItem(
                         containsString(
                             "The remote cluster connection to ["
                                 + REMOTE_CLUSTER_ALIAS

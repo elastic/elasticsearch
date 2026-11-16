@@ -247,9 +247,24 @@ public class CommandLineHttpClientTests extends ESTestCase {
 
     private static List<InetAddress> loopbackAddresses() {
         // The test certificate has IP SANs for both
-        return NetworkUtils.SUPPORTS_V6
+        return NetworkUtils.SUPPORTS_V6 && (inFipsJvm() == false || jdkRejectsIpv6LiteralSni() == false)
             ? List.of(InetAddresses.forString("127.0.0.1"), InetAddresses.forString("::1"))
             : List.of(InetAddresses.forString("127.0.0.1"));
+    }
+
+    /**
+     * Before JDK-8369950, {@code HttpsURLConnection} sends the URL's host as the SNI name to JSSE providers other than the JDK's own,
+     * such as Bouncy Castle's in a FIPS JVM. For an IPv6 literal that host is bracketed, which {@link javax.net.ssl.SNIHostName} rejects,
+     * so the connection fails before the handshake. The fix shipped in JDK 27 and was backported to 21.0.12, 25.0.4 and 26.0.2.
+     */
+    private static boolean jdkRejectsIpv6LiteralSni() {
+        final Runtime.Version version = Runtime.version();
+        final int feature = version.feature();
+        final int update = version.update();
+        return (feature == 21 && update < 12)
+            || (feature >= 22 && feature <= 24)
+            || (feature == 25 && update < 4)
+            || (feature == 26 && update < 2);
     }
 
     private void assertRequestToIpLiteralSucceeds(CommandLineHttpClient client, InetAddress address) throws Exception {

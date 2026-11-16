@@ -63,6 +63,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.elasticsearch.xpack.stateless.memory.ShardHeapEstimator.ADAPTIVE_SHARD_MEMORY_OVERHEAD;
 import static org.elasticsearch.xpack.stateless.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
 import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService.estimateIndexMetadataHeapBytes;
 import static org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsServiceTestUtils.computeShardHeapEstimate;
@@ -166,6 +167,58 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             assertThat(shardHeapUsages.get(shardId2).shardHeapUsageBytes(), equalTo(estimate.shardHeapUsageBytes()));
             assertThat(shardHeapUsages.get(shardId2).indexHeapUsageBytes(), equalTo(estimate.indexHeapUsageBytes()));
         }
+    }
+
+    /**
+     * Tests that the shard heap usage returned to the allocation decider
+     * ({@link StatelessMemoryMetricsService#getShardHeapUsageEstimates()}) is the plain adaptive estimate.
+     * The adaptive minimum threshold is an autoscaling floor only and must not affect per-shard allocation decisions.
+     * {@link StatelessMemoryMetricsService#aggregateShardMetrics} (since it's used by autoscaling) should still apply this floor.
+     */
+    public void testShardHeapUsageForAllocationDeciderIsNotInflatedByAdaptiveFloorEstimate() {
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), "-1b")
+                .put(StatelessMemoryMetricsService.ADAPTIVE_EXTRA_OVERHEAD_SETTING.getKey(), "0%")
+                .put(StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING.getKey(), true)
+                .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 1_000)
+                .build()
+        );
+
+        // Firstly, a sanity check that the autoscaling floor is greater than the default adaptive overhead
+        long adaptiveOverhead = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes();
+        long floor = service.getAdaptiveShardMemoryEstimationMinThreshold();
+        assertThat(floor, greaterThan(adaptiveOverhead));
+
+        // This creates a shard with no segments, fields, postings, live-docs, or points.
+        // The adaptive estimate should be just ADAPTIVE_SHARD_MEMORY_OVERHEAD (75 KB), well below the autoscaling floor.
+        var emptyShardMetrics = new StatelessMemoryMetricsService.ShardMemoryMetrics(
+            0L,
+            0,
+            0,
+            0L,
+            0L,
+            0L,
+            UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES,
+            0L,
+            MetricQuality.EXACT,
+            "node-0",
+            System.nanoTime()
+        );
+        var shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), 0);
+        service.getShardMemoryMetrics().put(shardId, emptyShardMetrics);
+
+        var shardHeapUsages = service.getShardHeapUsageEstimates();
+        assertThat(shardHeapUsages.perShard().get(shardId).shardHeapUsageBytes(), equalTo(adaptiveOverhead));
+        assertThat(shardHeapUsages.defaultForShardsWithoutMetrics().shardHeapUsageBytesExcludingPostings(), equalTo(adaptiveOverhead));
+        assertThat(computeShardHeapEstimate(service, emptyShardMetrics).shardHeapUsageBytesExcludingPostings(), equalTo(adaptiveOverhead));
+
+        // Now check that the autoscaling estimates are inflated
+        var tierAggregate = service.aggregateShardMetrics(
+            StatelessMemoryMetricsService.PostingsInEstimate.EXCLUDE,
+            StatelessMemoryMetricsService.SelfReportedShardOverhead.DISABLE
+        );
+        assertThat(tierAggregate.totalShardHeapInBytes(), equalTo(floor));
     }
 
     public void testShardHeapUsageIncludesPointsMemory() {
@@ -701,7 +754,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
      * terms (the cross-node max postings equals the node's own postings), so the two must agree to the byte
      */
     public void testEstimateNodeHeapUsageMatchesMasterPerNodeEstimate() {
-        runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(false);
+        runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(false, false);
     }
 
     /**
@@ -709,17 +762,25 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
      * instead of the fixed default.
      */
     public void testEstimateNodeHeapUsageMatchesMasterPerNodeEstimateAdaptiveOverhead() {
-        runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(true);
+        runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(true, false);
     }
 
-    private void runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(boolean adaptiveShardOverhead) {
+    /**
+     * Same parity when the autoscaling floor is enabled and every shard's adaptive estimate is below that floor.
+     * Neither the master's per-node estimate nor the recovery-gate self-estimate may be raised to the floor.
+     */
+    public void testEstimateNodeHeapUsageMatchesMasterPerNodeEstimateAtAdaptiveMinThreshold() {
+        runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(true, true);
+    }
+
+    private void runEstimateNodeHeapUsageMatchesMasterPerNodeEstimate(boolean adaptiveShardOverhead, boolean shardsAtAdaptiveMinThreshold) {
         if (adaptiveShardOverhead) {
             clusterSettings.applySettings(
                 Settings.builder()
                     .put(StatelessMemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING.getKey(), "-1b")
                     .put(
                         StatelessMemoryMetricsService.ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING.getKey(),
-                        randomBoolean()
+                        shardsAtAdaptiveMinThreshold || randomBoolean()
                     )
                     .build()
             );
@@ -728,20 +789,56 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final ClusterState clusterState = randomInitialSingleNodeClusterState(between(1, 4));
         final DiscoveryNode node0 = clusterState.nodes().get("node_0");
         service.clusterChanged(new ClusterChangedEvent("init", clusterState, ClusterState.EMPTY_STATE));
-        final Map<ShardId, ShardMappingSize> shardMappingSizes = randomMemoryMetrics(node0, clusterState);
+        final Map<ShardId, ShardMappingSize> shardMappingSizes = randomMemoryMetrics(
+            node0,
+            clusterState,
+            // Few segments keep each shard's adaptive estimate below the autoscaling floor
+            shardsAtAdaptiveMinThreshold ? 10 : 1_000
+        );
         service.updateShardsMappingSize(new HeapMemoryUsage(1, shardMappingSizes));
 
         final NodeHeapEstimates masterEstimate = service.getPerNodeMemoryMetrics(clusterState).get(node0.getId());
-        final int totalIndices = clusterState.metadata().getTotalNumberOfIndices();
-        final NodeHeapEstimates localEstimate = service.estimateNodeHeapUsage(node0, totalIndices, 0L, 0L, 0L, shardMappingSizes);
-        assertThat(localEstimate, equalTo(masterEstimate));
+        if (shardsAtAdaptiveMinThreshold) {
+            assertThat(
+                "allocation estimates must not be inflated to the adaptive floor",
+                masterEstimate.hostedShardsHeapUsage(),
+                lessThan(shardMappingSizes.size() * service.getAdaptiveShardMemoryEstimationMinThreshold())
+            );
+        }
 
-        // The node-level signals are additive on the total only and do not leak into the hosted-shards estimate
+        // node_0's own view of the same cluster, with another node elected as master
+        final ClusterState nonMasterClusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(DiscoveryNodeUtils.create("node_1")).masterNodeId("node_1"))
+            .build();
+        final StatelessMemoryMetricsService nonMasterService = new StatelessMemoryMetricsService(System::nanoTime, clusterService);
+        nonMasterService.clusterChanged(new ClusterChangedEvent("init", nonMasterClusterState, ClusterState.EMPTY_STATE));
+
+        final int totalIndices = clusterState.metadata().getTotalNumberOfIndices();
+        assertEstimateNodeHeapUsageMatches("elected master", service, node0, totalIndices, shardMappingSizes, masterEstimate);
+        assertEstimateNodeHeapUsageMatches("non-master node", nonMasterService, node0, totalIndices, shardMappingSizes, masterEstimate);
+    }
+
+    /**
+     * Asserts that {@code localService}'s node-local estimate for {@code node} matches {@code masterEstimate}, and that the node-level
+     * signals are additive on the total only and do not leak into the hosted-shards estimate.
+     */
+    private static void assertEstimateNodeHeapUsageMatches(
+        String serviceDescription,
+        StatelessMemoryMetricsService localService,
+        DiscoveryNode node,
+        int totalIndices,
+        Map<ShardId, ShardMappingSize> shardMappingSizes,
+        NodeHeapEstimates masterEstimate
+    ) {
+        final String reason = "estimate on the " + serviceDescription;
+        final NodeHeapEstimates localEstimate = localService.estimateNodeHeapUsage(node, totalIndices, 0L, 0L, 0L, shardMappingSizes);
+        assertThat(reason, localEstimate, equalTo(masterEstimate));
+
         final long largeIndexingOpsHeap = randomLongBetween(1, 1_000_000);
         final long mergeMemoryEstimate = randomLongBetween(1, 1_000_000);
         final long ingestModelHeap = randomLongBetween(1, 1_000_000);
-        final NodeHeapEstimates withNodeSignals = service.estimateNodeHeapUsage(
-            node0,
+        final NodeHeapEstimates withNodeSignals = localService.estimateNodeHeapUsage(
+            node,
             totalIndices,
             largeIndexingOpsHeap,
             mergeMemoryEstimate,
@@ -749,10 +846,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
             shardMappingSizes
         );
         final long nodeSignalHeap = largeIndexingOpsHeap + mergeMemoryEstimate + ingestModelHeap;
-        assertThat(withNodeSignals.totalHeapUsage(), equalTo(localEstimate.totalHeapUsage() + nodeSignalHeap));
-        assertThat(withNodeSignals.hostedShardsHeapUsage(), equalTo(localEstimate.hostedShardsHeapUsage()));
-        assertThat(localEstimate.nonShardHeapUsage(), greaterThan(0L));
-        assertThat(withNodeSignals.nonShardHeapUsage(), equalTo(localEstimate.nonShardHeapUsage() + nodeSignalHeap));
+        assertThat(reason, withNodeSignals.totalHeapUsage(), equalTo(localEstimate.totalHeapUsage() + nodeSignalHeap));
+        assertThat(reason, withNodeSignals.hostedShardsHeapUsage(), equalTo(localEstimate.hostedShardsHeapUsage()));
+        assertThat(reason, localEstimate.nonShardHeapUsage(), greaterThan(0L));
+        assertThat(reason, withNodeSignals.nonShardHeapUsage(), equalTo(localEstimate.nonShardHeapUsage() + nodeSignalHeap));
     }
 
     /**
@@ -918,6 +1015,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
     }
 
     private Map<ShardId, ShardMappingSize> randomMemoryMetrics(DiscoveryNode node, ClusterState clusterState) {
+        return randomMemoryMetrics(node, clusterState, 1_000);
+    }
+
+    private Map<ShardId, ShardMappingSize> randomMemoryMetrics(DiscoveryNode node, ClusterState clusterState, int maxNumSegments) {
         Map<ShardId, ShardMappingSize> result = new HashMap<>();
         Map<Index, Long> indexMappingSizes = new HashMap<>();
         clusterState.getRoutingNodes().node(node.getId()).forEach(r -> {
@@ -929,7 +1030,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
                 r.shardId(),
                 new ShardMappingSize(
                     mappingSize,
-                    randomIntBetween(1, 1_000),
+                    randomIntBetween(1, maxNumSegments),
                     randomIntBetween(1, 100),
                     randomLongBetween(1, 100),
                     randomIntBetween(1, 100),

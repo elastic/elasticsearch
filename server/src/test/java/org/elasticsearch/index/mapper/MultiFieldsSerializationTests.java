@@ -12,7 +12,11 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -23,7 +27,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class MultiFieldsSerializationTests extends ESTestCase {
 
-    public void testSorting() {
+    public void testSorting() throws IOException {
 
         FieldMapper.MultiFields.Builder builder = new FieldMapper.MultiFields.Builder();
 
@@ -40,10 +44,9 @@ public class MultiFieldsSerializationTests extends ESTestCase {
             builder.add(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, defaultIndexSettings()));
         }
 
-        Mapper.Builder root = new BooleanFieldMapper.Builder("root", ScriptCompiler.NONE, defaultIndexSettings());
-        FieldMapper.MultiFields multiFields = builder.build(root, MapperBuilderContext.root(false, false));
-
-        String serialized = Strings.toString(multiFields);
+        XContentBuilder xContent = XContentFactory.jsonBuilder().startObject();
+        builder.toXContent(xContent, ToXContent.EMPTY_PARAMS);
+        String serialized = Strings.toString(xContent.endObject());
         int lastStart = 0;
         for (String name : sortedNames) {
             int pos = serialized.indexOf(name);

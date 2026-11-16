@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.heap_attack;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
@@ -19,7 +22,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 
 /**
@@ -164,6 +169,85 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
             query.append("FROM ").append(index).append("\n| LIMIT 1\"}");
             return responseAsMap(query(query.toString(), "columns"));
         }, "UnmappedFields$AllFieldsBlockLoader");
+    }
+
+    /** The circuit break of the values held while an array is read, not that of the reservation made before. */
+    private static final MapMatcher HELD_VALUES_BREAK = matchesMap().entry("status", 429)
+        .entry(
+            "error",
+            matchesMap().extraOk()
+                .entry("type", "circuit_breaking_exception")
+                .entry("reason", containsString("[unmapped fields held values]"))
+        );
+
+    /**
+     * Index:
+     * <ul>
+     *     <li>One document with an array of 7M one-character strings, indexed as CBOR: 14MB of {@code _source}</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>{@code LOAD_ALL} over every document</li>
+     * </ul>
+     * Expected: circuit break while the values of the array are held
+     * <p>
+     * An element of 2 bytes of CBOR {@code _source} is held as a {@code String} that takes about 50, so what is held is more than the
+     * reservation of 10 times the size of {@code _source} stands for. On the 512MB heap of this suite an array of this many strings,
+     * with the request breaker at its default limit, killed the node before the held values were charged. The cluster allows the
+     * document to be indexed, see {@link Clusters}, and CBOR keeps it small enough to be indexed on a larger heap as well, see
+     * {@link #indexCborDocument}. The document and its reservation fit under the breaker, and what is held does not.
+     */
+    public void testArrayOfShortStringsCircuitBreaksWhileItsValuesAreHeld() throws IOException {
+        String index = "load_all_short_strings";
+        indexDocumentWithArrays(index, scaleToHeap(7_000_000), false);
+        assertCircuitBreaks(attempt -> loadAllOneRow(index), HELD_VALUES_BREAK);
+    }
+
+    /**
+     * Index:
+     * <ul>
+     *     <li>One document with {@code "a.b"} and {@code "a": {"b": ...}} each an array of 3M one-character strings, indexed as CBOR:
+     *     12MB of {@code _source}</li>
+     * </ul>
+     * Query:
+     * <ul>
+     *     <li>{@code LOAD_ALL} over every document</li>
+     * </ul>
+     * Expected: circuit break while the values are held
+     * <p>
+     * A document that spells a field in two ways is read again with all of its values held, not just those of an array.
+     */
+    public void testFieldSpelledInTwoWaysCircuitBreaksWhileItsValuesAreHeld() throws IOException {
+        String index = "load_all_two_spellings";
+        indexDocumentWithArrays(index, scaleToHeap(3_000_000), true);
+        assertCircuitBreaks(attempt -> loadAllOneRow(index), HELD_VALUES_BREAK);
+    }
+
+    /** One document with the array {@code a} of {@code elements} one-character strings, or two arrays that are the field {@code a.b}. */
+    private void indexDocumentWithArrays(String index, int elements, boolean spelledInTwoWays) throws IOException {
+        createMostlyUnmappedIndex(index);
+        try (XContentBuilder doc = XContentFactory.cborBuilder()) {
+            doc.startObject().field(MAPPED_FIELD, "0");
+            if (spelledInTwoWays) {
+                arrayOfShortStrings(doc, "a.b", elements);
+                doc.startObject("a");
+                arrayOfShortStrings(doc, "b", elements);
+                doc.endObject();
+            } else {
+                arrayOfShortStrings(doc, "a", elements);
+            }
+            doc.endObject();
+            indexCborDocument(index, doc);
+        }
+        // Everything is indexed already; this only force-merges and refreshes.
+        initIndex(index, "");
+    }
+
+    private Map<String, Object> loadAllOneRow(String index) throws IOException {
+        StringBuilder query = startQuery();
+        query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
+        query.append("FROM ").append(index).append("\n| LIMIT 1\"}");
+        return responseAsMap(query(query.toString(), "columns"));
     }
 
     private void createMostlyUnmappedIndex(String index) throws IOException {

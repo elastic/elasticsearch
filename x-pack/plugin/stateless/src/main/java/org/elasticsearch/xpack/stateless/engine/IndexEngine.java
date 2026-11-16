@@ -54,6 +54,7 @@ import org.elasticsearch.index.engine.MergeMemoryEstimateProvider;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.SizeTrackingOneMerge;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -576,12 +577,16 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
+    public void onBatchParsingCompleted(BatchMappingContext context) {
+        documentParsingReporter.onBatchParsingCompleted(context.docCount(), context::normalizedSize, context::addColumn);
+    }
+
+    @Override
     public List<IndexResult> indexBatch(EngineBatch engineBatch) throws IOException {
         checkNoNewOperationsWhileHollow();
+        // parsing was reported for the whole chunk in onBatchParsingCompleted; indexing is still reported per row
+        // TODO: make onIndexingCompleted batch aware and avoid materializeIndexOps here
         List<Index> operations = engineBatch.batch().materializeIndexOps();
-        for (Index operation : operations) {
-            documentParsingReporter.onParsingCompleted(operation.parsedDoc());
-        }
         List<IndexResult> results = super.indexBatch(engineBatch);
         for (int i = 0; i < results.size(); i++) {
             if (results.get(i).getResultType() == Result.Type.SUCCESS) {
@@ -641,7 +646,11 @@ public class IndexEngine extends InternalEngine {
     }
 
     public static boolean isLastCommitHollow(SegmentInfos segmentInfos) {
-        String translogRecoveryStartFile = segmentInfos.getUserData().get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
+        return isLastCommitHollow(segmentInfos.getUserData());
+    }
+
+    public static boolean isLastCommitHollow(Map<String, String> commitUserData) {
+        String translogRecoveryStartFile = commitUserData.get(StatelessCompoundCommit.TRANSLOG_RECOVERY_START_FILE);
         return translogRecoveryStartFile != null ? Long.parseLong(translogRecoveryStartFile) == HOLLOW_TRANSLOG_RECOVERY_START_FILE : false;
     }
 

@@ -1316,7 +1316,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
                 ESVectorUtil.linearCombination(coefficient, planted, u * dim, vector, 0, dim);
             }
             for (int i = 0; i < dim; i++) {
-                vector[i] += 0.05f * (float) random().nextGaussian();
+                vector[i] = Math.fma(0.05f, (float) random().nextGaussian(), vector[i]);
             }
         }
         return vectors;
@@ -1365,7 +1365,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             ESVectorUtil.l2Normalize(normalized, 0, dim);
             float[] projected = ESVectorUtil.matrixVectorMultiply(wT, nDims, dim, normalized);
             for (int j = 0; j < nDims; j++) {
-                variance[j] += (double) projected[j] * projected[j];
+                variance[j] = Math.fma(projected[j], projected[j], variance[j]);
             }
         }
         double max = Arrays.stream(variance).max().orElseThrow();

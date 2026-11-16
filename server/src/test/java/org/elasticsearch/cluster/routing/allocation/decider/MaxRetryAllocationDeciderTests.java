@@ -350,7 +350,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             .build();
         clusterState = withRoutingAllocation(clusterState, allocation -> {
             final var initializing = allocation.routingTable(ProjectId.DEFAULT).index("idx").shard(0).shard(0);
-            allocation.routingNodes().failShard(initializing, initializing.unassignedInfo(), allocation.changes());
+            allocation.routingNodes().failShard(initializing, initializing.unassignedInfo(), allocation.changes(), allocation.metadata());
             final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
             unassignedIterator.next();
             unassignedIterator.initialize(freshNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation.changes());
@@ -559,7 +559,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 clusterState = withRoutingAllocation(clusterState, alloc -> {
                     final var target = alloc.routingNodes().getByAllocationId(shardId, replicaTarget.allocationId().getId());
                     final var cancelledInfo = new UnassignedInfo(UnassignedInfo.Reason.RECOVERY_CANCELLED, "cleanup");
-                    alloc.routingNodes().failShard(target, cancelledInfo, alloc.changes());
+                    alloc.routingNodes().failShard(target, cancelledInfo, alloc.changes(), alloc.metadata());
                 });
             } else { // genuine failure
                 final String replicaTargetNode = randomFrom(freeNodes);
@@ -580,7 +580,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 clusterState = withRoutingAllocation(clusterState, alloc -> {
                     final var target = alloc.routingNodes().getByAllocationId(shardId, relocationTarget.allocationId().getId());
                     final var failedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "failure");
-                    alloc.routingNodes().failShard(target, failedInfo, alloc.changes());
+                    alloc.routingNodes().failShard(target, failedInfo, alloc.changes(), alloc.metadata());
                 });
                 genuineFailures++;
             }

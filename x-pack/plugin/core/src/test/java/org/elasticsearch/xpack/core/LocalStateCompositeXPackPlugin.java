@@ -734,4 +734,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     public void signalShutdown(Collection<String> shutdownNodeIds) {
         filterPlugins(ShutdownAwarePlugin.class).forEach(plugin -> plugin.signalShutdown(shutdownNodeIds));
     }
+
+    @Override
+    public Collection<String> getActionsToAwaitOnShutdown() {
+        return filterPlugins(ShutdownAwarePlugin.class).stream().flatMap(plugin -> plugin.getActionsToAwaitOnShutdown().stream()).toList();
+    }
 }

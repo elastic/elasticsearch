@@ -71,10 +71,10 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
  * <p>Each logical unit maps to one {@link ChunkedRestResponseBodyPart}. The columns and error parts each
  * emit a single small NDJSON line and ignore the {@code sizeHint} argument to {@code encodeChunk}. The
  * page and footer parts respect {@code sizeHint} and may span multiple {@code encodeChunk} calls: pages
- * because {@code batch_size} is a row count and per-row JSON width is unbounded; the footer because the
+ * because a page's row count and per-row JSON width are both unbounded; the footer because the
  * profile payload (when present) contains one entry per driver across all nodes. Pages are never coalesced
  * across parts: the next page is only available via an async {@code request(1)} call, and buffering to fill
- * a chunk would contradict the client's chosen {@code batch_size}.</p>
+ * a chunk would hold rows back from the client.</p>
  */
 public class EsqlStreamResponseListener implements ActionListener<ActionResponse.Empty> {
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -166,6 +167,32 @@ public class ParquetReadFailuresTests extends ESTestCase {
         assertSame(breaking, wrappedBreaking);
         assertEquals(breakingMessage, wrappedBreaking.getMessage());
         assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(ExternalFailures.classify(breaking)));
+    }
+
+    public void testUnsupportedCodecRefusalIsClient400() {
+        CompressionCodecName codec = randomBoolean() ? CompressionCodecName.BROTLI : CompressionCodecName.LZO;
+        IllegalArgumentException iae = new IllegalArgumentException(
+            PlainCompressionCodecFactory.unsupportedDecompressionDetail("id", codec, 0)
+        );
+        RuntimeException wrapped = ParquetReadFailures.wrap(iae, "Failed to read Parquet column [id] in file [brotli.parquet]");
+        assertThat(wrapped, instanceOf(IllegalArgumentException.class));
+        assertThat(wrapped.getMessage(), containsString("id"));
+        assertThat(wrapped.getMessage(), containsString(codec.name()));
+        RuntimeException classified = ExternalFailures.classify(wrapped);
+        assertThat(classified, instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        assertThat(classified.getMessage(), containsString(codec.name()));
+        assertThat(classified.getMessage(), containsString("id"));
+        assertThat(classified.getMessage(), containsString("LZ4_RAW"));
+    }
+
+    public void testUnsupportedOperationExceptionStillClassifies500() {
+        UnsupportedOperationException uoe = new UnsupportedOperationException("Unsupported Parquet decompression codec: BROTLI");
+        RuntimeException wrapped = ParquetReadFailures.wrap(uoe, "ctx");
+        assertSame(uoe, wrapped);
+        RuntimeException classified = ExternalFailures.classify(wrapped);
+        assertThat(classified, instanceOf(ExternalServerException.class));
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
     }
 
     public void testInvalidArgumentExceptionIdentity400() {

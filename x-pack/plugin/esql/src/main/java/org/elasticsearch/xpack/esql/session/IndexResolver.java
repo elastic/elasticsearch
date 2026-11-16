@@ -542,7 +542,7 @@ public class IndexResolver {
          * to read the children.
          */
         boolean flattenedLeaves() {
-            return NestedLeaves.ENABLED && minTransportVersion != null && minTransportVersion.supports(NestedLeaves.VERSION);
+            return NestedLeaves.enabled(minTransportVersion);
         }
 
         /** Whether an object is not a leaf, so it neither maps its name nor gives a column its type. */

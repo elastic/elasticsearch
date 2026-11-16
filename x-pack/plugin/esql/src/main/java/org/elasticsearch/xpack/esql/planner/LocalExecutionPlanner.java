@@ -431,7 +431,8 @@ public class LocalExecutionPlanner {
             new Holder<>(),
             new Holder<>(),
             singleNodeOptimizations,
-            sortBound
+            sortBound,
+            minTransportVersion
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -3103,7 +3104,8 @@ public class LocalExecutionPlanner {
         Holder<TopNExec> lastVisitedTopN,
         Holder<LuceneMinCompetitiveTimestampTopN> luceneMinCompetitivePilot,
         boolean singleNodeOptimizations,
-        @Nullable SharedSortBound sortBound
+        @Nullable SharedSortBound sortBound,
+        TransportVersion minTransportVersion
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

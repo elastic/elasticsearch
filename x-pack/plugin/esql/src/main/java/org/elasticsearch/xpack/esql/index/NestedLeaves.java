@@ -36,6 +36,14 @@ public final class NestedLeaves {
 
     private NestedLeaves() {}
 
+    /**
+     * Whether the fields under a nested object are read where {@code minTransportVersion} is the oldest node's version. An older
+     * data node would load null for them, so the coordinator resolving a query and each data node running it check this alike.
+     */
+    public static boolean enabled(@Nullable TransportVersion minTransportVersion) {
+        return ENABLED && minTransportVersion != null && minTransportVersion.supports(VERSION);
+    }
+
     /** The nested object {@code name} is under in this index, from its mapping rather than from the dots in the name. */
     @Nullable
     public static String pathFor(String name, Map<String, IndexFieldCapabilities> fields) {

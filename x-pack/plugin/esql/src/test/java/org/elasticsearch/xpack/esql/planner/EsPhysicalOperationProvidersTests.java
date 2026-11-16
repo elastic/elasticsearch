@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -59,6 +60,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -68,6 +70,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -86,7 +89,9 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -510,6 +515,65 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ByteSizeValue.ofKb(300)
         );
         assertThat(blockLoader, hasToString("UnmappedFields.Named[item.extra]"));
+    }
+
+    /**
+     * With a node older than {@link NestedLeaves#VERSION} in the cluster the coordinator leaves the fields under a nested object
+     * out of the mapping, so a data node must not read the child documents for a field another index maps plainly.
+     */
+    public void testNestedLeavesFollowTheOldestNode() throws IOException {
+        assumeTrue("snapshot builds read the fields under a nested object", NestedLeaves.ENABLED);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(
+                mapping(
+                    b -> b.startObject("item")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("note")
+                        .field("type", "text")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+            ),
+            null
+        );
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            TEST_CFG,
+            new IndexedByShardIdFromSingleton<>(
+                new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), searchExecutionContext, AliasFilter.EMPTY)
+            ),
+            null,
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        FieldAttribute note = new FieldAttribute(
+            Source.EMPTY,
+            "item.note",
+            new EsField("item.note", DataType.TEXT, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        FieldExtractExec fieldExtractExec = new FieldExtractExec(
+            Source.EMPTY,
+            new EsQueryExec(
+                Source.EMPTY,
+                "test",
+                IndexMode.STANDARD,
+                List.of(),
+                null,
+                null,
+                10,
+                List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+            ),
+            List.of(note),
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+        Layout layout = new Layout.Builder().append(note).build();
+
+        assertThat(provider.nestedLeaves(fieldExtractExec, layout, true, TransportVersion.current()), hasSize(1));
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(NestedLeaves.VERSION);
+        assertThat(provider.nestedLeaves(fieldExtractExec, layout, true, older), empty());
     }
 
     /**

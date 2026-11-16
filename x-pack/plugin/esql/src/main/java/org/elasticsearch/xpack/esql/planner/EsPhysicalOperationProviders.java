@@ -12,6 +12,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -298,7 +299,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             ),
             extracted
         );
-        List<NestedFlattenOperator.Leaf> leaves = nestedLeaves(fieldExtractExec, extracted, context);
+        // The node-reduce driver is planned before every shard of the node is acquired, so only the pages can tell
+        boolean knowsEveryShard = ComputeService.REDUCE_DESCRIPTION.equals(context.description()) == false;
+        List<NestedFlattenOperator.Leaf> leaves = nestedLeaves(fieldExtractExec, extracted, knowsEveryShard, context.minTransportVersion());
         if (leaves.isEmpty() == false) {
             operation = operation.with(new NestedFlattenOperator.Factory(shardContexts, docChannel, leaves), extracted);
         }
@@ -309,16 +312,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
      * The fields to read from the child documents of the shards that map them under a nested object. IndexResolver reports
      * those fields as not aggregatable.
      */
-    private List<NestedFlattenOperator.Leaf> nestedLeaves(
+    // Visible for testing
+    List<NestedFlattenOperator.Leaf> nestedLeaves(
         FieldExtractExec fieldExtractExec,
         Layout extracted,
-        LocalExecutionPlannerContext context
+        boolean knowsEveryShard,
+        TransportVersion minTransportVersion
     ) {
-        if (NestedLeaves.ENABLED == false) {
+        if (NestedLeaves.enabled(minTransportVersion) == false) {
             return List.of();
         }
-        // The node-reduce driver is planned before every shard of the node is acquired, so only the pages can tell
-        boolean knowsEveryShard = ComputeService.REDUCE_DESCRIPTION.equals(context.description()) == false;
         List<NestedFlattenOperator.Leaf> leaves = new ArrayList<>();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             // An unsupported field, such as one whose indices disagree on its type, is null everywhere

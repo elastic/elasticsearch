@@ -325,7 +325,7 @@ public class AsyncTaskManagementService<
             if (exclusiveListener.compareAndSet(submitListener, null)) {
                 submitListener.onResponse(operation.initialResponse(searchTask));
             }
-        }, waitForCompletionTimeout, threadPool.executor(ThreadPool.Names.SEARCH)));
+        }, waitForCompletionTimeout, threadPool.generic()));
         if (exclusiveListener.get() != submitListener) {
             cancelTimeout(timeoutHandlerRef);
         }
@@ -491,7 +491,7 @@ public class AsyncTaskManagementService<
                 () -> ListenerTimeouts.wrapWithTimeout(
                     threadPool,
                     timeout,
-                    threadPool.executor(ThreadPool.Names.SEARCH),
+                    threadPool.generic(),
                     ActionListener.wrap(
                         r -> listener.onResponse(new StoredAsyncResponse<>(r, task.getExpirationTimeMillis())),
                         e -> listener.onResponse(new StoredAsyncResponse<>(e, task.getExpirationTimeMillis()))

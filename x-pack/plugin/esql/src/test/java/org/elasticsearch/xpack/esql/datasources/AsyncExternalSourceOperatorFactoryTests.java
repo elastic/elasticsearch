@@ -1345,6 +1345,120 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * Stream formats publish {@code bytes_read} in 256 KiB chunks and flush the tail only on
+     * close. A file under one chunk used to report 0 because the producer untracked the object
+     * before that close.
+     */
+    public void testSliceQueueBytesReadCountsSubChunkCsv() throws Exception {
+        assertCsvBytesReadEqualsFileSize(true, between(32, 2048));
+    }
+
+    public void testSliceQueueBytesReadCountsTailPastPublishChunk() throws Exception {
+        assertCsvBytesReadEqualsFileSize(true, 256 * 1024 + between(1, 512));
+    }
+
+    public void testSingleFileBytesReadCountsSubChunkCsv() throws Exception {
+        assertCsvBytesReadEqualsFileSize(false, between(32, 2048));
+    }
+
+    /**
+     * LIMIT finishes the buffer while the iterator is still open ({@code drainCurrentUnit} DONE).
+     * That path must close-then-fold too; EOF-only helpers miss it.
+     */
+    public void testSliceQueueBytesReadCountsTailOnRowLimit() throws Exception {
+        // Past CsvFormatReader's 64 KiB BufferedReader and factory batchSize (100) so LIMIT 1
+        // returns DONE with unread tail. Stay under MeteredInputStream's 256 KiB publish chunk
+        // so a missed close flush still reports 0.
+        StringBuilder csv = new StringBuilder("id:long,name:keyword\n");
+        String pad = "x".repeat(400);
+        for (int i = 0; i < 200; i++) {
+            csv.append(i).append(',').append(pad).append('\n');
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        assertThat(payload.length, Matchers.greaterThan(64 * 1024));
+        assertThat(payload.length, Matchers.lessThan(256 * 1024));
+        runCsvBytesRead(true, payload, 1, (bytesRead, positions) -> {
+            assertThat(
+                "LIMIT DONE must flush the unpublished remainder; files under 256 KiB used to report 0",
+                bytesRead,
+                Matchers.greaterThan(0L)
+            );
+            assertThat("LIMIT DONE must close before the iterator hits stream EOF", bytesRead, Matchers.lessThan((long) payload.length));
+            assertThat(positions, Matchers.greaterThan(0));
+        });
+    }
+
+    private void assertCsvBytesReadEqualsFileSize(boolean sliceQueue, int namePad) throws Exception {
+        String csv = "id:long,name:keyword\n1," + "x".repeat(namePad) + "\n";
+        byte[] payload = csv.getBytes(StandardCharsets.UTF_8);
+        runCsvBytesRead(sliceQueue, payload, FormatReader.NO_LIMIT, (bytesRead, ignored) -> {
+            assertThat(
+                "stream remainder after the last 256 KiB chunk must be in bytes_read",
+                bytesRead,
+                Matchers.equalTo((long) payload.length)
+            );
+        });
+    }
+
+    private void runCsvBytesRead(boolean sliceQueue, byte[] payload, int rowLimit, CsvBytesReadAssertion assertion) throws Exception {
+        StoragePath path = StoragePath.of("s3://bucket/data.csv");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(Source.EMPTY, "id", new EsField("id", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+            new FieldAttribute(
+                Source.EMPTY,
+                "name",
+                new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        var builder = AsyncExternalSourceOperatorFactory.builder(
+            new MeteredPayloadStorageProvider(path, payload),
+            new CsvFormatReader(TEST_BLOCK_FACTORY),
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).parsingParallelism(1).rowLimit(rowLimit);
+        if (sliceQueue) {
+            builder.sliceQueue(new ExternalSliceQueue(List.of(new FileSplit("test", path, 0, payload.length, "csv", Map.of(), Map.of()))));
+        }
+        SourceOperator operator = builder.build().get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        try {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (operator.isFinished() == false) {
+                if (System.nanoTime() > deadline) {
+                    fail("operator did not finish");
+                }
+                Page page = operator.getOutput();
+                if (page != null) {
+                    pages.add(page);
+                }
+            }
+            int positions = 0;
+            for (Page page : pages) {
+                positions += page.getPositionCount();
+            }
+            assertion.check(operator.status().bytesRead(), positions);
+        } finally {
+            for (Page page : pages) {
+                page.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
+
+    @FunctionalInterface
+    private interface CsvBytesReadAssertion {
+        void check(long bytesRead, int positions);
+    }
+
     public void testMultiFileReadUnresolvedGenericFileListFallsBackToSingleFile() throws Exception {
         AtomicInteger readCount = new AtomicInteger(0);
 

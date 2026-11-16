@@ -1752,6 +1752,12 @@ public class EsqlCapabilities {
          */
         VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
         /**
+         * Fixed a bug where a view or subquery over a bare time-series aggregation, such as
+         * {@code TS k8s | STATS rate(x) BY tbucket}, dropped the implicit {@code _timeseries} column when it was kept
+         * as its own branch, e.g. when the caller sets {@code unmapped_fields}.
+         */
+        VIEWS_IMPLICIT_TIMESERIES_COLUMN_FIX,
+        /**
          * Makes views not visible on remote clusters / linked projects
          */
         VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
@@ -2416,6 +2422,8 @@ public class EsqlCapabilities {
          * Pack dimension values in TS command
          */
         PACK_DIMENSIONS_IN_TS,
+
+        PACK_DOUBLE_FLOAT_DIMENSIONS,
 
         /**
          * Support for exponential_histogram fields in the state of when it first was released into tech preview.
@@ -4303,6 +4311,12 @@ public class EsqlCapabilities {
         FILLNULL_LATE_LOADED_COLUMNS(FILLNULL.isEnabled()),
 
         /**
+         * Commands after an {@code INLINE STATS} follow a column filled by an earlier {@code FILLNULL}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/163730">#163730</a>.
+         */
+        FILLNULL_INLINE_STATS_PASS_THROUGH(FILLNULL.isEnabled()),
+
+        /**
          * {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested} on the
          * field-caps request, so the coordinator never plans nested subfields. Shard extraction
          * and {@code SearchContextStats} treat those fields as absent (constant nulls) instead of
@@ -4591,6 +4605,12 @@ public class EsqlCapabilities {
         FIX_TS_NULL_FILTER_ON_COMPUTED_INPUTS,
 
         /**
+         * TS null filtering follows aliases through null-propagating expressions, such as casts and arithmetic, to the metric
+         * fields they read. Converted or computed metrics receive the same null filtering as mapped metric fields.
+         */
+        TS_NULL_FILTER_THROUGH_EXPRESSIONS,
+
+        /**
          * {@code DEDUP} ignores the synthetic {@code $$<field>$converted_to$<type>} attributes that a conversion pushed into
          * {@code UnionAll} branches leaves in its input. Older nodes rejected such queries when the converted type, e.g.
          * {@code date_range}, cannot be grouped on, even though the column is never part of the output.
@@ -4632,6 +4652,13 @@ public class EsqlCapabilities {
         FIX_FOLD_NULL,
 
         /**
+         * Folding a function that returns {@code null} if any argument is {@code null} no longer fails when an
+         * argument is a constant expression folding to {@code null}, like {@code CASE} without a match, {@code 1/0}
+         * or a typed {@code null}. See <a href="https://github.com/elastic/elasticsearch/issues/162639">#162639</a>.
+         */
+        FIX_FOLD_NULL_ARGUMENTS,
+
+        /**
          * The {@code Project}s of a chain of {@code LOOKUP JOIN} blocks are hoisted in ONE optimizer pass.
          */
         HOIST_PROJECTS_PAST_LOOKUP_JOINS,
@@ -4644,6 +4671,36 @@ public class EsqlCapabilities {
          * See: <a href="https://github.com/elastic/elasticsearch/issues/164599">#164599</a>
          */
         FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
+
+        /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FROM} subquery branch, or a {@code FORK} branch, that lacks a column which
+         * a sibling branch has, with one type in every branch that has it, reads that column from its own {@code _source}, cast to
+         * that type, instead of null-filling it. It makes no difference how the sibling got the column: a mapping, an {@code EVAL}, a
+         * {@code RENAME} or a union or {@code FORK} nested in it. A branch that drops the column still null-fills it. Only meaningful
+         * when {@link #OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES} and {@link #OPTIONAL_FIELDS_LOAD_ALL_FORK} are available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/162512">#162512</a> and
+         * <a href="https://github.com/elastic/elasticsearch/issues/164545">#164545</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_SIBLING_COLUMN_FROM_SOURCE,
+
+        /**
+         * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
+         * with a filter combined several aggregate functions, such as {@code max(...) - min(...) WHERE ...}.
+         */
+        FIX_TS_FILTER_ON_EXPRESSION_OF_AGGREGATES,
+
+        /**
+         * Fixes a bug in the planner where {@code TS} queries grouping by {@code _tsid}, such as
+         * {@code TS k8s METADATA _tsid | STATS BY _tsid}, failed with an {@link IllegalStateException}.
+         */
+        FIX_TS_STATS_BY_TSID,
+
+        /**
+         * A {@code FORK} between the {@code TS} source and the first aggregation is rejected with a clear error. Before, the
+         * {@code STATS} failed in the planner with "optimized incorrectly due to missing references [_tsid]".
+         * See <a href="https://github.com/elastic/elasticsearch/issues/160269">#160269</a>.
+         */
+        TS_FORK_BEFORE_STATS_NOT_SUPPORTED,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

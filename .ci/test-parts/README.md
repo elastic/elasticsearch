@@ -7,7 +7,7 @@ non-test verification). Running every part runs exactly what `check` runs.
 
 | File | Edited by | Content |
 |---|---|---|
-| `config.json` | hand | part count, effective workers per job, test tasks to split, task groups that must not share a part, `runFirstSeconds` (test tasks at least this long in their part start before the part's other work), `heavyTestLimit` (cluster test tasks a part runs at once, see below) and `shardOverheadSeconds` (the fixed cost every shard of a split task pays again, where `durations.json` has no measured `overheads` entry) |
+| `config.json` | hand | part count, effective workers per job, test tasks to split, task groups that must not share a part, `runFirstSeconds` (test tasks at least this long in their part start before the part's other test tasks), `heavyTestLimit` (cluster test tasks a part runs at once, see below) and `shardOverheadSeconds` (the fixed cost every shard of a split task pays again, where `durations.json` has no measured `overheads` entry) |
 | `durations.json` | export script | median executed duration (s) of each test task, and of each project's non-test tasks (without compilation and jars, which every part running its tests pays), in PR `part-*` jobs |
 | `assignment.json` | `./gradlew generateCiPartAssignment` | the generated assignment; do not edit |
 

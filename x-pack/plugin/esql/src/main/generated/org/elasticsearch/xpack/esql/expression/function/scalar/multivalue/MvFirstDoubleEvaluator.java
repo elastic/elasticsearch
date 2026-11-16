@@ -36,7 +36,7 @@ public final class MvFirstDoubleEvaluator extends AbstractMultivalueFunction.Abs
   public Block evalNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         if (v.isNull(p)) {
           builder.appendNull();

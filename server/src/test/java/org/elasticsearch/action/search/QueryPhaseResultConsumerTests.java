@@ -417,7 +417,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 }
             )
         ) {
-            consumer.mergeLoad((nanos, finishNanos) -> {});
+            consumer.mergeLoad((nanos, cpuNanos, finishNanos) -> {});
             long[] counts = new long[shards];
             for (int i = 0; i < shards; i++) {
                 counts[i] = randomLongBetween(0, 1000);

@@ -1,0 +1,401 @@
+<!doctype html>
+<!-- Template for single-page-report.ts; the {{...}} placeholders are filled in there. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --border: #d1d9e0; --link: #0969da;
+  --hit: #dafbe1; --part: #fff8c5; --miss: #ffebe9;
+  --bar-hit: #1a7f37; --bar-miss: #cf222e; --bar-none: #d1d9e0;
+  --mark: #fff1a8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --border: #3d444d; --link: #4493f8;
+    --hit: #12261e; --part: #2e2610; --miss: #3a1618;
+    --bar-hit: #3fb950; --bar-miss: #f85149; --bar-none: #3d444d;
+    --mark: #4d3d00;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+header { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+header h1 { font-size: 16px; margin: 0 0 4px; overflow-wrap: anywhere; }
+#crumbs { overflow-wrap: anywhere; }
+#crumbs span.sep { color: var(--muted); margin: 0 6px; }
+main { padding: 12px 16px 48px; }
+.muted { color: var(--muted); }
+.error { color: var(--bar-miss); }
+input[type=search] { width: 100%; max-width: 520px; padding: 6px 8px; font: inherit; color: var(--fg);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.table-wrap { overflow-x: auto; margin-top: 8px; }
+table.cov { border-collapse: collapse; width: 100%; }
+table.cov th, table.cov td { padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+table.cov th { cursor: pointer; user-select: none; font-weight: 600; }
+table.cov th[aria-sort=ascending]::after { content: " \25B2"; font-size: 10px; }
+table.cov th[aria-sort=descending]::after { content: " \25BC"; font-size: 10px; }
+table.cov td.name { white-space: normal; overflow-wrap: anywhere; }
+table.cov .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.cov tfoot td { font-weight: 600; }
+.bar { display: inline-block; width: 100px; height: 10px; vertical-align: middle; margin-right: 6px;
+  background: var(--bar-miss); }
+.bar.none { background: var(--bar-none); }
+.bar > span { display: block; height: 100%; background: var(--bar-hit); }
+details.methods { margin: 12px 0; }
+details.methods summary { cursor: pointer; font-weight: 600; }
+.legend span { display: inline-block; padding: 0 6px; margin-right: 8px; border-radius: 3px; }
+.legend .hit { background: var(--hit); } .legend .part { background: var(--part); } .legend .miss { background: var(--miss); }
+.src-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; margin-top: 8px; }
+table.src { border-collapse: collapse; width: 100%;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+table.src td { padding: 0 8px; white-space: pre; vertical-align: top; }
+table.src td.ln { width: 1%; text-align: right; color: var(--muted); user-select: none; }
+table.src td.ln a { color: inherit; }
+table.src td.br { width: 1%; padding: 0 4px; user-select: none; cursor: default; }
+table.src tr.hit td.code { background: var(--hit); }
+table.src tr.part td.code { background: var(--part); }
+table.src tr.miss td.code { background: var(--miss); }
+table.src td.br.hit { color: var(--bar-hit); } table.src td.br.part { color: #bf8700; } table.src td.br.miss { color: var(--bar-miss); }
+table.src tr.target td { background: var(--mark); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">{{TITLE}}</h1>
+  <nav id="crumbs" aria-label="Breadcrumb"></nav>
+</header>
+<main id="main"><p class="muted">Loading coverage data…</p></main>
+<script type="application/octet-stream" id="index-data">{{INDEX_DATA}}</script>
+<script type="application/octet-stream" id="sources-data">{{SOURCES_DATA}}</script>
+<script>
+"use strict";
+(() => {
+  // Counter layout: [missed, covered] pairs in index.counterTypes order (see single-page-report.ts).
+  const INSTR = 0, BRANCH = 1, LINE = 2, METHOD = 3, CLASS = 4;
+  const MAX_SEARCH_RESULTS = 500;
+
+  const main = document.getElementById("main");
+  const crumbs = document.getElementById("crumbs");
+  let index = null;
+  let sourcesPromise = null;
+  const packagesByName = new Map();
+  const filesByPath = new Map();
+
+  async function inflate(id) {
+    const binary = atob(document.getElementById(id).textContent.trim());
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return JSON.parse(await new Response(stream).text());
+  }
+
+  function sources() {
+    if (sourcesPromise === null) {
+      sourcesPromise = inflate("sources-data");
+    }
+    return sourcesPromise;
+  }
+
+  // ---- DOM helpers: all text goes through textContent, never innerHTML ----
+
+  function el(tag, props, ...children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(props || {})) {
+      if (key === "class") node.className = value;
+      else if (key === "text") node.textContent = value;
+      else node.setAttribute(key, value);
+    }
+    for (const child of children) {
+      if (child === null || child === undefined) continue;
+      node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    }
+    return node;
+  }
+
+  function link(text, hash) {
+    return el("a", { href: "#" + hash }, text);
+  }
+
+  function hashFor(params) {
+    return new URLSearchParams(params).toString();
+  }
+
+  function displayPackage(name) {
+    return name === "" ? "(default package)" : name.replace(/\//g, ".");
+  }
+
+  function ratio(c, type) {
+    const missed = c[type * 2], covered = c[type * 2 + 1], total = missed + covered;
+    return total === 0 ? -1 : covered / total;
+  }
+
+  function pct(c, type) {
+    const r = ratio(c, type);
+    return r < 0 ? "n/a" : (Math.floor(r * 1000) / 10).toFixed(1) + "%";
+  }
+
+  function bar(c, type) {
+    const r = ratio(c, type);
+    const outer = el("span", { class: r < 0 ? "bar none" : "bar" });
+    if (r >= 0) outer.append(el("span", { style: "width:" + (r * 100).toFixed(1) + "%" }));
+    return outer;
+  }
+
+  function missedOfTotal(c, type) {
+    const missed = c[type * 2], total = missed + c[type * 2 + 1];
+    return missed + " / " + total;
+  }
+
+  // ---- Sortable coverage table ----
+
+  const COVERAGE_COLUMNS = [
+    { label: "Instructions", num: true, sort: (c) => ratio(c, INSTR), cell: (c) => [bar(c, INSTR), pct(c, INSTR)] },
+    { label: "Branches", num: true, sort: (c) => ratio(c, BRANCH), cell: (c) => pct(c, BRANCH) },
+    { label: "Missed lines", num: true, sort: (c) => c[LINE * 2], cell: (c) => missedOfTotal(c, LINE) },
+    { label: "Missed methods", num: true, sort: (c) => c[METHOD * 2], cell: (c) => missedOfTotal(c, METHOD) },
+  ];
+
+  /**
+   * rows: [{ name: () => Node, sortName: string, c: counters }]; columns get (counters, row).
+   * Only the first `limit` rows are rendered, after sorting; names are built only for those rows.
+   */
+  function coverageTable(nameLabel, rows, totals, columns, limit = Infinity) {
+    const allColumns = [
+      { label: nameLabel, num: false, sort: (row) => row.sortName, cell: (row) => row.name(), name: true },
+      ...columns.map((col) => ({ ...col, sort: (row) => col.sort(row.c, row), cell: (row) => col.cell(row.c, row) })),
+    ];
+    const tbody = el("tbody");
+    const headRow = el("tr");
+    let sortIndex = 0, ascending = true;
+
+    function render() {
+      const col = allColumns[sortIndex];
+      const sorted = rows.slice().sort((a, b) => {
+        const x = col.sort(a), y = col.sort(b);
+        const cmp = typeof x === "string" ? x.localeCompare(y) : x - y;
+        return ascending ? cmp : -cmp;
+      });
+      tbody.replaceChildren(...sorted.slice(0, limit).map((row) => el("tr", {},
+        ...allColumns.map((c) => el("td", { class: c.name ? "name" : c.num ? "num" : "" }, ...[].concat(c.cell(row)))))));
+      headRow.querySelectorAll("th").forEach((th, i) => {
+        if (i === sortIndex) th.setAttribute("aria-sort", ascending ? "ascending" : "descending");
+        else th.removeAttribute("aria-sort");
+      });
+    }
+
+    allColumns.forEach((col, i) => {
+      const th = el("th", { class: col.num ? "num" : "", scope: "col" }, col.label);
+      th.addEventListener("click", () => {
+        if (sortIndex === i) ascending = !ascending;
+        else { sortIndex = i; ascending = !col.num; }
+        render();
+      });
+      headRow.append(th);
+    });
+
+    const table = el("table", { class: "cov" }, el("thead", {}, headRow), tbody);
+    if (totals) {
+      table.append(el("tfoot", {}, el("tr", {},
+        el("td", {}, "Total"),
+        ...columns.map((col) => el("td", { class: "num" }, ...[].concat(col.cell(totals)))))));
+    }
+    render();
+    const note = rows.length > limit
+      ? el("p", { class: "muted" }, "Showing the first " + limit + " of " + rows.length + " in the current sort order; refine the filter to see more.")
+      : null;
+    return el("div", { class: "table-wrap" }, note, table);
+  }
+
+  function fileRow(pkg, file, showPackage) {
+    const path = pkg.n === "" ? file.n : pkg.n + "/" + file.n;
+    const label = showPackage ? displayPackage(pkg.n) + "." + file.n : file.n;
+    return { name: () => link(label, hashFor({ f: path })), sortName: label, c: file.c };
+  }
+
+  // ---- Views ----
+
+  function setCrumbs(...parts) {
+    const nodes = [];
+    parts.forEach((part, i) => {
+      if (i > 0) nodes.push(el("span", { class: "sep" }, "/"));
+      nodes.push(part);
+    });
+    crumbs.replaceChildren(...nodes);
+  }
+
+  function summaryLine(c) {
+    return el("p", {},
+      "Instructions ", el("strong", {}, pct(c, INSTR)),
+      " · Branches ", el("strong", {}, pct(c, BRANCH)),
+      " · Lines missed ", el("strong", {}, missedOfTotal(c, LINE)),
+      " · Methods missed ", el("strong", {}, missedOfTotal(c, METHOD)),
+      " · Classes missed ", el("strong", {}, missedOfTotal(c, CLASS)));
+  }
+
+  function showOverview(query) {
+    setCrumbs(el("span", {}, "All packages"));
+    const input = el("input", { type: "search", placeholder: "Filter packages and files (e.g. IndexShard or cluster.routing)", "aria-label": "Filter" });
+    input.value = query;
+    const results = el("div");
+
+    function update() {
+      const q = input.value.trim().toLowerCase();
+      history.replaceState(null, "", q ? "#" + hashFor({ q: input.value.trim() }) : location.pathname + location.search);
+      if (q === "") {
+        results.replaceChildren(coverageTable("Package",
+          index.packages.map((p) => ({ name: () => link(displayPackage(p.n), hashFor({ p: p.n })), sortName: displayPackage(p.n), c: p.c })),
+          index.totals, COVERAGE_COLUMNS));
+        return;
+      }
+      const dotted = q.replace(/\//g, ".");
+      const packages = index.packages.filter((p) => displayPackage(p.n).toLowerCase().includes(dotted));
+      const files = [];
+      for (const p of index.packages) {
+        for (const f of p.f) {
+          if ((displayPackage(p.n) + "." + f.n).toLowerCase().includes(dotted)) files.push(fileRow(p, f, true));
+        }
+      }
+      results.replaceChildren(...[
+        el("h2", {}, "Packages (" + packages.length + ")"),
+        packages.length ? coverageTable("Package",
+          packages.map((p) => ({ name: () => link(displayPackage(p.n), hashFor({ p: p.n })), sortName: displayPackage(p.n), c: p.c })),
+          null, COVERAGE_COLUMNS) : el("p", { class: "muted" }, "No matching packages."),
+        el("h2", {}, "Files (" + files.length + ")"),
+        files.length ? coverageTable("File", files, null, COVERAGE_COLUMNS, MAX_SEARCH_RESULTS) : el("p", { class: "muted" }, "No matching files."),
+      ].filter((node) => node !== null));
+    }
+
+    let timer = 0;
+    input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(update, 150); });
+    main.replaceChildren(summaryLine(index.totals), input, results);
+    update();
+    if (query) input.focus();
+  }
+
+  function showPackage(name) {
+    const pkg = packagesByName.get(name);
+    if (!pkg) return showMissing("package", name);
+    setCrumbs(link("All packages", ""), el("span", {}, displayPackage(pkg.n)));
+    main.replaceChildren(summaryLine(pkg.c),
+      coverageTable("File", pkg.f.map((f) => fileRow(pkg, f, false)), pkg.c, COVERAGE_COLUMNS));
+  }
+
+  function lineStatus(mi, ci, mb, cb) {
+    // Same as JaCoCo: OR of the instruction and branch status (1 = missed, 2 = covered, 3 = partly).
+    const status = (mi > 0 ? 1 : 0) | (ci > 0 ? 2 : 0) | (mb > 0 ? 1 : 0) | (cb > 0 ? 2 : 0);
+    return ["", "miss", "hit", "part"][status];
+  }
+
+  async function showFile(path, targetLine) {
+    const entry = filesByPath.get(path);
+    if (!entry) return showMissing("file", path);
+    const { pkg, file } = entry;
+    setCrumbs(link("All packages", ""), link(displayPackage(pkg.n), hashFor({ p: pkg.n })), el("span", {}, file.n));
+
+    const methods = file.m.map(([name, line, c]) => ({
+      name: () => link(name, hashFor({ f: path, l: String(line) })), sortName: name, c, line,
+    }));
+    const methodTable = coverageTable("Method", methods, null, [
+      { label: "Line", num: true, sort: (c, row) => row.line, cell: (c, row) => String(row.line) },
+      ...COVERAGE_COLUMNS.slice(0, 3),
+    ]);
+
+    const sourceWrap = el("div", { class: "src-wrap" }, el("p", { class: "muted", style: "padding:8px" }, "Loading source…"));
+    main.replaceChildren(
+      summaryLine(file.c),
+      el("details", { class: "methods" }, el("summary", {}, "Methods (" + methods.length + ")"), methodTable),
+      el("p", { class: "legend" },
+        el("span", { class: "hit" }, "covered"), el("span", { class: "part" }, "partly covered"), el("span", { class: "miss" }, "not covered")),
+      sourceWrap);
+
+    const coverage = new Map();
+    for (let i = 0; i < file.l.length; i += 5) {
+      coverage.set(file.l[i], [file.l[i + 1], file.l[i + 2], file.l[i + 3], file.l[i + 4]]);
+    }
+
+    if (file.s < 0) {
+      sourceWrap.replaceChildren(el("p", { class: "muted", style: "padding:8px" },
+        "Source not found when the report was generated. Lines with bytecode: " + coverage.size + "."));
+      return;
+    }
+    let lines;
+    try {
+      lines = (await sources())[file.s].split(/\r?\n/);
+    } catch (e) {
+      sourceWrap.replaceChildren(el("p", { class: "error", style: "padding:8px" }, "Could not load sources: " + e));
+      return;
+    }
+    if (filesByPath.get(currentRoute().f) !== entry) return; // navigated away while loading
+
+    const tbody = el("tbody");
+    let target = null;
+    lines.forEach((text, i) => {
+      const nr = i + 1;
+      const cov = coverage.get(nr);
+      const status = cov ? lineStatus(...cov) : "";
+      const branches = cov ? cov[2] + cov[3] : 0;
+      const brCell = el("td", { class: "br" });
+      if (branches > 0) {
+        brCell.className = "br " + (cov[2] === 0 ? "hit" : cov[3] === 0 ? "miss" : "part");
+        brCell.textContent = "◆";
+        brCell.title = cov[2] === 0 ? "All " + branches + " branches covered."
+          : cov[2] + " of " + branches + " branches missed.";
+      }
+      const row = el("tr", { id: "L" + nr, class: status },
+        el("td", { class: "ln" }, link(String(nr), hashFor({ f: path, l: String(nr) }))),
+        brCell,
+        el("td", { class: "code" }, text));
+      if (nr === targetLine) {
+        row.classList.add("target");
+        target = row;
+      }
+      tbody.append(row);
+    });
+    sourceWrap.replaceChildren(el("table", { class: "src" }, tbody));
+    if (target) target.scrollIntoView({ block: "center" });
+  }
+
+  function showMissing(kind, name) {
+    setCrumbs(link("All packages", ""));
+    main.replaceChildren(el("p", { class: "error" }, "No " + kind + " named " + name + " in this report."));
+  }
+
+  function currentRoute() {
+    const params = new URLSearchParams(location.hash.slice(1));
+    return { f: params.get("f"), p: params.get("p"), q: params.get("q") || "", l: Number(params.get("l")) || 0 };
+  }
+
+  function route() {
+    const r = currentRoute();
+    if (r.f !== null) showFile(r.f, r.l);
+    else if (r.p !== null) showPackage(r.p);
+    else showOverview(r.q);
+    if (r.f === null) window.scrollTo(0, 0);
+  }
+
+  inflate("index-data").then((data) => {
+    index = data;
+    for (const pkg of index.packages) {
+      packagesByName.set(pkg.n, pkg);
+      for (const file of pkg.f) filesByPath.set(pkg.n === "" ? file.n : pkg.n + "/" + file.n, { pkg, file });
+    }
+    const generated = el("span", { class: "muted" }, " · generated " + new Date(index.generated).toLocaleString());
+    document.getElementById("title").append(generated);
+    window.addEventListener("hashchange", route);
+    route();
+  }).catch((e) => {
+    main.replaceChildren(el("p", { class: "error" },
+      "Could not load the coverage data (" + e + "). This page needs a browser with DecompressionStream support."));
+  });
+})();
+</script>
+</body>
+</html>

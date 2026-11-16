@@ -23,9 +23,10 @@ public abstract sealed class UnionTypeEsField extends EsField permits MultiTypeE
         DataType esDataType,
         Map<String, EsField> properties,
         boolean aggregatable,
-        TimeSeriesFieldType timeSeriesFieldType
+        TimeSeriesFieldType timeSeriesFieldType,
+        boolean isUnderNested
     ) {
-        super(name, esDataType, properties, aggregatable, timeSeriesFieldType);
+        super(name, esDataType, properties, aggregatable, false, timeSeriesFieldType, false, false, isUnderNested);
     }
 
     /**

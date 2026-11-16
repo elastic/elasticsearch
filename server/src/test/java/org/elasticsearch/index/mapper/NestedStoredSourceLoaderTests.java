@@ -92,10 +92,11 @@ public class NestedStoredSourceLoaderTests extends MapperServiceTestCase {
         """;
 
     /**
-     * When vectors are left out of the stored {@code _source} and patched back in on read, a child still yields its own slice
-     * of the root's source, and the root still gets its vectors.
+     * When vectors are left out of the stored {@code _source} and patched back in on read, a child from
+     * {@link MappingLookup#newNestedChildSourceLoader} still yields its own slice of the root's source, and the root still gets
+     * its vectors.
      */
-    public void testNestedChildWithVectorsPatchedIntoSource() throws IOException {
+    public void testNestedChildSourceLoaderWithVectorsPatchedIntoSource() throws IOException {
         MapperService mapperService = createMapperService(
             Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build(),
             VECTOR_MAPPING
@@ -111,7 +112,7 @@ public class NestedStoredSourceLoaderTests extends MapperServiceTestCase {
 
         // doc 0 = nested child, doc 1 = root
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-            SourceLoader loader = nestedLoader(mapperService);
+            SourceLoader loader = mapperService.mappingLookup().newNestedChildSourceLoader(buildNestedDocuments(mapperService));
             SourceLoader.Leaf leaf = loader.leaf(reader.leaves().get(0), null);
             LeafStoredFieldLoader leafLoader = storedFieldLoader(loader).getLoader(reader.leaves().get(0), null);
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.LeafNestedDocuments;
@@ -36,15 +37,19 @@ import java.util.Set;
  * so that multiple children of the same parent, or a root document visited after its children, do
  * not trigger redundant reads.
  *
- * <p>The root loader reads stored source, optionally with vectors patched back in, from the stored-source
- * branch of {@link MappingLookup#newSourceLoader(SourceFilter, SourceFieldMetrics, NestedDocuments)}; or,
- * from {@link MappingLookup#newNestedChildSourceLoader}, whatever source the index has. A synthetic root
- * loader reads doc values, so its documents must be read in increasing doc ID order.
+ * <p>For the stored-source branch of {@link MappingLookup#newSourceLoader(SourceFilter, SourceFieldMetrics, NestedDocuments)}
+ * the root loader reads the stored source, optionally filtered. For {@link MappingLookup#newNestedChildSourceLoader} it reads
+ * whatever source the index has; a synthetic root loader reads doc values, so its documents must be read in increasing doc ID
+ * order.
  */
 final class NestedStoredSourceLoader implements SourceLoader {
 
     private final SourceLoader rootLoader;
     private final NestedDocuments nestedDocuments;
+
+    NestedStoredSourceLoader(@Nullable SourceFilter filter, NestedDocuments nestedDocuments) {
+        this(filter == null ? SourceLoader.FROM_STORED_SOURCE : new SourceLoader.Stored(filter), nestedDocuments);
+    }
 
     NestedStoredSourceLoader(SourceLoader rootLoader, NestedDocuments nestedDocuments) {
         this.rootLoader = rootLoader;

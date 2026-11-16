@@ -118,16 +118,17 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<Boolean> listener,
         @Nullable String datafeedId
     ) {
-        warnForConflictingOuterClauses(datafeedId, esqlQuery, timeField);
+        warnForConflictingOuterClauses(datafeedId, esqlQuery, timeField, summaryCountField != null);
         String limitZeroQuery = EsqlQueryClauseScanner.appendGeneratedPipeline(esqlQuery, LIMIT_ZERO);
 
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
                 checkRequiredColumns(response.response().columns(), timeField, summaryCountField, datafeedId);
-                listener.onResponse(Boolean.TRUE);
             } catch (Exception e) {
                 listener.onFailure(e);
+                return;
             }
+            listener.onResponse(Boolean.TRUE);
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (isDeferredExistenceFailure(cause)) {
@@ -166,10 +167,11 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<EsqlQueryResponse> responseListener = ActionListener.wrap(response -> {
             try {
                 checkSourceTimeFieldType(response.response().columns(), sourceTimeField, datafeedId);
-                listener.onResponse(Boolean.TRUE);
             } catch (Exception e) {
                 listener.onFailure(e);
+                return;
             }
+            listener.onResponse(Boolean.TRUE);
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (isDeferredExistenceFailure(cause)) {
@@ -324,7 +326,12 @@ public class EsqlDatafeedQueryValidator {
     /**
      * Warns about outer user pipeline clauses that conflict with the time range, order, and row cap owned by ML.
      */
-    static void warnForConflictingOuterClauses(@Nullable String datafeedId, String esqlQuery, String timeField) {
+    static void warnForConflictingOuterClauses(
+        @Nullable String datafeedId,
+        String esqlQuery,
+        String timeField,
+        boolean delayedDataCheckEnabled
+    ) {
         EsqlQueryClauseScanner.ScanResult scan = EsqlQueryClauseScanner.scan(esqlQuery, timeField);
         String queryContext = esqlDatafeedSubject(datafeedId);
         if (scan.hasOuterTimeWhere()) {
@@ -334,7 +341,10 @@ public class EsqlDatafeedQueryValidator {
             HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_TIME_SORT_WARNING, queryContext, timeField));
         }
         if (scan.hasOuterLimit()) {
-            HeaderWarning.addWarning(Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, queryContext));
+            String limitWarning = Messages.getMessage(Messages.DATAFEED_ESQL_OUTER_LIMIT_WARNING, queryContext);
+            HeaderWarning.addWarning(
+                delayedDataCheckEnabled ? limitWarning + " " + Messages.DATAFEED_ESQL_OUTER_LIMIT_DELAYED_DATA_WARNING : limitWarning
+            );
         }
     }
 
@@ -499,6 +509,7 @@ public class EsqlDatafeedQueryValidator {
     ) {
         boolean foundTimeField = false;
         boolean foundSummaryCountField = requiredSummaryCountField == null;
+        String summaryCountColumnType = null;
         for (ColumnInfo column : columns) {
             String name = column.name();
             if (timeField.equals(name)) {
@@ -506,6 +517,7 @@ public class EsqlDatafeedQueryValidator {
             }
             if (requiredSummaryCountField != null && requiredSummaryCountField.equals(name)) {
                 foundSummaryCountField = true;
+                summaryCountColumnType = column.outputType();
             }
         }
         if (foundTimeField == false || foundSummaryCountField == false) {
@@ -523,8 +535,24 @@ public class EsqlDatafeedQueryValidator {
                 Messages.getMessage(Messages.DATAFEED_ESQL_DELAYED_DATA_MISSING_SUMMARY_COUNT_COLUMN, requiredSummaryCountField)
             );
         }
+        if (requiredSummaryCountField != null && isIntegerCountColumnType(summaryCountColumnType) == false) {
+            throw new IllegalArgumentException(
+                Messages.getMessage(
+                    Messages.DATAFEED_ESQL_DELAYED_DATA_SUMMARY_COUNT_NOT_INTEGER,
+                    requiredSummaryCountField,
+                    summaryCountColumnType
+                )
+            );
+        }
     }
 
+    private static boolean isIntegerCountColumnType(@Nullable String outputType) {
+        return "long".equals(outputType) || "integer".equals(outputType);
+    }
+
+    /**
+     * The listener borrows the response; it is released after {@code onResponse} returns, so call {@code incRef()} to keep it.
+     */
     private void executeEsqlQueryAsync(
         Client client,
         String query,

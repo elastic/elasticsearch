@@ -53,7 +53,8 @@ public class AnalysisNoriFactoryTests extends AnalysisFactoryTestCase {
     // Base rules so lenient has duplicates to act on; it only changes which are rejected, never the keyed rules.
     private static FactorySettings withUserDictionary() {
         return settings(Map.of("user_dictionary_rules", List.of("세종시 세종 시"))).affects("user_dictionary_rules", List.of("대한민국 대한 민국"))
-            .ignored("lenient", "true", "false");
+            .ignored("lenient", "true", "false")
+            .covered("user_dictionary", "file content keyed via rules SHA; NoriAnalyzerSharingTests");
     }
 
     @Override

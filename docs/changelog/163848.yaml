@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 163402
+pr: 163848
+summary: Fix KNN with inline `to_dense_vector`
+type: bug

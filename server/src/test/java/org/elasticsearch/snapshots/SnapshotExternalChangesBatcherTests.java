@@ -47,6 +47,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -59,10 +60,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -92,7 +93,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
         try (var masterService = createMasterService(threadPool)) {
             final var queue = masterService.createTaskQueue("snapshots-service-external-change", Priority.NORMAL, executor);
-            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, (e, m) -> {}, s -> {}, (e, v) -> {}));
+            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, s -> {}, (p, r, d) -> {}));
 
             batcher.get().processExternalChanges(false, false);
 
@@ -117,7 +118,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
         try (var masterService = createMasterService(threadPool)) {
             final var queue = masterService.createTaskQueue("snapshots-service-external-change", Priority.NORMAL, executor);
-            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, (e, m) -> {}, s -> {}, (e, v) -> {}));
+            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, s -> {}, (p, r, d) -> {}));
 
             final var expectedExecutedChanges = new ArrayList<Boolean>();
             final var firstQueued = randomBoolean();
@@ -185,7 +186,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
         try (var masterService = createMasterService(threadPool)) {
             final var queue = masterService.createTaskQueue("snapshots-service-external-change", Priority.NORMAL, executor);
-            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, (e, m) -> {}, s -> {}, (e, v) -> {}));
+            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, s -> {}, (p, r, d) -> {}));
 
             for (int i = 0; i < 10; i++) {
                 batcher.get().processExternalChanges(randomBoolean(), true);
@@ -201,23 +202,28 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         }
     }
 
+    private static SnapshotsService.RepositoryDataWriteTaskRunner repositoryWriteTaskRunner(Set<ProjectRepo> triggeredRepositories) {
+        return (projectId, repository, repositoryData) -> {
+            assertNull(repositoryData);
+            triggeredRepositories.add(new ProjectRepo(projectId, repository));
+        };
+    }
+
     public void testStartedWaitingSnapshotClusterStateUpdate() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repoWaiting = "repo-waiting-snapshot";
         final var anotherNodeId = uuid();
         final var includeRoutingTable = randomBoolean();
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
             final var indexName = randomIndexName();
@@ -287,7 +293,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                     updatedSnapshot.shards().get(shardId).nodeId(),
                     is(anotherNodeId)
                 );
-                assertThat("snapshotFinalizer should not fire while the snapshot is still STARTED", finalized, empty());
+                assertThat(triggeredRepositories, empty());
             } else {
                 assertTrue("snapshot should be in a terminal state after its shard was failed", updatedSnapshot.state().completed());
                 assertThat(
@@ -295,10 +301,9 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                     updatedSnapshot.shards().get(shardId).state(),
                     is(SnapshotsInProgress.ShardState.FAILED)
                 );
-                assertThat("snapshotFinalizer should fire for the completed snapshot", finalized, hasSize(1));
-                assertTrue("finalised snapshot should be in a terminal state", finalized.getFirst().state().completed());
+                assertThat(triggeredRepositories, equalTo(Set.of(new ProjectRepo(ProjectId.DEFAULT, repoWaiting))));
             }
-            assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
+            assertThat(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(), empty());
         }
     }
 
@@ -306,17 +311,15 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repoCompleted = "repo-completed-snapshot";
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
             final var indexName = randomIndexName();
@@ -342,7 +345,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             );
             assertThat("test precondition: entry should already be in a completed state", completedEntry.state().completed(), is(true));
 
-            // A deletion in the same repo skips snapshotFinalizer -> finalization done by deletion completion instead.
+            // A running deletion and a completed snapshot both trigger work for the same repository.
             final var includeSameRepoDeletion = randomBoolean();
             final var deletionEntry = SnapshotDeletionsInProgress.of(
                 List.of(
@@ -375,15 +378,11 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
             assertThat("completed snapshot should remain in cluster state", updatedCompletedSnapshots, hasSize(1));
             assertThat("completed snapshot should be untouched", updatedCompletedSnapshots.getFirst(), sameInstance(completedEntry));
-            if (includeSameRepoDeletion) {
-                // snapshotFinalizer is skipped: the deletion completion will trigger finalization.
-                assertThat("snapshotFinalizer should not fire", finalized, empty());
-                assertThat("deletionStarter should fire for the deletion", deleted.entrySet(), hasSize(1));
-                assertNotNull(deleted.get(deletionEntry.getEntries().getFirst()));
-            } else {
-                assertThat("snapshotFinalizer should fire for the completed snapshot", finalized, hasSize(1));
-                assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
-            }
+            assertThat(triggeredRepositories, equalTo(Set.of(new ProjectRepo(ProjectId.DEFAULT, repoCompleted))));
+            assertThat(
+                SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(),
+                equalTo(includeSameRepoDeletion ? deletionEntry.getEntries() : List.of())
+            );
         }
     }
 
@@ -391,18 +390,16 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repoAborted = "repo-aborted-snapshot";
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
         final var isInitializingClone = randomBoolean();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> isInitializingClone,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
             final var indexName = randomIndexName();
@@ -440,22 +437,26 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
             if (nodesChanged) {
                 // ABORTED snapshots are included in update.
-                // The ABORTED shard on the departed node has failed -> the snapshot becomes completed -> snapshotFinalizer fires.
-                assertThat("snapshotFinalizer should fire for the completed aborted snapshot", finalized, hasSize(1));
-                assertTrue("completed aborted snapshot should be in a terminal state", finalized.getFirst().state().completed());
+                // The ABORTED shard on the departed node has failed, so the snapshot completes and triggers repository work.
+                assertThat(triggeredRepositories, equalTo(Set.of(new ProjectRepo(ProjectId.DEFAULT, repoAborted))));
+                assertThat(updatedAbortedSnapshots, hasSize(1));
+                assertTrue(
+                    "completed aborted snapshot should be in a terminal state",
+                    updatedAbortedSnapshots.getFirst().state().completed()
+                );
                 assertThat(
                     "shard should be FAILED",
-                    finalized.getFirst().shards().get(shardId).state(),
+                    updatedAbortedSnapshots.getFirst().shards().get(shardId).state(),
                     is(SnapshotsInProgress.ShardState.FAILED)
                 );
             } else {
                 // ABORTED snapshots are excluded from update.
-                // No shard-state changes are applied: the snapshot remains ABORTED and the finalizer is not called.
-                assertThat("snapshotFinalizer should not be called for an ABORTED snapshot when only shard changed", finalized, empty());
+                // No shard-state changes are applied: the snapshot remains ABORTED and no repository work is triggered.
+                assertThat(triggeredRepositories, empty());
                 assertThat("aborted snapshot should remain in cluster state", updatedAbortedSnapshots, hasSize(1));
                 assertThat("aborted snapshot should be untouched", updatedAbortedSnapshots.getFirst(), sameInstance(abortedEntry));
             }
-            assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
+            assertThat(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(), empty());
         }
     }
 
@@ -465,17 +466,15 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = "repo-bwc";
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
             final var indexName = randomIndexName();
@@ -516,26 +515,24 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
             assertThat("bwc entry should be removed", updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo), empty());
-            assertThat("snapshotFinalizer should not fire for bwc cleanup", finalized, empty());
-            assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
+            assertThat(triggeredRepositories, empty());
+            assertThat(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(), empty());
         }
     }
 
-    public void testWaitingDeletionDoesNotSuppressFinalization() {
+    public void testWaitingDeletionDoesNotSuppressRepositoryWriteTrigger() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = "repo-waiting-deletion";
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
             final var indexName = randomIndexName();
@@ -577,14 +574,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
 
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
-            assertThat(
-                "snapshotFinalizer should be called on completed snapshot: WAITING deletion does not suppress finalization",
-                finalized,
-                hasSize(1)
-            );
-            assertThat(finalized.getFirst().snapshot().getSnapshotId().getName(), is("completed-snapshot"));
-            assertThat("finalized entry should be completed", finalized.getFirst().state(), is(SnapshotsInProgress.State.SUCCESS));
-            assertThat("deletionStarter should not be called: WAITING deletion not yet started", deleted.entrySet(), empty());
+            assertThat(triggeredRepositories, equalTo(Set.of(new ProjectRepo(ProjectId.DEFAULT, repo))));
+            assertThat(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(), equalTo(List.of(waitingDeletion)));
 
             final var updatedEntries = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo);
             assertThat("snapshot entry should be retained in cluster state", updatedEntries, hasSize(1));
@@ -592,27 +583,24 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         }
     }
 
-    public void testRunningDeletionInDifferentProjectDoesNotSuppressFinalization() {
+    public void testRepositoryWriteTriggersForSameRepositoryInDifferentProjects() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = randomRepoName();
         final var projectWithDelete = randomUniqueProjectId();
         final var projectWithoutDelete = randomUniqueProjectId();
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 ignored -> false,
-                (entry, ignored) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
-            // Completed snapshot in the project that is running a delete. Finalization of this snapshot is deferred until the
-            // delete removes itself from cluster state.
+            // A completed snapshot and a running deletion both trigger work in this project.
             final var indexNameWithDelete = randomIndexName();
             final var completedInProjectWithDelete = snapshotEntry(
                 new Snapshot(projectWithDelete, repo, new SnapshotId("completed-with-delete", uuid())),
@@ -627,8 +615,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             );
             assertThat(completedInProjectWithDelete.state().completed(), is(true));
 
-            // Completed snapshot in a different project that happens to use the same repository name. A delete in the other
-            // project must not suppress its finalization.
+            // A completed snapshot in another project must independently trigger work, even with the same repository name.
             final var indexNameWithoutDelete = randomIndexName();
             final var completedInOtherProject = snapshotEntry(
                 new Snapshot(projectWithoutDelete, repo, new SnapshotId("completed-other-project", uuid())),
@@ -671,13 +658,11 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
             assertThat(
-                "a running delete must not suppress finalization of a same-named repository in another project",
-                finalized.stream().map(SnapshotsInProgress.Entry::projectId).toList(),
-                equalTo(List.of(projectWithoutDelete))
+                "both projects should trigger work for their repositories",
+                triggeredRepositories,
+                equalTo(Set.of(new ProjectRepo(projectWithDelete, repo), new ProjectRepo(projectWithoutDelete, repo)))
             );
-            assertThat(finalized.getFirst().snapshot().getSnapshotId().getName(), is("completed-other-project"));
-            assertThat("deletionStarter should fire for the running delete", deleted.entrySet(), hasSize(1));
-            assertNotNull(deleted.get(deletionEntry));
+            assertThat(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(), equalTo(List.of(deletionEntry)));
 
             final var updatedInProjectWithDelete = updatedSnapshotsInProgress.forRepo(projectWithDelete, repo);
             assertThat("snapshot in the project with the delete should be retained", updatedInProjectWithDelete, hasSize(1));
@@ -694,17 +679,15 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         final var repoCloneWithShards = "repo-clone-with-shards";
         final var isInitializingClone = randomBoolean();
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> isInitializingClone,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
             // Clone with empty shardSnapshotStatusByRepoShardId -> retained only if isInitializingClone is true.
@@ -750,7 +733,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
 
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
-            assertThat("snapshotFinalizer should not fire for clone snapshots", finalized, empty());
+            assertThat(triggeredRepositories, empty());
             final var updatedEmptyClones = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repoClone);
             if (isInitializingClone) {
                 assertThat("empty-shards clone should be retained when isInitializingClone is true", updatedEmptyClones, hasSize(1));
@@ -761,7 +744,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var updatedClonesWithShards = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repoCloneWithShards);
             assertThat("non-empty-shards clone should always be retained", updatedClonesWithShards, hasSize(1));
             assertThat("non-empty-shards clone should be untouched", updatedClonesWithShards.getFirst(), sameInstance(cloneWithShards));
-            assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
+            assertThat(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(), empty());
         }
     }
 
@@ -769,17 +752,15 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = "repo-clone-with-deletion";
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
             final var indexName = randomIndexName();
@@ -821,8 +802,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var updatedClones = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo);
             assertThat("clone should be retained when deletion in progress in the same repo", updatedClones, hasSize(1));
             assertThat("clone should be untouched", updatedClones.getFirst(), sameInstance(cloneEntry));
-            assertThat("snapshotFinalizer should not fire for clone snapshots", finalized, empty());
-            assertThat("deletionStarter should fire for the deletion", deleted.entrySet(), hasSize(1));
+            assertThat(triggeredRepositories, equalTo(Set.of(new ProjectRepo(ProjectId.DEFAULT, repo))));
+            assertThat(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(), equalTo(List.of(deletionEntry)));
         }
     }
 
@@ -830,17 +811,15 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = "repo-clone-failures";
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
             final var indexName = randomIndexName();
@@ -905,6 +884,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 is(MASTER_NODE.getId())
             );
             assertThat("clone shard should use the generation from the known failure", cloneShardStatus.generation(), is(shardGeneration));
+            assertThat(triggeredRepositories, equalTo(Set.of(new ProjectRepo(ProjectId.DEFAULT, repo))));
         }
     }
 
@@ -912,17 +892,15 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = "repo-active-shard";
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
             final var indexName = randomIndexName();
@@ -982,6 +960,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var updatedFailingEntry = updatedEntries.get(0);
             assertThat(updatedFailingEntry.snapshot().getSnapshotId().getName(), is("failing"));
             assertThat("failing entry should be completed", updatedFailingEntry.state(), is(SnapshotsInProgress.State.SUCCESS));
+            assertThat(triggeredRepositories, equalTo(Set.of(new ProjectRepo(ProjectId.DEFAULT, repo))));
 
             final var updatedFirstClone = updatedEntries.get(1);
             assertThat(updatedFirstClone.snapshot().getSnapshotId().getName(), is("clone-1"));
@@ -1002,17 +981,15 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = "repo-no-changes";
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
             final var indexName = randomIndexName();
@@ -1040,9 +1017,9 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var updatedEntries = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo);
             assertThat("snapshot should be retained in cluster state", updatedEntries, hasSize(1));
             assertThat("snapshot should be untouched", updatedEntries.getFirst(), sameInstance(entry));
-            assertThat("snapshotFinalizer should not fire for a non-completed snapshot", finalized, empty());
+            assertThat(triggeredRepositories, empty());
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
-            assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
+            assertThat(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(), empty());
         }
     }
 
@@ -1050,17 +1027,15 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = "repo-multi-clone";
 
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var triggeredRepositories = new HashSet<ProjectRepo>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
         try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
                 clusterService,
                 s -> false,
-                (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
-                deleted::put
+                repositoryWriteTaskRunner(triggeredRepositories)
             );
 
             final var indexName = randomIndexName();
@@ -1145,10 +1120,9 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             assertThat("clone shard 1 should be reassigned to local node", shard1Status.nodeId(), is(MASTER_NODE.getId()));
             assertThat("clone shard 1 should use the generation from the known failure", shard1Status.generation(), is(gen1));
 
-            assertThat("snapshotFinalizer should fire for the completed non-clone", finalized, hasSize(1));
-            assertTrue("finalized snapshot should be completed", finalized.getFirst().state().completed());
+            assertThat(triggeredRepositories, equalTo(Set.of(new ProjectRepo(ProjectId.DEFAULT, repo))));
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
-            assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
+            assertThat(SnapshotDeletionsInProgress.get(clusterService.state()).getEntries(), empty());
         }
     }
 

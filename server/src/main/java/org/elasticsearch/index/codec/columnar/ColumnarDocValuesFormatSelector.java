@@ -11,8 +11,8 @@ package org.elasticsearch.index.codec.columnar;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
-import org.elasticsearch.columnar.ColumnarFieldType;
-import org.elasticsearch.columnar.numeric.NumericPipeline;
+import org.elasticsearch.columnar.ColumnarFieldTypeSelector;
+import org.elasticsearch.columnar.numeric.NumericPipelineSelector;
 import org.elasticsearch.columnar.string.StringColumnOptionsSelector;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -29,26 +29,28 @@ public final class ColumnarDocValuesFormatSelector {
     /**
      * The codec for an eligible index, or {@code null} for one that is not.
      *
-     * <p>How a string column is written is a per-field choice, so the format is built with a bridge to the
-     * mapper rather than with one set of options for every field: what suits a field of a handful of repeated
-     * terms is not what suits one whose values are long and all different. The format is therefore built per
-     * index, since the bridge closes over that index's mapping.
+     * <p>How a column is written is a per-field choice, so the format is built with bridges to the mapper
+     * rather than with one set of options for every field: what suits a field of a handful of repeated
+     * terms is not what suits one whose values are long and all different, and a counter compresses
+     * differently from a gauge. The format is therefore built per index, since the bridges close over that
+     * index's mapping.
      *
      * @param indexSettings the index settings to base the decision on
+     * @param fieldTypes    what kind of column each field routed here is written as
+     * @param pipelines     which pipeline to encode a numeric column with, asked once per field
      * @param stringOptions what to write a string column with, asked once per field
      */
     @Nullable
-    public static DocValuesFormat select(final IndexSettings indexSettings, final StringColumnOptionsSelector stringOptions) {
+    public static DocValuesFormat select(
+        final IndexSettings indexSettings,
+        final ColumnarFieldTypeSelector fieldTypes,
+        final NumericPipelineSelector pipelines,
+        final StringColumnOptionsSelector stringOptions
+    ) {
         if (useColumnarCodec(indexSettings) == false) {
             return null;
         }
-        return new ColumNARDocValuesFormat(
-            (fieldName, type) -> NumericPipeline::defaultPipeline,
-            // Only string columns are routed here, so the column type is settled without asking the mapper.
-            field -> ColumnarFieldType.STRING,
-            ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            stringOptions
-        );
+        return new ColumNARDocValuesFormat(pipelines, fieldTypes, ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE, stringOptions);
     }
 
     /**

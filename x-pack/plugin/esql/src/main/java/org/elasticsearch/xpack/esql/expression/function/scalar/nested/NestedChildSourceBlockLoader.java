@@ -124,7 +124,7 @@ final class NestedChildSourceBlockLoader implements BlockLoader {
                     String childPath = path == null ? parser.currentName() : path + "." + parser.currentName();
                     parser.nextToken();
                     if (childPath.equals(field)) {
-                        reader.parse(parser, values);
+                        parseValue(parser, values);
                     } else if (field.startsWith(childPath) && field.charAt(childPath.length()) == '.') {
                         parseAt(parser, childPath, values);
                     } else {
@@ -135,6 +135,31 @@ final class NestedChildSourceBlockLoader implements BlockLoader {
                 for (token = parser.nextToken(); token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
                     parseAt(parser, path, values);
                 }
+            }
+        }
+
+        /**
+         * Adds the values of {@link #field}, which the parser is on, as the field's own loader adds those it keeps whole: each
+         * value of a field that reads one at a time is converted from the type the source holds it in, a {@code keyword} that
+         * holds a number or a boolean included, and the reader parses nulls and the values it reads as a structure.
+         */
+        private void parseValue(XContentParser parser, List<T> values) throws IOException {
+            if (reader instanceof FallbackSyntheticSourceBlockLoader.SingleValueReader<?> == false) {
+                reader.parse(parser, values);
+                return;
+            }
+            switch (parser.currentToken()) {
+                case START_ARRAY -> {
+                    for (var token = parser.nextToken(); token != null && token != XContentParser.Token.END_ARRAY; token = parser
+                        .nextToken()) {
+                        parseValue(parser, values);
+                    }
+                }
+                case VALUE_STRING -> reader.convertValue(parser.text(), values);
+                case VALUE_NUMBER -> reader.convertValue(parser.numberValue(), values);
+                case VALUE_BOOLEAN -> reader.convertValue(parser.booleanValue(), values);
+                case VALUE_EMBEDDED_OBJECT -> reader.convertValue(parser.binaryValue(), values);
+                default -> reader.parse(parser, values);
             }
         }
 

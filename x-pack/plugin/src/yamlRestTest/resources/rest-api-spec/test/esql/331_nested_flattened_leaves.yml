@@ -1807,3 +1807,42 @@ a nested object is not one of the types a cast resolves:
     - [cn_integer, 1, null]
     - [cn_long, 2, null]
     - [cn_nested, null, [3, 4]]
+
+---
+a keyword that keeps numbers and booleans in synthetic source reads them as text:
+# The values a nested object keeps whole are converted as the field's own loader converts the values it keeps, nulls to its
+# null_value.
+- do:
+    indices.create:
+      index: sv_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          properties:
+            items:
+              type: nested
+              synthetic_source_keep: all
+              properties:
+                kw:
+                  type: keyword
+                  doc_values: false
+                  null_value: none
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: sv_nested
+      - items:
+        - { kw: 5 }
+        - { kw: true }
+        - { kw: [1.5, x] }
+        - { kw: null }
+- do:
+    esql.query:
+      body:
+        query: FROM sv_nested | EVAL kw = MV_SORT(items.kw) | KEEP kw | LIMIT 10
+- match: { values: [[["1.5", "5", none, "true", x]]] }

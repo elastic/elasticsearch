@@ -1267,37 +1267,31 @@ public class ComputeService {
         // Capture the inbound ThreadContext before Phase-2 hops to esql_external_io / SDK
         // threads. Those completions have no security user; SEARCH's executor would then
         // preserve the empty context into runCompute. Same pattern as ExternalSourceResolver.
-        ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(
-            ActionListener.wrap(
-                collected -> {
-                    if (completeIfStopped(execInfo, collected.plan(), configuration, exchangeSinkSupplier, releasing)) {
-                        return;
-                    }
-                    runOnSearch(
-                        () -> executePlanAfterDiscovery(
-                            sessionId,
-                            rootTask,
-                            flags,
-                            collected,
-                            configuration,
-                            foldContext,
-                            execInfo,
-                            profileQualifier,
-                            releasing,
-                            exchangeSinkSupplier,
-                            initialClusterStatuses,
-                            planTimeProfile,
-                            warnIndexCoordinatorOnce,
-                            splitDiscoveryStart,
-                            placement
-                        ),
-                        releasing
-                    );
-                },
-                releasing::onFailure
-            ),
-            threadPool.getThreadContext()
-        );
+        ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(ActionListener.wrap(collected -> {
+            if (completeIfStopped(execInfo, collected.plan(), configuration, exchangeSinkSupplier, releasing)) {
+                return;
+            }
+            runOnSearch(
+                () -> executePlanAfterDiscovery(
+                    sessionId,
+                    rootTask,
+                    flags,
+                    collected,
+                    configuration,
+                    foldContext,
+                    execInfo,
+                    profileQualifier,
+                    releasing,
+                    exchangeSinkSupplier,
+                    initialClusterStatuses,
+                    planTimeProfile,
+                    warnIndexCoordinatorOnce,
+                    splitDiscoveryStart,
+                    placement
+                ),
+                releasing
+            );
+        }, releasing::onFailure), threadPool.getThreadContext());
         // Skip-path: no footer/probe scheduling. SEARCH inbound stays inline (sync-fast).
         if (operatorFactoryRegistry == null) {
             afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));

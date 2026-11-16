@@ -400,9 +400,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/139398
 - class: org.elasticsearch.painless.heappressure.PainlessFieldAllocationIT
   issue: https://github.com/elastic/elasticsearch/issues/162575
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
-  issue: https://github.com/elastic/elasticsearch/issues/162277
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162319
@@ -525,11 +522,6 @@ tests:
   - :server:internalClusterTest
   method: testMetadataVersion
   issue: https://github.com/elastic/elasticsearch/issues/164246
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
-  method: test {yaml=search/520_fetch_fields/fetch stored fields}
-  issue: https://github.com/elastic/elasticsearch/issues/164385
 - class: org.elasticsearch.xpack.esql.action.EsqlStreamDisruptionIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -560,11 +552,6 @@ tests:
   - :modules:apm:test
   method: testUpdateMaxSpansPropagatesToTracer
   issue: https://github.com/elastic/elasticsearch/issues/164198
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
-  method: test {yaml=mtermvectors/10_basic/Basic tests for multi termvector get}
-  issue: https://github.com/elastic/elasticsearch/issues/165079
 - class: org.elasticsearch.xpack.stateless.StatelessRecoveryIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

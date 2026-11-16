@@ -271,8 +271,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
-        var b = super.newIntVectorFixedBuilder(size);
+    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size, boolean enablePooling) {
+        var b = super.newIntVectorFixedBuilder(size, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -376,8 +376,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
-        var b = super.newLongVectorFixedBuilder(size);
+    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size, boolean enablePooling) {
+        var b = super.newLongVectorFixedBuilder(size, enablePooling);
         track(b, trackDetail());
         return b;
     }
@@ -425,8 +425,8 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
-        var b = super.newDoubleVectorFixedBuilder(size);
+    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size, boolean enablePooling) {
+        var b = super.newDoubleVectorFixedBuilder(size, enablePooling);
         track(b, trackDetail());
         return b;
     }

@@ -521,7 +521,10 @@ public class StatelessPlugin extends Plugin
                 // Shard read threads are used during recovery to read BCC headers.
                 // These reads are generally small, and so we can allow high concurrency
                 // without hitting network/disk throughput limits.
-                .shardReadMaxThreads(processors * 2)
+                // Previously we used `Math.min(processors * 4, 10)` that resulted in
+                // more threads on small nodes with a hard cap.
+                // So we keep this value for small nodes to keep existing behavior.
+                .shardReadMaxThreads(Math.max(Math.min(processors * 4, 10), processors * 2))
                 // Based on production experience 8 is enough for current workloads.
                 .translogThreads(2, Math.min(processors * 2, 8))
                 // Based on production experience 10 is enough for current workloads.

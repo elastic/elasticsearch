@@ -875,16 +875,25 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
         """;
 
-    /** With the setting on, {@code long} fields go to ColumNAR as numeric columns; the rest stay where they were. */
+    /**
+     * With the setting on, {@code long} fields go to ColumNAR as numeric columns; the rest stay where they were. Without the
+     * feature flag the setting is ignored, and no numeric field goes to ColumNAR.
+     */
     public void testColumnarNumericCodecRoutesLongFields() throws IOException {
-        assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createColumnarNumericFormatSupplier(true);
+        assertEquals(ColumnarFieldType.STRING, supplier.columnarFields().fieldType(fieldInfo("category")));
+        if (IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled() == false) {
+            for (String field : List.of("size", "requests", "terms", "sorted", "count", "score")) {
+                assertFalse(field, supplier.getDocValuesFormatForField(field) instanceof ColumNARDocValuesFormat);
+                assertNull(field, supplier.columnarFields().numericTypeOf(field));
+            }
+            return;
+        }
         assertThat(supplier.getDocValuesFormatForField("size"), instanceOf(ColumNARDocValuesFormat.class));
         assertThat(supplier.getDocValuesFormatForField("requests"), instanceOf(ColumNARDocValuesFormat.class));
         assertThat(supplier.getDocValuesFormatForField("terms"), instanceOf(ColumNARDocValuesFormat.class));
         assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("size")));
         assertEquals(ColumnarFieldType.LONG, supplier.columnarFields().fieldType(fieldInfo("terms")));
-        assertEquals(ColumnarFieldType.STRING, supplier.columnarFields().fieldType(fieldInfo("category")));
         // An index sort field stays SORTED_NUMERIC, which Lucene's index sort reads.
         for (String field : List.of("sorted", "count", "score")) {
             assertFalse(field, supplier.getDocValuesFormatForField(field) instanceof ColumNARDocValuesFormat);
@@ -929,7 +938,9 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             .put(IndexSettings.MODE.getKey(), randomColumnarMode())
             .put(IndexMetadata.SETTING_VERSION_CREATED, randomColumnarEligibleIndexVersion())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "sorted");
-        if (IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled() && (numericCodecEnabled || randomBoolean())) {
+        // Without the feature flag the setting is unknown, but the mapper service doesn't validate it, so it's still put here
+        // to show it's ignored.
+        if (numericCodecEnabled || randomBoolean()) {
             settings.put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), numericCodecEnabled);
         }
         final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");

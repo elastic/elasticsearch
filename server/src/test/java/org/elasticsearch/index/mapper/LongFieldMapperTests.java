@@ -368,19 +368,27 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     /**
      * With the ColumNAR numeric codec, a document's non-null values go into one payload in the order they were written, and
      * nulls are dropped, so the field never writes an {@code .offsets} companion. A document with no value writes no payload,
-     * and so no point either.
+     * and so no point either. Without the feature flag the setting is ignored, and the field writes {@code SORTED_NUMERIC} doc
+     * values with an {@code .offsets} companion as before.
      */
     public void testColumnarCodecPayloadKeepsArrayOrder() throws IOException {
-        assumeTrue("behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createMapperService(
             columnarNumericCodecSettings(),
             mapping(b -> b.startObject("field").field("type", "long").endObject())
         ).documentMapper();
-        assertEquals(NumberFieldMapper.DocValuesDiskFormat.BINARY, diskFormat(mapper));
-
         long v1 = randomLong();
         long v2 = randomLong();
         ParsedDocument withNull = mapper.parse(source(b -> b.array("field", v2, null, v2, v1)));
+        if (IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled() == false) {
+            assertEquals(NumberFieldMapper.DocValuesDiskFormat.SORTED_NUMERIC, diskFormat(mapper));
+            for (IndexableField field : withNull.rootDoc().getFields("field")) {
+                assertNotEquals(DocValuesType.BINARY, field.fieldType().docValuesType());
+            }
+            assertNotNull("offsets companion", withNull.rootDoc().getField(FieldArrayContext.offsetsFieldName("field")));
+            return;
+        }
+        assertEquals(NumberFieldMapper.DocValuesDiskFormat.BINARY, diskFormat(mapper));
+
         assertEquals(List.of(v2, v2, v1), payloadValues(withNull));
         assertNull("no offsets companion", withNull.rootDoc().getField(FieldArrayContext.offsetsFieldName("field")));
 

@@ -240,11 +240,27 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
         assertThat(indexFilters, contains(TIME_FILTER, null));
     }
 
-    /** With a request filter as well, there is still a single retry, without any filter. */
-    public void testSingleRetryWhenAnalysisFailsWithRequestFilter() {
+    /**
+     * With a request filter as well, the analysis is tried again with the request filter alone. Here that resolves the
+     * index that maps the field, so no index that the request filter keeps out comes back.
+     */
+    public void testRetryWhenAnalysisFailsKeepsRequestFilter() {
+        assertThat(columns(analyze("FROM logs-*" + TIME_RANGE + " | KEEP old_only", REQUEST_FILTER)), contains("old_only"));
+        assertThat(indexFilters, contains(new BoolQueryBuilder().filter(REQUEST_FILTER).filter(TIME_FILTER), REQUEST_FILTER));
+    }
+
+    /** The request filter keeps out the index that maps the field too, which leaves the attempt without any filter. */
+    public void testRetryWithoutFilterWhenAnalysisFailsWithRequestFilter() {
         matchingIndices = filter -> filter == null ? List.of(RECENT, OLD) : List.of(RECENT);
         assertThat(columns(analyze("FROM logs-*" + TIME_RANGE + " | KEEP old_only", REQUEST_FILTER)), contains("old_only"));
-        assertThat(indexFilters, contains(new BoolQueryBuilder().filter(REQUEST_FILTER).filter(TIME_FILTER), null));
+        assertThat(indexFilters, contains(new BoolQueryBuilder().filter(REQUEST_FILTER).filter(TIME_FILTER), REQUEST_FILTER, null));
+    }
+
+    /** A request filter without a time range of the query is dropped in a single retry, as before. */
+    public void testSingleRetryWhenAnalysisFailsWithRequestFilterOnly() {
+        matchingIndices = filter -> filter == null ? List.of(RECENT, OLD) : List.of(RECENT);
+        assertThat(columns(analyze("FROM logs-* | KEEP old_only", REQUEST_FILTER)), contains("old_only"));
+        assertThat(indexFilters, contains(REQUEST_FILTER, null));
     }
 
     public void testInvalidQueryFailsAfterRetry() {
@@ -385,7 +401,7 @@ public class EsqlSessionQueryTimeFilterTests extends ESTestCase {
         // Nothing is executed: reaching the runner means that the query was analyzed and planned.
         EsqlExecutionInfo executionInfo = createEsqlExecutionInfo(false);
         AtomicReference<List<Attribute>> output = new AtomicReference<>();
-        EsqlSession.PlanRunner runner = (role, plan, configuration, foldContext, planTimeProfile, listener) -> {
+        EsqlSession.PlanRunner runner = (role, plan, configuration, foldContext, planTimeProfile, maxResultSize, listener) -> {
             output.set(plan.output());
             executionInfo.markEndQuery();
             listener.onResponse(new Result(plan.output(), List.of(), null, configuration, DriverCompletionInfo.EMPTY, executionInfo, null));

@@ -111,6 +111,32 @@ public class QueryTimeRangeIndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * The column that the time range of the query prunes is mapped in an index that the request filter matches. The analysis
+     * is tried again with the request filter alone, which keeps the old index and with it the conflict out of the mapping.
+     */
+    public void testColumnOfPrunedIndexKeepsRequestFilter() {
+        String midIndex = "events-mid";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(midIndex)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setMapping("@timestamp", "type=date", "code", "type=long", "mid_only", "type=keyword")
+        );
+        client().prepareIndex(midIndex)
+            .setSource("@timestamp", Instant.parse("2022-01-01T00:00:00Z").toEpochMilli(), "code", 100, "mid_only", "m")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        QueryBuilder requestFilter = QueryBuilders.rangeQuery("@timestamp").gte("2021-01-01T00:00:00Z");
+        String query = "FROM events-* | WHERE " + NEW_DATA + " | STATS s = SUM(code), m = COUNT(mid_only)";
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query).filter(requestFilter))) {
+            assertThat(response.columns().get(0).outputType(), equalTo("long"));
+            assertThat(getValuesList(response), contains(List.of((long) DOCS * (DOCS - 1) / 2, 0L)));
+        }
+    }
+
     /** The two filters are combined: the request filter keeps both indices, the time range of the query only the new one. */
     public void testTimeRangeNarrowsRequestFilterOnTime() {
         QueryBuilder requestFilter = QueryBuilders.rangeQuery("@timestamp").gte("2019-01-01T00:00:00Z");

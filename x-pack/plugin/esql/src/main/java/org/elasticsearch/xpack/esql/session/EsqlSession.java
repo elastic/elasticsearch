@@ -3397,9 +3397,11 @@ public class EsqlSession {
                 // if the initial request didn't have a filter, then just pass the exception back to the user
                 listener.onFailure(ve);
             } else {
-                // retrying the index resolution without index filtering.
+                // Retrying the index resolution with less index filtering. The time range of the query goes first: the request
+                // filter alone may keep out an index that brings a conflict to the mapping. That attempt has no time range, so
+                // its own failure retries without index filtering.
                 retryWithFilter(
-                    null,
+                    queryTimeFilters.isEmpty() ? null : requestFilter,
                     parsed,
                     unmappedResolution,
                     viewSettings,

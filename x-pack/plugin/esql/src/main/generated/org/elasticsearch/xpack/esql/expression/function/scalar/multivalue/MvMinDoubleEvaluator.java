@@ -39,7 +39,7 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         if (v.isNull(p)) {
           builder.appendNull();
@@ -93,7 +93,7 @@ public final class MvMinDoubleEvaluator extends AbstractMultivalueFunction.Abstr
   private Block evalAscendingNullable(Block fieldVal) {
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         if (v.isNull(p)) {
           builder.appendNull();

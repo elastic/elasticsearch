@@ -70,7 +70,7 @@ public final class RoundUnsignedLongEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongBlock valBlock, LongBlock decimalsBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p)) {
           result.appendNull();
@@ -110,7 +110,7 @@ public final class RoundUnsignedLongEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       position: for (int p = 0; p < positionCount; p++) {
         long val = valVector.getLong(p);
         long decimals = decimalsVector.getLong(p);

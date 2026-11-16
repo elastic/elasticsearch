@@ -5266,7 +5266,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(), future);
+        resolvePaths(resolver, List.of(path), Map.of(), future);
 
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(e));
@@ -5288,7 +5288,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(), future);
+        resolvePaths(resolver, List.of(path), Map.of(), future);
 
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
@@ -5314,7 +5314,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(), future);
+        resolvePaths(resolver, List.of(glob), Map.of(), future);
 
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(e));
@@ -5335,7 +5335,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(), future);
+        resolvePaths(resolver, List.of(path), Map.of(), future);
 
         expectThrows(TaskCancelledException.class, future::actionGet);
     }

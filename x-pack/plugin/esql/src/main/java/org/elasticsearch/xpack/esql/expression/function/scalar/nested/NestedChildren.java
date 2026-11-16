@@ -10,6 +10,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -23,7 +24,9 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -95,19 +98,26 @@ public final class NestedChildren implements Releasable {
         for (int f = 0; f < fields.size(); f++) {
             String name = fields.get(f);
             infos.add(
-                new ValuesSourceReaderOperator.FieldInfo(
-                    name,
-                    PlannerUtils.toElementType(types.get(f)),
-                    false,
-                    (driverContext, shard) -> ValuesSourceReaderOperator.load(
-                        ((EsPhysicalOperationProviders.DefaultShardContext) shardContexts.get(shard)).nestedChildBlockLoader(
-                            name,
-                            new BlockLoaderWarnings(driverContext, Source.EMPTY),
-                            settings.blockLoaderSizeOrdinals(),
-                            settings.blockLoaderSizeScript()
-                        )
-                    )
-                )
+                new ValuesSourceReaderOperator.FieldInfo(name, PlannerUtils.toElementType(types.get(f)), false, (driverContext, shard) -> {
+                    var context = (EsPhysicalOperationProviders.DefaultShardContext) shardContexts.get(shard);
+                    BlockLoader loader = context.nestedChildBlockLoader(
+                        name,
+                        new BlockLoaderWarnings(driverContext, Source.EMPTY),
+                        settings.blockLoaderSizeOrdinals(),
+                        settings.blockLoaderSizeScript()
+                    );
+                    if (loader.rowStrideStoredFieldSpec().requiresSource() && context.storesFilteredSource()) {
+                        driverContext.addWarning(
+                            Strings.format(
+                                "Field [%s] cannot be retrieved from the filtered _source of index [%s]; returning null",
+                                name,
+                                context.executionContext().getFullyQualifiedIndex().getName()
+                            )
+                        );
+                        loader = ConstantNull.INSTANCE;
+                    }
+                    return ValuesSourceReaderOperator.load(loader);
+                })
             );
         }
         var readers = shardContexts.map(

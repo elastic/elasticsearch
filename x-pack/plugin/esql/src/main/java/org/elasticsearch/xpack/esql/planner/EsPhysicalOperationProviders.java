@@ -1100,6 +1100,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         /**
+         * Whether each document's {@code _source} was filtered by the mapping's {@code includes} or {@code excludes} as it was
+         * stored. Filtering drops the objects of a nested field that it empties, so the stored {@code _source} no longer tells
+         * which of a parent's objects each child document was indexed from.
+         */
+        public boolean storesFilteredSource() {
+            MappingLookup lookup = ctx.getMappingLookup();
+            SourceFieldMapper source = lookup.getMapping().getMetadataMapperByClass(SourceFieldMapper.class);
+            return lookup.isSourceEnabled() && lookup.isSourceSynthetic() == false && source != null && source.isComplete() == false;
+        }
+
+        /**
          * Loads a field under a nested object from the hidden child documents. {@link #blockLoader} loads nulls for such a
          * field, as the parent document holds none of its values.
          */

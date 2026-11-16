@@ -1019,3 +1019,214 @@ source-backed fields read each object's values in every source mode:
     - [sb_object_stored, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]
     - [sb_object_synthetic, b, ciao, hey, hey, z, z, m3, k3, k3, 3]
     - [sb_object_synthetic, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]
+
+---
+a field read from a filtered _source is null under a nested object:
+# Filtering _source as it is stored drops the objects it empties, so the stored _source no longer tells which object each child
+# document was indexed from. A field read from it is null with a warning, rather than another object's value or a failed shard.
+# Doc values are read from the child documents themselves, and a disabled _source has nothing to read.
+- do:
+    indices.create:
+      index: fs_excl_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            excludes: [items.note]
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: fs_excl_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            excludes: [items.note]
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: fs_incl_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            includes: [id, items.kw]
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: fs_incl_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            includes: [id, items.kw]
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: fs_off_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            enabled: false
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: fs_off_object
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          _source:
+            enabled: false
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+                kw:
+                  type: keyword
+                  doc_values: false
+                price:
+                  type: long
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: fs_excl_nested
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+      - index:
+          _index: fs_excl_object
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+      - index:
+          _index: fs_incl_nested
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+      - index:
+          _index: fs_incl_object
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+      - index:
+          _index: fs_off_nested
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+      - index:
+          _index: fs_off_object
+      - id: a
+        items:
+        - { note: only }
+        - { price: 5 }
+        - { note: n3, kw: k3, price: 3 }
+- do:
+    warnings:
+    - "Field [items.note] cannot be retrieved from the filtered _source of index [fs_excl_nested]; returning null"
+    - "Field [items.kw] cannot be retrieved from the filtered _source of index [fs_excl_nested]; returning null"
+    - "Field [items.note] cannot be retrieved from the filtered _source of index [fs_incl_nested]; returning null"
+    - "Field [items.kw] cannot be retrieved from the filtered _source of index [fs_incl_nested]; returning null"
+    esql.query:
+      body:
+        query: "FROM fs_* METADATA _index | EVAL note = MV_SORT(items.note), kw = MV_SORT(items.kw), price = MV_SORT(items.price) | KEEP _index, note, kw, price | SORT _index | LIMIT 20"
+- match: { is_partial: false }
+- match:
+    values:
+    - [fs_excl_nested, null, null, [3, 5]]
+    - [fs_excl_object, null, k3, [3, 5]]
+    - [fs_incl_nested, null, null, [3, 5]]
+    - [fs_incl_object, null, k3, [3, 5]]
+    - [fs_off_nested, null, null, [3, 5]]
+    - [fs_off_object, null, null, [3, 5]]

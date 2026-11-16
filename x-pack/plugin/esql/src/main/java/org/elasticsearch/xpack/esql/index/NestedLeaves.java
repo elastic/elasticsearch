@@ -22,6 +22,10 @@ import java.util.Map;
  * The parent's index holds none of these values, so nothing about them is pushed to Lucene. Full-text searches
  * ({@code MATCH}, {@code MATCH_PHRASE} and the {@code :} operator) on such a field are rejected for now: they would run as a
  * Lucene query on the parents and miss every parent whose objects match.
+ * <p>
+ * A field without doc values reads its object from the parent's {@code _source}. Where the mapping's {@code includes} or
+ * {@code excludes} filtered {@code _source} as it was stored, it is null with a warning: filtering drops the objects it empties,
+ * so the stored {@code _source} no longer tells which object each child document was indexed from.
  */
 public final class NestedLeaves {
     /** Only snapshot builds read the fields under a nested object; elsewhere they are left out of the mapping. */

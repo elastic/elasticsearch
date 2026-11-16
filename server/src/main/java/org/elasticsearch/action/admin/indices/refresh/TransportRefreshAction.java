@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,6 +65,10 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
     protected BasicReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId, SplitShardCountSummary shardCountSummary) {
         BasicReplicationRequest replicationRequest = new BasicReplicationRequest(shardId, shardCountSummary);
         replicationRequest.waitForActiveShards(ActiveShardCount.NONE);
+        final TimeValue timeout = request.timeout();
+        if (timeout != null) {
+            replicationRequest.timeout(timeout);
+        }
         return replicationRequest;
     }
 

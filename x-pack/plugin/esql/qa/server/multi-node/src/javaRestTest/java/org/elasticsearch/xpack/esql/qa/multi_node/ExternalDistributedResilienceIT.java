@@ -234,15 +234,18 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
      * object-store layer retries), this drops the connection <b>mid-body</b> on a segment read — a reset on an
      * already-open stream, which the self-healing storage read ({@code RetryableStorageObject}'s resuming
      * stream) recovers beneath the coordinator by re-opening the remaining byte range and resuming byte-exact.
-     * The threshold is set above the small schema/record-boundary probes so only the large segment read is
-     * faulted. Before the fix this failed the query with "Parallel parsing failed" caused by a
-     * {@link java.net.SocketException}; the full count coming back proves exactly-once recovery through the
-     * real stack.
+     * Schema-sample full GETs can exceed 1 MiB, so a byte-count threshold alone cannot isolate the streaming
+     * read. A closed-range filter is not enough either: {@code computeSegments} advancing-boundary probes use
+     * {@code newStream(stride, fileLength - stride)} — a closed range the fixture {@code writeTo}s in one call —
+     * and a finite resume is {@code newStream(resumeFrom, remaining)}, also closed. The fault is therefore pinned
+     * to {@code bytes=0-<end>}, the first segment GET; probes and resumes start past 0. Before the fix this
+     * failed the query with "Parallel parsing failed" caused by a {@link java.net.SocketException}; the full
+     * count coming back proves exactly-once recovery through the real stack.
      */
     public void testMultiSegmentNdjsonReadRecoversFromMidReadReset() throws Exception {
-        int rows = 500_000;
-        // ~42 MiB so external_parsing_parallelism=4 yields ~10 MiB segments — each segment read streams far more than
-        // the 1 MiB reset threshold, while record-boundary probes (a few KiB) stay under it.
+        int rows = 200_000;
+        // ~16 MiB of uncompressed NDJSON: comfortably above 2x the 4 MiB minimum segment size, so a
+        // external_parsing_parallelism of 4 yields multiple segments.
         byte[] ndjson = generateNdjson(rows);
         for (String mode : DISTRIBUTION_MODES) {
             // A distinct object per mode so every read is a cold multi-segment scan. External-text aggregate
@@ -254,11 +257,16 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
             s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
 
             // Reference a column (salary) so the read does NOT take the empty-projection schema-bind, which streams
-            // the whole file as one object read during setup. With a projected column the fault lands on a segment
-            // byte-range read — exactly the newStream(pos,len) range the storage layer re-opens and resumes.
-            // max(salary) is deterministic: salary = 40000 + (i % 50000), so the max over 500k rows is 89999.
+            // the whole file as one object read during setup. Pin the 1 MiB reset to bytes=0-<end> so it lands on
+            // the first segment GET, not a stride probe (start > 0) or a finite resume (resumeFrom > 0).
+            // max(salary) is deterministic: salary = 40000 + (i % 50000), so the max over 200k rows is 89999.
             String query = fromS3(key) + " | STATS count = COUNT(*), max_salary = MAX(salary)";
-            faultHandler().setMidBodyResetFault(1, 1024 * 1024, path -> path.endsWith(fileName));
+            faultHandler().setMidBodyResetFault(
+                1,
+                1024 * 1024,
+                path -> path.endsWith(fileName),
+                FaultInjectingS3HttpHandler::isFromStartClosedByteRange
+            );
 
             Map<String, Object> result = runQueryWithMode(query, mode, 4);
             @SuppressWarnings("unchecked")
@@ -275,9 +283,10 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
                 89999L,
                 ((Number) values.get(0).get(1)).longValue()
             );
-            assertTrue(
+            assertEquals(
                 Strings.format("Expected the injected mid-read reset to fire for mode %s", mode),
-                faultHandler().remainingFaults() <= 0
+                0,
+                faultHandler().remainingFaults()
             );
 
             faultHandler().clearFault();

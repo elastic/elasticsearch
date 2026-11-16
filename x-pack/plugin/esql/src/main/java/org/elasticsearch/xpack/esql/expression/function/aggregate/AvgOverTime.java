@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.util.List;
 import java.util.Objects;
@@ -43,7 +44,8 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
         SurrogateExpression,
         TimestampAware,
         AggregateMetricDoubleNativeSupport,
-        AnyNullIsNull {
+        AnyNullIsNull,
+        UnitAware.PreservesUnit {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AvgOverTime.class)
         .ternary(AvgOverTime::new)
         .name("avg_over_time");
@@ -118,10 +120,14 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
     public Expression surrogate() {
         if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
             var mergeOverTime = new HistogramMergeOverTime(source(), field(), timestamp, filter(), window());
+            // A window holding no observations divides 0 by 0, which PromQL reports as NaN rather than dropping the
+            // series, so the division must preserve non-finite results.
             return new Div(
                 source(),
                 ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.SUM),
-                ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)
+                ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT),
+                null,
+                true
             );
         }
         return null;

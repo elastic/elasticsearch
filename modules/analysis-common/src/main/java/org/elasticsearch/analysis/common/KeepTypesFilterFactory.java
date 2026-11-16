@@ -37,6 +37,7 @@ import java.util.Set;
 public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
     private final Set<String> keepTypes;
     private final KeepTypesMode includeMode;
+    private final Object sharingKey;
     static final String KEEP_TYPES_KEY = "types";
     static final String KEEP_TYPES_MODE_KEY = "mode";
 
@@ -78,10 +79,18 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
         }
         this.includeMode = KeepTypesMode.fromString(settings.get(KEEP_TYPES_MODE_KEY, "include"));
         this.keepTypes = new HashSet<>(arrayKeepTypes);
+        this.sharingKey = new Key(keepTypes, includeMode);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new TypeTokenFilter(tokenStream, keepTypes, includeMode == KeepTypesMode.INCLUDE);
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Set<String> keepTypes, KeepTypesMode includeMode) {}
 }

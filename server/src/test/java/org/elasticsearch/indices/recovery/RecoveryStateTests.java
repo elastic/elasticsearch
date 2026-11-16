@@ -65,6 +65,15 @@ public class RecoveryStateTests extends ESTestCase {
         assertThat(state.reset().getTimer().startTime(), equalTo(startTime));
     }
 
+    public void testReinitializingDoesNotResetLocalRetries() {
+        final var state = createRecoveryState(randomIntBetween(1, 10));
+        state.setStage(Stage.INIT);
+        state.setStage(Stage.INIT);
+
+        final var resetState = state.reset();
+        assertThat(resetState.getLocalRetries(), equalTo(state.getLocalRetries()));
+    }
+
     public void testQueuedRecoveryReportsZeroTimingsInXContent() throws IOException {
         final var state = createRecoveryState();
         assertThat(longField(state, "start_time_in_millis"), equalTo(0L));
@@ -91,7 +100,7 @@ public class RecoveryStateTests extends ESTestCase {
     public void testLocalRetryCountOmittedForOldNodes() throws IOException {
         final var localRetryCountVersion = TransportVersion.fromName("recovery_local_retry_count_in_recovery_state");
         int localRetries = randomIntBetween(1, 10);
-        final var state = createRecoveryState().setLocalRetries(localRetries);
+        final var state = createRecoveryState(localRetries);
 
         assertThat(
             serializeDeserialize(state, TransportVersionUtils.getPreviousVersion(localRetryCountVersion)).getLocalRetries(),
@@ -104,6 +113,10 @@ public class RecoveryStateTests extends ESTestCase {
     }
 
     private static RecoveryState createRecoveryState() {
+        return createRecoveryState(0);
+    }
+
+    private static RecoveryState createRecoveryState(int localRetries) {
         final var discoveryNode = DiscoveryNodeUtils.builder(randomUUID()).roles(emptySet()).build();
         final var shardRouting = TestShardRouting.newShardRouting(
             new ShardId(randomIndexName(), randomUUID(), 0),
@@ -114,7 +127,8 @@ public class RecoveryStateTests extends ESTestCase {
         final var state = new RecoveryState(
             shardRouting,
             discoveryNode,
-            shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null
+            shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null,
+            localRetries
         );
         assertThat(state.getStage(), equalTo(Stage.CREATED));
         return state;

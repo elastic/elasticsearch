@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -390,7 +392,11 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
                 Engine.Searcher searcher = indexShard.acquireSearcher(Engine.SEARCH_SOURCE);
                 openedResources.add(searcher);
-                final MappedFieldType mappedFieldType = indexShard.mapperService().fieldType(request.field());
+                var context = indexService.newQueryRewriteContext(request::nodeStartedTimeMillis, Collections.emptyMap(), null);
+                // if the index has strict unmapped field handling, `getFieldType` will throw; enabling lenient error handling allows this
+                // method to handle unmapped fields instead
+                context.setAllowUnmappedFields(true);
+                final MappedFieldType mappedFieldType = context.getFieldType(request.field());
                 if (mappedFieldType != null) {
                     TermsEnum terms = mappedFieldType.getTerms(
                         searcher.getIndexReader(),
@@ -468,6 +474,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     null,
                     null
                 );
+                // DLS role queries must be rewritten against the complete mapping, independently of the user's field-level permissions.
+                queryShardContext.setFieldVisibilityPredicate(FieldPredicate.ACCEPT_ALL);
 
                 // Current user has potentially many roles and therefore potentially many queries
                 // defining sets of docs accessible
@@ -520,7 +528,13 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
             return true;
         }
-        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, req.nodeStartedTimeMillis(), AliasFilter.EMPTY);
+        ShardSearchRequest searchRequest = new ShardSearchRequest(
+            shardId,
+            req.nodeStartedTimeMillis(),
+            AliasFilter.EMPTY,
+            null,
+            SplitShardCountSummary.IRRELEVANT
+        );
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
         return searchService.canMatch(searchRequest).canMatch();
     }

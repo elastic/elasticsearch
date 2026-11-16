@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -322,9 +321,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             fileList,
             schemaMap,
             List.of()
-        ).withUnifiedSchema(new ExternalSchema(dataOnlyUnifiedSchema()))
-            .withDatasetName(datasetName)
-            .withDeclaredReadSpec(declaredReadSpec);
+        ).withUnifiedSchema(dataOnlyUnifiedSchema()).withDatasetName(datasetName).withDeclaredReadSpec(declaredReadSpec);
     }
 
     /**
@@ -350,13 +347,15 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      * Partition names come from the serialized stamp ({@link #partitionColumnNames()}), NOT the fileList, so
      * this produces the same narrow schema on a data node (where the fileList is {@code UNRESOLVED}) as on the
      * coordinator — previously the data-node build silently kept the wider, partition-inclusive view.
+     * <p>
+     * Delegates to {@link ExternalSchema#dataAttributesOf(List, Set)}. {@code metadata.schema()} is
+     * constrained to {@code ReferenceAttribute}, so the virtual-column arm is a no-op: the metadata
+     * bind appends to the relation's {@code output}, not to {@code metadata.schema()}. A bound
+     * metadata name can therefore leave this unified view wider than the query schema;
+     * {@code ColumnMapping.pruneToPerFileQuery} drops the extra output slot.
      */
-    private List<Attribute> dataOnlyUnifiedSchema() {
-        Set<String> partitionNames = partitionColumnNames();
-        return metadata.schema()
-            .stream()
-            .filter(a -> a instanceof VirtualAttribute == false && partitionNames.contains(a.name()) == false)
-            .toList();
+    private ExternalSchema dataOnlyUnifiedSchema() {
+        return ExternalSchema.dataAttributesOf(metadata.schema(), partitionColumnNames());
     }
 
     @Override
@@ -395,9 +394,14 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        // sourcePath is a user-supplied external location (S3 URI / file / table path) — opaque
-        // free-form content; redact under anonymization. sourceType is a low-cardinality format enum.
-        sb.append(nodeName()).append("[").append(mapper.opaque(sourcePath)).append("][").append(sourceType()).append("]");
+        // Only the object name (last path segment) is included; bucket, prefix, and full URI are
+        // always omitted. sourceType is a low-cardinality format enum, never redacted.
+        sb.append(nodeName())
+            .append("[")
+            .append(mapper.location(StoragePath.objectName(sourcePath)))
+            .append("][")
+            .append(sourceType())
+            .append("]");
         NodeUtils.toString(sb, output, format, mapper);
     }
 
@@ -428,6 +432,25 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             output,
             newFileList,
             schemaMap,
+            datasetName,
+            metadataFields,
+            declaredReadSpec
+        );
+    }
+
+    /**
+     * Returns a copy with {@link #schemaMap()} replaced. Split discovery calls this with an empty map
+     * after the per-file schema has been copied onto the splits, so the coordinator does not keep the
+     * listing map for the rest of the query. The splits themselves stay on the read path.
+     */
+    public ExternalRelation withSchemaMap(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> newSchemaMap) {
+        return new ExternalRelation(
+            source(),
+            sourcePath,
+            metadata,
+            output,
+            fileList,
+            newSchemaMap,
             datasetName,
             metadataFields,
             declaredReadSpec

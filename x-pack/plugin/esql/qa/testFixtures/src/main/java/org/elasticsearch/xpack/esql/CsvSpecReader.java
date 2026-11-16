@@ -600,8 +600,8 @@ public final class CsvSpecReader {
         /**
          * Makes expected warnings optional: they may or may not appear in the response.
          * Any actual warning must still match one of the expected patterns.
-         * Used in mixed/multi-cluster tests where older nodes (pre-9.6) may not propagate
-         * warnings correctly due to a threading bug fixed in 9.6.
+         * Used in mixed/multi-cluster tests where older nodes may not propagate
+         * warnings correctly due to a threading bug.
          */
         public void makeWarningsOptional() {
             if (expectedWarnings.isEmpty() == false) {

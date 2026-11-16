@@ -1,0 +1,5 @@
+TopN[[Order[name{r}#0,ASC,LAST]],1000[INTEGER],false]
+\_Aggregate[[metric_name{r}#1],[VALUES(dimension_fields{r}#2,true[BOOLEAN],PT0S[TIME_DURATION]) AS dims#3, MAX(unit{r}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS units#5, COUNTDISTINCT(data_stream{r}#6,true[BOOLEAN],PT0S[TIME_DURATION]) AS streams#7, metric_name{r}#1 AS name#0]]
+  \_Filter[STARTSWITH(metric_name{r}#1,network.[KEYWORD]) AND NOT(unit{r}#4 == usd[KEYWORD])]
+    \_MetricsInfo[]
+      \_EsRelation[k8s][@timestamp{f}#8, client.ip{f}#9, cluster{f}#10, event{f}#11, event_city{f}#12, event_city_boundary{f}#13, event_location{f}#14, event_log{f}#15, event_shape{f}#16, events_received{f}#17, network.bytes_in{f}#18, network.cost{f}#19, network.eth0.currently_connected_clients{f}#20, network.eth0.firmware_version{f}#21, network.eth0.last_up{f}#22, network.eth0.rx{f}#23, network.eth0.tx{f}#24, network.eth0.up{f}#25, network.total_bytes_in{f}#26, network.total_bytes_out{f}#27, network.total_cost{f}#28, pod{f}#29, region{f}#30, _doc{m}#31]

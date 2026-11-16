@@ -1,0 +1,8 @@
+Limit[1000[INTEGER],false,false]
+\_BranchPlan[[unnamed_view_1=SUBQUERY, unnamed_view_2=SUBQUERY]]
+  |_Eval[[TODATETIME(@timestamp{f(PotentiallyUnmappedKeywordEsField)}#0) AS @timestamp#1, TO_IP(client_ip{f(PotentiallyUnmappedKeywordEsField)}#2) AS client_ip#3, TOLONG(event_duration{f(PotentiallyUnmappedKeywordEsField)}#4) AS event_duration#5]]
+  | \_Filter[TOLONG(does_not_exist1{f(PotentiallyUnmappedKeywordEsField)}#6) > 1[INTEGER]]
+  |   \_EsRelation[languages][language_code{f}#7, language_name{f}#8, does_not_exist1{f(PotentiallyUnmappedKeywordEsField)}#6, @timestamp{f(PotentiallyUnmappedKeywordEsField)}#0, client_ip{f(PotentiallyUnmappedKeywordEsField)}#2, event_duration{f(PotentiallyUnmappedKeywordEsField)}#4, message{f(PotentiallyUnmappedKeywordEsField)}#9, _unmapped_fields{m}#10]
+  \_Eval[[TO_INTEGER(language_code{f(PotentiallyUnmappedKeywordEsField)}#11) AS language_code#12]]
+    \_Filter[TODOUBLE(does_not_exist1{f(PotentiallyUnmappedKeywordEsField)}#13) > 10.0[DOUBLE]]
+      \_EsRelation[sample_data][@timestamp{f}#14, client_ip{f}#15, event_duration{f}#16, message{f}#17, does_not_exist1{f(PotentiallyUnmappedKeywordEsField)}#13, language_code{f(PotentiallyUnmappedKeywordEsField)}#11, language_name{f(PotentiallyUnmappedKeywordEsField)}#18, _unmapped_fields{m}#19]

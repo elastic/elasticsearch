@@ -14,13 +14,9 @@ import org.elasticsearch.cluster.NodeCacheSizeAndCommitments;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
+import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.ToLongFunction;
@@ -46,22 +42,22 @@ public class NodeCacheCommitmentMetrics {
 
     private final ClusterService clusterService;
     private final AtomicReference<ClusterInfo> latestClusterInfo = new AtomicReference<>();
-    private final AtomicReference<Collection<DoubleWithAttributes>> boostedCommitmentMetrics = new AtomicReference<>();
-    private final AtomicReference<Collection<DoubleWithAttributes>> totalCommitmentMetrics = new AtomicReference<>();
+    private final AtomicReference<ClusterInfo> pendingBoostedClusterInfo = new AtomicReference<>();
+    private final AtomicReference<ClusterInfo> pendingTotalClusterInfo = new AtomicReference<>();
 
     public NodeCacheCommitmentMetrics(MeterRegistry meterRegistry, ClusterService clusterService) {
         this.clusterService = clusterService;
-        meterRegistry.registerDoublesAsyncGauge(
+        meterRegistry.registerDoubleAsyncGauge(
             BOOSTED_CACHE_COMMITMENT_METRIC_NAME,
             "Boosted cache commitment as a fraction of total cache size per node",
             "1",
-            this::getBoostedCommitmentMetrics
+            this::recordBoostedCommitmentMetrics
         );
-        meterRegistry.registerDoublesAsyncGauge(
+        meterRegistry.registerDoubleAsyncGauge(
             TOTAL_CACHE_COMMITMENT_METRIC_NAME,
             "Total cache commitment (boosted + unboosted) as a fraction of total cache size per node",
             "1",
-            this::getTotalCommitmentMetrics
+            this::recordTotalCommitmentMetrics
         );
     }
 
@@ -69,20 +65,15 @@ public class NodeCacheCommitmentMetrics {
         latestClusterInfo.set(clusterInfo);
     }
 
-    /// Compute both sets of metrics from the latest [ClusterInfo] if we haven't already computed them since the last poll.
+    /// Hand the latest [ClusterInfo] to both gauges if neither has a pending one from the last poll.
     ///
     /// This ensures that for any poll the two sets of metrics are consistent
-    private void computeMetricsFromClusterInfo() {
-        if (boostedCommitmentMetrics.get() == null && totalCommitmentMetrics.get() == null) {
+    private void assignClusterInfoToGauges() {
+        if (pendingBoostedClusterInfo.get() == null && pendingTotalClusterInfo.get() == null) {
             final var clusterInfo = latestClusterInfo.getAndSet(null);
             if (clusterInfo != null) {
-                final var attributesCache = new HashMap<DiscoveryNode, Map<String, Object>>();
-                boostedCommitmentMetrics.set(
-                    computeMetrics(clusterInfo, NodeCacheSizeAndCommitments::boostedCacheCommitmentInBytes, attributesCache)
-                );
-                totalCommitmentMetrics.set(
-                    computeMetrics(clusterInfo, NodeCacheSizeAndCommitments::totalCacheCommitmentInBytes, attributesCache)
-                );
+                pendingBoostedClusterInfo.set(clusterInfo);
+                pendingTotalClusterInfo.set(clusterInfo);
             }
         }
     }
@@ -92,35 +83,32 @@ public class NodeCacheCommitmentMetrics {
     }
 
     // visible for testing
-    final Collection<DoubleWithAttributes> getBoostedCommitmentMetrics() {
-        computeMetricsFromClusterInfo();
-        final var metrics = boostedCommitmentMetrics.getAndSet(null);
-        return metrics != null ? metrics : List.of();
+    final void recordBoostedCommitmentMetrics(DoubleAsyncMeasurement measurement) {
+        assignClusterInfoToGauges();
+        recordMetrics(pendingBoostedClusterInfo.getAndSet(null), NodeCacheSizeAndCommitments::boostedCacheCommitmentInBytes, measurement);
     }
 
     // visible for testing
-    final Collection<DoubleWithAttributes> getTotalCommitmentMetrics() {
-        computeMetricsFromClusterInfo();
-        final var metrics = totalCommitmentMetrics.getAndSet(null);
-        return metrics != null ? metrics : List.of();
+    final void recordTotalCommitmentMetrics(DoubleAsyncMeasurement measurement) {
+        assignClusterInfoToGauges();
+        recordMetrics(pendingTotalClusterInfo.getAndSet(null), NodeCacheSizeAndCommitments::totalCacheCommitmentInBytes, measurement);
     }
 
-    private Collection<DoubleWithAttributes> computeMetrics(
+    private void recordMetrics(
         ClusterInfo clusterInfo,
         ToLongFunction<NodeCacheSizeAndCommitments> commitmentFunction,
-        Map<DiscoveryNode, Map<String, Object>> attributesCache
+        DoubleAsyncMeasurement measurement
     ) {
-        if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
-            return List.of();
+        if (clusterInfo == null || clusterService.lifecycleState() != Lifecycle.State.STARTED) {
+            return;
         }
 
         var nodeCacheSizeAndCommitments = clusterInfo.getNodeCacheSizeAndCommitments();
         if (nodeCacheSizeAndCommitments.isEmpty()) {
-            return List.of();
+            return;
         }
 
         var clusterState = clusterService.state();
-        var metrics = new ArrayList<DoubleWithAttributes>(nodeCacheSizeAndCommitments.size());
 
         for (var entry : nodeCacheSizeAndCommitments.entrySet()) {
             final var nodeCommitments = entry.getValue();
@@ -135,14 +123,7 @@ public class NodeCacheCommitmentMetrics {
             }
 
             double value = commitmentFunction.applyAsLong(nodeCommitments) / (double) nodeCacheSizeInBytes;
-            metrics.add(
-                new DoubleWithAttributes(
-                    value,
-                    attributesCache.computeIfAbsent(discoveryNode, NodeCacheCommitmentMetrics::getAttributesForNode)
-                )
-            );
+            measurement.record(value, getAttributesForNode(discoveryNode));
         }
-
-        return metrics;
     }
 }

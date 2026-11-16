@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
+import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +88,10 @@ public final class OtelSdkSettings {
      * */
     public static final double OTLP_RETRY_BACKOFF_MULTIPLIER = 5;
 
-    /** Retry policy shared by the metrics and traces OTLP exporters. */
+    /**
+     * Retry policy for the metrics and traces OTLP exporters.
+     * Log export uses {@link #TELEMETRY_LOGS_RETRY_POLICY}.
+     */
     public static final RetryPolicy OTLP_RETRY_POLICY = RetryPolicy.builder()
         .setMaxAttempts(3)
         .setInitialBackoff(OTLP_RETRY_INITIAL_BACKOFF.toDuration())
@@ -149,7 +153,7 @@ public final class OtelSdkSettings {
     /** Buffered entries older than this are dropped. */
     public static final Setting<TimeValue> TELEMETRY_METRICS_BUFFER_TTL = Setting.timeSetting(
         "telemetry.metrics.buffer.ttl",
-        TimeValue.timeValueHours(12),
+        TimeValue.timeValueHours(48),
         NodeScope
     );
 
@@ -177,11 +181,27 @@ public final class OtelSdkSettings {
     // --- Traces
 
     /** Maximum depth of child spans per request. {@code 0} exports only the root span.
-     * Spans from an upstream {@code traceparent} are not counted. */
+     * Spans from an upstream {@code traceparent} are not counted.
+     * Defaults to unlimited when a span limit is set, so that limit applies at any depth; otherwise {@code 0}. */
     public static final Setting<Integer> TELEMETRY_TRACING_MAX_DEPTH = Setting.intSetting(
         "telemetry.tracing.max_depth",
+        settings -> settings.get("telemetry.tracing.max_spans") != null || settings.get("telemetry.agent.transaction_max_spans") != null
+            ? String.valueOf(Integer.MAX_VALUE)
+            : "0",
         0,
+        Integer.MAX_VALUE,
+        OperatorDynamic,
+        NodeScope
+    );
+
+    /** Maximum number of spans recorded under a local root span, not counting the root. Spans beyond it, and their
+     * children, are not recorded. Defaults to the legacy {@code telemetry.agent.transaction_max_spans} when set,
+     * otherwise 500. */
+    public static final Setting<Integer> TELEMETRY_TRACING_MAX_SPANS = Setting.intSetting(
+        "telemetry.tracing.max_spans",
+        settings -> String.valueOf(Math.max(0, settings.getAsInt("telemetry.agent.transaction_max_spans", 500))),
         0,
+        Integer.MAX_VALUE,
         OperatorDynamic,
         NodeScope
     );
@@ -279,8 +299,28 @@ public final class OtelSdkSettings {
     );
 
     /**
+     * How long one log batch may be retried, and how long the exporter and the batch processor wait for that export.
+     * Both timeouts cover every attempt together.
+     *
+     * <p>Five attempts wait 5s, 10s, 20s, and 40s: 75s before the SDK's ±20% jitter, and 60–90s after it, so the last
+     * attempt is never earlier than 60s. Allowing 10s per attempt adds 50s, for a total of up to about 140s.
+     * The 150s timeout leaves room for that window. OkHttp's default read and write timeouts are 10s. Metrics and traces keep
+     * {@link #OTLP_RETRY_POLICY}, which is sized to finish inside one {@link #TELEMETRY_EXPORT_INTERVAL}.
+     */
+    public static final Duration TELEMETRY_LOGS_EXPORT_TIMEOUT = Duration.ofSeconds(150);
+
+    /** Retry policy for audit and query log OTLP export. See {@link #TELEMETRY_LOGS_EXPORT_TIMEOUT}. */
+    public static final RetryPolicy TELEMETRY_LOGS_RETRY_POLICY = RetryPolicy.builder()
+        .setMaxAttempts(5)
+        .setInitialBackoff(Duration.ofSeconds(5))
+        .setBackoffMultiplier(2)
+        .setMaxBackoff(Duration.ofSeconds(40))
+        .build();
+
+    /**
      * Maximum number of log records the {@code BatchLogRecordProcessor} buffers before dropping.
-     * Sized for ~30 MB of in-flight records at ~3 KB/record average.
+     * A retried batch can be held for up to about 140s, so 10_000 records is about 70 records/s over that window,
+     * and about 30 MB at 3 KB/record.
      */
     public static final Setting<Integer> TELEMETRY_LOGS_MAX_QUEUE_SIZE = Setting.intSetting(
         "telemetry.logs.max_queue_size",

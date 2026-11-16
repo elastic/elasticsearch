@@ -58,8 +58,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String ALERTING_V2_ALERT_VIEWS = "$.alert*";
     public static final String ALERTING_V2_RULE_VIEWS = "$.rule*";
 
-    /** Context Engine AI index retrieval views, one per AI index */
-    public static final String CONTEXT_ENGINE_AI_INDEX_VIEWS = "v-ai-index-*";
+    /** Nightshift source ES|QL views, named {@code $.nightshift.sources.<spaceId>.<slug>}; Kibana writes them as kibana_system */
+    public static final String NIGHTSHIFT_SOURCE_VIEWS = "$.nightshift.sources.*";
 
     /** Cases analytics indexes and aliases */
     public static final String CASES_ANALYTICS_INDEXES = ".internal.cases*";
@@ -793,6 +793,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "Grants access to manage all enrich indices (.enrich-*) and all operations on ingest pipelines."
                 )
             ),
+            // AlertZero worker service accounts
+            entry("alertzero_alert_triage", KibanaOwnedReservedRoleDescriptors.alertZeroAlertTriage("alertzero_alert_triage")),
+            entry("alertzero_attack_discovery", KibanaOwnedReservedRoleDescriptors.alertZeroAttackDiscovery("alertzero_attack_discovery")),
+            entry(
+                "alertzero_endpoint_analysis",
+                KibanaOwnedReservedRoleDescriptors.alertZeroEndpointAnalysis("alertzero_endpoint_analysis")
+            ),
+            entry("alertzero_threat_hunt", KibanaOwnedReservedRoleDescriptors.alertZeroThreatHunt("alertzero_threat_hunt")),
+            entry("alertzero_rule_tuning", KibanaOwnedReservedRoleDescriptors.alertZeroRuleTuning("alertzero_rule_tuning")),
+            entry("alertzero_rule_coverage", KibanaOwnedReservedRoleDescriptors.alertZeroRuleCoverage("alertzero_rule_coverage")),
             entry("viewer", buildViewerRoleDescriptor()),
             entry("editor", buildEditorRoleDescriptor())
         );

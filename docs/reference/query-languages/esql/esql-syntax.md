@@ -63,6 +63,7 @@ Identifiers need to be quoted with backticks (```) if:
 
 * they don’t start with a letter, `_` or `@`
 * any of the other characters is not a letter, number, or `_`
+* they clash with a [reserved keyword](#esql-reserved-keywords), including when that word is a segment of a dotted name
 
 For example:
 
@@ -71,6 +72,15 @@ FROM index
 | KEEP `1.field`
 ```
 
+`in` is the `IN` operator, so a dotted name such as `field.in.other` must be quoted:
+
+```esql
+FROM index
+| WHERE `field.in.other` == "value"
+```
+
+Quoting with backticks always works, even when it is not required.
+
 When referencing a function alias that itself uses a quoted identifier, the backticks of the quoted identifier need to be escaped with another backtick. For example:
 
 ```esql
@@ -78,6 +88,17 @@ FROM index
 | STATS COUNT(`1.field`)
 | EVAL my_count = `COUNT(``1.field``)`
 ```
+
+#### Reserved keywords [esql-reserved-keywords]
+
+{{esql}} keywords are case-insensitive, so `in`, `IN`, and `In` are the same token.
+
+These words are not reserved in every command. They are treated as keywords only in the corresponding context. If you use one as an identifier or as a segment of a dotted name, quote it with backticks. Quoting always works.
+
+::::{dropdown} Reserved keywords
+:::{include} _snippets/generated/x-pack-esql/syntax/reserved-keywords.md
+:::
+::::
 
 
 ### Literals [esql-literals]

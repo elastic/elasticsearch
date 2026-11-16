@@ -55,7 +55,10 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
         ).build();
 
         try (RefreshTestContext context = RefreshTestContext.create(settings)) {
-            final Map<String, NodeHeapEstimates> nodeHeapEstimates = Map.of("node-id", new NodeHeapEstimates(100L, 20L));
+            final Map<String, NodeHeapEstimates> nodeHeapEstimates = Map.of(
+                "node-id",
+                new NodeHeapEstimates(100L, 20L, randomLongBetween(1, 10_000))
+            );
             final ShardId shardId = new ShardId("index", "uuid", 0);
             final ShardHeapUsageEstimates shardHeapUsageEstimates = new ShardHeapUsageEstimates(
                 Map.of(shardId, new ShardAndIndexHeapUsage(10L, 5L, 3L)),
@@ -109,7 +112,10 @@ public class InternalClusterInfoServiceRefreshTests extends ESTestCase {
             doAnswer(invocation -> {
                 final ActionListener<EstimatedHeapUsageStats> listener = invocation.getArgument(0);
                 listener.onResponse(
-                    new EstimatedHeapUsageStats(Map.of("node-id", new NodeHeapEstimates(100L, 20L)), ShardHeapUsageEstimates.empty())
+                    new EstimatedHeapUsageStats(
+                        Map.of("node-id", new NodeHeapEstimates(100L, 20L, randomNonNegativeLong())),
+                        ShardHeapUsageEstimates.empty()
+                    )
                 );
                 return null;
             }).when(estimatedHeapUsageCollector).collectEstimatedHeapUsage(any());

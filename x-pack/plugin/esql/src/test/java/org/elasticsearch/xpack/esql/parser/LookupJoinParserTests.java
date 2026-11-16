@@ -164,7 +164,10 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
 
     private void testValidJoinPatternWithRemote(String onClause) {
         var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-        var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
+        var joinPattern = randomValueOtherThanMany(
+            p -> JOIN_MODE_KEYWORDS.contains(unquoteIndexPattern(p).toLowerCase(Locale.ROOT)),
+            () -> randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR))
+        );
         var plan = query("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause);
 
         var join = as(plan, LookupJoin.class);

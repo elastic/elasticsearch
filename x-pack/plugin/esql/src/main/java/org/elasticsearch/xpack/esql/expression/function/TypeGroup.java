@@ -25,7 +25,7 @@ public enum TypeGroup {
      * Representable numeric types used by ES|QL functions
      * ({@code integer}, {@code long}, {@code unsigned_long}, {@code double}).
      */
-    NUMERIC(Arrays.stream(DataType.values()).filter(t -> t.isNumeric() && DataType.isRepresentable(t)).toList()),
+    NUMERIC(Arrays.stream(DataType.values()).filter(t -> t.isNumeric() && DataType.isRepresentableInExpression(t)).toList()),
 
     /**
      * String types: {@code keyword} and {@code text}.
@@ -45,10 +45,10 @@ public enum TypeGroup {
     SORTABLE(
         Arrays.stream(DataType.values())
             .filter(t -> t.supportedVersion().supportedLocally())
-            .filter(DataType::isRepresentable)
+            .filter(DataType::isRepresentableInExpression)
             .filter(DataType::isSortable)
             .filter(t -> t != DataType.NULL)
-            .filter(t -> t != DataType.DOC_DATA_TYPE && t != DataType.TSID_DATA_TYPE)
+            .filter(t -> t != DataType.TSID_DATA_TYPE)
             .filter(
                 t -> t != DataType.DENSE_VECTOR
                     && t != DataType.AGGREGATE_METRIC_DOUBLE
@@ -65,9 +65,8 @@ public enum TypeGroup {
     ALL(
         Arrays.stream(DataType.values())
             .filter(t -> t.supportedVersion().supportedLocally())
-            .filter(DataType::isRepresentable)
+            .filter(DataType::isRepresentableInExpression)
             .filter(t -> t != DataType.NULL)
-            .filter(t -> t != DataType.DOC_DATA_TYPE)
             .filter(t -> t != DataType.TSID_DATA_TYPE)
             .toList()
     );

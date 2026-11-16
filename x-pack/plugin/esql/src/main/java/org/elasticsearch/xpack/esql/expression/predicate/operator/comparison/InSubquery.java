@@ -53,7 +53,7 @@ public class InSubquery extends Expression {
 
     @Override
     public Nullability nullable() {
-        return Nullability.UNKNOWN;
+        return Nullability.TRUE;
     }
 
     @Override

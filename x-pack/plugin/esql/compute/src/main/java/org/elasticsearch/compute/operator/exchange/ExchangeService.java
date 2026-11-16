@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -82,6 +83,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private final BlockFactory blockFactory;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
+    /**
+     * Exchange ids removed because the coordinator sent {@code sourcesFinished}. A compute request that has not yet
+     * resolved its sink treats this as "do not start a driver" rather than a missing exchange. Entries expire so a
+     * node does not retain one id per early-finished query. The deadline is fixed, not the inactive-sink interval:
+     * tests shorten that interval to a few seconds, which is shorter than a data-node request can take to arrive.
+     */
+    private final Map<String, Long> sourcesFinishedSinks = ConcurrentCollections.newConcurrentMap();
+    private static final long SOURCES_FINISHED_REMEMBER_NANOS = TimeUnit.MINUTES.toNanos(5);
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
     private final Map<String, LocalExchange> localExchanges = ConcurrentCollections.newConcurrentMap();
     // Registry for bidirectional batch exchange servers, keyed by serverToClientId
@@ -186,6 +195,27 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             throw new ResourceNotFoundException("sink exchanger for id [{}] doesn't exist", exchangeId);
         }
         return sinkHandler;
+    }
+
+    /**
+     * The open sink for {@code exchangeId}, or {@code null} when the coordinator already finished it with
+     * {@code sourcesFinished}. {@code null} means the caller must complete its compute request successfully and
+     * must not start a driver: the coordinator has stopped reading, and failing here with
+     * {@link ResourceNotFoundException} would replace the original query error.
+     * <p>
+     * A sink that was never opened still throws {@link ResourceNotFoundException}. The marker is left in place
+     * until it expires, so a transport retry of the same compute request also completes empty.
+     */
+    @Nullable
+    public ExchangeSinkHandler getSinkHandlerIfOpen(String exchangeId) {
+        ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
+        if (sinkHandler != null) {
+            return sinkHandler;
+        }
+        if (sourcesFinishedSinks.containsKey(exchangeId)) {
+            return null;
+        }
+        throw new ResourceNotFoundException("sink exchanger for id [{}] doesn't exist", exchangeId);
     }
 
     /**
@@ -322,9 +352,31 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             } else {
                 final CancellableTask task = (CancellableTask) exchangeTask;
                 task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
+                // Remember the id before the fetch runs. fetchPageAsync(sourcesFinished) finishes the buffer and can
+                // remove the handler from a completion listener on this thread; a compute request arriving in that
+                // window must still see the marker rather than a sink that was never opened.
+                if (request.sourcesFinished()) {
+                    rememberSourcesFinished(request.exchangeId());
+                }
                 sinkHandler.fetchPageAsync(request.sourcesFinished(), listener);
+                if (request.sourcesFinished()) {
+                    ExchangeSinkHandler current = sinks.get(exchangeId);
+                    // Null failure: the buffer is already finished, and onFailure would notify listeners again.
+                    if (current != null && current.isFinished()) {
+                        finishSinkHandler(exchangeId, null);
+                    }
+                }
             }
         }
+    }
+
+    private void rememberSourcesFinished(String exchangeId) {
+        sourcesFinishedSinks.put(exchangeId, System.nanoTime() + SOURCES_FINISHED_REMEMBER_NANOS);
+    }
+
+    private void expireSourcesFinishedSinks() {
+        long now = System.nanoTime();
+        sourcesFinishedSinks.entrySet().removeIf(entry -> entry.getValue() <= now);
     }
 
     private final class InactiveSinksReaper extends AbstractRunnable {
@@ -378,6 +430,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                     );
                 }
             }
+            expireSourcesFinishedSinks();
         }
     }
 

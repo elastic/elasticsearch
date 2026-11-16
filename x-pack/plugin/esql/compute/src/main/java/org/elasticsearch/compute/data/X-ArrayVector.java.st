@@ -59,6 +59,10 @@ $if(int)$
     private Integer max;
 $endif$
 
+$if(int||long||double)$
+    private boolean pooled;
+
+$endif$
     $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
@@ -157,6 +161,15 @@ $else$
         return $BYTES$;
 $endif$
     }
+
+$if(BytesRef)$
+    @Override
+    public long estimateTotalValueBytes() {
+        // The array sums its values as they are appended. When it holds more than this vector, scale its average.
+        final long size = values.size();
+        return size == getPositionCount() || size == 0 ? values.totalBytes() : values.totalBytes() * getPositionCount() / size;
+    }
+$endif$
 
     @Override
     public ElementType elementType() {
@@ -366,6 +379,21 @@ $if(BytesRef)$
         // of this class.
         blockFactory().adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed());
         Releasables.closeExpectNoException(values);
+    }
+$elseif(int||long||double)$
+    @Override
+    public void enablePooling() {
+        pooled = true;
+    }
+
+    @Override
+    protected void closeInternal() {
+        if (pooled && blockFactory().hasLocalPool()) {
+            blockFactory().adjustBreaker(-(ramBytesUsed() - LocalArrayPool.usedBytesFor$Type$s(values.length)));
+            blockFactory().recycle$Type$s(values);
+        } else {
+            super.closeInternal();
+        }
     }
 $endif$
 }

@@ -66,6 +66,7 @@ x:integer    | MV_MEDIAN_ABSOLUTE_DEVIATION(x):integer | a:integer | b:double | 
 
 nullsAndFolds
 required_capability: fn_mv_median_absolute_deviation
+required_capability: warn_null_misuse
 
 ROW x = [0, 2, 5, 6], single = 300
 | EVAL evalNull = null / 2, evalValue = 31 + 1
@@ -78,6 +79,8 @@ ROW x = [0, 2, 5, 6], single = 300
     e = MV_MEDIAN_ABSOLUTE_DEVIATION(evalValue)
 | KEEP a, b, c, d, e
 ;
+warning:Line 2:19: Expression [null / 2] always evaluates to NULL.
+warning:Line 7:5: Expression [MV_MEDIAN_ABSOLUTE_DEVIATION(null)] always evaluates to NULL.
 
 a:integer | b:integer | c:null | d:integer | e:integer
 2         | 0         | null   | null      | 0

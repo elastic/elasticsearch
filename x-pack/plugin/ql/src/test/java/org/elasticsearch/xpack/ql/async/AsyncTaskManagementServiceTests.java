@@ -118,7 +118,8 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             TaskId parentTaskId,
             Map<String, String> headers,
             Map<String, String> originHeaders,
-            AsyncExecutionId asyncExecutionId
+            AsyncExecutionId asyncExecutionId,
+            TimeValue keepAlive
         ) {
             return new TestTask(
                 id,
@@ -129,7 +130,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
                 headers,
                 originHeaders,
                 asyncExecutionId,
-                TimeValue.timeValueDays(5)
+                keepAlive
             );
         }
 

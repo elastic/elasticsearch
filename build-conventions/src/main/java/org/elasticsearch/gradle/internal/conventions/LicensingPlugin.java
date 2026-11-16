@@ -33,7 +33,7 @@ public class LicensingPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        Provider<String> revision = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).getRevision();
+        Provider<String> revision = project.getPlugins().apply(GitInfoPlugin.class).getRevision();
         Provider<String> licenseCommitProvider = providerFactory.provider(
             () -> isSnapshotVersion(project) ? revision.get() : "v" + project.getVersion()
         );

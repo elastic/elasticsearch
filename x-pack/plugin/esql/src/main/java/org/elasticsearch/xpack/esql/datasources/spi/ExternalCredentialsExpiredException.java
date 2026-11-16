@@ -18,16 +18,42 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalCredentialsExpiredException extends ExternalException {
 
-    public ExternalCredentialsExpiredException(String message, Throwable cause) {
+    ExternalCredentialsExpiredException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public ExternalCredentialsExpiredException(Throwable cause, String message, Object... args) {
+    ExternalCredentialsExpiredException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    public ExternalCredentialsExpiredException(String message, Object... args) {
+    ExternalCredentialsExpiredException(String message, Object... args) {
         super(message, args);
+    }
+
+    /**
+     * Structured constructor: message built from {@link Condition#CREDENTIALS_EXPIRED}.
+     * {@code detailCode} is typically the store's error code (e.g. "ExpiredToken");
+     * {@code remedy} is actionable advice (e.g. "Refresh the data source credentials...").
+     */
+    public ExternalCredentialsExpiredException(StoragePath path, String detailCode, String remedy, Throwable cause) {
+        super(Condition.CREDENTIALS_EXPIRED, path, detailCode, remedy, cause);
+    }
+
+    /**
+     * Structured constructor without a cause.
+     * See {@link #ExternalCredentialsExpiredException(StoragePath, String, String, Throwable)}.
+     */
+    public ExternalCredentialsExpiredException(StoragePath path, String detailCode, String remedy) {
+        super(Condition.CREDENTIALS_EXPIRED, path, detailCode, remedy);
+    }
+
+    private ExternalCredentialsExpiredException(ExternalCredentialsExpiredException source) {
+        super(source);
+    }
+
+    @Override
+    protected ExternalCredentialsExpiredException copyWithoutCause() {
+        return new ExternalCredentialsExpiredException(this);
     }
 
     @Override

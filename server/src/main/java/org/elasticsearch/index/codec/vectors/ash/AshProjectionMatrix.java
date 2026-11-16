@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.vectors.ash;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -35,6 +36,21 @@ public final class AshProjectionMatrix {
     private final float[] wT;
     private final int originalDim;
     private final int nDims;
+    private final boolean learned;
+
+    /**
+     * W^T quantized to int8, each row (one projected dimension) with its own scale.
+     *
+     * @param values    the quantized rows, row-major (nDims x originalDim)
+     * @param rowScales the scale that maps each quantized row back to W^T
+     */
+    private record Quantized(byte[] values, float[] rowScales) {}
+
+    /**
+     * Built on the first query, so writers and merges, which only use {@link #wT}, never build it.
+     * Concurrent queries may each build it, but the result is deterministic, so either copy is correct.
+     */
+    private volatile Quantized quantized;
 
     /**
      * Creates a projection matrix.
@@ -42,14 +58,28 @@ public final class AshProjectionMatrix {
      * @param wT          the transposed projection matrix in row-major order, length originalDim*nDims
      * @param originalDim number of rows (original vector dimensionality)
      * @param nDims       number of columns (projected dimensionality)
+     * @param learned     {@code true} if W was learned via PCA + rotation from at least twice as many
+     *                    vectors as projected dimensions; {@code false} if it is a random orthonormal
+     *                    projection, or was learned from fewer vectors (e.g. a small flush segment). Such
+     *                    a matrix must not be inherited/warm-started at merge time — merge should learn
+     *                    a full W instead.
      */
-    public AshProjectionMatrix(float[] wT, int originalDim, int nDims) {
+    public AshProjectionMatrix(float[] wT, int originalDim, int nDims, boolean learned) {
         if (wT.length != originalDim * nDims) {
             throw new IllegalArgumentException("wT.length " + wT.length + " != originalDim * nDims " + (originalDim * nDims));
         }
         this.wT = wT;
         this.originalDim = originalDim;
         this.nDims = nDims;
+        this.learned = learned;
+    }
+
+    /**
+     * Returns whether W was learned (PCA + rotation) from enough vectors to be inherited at merge time, rather than being
+     * a random orthonormal projection or learned from too few vectors.
+     */
+    public boolean isLearned() {
+        return learned;
     }
 
     /**
@@ -59,6 +89,47 @@ public final class AshProjectionMatrix {
      */
     public float[] wT() {
         return wT;
+    }
+
+    /**
+     * Projects {@code query} into the latent space, as {@code W^T @ query}, using int8 arithmetic.
+     * The query is not centered, so the result can be used by both the float and the integer scorer.
+     * Both scorers use the absolute values of the projection, so the query scale and the row scales
+     * of W^T are applied to the integer result.
+     *
+     * @param query the raw query vector, length originalDim
+     * @return the projected query, length nDims
+     */
+    public float[] projectQuery(float[] query) {
+        if (query.length != originalDim) {
+            throw new IllegalArgumentException("query.length " + query.length + " != originalDim " + originalDim);
+        }
+        Quantized quantized = quantizedWT();
+        byte[] queryQuantized = new byte[originalDim];
+        float queryScale = AshUtils.quantizeInt8(query, 0, originalDim, queryQuantized, 0);
+
+        int[] products = new int[nDims];
+        ESVectorUtil.matrixVectorMultiply(quantized.values(), nDims, originalDim, queryQuantized, products);
+
+        float[] projected = new float[nDims];
+        float[] rowScales = quantized.rowScales();
+        for (int j = 0; j < nDims; j++) {
+            projected[j] = products[j] * queryScale * rowScales[j];
+        }
+        return projected;
+    }
+
+    private Quantized quantizedWT() {
+        Quantized quantized = this.quantized;
+        if (quantized == null) {
+            byte[] values = new byte[wT.length];
+            float[] rowScales = new float[nDims];
+            for (int j = 0; j < nDims; j++) {
+                rowScales[j] = AshUtils.quantizeInt8(wT, j * originalDim, originalDim, values, j * originalDim);
+            }
+            this.quantized = quantized = new Quantized(values, rowScales);
+        }
+        return quantized;
     }
 
     /**
@@ -84,6 +155,7 @@ public final class AshProjectionMatrix {
     public void write(IndexOutput out) throws IOException {
         out.writeInt(originalDim);
         out.writeInt(nDims);
+        out.writeByte((byte) (learned ? 1 : 0));
         ByteBuffer buffer = ByteBuffer.allocate(wT.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         buffer.asFloatBuffer().put(wT);
         out.writeBytes(buffer.array(), buffer.capacity());
@@ -99,11 +171,12 @@ public final class AshProjectionMatrix {
     public static AshProjectionMatrix read(IndexInput in) throws IOException {
         int originalDim = in.readInt();
         int nDims = in.readInt();
+        boolean learned = in.readByte() != 0;
         float[] wT = new float[originalDim * nDims];
         ByteBuffer buffer = ByteBuffer.allocate(wT.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         in.readBytes(buffer.array(), 0, buffer.capacity());
         buffer.asFloatBuffer().get(wT);
-        return new AshProjectionMatrix(wT, originalDim, nDims);
+        return new AshProjectionMatrix(wT, originalDim, nDims, learned);
     }
 
     /**
@@ -112,6 +185,6 @@ public final class AshProjectionMatrix {
      * @return total bytes when serialized
      */
     public long byteSize() {
-        return Integer.BYTES * 2L + (long) originalDim * nDims * Float.BYTES;
+        return Integer.BYTES * 2L + Byte.BYTES + (long) originalDim * nDims * Float.BYTES;
     }
 }

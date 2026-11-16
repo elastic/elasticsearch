@@ -10,13 +10,17 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -50,6 +54,21 @@ final class GoldenGc {
         }
         for (Path dir : dirs) {
             IOUtils.rm(dir);
+        }
+    }
+
+    /**
+     * Directories under {@code root} that name no public method of {@code suite}: what a renamed or removed test leaves behind.
+     * Judged against the methods the class declares or inherits, not the tests that ran, so a method filter or a mute cannot
+     * make a live directory look stale.
+     */
+    static List<Path> staleTestDirectories(Path root, Class<?> suite) throws IOException {
+        if (Files.notExists(root)) {
+            return List.of();
+        }
+        Set<String> methods = Arrays.stream(suite.getMethods()).map(Method::getName).collect(Collectors.toSet());
+        try (Stream<Path> dirs = Files.list(root)) {
+            return dirs.filter(Files::isDirectory).filter(dir -> methods.contains(dir.getFileName().toString()) == false).sorted().toList();
         }
     }
 

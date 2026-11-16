@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -38,9 +39,9 @@ import static org.hamcrest.Matchers.hasSize;
  * comes from a system property read into a {@code static final} at class load and cannot be flipped in-JVM, so property
  * parsing, the enforcement branch, the set of registered settings, and the startup logging are exercised through the
  * package-private {@link Federation#readRegistered}, {@link Federation#ensureEnabled(boolean)},
- * {@link Federation#settings(boolean)} and {@link Federation#logEffectiveState(boolean, boolean, boolean, boolean)} seams, which take
- * their inputs as parameters. The end-to-end behavior of both levers at the REST and transport surface is covered by the
- * federation REST ITs.
+ * {@link Federation#settings(boolean)} and {@link Federation#logEffectiveState(boolean, boolean, boolean, boolean, boolean)} seams,
+ * which take their inputs as parameters. The end-to-end behavior of both levers at the REST and transport surface is
+ * covered by the federation REST ITs.
  */
 public class FederationTests extends ESTestCase {
 
@@ -50,6 +51,16 @@ public class FederationTests extends ESTestCase {
 
     private static Settings enabled(boolean enabled) {
         return Settings.builder().put(Federation.FEDERATION_ENABLED.getKey(), enabled).build();
+    }
+
+    /** Node settings of a stateless node that leaves {@link Federation#FEDERATION_ENABLED} to its default. */
+    private static Settings stateless() {
+        return Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+    }
+
+    /** Node settings of a stateless node with an explicit {@link Federation#FEDERATION_ENABLED}. */
+    private static Settings stateless(boolean enabled) {
+        return Settings.builder().put(stateless()).put(Federation.FEDERATION_ENABLED.getKey(), enabled).build();
     }
 
     public void testRegisteredByDefaultWhenPropertyAbsent() {
@@ -73,19 +84,37 @@ public class FederationTests extends ESTestCase {
         assertTrue(e.getMessage().contains(Federation.REGISTER_PROPERTY));
     }
 
-    public void testEnabledByDefaultOnlyInSnapshotBuilds() {
-        assertEquals(
-            Federation.defaultEnabled(Constants.WINDOWS, Build.current().isSnapshot()),
-            Federation.FEDERATION_ENABLED.get(Settings.EMPTY)
-        );
+    /**
+     * The wiring of {@link Federation#defaultEnabled(boolean, boolean)} to the node settings: a stateful node (no
+     * {@code stateless.enabled}) is on out of the box whatever the build, and a stateless node follows the build. The
+     * build is a parameter of the {@link Federation#defaultEnabled(Settings, boolean)} seam, so both node types are
+     * told apart on a snapshot build too, where the setting itself reads {@code true} for either.
+     */
+    public void testDefaultFollowsNodeTypeAndBuild() {
+        assertTrue("stateful release", Federation.defaultEnabled(Settings.EMPTY, false));
+        assertTrue("stateful snapshot", Federation.defaultEnabled(Settings.EMPTY, true));
+        assertFalse("stateless release", Federation.defaultEnabled(stateless(), false));
+        assertTrue("stateless snapshot", Federation.defaultEnabled(stateless(), true));
+
+        assertTrue("stateful nodes are on by default", Federation.FEDERATION_ENABLED.get(Settings.EMPTY));
+        assertEquals(Build.current().isSnapshot(), Federation.FEDERATION_ENABLED.get(stateless()));
+        assertFalse("the default is not an explicit value", Federation.FEDERATION_ENABLED.exists(Settings.EMPTY));
     }
 
-    /** External data sources are off out of the box on Windows, whatever the build; elsewhere the build decides. */
-    public void testDefaultEnabledIsOffOnWindows() {
-        assertFalse("windows snapshot", Federation.defaultEnabled(true, true));
-        assertFalse("windows release", Federation.defaultEnabled(true, false));
-        assertTrue("other snapshot", Federation.defaultEnabled(false, true));
-        assertFalse("other release", Federation.defaultEnabled(false, false));
+    /** An explicit value wins over the default on every node type, in both directions and whatever the build. */
+    public void testExplicitValueWinsOnEveryNodeType() {
+        assertTrue("stateful explicit on", Federation.FEDERATION_ENABLED.get(enabled(true)));
+        assertFalse("stateful explicit off", Federation.FEDERATION_ENABLED.get(enabled(false)));
+        assertTrue("stateless explicit on, even where the default is off", Federation.FEDERATION_ENABLED.get(stateless(true)));
+        assertFalse("stateless explicit off, even where the default is on", Federation.FEDERATION_ENABLED.get(stateless(false)));
+    }
+
+    /** The platform plays no part in the default; only the node type and, for a stateless node, the build do. */
+    public void testDefaultEnabledIsOffOnlyForStatelessRelease() {
+        assertTrue("stateful snapshot", Federation.defaultEnabled(false, true));
+        assertTrue("stateful release", Federation.defaultEnabled(false, false));
+        assertTrue("stateless snapshot", Federation.defaultEnabled(true, true));
+        assertFalse("stateless release", Federation.defaultEnabled(true, false));
     }
 
     /**
@@ -107,9 +136,15 @@ public class FederationTests extends ESTestCase {
         }
     }
 
-    public void testAvailableWithoutSettingOnlyInSnapshotBuilds() {
+    /**
+     * Without an explicit value a stateful node has the feature, except on a Windows release build, where nothing can
+     * turn it on; a stateless node has it only in a snapshot build (which is never a Windows release, so no extra
+     * term is needed there).
+     */
+    public void testAvailableWithoutSettingFollowsTheDefault() {
         assumeTrue("the test JVM must not unregister the feature", Federation.isRegistered());
-        assertEquals(Federation.defaultEnabled(Constants.WINDOWS, Build.current().isSnapshot()), Federation.isAvailable(Settings.EMPTY));
+        assertEquals(Federation.enabled(true, Constants.WINDOWS, Build.current().isSnapshot()), Federation.isAvailable(Settings.EMPTY));
+        assertEquals(Build.current().isSnapshot(), Federation.isAvailable(stateless()));
     }
 
     public void testNotAvailableWhenSettingFalse() {
@@ -201,9 +236,40 @@ public class FederationTests extends ESTestCase {
         assertEquals(7, maxDataSources.get());
     }
 
+    /**
+     * An unregistered node never has the setting in its configuration, so what it feeds in as {@code configured} is the
+     * default, which is {@code true} on a stateful node; neither that value nor whether it is explicit must change what is
+     * logged. Every cell is exercised rather than a random one per seed, so a regression fails every run.
+     */
     public void testLogsNotRegisteredAtInfo() {
+        for (boolean configured : new boolean[] { true, false }) {
+            for (boolean explicit : new boolean[] { true, false }) {
+                MockLog.assertThatLogger(
+                    () -> Federation.logEffectiveState(false, configured, explicit, false, true),
+                    Federation.class,
+                    new MockLog.SeenEventExpectation(
+                        "not registered",
+                        Federation.class.getCanonicalName(),
+                        Level.INFO,
+                        "*not registered*" + Federation.REGISTER_PROPERTY + "*"
+                    ),
+                    new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
+                );
+            }
+        }
+    }
+
+    /**
+     * On a Windows release build the default is vetoed by the platform, but on an unregistered node the operator removed
+     * the feature on purpose and that is what must be reported: the registration line is logged, and the veto is not.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.Federation:DEBUG",
+        reason = "asserts that the DEBUG platform veto is not logged, which takes the level being enabled"
+    )
+    public void testLogsNotRegisteredAtInfoEvenWhereTheDefaultIsVetoed() {
         MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(false, false, false, true),
+            () -> Federation.logEffectiveState(false, true, false, true, false),
             Federation.class,
             new MockLog.SeenEventExpectation(
                 "not registered",
@@ -211,49 +277,69 @@ public class FederationTests extends ESTestCase {
                 Level.INFO,
                 "*not registered*" + Federation.REGISTER_PROPERTY + "*"
             ),
-            new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
+            new MockLog.UnseenEventExpectation("no veto", Federation.class.getCanonicalName(), Level.DEBUG, "*not supported on Windows*"),
+            new MockLog.UnseenEventExpectation("no error", Federation.class.getCanonicalName(), Level.ERROR, "*")
         );
     }
 
+    /**
+     * Every platform and build that can serve the feature logs it at INFO when it is on, whether on by default or
+     * explicitly. That is every cell but a Windows release build, which has its own tests below; the release cells are
+     * the ones a stateful node now lands in by default, and the Windows snapshot cell is the one Windows CI lands in.
+     */
     public void testLogsEnabledAtInfo() {
-        MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(true, true, false, true),
-            Federation.class,
-            new MockLog.SeenEventExpectation(
-                "enabled",
-                Federation.class.getCanonicalName(),
-                Level.INFO,
-                "*is enabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
-            ),
-            new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
-        );
+        for (boolean[] platform : new boolean[][] { { false, false }, { false, true }, { true, true } }) {
+            for (boolean explicit : new boolean[] { true, false }) {
+                boolean windows = platform[0];
+                boolean snapshot = platform[1];
+                MockLog.assertThatLogger(
+                    () -> Federation.logEffectiveState(true, true, explicit, windows, snapshot),
+                    Federation.class,
+                    new MockLog.SeenEventExpectation(
+                        "enabled",
+                        Federation.class.getCanonicalName(),
+                        Level.INFO,
+                        "*is enabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
+                    ),
+                    new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
+                );
+            }
+        }
     }
 
+    /** A registered node with the setting off is inert on every platform and build, and whether or not it was asked to be. */
     @TestLogging(
         value = "org.elasticsearch.xpack.esql.datasources.Federation:DEBUG",
         reason = "a registered node with federation off is inert, so it is logged at DEBUG"
     )
     public void testLogsDisabledAtDebug() {
-        MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(true, false, false, true),
-            Federation.class,
-            new MockLog.SeenEventExpectation(
-                "disabled",
-                Federation.class.getCanonicalName(),
-                Level.DEBUG,
-                "*is disabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
-            ),
-            new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
-        );
+        for (boolean windows : new boolean[] { true, false }) {
+            for (boolean snapshot : new boolean[] { true, false }) {
+                for (boolean explicit : new boolean[] { true, false }) {
+                    MockLog.assertThatLogger(
+                        () -> Federation.logEffectiveState(true, false, explicit, windows, snapshot),
+                        Federation.class,
+                        new MockLog.SeenEventExpectation(
+                            "disabled",
+                            Federation.class.getCanonicalName(),
+                            Level.DEBUG,
+                            "*is disabled*" + Federation.FEDERATION_ENABLED.getKey() + "*"
+                        ),
+                        new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*"),
+                        new MockLog.UnseenEventExpectation("no error", Federation.class.getCanonicalName(), Level.ERROR, "*")
+                    );
+                }
+            }
+        }
     }
 
     /**
-     * Enabling the feature where it cannot be served is reported, not silently dropped — the one case where the node
-     * deliberately does something other than what it was configured to do.
+     * Explicitly enabling the feature where it cannot be served is reported, not silently dropped — the one case where
+     * the node deliberately does something other than what it was configured to do.
      */
     public void testLogsUnhonourableEnableAtError() {
         MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(true, true, true, false),
+            () -> Federation.logEffectiveState(true, true, true, true, false),
             Federation.class,
             new MockLog.SeenEventExpectation(
                 "ignored opt-in",
@@ -264,23 +350,50 @@ public class FederationTests extends ESTestCase {
         );
     }
 
-    /** Leaving it alone on that platform is not a misconfiguration, so nothing is reported. */
+    /**
+     * The default is on, but a Windows release build cannot serve the feature. Nobody asked for anything, so this is
+     * not the misconfiguration above: it is logged at DEBUG like any other node without the feature, so that every
+     * Windows release node does not start with an ERROR in its log.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.Federation:DEBUG",
+        reason = "the platform veto of the default is not a misconfiguration, so it is logged at DEBUG"
+    )
+    public void testLogsVetoedDefaultAtDebugOnWindowsRelease() {
+        MockLog.assertThatLogger(
+            () -> Federation.logEffectiveState(true, true, false, true, false),
+            Federation.class,
+            new MockLog.SeenEventExpectation(
+                "vetoed default",
+                Federation.class.getCanonicalName(),
+                Level.DEBUG,
+                "*not supported on Windows*default of [" + Federation.FEDERATION_ENABLED.getKey() + "]=[true]*leaving the feature off*"
+            ),
+            new MockLog.UnseenEventExpectation("no error", Federation.class.getCanonicalName(), Level.ERROR, "*"),
+            new MockLog.UnseenEventExpectation("no warning", Federation.class.getCanonicalName(), Level.WARN, "*")
+        );
+    }
+
+    /** Explicitly turning it off on that platform is not a misconfiguration, so nothing is reported. */
     public void testLogsNoErrorWhenNotAskedForOnWindows() {
         MockLog.assertThatLogger(
-            () -> Federation.logEffectiveState(true, false, true, false),
+            () -> Federation.logEffectiveState(true, false, true, true, false),
             Federation.class,
             new MockLog.UnseenEventExpectation("no error", Federation.class.getCanonicalName(), Level.ERROR, "*")
         );
     }
 
     /**
-     * The wiring of {@link Federation#defaultEnabled} to the real platform. The parameterised tests above prove the
-     * rule on any host; this proves the constants are actually fed to it, which only means anything where it runs.
+     * The wiring of the default and of {@link Federation#enabled} to the real platform. The parameterised tests above
+     * prove the rules on any host; this proves the constants are actually fed to them, which only means anything where
+     * it runs: the default reads {@code true} on Windows like everywhere else, and whether that makes the feature
+     * available is decided by the build.
      */
-    public void testDefaultIsOffOnWindows() {
-        assumeTrue("verifies the Windows default; runs only on Windows", Constants.WINDOWS);
-        assertFalse("external data sources must be off out of the box", Federation.FEDERATION_ENABLED.get(Settings.EMPTY));
-        assertFalse(Federation.isAvailable(Settings.EMPTY));
+    public void testDefaultIsOnButVetoedOnWindowsRelease() {
+        assumeTrue("verifies the Windows wiring; runs only on Windows", Constants.WINDOWS);
+        assumeTrue("the test JVM must not unregister the feature", Federation.isRegistered());
+        assertTrue("the default is on, whatever the platform", Federation.FEDERATION_ENABLED.get(Settings.EMPTY));
+        assertEquals(Build.current().isSnapshot(), Federation.isAvailable(Settings.EMPTY));
     }
 
     /**

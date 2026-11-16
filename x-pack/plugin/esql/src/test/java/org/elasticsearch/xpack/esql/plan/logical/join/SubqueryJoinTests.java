@@ -45,7 +45,9 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -977,7 +979,7 @@ public class SubqueryJoinTests extends ESTestCase {
             List.of(rightField)
         );
 
-        Set<LocalRelation> subPlansResults = new HashSet<>();
+        Set<LocalRelation> subPlansResults = Collections.newSetFromMap(new IdentityHashMap<>());
         subPlansResults.add(alreadyProcessed);
 
         var subPlan = AbstractSubqueryJoin.firstSubPlan(semiJoin, subPlansResults);

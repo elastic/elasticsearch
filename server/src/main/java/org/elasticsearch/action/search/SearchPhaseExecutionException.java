@@ -28,16 +28,16 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     private final ShardSearchFailure[] shardFailures;
     private final ElasticsearchException guessedCause; // log4j requires a stable cause!
 
-    public SearchPhaseExecutionException(String phaseName, String msg, ShardSearchFailure[] shardFailures) {
+    public SearchPhaseExecutionException(String phaseName, String msg, List<ShardSearchFailure> shardFailures) {
         this(phaseName, msg, null, shardFailures);
     }
 
     @SuppressWarnings("this-escape")
-    public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, ShardSearchFailure[] shardFailures) {
+    public SearchPhaseExecutionException(String phaseName, String msg, Throwable cause, List<ShardSearchFailure> shardFailures) {
         super(msg, deduplicateCause(cause, shardFailures));
         this.phaseName = phaseName;
-        this.shardFailures = shardFailures;
-        this.guessedCause = cause == null || super.getCause() == null ? guessFirstRootCause(shardFailures) : null;
+        this.shardFailures = shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+        this.guessedCause = cause == null || super.getCause() == null ? guessFirstRootCause(this.shardFailures) : null;
     }
 
     @SuppressWarnings("this-escape")
@@ -55,7 +55,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         out.writeArray(shardFailures);
     }
 
-    private static Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {
+    private static Throwable deduplicateCause(Throwable cause, List<ShardSearchFailure> shardFailures) {
         if (shardFailures == null) {
             throw new IllegalArgumentException("shardSearchFailures must not be null");
         }
@@ -120,15 +120,16 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     }
 
     @Override
-    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel) throws IOException {
+    protected XContentBuilder toXContent(XContentBuilder builder, Params params, int nestedLevel, Throwable[] additionalSuppressed)
+        throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            generateThrowableXContent(builder, params, this, nestedLevel);
+            generateThrowableXContent(builder, params, this, nestedLevel, additionalSuppressed);
         } else {
             // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
             // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
             // be rendered twice (one in the "cause" field, one in "failed_shards")
-            innerToXContent(builder, params, this, getBodyHeaders(), getMetadata(), super.getCause(), nestedLevel);
+            innerToXContent(builder, params, this, getBodyHeaders(), getMetadata(), super.getCause(), nestedLevel, additionalSuppressed);
         }
         return builder;
     }

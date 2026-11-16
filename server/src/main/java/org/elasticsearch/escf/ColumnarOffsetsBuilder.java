@@ -12,6 +12,7 @@ package org.elasticsearch.escf;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BitUtil;
@@ -20,6 +21,7 @@ import org.apache.lucene.util.BytesRefHash;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.FieldArrayContext;
 
 import java.util.Arrays;
 import java.util.function.Consumer;
@@ -44,7 +46,9 @@ import java.util.function.Consumer;
  * writer will sort — for {@code LONG} elements, the sortable-long output of
  * {@link NumberColumnTransform}. Ordinals have to agree with the order the values are read back in, so a
  * column encoded any other way misorders the array silently. Byte-string elements are limited to
- * {@code IndexWriter.MAX_TERM_LENGTH}.
+ * {@link IndexWriter#MAX_TERM_LENGTH}, and so is each document's encoded offsets: a document with more
+ * slots than fit makes {@link #build} throw {@link UnsupportedOperationException}, so the batch falls back
+ * to the row path, which rejects that document alone with the same error.
  *
  * <p>Elements must be {@code LONG}, {@code STRING} or {@code BINARY}, which is also why no
  * {@code NULL_ORD} slot is ever emitted: a null element makes the element child a {@code UNION}.
@@ -147,7 +151,20 @@ public final class ColumnarOffsetsBuilder {
 
                 encoded.seek(0);
                 writeSlotOrdinals(encoded, slotOrdinals, slotCount);
-                columnBuilder.setBinary(doc, encoded.bytes().toBytesRef());
+                final BytesRef encodedOffsets = encoded.bytes().toBytesRef();
+                if (encodedOffsets.length > IndexWriter.MAX_TERM_LENGTH) {
+                    // Lucene rejects sorted doc values larger than MAX_TERM_LENGTH, so this batch cannot be indexed as is. Bail
+                    // out to the row path, which rejects just this document with the same error (see
+                    // FieldArrayContext#addToLuceneDocument) while the rest of the batch indexes normally.
+                    throw new UnsupportedOperationException(
+                        "ColumnarOffsetsBuilder: "
+                            + FieldArrayContext.oversizedOffsetsMessage(offsetsFieldName, encodedOffsets.length)
+                            + " for document ["
+                            + doc
+                            + "] in batch"
+                    );
+                }
+                columnBuilder.setBinary(doc, encodedOffsets);
             }
             EscfColumnData colData = columnBuilder.finish(docCount);
             ownedSink.accept(colData);

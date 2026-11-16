@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
@@ -22,7 +24,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
 public class PoolingHeapByteBufferAllocatorTests extends ESTestCase {
+
+    private static final int MIN_SHIFT = Integer.numberOfTrailingZeros(PoolingHeapByteBufferAllocator.MIN_POOLED);
+    private static final int MAX_SHIFT = Integer.numberOfTrailingZeros(PoolingHeapByteBufferAllocator.MAX_POOLED);
 
     public void testReusesBackingArrayNotBufferIdentity() {
         PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(1 << 20);
@@ -59,9 +66,10 @@ public class PoolingHeapByteBufferAllocatorTests extends ESTestCase {
     }
 
     public void testCapDropsExcess() {
-        PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(PoolingHeapByteBufferAllocator.MIN_POOLED);
-        ByteBuffer a = pool.allocate(PoolingHeapByteBufferAllocator.MIN_POOLED);
-        ByteBuffer b = pool.allocate(PoolingHeapByteBufferAllocator.MIN_POOLED);
+        int smallest = PoolingHeapByteBufferAllocator.classSize(MIN_SHIFT);
+        PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(smallest);
+        ByteBuffer a = pool.allocate(smallest);
+        ByteBuffer b = pool.allocate(smallest);
         assertNotSame(a, b);
         pool.release(a);
         pool.release(b);
@@ -165,15 +173,69 @@ public class PoolingHeapByteBufferAllocatorTests extends ESTestCase {
         }
     }
 
-    public void testTargetShiftRoundsToPowerOfTwo() {
+    public void testTargetShiftPicksSmallestFittingClass() {
         assertEquals(-1, PoolingHeapByteBufferAllocator.targetShift(0));
-        assertEquals(
-            Integer.numberOfTrailingZeros(PoolingHeapByteBufferAllocator.MIN_POOLED),
-            PoolingHeapByteBufferAllocator.targetShift(1)
-        );
-        assertEquals(8, PoolingHeapByteBufferAllocator.targetShift(256));
-        assertEquals(9, PoolingHeapByteBufferAllocator.targetShift(257));
-        assertEquals(-1, PoolingHeapByteBufferAllocator.targetShift(PoolingHeapByteBufferAllocator.MAX_POOLED + 1));
+        assertEquals(MIN_SHIFT, PoolingHeapByteBufferAllocator.targetShift(1));
+        int smallest = PoolingHeapByteBufferAllocator.classSize(MIN_SHIFT);
+        assertEquals(MIN_SHIFT, PoolingHeapByteBufferAllocator.targetShift(smallest));
+        assertEquals(MIN_SHIFT + 1, PoolingHeapByteBufferAllocator.targetShift(smallest + 1));
+        // a request of exactly the power of two no longer fits its class; the header is carved out of it
+        assertEquals(MIN_SHIFT + 1, PoolingHeapByteBufferAllocator.targetShift(PoolingHeapByteBufferAllocator.MIN_POOLED));
+        assertEquals(-1, PoolingHeapByteBufferAllocator.targetShift(PoolingHeapByteBufferAllocator.classSize(MAX_SHIFT) + 1));
+    }
+
+    /**
+     * Each class array is {@link HeapFootprint#regionFriendlyLength} of its power of two, so its heap footprint
+     * never exceeds that power of two and never spills into an extra G1 humongous region.
+     */
+    public void testClassSizesAreRegionFriendly() {
+        for (int shift = MIN_SHIFT; shift <= MAX_SHIFT; shift++) {
+            int classSize = PoolingHeapByteBufferAllocator.classSize(shift);
+            assertEquals(HeapFootprint.regionFriendlyLength(1 << shift), classSize);
+            assertThat(
+                RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + classSize),
+                lessThanOrEqualTo(1L << shift)
+            );
+        }
+    }
+
+    public void testTargetShiftAndPooledShiftRoundTrip() {
+        for (int shift = MIN_SHIFT; shift <= MAX_SHIFT; shift++) {
+            int classSize = PoolingHeapByteBufferAllocator.classSize(shift);
+            assertEquals(shift, PoolingHeapByteBufferAllocator.targetShift(classSize));
+            assertEquals(shift, PoolingHeapByteBufferAllocator.pooledShift(classSize));
+            assertEquals(-1, PoolingHeapByteBufferAllocator.pooledShift(classSize + 1));
+            assertEquals(-1, PoolingHeapByteBufferAllocator.pooledShift(1 << shift));
+        }
+    }
+
+    /** {@code maxAllocationSize} chunk slabs must land in the 8 MiB class, not double into the 16 MiB one. */
+    public void testChunkSlabFillsItsClassExactly() {
+        PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(1L << 30);
+        int slab = HeapFootprint.regionFriendlyLength(8 * 1024 * 1024);
+        assertEquals(PoolingHeapByteBufferAllocator.classSize(23), slab);
+
+        ByteBuffer exact = pool.allocate(slab);
+        byte[] backing = exact.array();
+        assertEquals(slab, exact.capacity());
+        assertEquals(slab, exact.limit());
+
+        ByteBuffer larger = pool.allocate(slab + 1);
+        try {
+            assertEquals(PoolingHeapByteBufferAllocator.classSize(24), larger.capacity());
+            assertEquals(slab + 1, larger.limit());
+        } finally {
+            pool.release(larger);
+        }
+
+        pool.release(exact);
+        assertEquals(PoolingHeapByteBufferAllocator.classSize(23) + PoolingHeapByteBufferAllocator.classSize(24), pool.pooledBytes());
+        ByteBuffer reused = pool.allocate(slab - 1);
+        try {
+            assertSame("a released array re-pools into its class", backing, reused.array());
+        } finally {
+            pool.release(reused);
+        }
     }
 
     public void testConcurrentAllocateReleaseNeverExceedsCapOrHandsOutSameInstance() {
@@ -251,14 +313,15 @@ public class PoolingHeapByteBufferAllocatorTests extends ESTestCase {
     public void testPerClassLimitPreventsLargeClassMonopoly() {
         long cap = 4L * PoolingHeapByteBufferAllocator.MAX_POOLED;
         PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(cap);
-        assertEquals(1, pool.classEntryLimit(PoolingHeapByteBufferAllocator.MAX_POOLED));
+        int largest = PoolingHeapByteBufferAllocator.classSize(MAX_SHIFT);
+        assertEquals(1, pool.classEntryLimit(largest));
 
-        ByteBuffer first = pool.allocate(PoolingHeapByteBufferAllocator.MAX_POOLED);
-        ByteBuffer second = pool.allocate(PoolingHeapByteBufferAllocator.MAX_POOLED);
+        ByteBuffer first = pool.allocate(largest);
+        ByteBuffer second = pool.allocate(largest);
         pool.release(first);
         pool.release(second);
         assertEquals("the class limit must drop the second large array despite global cap headroom", 1, pool.pooledCount());
-        assertEquals(PoolingHeapByteBufferAllocator.MAX_POOLED, pool.pooledBytes());
+        assertEquals(largest, pool.pooledBytes());
         assertEquals(1, pool.droppedReleases());
 
         ByteBuffer small = pool.allocate(64);
@@ -270,7 +333,7 @@ public class PoolingHeapByteBufferAllocatorTests extends ESTestCase {
         PoolingHeapByteBufferAllocator pool = new PoolingHeapByteBufferAllocator(1 << 20);
         ByteBuffer first = pool.allocate(300);
         pool.release(first);
-        ByteBuffer second = pool.allocate(400); // same 512-byte class: must reuse
+        ByteBuffer second = pool.allocate(400); // same class (just under 512 bytes): must reuse
         pool.release(second);
         assertEquals(1, pool.poolHits());
         assertEquals(1, pool.poolMisses());
@@ -287,12 +350,12 @@ public class PoolingHeapByteBufferAllocatorTests extends ESTestCase {
 
     /**
      * The two large allocation classes parquet-mr routes through the read-options allocator — the
-     * 8 MiB {@code maxAllocationSize} chunk slabs of {@code PlainParquetReadOptions} and footer
+     * just-under-8 MiB {@code maxAllocationSize} chunk slabs of {@code PlainParquetReadOptions} and footer
      * buffers of up to {@link ParquetFormatReader#MAX_FOOTER_READ_BYTES} — are exactly the
      * allocations that scale with file count; they must be poolable or the pool misses its point.
      */
     public void testPoolCoversParquetLargeAllocationClasses() {
-        assertTrue(PoolingHeapByteBufferAllocator.targetShift(8 * 1024 * 1024) >= 0);
+        assertTrue(PoolingHeapByteBufferAllocator.targetShift(HeapFootprint.regionFriendlyLength(8 * 1024 * 1024)) >= 0);
         assertTrue(PoolingHeapByteBufferAllocator.targetShift(ParquetFormatReader.MAX_FOOTER_READ_BYTES) >= 0);
     }
 

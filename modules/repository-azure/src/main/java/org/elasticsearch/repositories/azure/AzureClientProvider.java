@@ -53,7 +53,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.repositories.azure.executors.ReactorScheduledExecutorService;
+import org.elasticsearch.repositories.azure.executors.TrampolineScheduler;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.NettyAllocator;
@@ -340,6 +340,9 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             if (settings.getReadTimeout().equals(TimeValue.MINUS_ONE) == false) {
                 httpClientBuilder.readTimeout(Duration.ofMillis(settings.getReadTimeout().millis()));
             }
+            if (settings.getWriteTimeout().equals(TimeValue.MINUS_ONE) == false) {
+                httpClientBuilder.writeTimeout(Duration.ofMillis(settings.getWriteTimeout().millis()));
+            }
 
             final String connectionString = settings.getConnectString();
             BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
@@ -388,30 +391,31 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        installSchedulersFactory(new ReactorScheduledExecutorService(threadPool, reactorExecutorName));
+        installSchedulersFactory(threadPool, reactorExecutorName);
     }
 
     /**
-     * Makes every Reactor scheduler the Azure SDK asks for run on {@code executorService}.
+     * Makes every Reactor scheduler the Azure SDK asks for run on the {@code executorName} executor of {@code threadPool}, with the
+     * per-worker ordering guarantees of Reactor's own schedulers (see {@link TrampolineScheduler}).
      */
     // package-private for testing
-    static void installSchedulersFactory(ExecutorService executorService) {
+    static void installSchedulersFactory(ThreadPool threadPool, String executorName) {
         // The only way to configure the schedulers used by the SDK is to inject a new global factory. This is a bit ugly...
         // See https://github.com/Azure/azure-sdk-for-java/issues/17272 for a feature request to avoid this need.
         Schedulers.setFactory(new Schedulers.Factory() {
             @Override
             public Scheduler newParallel(int parallelism, ThreadFactory threadFactory) {
-                return Schedulers.fromExecutor(executorService);
+                return new TrampolineScheduler(threadPool, executorName);
             }
 
             @Override
             public Scheduler newBoundedElastic(int threadCap, int queuedTaskCap, ThreadFactory threadFactory, int ttlSeconds) {
-                return Schedulers.fromExecutor(executorService);
+                return new TrampolineScheduler(threadPool, executorName);
             }
 
             @Override
             public Scheduler newSingle(ThreadFactory threadFactory) {
-                return Schedulers.fromExecutor(executorService);
+                return new TrampolineScheduler(threadPool, executorName);
             }
         });
     }

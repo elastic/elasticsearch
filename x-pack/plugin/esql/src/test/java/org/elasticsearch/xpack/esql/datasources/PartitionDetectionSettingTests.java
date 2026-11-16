@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -147,7 +148,7 @@ public class PartitionDetectionSettingTests extends ESTestCase {
         );
         PartitionMetadata md = listing.partitionMetadata();
         assertNotNull("template detection must produce partition metadata", md);
-        Object year = md.filePartitionValues().values().iterator().next().get("year");
+        Object year = md.getValue(0, "year");
         assertEquals("the literal segment [junk] must anchor, so year binds the 2024 directory", 2024, year);
     }
 
@@ -333,7 +334,7 @@ public class PartitionDetectionSettingTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubStorageObject implements StorageObject {
+    private static class StubStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final long length;
 

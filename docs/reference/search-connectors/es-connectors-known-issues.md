@@ -287,6 +287,163 @@ The connector service has the following known issues:
     **Fix**: [elastic/connectors#4306](https://github.com/elastic/connectors/pull/4306), shipped in 8.19.20, 9.3.9, 9.4.5, 9.5.0, and 9.6.0.
 
 
+* **Long-running syncs are marked idle and fail after Elasticsearch `ConnectionTimeout` on index refresh**
+
+    During an active sync, the connector service refreshed connector and sync-job system indices on every status poll. Under bulk-ingest load, refresh calls could time out, the ingestion heartbeat stopped updating, and the job was marked ERROR even though indexing was still in progress.
+
+    **Affected versions**: All versions through 8.19.20, 9.3.9, 9.4.5, and 9.5.1.
+
+    **Fix**: [elastic/connectors#4345](https://github.com/elastic/connectors/pull/4345), shipped in 8.19.21, 9.4.6, 9.5.2, and 9.6.0.
+
+
+* **Long-running syncs fail on transient bulk `SerializationError` or lose bulk failures silently**
+
+    Elasticsearch `_bulk` responses such as `Client Closed Request` were not retried, and failures from concurrent bulk tasks could be dropped instead of failing the sync.
+
+    **Affected versions**: All versions through 8.19.20, 9.3.9, 9.4.5, and 9.5.2.
+
+    **Fix**: [elastic/connectors#4384](https://github.com/elastic/connectors/pull/4384), shipped in 8.19.21, 9.4.6, 9.5.3, and 9.6.0.
+
+
+* **SharePoint Online syncs fail when a drive delta link expires (`410 Gone`)**
+
+    An expired Microsoft Graph drive delta token aborted the sync after partial indexing.
+
+    **Affected versions**: 8.9.0–8.19.20, 9.0.0–9.3.9, 9.4.0–9.4.5, and 9.5.0–9.5.2.
+
+    **Fix**: [elastic/connectors#4370](https://github.com/elastic/connectors/pull/4370), shipped in 8.19.21, 9.4.6, 9.5.3, and 9.6.0.
+
+
+* **SharePoint Online DLS exposes unpublished site pages to viewers**
+
+    Unpublished pages kept view ACLs from their published state, so users with former view access could still find them in Elasticsearch after the page was unpublished.
+
+    **Affected versions**: All versions with SharePoint Online DLS enabled, through 8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.7, and 9.5.0–9.5.4.
+
+    **Fix**: [elastic/connectors#4437](https://github.com/elastic/connectors/pull/4437), shipped in 8.19.22, 9.4.8, 9.5.5, and 9.6.0. After upgrading, run a **full content sync**; an access control sync alone is not enough.
+
+
+* **SharePoint Online DLS can exhaust Elasticsearch memory when site groups are expanded on each document**
+
+    Document-level security expanded every site group member onto `_allow_access_control`, producing very large ACL arrays per document.
+
+    **Affected versions**: All versions with SharePoint Online DLS enabled that expand site group members, including after the mitigation below. Site group expansion is the default.
+
+    **Workaround**: On releases that include the mitigation, set **Expand site group members** (`expand_site_group_members`) to `false`, then run a **full content sync** and an **access control sync**. Earlier releases do not expose this setting and have no workaround.
+
+    **Fix**: Opt-in mitigation added in [elastic/connectors#4396](https://github.com/elastic/connectors/pull/4396), shipped in 8.19.23, 9.4.8, 9.5.5, and 9.6.0. Upgrading alone does not change behavior; the setting must be disabled.
+
+
+* **ServiceNow DLS can exhaust Elasticsearch memory when role members are expanded on each document**
+
+    Document-level security expanded every role member onto each content document (and attachment). Large roles, including `public`, could create hundreds of thousands of ACL entries per document. Advanced sync rules could also stamp an empty ACL on batched documents.
+
+    **Affected versions**: All versions with ServiceNow DLS enabled that expand role members, including after the mitigation below. Role member expansion is the default.
+
+    **Workaround**: On releases that include the mitigation, set **Expand role members** (`expand_role_members`) to `false`, then run a **full content sync** and an **access control sync**. Earlier releases do not expose this setting and have no workaround.
+
+    **Fix**: Opt-in mitigation added in [elastic/connectors#4392](https://github.com/elastic/connectors/pull/4392), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0. Upgrading alone does not change behavior; the setting must be disabled.
+
+
+* **ServiceNow access control syncs stall when compact DLS preloads `sys_user_has_role`**
+
+    With **Expand role members** disabled, offset pagination on `sys_user_has_role` could run for many hours with no documents indexed on large tenants.
+
+    **Affected versions**: 8.19.22, 9.4.7, and 9.5.4, with ServiceNow DLS and **Expand role members** disabled. Earlier releases do not offer compact mode.
+
+    **Fix**: [elastic/connectors#4509](https://github.com/elastic/connectors/pull/4509), shipped in 8.19.23, 9.4.8, 9.5.5, and 9.6.0.
+
+
+* **OneDrive connector fails with `KeyError: '_allow_access_control'` when advanced sync rules and DLS are both enabled**
+
+    The advanced sync rules code path did not decorate documents with access control metadata before indexing.
+
+    **Affected versions**: All versions with OneDrive DLS and advanced sync rules, through 8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.6, and 9.5.0–9.5.3.
+
+    **Fix**: [elastic/connectors#4404](https://github.com/elastic/connectors/pull/4404), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
+
+
+* **Network Drive DLS grants read access for write-only allow permissions**
+
+    Allow ACEs that grant write but not read were treated as read access, so users who could only write a file could still see it in search results.
+
+    **Affected versions**: All versions with Network Drive DLS enabled, through 8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.6, and 9.5.0–9.5.3.
+
+    **Fix**: [elastic/connectors#4410](https://github.com/elastic/connectors/pull/4410), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
+
+
+* **Outlook connector aborts the sync when Active Directory `mail` is not the primary SMTP address**
+
+    Exchange raises `ErrorNonPrimarySmtpAddress` when impersonation uses a proxy address instead of the primary SMTP address, aborting the entire sync.
+
+    **Affected versions**: 8.11.0–8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.6, and 9.5.0–9.5.3. On-prem Exchange with Active Directory only.
+
+    **Fix**: [elastic/connectors#4406](https://github.com/elastic/connectors/pull/4406), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
+
+
+* **Outlook connector aborts long syncs when the LDAP connection to Active Directory is reset**
+
+    A single cached LDAP connection could sit idle for hours between user batches; a dropped connection then failed user enumeration and aborted the sync.
+
+    **Affected versions**: 8.11.0–8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.7, and 9.5.0–9.5.4. On-prem Exchange with Active Directory only.
+
+    **Fix**: [elastic/connectors#4441](https://github.com/elastic/connectors/pull/4441), shipped in 8.19.22, 9.4.8, 9.5.5, and 9.6.0.
+
+
+* **Outlook connector fails when Exchange returns `ErrorMailboxStoreUnavailable` while reading folders**
+
+    A transient mailbox store error while materializing folder items aborted the sync with no retry.
+
+    **Affected versions**: 8.11.0–8.19.22, 9.0.0–9.3.9, 9.4.0–9.4.7, and 9.5.0–9.5.4. On-prem Exchange only.
+
+    **Fix**: [elastic/connectors#4529](https://github.com/elastic/connectors/pull/4529), shipped in 8.19.23, 9.4.8, 9.5.5, and 9.6.0.
+
+
+* **Microsoft SQL Server connector syncs fail with `Invalid TDS marker` on retried queries**
+
+    Retrying a streaming query on a shared `pytds` connection after a failure could leave a poisoned connection and raise `Invalid TDS marker`.
+
+    **Affected versions**: All generic database connector versions using the MSSQL source, through 8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.6, and 9.5.0–9.5.3.
+
+    **Fix**: [elastic/connectors#4407](https://github.com/elastic/connectors/pull/4407), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
+
+
+* **Elastic Agent deployments ignore Elasticsearch output `ssl.verification_mode`**
+
+    Connectors running under Elastic Agent always verified TLS certificates, even when the agent policy set `ssl.verification_mode` to `none` for self-signed clusters.
+
+    **Affected versions**: Agent-managed connectors through 8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.6, and 9.5.0–9.5.2.
+
+    **Fix**: [elastic/connectors#4391](https://github.com/elastic/connectors/pull/4391), shipped in 8.19.22, 9.4.7, 9.5.3, and 9.6.0.
+
+
+* **Elastic Agent-managed connectors crash on check-in when the output policy includes an `ssl` block**
+
+    Reading agent SSL settings with dict access on protobuf `Struct` values raised `AttributeError` during check-in.
+
+    **Affected versions**: Agent-managed connectors on 9.5.3 only. This is a regression from [#4391](https://github.com/elastic/connectors/pull/4391); the 8.19.22 and 9.4.7 releases contain both changes and are not affected.
+
+    **Fix**: [elastic/connectors#4456](https://github.com/elastic/connectors/pull/4456), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
+
+
+* **Connector syncs fail on FIPS-enabled hosts when MD5 is blocked**
+
+    Document ID hashing used `hashlib.md5()` without `usedforsecurity=False`, which OpenSSL rejects in FIPS mode.
+
+    **Affected versions**: FIPS-enabled connector deployments through 8.19.21, 9.0.0–9.3.9, 9.4.0–9.4.6, and 9.5.0–9.5.3.
+
+    **Fix**: [elastic/connectors#4416](https://github.com/elastic/connectors/pull/4416), shipped in 8.19.22, 9.4.7, 9.5.4, and 9.6.0.
+
+
+* **Content Connectors remain in the list after delete in Kibana**
+
+    Kibana soft-deleted connectors in Elasticsearch, so deleted connectors could still appear in the UI while `GET` by id returned an empty document.
+
+    **Affected versions**: All Kibana versions with the Content Connectors UI, through 8.19.22, 9.4.7, and 9.5.4. The 9.1 through 9.3 lines are also affected and do not receive this fix.
+
+    **Fix**: [elastic/kibana#290859](https://github.com/elastic/kibana/pull/290859), shipped in Kibana 8.19.23, 9.4.8, 9.5.5, and 9.6.0.
+
+
 ## Individual connector known issues [es-connectors-known-issues-specific]
 
 Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/search-connectors/index.md) for connector-specific known issues.

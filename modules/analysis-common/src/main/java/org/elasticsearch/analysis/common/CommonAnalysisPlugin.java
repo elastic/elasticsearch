@@ -257,6 +257,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     return super.create(tokenStream);
                 }
 
+                @Override
+                public Object sharingKey() {
+                    // The 8.0+ rejection above runs in create(), which a cache hit skips, so a legacy
+                    // index sharing this analyzer would let a new index accept the deprecated name.
+                    return this;
+                }
             };
         });
         filters.put("elision", requiresAnalysisSettings(ElisionTokenFilterFactory::new));
@@ -298,6 +304,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     return super.create(tokenStream);
                 }
 
+                @Override
+                public Object sharingKey() {
+                    // The 8.0+ rejection above runs in create(), which a cache hit skips, so a legacy
+                    // index sharing this analyzer would let a new index accept the deprecated name.
+                    return this;
+                }
             };
         });
         filters.put("pattern_capture", requiresAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
@@ -571,7 +583,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             PreConfiguredTokenFilter.singleton("stop", false, input -> new StopFilter(input, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET))
         );
         filters.add(PreConfiguredTokenFilter.singleton("trim", true, TrimFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("truncate", false, input -> new TruncateTokenFilter(input, 10)));
+        filters.add(PreConfiguredTokenFilter.singleton("truncate", false, input -> TruncateTokenFilter.truncateAfterChars(input, 10)));
         filters.add(PreConfiguredTokenFilter.singleton("type_as_payload", false, TypeAsPayloadTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("unique", false, UniqueTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("uppercase", true, UpperCaseFilter::new));

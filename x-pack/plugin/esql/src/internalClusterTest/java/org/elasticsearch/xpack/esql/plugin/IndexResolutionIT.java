@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -27,14 +26,15 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -55,7 +55,10 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.concatLists(List.of(MapperExtrasPlugin.class, DataStreamsPlugin.class), super.nodePlugins());
+        return CollectionUtils.concatLists(
+            List.of(MapperExtrasPlugin.class, DataStreamsPlugin.class, TestSystemIndexPlugin.class),
+            super.nodePlugins()
+        );
     }
 
     public void testResolvesConcreteIndex() {
@@ -256,6 +259,59 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testSystemIndices() {
+        assertAcked(client().admin().indices().prepareCreate(TestSystemIndexPlugin.INDEX_NAME));
+        indexRandom(true, TestSystemIndexPlugin.INDEX_NAME, 1);
+        assertAcked(client().admin().indices().prepareCreate("regular-index-1"));
+        indexRandom(true, "regular-index-1", 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + TestSystemIndexPlugin.INDEX_NAME + " METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, TestSystemIndexPlugin.INDEX_NAME);
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM .system-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, TestSystemIndexPlugin.INDEX_NAME); // system matched when prefixed starting with .
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM *-index-1 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "regular-index-1"); // system indices excluded from wildcard
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM * METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, "regular-index-1"); // system indices excluded from wildcard
+        }
+    }
+
+    public void testDotPrefixedIndices() {
+        assertAcked(client().admin().indices().prepareCreate("regular-index-1"));
+        indexRandom(true, "regular-index-1", 1);
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(".non-hidden-index-1")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false)) // not hidden opposed to testHiddenIndices
+        );
+        indexRandom(true, ".non-hidden-index-1", 1);
+
+        try (var response = run(syncEsqlQueryRequest("FROM .non-hidden-index-1 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1");
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM *-index-1 METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1", "regular-index-1");
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM .non-hidden-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1");
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM * METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response, ".non-hidden-index-1", "regular-index-1");
+        }
+    }
+
     public void testUnavailableIndex() {
         assertAcked(client().admin().indices().prepareCreate("available-index-1"));
         indexRandom(true, "available-index-1", 1);
@@ -300,6 +356,11 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         );
         expectThrows(
             IndexNotFoundException.class,
+            equalTo("no such index [nonexisting-1]"), // fails with explicit allowPartialResults=false
+            () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1").allowPartialResults(false))
+        );
+        expectThrows(
+            IndexNotFoundException.class,
             equalTo("no such index [nonexisting-1]"), // fails when present index is non-empty even if allow_partial=true
             () -> run(syncEsqlQueryRequest("FROM index-1,nonexisting-1").allowPartialResults(true))
         );
@@ -319,6 +380,14 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("index-3"));
         try (var response = run(syncEsqlQueryRequest("FROM index-3,nonexisting-1"))) {
             assertOk(response); // passes when the present index has no fields and no documents
+        }
+        expectThrows(
+            IndexNotFoundException.class,
+            equalTo("no such index [nonexisting-1]"), // still fails if there is at least one non-empty existing index
+            () -> run(syncEsqlQueryRequest("FROM index-1,index-3,nonexisting-1"))
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM index-1,index-2,index-3,nonexisting-1 | LIMIT 0"))) {
+            assertOk(response); // passes when not reading from the index
         }
     }
 
@@ -350,44 +419,27 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    /**
-     * Tests the behaviour of index component selectors ({@code ::data} and {@code ::failures}) when applied to ES|QL views.
-     * <p>
-     * {@code view::data} is equivalent to {@code view}: the view resolver expands the view to its body and the {@code ::data}
-     * selector is dropped, so the query runs against the view's underlying sources.
-     * <p>
-     * {@code view::failures} is not supported: views do not have a failure component. The view resolver does not expand the
-     * name, and subsequent index resolution cannot find a data stream named after the view, so the query fails with
-     * "Unknown index".
-     */
-    public void testViewWithIndexComponentSelectors() {
-        assumeTrue("Requires index component selectors", EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled());
-        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS.isEnabled());
-
-        assertAcked(client().admin().indices().prepareCreate("view-backing-index").setMapping("value", "type=long"));
-        indexRandom(true, "view-backing-index", 1);
-        var view = new View("test-view", "FROM view-backing-index");
-        assertAcked(client().execute(PutViewAction.INSTANCE, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view)));
-        try {
-            // view::data is equivalent to the plain view name
-            try (var response = run(syncEsqlQueryRequest("FROM test-view::data"))) {
-                assertOk(response);
-            }
-            // view::failures is not supported; the view has no failure component
-            expectThrows(
-                VerificationException.class,
-                containsString("Unknown index [test-view::failures]"),
-                () -> run(syncEsqlQueryRequest("FROM test-view::failures"))
-            );
-        } finally {
-            client().execute(
-                DeleteViewAction.INSTANCE,
-                new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { "test-view" })
-            ).actionGet();
-        }
-    }
-
     private static void assertResultConcreteIndices(EsqlQueryResponse response, Object... indices) {
         assertColumnContainsInAnyOrder(response, MetadataAttribute.INDEX, indices);
+    }
+
+    public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
+
+        static final String INDEX_NAME = ".system-index-1";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return List.of(SystemIndexDescriptorUtils.createUnmanaged(INDEX_NAME + "*", "System index for " + getTestClass().getName()));
+        }
+
+        @Override
+        public String getFeatureName() {
+            return IndexResolutionIT.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin for system index resolution";
+        }
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.SortedMap;
 
 import static java.lang.Thread.currentThread;
@@ -141,10 +142,14 @@ public class AnnotationIndex {
         // Also, don't do this if there's a reset in progress or if ML upgrade mode is enabled.
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
         SortedMap<String, IndexAbstraction> mlLookup = state.getMetadata().getProject().getIndicesLookup().tailMap(".ml");
-        if (mlMetadata.isResetMode() == false
-            && mlMetadata.isUpgradeMode() == false
-            && mlLookup.isEmpty() == false
-            && mlLookup.firstKey().startsWith(".ml")) {
+        // Ignore virtual abstractions (such as the .ml-anomalies view); they're not evidence that ML is in use.
+        Optional<String> existingMlIndex = mlLookup.entrySet()
+            .stream()
+            .takeWhile(entry -> entry.getKey().startsWith(".ml"))
+            .filter(entry -> isRealIndexAbstraction(entry.getValue()))
+            .map(Map.Entry::getKey)
+            .findFirst();
+        if (mlMetadata.isResetMode() == false && mlMetadata.isUpgradeMode() == false && existingMlIndex.isPresent()) {
 
             // Create the annotations index if it doesn't exist already.
             IndexAbstraction currentIndexAbstraction = mlLookup.get(LATEST_INDEX_NAME);
@@ -153,7 +158,7 @@ public class AnnotationIndex {
                     () -> format(
                         "Creating [%s] because [%s] exists; trace %s",
                         LATEST_INDEX_NAME,
-                        mlLookup.firstKey(),
+                        existingMlIndex.get(),
                         formatStackTrace(currentThread().getStackTrace())
                     )
                 );
@@ -209,6 +214,16 @@ public class AnnotationIndex {
 
         // Nothing to do, but respond to the listener
         finalListener.onResponse(false);
+    }
+
+    /**
+     * Whether the given abstraction is a real index or something backed by real indices.
+     */
+    private static boolean isRealIndexAbstraction(IndexAbstraction abstraction) {
+        return switch (abstraction.getType()) {
+            case CONCRETE_INDEX, ALIAS, DATA_STREAM -> true;
+            case VIEW, DATASET -> false;
+        };
     }
 
     public static String annotationsMapping() {

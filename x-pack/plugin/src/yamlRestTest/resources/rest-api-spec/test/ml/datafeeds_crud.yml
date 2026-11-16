@@ -226,6 +226,7 @@ setup:
           }
   - match: { max_consecutive_extraction_failures: 25 }
 
+  # -1 resets the setting back to its default, so the field is cleared from the stored config.
   - do:
       ml.update_datafeed:
         datafeed_id: test-datafeed-1
@@ -234,7 +235,7 @@ setup:
             "max_consecutive_extraction_failures": -1
           }
   - match: { datafeed_id: "test-datafeed-1" }
-  - match: { max_consecutive_extraction_failures: -1 }
+  - is_false: max_consecutive_extraction_failures
 
 ---
 "Test put datafeed with invalid max_consecutive_extraction_failures":

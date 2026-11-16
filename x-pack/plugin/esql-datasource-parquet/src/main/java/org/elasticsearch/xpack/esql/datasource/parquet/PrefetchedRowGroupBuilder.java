@@ -102,6 +102,32 @@ final class PrefetchedRowGroupBuilder {
         CompressionCodecFactory codecFactory,
         CircuitBreaker breaker
     ) {
+        return build(
+            block,
+            rowGroupOrdinal,
+            projectedSchema,
+            projectedColumnPaths,
+            rowRanges,
+            preloadedMetadata,
+            prefetchedChunks,
+            codecFactory,
+            breaker,
+            ParquetDecodeBudget.NOOP
+        );
+    }
+
+    static PrefetchedPageReadStore build(
+        BlockMetaData block,
+        int rowGroupOrdinal,
+        MessageType projectedSchema,
+        Set<String> projectedColumnPaths,
+        RowRanges rowRanges,
+        PreloadedRowGroupMetadata preloadedMetadata,
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetchedChunks,
+        CompressionCodecFactory codecFactory,
+        CircuitBreaker breaker,
+        ParquetDecodeBudget decodeBudget
+    ) {
         if (prefetchedChunks == null) {
             throw new IllegalArgumentException("prefetchedChunks must not be null");
         }
@@ -151,10 +177,11 @@ final class PrefetchedRowGroupBuilder {
                         block.getRowCount(),
                         decompressor,
                         breaker,
-                        rowGroupOrdinal
+                        rowGroupOrdinal,
+                        decodeBudget
                     );
                 } else {
-                    reader = buildSequential(column, primitiveType, source, decompressor, breaker, rowGroupOrdinal);
+                    reader = buildSequential(column, primitiveType, source, decompressor, breaker, rowGroupOrdinal, decodeBudget);
                 }
                 try {
                     PrefetchedPageReader previous = readers.putIfAbsent(descriptor, reader);
@@ -207,7 +234,8 @@ final class PrefetchedRowGroupBuilder {
         long rowGroupRowCount,
         BytesInputDecompressor decompressor,
         CircuitBreaker breaker,
-        int rowGroupOrdinal
+        int rowGroupOrdinal,
+        ParquetDecodeBudget decodeBudget
     ) {
         DictionaryPage dictPage = readDictionaryPageIfPresent(column, source, rowGroupOrdinal, offsetIndex);
         long valueCount = 0;
@@ -236,7 +264,7 @@ final class PrefetchedRowGroupBuilder {
             pages.add(new PrefetchedPageReader.CompressedPage(decoded, pageStartRow));
             valueCount += decoded.getValueCount();
         }
-        return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount);
+        return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount, decodeBudget);
     }
 
     /**
@@ -249,7 +277,8 @@ final class PrefetchedRowGroupBuilder {
         PrefetchedSource source,
         BytesInputDecompressor decompressor,
         CircuitBreaker breaker,
-        int rowGroupOrdinal
+        int rowGroupOrdinal,
+        ParquetDecodeBudget decodeBudget
     ) {
         long startingPos = column.getStartingPos();
         long totalSize = column.getTotalSize();
@@ -288,7 +317,7 @@ final class PrefetchedRowGroupBuilder {
                     valueCount += page.getValueCount();
                 }
             }
-            return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount);
+            return new PrefetchedPageReader(decompressor, breaker, pages, dictPage, valueCount, decodeBudget);
         } catch (IOException e) {
             throw ParquetReadFailures.wrap(
                 e,

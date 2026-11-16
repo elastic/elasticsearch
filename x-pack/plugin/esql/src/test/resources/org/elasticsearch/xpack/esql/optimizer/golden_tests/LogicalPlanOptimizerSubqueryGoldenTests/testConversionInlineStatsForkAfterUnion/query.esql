@@ -1,0 +1,6 @@
+FROM (ROW client_ip = "172.21.0.5"), (ROW client_ip = "172.21.3.15")
+| EVAL client_ip = client_ip::ip
+| INLINE STATS cnt = COUNT(*) BY client_ip
+| FORK (WHERE cnt > 0) (WHERE cnt > 1)
+| KEEP client_ip, cnt
+| LIMIT 10

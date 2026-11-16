@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
+import static org.elasticsearch.core.Strings.MAX_INPUT_LENGTH_IN_ERROR;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -209,6 +210,12 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals("Cannot parse boolean [0], expected either [true] or [false]", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> DocValueFormat.BOOLEAN.parseLong("False", randomBoolean(), null));
         assertEquals("Cannot parse boolean [False], expected either [true] or [false]", e.getMessage());
+        String value = "x".repeat(2 * MAX_INPUT_LENGTH_IN_ERROR);
+        e = expectThrows(IllegalArgumentException.class, () -> DocValueFormat.BOOLEAN.parseLong(value, randomBoolean(), null));
+        assertEquals(
+            "Cannot parse boolean [" + value.substring(0, MAX_INPUT_LENGTH_IN_ERROR) + "..." + "], expected either [true] or [false]",
+            e.getMessage()
+        );
     }
 
     public void testIPParse() {

@@ -110,7 +110,7 @@ public class BenchmarkTest extends ESTestCase {
         float delta
     ) throws Exception {
         V data = vectorData.apply(accessMode);
-        assertResultsEqual(
+        assertImplementationsAgree(
             implementations(),
             impl -> createBenchmark.apply(data, impl, accessMode),
             List.of(VectorScorerBulkBenchmark::scoreMultiple, VectorScorerBulkBenchmark::scoreMultipleBulk),
@@ -126,7 +126,7 @@ public class BenchmarkTest extends ESTestCase {
     ) throws IOException {
         assumeTrue("Only test with heap segments", supportsHeapSegments());
         V data = vectorData.apply(accessMode);
-        assertResultsEqual(
+        assertImplementationsAgree(
             queryImplementations(),
             impl -> createBenchmark.apply(data, impl, accessMode),
             List.of(VectorScorerBulkBenchmark::scoreQueryMultiple, VectorScorerBulkBenchmark::scoreQueryMultipleBulk),
@@ -134,7 +134,7 @@ public class BenchmarkTest extends ESTestCase {
         );
     }
 
-    static <B extends VectorScorerBulkBenchmark> void assertResultsEqual(
+    static <B extends VectorScorerBulkBenchmark> void assertImplementationsAgree(
         List<VectorImplementation> implementations,
         IOFunction<VectorImplementation, B> getBenchmark,
         List<IOFunction<B, float[]>> scores,
@@ -149,7 +149,7 @@ public class BenchmarkTest extends ESTestCase {
                     float[] result = score.apply(bench);
                     // just check against the first one - they should all be identical to each other
                     if (expected == null) {
-                        expected = result;
+                        expected = result.clone();
                         continue;
                     }
 

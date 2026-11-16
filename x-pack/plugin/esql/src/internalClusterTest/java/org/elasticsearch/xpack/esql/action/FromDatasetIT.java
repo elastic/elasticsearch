@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
-import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -40,10 +40,9 @@ import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.elasticsearch.xpack.esql.view.DeleteViewAction;
-import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.After;
 import org.junit.Before;
 
@@ -59,7 +58,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -180,25 +178,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * validator used by {@code local_ds} is a pass-through and stores a missing key (legacy hydrate).
      */
     private static final String FILE_DS = "file_ds";
-
-    /**
-     * Names every {@code testXxx} body creates via {@link PutViewAction}. As with datasets, the SUITE-scoped
-     * cluster requires explicit teardown so views don't leak across methods.
-     */
-    private static final Set<String> CREATED_VIEWS = Set.of("employees_view", "employees_filtered_view", "mapped_dataset_view");
-
-    @After
-    public void cleanupViews() throws Exception {
-        for (String view : CREATED_VIEWS) {
-            try {
-                client().execute(DeleteViewAction.INSTANCE, deleteViewRequest(view)).actionGet(30, SECONDS);
-            } catch (ResourceNotFoundException ignored) {
-                // already deleted by the test itself
-            } catch (Exception e) {
-                logger.warn("view cleanup [{}] failed", view, e);
-            }
-        }
-    }
 
     /**
      * Tears down every dataset in cluster state, not just those the base {@code registerDataset} helper recorded: tests
@@ -615,29 +594,24 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
-    public void testStrictDeclaredDateNanosReadsWholeNumberAsEpochNanos() throws Exception {
+    public void testStrictDeclaredDateNanosReadsWholeNumberAsEpochMillis() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // The headline user story: a lake column holding a raw epoch-nanoseconds whole number can now be pinned to
-        // date_nanos. Inference would have produced LONG (a bare number carries no unit), so declaring the column is
-        // the only way to present it at its real precision — and the declared type is what names the unit: under
-        // `date_nanos` the number IS epoch-nanos (under `datetime` it would be epoch-millis).
-        Path nanosFixture = createTempDir().resolve("events.csv");
+        // A lake column holding whole numbers pinned to date_nanos. Inference would have produced LONG (a bare number
+        // carries no unit), so the declaration supplies it: with no `format` the number is epoch-millis, exactly as
+        // under `datetime` and as the epoch_millis branch of an index date_nanos field reads it; `format: epoch_second`
+        // reads seconds. Both
+        // columns below name the same instants.
+        Path fixture = createTempDir().resolve("events.csv");
         Files.writeString(
-            nanosFixture,
-            String.join(
-                "\n",
-                "id,event_time",
-                "1,1700000000123456789",
-                "2,1700000000000000000",
-                // sub-millisecond digits survive: the whole point of the type
-                "3,1700000000999999999"
-            ) + "\n"
+            fixture,
+            String.join("\n", "id,event_time,event_second", "1,1719828000123,1719828000", "2,1719828000000,1719828000") + "\n"
         );
 
         Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
         properties.put("id", new DatasetFieldMapping("integer", null));
         properties.put("event_time", new DatasetFieldMapping("date_nanos", null));
+        properties.put("event_second", DatasetFieldMapping.withFormat("date_nanos", null, "epoch_second"));
         DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, properties));
 
         assertAcked(
@@ -648,7 +622,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     TIMEOUT,
                     "events_nanos",
                     "local_ds",
-                    nanosFixture.toUri().toString(),
+                    fixture.toUri().toString(),
                     null,
                     new HashMap<>(Map.of("format", "csv")),
                     mapping
@@ -658,7 +632,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         try (var response = run(syncEsqlQueryRequest("FROM events_nanos | SORT id | LIMIT 10"), TIMEOUT)) {
             List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
+            assertThat(columns, hasSize(3));
             assertThat(columns.get(1).name(), equalTo("event_time"));
             assertThat(
                 "the column presents as date_nanos, not the long inference would have given",
@@ -667,13 +641,18 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             );
 
             List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            // Rendered at nanosecond precision — the identity epoch-nanos reinterpret, no rescaling. (The renderer
-            // trims trailing zeros, so a whole-second instant shows as .000Z; the sub-millisecond digits below are
-            // the ones that would have been lost had the number been read as epoch-millis.)
-            assertThat(rows.get(0).get(1).toString(), equalTo("2023-11-14T22:13:20.123456789Z"));
-            assertThat(rows.get(1).get(1).toString(), equalTo("2023-11-14T22:13:20.000Z"));
-            assertThat(rows.get(2).get(1).toString(), equalTo("2023-11-14T22:13:20.999999999Z"));
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(1).toString(), equalTo("2024-07-01T10:00:00.123Z"));
+            assertThat(rows.get(1).get(1).toString(), equalTo("2024-07-01T10:00:00.000Z"));
+            assertThat(rows.get(0).get(2).toString(), equalTo("2024-07-01T10:00:00.000Z"));
+            assertThat(rows.get(1).get(2).toString(), equalTo("2024-07-01T10:00:00.000Z"));
+        }
+
+        // A numeric request-filter bound on a date_nanos column is epoch millis too, so the filter and the read agree.
+        var filtered = syncEsqlQueryRequest("FROM events_nanos | KEEP id | SORT id");
+        filtered.filter(QueryBuilders.rangeQuery("event_time").gte(1719828000100L));
+        try (var response = run(filtered, TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(1))));
         }
     }
 
@@ -1438,7 +1417,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         Exception e = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_noext_strict | LIMIT 1"), TIMEOUT).close());
         assertThat(e.getMessage(), not(containsString("NullPointerException")));
-        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage(noExt.toUri().toString())));
+        assertThat(e.getMessage(), containsString(FormatNameResolver.ambiguousDatasetFormatMessage()));
     }
 
     /**
@@ -2034,7 +2013,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                         .getResponseHeaders()
                         .getOrDefault("Warning", List.of())
                         .stream()
-                        .filter(w -> w.contains("could not be coerced to the declared column type"))
+                        .filter(w -> w.contains("cannot be read as their declared type"))
                         .forEach(coercionWarnings::add);
                 } finally {
                     latch.countDown();
@@ -2165,7 +2144,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                         .getResponseHeaders()
                         .getOrDefault("Warning", List.of())
                         .stream()
-                        .filter(w -> w.contains("could not be coerced to type"))
+                        .filter(w -> w.contains("column [ts]: cannot read ["))
                         .forEach(coercionWarnings::add);
                 } finally {
                     latch.countDown();
@@ -2313,9 +2292,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         String message = e.getMessage();
         assertThat("the original symptom is retained as context", message, containsString("empty String"));
-        assertThat("the failing column is named", message, containsString("Column ["));
-        assertThat("the declared type is named", message, containsString("declared type [double]"));
-        assertThat("the tolerance path is pointed at", message, containsString("error_mode=null_field"));
+        assertThat("the failing column is named", message, containsString("column ["));
+        assertThat("the declared type is named", message, containsString("] as [double]: "));
+        assertThat("the tolerance path is pointed at", message, containsString("set [error_mode] to [null_field] to return null instead"));
     }
 
     private Path writeParquetEmptyStringFixture() throws IOException {
@@ -2740,7 +2719,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         List<String> warnings = collectWarningsContaining(
             "FROM employees_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("the absent declared column must emit a response Warning header", warnings, not(empty()));
     }
@@ -2772,9 +2751,89 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         List<String> warnings = collectWarningsContaining(
             "FROM employees_parquet_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
         assertThat("the absent declared column must emit a response Warning header on Parquet", warnings, not(empty()));
+    }
+
+    /**
+     * Under {@code dynamic: true} a declared column the Parquet file does not carry reads null rather than failing
+     * resolution, and the warning is there even for a {@code COUNT(*)} that never reads the column.
+     */
+    public void testDynamicAbsentDeclaredColumnReadsNullWithWarningParquet() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column Parquet fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        Path parquet = createTempDir().resolve("employees.parquet");
+        Files.write(parquet, twoColumnParquetFixtureBytes());
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_parquet_dynamic_absent",
+                    "local_ds",
+                    parquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_parquet_dynamic_absent | KEEP department"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, not(empty()));
+            for (List<Object> row : rows) {
+                assertThat(row.get(0), nullValue());
+            }
+        }
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_parquet_dynamic_absent | STATS c = COUNT(*)",
+            "column [department] is not present"
+        );
+        assertThat("COUNT(*) must carry the absent declared column warning", warnings, not(empty()));
+    }
+
+    /** As {@link #testDynamicAbsentDeclaredColumnReadsNullWithWarningParquet}, on a headered CSV file read by header name. */
+    public void testDynamicAbsentDeclaredColumnReadsNullWithWarningCsv() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("department", new DatasetFieldMapping("keyword", null)); // absent from the 2-column fixture
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "employees_csv_dynamic_absent",
+                    "local_ds",
+                    csvFixture.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv")),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_csv_dynamic_absent | SORT emp_no | LIMIT 5"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns.stream().map(ColumnInfo::name).toList(), equalTo(List.of("emp_no", "first_name", "department")));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            for (List<Object> row : rows) {
+                assertThat(row.get(2), nullValue());
+            }
+        }
+        List<String> warnings = collectWarningsContaining(
+            "FROM employees_csv_dynamic_absent | SORT emp_no | LIMIT 5",
+            "column [department] is not present"
+        );
+        assertThat(warnings, not(empty()));
     }
 
     public void testAbsentDeclaredColumnEmitsResponseWarningNdjson() throws Exception {
@@ -2807,13 +2866,211 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // For NdJson with Dynamic.FALSE the reader receives the full declared schema (all 3
         // columns). `department` is absent from every record, so NdJsonPageDecoder emits
-        // absentDeclaredColumnMessage ("is not present") at close() — a column absent from all
+        // absentColumnMessage ("is not present") at close() — a column absent from all
         // records is effectively absent from the file, so the file-level message is accurate.
         List<String> warnings = collectWarningsContaining(
             "FROM employees_ndjson_absent_warn | SORT emp_no | LIMIT 5",
-            "declared column [department] is not present"
+            "column [department] is not present"
         );
-        assertThat("the absent declared column must emit an absentDeclaredColumnMessage Warning header on NDJSON", warnings, not(empty()));
+        assertThat("the absent declared column must emit an absentColumnMessage Warning header on NDJSON", warnings, not(empty()));
+    }
+
+    /**
+     * A declared column that is sparse in the NDJSON file (present in some records but not in the first
+     * {@code schema_sample_size} records) must be queryable under {@code dynamic: true}.
+     * <p>
+     * The sample-derived schema does not list {@code spin_id}; the column is still accepted and the reader looks it up
+     * by name in each record, returning {@code null} for records that lack it.
+     */
+    public void testSampledOutDeclaredColumnReadsItsValues() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Record 1: no spin_id. Record 2: has spin_id. schema_sample_size=1 ensures the sample only sees record 1,
+        // so the inferred schema has only emp_no and first_name — spin_id is absent from the sample.
+        Path ndjson = createTempFile("dataset-sampled-out-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\",\"spin_id\":\"B001\"}")
+                + "\n"
+        );
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_sampled_out",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_sampled_out | STATS rows = COUNT(*), present = COUNT(spin_id)"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat("total row count", rows.get(0).get(0), equalTo(2L));
+            assertThat("spin_id non-null count", rows.get(0).get(1), equalTo(1L));
+        }
+    }
+
+    /**
+     * A dataset with a sampled-out declared column must not block a query that does not use that column.
+     * Before the fix, {@code COUNT(*)} was rejected even though it never referenced {@code spin_id}.
+     */
+    public void testSampledOutDeclaredColumnDoesNotBlockACount() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path ndjson = createTempFile("dataset-sampled-out-count-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\",\"spin_id\":\"B001\"}")
+                + "\n"
+        );
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_sampled_out_count",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_sampled_out_count | STATS count = COUNT(*)"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat("total row count", rows.get(0).get(0), equalTo(2L));
+        }
+    }
+
+    /**
+     * {@code dynamic: true} and {@code dynamic: false} must return the same values for a sparse declared column.
+     * Before the fix: the {@code dynamic: true} registration threw; {@code dynamic: false} returned the 1 value correctly.
+     */
+    public void testBothDynamicModesAgreeOnASampledOutColumn() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        Path ndjson = createTempFile("dataset-dynamic-agree-", ".ndjson");
+        Files.writeString(
+            ndjson,
+            String.join("\n", "{\"emp_no\":1,\"first_name\":\"Alice\"}", "{\"emp_no\":2,\"first_name\":\"Bob\",\"spin_id\":\"B001\"}")
+                + "\n"
+        );
+
+        // Register same file under dynamic: true (the fix enables this)
+        Map<String, DatasetFieldMapping> propertiesDynamic = new LinkedHashMap<>();
+        propertiesDynamic.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mappingDynamic = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, propertiesDynamic));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_dynamic_true",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mappingDynamic
+                )
+            )
+        );
+
+        // Register same file under dynamic: false (baseline that always worked)
+        Map<String, DatasetFieldMapping> propertiesStrict = new LinkedHashMap<>();
+        propertiesStrict.put("emp_no", new DatasetFieldMapping("integer", null));
+        propertiesStrict.put("first_name", new DatasetFieldMapping("keyword", null));
+        propertiesStrict.put("spin_id", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mappingStrict = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.FALSE, propertiesStrict));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "ndjson_dynamic_false",
+                    "local_ds",
+                    ndjson.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "ndjson", "schema_sample_size", 1)),
+                    mappingStrict
+                )
+            )
+        );
+
+        long dynamicTruePresent;
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_dynamic_true | STATS present = COUNT(spin_id)"))) {
+            dynamicTruePresent = (Long) getValuesList(response).get(0).get(0);
+        }
+        long dynamicFalsePresent;
+        try (var response = run(syncEsqlQueryRequest("FROM ndjson_dynamic_false | STATS present = COUNT(spin_id)"))) {
+            dynamicFalsePresent = (Long) getValuesList(response).get(0).get(0);
+        }
+        assertThat(
+            "dynamic:true and dynamic:false must agree on the declared sparse column count",
+            dynamicTruePresent,
+            equalTo(dynamicFalsePresent)
+        );
+        assertThat("spin_id is present in exactly 1 of 2 records", dynamicTruePresent, equalTo(1L));
+    }
+
+    /**
+     * A declared synthetic column ({@code col2}) that is absent from the sampled rows of a headerless
+     * CSV must be queryable under {@code dynamic: true}.
+     * <p>
+     * Headerless CSV names columns positionally ({@code col0}, {@code col1}, …). When
+     * {@code schema_sample_size: 1} and the sample only sees the first row (2 columns wide), the
+     * inferred schema has {@code col0} and {@code col1} — {@code col2} is absent. Declaring {@code col2}
+     * should be accepted: the per-file schema is widened to 3 columns, the row-width tripwire widens
+     * accordingly, and a row that carries a third field delivers its value for {@code col2}.
+     * <p>
+     * The second row's third field is returned as {@code col2}, while the first row null-fills it.
+     */
+    public void testSampledOutSyntheticColumnIsDeclarable() throws Exception {
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        // Row 1: 2 columns. Row 2: 3 columns. schema_sample_size=1 means only row 1 is sampled,
+        // so the inferred schema has col0 and col1 — col2 is "sampled out".
+        Path csv = createTempFile("dataset-headerless-sampled-out-", ".csv");
+        Files.writeString(csv, "1,Alice\n2,Bob,Extra\n");
+        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
+        properties.put("col2", new DatasetFieldMapping("keyword", null));
+        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "csv_headerless_sampled_out",
+                    "local_ds",
+                    csv.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "csv", "header_row", false, "schema_sample_size", 1)),
+                    mapping
+                )
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM csv_headerless_sampled_out | STATS rows = COUNT(*), present = COUNT(col2)"))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat("total row count", rows.get(0).get(0), equalTo(2L));
+            assertThat("col2 non-null count", rows.get(0).get(1), equalTo(1L));
+        }
     }
 
     public void testDeclaredTypeConflictingWithPhysicalParquetTypeRejected() throws Exception {
@@ -2903,6 +3160,26 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 .build()
         ) {
             for (int value : values) {
+                Group g = factory.newGroup();
+                g.add(column, value);
+                writer.write(g);
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    private byte[] int64FixtureBytes(String column, long... values) throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named(column).named("test");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(baos))
+                .withConf(new PlainParquetConfiguration())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (long value : values) {
                 Group g = factory.newGroup();
                 g.add(column, value);
                 writer.write(g);
@@ -3256,8 +3533,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is the other date
-     * type, so reader prune and stats fold decline; {@code FilterExec} still keeps the matching row.
+     * {@code TIMESTAMP(MICROS)} infers as {@code date_nanos}. A {@code TO_DATETIME} literal is converted into the
+     * column domain for reader prune. Footer {@code COUNT(*)} fold classifies the remaining {@code FilterExec}
+     * when every attached push is RECHECK, for matching-type and converted mixed leaves alike. YES-only /
+     * YES+RECHECK / non-RECHECK mixes skip the fold. {@code FilterExec} re-checks the original mixed
+     * predicate. Counts below pin end-to-end correctness; the fold gate itself is pinned by
+     * {@code PushStatsToExternalSourceTests} and
+     * {@code ParquetFilterPushdownSupportTests.testPushFiltersOutputMatchesStatsFoldGateAssumptions}.
      */
     public void testDatetimeLiteralFiltersInferredTimestampMicros() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -3296,8 +3578,10 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * An inferred {@code integer} compared to a {@code double} or {@code long} literal must stay in
-     * {@code FilterExec}; a column-typed bound would drop the matching row.
+     * An inferred {@code integer} compared to a {@code double} or {@code long} literal converts to a
+     * never-stricter column-typed bound (e.g. {@code i < 5.5} → {@code i <= 5}; out-of-range → domain tautology)
+     * so prune is safe and {@code FilterExec} still returns the matching row. Matching-type filters
+     * ({@code long == 5}) are eligible to fold under RECHECK when a {@code FilterExec} remains.
      */
     public void testNumericLiteralFiltersInferredInteger() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
@@ -3321,6 +3605,25 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertQ("integer lt double", "FROM mixed_int_inferred | WHERE i < 5.5 | STATS c = COUNT(*)", 1L);
         assertQ("integer lte long", "FROM mixed_int_inferred | WHERE i <= 3000000000 | STATS c = COUNT(*)", 1L);
         assertQ("integer in int and double", "FROM mixed_int_inferred | WHERE i IN (5, 5.5) | STATS c = COUNT(*)", 1L);
+
+        Path longParquet = createTempDir().resolve("long_id.parquet");
+        Files.write(longParquet, int64FixtureBytes("l", 5L));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "mixed_long_inferred",
+                    "local_ds",
+                    longParquet.toUri().toString(),
+                    null,
+                    new HashMap<>(Map.of("format", "parquet")),
+                    null
+                )
+            )
+        );
+        assertQ("long equals integer", "FROM mixed_long_inferred | WHERE l == 5 | STATS c = COUNT(*)", 1L);
     }
 
     /** Declares {@code {ts: date, format: <the composite>}} over one dataset and asserts ts recovers EPOCH_SECOND_MILLIS. */
@@ -3406,7 +3709,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * Reads REAL parquet written by pyarrow (the writer pandas/Spark/Iceberg use), not by this test's own fixture
      * code, across every timestamp shape a lake file actually carries. Each file holds the same instant
      * (2024-01-01T00:00:00Z); each declaration must recover it. This is the end-to-end proof of the unit rule:
-     * the annotation wins where present, else the format, else the type.
+     * the annotation wins where present, else the format, else the number is epoch millis.
      * <p>
      * Files are generated by {@code realParquet(...)} below from bytes captured out of pyarrow, so the test is
      * hermetic but the bytes are genuinely third-party.
@@ -3423,7 +3726,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertRealParquet("rp_millis", "annotated_millis", new DatasetFieldMapping("date", null), expected);
         // bare int64 seconds (the ClickBench shape) -> the format names the unit
         assertRealParquet("rp_bare_s", "bare_seconds", DatasetFieldMapping.withFormat("date", null, "epoch_second"), expected);
-        // bare int64 millis -> no format, the type names the unit
+        // bare int64 millis -> no format, epoch millis
         assertRealParquet("rp_bare_ms", "bare_millis", new DatasetFieldMapping("date", null), expected);
         // annotated DATE (days) -> infers date, day-scaled
         assertRealParquet("rp_date", "annotated_date", new DatasetFieldMapping("date", null), expected);
@@ -3434,9 +3737,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         long expectedNanos = 1704067200000000000L;
 
-        // bare int64 nanos -> no format, the type names the unit (nanos)
-        assertRealParquetNanos("rpn_bare_ns", "bare_nanos", new DatasetFieldMapping("date_nanos", null), expectedNanos);
-        // bare int64 seconds -> the format overrides the type's unit
+        // bare int64 millis -> no format, epoch millis widened to nanos (exactly as under `date`)
+        assertRealParquetNanos("rpn_bare_ms", "bare_millis", new DatasetFieldMapping("date_nanos", null), expectedNanos);
+        // bare int64 seconds -> the format names the unit
         assertRealParquetNanos(
             "rpn_bare_s",
             "bare_seconds",
@@ -3445,6 +3748,24 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         );
         // annotated TIMESTAMP(MICROS) -> infers date_nanos -> native, exact
         assertRealParquetNanos("rpn_micros", "annotated_micros", new DatasetFieldMapping("date_nanos", null), expectedNanos);
+
+        // bare int64 nanos -> no format, so epoch millis: ~1.7e18 ms is past 2262 and fails the default fail_fast read
+        Exception e = expectThrows(
+            Exception.class,
+            () -> runRealParquet("rpn_bare_ns", "bare_nanos", new DatasetFieldMapping("date_nanos", null)).close()
+        );
+        assertCauseMessageContains(e, "[ts]");
+        assertCauseMessageContains(e, "2262");
+        // ... and the escape hatch: declare it long and convert in the query
+        assertRealParquetNanos("rpn_bare_ns_long", "bare_nanos", new DatasetFieldMapping("long", null), expectedNanos);
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM rpn_bare_ns_long | EVAL v = TO_DATE_NANOS(ts) | KEEP v | SORT v | LIMIT 1"),
+                TIMEOUT
+            )
+        ) {
+            assertThat(getValuesList(response).get(0).get(0).toString(), equalTo("2024-01-01T00:00:00.000Z"));
+        }
     }
 
     /**
@@ -3516,6 +3837,20 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                     "scale_diff_g",
                     "STRICT: date + epoch_millis (identity)",
                     DatasetFieldMapping.withFormat("date", null, "epoch_millis"),
+                    DatasetMapping.Dynamic.FALSE
+                ),
+                // No format on date_nanos: the bare number is epoch millis, so decode scales x1e6 against the raw stats
+                // exactly like an epoch_millis declaration would.
+                new ScalingCell(
+                    "scale_diff_h",
+                    "dynamic: date_nanos, no format (epoch millis)",
+                    new DatasetFieldMapping("date_nanos", null),
+                    DatasetMapping.Dynamic.TRUE
+                ),
+                new ScalingCell(
+                    "scale_diff_i",
+                    "STRICT: date_nanos, no format (epoch millis)",
+                    new DatasetFieldMapping("date_nanos", null),
                     DatasetMapping.Dynamic.FALSE
                 )
             ),
@@ -3596,10 +3931,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
      * Declared-type twin of {@link #testScalingDifferentialOverAnnotatedSortColumns} for the INT32 case: an
      * {@code INT32 DECIMAL(9,2)} column declared as {@code integer} routes through the {@code case INT} arm of
      * {@code rawValueFromStats} / {@code rawValueFromPageIndex}. That arm does not check
-     * {@code sortColumnAnnotationScales}, so it passes the raw unscaled integer (100..2099) to the threshold
-     * comparator instead of declining. The decoded bound is a whole-number integer (1..20), and 100 &gt; 1, so
+     * {@code sortColumnAnnotationScales}, so it passes the raw unscaled integer (100, 200, …) to the threshold
+     * comparator instead of declining. The decoded bound is a whole-number integer (1..rowCount), and 100 &gt; 1, so
      * the comparator decides every row group is dominated and skips the rows holding the true minimum. The fix makes
      * the arm yield {@code null} when the annotation rescales, preventing the skip.
+     *
+     * <p>Fixture values are exact wholes after DECIMAL decode ({@code N.00}) so declared integer exact-read
+     * accepts them; non-whole cents would be refused as value errors (see exact whole-number dataset reads).
      *
      * <p>The file is four columns wide so that {@code InsertExternalFieldExtraction} defers enough columns to engage
      * the threshold rail; projecting fewer keeps the scan narrow and the threshold is never published.
@@ -3607,9 +3945,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     public void testScalingDifferentialOverDeclaredIntegerDecimalSortColumn() throws Exception {
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
 
-        // Raw unscaled integers 100..2099; with DECIMAL(9,2) annotation, decode divides by 100, giving 1.00..20.99.
-        // Declared integer: the double is cast to int (floor), yielding 1..20. Ascending values so the true minimum
-        // (1) lives in the first row groups — a unit-blind threshold still skips them because raw 100 > decoded 1.
+        // Raw unscaled multiples of 100 (100, 200, …); DECIMAL(9,2) decode divides by 100 → exact wholes 1.00..N.00.
+        // Declared integer exact-read accepts those wholes as 1..N. Ascending so the true minimum (1) lives in the
+        // first row groups — a unit-blind threshold still skips them because raw 100 > decoded 1.
         int rowCount = 2000;
         Path file = writeDecimalInt32Fixture("decimal_int32_sort", rowCount);
 
@@ -3996,7 +4334,9 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     /**
      * Four-column {@code DECIMAL(9,2)} fixture for {@link #testScalingDifferentialOverDeclaredIntegerDecimalSortColumn}.
-     * Raw unscaled integers {@code 100..100+rowCount-1}, stored as {@code INT32} with a {@code DECIMAL(9,2)} annotation.
+     * Raw unscaled integers {@code (i+1)*100} (100, 200, …), stored as {@code INT32} with a {@code DECIMAL(9,2)}
+     * annotation so decode yields exact wholes {@code 1.00..rowCount.00} — accepted by declared integer exact-read
+     * while still exposing the raw-vs-decoded scaling differential (raw 100 vs decoded 1).
      * Four columns are required so {@code InsertExternalFieldExtraction} defers enough to engage the threshold rail.
      * Very small row groups (256 bytes) ensure there are always later groups for a unit-blind threshold to wrongly skip.
      */
@@ -4022,7 +4362,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         ) {
             for (int i = 0; i < rowCount; i++) {
                 Group g = factory.newGroup();
-                g.add("amt", 100 + i);
+                g.add("amt", (i + 1) * 100);
                 g.add("id", (long) i);
                 g.add("pri", i);
                 g.add("msg", "m" + i);
@@ -4917,42 +5257,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
     }
 
     /**
-     * A view whose body targets a dataset carrying a DECLARED mapping: the declared coercion must survive view
-     * inlining (view resolution rewrites the inlined leaf into the external relation, which must keep the mapping —
-     * a dropped mapping here would silently read the file's physical type instead of the declared one).
-     */
-    public void testViewOverMappedDatasetPreservesCoercion() throws Exception {
-        Path root = createTempDir();
-        Files.writeString(root.resolve("d.csv"), "val:integer\n100\n");
-
-        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
-        Map<String, DatasetFieldMapping> properties = new LinkedHashMap<>();
-        properties.put("val", new DatasetFieldMapping("long", null)); // declare integer file column as long
-        DatasetMapping mapping = new DatasetMapping(new DatasetMapping.Mappings(DatasetMapping.Dynamic.TRUE, properties));
-        assertAcked(
-            client().execute(
-                PutDatasetAction.INSTANCE,
-                new PutDatasetAction.Request(
-                    TIMEOUT,
-                    TIMEOUT,
-                    "mapped_ds_for_view",
-                    "local_ds",
-                    root.toUri() + "*.csv",
-                    null,
-                    new HashMap<>(Map.of("format", "csv")),
-                    mapping
-                )
-            )
-        );
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("mapped_dataset_view", "FROM mapped_ds_for_view")));
-
-        try (var response = run(syncEsqlQueryRequest("FROM mapped_dataset_view | KEEP val | LIMIT 1"), TIMEOUT)) {
-            assertThat("declared type must survive view inlining", response.columns().get(0).outputType(), equalTo("long"));
-            assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
-        }
-    }
-
-    /**
      * A dataset carrying a DECLARED mapping used inside a subquery ({@code FROM (FROM mapped)}): the declared
      * coercion must survive the subquery planning rewrite, not just a top-level {@code FROM}.
      */
@@ -4983,55 +5287,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM (FROM mapped_ds_for_subquery) | KEEP val | LIMIT 1"), TIMEOUT)) {
             assertThat("declared type must survive the subquery rewrite", response.columns().get(0).outputType(), equalTo("long"));
             assertThat(getValuesList(response).get(0).get(0), equalTo(100L));
-        }
-    }
-
-    public void testViewOverExternalDatasetIsQueryable() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        // The view body targets the dataset. View resolution runs before the dataset rewrite, so it inlines the body
-        // while it is still a plain index-shaped relation; the rewriter then turns the inlined leaf into an external
-        // relation over the CSV fixture. This is the end-to-end realisation of a view "containing" an external source.
-        // There is no index named "employees_external", so the query can only succeed via the external dataset pipeline —
-        // if the inlined leaf were treated as an index it would fail with "unknown index" (see testFromUnknownName...).
-        assertAcked(client().execute(PutViewAction.INSTANCE, putViewRequest("employees_view", "FROM employees_external")));
-
-        try (var response = run(syncEsqlQueryRequest("FROM employees_view | SORT emp_no | LIMIT 10"), TIMEOUT)) {
-            List<? extends ColumnInfo> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(0).name(), equalTo("emp_no"));
-            assertThat(columns.get(1).name(), equalTo("first_name"));
-
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(3));
-            assertThat(rows.get(0).get(0), equalTo(1));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
-            assertThat(rows.get(1).get(0), equalTo(2));
-            assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
-            assertThat(rows.get(2).get(0), equalTo(3));
-            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
-        }
-    }
-
-    public void testViewOverExternalDatasetWithTransformInBody() throws Exception {
-        registerDataSource("local_ds", Map.of());
-        registerDataset("employees_external", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
-        // A non-trivial view body (a WHERE on top of the dataset) proves the external leaf resolves and executes when
-        // it is nested below other commands inside a resolved view, not just as a bare top-level relation.
-        assertAcked(
-            client().execute(
-                PutViewAction.INSTANCE,
-                putViewRequest("employees_filtered_view", "FROM employees_external | WHERE emp_no > 1")
-            )
-        );
-
-        try (var response = run(syncEsqlQueryRequest("FROM employees_filtered_view | SORT emp_no"), TIMEOUT)) {
-            List<List<Object>> rows = getValuesList(response);
-            assertThat(rows, hasSize(2));
-            assertThat(rows.get(0).get(0), equalTo(2));
-            assertThat(rows.get(0).get(1).toString(), equalTo("Bob"));
-            assertThat(rows.get(1).get(0), equalTo(3));
-            assertThat(rows.get(1).get(1).toString(), equalTo("Carol"));
         }
     }
 
@@ -5308,6 +5563,11 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _file.record_ref | SORT emp_no | LIMIT 10"), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
             assertThat("_file.record_ref must surface without KEEP, got " + names, names, hasItem("_file.record_ref"));
+            assertThat(
+                "synthetic _rowPosition must stay out of the result, got " + names,
+                names,
+                not(hasItem(ColumnExtractor.ROW_POSITION_COLUMN))
+            );
             int refIdx = names.indexOf("_file.record_ref");
 
             List<List<Object>> rows = getValuesList(response);
@@ -5326,7 +5586,8 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
     public void testFromDatasetStandardMetadataNeverFails() throws Exception {
         // Standing contract: every metadata name a dataset can answer returns a value or SQL NULL, never an
-        // error. All nine come back as NULL columns. Pinned per format in
+        // error. _score seeds 0.0 (see AbstractExternalMetadataMatrixIT#testScoreIsPopulatedForRuntimeMatch
+        // for the scored case); the other eight come back as NULL columns. Pinned per format in
         // AbstractExternalMetadataMatrixIT#testAllStandardMetadataColumnsPinned.
         registerDataSource("local_ds", Map.of());
         registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
@@ -5334,8 +5595,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         // _tier (DataTierFieldMapper.NAME) is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP;
         // omit it so the query is valid in non-snapshot builds. Every other standard name has no
         // value on an external row and must render as a NULL column rather than being dropped or
-        // erroring — a file carries no document identity, version or stored source either, and no
-        // scorer is wired over an external relation, so nothing populates _score.
+        // erroring — a file carries no document identity, version or stored source either.
         String query = "FROM employees METADATA _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
             + "| SORT emp_no "
             + "| KEEP emp_no, _index, _id, _version, _source, _ignored, _index_mode, _tsid, _size, _score "
@@ -5359,7 +5619,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 assertThat("_index_mode is null on external rows", row.get(6), nullValue());
                 assertThat("_tsid is null on external rows", row.get(7), nullValue());
                 assertThat("_size is null on external rows", row.get(8), nullValue());
-                assertThat("_score is null on external rows", row.get(9), nullValue());
+                assertThat("_score is 0.0 without a scoring predicate", row.get(9), equalTo(0.0));
             }
         }
     }
@@ -5679,6 +5939,49 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testMetadataIdWinsOverPhysicalColumn() throws Exception {
+        Path fixture = createTempFile("collision-id-", ".csv");
+        Files.writeString(
+            fixture,
+            String.join("\n", "_id:keyword,emp_no:integer,first_name:keyword", "row-a,1,Alice", "row-b,2,Bob", "row-c,3,Carol") + "\n"
+        );
+        registerDataSource("local_ds", Map.of());
+        registerDataset("collision_id", "local_ds", fixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id | KEEP _id, emp_no | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertNull(row.get(idIdx));
+            }
+        }
+
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id | KEEP _id, emp_no | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(idIdx).toString(), equalTo("row-a"));
+            assertThat(rows.get(1).get(idIdx).toString(), equalTo("row-b"));
+            assertThat(rows.get(2).get(idIdx).toString(), equalTo("row-c"));
+        }
+
+        // METADATA _id survives KEEP * and stays null. The physical _id cells do not.
+        try (var response = run(syncEsqlQueryRequest("FROM collision_id METADATA _id | KEEP * | SORT emp_no"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, hasItem("_id"));
+            assertThat(names, hasItem("emp_no"));
+            assertThat(names, hasItem("first_name"));
+            int idIdx = names.indexOf("_id");
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertNull(row.get(idIdx));
+            }
+        }
+    }
+
     /**
      * The declared-schema face of the partition-detection settings defect. A declared column colliding with a path-derived
      * partition key is rejected ({@link #testNonStrictPartitionKeyCollisionRejected}), and on main
@@ -5920,6 +6223,56 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         }
     }
 
+    public void testFromDatasetKeepStarIncludesMetadataId() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | KEEP * | LIMIT 1"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, hasItem("_id"));
+            assertThat(names, hasItem("emp_no"));
+        }
+    }
+
+    public void testFromTwoDatasetsKeepStarIncludesMetadataIdBothOrders() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
+
+        for (String query : List.of(
+            "FROM employees, employees_alt METADATA _id | KEEP * | LIMIT 1",
+            "FROM employees_alt, employees METADATA _id | KEEP * | LIMIT 1"
+        )) {
+            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+                assertThat(query + " columns: " + names, names, hasItem("_id"));
+                assertThat(query + " columns: " + names, names, hasItem("emp_no"));
+            }
+        }
+    }
+
+    public void testFromMixedIndexAndDatasetKeepStarIncludesMetadataIdBothOrders() throws Exception {
+        assertAcked(
+            client().admin().indices().prepareCreate("metadata_idx").setMapping("emp_no", "type=integer", "first_name", "type=keyword")
+        );
+        prepareIndex("metadata_idx").setSource(Map.of("emp_no", 100, "first_name", "Zoe")).get();
+        client().admin().indices().prepareRefresh("metadata_idx").get();
+
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        for (String query : List.of(
+            "FROM metadata_idx, employees METADATA _id | KEEP * | LIMIT 1",
+            "FROM employees, metadata_idx METADATA _id | KEEP * | LIMIT 1"
+        )) {
+            try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+                List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+                assertThat(query + " columns: " + names, names, hasItem("_id"));
+                assertThat(query + " columns: " + names, names, hasItem("emp_no"));
+            }
+        }
+    }
+
     /** Walks the cause chain and asserts a message fragment appears somewhere in it. */
     private static void assertCauseMessageContains(Throwable throwable, String fragment) {
         Throwable cause = throwable;
@@ -5927,14 +6280,6 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             cause = cause.getCause();
         }
         assertThat("error chain should contain message fragment [" + fragment + "]", cause, notNullValue());
-    }
-
-    private static PutViewAction.Request putViewRequest(String name, String query) {
-        return new PutViewAction.Request(TIMEOUT, TIMEOUT, new View(name, query));
-    }
-
-    private static DeleteViewAction.Request deleteViewRequest(String name) {
-        return new DeleteViewAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
     }
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
@@ -6090,10 +6435,13 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
             )
         );
 
+        // The query must fail — the _SUCCESS marker is included in the listing and causes a CSV
+        // parse error. Path info is redacted, but the object name (_SUCCESS) is allowed and must
+        // appear in the error so the user knows which file caused the problem.
         Exception e = expectThrows(Exception.class, () -> {
             try (var ignored = run(syncEsqlQueryRequest("FROM logs_no_exclusions | LIMIT 5"), TIMEOUT)) {}
         });
-        assertThat("the marker must reach the reader and fail loudly", e.getMessage() + e.getCause(), containsString("_SUCCESS"));
+        assertThat(e.getMessage(), containsString("_SUCCESS"));
     }
 
     private static PutDatasetAction.Request putDatasetRequest(
@@ -6186,18 +6534,12 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
 
         // The INTEGER anchor cannot represent part-b's LONG, so that file's x is read as null.
         // Parquet emits a SkipWarnings summary plus one per-column detail; the file path is a temp URI.
-        List<String> warnings = collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "incompatible with planner type");
+        List<String> warnings = collectWarningsContaining("FROM drift_pq_type_ffw | KEEP x | SORT x", "the query");
         assertThat(warnings, hasSize(2));
-        assertThat(
-            warnings,
-            hasItem(containsString("has columns whose on-disk type is incompatible with planner type; they are returned as null"))
-        );
+        assertThat(warnings, hasItem(containsString("have a type the query cannot read; returning null")));
         assertThat(warnings, hasItem(containsString("part-b.parquet")));
-        assertThat(warnings, hasItem(containsString("Column [x] in file [")));
-        assertThat(
-            warnings,
-            hasItem(containsString("has type [LONG] incompatible with planner type [INTEGER]; returning nulls for this column"))
-        );
+        assertThat(warnings, hasItem(containsString("column [x]: ")));
+        assertThat(warnings, hasItem(containsString("column [x]: [long] in the file, [integer] in the query")));
         assertThat(columnValues("FROM drift_pq_type_ffw | KEEP x | SORT x"), containsInAnyOrder(1, 2, null, null));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
         assertThat(firstRowOf("FROM drift_pq_type_ffw | STATS c = COUNT(x)"), equalTo(List.of(2L)));
@@ -6307,10 +6649,7 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         writeParquet(dir.resolve("part-b.parquet"), "message m { required int64 x; }", 2, 1024, (g, i) -> g.add("x", i == 0 ? -10L : 20L));
         putOmittedSchemaResolutionGlob("drift_pq_type_default", dir);
 
-        List<String> scanWarnings = collectWarningsContaining(
-            "FROM drift_pq_type_default | KEEP x | SORT x",
-            "incompatible with planner type"
-        );
+        List<String> scanWarnings = collectWarningsContaining("FROM drift_pq_type_default | KEEP x | SORT x", "the query");
         assertThat(scanWarnings, not(empty()));
         assertThat(firstRowOf("FROM drift_pq_type_default | KEEP x | SORT x"), equalTo(List.of(1)));
         assertThat(firstRowOf("FROM drift_pq_type_default | WHERE x IS NOT NULL | STATS c = COUNT(x)"), equalTo(List.of(2L)));
@@ -6500,6 +6839,83 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
         assertThat(documentsReadBy("FROM drift_pq_declared_ffw | STATS c = COUNT(x)"), equalTo(4L));
     }
 
+    // dataset and fork
+
+    public void testForkOverTwoDatasets() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("fork_employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
+
+        String query = """
+            FROM fork_employees, fork_employees_alt
+            | FORK
+                (STATS count = COUNT(*))
+                (WHERE emp_no >= 10 | STATS count = COUNT(*))
+            | KEEP _fork, count
+            | SORT _fork
+            """;
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(5L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+        }
+    }
+
+    public void testForkOverIndexAndDataset() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("fork_mixed_idx").setMapping("emp_no", "type=integer"));
+        prepareIndex("fork_mixed_idx").setSource(Map.of("emp_no", 100)).get();
+        client().admin().indices().prepareRefresh("fork_mixed_idx").get();
+        int indexShards = getNumShards("fork_mixed_idx").numPrimaries;
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_mixed_dataset", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        String query = """
+            FROM fork_mixed_idx, fork_mixed_dataset
+            | FORK
+                (STATS count = COUNT(*))
+                (WHERE emp_no >= 3 | STATS count = COUNT(*))
+            | KEEP _fork, count
+            | SORT _fork
+            """;
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
+        request.includeExecutionMetadata(true);
+        try (var response = run(request, TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(2));
+            assertThat(rows.get(0).get(0).toString(), equalTo("fork1"));
+            assertThat(rows.get(0).get(1), equalTo(4L));
+            assertThat(rows.get(1).get(0).toString(), equalTo("fork2"));
+            assertThat(rows.get(1).get(1), equalTo(2L));
+            EsqlExecutionInfo.Cluster localCluster = response.getExecutionInfo().getCluster("");
+            assertThat(localCluster.getTotalShards(), equalTo(indexShards * 2));
+            assertThat(localCluster.getSuccessfulShards(), equalTo(indexShards * 2));
+        }
+    }
+
+    public void testForkOverTwoDatasetsWithBranchTopN() throws Exception {
+        registerDataSource("local_ds", Map.of());
+        registerDataset("fork_topn_a", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+        registerDataset("fork_topn_b", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"));
+
+        String query = """
+            FROM fork_topn_a, fork_topn_b
+            | FORK
+                (SORT emp_no DESC | LIMIT 2)
+                (WHERE emp_no < 11 | SORT emp_no DESC | LIMIT 2)
+            | KEEP _fork, emp_no
+            | SORT _fork, emp_no DESC
+            """;
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            assertThat(
+                getValuesList(response),
+                equalTo(List.of(List.of("fork1", 11), List.of("fork1", 10), List.of("fork2", 10), List.of("fork2", 3)))
+            );
+        }
+    }
+
     private long documentsReadBy(String query) {
         try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
             return response.documentsFound();
@@ -6589,6 +7005,47 @@ public class FromDatasetIT extends AbstractExternalDataSourceIT {
                 )
             )
         );
+    }
+
+    public void testQueryDatasetAfterSnapshotRestore() throws Exception {
+        final String repoName = "from-dataset-snap-repo";
+        final String snapshotName = "from-dataset-snapshot";
+
+        registerDataSource("local_ds", Map.of());
+        registerDataset("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"));
+
+        assertAcked(
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName)
+                .setType("fs")
+                .setSettings(Settings.builder().put("location", randomRepoPath()))
+        );
+        clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "employees" }))
+            .get();
+        client().execute(DeleteDataSourceAction.INSTANCE, new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "local_ds" }))
+            .get();
+
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setRestoreGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees | SORT emp_no | LIMIT 10"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            assertThat(rows.get(0).get(0), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(rows.get(1).get(0), equalTo(2));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
+            assertThat(rows.get(2).get(0), equalTo(3));
+            assertThat(rows.get(2).get(1).toString(), equalTo("Carol"));
+        }
+
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName));
     }
 
     private List<Object> firstRowOf(String query) {

@@ -51,9 +51,8 @@ public interface DecompressionCodec {
      * Breaker-aware variant of {@link #decompress(InputStream)}. Codecs that hold a native
      * decompression footprint (e.g. zstd's streaming context) override this to account that
      * footprint against {@code breaker}. {@code breaker} may be {@code null}; implementations must
-     * skip accounting in that case. The default implementation ignores the breaker and
-     * delegates to {@link #decompress(InputStream)}, preserving existing behavior for codecs
-     * (gzip, bzip2) with no native reservation to track.
+     * skip accounting in that case. Gzip charges the zlib Inflater window; zstd charges the
+     * Panama DStream. Codecs with no native reservation (bzip2) keep the default no-op.
      *
      * @param raw     the compressed input stream
      * @param breaker circuit breaker to account the decompressor's native footprint against, or

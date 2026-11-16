@@ -700,6 +700,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
             "eval x = {}f1, y = {}f2, z = {}f3",
             "eval x = fn({}f1), y = {}f2 + {}f3",
             "where {}f1 == \"a\" and {}f2 > 1 and {}f3 in (1, 2)",
+            "where {}f1 : \"b\" and {}f2 : \"c\" and {}f3 : \"d\"",
             "stats x = fn({}f1) by {}f2, {}f3",
             "sort {}f1, {}f2, {}f3",
             "dissect {}f1 \"%{bar}\"",
@@ -718,7 +719,7 @@ public class ParamsParserTests extends AbstractStatementParserTests {
         // commands in group2 only take identifiers(??)
         List<String> commandWithRandomSingleOrDoubleParamsGroup2 = List.of(
             "eval x = {}f1(), y = {}f2(), z = {}f3()",
-            "where {}f1 : \"b\" and {}f2() > 0 and {}f3()",
+            "where {}f1() : \"b\" and {}f2() > 0 and {}f3()",
             "stats x = {}f1(), {}f2(), {}f3()",
             "rename {}f1 as {}f2, {}f3 as x",
             "enrich idx2 ON {}f1 WITH {}f2 = {}f3",
@@ -749,6 +750,17 @@ public class ParamsParserTests extends AbstractStatementParserTests {
                 }
             }
         }
+    }
+
+    public void testPatternGlobTakesParamCharactersLiterally() {
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        LogicalPlan plan = query(
+            "from test | keep ??f1.*, ?f2",
+            new QueryParams(List.of(paramAsConstant("f1", "a*b"), paramAsPattern("f2", "c\\*")))
+        );
+        Keep keep = as(plan, Keep.class);
+        assertEquals("a\\*b.*", as(keep.projections().get(0), UnresolvedNamePattern.class).glob());
+        assertEquals("c\\\\*", as(keep.projections().get(1), UnresolvedNamePattern.class).glob());
     }
 
     public void testInvalidDoubleParamsNames() {

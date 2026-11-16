@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.EsqlDatafeedSourceCheckpoint;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -707,6 +708,81 @@ public class JobResultsProvider {
             result -> handler.accept(result.result),
             errorHandler,
             () -> new DatafeedTimingStats(jobId)
+        );
+    }
+
+    /**
+     * Loads the stored ES|QL datafeed source checkpoint for {@code jobId}. Delivers the checkpoint to {@code handler}, or {@code null}
+     * when none is stored. Failures are delivered to {@code errorHandler}.
+     */
+    public void esqlDatafeedSourceCheckpoint(
+        String jobId,
+        Consumer<EsqlDatafeedSourceCheckpoint> handler,
+        Consumer<Exception> errorHandler
+    ) {
+        GetRequest getRequest = new GetRequest(
+            AnomalyDetectorsIndex.resultsWriteAlias(jobId),
+            EsqlDatafeedSourceCheckpoint.documentId(jobId)
+        );
+        // Persist may use refresh NONE; a non-realtime get would miss that write until refresh.
+        getRequest.realtime(true);
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, getRequest, new ActionListener<GetResponse>() {
+            @Override
+            public void onResponse(GetResponse getDocResponse) {
+                try {
+                    if (getDocResponse.isExists() == false) {
+                        esqlDatafeedSourceCheckpointFromAllResultsIndices(jobId, handler, errorHandler);
+                        return;
+                    }
+                    BytesReference docSource = getDocResponse.getSourceAsBytesRef();
+                    try (XContentParser parser = createParser(docSource)) {
+                        handler.accept(EsqlDatafeedSourceCheckpoint.PARSER.apply(parser, null));
+                    }
+                } catch (Exception e) {
+                    errorHandler.accept(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    esqlDatafeedSourceCheckpointFromAllResultsIndices(jobId, handler, errorHandler);
+                    return;
+                }
+                errorHandler.accept(e);
+            }
+        }, client::get);
+    }
+
+    /** Copies left in older results indices after the write alias rolls onto an empty index. */
+    private void esqlDatafeedSourceCheckpointFromAllResultsIndices(
+        String jobId,
+        Consumer<EsqlDatafeedSourceCheckpoint> handler,
+        Consumer<Exception> errorHandler
+    ) {
+        SearchRequestBuilder search = client.prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
+            .setSize(1)
+            .setAllowPartialSearchResults(false)
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(QueryBuilders.idsQuery().addIds(EsqlDatafeedSourceCheckpoint.documentId(jobId)))
+            .addSort(
+                SortBuilders.fieldSort(EsqlDatafeedSourceCheckpoint.SOURCE_END_MS.getPreferredName())
+                    .order(SortOrder.DESC)
+                    .unmappedType("long")
+            );
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            search.request(),
+            ActionListener.<SearchResponse>wrap(response -> {
+                SearchHit[] hits = response.getHits().getHits();
+                if (hits.length == 0) {
+                    handler.accept(null);
+                    return;
+                }
+                handler.accept(MlParserUtils.parse(hits[0], EsqlDatafeedSourceCheckpoint.PARSER));
+            }, errorHandler),
+            client::search
         );
     }
 

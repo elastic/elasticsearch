@@ -64,10 +64,15 @@ setup:
 
 ---
 "geo_line on position field ASC":
+  - requires:
+      test_runner_features: [allowed_warnings]
+      reason: "time_series aggregation deprecation warning"
   - skip:
       features: close_to
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: locations
         rest_total_hits_as_int: true
@@ -117,10 +122,15 @@ setup:
 
 ---
 "geo_line on position field DESC":
+  - requires:
+      test_runner_features: [allowed_warnings]
+      reason: "time_series aggregation deprecation warning"
   - skip:
       features: close_to
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: locations
         rest_total_hits_as_int: true
@@ -174,10 +184,15 @@ setup:
 
 ---
 "geo_line on position field time time-series with invalid sort specified":
+  - requires:
+      test_runner_features: [allowed_warnings]
+      reason: "time_series aggregation deprecation warning"
   - skip:
       features: close_to
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       catch: /invalid field \[sort\]='route' configured for time-series aggregations/
       search:
         index: locations
@@ -196,10 +211,15 @@ setup:
 
 ---
 "geo_line on position field no sort field or sort order specified":
+  - requires:
+      test_runner_features: [allowed_warnings]
+      reason: "time_series aggregation deprecation warning"
   - skip:
       features: close_to
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: locations
         rest_total_hits_as_int: true
@@ -300,10 +320,15 @@ setup:
 
 ---
 "geo_line on position field same grouping as time-series with time-series":
+  - requires:
+      test_runner_features: [allowed_warnings]
+      reason: "time_series aggregation deprecation warning"
   - skip:
       features: close_to
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: locations
         rest_total_hits_as_int: true
@@ -421,10 +446,15 @@ setup:
 
 ---
 "geo_line on position field with terms aggregation on non-dimension field and time-series on dimension field":
+  - requires:
+      test_runner_features: [allowed_warnings]
+      reason: "time_series aggregation deprecation warning"
   - skip:
       features: close_to
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: locations
         rest_total_hits_as_int: true

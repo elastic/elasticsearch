@@ -29,14 +29,6 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
     private final int bitsPerDim;
 
     /**
-     * Result of quantization for a single vector.
-     *
-     * @param centeredCode code centered around zero, length nDims
-     * @param codeNorm L2 norm of the code vector
-     */
-    public record SingleQuantizeResult(float[] centeredCode, float codeNorm) {}
-
-    /**
      * Result of batch quantization.
      *
      * @param centeredCodes codes centered around zero, row-major matrix (n x nDims)
@@ -80,13 +72,6 @@ public sealed class AshSphericalScalarQuantizer permits PanamaAshSphericalScalar
             int base = i * nDims;
             result.codeNorms[i] = quantizeExact(x, base, result.centeredCodes, base, nDims);
         }
-    }
-
-    public SingleQuantizeResult encodeOne(float[] xLatent) {
-        int nDims = xLatent.length;
-        float[] out = new float[nDims];
-        float norm = quantizeExact(xLatent, 0, out, 0, nDims);
-        return new SingleQuantizeResult(out, norm);
     }
 
     /**

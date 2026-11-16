@@ -46,7 +46,9 @@ public final class ExternalSchema implements Iterable<Attribute> {
      * Returns the data-attribute view of {@code attributes} as an {@link ExternalSchema}: the
      * input list with virtual columns <em>and</em> Hive-style partition columns filtered out
      * (relative order preserved). Used by external-source operator factories on the data node to
-     * derive the data-only schema once at construction rather than re-slicing per page.
+     * derive the data-only schema once at construction rather than re-slicing per page, and on the
+     * coordinator by {@code SplitDiscoveryPhase} (through the single-argument overload) to build the
+     * Query schema handed to split discovery.
      * <p>
      * Two classes of column are excluded because the format reader never produces them in the
      * data channel — both are appended on the producer thread by {@code VirtualColumnIterator}:

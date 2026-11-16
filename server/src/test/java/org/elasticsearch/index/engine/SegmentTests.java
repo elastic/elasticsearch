@@ -18,10 +18,14 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 public class SegmentTests extends ESTestCase {
@@ -91,6 +95,56 @@ public class SegmentTests extends ESTestCase {
         }
     }
 
+    public void testSerializationWithAutoCalibration() throws IOException {
+        Segment segment = randomSegment();
+        segment.autoCalibrationParams = Map.of(
+            "my_field",
+            new SegmentCalibrationParameters.Osq(QuantEncoding.FOUR_BIT_SYMMETRIC, true, 3.0f)
+        );
+        segment.autoCalibrationVectorCounts = Map.of("my_field", 42L);
+        segment.autoCalibrationSizeBytes = Map.of("my_field", 1024L);
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        segment.writeTo(output);
+        output.flush();
+        StreamInput input = output.bytes().streamInput();
+        Segment deserialized = new Segment(input);
+
+        assertTrue(isSegmentEquals(deserialized, segment));
+        assertNotNull(deserialized.autoCalibrationParams);
+        assertEquals(1, deserialized.autoCalibrationParams.size());
+        SegmentCalibrationParameters.Osq osq = (SegmentCalibrationParameters.Osq) deserialized.autoCalibrationParams.get("my_field");
+        assertNotNull(osq);
+        assertEquals(QuantEncoding.FOUR_BIT_SYMMETRIC, osq.encoding());
+        assertTrue(osq.precondition());
+        assertEquals(3.0f, osq.oversample(), 0.0f);
+        assertNotNull(deserialized.autoCalibrationVectorCounts);
+        assertEquals(Long.valueOf(42L), deserialized.autoCalibrationVectorCounts.get("my_field"));
+        assertNotNull(deserialized.autoCalibrationSizeBytes);
+        assertEquals(Long.valueOf(1024L), deserialized.autoCalibrationSizeBytes.get("my_field"));
+    }
+
+    public void testSerializationWithAutoCalibrationOldVersion() throws IOException {
+        Segment segment = randomSegment();
+        segment.autoCalibrationParams = Map.of(
+            "my_field",
+            new SegmentCalibrationParameters.Osq(QuantEncoding.FOUR_BIT_SYMMETRIC, true, 3.0f)
+        );
+
+        var oldVersion = TransportVersionUtils.randomVersionNotSupporting(Segment.SEGMENT_AUTO_CALIBRATION);
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(oldVersion);
+        segment.writeTo(output);
+        output.flush();
+        StreamInput input = output.bytes().streamInput();
+        input.setTransportVersion(oldVersion);
+        Segment deserialized = new Segment(input);
+
+        assertNull(deserialized.autoCalibrationParams);
+        assertNull(deserialized.autoCalibrationVectorCounts);
+        assertNull(deserialized.autoCalibrationSizeBytes);
+    }
+
     static boolean isSegmentEquals(Segment seg1, Segment seg2) {
         return seg1.docCount == seg2.docCount
             && seg1.delDocCount == seg2.delDocCount
@@ -102,6 +156,9 @@ public class SegmentTests extends ESTestCase {
             && seg1.getGeneration() == seg2.getGeneration()
             && seg1.getName().equals(seg2.getName())
             && seg1.getMergeId().equals(seg2.getMergeId())
-            && Objects.equals(seg1.segmentSort, seg2.segmentSort);
+            && Objects.equals(seg1.segmentSort, seg2.segmentSort)
+            && Objects.equals(seg1.autoCalibrationParams, seg2.autoCalibrationParams)
+            && Objects.equals(seg1.autoCalibrationVectorCounts, seg2.autoCalibrationVectorCounts)
+            && Objects.equals(seg1.autoCalibrationSizeBytes, seg2.autoCalibrationSizeBytes);
     }
 }

@@ -98,9 +98,8 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         int bucketSize,
         BucketedSort.ExtraData extra
     ) {
+        final float fMissingValue = (Float) missingObject(missingValue, sortOrder == SortOrder.DESC);
         return new BucketedSort.ForFloats(bigArrays, sortOrder, format, bucketSize, extra) {
-            private final float dMissingValue = (Float) missingObject(missingValue, sortOrder == SortOrder.DESC);
-
             @Override
             public boolean needsScores() {
                 return false;
@@ -109,7 +108,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
-                    private final DenseDoubleValues docValues = getDenseDoubleValues(ctx, dMissingValue);
+                    private final DenseDoubleValues docValues = getDenseDoubleValues(ctx, fMissingValue);
                     private float docValue;
 
                     @Override

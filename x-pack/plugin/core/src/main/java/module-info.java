@@ -13,10 +13,6 @@ module org.elasticsearch.xcore {
     requires org.elasticsearch.server;
     requires org.elasticsearch.sslconfig;
     requires org.elasticsearch.xcontent;
-    requires org.apache.httpcomponents.httpcore;
-    requires org.apache.httpcomponents.httpclient;
-    requires org.apache.httpcomponents.httpasyncclient;
-    requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;

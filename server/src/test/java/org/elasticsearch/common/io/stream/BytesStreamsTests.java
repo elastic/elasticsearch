@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentString;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetTime;
@@ -44,6 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -836,6 +838,42 @@ public class BytesStreamsTests extends ESTestCase {
             output.writeText(new Text(string));
         }
         assertArrayEquals(expectedTextBytes(string), bytes.toByteArray());
+    }
+
+    public void testBufferedStreamOutputClosesDelegateWhenFlushFails() throws IOException {
+        final IOException flushFailure = new IOException("flush");
+        final IOException closeFailure = randomBoolean() ? new IOException("close") : null;
+        final AtomicBoolean closed = new AtomicBoolean();
+        final OutputStream delegate = new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                throw flushFailure;
+            }
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                throw flushFailure;
+            }
+
+            @Override
+            public void close() throws IOException {
+                assertTrue(closed.compareAndSet(false, true));
+                if (closeFailure != null) {
+                    throw closeFailure;
+                }
+            }
+        };
+        final BufferedStreamOutput output = new BufferedStreamOutput(delegate, new BytesRef(new byte[16]));
+        output.writeByte(randomByte());
+
+        final IOException e = expectThrows(IOException.class, output::close);
+        assertTrue(closed.get());
+        assertSame(flushFailure, e);
+        if (closeFailure == null) {
+            assertArrayEquals(new Throwable[0], e.getSuppressed());
+        } else {
+            assertArrayEquals(new Throwable[] { closeFailure }, e.getSuppressed());
+        }
     }
 
     private static void assertWriteTextEncoding(String string) throws IOException {

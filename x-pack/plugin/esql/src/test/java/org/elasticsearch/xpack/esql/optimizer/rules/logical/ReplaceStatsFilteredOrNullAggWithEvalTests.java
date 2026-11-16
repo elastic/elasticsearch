@@ -343,7 +343,6 @@ public class ReplaceStatsFilteredOrNullAggWithEvalTests extends AbstractLogicalP
      * \_LocalRelation[[count{r}#7],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
      * }
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634") // i.e. PropagateEvalFoldables applicability to Aggs
     public void testReplaceStatsFilteredAggWithEvalFilterUsingEvaledValue() {
         var plan = plan("""
             from test

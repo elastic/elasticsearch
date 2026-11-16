@@ -76,11 +76,21 @@ public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFacto
         return strings;
     }
 
+    @Override
+    public long maxDecodeBytes() {
+        return input.maxDecodeBytes();
+    }
+
     // this method is required to support the Boolean return values
     // for the old-style "doc" access in ScriptDocValues
     @Override
     public String getInternal(int index) {
         return bytesToString(values[index].toBytesRef());
+    }
+
+    @Override
+    public int byteLength(int index) {
+        return values[index].length();
     }
 
     protected static String bytesToString(BytesRef bytesRef) {

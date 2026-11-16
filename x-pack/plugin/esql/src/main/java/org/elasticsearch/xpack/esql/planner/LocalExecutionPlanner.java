@@ -2889,16 +2889,15 @@ public class LocalExecutionPlanner {
         Layout.Builder layout = source.layout.builder();
         layout.append(expand.expanded());
         List<DataType> types = expand.expanded().stream().map(Attribute::dataType).toList();
-        NestedChildren.Factory children = types.isEmpty()
-            ? null
-            : NestedChildren.factory(
-                context.shardContexts,
-                expand.path(),
-                expand.paths(),
-                types,
-                Collections.nCopies(types.size(), (ValuesSourceReaderOperator.ConverterFactory) null),
-                context.plannerSettings
-            );
+        // Enumeration does not depend on how many child columns remain after pruning.
+        NestedChildren.Factory children = NestedChildren.factory(
+            context.shardContexts,
+            expand.path(),
+            expand.paths(),
+            types,
+            Collections.nCopies(types.size(), (ValuesSourceReaderOperator.ConverterFactory) null),
+            context.plannerSettings
+        );
         return source.with(new NestedExpandOperator.Factory(docChannel, children, expand.path(), types), layout.build());
     }
 

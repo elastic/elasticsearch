@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
 
@@ -124,6 +125,9 @@ public class IndexResolver {
         .crossProjectModeOptions(new CrossProjectModeOptions(true))
         .build();
 
+    /** The field caps filter that also returns nested objects without mapped leaves, which only {@code NESTED_EXPAND} reads. */
+    private static final String NESTED_COLLECTIONS_FILTER = "+nested_collections";
+
     private final Client client;
     /**
      * Whether the {@code flattened} data type is currently enabled, backing the {@code esql.query.flattened.enabled}
@@ -169,7 +173,7 @@ public class IndexResolver {
         ActionListener<IndexResolution> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false, minimumVersion),
             indexPattern,
             false, /* lookup indices should do not be empty */
             minimumVersion,
@@ -226,7 +230,16 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
+            createResolveFieldRequest(
+                DEFAULT_OPTIONS,
+                indexPattern,
+                null,
+                fieldNames,
+                requestFilter,
+                includeAllDimensions,
+                false,
+                minimumVersion
+            ),
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
             minimumVersion,
@@ -265,7 +278,7 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, true),
+            createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, true, minimumVersion),
             indexPattern,
             true, /* the derived data streams may not exist */
             minimumVersion,
@@ -333,7 +346,16 @@ public class IndexResolver {
     ) {
         IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
         doResolveIndices(
-            createResolveFieldRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
+            createResolveFieldRequest(
+                options,
+                indexPattern,
+                projectRouting,
+                fieldNames,
+                requestFilter,
+                includeAllDimensions,
+                true,
+                minimumVersion
+            ),
             indexPattern,
             true, /* flat index expression could resolve to empty */
             minimumVersion,
@@ -574,7 +596,10 @@ public class IndexResolver {
         private boolean isLeaf(String name) {
             for (FieldCapabilitiesIndexResponse response : caps.getIndexResponses()) {
                 IndexFieldCapabilities fc = response.get().get(name);
-                if (fc != null && isObject(fc) == false) {
+                if (fc != null
+                    && isObject(fc) == false
+                    && isNested(fc) == false
+                    && NestedScopeField.inNestedScope(fc, response.get()) == false) {
                     return true;
                 }
             }
@@ -737,7 +762,7 @@ public class IndexResolver {
                     continue;
                 }
                 // Nested fields are visible only through the private scope attached above, never as ordinary columns.
-                if (NestedScopeField.pathFor(fc.name(), response.get()) != null) {
+                if (NestedScopeField.inNestedScope(fc, response.get())) {
                     continue;
                 }
                 if (isNew) {
@@ -936,7 +961,7 @@ public class IndexResolver {
         Map<String, IndexAnalyzerGroup.Analyzer> analyzerByIndex = new LinkedHashMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
-            if (fc != null && isLeaf(fc, fieldsInfo)) {
+            if (fc != null && isLeaf(fc, fieldsInfo) && NestedScopeField.inNestedScope(fc, ir.get()) == false) {
                 // IndexFieldCapabilities already normalizes the gap to the default when the name is null.
                 analyzerByIndex.put(
                     ir.getIndexName(),
@@ -1036,7 +1061,7 @@ public class IndexResolver {
         Map<DataType, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps().getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
-            if (fc != null && isLeaf(fc, fieldsInfo)) {
+            if (fc != null && isLeaf(fc, fieldsInfo) && NestedScopeField.inNestedScope(fc, ir.get()) == false) {
                 DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType());
                 if (type == UNSUPPORTED) {
                     return unsupported(name, fc);
@@ -1099,7 +1124,14 @@ public class IndexResolver {
         return ObjectMapper.CONTENT_TYPE.equals(fc.type());
     }
 
+    private static boolean isNested(IndexFieldCapabilities fc) {
+        return "nested".equals(fc.type());
+    }
+
     private static boolean isLeaf(IndexFieldCapabilities fc, FieldsInfo fieldsInfo) {
+        if (isNested(fc)) {
+            return false;
+        }
         return fieldsInfo.objectsAreNotLeaves() == false || isObject(fc) == false;
     }
 
@@ -1114,7 +1146,8 @@ public class IndexResolver {
         Set<String> fieldNames,
         QueryBuilder requestFilter,
         boolean includeAllDimensions,
-        boolean includeResolvedTo
+        boolean includeResolvedTo,
+        @Nullable TransportVersion minimumVersion
     ) {
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.indices(Strings.commaDelimitedListToStringArray(index));
@@ -1130,7 +1163,13 @@ public class IndexResolver {
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
         // unless this query expands them, in which case they are kept out of ordinary resolution separately
         if (nestedScope) {
-            if (includeAllDimensions) {
+            // Asks for nested objects without mapped leaves too. Nodes that do not know NESTED_EXPAND reject the filter.
+            boolean collections = minimumVersion != null && minimumVersion.supports(NestedExpand.VERSION);
+            if (collections && includeAllDimensions) {
+                request.filters(NESTED_COLLECTIONS_FILTER, "+dimension");
+            } else if (collections) {
+                request.filters(NESTED_COLLECTIONS_FILTER);
+            } else if (includeAllDimensions) {
                 request.filters("+dimension");
             }
         } else if (includeAllDimensions) {

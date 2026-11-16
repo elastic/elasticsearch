@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.hamcrest.Matcher;
@@ -77,5 +78,35 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo("NestedExpandOperator[path=items]");
+    }
+
+    /** Children are counted even when the query kept none of their columns. */
+    public void testEnumeratesChildrenWithoutColumns() {
+        var context = driverContext();
+        NestedChildren.Factory children = NestedChildren.factory(
+            new IndexedByShardIdFromSingleton<>(shard),
+            "items",
+            List.of(),
+            List.of(),
+            List.of(),
+            PlannerSettings.DEFAULTS
+        );
+        int parents = 20;
+        Page input = parents(context.blockFactory(), 0, parents);
+        List<Page> results = new TestDriverRunner().builder(context)
+            .input(List.of(input))
+            .run(new NestedExpandOperator.Factory(0, children, "items", List.of()).get(context));
+        int rows = 0;
+        for (Page page : results) {
+            assertThat(page.getBlockCount(), equalTo(1));
+            rows += page.getPositionCount();
+            page.releaseBlocks();
+        }
+        int expected = 0;
+        for (int i = 0; i < parents; i++) {
+            expected += Math.max(1, i % 4);
+        }
+        assertThat(rows, equalTo(expected));
+        assertThat(context.breaker().getUsed(), equalTo(0L));
     }
 }

@@ -33,8 +33,21 @@ public final class NestedScopeField extends EsField {
     /** Field-caps name that asks the resolver to return nested fields into this namespace instead of dropping them. */
     public static final String REQUEST_MARKER = "\u0000esql_nested_reductions";
 
+    /**
+     * How a field in this namespace relates to the nested collection that owns its documents. Ordinary resolution, scope
+     * construction, and type-conflict handling all use this classification.
+     */
+    public enum Kind {
+        /** The mapped nested object. It exists even when it has no leaf fields. */
+        COLLECTION,
+        /** An object under a collection that is not itself nested. */
+        OBJECT,
+        /** A physical leaf stored on the collection's child documents. */
+        VALUE
+    }
+
     private final String path;
-    private final boolean collection;
+    private final Kind kind;
     @Nullable
     private final String conflict;
 
@@ -47,12 +60,12 @@ public final class NestedScopeField extends EsField {
         DataType type,
         Map<String, EsField> properties,
         String path,
-        boolean collection,
+        Kind kind,
         @Nullable String conflict
     ) {
         super(name, type, properties, false, TimeSeriesFieldType.NONE);
         this.path = path;
-        this.collection = collection;
+        this.kind = kind;
         this.conflict = conflict;
     }
 
@@ -60,8 +73,8 @@ public final class NestedScopeField extends EsField {
         return path;
     }
 
-    public boolean collection() {
-        return collection;
+    public Kind kind() {
+        return kind;
     }
 
     @Nullable
@@ -71,7 +84,7 @@ public final class NestedScopeField extends EsField {
 
     @Override
     public EsField withProperties(Map<String, EsField> properties) {
-        return new NestedScopeField(getName(), getDataType(), properties, path, collection, conflict);
+        return new NestedScopeField(getName(), getDataType(), properties, path, kind, conflict);
     }
 
     @Override
@@ -85,15 +98,23 @@ public final class NestedScopeField extends EsField {
             return false;
         }
         NestedScopeField other = (NestedScopeField) obj;
-        return path.equals(other.path) && collection == other.collection && Objects.equals(conflict, other.conflict);
+        return path.equals(other.path) && kind == other.kind && Objects.equals(conflict, other.conflict);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, collection, conflict);
+        return Objects.hash(super.hashCode(), path, kind, conflict);
     }
 
-    /** Finds the actual nested ancestor in this index, rather than inferring one from dots in a name. */
+    /**
+     * Whether {@code field} belongs to the private nested scope rather than to ordinary resolution. A nested object belongs
+     * here even when it has no leaves. Each shard decides how to read a child it maps as a runtime field.
+     */
+    public static boolean inNestedScope(IndexFieldCapabilities field, Map<String, IndexFieldCapabilities> fields) {
+        return pathFor(field.name(), fields) != null;
+    }
+
+    /** The nested collection that owns {@code name} in this index, or {@code null} when none does. */
     @Nullable
     public static String pathFor(String name, Map<String, IndexFieldCapabilities> fields) {
         String candidate = name;
@@ -124,10 +145,10 @@ public final class NestedScopeField extends EsField {
         sorted.sort(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName));
         for (var response : sorted) {
             for (var fc : response.get().values()) {
-                String path = pathFor(fc.name(), response.get());
-                if (path == null) {
+                if (inNestedScope(fc, response.get()) == false) {
                     continue;
                 }
+                String path = pathFor(fc.name(), response.get());
                 String oldPath = paths.putIfAbsent(fc.name(), path);
                 pathIndex.putIfAbsent(fc.name(), response.getIndexName());
                 if (oldPath != null && oldPath.equals(path) == false) {
@@ -196,8 +217,9 @@ public final class NestedScopeField extends EsField {
                     .stream()
                     .anyMatch(fc -> EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType()).widenSmallNumeric() != firstType);
             DataType type = typeConflict ? DataType.UNSUPPORTED : firstType;
+            Kind kind = collection ? Kind.COLLECTION : type == DataType.OBJECT ? Kind.OBJECT : Kind.VALUE;
             Map<String, EsField> properties = parent.containsKey(name) ? parent.get(name).getProperties() : new TreeMap<>();
-            parent.put(name, new NestedScopeField(name, type, properties, paths.get(fullName), collection, conflicts.get(fullName)));
+            parent.put(name, new NestedScopeField(name, type, properties, paths.get(fullName), kind, conflicts.get(fullName)));
         }
         return new EsField(NAMESPACE, DataType.OBJECT, roots, false, TimeSeriesFieldType.NONE);
     }

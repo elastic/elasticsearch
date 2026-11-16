@@ -32,6 +32,165 @@ setup:
           - { "id": "1", "items": [ { "sku": "a", "qty": 1 }, { "sku": "b", "qty": 2 } ] }
           - { "index": { "_index": "nested_expand", "_id": "2" } }
           - { "id": "2", "items": [] }
+  - do:
+      indices.create:
+        index: ne_orders
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+  - do:
+      indices.create:
+        index: ne_orders_items
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+  - do:
+      indices.create:
+        index: ne_lookup_items
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+  - do:
+      indices.create:
+        index: ne_lookup_note
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              id:
+                type: keyword
+              note:
+                type: keyword
+  - do:
+      indices.create:
+        index: ne_runtime
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            runtime:
+              items.calculated:
+                type: long
+                script:
+                  source: "emit(doc['parent_value'].value)"
+            properties:
+              parent_value:
+                type: long
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+  - do:
+      indices.create:
+        index: ne_empty
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                dynamic: false
+  - do:
+      indices.create:
+        index: ne_long
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              x:
+                type: long
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+  - do:
+      indices.create:
+        index: ne_kw
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              x:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+  - do:
+      indices.create:
+        index: ne_nested_x
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              x:
+                type: nested
+                properties:
+                  y:
+                    type: keyword
+              items:
+                type: nested
+                properties:
+                  qty:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_orders", "_id": "a" } }
+          - { "id": "a" }
+          - { "index": { "_index": "ne_orders_items", "_id": "a" } }
+          - { "id": "a", "items": [ { "qty": 1 }, { "qty": 2 } ] }
+          - { "index": { "_index": "ne_lookup_items", "_id": "a" } }
+          - { "id": "a", "items": [ { "qty": 1 }, { "qty": 2 } ] }
+          - { "index": { "_index": "ne_lookup_note", "_id": "a" } }
+          - { "id": "a", "note": "n" }
+          - { "index": { "_index": "ne_runtime", "_id": "a" } }
+          - { "parent_value": 5, "items": [ { "qty": 1 }, { "qty": 2 } ] }
+          - { "index": { "_index": "ne_empty", "_id": "a" } }
+          - { "id": "a", "items": [ {}, {} ] }
+          - { "index": { "_index": "ne_empty", "_id": "b" } }
+          - { "id": "b", "items": [] }
+          - { "index": { "_index": "ne_long", "_id": "a" } }
+          - { "x": 7, "items": [ { "qty": 1 } ] }
+          - { "index": { "_index": "ne_kw", "_id": "b" } }
+          - { "x": "8", "items": [ { "qty": 1 } ] }
+          - { "index": { "_index": "ne_nested_x", "_id": "c" } }
+          - { "x": [ { "y": "z" } ], "items": [ { "qty": 1 } ] }
 
 ---
 "Fan out one row per nested object, keeping a null row for an empty parent":
@@ -80,3 +239,59 @@ setup:
       esql.query:
         body:
           query: 'FROM nested_expand | LIMIT 1 | NESTED_EXPAND items'
+
+---
+"NESTED_EXPAND cannot read a collection owned by a LOOKUP JOIN index":
+  - do:
+      catch: /cannot read \[items\] from a LOOKUP JOIN index/
+      esql.query:
+        body:
+          query: 'FROM ne_orders | LOOKUP JOIN ne_lookup_items ON id | NESTED_EXPAND items | WHERE items.qty > 0 | KEEP id, items.qty'
+
+---
+"NESTED_EXPAND of the driving index still runs after a LOOKUP JOIN":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_orders_items | LOOKUP JOIN ne_lookup_note ON id | NESTED_EXPAND items | KEEP id, items.qty, note | SORT items.qty | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: ["a", 1, "n"] }
+  - match: { values.1: ["a", 2, "n"] }
+
+---
+"A runtime field under a nested name stays on the parent document":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_runtime | NESTED_EXPAND items | KEEP items.qty | SORT items.qty | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [1] }
+  - match: { values.1: [2] }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_runtime | NESTED_EXPAND items | KEEP items.qty, items.calculated | SORT items.qty | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [1, 5] }
+  - match: { values.1: [2, 5] }
+
+---
+"A nested collection with no leaf mappings still expands one row per child":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_empty | NESTED_EXPAND items | KEEP id | SORT id | LIMIT 10'
+  - length: { values: 3 }
+  - match: { values.0: ["a"] }
+  - match: { values.1: ["a"] }
+  - match: { values.2: ["b"] }
+
+---
+"A nested field hidden by NESTED_EXPAND does not block a cast of the ordinary field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM ne_long, ne_kw, ne_nested_x | NESTED_EXPAND items | EVAL v = x::long | KEEP v, x* | STATS min = MIN(v), max = MAX(v), rows = COUNT(*)'
+  - match: { values.0: [7, 8, 3] }

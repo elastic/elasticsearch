@@ -1786,7 +1786,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             FieldAttribute root = null;
             Set<String> collections = new HashSet<>();
             for (Attribute attribute : childrenOutput) {
-                if (attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField scope && scope.collection()) {
+                if (attribute instanceof FieldAttribute field
+                    && field.field() instanceof NestedScopeField scope
+                    && scope.kind() == NestedScopeField.Kind.COLLECTION) {
                     collections.add(scope.path());
                     if (field.name().equals(rootName)) {
                         root = field;
@@ -1807,6 +1809,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 throw nestedExpandError(target, "NESTED_EXPAND cannot read [" + name + "]: " + scope.conflict());
             }
             String path = scope.path();
+            if (lookupSourced(expand.child(), root.id())) {
+                throw nestedExpandError(
+                    target,
+                    "NESTED_EXPAND cannot read [" + name + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
+                );
+            }
             if (childrenOutput.stream().anyMatch(a -> a.synthetic() == false && a.name().equals(path))) {
                 throw nestedExpandError(target, "NESTED_EXPAND cannot use [" + path + "]: a column of that name replaces it here");
             }
@@ -1818,9 +1826,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Attribute attribute : childrenOutput) {
                 if (attribute instanceof FieldAttribute field
                     && field.field() instanceof NestedScopeField child
-                    && child.collection() == false
-                    && child.path().equals(path)
-                    && child.getDataType() != DataType.OBJECT) {
+                    && child.kind() == NestedScopeField.Kind.VALUE
+                    && child.path().equals(path)) {
                     if (NESTED_EXPAND_CHILD_TYPES.contains(child.getDataType()) == false) {
                         String publicName = field.name().substring(NestedScopeField.PREFIX.length());
                         throw nestedExpandError(
@@ -1844,6 +1851,41 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static boolean inNestedPath(String attributeName, String path) {
             return attributeName.equals(path) || attributeName.startsWith(path + ".");
+        }
+
+        /** The collection attribute comes from the right side of a LOOKUP JOIN, whose documents are not the input rows. */
+        private static boolean lookupSourced(LogicalPlan plan, NameId id) {
+            if (plan instanceof LookupJoin join) {
+                if (containsAttribute(join.right(), id)) {
+                    return true;
+                }
+                return containsAttribute(join.left(), id) && lookupSourced(join.left(), id);
+            }
+            if (plan instanceof EsRelation) {
+                return false;
+            }
+            for (LogicalPlan child : plan.children()) {
+                if (containsAttribute(child, id)) {
+                    return lookupSourced(child, id);
+                }
+            }
+            return false;
+        }
+
+        private static boolean containsAttribute(LogicalPlan plan, NameId id) {
+            if (plan instanceof EsRelation relation) {
+                for (Attribute attribute : relation.output()) {
+                    if (attribute.id().equals(id)) {
+                        return true;
+                    }
+                }
+            }
+            for (LogicalPlan child : plan.children()) {
+                if (containsAttribute(child, id)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /** Child documents belong to a parent row. A STATS replaces those rows with groups, which have none. */

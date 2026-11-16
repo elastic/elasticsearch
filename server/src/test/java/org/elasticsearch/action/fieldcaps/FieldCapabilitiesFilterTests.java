@@ -66,6 +66,46 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNull(response.get("field2.field3"));
     }
 
+    /**
+     * A nested object without mapped leaves is reported only to the ES|QL filter that asks for it, so the response of a plain
+     * request does not change.
+     */
+    public void testNestedWithoutLeaves() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "field1" : { "type" : "keyword" },
+                "items" : { "type" : "nested", "dynamic" : false }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> plain = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        assertNotNull(plain.get("field1"));
+        assertNull(plain.get("items"));
+
+        Map<String, IndexFieldCapabilities> collections = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            new String[] { FieldCapabilitiesFetcher.NESTED_COLLECTIONS_FILTER },
+            Strings.EMPTY_ARRAY,
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        assertNotNull(collections.get("field1"));
+        assertEquals("nested", collections.get("items").type());
+    }
+
     public void testMetadataFilters() throws IOException {
         MapperService mapperService = createMapperService("""
             { "_doc" : {

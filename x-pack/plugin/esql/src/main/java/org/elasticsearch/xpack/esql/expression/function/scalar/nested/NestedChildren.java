@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
@@ -58,8 +59,12 @@ public final class NestedChildren implements Releasable {
      */
     public record Shard(IndexReader reader, @Nullable BitSetProducer parents, @Nullable BitSetProducer children) {}
 
-    public record Factory(IndexedByShardId<Shard> shards, ValuesSourceReaderOperator.Factory reader) {
+    /** {@code reader} is {@code null} when no child field is read, and the children are only counted. */
+    public record Factory(IndexedByShardId<Shard> shards, @Nullable ValuesSourceReaderOperator.Factory reader) {
         public NestedChildren get(DriverContext context) {
+            if (reader == null) {
+                return new NestedChildren(context, shards, null, 0);
+            }
             return new NestedChildren(context, shards, (ValuesSourceReaderOperator) reader.get(context), reader.fields().size());
         }
     }
@@ -97,6 +102,9 @@ public final class NestedChildren implements Releasable {
                 context.bitsetFilter(nested.nestedTypeFilter())
             );
         });
+        if (fields.isEmpty()) {
+            return new Factory(shards, null);
+        }
         List<ValuesSourceReaderOperator.FieldInfo> infos = new ArrayList<>(fields.size());
         for (int f = 0; f < fields.size(); f++) {
             String name = fields.get(f);
@@ -110,6 +118,11 @@ public final class NestedChildren implements Releasable {
                     settings.blockLoaderSizeOrdinals(),
                     settings.blockLoaderSizeScript()
                 );
+                BitSetProducer parents = shards.get(shard).parents();
+                if (context.fieldType(name) instanceof AbstractScriptFieldType && parents != null) {
+                    // This shard maps the name as a runtime field, which runs on the parent rather than on the child
+                    return ValuesSourceReaderOperator.load(new NestedParentBlockLoader(loader, parents));
+                }
                 if (loader instanceof FallbackSyntheticSourceBlockLoader fallback) {
                     // The child's own _ignored_source misses the values the nested object or an object above it keeps whole.
                     // The source holds them under the name of the field, not of an alias to it.
@@ -158,11 +171,12 @@ public final class NestedChildren implements Releasable {
 
     private final DriverContext context;
     private final IndexedByShardId<Shard> shards;
+    @Nullable
     private final ValuesSourceReaderOperator reader;
     /** Block 0 of each loaded page is the parent positions and the child fields follow it. */
     private final int[] projection;
 
-    private NestedChildren(DriverContext context, IndexedByShardId<Shard> shards, ValuesSourceReaderOperator reader, int fields) {
+    private NestedChildren(DriverContext context, IndexedByShardId<Shard> shards, @Nullable ValuesSourceReaderOperator reader, int fields) {
         this.context = context;
         this.shards = shards;
         this.reader = reader;
@@ -253,6 +267,16 @@ public final class NestedChildren implements Releasable {
             Page input = new Page(children.asBlock(), positionVector.asBlock());
             children = null;
             positionVector = null;
+            if (reader == null) {
+                Page counted;
+                try {
+                    counted = input.projectBlocks(projection);
+                } finally {
+                    input.releaseBlocks();
+                }
+                accept(counted, consumer);
+                return;
+            }
             reader.addInput(input);
             for (Page out = reader.getOutput(); out != null; out = reader.getOutput()) {
                 Page loaded;

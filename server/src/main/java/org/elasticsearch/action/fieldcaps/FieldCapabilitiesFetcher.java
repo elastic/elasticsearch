@@ -57,6 +57,11 @@ import java.util.function.Predicate;
  * helper class performs the core shard operation for the field capabilities action.
  */
 class FieldCapabilitiesFetcher {
+    /**
+     * Not a documented filter: ES|QL sends it to also get nested objects that have no mapped leaves, so it can expand them.
+     */
+    static final String NESTED_COLLECTIONS_FILTER = "+nested_collections";
+
     private final IndicesService indicesService;
     private final boolean includeEmptyFields;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
@@ -309,6 +314,35 @@ class FieldCapabilitiesFetcher {
                 }
             }
         }
+        // A nested object with no mapped leaves still owns child documents. Field caps otherwise discovers parents only by
+        // walking those leaves, so the collection itself would be missing. Only ES|QL asks for these, so it can expand them.
+        if (includeParentObjects && checkIncludeNestedCollections(filters)) {
+            for (var nested : context.nestedLookup().getNestedMappers().entrySet()) {
+                String name = nested.getKey();
+                if (responseMap.containsKey(name) || fieldNameFilter.test(name) == false || fieldPredicate.test(name) == false) {
+                    continue;
+                }
+                responseMap.put(
+                    name,
+                    new IndexFieldCapabilities(
+                        name,
+                        "nested",
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        null,
+                        context.getMappingLookup().isPassthrough(name),
+                        Map.of(),
+                        null,
+                        TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
+                        false,
+                        false
+                    )
+                );
+            }
+        }
         return responseMap;
     }
 
@@ -349,6 +383,15 @@ class FieldCapabilitiesFetcher {
             }
         }
         return true;
+    }
+
+    private static boolean checkIncludeNestedCollections(String[] filters) {
+        for (String filter : filters) {
+            if (NESTED_COLLECTIONS_FILTER.equals(filter)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean checkIncludeDimensions(String[] filters) {
@@ -432,7 +475,10 @@ class FieldCapabilitiesFetcher {
 
         for (String filter : filters) {
             // These "filters" are handled differently, in that they are not ANDed with the field name pattern
-            if ("parent".equals(filter) || "-parent".equals(filter) || "+dimension".equals(filter)) {
+            if ("parent".equals(filter)
+                || "-parent".equals(filter)
+                || "+dimension".equals(filter)
+                || NESTED_COLLECTIONS_FILTER.equals(filter)) {
                 continue;
             }
             Predicate<MappedFieldType> next = switch (filter) {

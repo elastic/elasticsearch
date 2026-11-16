@@ -623,7 +623,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         Matcher<String> reasonMatcher = containsString("NumberFormatException: For input string: \"value1\"");
         try {
             assertResponse(prepareSearch().setQuery(builder), response -> {
-                List<ShardSearchFailure> shardFailures = response.shardFailuresList();
+                List<ShardSearchFailure> shardFailures = response.getShardFailures();
                 assertThat("Expected shard failures, got none", shardFailures, not(empty()));
                 for (ShardSearchFailure shardSearchFailure : shardFailures) {
                     assertThat(shardSearchFailure.status(), equalTo(RestStatus.BAD_REQUEST));

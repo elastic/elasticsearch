@@ -802,8 +802,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertEquals(84, searchResponse.getHits().getAt(0).docId());
             assertEquals(1, searchResponse.getFailedShards());
             assertEquals(1, searchResponse.getSuccessfulShards());
-            assertEquals(1, searchResponse.shardFailuresList().size());
-            assertThat(searchResponse.shardFailuresList().getFirst().getCause(), instanceOf(MockDirectoryWrapper.FakeIOException.class));
+            assertEquals(1, searchResponse.getShardFailures().size());
+            assertThat(searchResponse.getShardFailures().getFirst().getCause(), instanceOf(MockDirectoryWrapper.FakeIOException.class));
             assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
             if (profiled) {
                 /*
@@ -1042,7 +1042,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             assertEquals("fetch", phase.getName());
             phase.run();
             assertNotNull(mockSearchPhaseContext.searchResponse.get());
-            assertThat(mockSearchPhaseContext.searchResponse.get().shardFailuresList(), hasSize(1));
+            assertThat(mockSearchPhaseContext.searchResponse.get().getShardFailures(), hasSize(1));
             assertThat(mockSearchPhaseContext.releasedSearchContexts, hasSize(1));
         } finally {
             var resp = mockSearchPhaseContext.searchResponse.get();

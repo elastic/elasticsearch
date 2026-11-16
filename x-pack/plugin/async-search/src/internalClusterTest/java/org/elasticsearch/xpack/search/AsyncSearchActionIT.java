@@ -289,7 +289,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             assertNotNull(response.getFailure());
             assertTrue(response.isPartial());
             assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
-            assertThat(response.getSearchResponse().shardFailuresList(), hasSize(numShards));
+            assertThat(response.getSearchResponse().getShardFailures(), hasSize(numShards));
         } finally {
             response.decRef();
         }

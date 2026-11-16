@@ -416,8 +416,8 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             numberOfShards
         );
         logger.info("iteration [{}] - failed shards: {} (expected 0)", iteration, searchResponse.getFailedShards());
-        if (searchResponse.shardFailuresList().isEmpty() == false) {
-            logger.info("iteration [{}] - shard failures: {}", iteration, searchResponse.shardFailuresList());
+        if (searchResponse.getShardFailures().isEmpty() == false) {
+            logger.info("iteration [{}] - shard failures: {}", iteration, searchResponse.getShardFailures());
         }
         logger.info(
             "iteration [{}] - returned documents: {} (expected {})",

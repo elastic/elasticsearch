@@ -22,7 +22,7 @@ public final class SearchHitUtils {
     }
 
     public static void addShardFailures(Map<String, ShardSearchFailure> shardFailures, SearchResponse r) {
-        for (ShardSearchFailure shardFailure : r.shardFailuresList()) {
+        for (ShardSearchFailure shardFailure : r.getShardFailures()) {
             shardFailures.put(shardFailure.toString(), shardFailure);
         }
     }

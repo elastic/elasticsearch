@@ -89,7 +89,7 @@ public class SearchScrollQueryThenFetchAsyncActionIT extends ESIntegTestCase {
             } else {
                 assertResponse(client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)), response -> {
                     assertThat(response.getSuccessfulShards(), equalTo(numToSucceed));
-                    assertThat(response.shardFailuresList(), hasSize(numShards - numToSucceed));
+                    assertThat(response.getShardFailures(), hasSize(numShards - numToSucceed));
                     for (ShardSearchFailure failure : response.getShardFailures()) {
                         assertThat(failure.getCause(), instanceOf(SearchContextMissingException.class));
                     }

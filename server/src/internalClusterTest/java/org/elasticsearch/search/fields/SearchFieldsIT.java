@@ -477,7 +477,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .addScriptField("s_arr3", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.arr3", Collections.emptyMap())),
             response -> {
 
-                assertThat("Failures " + response.shardFailuresList(), response.shardFailuresList(), empty());
+                assertThat("Failures " + response.getShardFailures(), response.getShardFailures(), empty());
 
                 assertThat(response.getHits().getAt(0).field("s_obj1_test").getValue().toString(), equalTo("something"));
 

@@ -620,7 +620,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 assertThat(resp.getSearchResponse().getFailedShards(), equalTo(expectedShardFailures));
                 assertThat(resp.isPartial(), equalTo(isPartial));
                 if (expectedShardFailures > 0) {
-                    assertThat(resp.getSearchResponse().shardFailuresList(), hasSize(expectedShardFailures));
+                    assertThat(resp.getSearchResponse().getShardFailures(), hasSize(expectedShardFailures));
                     for (ShardSearchFailure failure : resp.getSearchResponse().getShardFailures()) {
                         assertThat(failure.getCause(), instanceOf(IOException.class));
                         assertThat(failure.getCause().getMessage(), equalTo("boum"));

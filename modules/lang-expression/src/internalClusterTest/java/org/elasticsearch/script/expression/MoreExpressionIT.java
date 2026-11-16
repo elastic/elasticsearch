@@ -543,8 +543,8 @@ public class MoreExpressionIT extends ESIntegTestCase {
             // shards that don't have docs with the "text" field will not fail,
             // so we may or may not get a total failure
             assertResponse(req, rsp -> {
-                assertThat(rsp.shardFailuresList(), not(empty())); // at least the shards containing the docs should have failed
-                message.set(rsp.shardFailuresList().getFirst().reason());
+                assertThat(rsp.getShardFailures(), not(empty())); // at least the shards containing the docs should have failed
+                message.set(rsp.getShardFailures().getFirst().reason());
             });
         } catch (SearchPhaseExecutionException e) {
             message.set(e.toString());

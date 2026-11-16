@@ -217,7 +217,7 @@ public class StatsIT extends AbstractNumericTestCase {
     }
 
     private void assertShardExecutionState(SearchResponse response, int expectedFailures) {
-        List<ShardSearchFailure> failures = response.shardFailuresList();
+        List<ShardSearchFailure> failures = response.getShardFailures();
         if (failures.size() != expectedFailures) {
             for (ShardSearchFailure failure : failures) {
                 logger.error(() -> "Shard Failure: " + failure, failure.getCause());

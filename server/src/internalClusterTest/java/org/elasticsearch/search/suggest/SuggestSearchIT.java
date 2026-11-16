@@ -1429,7 +1429,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         builder.suggest(suggestBuilder);
         Suggest[] suggest = new Suggest[1];
         assertResponse(builder, response -> {
-            assertThat(response.shardFailuresList().toString(), response.getFailedShards(), equalTo(expectShardsFailed));
+            assertThat(response.getShardFailures().toString(), response.getFailedShards(), equalTo(expectShardsFailed));
             suggest[0] = response.getSuggest();
         });
         return suggest[0];

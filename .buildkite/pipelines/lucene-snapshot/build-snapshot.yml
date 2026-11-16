@@ -1,10 +1,6 @@
 # TARGET_BRANCH unset (lucene_snapshot): upload + push version bump + tests.
 # TARGET_BRANCH set (main → lucene_snapshot_11): S3 upload only, then Archimedes
 # compiles and either pushes or opens a PR.
-env:
-  TARGET_BRANCH: "${TARGET_BRANCH:-}"
-  LUCENE_BRANCH: "${LUCENE_BRANCH:-branch_10_6}"
-
 steps:
   - trigger: apache-lucene-build-snapshot
     label: Trigger pipeline to build lucene snapshot

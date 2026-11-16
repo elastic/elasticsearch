@@ -136,7 +136,7 @@ public abstract class LuceneOperator extends SourceOperator {
     private IsBlockedResult blocked = Operator.NOT_BLOCKED;
 
     private final LongSupplier directoryBytesRead;
-    private final ScorersMap scorersMap;
+    private final ScorerPool scorerPool;
 
     protected LuceneOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
@@ -159,7 +159,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
         this.shardProcessNanos = new long[sliceQueue.maxShardIndex() + 1];
         this.shardRowsEmitted = new long[shardProcessNanos.length];
-        this.scorersMap = new ScorersMap(reuseScorers);
+        this.scorerPool = new ScorerPool(reuseScorers);
     }
 
     public abstract static class Factory implements SourceOperator.SourceOperatorFactory {
@@ -290,7 +290,7 @@ public abstract class LuceneOperator extends SourceOperator {
         if (currentScorer != null) {
             currentScorer.releaseExecutionMemory();
         }
-        scorersMap.releaseAllScorers();
+        scorerPool.releaseAllScorers();
         refCounteds.iterable().forEach(RefCounted::decRef);
         additionalClose();
     }
@@ -311,7 +311,7 @@ public abstract class LuceneOperator extends SourceOperator {
                         if (currentScorer != null) {
                             currentScorer.releaseExecutionMemory();
                         }
-                        scorersMap.releaseAllScorers();
+                        scorerPool.releaseAllScorers();
                         doneCollecting = true;
                         return null;
                     }
@@ -329,8 +329,8 @@ public abstract class LuceneOperator extends SourceOperator {
                     if (renderedQueries.add(weight.getQuery())) {
                         processedQueries.add(Status.queryString(weight.getQuery()));
                     }
-                    scorersMap.releaseScorer(currentScorer);
-                    currentScorer = scorersMap.getScorer(currentSlice.shardContext(), weight, partialLeaf);
+                    scorerPool.releaseScorer(currentScorer);
+                    currentScorer = scorerPool.getScorer(currentSlice.shardContext(), weight, partialLeaf);
                     if (currentScorer == null) {
                         currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
                         sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
@@ -431,7 +431,7 @@ public abstract class LuceneOperator extends SourceOperator {
         return blocked;
     }
 
-    static final class ScorersMap {
+    static final class ScorerPool {
         record Key(LeafReaderContext leafContext, Weight weight) {
             @Override
             public boolean equals(Object o) {
@@ -450,7 +450,7 @@ public abstract class LuceneOperator extends SourceOperator {
         int lastShard = -1;
         final Map<Key, LuceneScorer> scorers;
 
-        ScorersMap(boolean reuseScorers) {
+        ScorerPool(boolean reuseScorers) {
             this.reuseScorers = reuseScorers;
             this.scorers = new HashMap<>();
         }

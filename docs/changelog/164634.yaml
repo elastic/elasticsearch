@@ -2,5 +2,5 @@ area: Snapshot/Restore
 issues:
  - 164565
 pr: 164634
-summary: Add S3 setting to omit request body checksums, overriding any AWS_REQUEST_CHECKSUM_CALCULATION value
+summary: Add S3 client setting to omit request body checksums, overriding the `AWS_REQUEST_CHECKSUM_CALCULATION` environment variable and the `aws.requestChecksumCalculation` system property.
 type: enhancement

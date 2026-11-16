@@ -161,7 +161,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                             anyOf(
                                 // We either have a SHA256 hash of the body, covered by the request signature, ...
                                 matchesPattern(S3HttpHandler.SHA256_PATTERN),
-                                // ... or signed chunks, with a footer only if the client is sending a checksum
+                                // ... or signed chunks, with a trailer only if the client is sending a checksum
                                 equalTo(testConfig.getExpectedSignedStreamingContentSha256Header())
                             ),
 
@@ -193,6 +193,12 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .systemProperty("aws.region", regionSupplier)
+        // The code ignores these, so the value doesn't matter, but an operator may have set either to ask for fewer checksums. Every config
+        // that leaves the setting off still expects a checksum, so a regression that lets the SDK read them would fail here. Only
+        // when_required can show it, since when_supported is the SDK default. The system property is also left out half the time, because
+        // the SDK reads it before the env var and would otherwise hide the env var.
+        .environment("AWS_REQUEST_CHECKSUM_CALCULATION", () -> randomFrom("when_required", "when_supported"))
+        .systemProperty("aws.requestChecksumCalculation", () -> randomFrom("when_required", "when_supported"), node -> randomBoolean())
         .apply(builder -> trustStore.apply(builder, true))
         .apply(builder -> {
             for (final var testConfig : TEST_CONFIGS) {
@@ -291,7 +297,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             }
         }
 
-        /// The value for signed chunks. It names the footer only when the client is sending a checksum in one.
+        /// The value for signed chunks. It names the trailer only when the client is sending a checksum in one.
         String getExpectedSignedStreamingContentSha256Header() {
             return unsafelyOmitRequestBodyChecksums ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER";
         }

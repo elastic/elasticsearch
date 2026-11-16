@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
@@ -1097,7 +1096,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * here. Takes the whole parent source, as a filter could drop objects and shift the others.
          */
         public SourceLoader newNestedChildSourceLoader() {
-            return ctx.getMappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP, ctx.getNestedDocuments());
+            return ctx.getMappingLookup().newNestedChildSourceLoader(ctx.getNestedDocuments());
         }
 
         /**

@@ -738,3 +738,284 @@ lookup join reads fields under a nested object in the lookup index:
         query: FROM lj_main | RENAME items.sku AS s | LOOKUP JOIN lj_lookup ON s == items.sku | KEEP id | LIMIT 10
 - match: { error.type: verification_exception }
 - contains: { error.reason: "LOOKUP JOIN cannot match on [items.sku]: matching on nested child fields is not supported yet" }
+
+---
+source-backed fields read each object's values in every source mode:
+# A field without doc values reads the source. Under a nested object it reads its child's object, which gives what a plain
+# object gives, whether the parent's _source is stored or synthetic.
+- do:
+    indices.create:
+      index: sb_nested_stored
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: stored
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                note2:
+                  type: text
+                  fields:
+                    raw:
+                      type: keyword
+                sku:
+                  type: keyword
+                  fields:
+                    text:
+                      type: text
+                mot:
+                  type: match_only_text
+                kw:
+                  type: keyword
+                  doc_values: false
+                  fields:
+                    nodv:
+                      type: keyword
+                      doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+- do:
+    indices.create:
+      index: sb_nested_synthetic
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                note2:
+                  type: text
+                  fields:
+                    raw:
+                      type: keyword
+                sku:
+                  type: keyword
+                  fields:
+                    text:
+                      type: text
+                mot:
+                  type: match_only_text
+                kw:
+                  type: keyword
+                  doc_values: false
+                  fields:
+                    nodv:
+                      type: keyword
+                      doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+- do:
+    indices.create:
+      index: sb_object_stored
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: stored
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+                note2:
+                  type: text
+                  fields:
+                    raw:
+                      type: keyword
+                sku:
+                  type: keyword
+                  fields:
+                    text:
+                      type: text
+                mot:
+                  type: match_only_text
+                kw:
+                  type: keyword
+                  doc_values: false
+                  fields:
+                    nodv:
+                      type: keyword
+                      doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+- do:
+    indices.create:
+      index: sb_object_synthetic
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mapping.source.mode: synthetic
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                note:
+                  type: text
+                note2:
+                  type: text
+                  fields:
+                    raw:
+                      type: keyword
+                sku:
+                  type: keyword
+                  fields:
+                    text:
+                      type: text
+                mot:
+                  type: match_only_text
+                kw:
+                  type: keyword
+                  doc_values: false
+                  fields:
+                    nodv:
+                      type: keyword
+                      doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+# A columnar index keeps doc values for every field that can have them, but still reads its text fields from the source.
+- do:
+    allowed_warnings_regex:
+    - "The \\[doc_values\\] parameter of field \\[.+\\] is ignored in columnar index modes.*"
+    indices.create:
+      index: sb_nested_columnar
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+          index.mode: columnar
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                note:
+                  type: text
+                note2:
+                  type: text
+                  fields:
+                    raw:
+                      type: keyword
+                sku:
+                  type: keyword
+                  fields:
+                    text:
+                      type: text
+                mot:
+                  type: match_only_text
+                kw:
+                  type: keyword
+                  doc_values: false
+                  fields:
+                    nodv:
+                      type: keyword
+                      doc_values: false
+                num:
+                  type: long
+                  doc_values: false
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: sb_nested_stored
+      - id: a
+        items:
+        - { note: hello, note2: hi, sku: x, mot: m1, kw: k1, num: 1 }
+        - { note: bye, note2: yo, sku: y, mot: m2, kw: k2, num: 2 }
+      - index:
+          _index: sb_nested_stored
+      - id: b
+        items:
+        - { note: ciao, note2: hey, sku: z, mot: m3, kw: k3, num: 3 }
+      - index:
+          _index: sb_nested_synthetic
+      - id: a
+        items:
+        - { note: hello, note2: hi, sku: x, mot: m1, kw: k1, num: 1 }
+        - { note: bye, note2: yo, sku: y, mot: m2, kw: k2, num: 2 }
+      - index:
+          _index: sb_nested_synthetic
+      - id: b
+        items:
+        - { note: ciao, note2: hey, sku: z, mot: m3, kw: k3, num: 3 }
+      - index:
+          _index: sb_object_stored
+      - id: a
+        items:
+        - { note: hello, note2: hi, sku: x, mot: m1, kw: k1, num: 1 }
+        - { note: bye, note2: yo, sku: y, mot: m2, kw: k2, num: 2 }
+      - index:
+          _index: sb_object_stored
+      - id: b
+        items:
+        - { note: ciao, note2: hey, sku: z, mot: m3, kw: k3, num: 3 }
+      - index:
+          _index: sb_object_synthetic
+      - id: a
+        items:
+        - { note: hello, note2: hi, sku: x, mot: m1, kw: k1, num: 1 }
+        - { note: bye, note2: yo, sku: y, mot: m2, kw: k2, num: 2 }
+      - index:
+          _index: sb_object_synthetic
+      - id: b
+        items:
+        - { note: ciao, note2: hey, sku: z, mot: m3, kw: k3, num: 3 }
+      - index:
+          _index: sb_nested_columnar
+      - id: a
+        items:
+        - { note: hello, note2: hi, sku: x, mot: m1, kw: k1, num: 1 }
+        - { note: bye, note2: yo, sku: y, mot: m2, kw: k2, num: 2 }
+      - index:
+          _index: sb_nested_columnar
+      - id: b
+        items:
+        - { note: ciao, note2: hey, sku: z, mot: m3, kw: k3, num: 3 }
+- do:
+    esql.query:
+      body:
+        query: "FROM sb_* METADATA _index | EVAL note = MV_SORT(items.note), note2 = MV_SORT(items.note2), raw = MV_SORT(items.note2.raw), sku = MV_SORT(items.sku), skutext = MV_SORT(items.sku.text), mot = MV_SORT(items.mot), kw = MV_SORT(items.kw), nodv = MV_SORT(items.kw.nodv), num = MV_SORT(items.num) | KEEP _index, id, note, note2, raw, sku, skutext, mot, kw, nodv, num | SORT _index, id DESC | LIMIT 20"
+- match:
+    values:
+    - [sb_nested_columnar, b, ciao, hey, hey, z, z, m3, k3, k3, 3]
+    - [sb_nested_columnar, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]
+    - [sb_nested_stored, b, ciao, hey, hey, z, z, m3, k3, k3, 3]
+    - [sb_nested_stored, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]
+    - [sb_nested_synthetic, b, ciao, hey, hey, z, z, m3, k3, k3, 3]
+    - [sb_nested_synthetic, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]
+    - [sb_object_stored, b, ciao, hey, hey, z, z, m3, k3, k3, 3]
+    - [sb_object_stored, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]
+    - [sb_object_synthetic, b, ciao, hey, hey, z, z, m3, k3, k3, 3]
+    - [sb_object_synthetic, a, [bye, hello], [hi, yo], [hi, yo], [x, y], [x, y], [m1, m2], [k1, k2], [k1, k2], [1, 2]]

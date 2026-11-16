@@ -128,6 +128,45 @@ public class NestedStoredSourceLoaderTests extends MapperServiceTestCase {
     }
 
     /**
+     * With synthetic {@code _source}, {@link MappingLookup#newNestedChildSourceLoader} gives each child its own object of the
+     * source synthesized for its root, rather than synthesizing a root at the child's doc ID.
+     */
+    public void testNestedChildSourceLoaderWithSyntheticSource() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build(),
+            """
+                { "_doc": { "properties": {
+                  "name": { "type": "keyword" },
+                  "children": { "type": "nested", "properties": { "value": { "type": "keyword", "doc_values": false } } } } } }
+                """
+        );
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("name", "root");
+            b.startArray("children");
+            b.startObject().field("value", "child1").endObject();
+            b.startObject().field("value", "child2").endObject();
+            b.endArray();
+        }));
+
+        // docs 0 and 1 = nested children, doc 2 = root
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            // The synthetic loader of a nested object looks its children up through the bitset cache, which needs the shard
+            DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId(mapperService.index(), 0));
+            SourceLoader loader = mapperService.mappingLookup().newNestedChildSourceLoader(buildNestedDocuments(mapperService));
+            SourceLoader.Leaf leaf = loader.leaf(wrapped.leaves().get(0), null);
+            LeafStoredFieldLoader leafLoader = storedFieldLoader(loader).getLoader(wrapped.leaves().get(0), null);
+            for (int child = 0; child < 2; child++) {
+                leafLoader.advanceTo(child);
+                Source childSource = leaf.source(leafLoader, child);
+                assertEquals(Map.of("children", Map.of("value", "child" + (child + 1))), childSource.source());
+            }
+            leafLoader.advanceTo(2);
+            assertEquals("root", leaf.source(leafLoader, 2).source().get("name"));
+        });
+    }
+
+    /**
      * A nested child (lower doc ID) is visited before its root parent (higher doc ID), which is
      * the normal forward-scan order. The child yields its nested slice; the root parent returns the
      * full source from the cache populated by the child visit.

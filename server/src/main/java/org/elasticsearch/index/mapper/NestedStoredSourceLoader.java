@@ -36,10 +36,10 @@ import java.util.Set;
  * so that multiple children of the same parent, or a root document visited after its children, do
  * not trigger redundant reads.
  *
- * <p>The root loader reads stored source, optionally with vectors patched back in; it is not applicable
- * to synthetic or columnar source, whose loaders need the doc IDs of a leaf up front. It is constructed
- * exclusively from the stored-source branch of
- * {@link MappingLookup#newSourceLoader(SourceFilter, SourceFieldMetrics, NestedDocuments)}.
+ * <p>The root loader reads stored source, optionally with vectors patched back in, from the stored-source
+ * branch of {@link MappingLookup#newSourceLoader(SourceFilter, SourceFieldMetrics, NestedDocuments)}; or,
+ * from {@link MappingLookup#newNestedChildSourceLoader}, whatever source the index has. A synthetic root
+ * loader reads doc values, so its documents must be read in increasing doc ID order.
  */
 final class NestedStoredSourceLoader implements SourceLoader {
 

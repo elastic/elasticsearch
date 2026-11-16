@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -120,19 +121,26 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
                 blocks[c] = builder.build().asBlock();
             }
         }
-        Block nonBreakingValues = TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 0, 3, 6, 9, 12 }, 5).asBlock();
-        ColumnLoadOperator.Factory factory = new ColumnLoadOperator.Factory(
-            new ColumnLoadOperator.Values[] {
-                new ColumnLoadOperator.Values("v0", nonBreakingValues),
-                new ColumnLoadOperator.Values("v1", nonBreakingValues),
-                new ColumnLoadOperator.Values("v2", nonBreakingValues) },
-            0
+        BlockFactory nonBreaking = TestBlockFactory.getNonBreakingInstance();
+        List<ColumnLoadOperator.Values> values = List.of(
+            new ColumnLoadOperator.Values("v0", nonBreaking.newLongArrayVector(new long[] { 0, 1, 2, 3, 4 }, 5).asBlock()),
+            new ColumnLoadOperator.Values("v1", nonBreaking.newLongArrayVector(new long[] { 100, 101, 102, 103, 104 }, 5).asBlock()),
+            new ColumnLoadOperator.Values("v2", nonBreaking.newLongArrayVector(new long[] { 200, 201, 202, 203, 204 }, 5).asBlock())
         );
+        ColumnLoadOperator.Factory factory = new ColumnLoadOperator.Factory(values, 0);
+        assertThat(factory, equalTo(new ColumnLoadOperator.Factory(new ArrayList<>(values), 0)));
         List<Page> results = new TestDriverRunner().builder(driverContext).input(new Page(blocks)).run(factory);
         try {
             assertThat(results, hasSize(1));
-            assertThat(results.get(0).getPositionCount(), equalTo(positionCount));
-            assertThat(results.get(0).getBlockCount(), equalTo(blocks.length + 3));
+            Page out = results.get(0);
+            assertThat(out.getPositionCount(), equalTo(positionCount));
+            assertThat(out.getBlockCount(), equalTo(blocks.length + 3));
+            for (int c = 0; c < 3; c++) {
+                LongBlock col = out.getBlock(blocks.length + c);
+                for (int p = 0; p < positionCount; p++) {
+                    assertThat(col.getLong(p), equalTo(c * 100L + (p % 5)));
+                }
+            }
         } finally {
             for (Page p : results) {
                 p.releaseBlocks();
@@ -142,7 +150,6 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
 
     public void testMultiColumnCombinedSizeSplitsOversizedLoad() {
         DriverContext driverContext = driverContext();
-        // Each of the 10 loaded long columns is ~64KB (< 256KB individually), while together they total ~640KB (> 256KB).
         int positionCount = 8192;
         Page input;
         try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
@@ -151,21 +158,62 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
             }
             input = new Page(builder.build().asBlock());
         }
-        Block nonBreakingValues = TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 0, 3, 6, 9, 12 }, 5).asBlock();
-        ColumnLoadOperator.Values[] values = new ColumnLoadOperator.Values[10];
-        for (int c = 0; c < values.length; c++) {
-            values[c] = new ColumnLoadOperator.Values("v" + c, nonBreakingValues);
+        BlockFactory nonBreaking = TestBlockFactory.getNonBreakingInstance();
+        List<ColumnLoadOperator.Values> values = new ArrayList<>(10);
+        for (int c = 0; c < 10; c++) {
+            long base = c * 1000L;
+            Block col = nonBreaking.newLongArrayVector(new long[] { base, base + 3, base + 6, base + 9, base + 12 }, 5).asBlock();
+            values.add(new ColumnLoadOperator.Values("v" + c, col));
         }
         List<Page> results = new TestDriverRunner().builder(driverContext).input(input).run(new ColumnLoadOperator.Factory(values, 0));
         try {
             assertThat(results.size(), greaterThan(1));
-            assertThat(results.stream().mapToInt(Page::getPositionCount).sum(), equalTo(positionCount));
+            int rowOffset = 0;
             for (Page p : results) {
                 long loadedBytes = 0;
-                for (int b = 1; b < p.getBlockCount(); b++) {
-                    loadedBytes += p.getBlock(b).ramBytesUsed();
+                for (int c = 0; c < 10; c++) {
+                    LongBlock col = p.getBlock(1 + c);
+                    loadedBytes += col.ramBytesUsed();
+                    for (int r = 0; r < p.getPositionCount(); r++) {
+                        int key = (rowOffset + r) % 5;
+                        assertThat(col.getLong(r), equalTo(c * 1000L + 3L * key));
+                    }
                 }
                 assertThat(loadedBytes, lessThanOrEqualTo(ColumnLoadOperator.TARGET_LOADED_BYTES.getBytes() + 4096));
+                rowOffset += p.getPositionCount();
+            }
+            assertThat(rowOffset, equalTo(positionCount));
+        } finally {
+            for (Page p : results) {
+                p.releaseBlocks();
+            }
+        }
+    }
+
+    public void testConstantColumnsKeepDensePageWhole() {
+        DriverContext driverContext = driverContext();
+        int positionCount = 8192;
+        Page input;
+        try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                builder.appendInt(0);
+            }
+            input = new Page(builder.build().asBlock());
+        }
+        BlockFactory nonBreaking = TestBlockFactory.getNonBreakingInstance();
+        List<ColumnLoadOperator.Values> values = new ArrayList<>(10);
+        for (int c = 0; c < 10; c++) {
+            values.add(new ColumnLoadOperator.Values("c" + c, nonBreaking.newConstantLongBlockWith(10L + c, 1)));
+        }
+        List<Page> results = new TestDriverRunner().builder(driverContext).input(input).run(new ColumnLoadOperator.Factory(values, 0));
+        try {
+            assertThat(results, hasSize(1));
+            Page out = results.get(0);
+            assertThat(out.getPositionCount(), equalTo(positionCount));
+            for (int c = 0; c < 10; c++) {
+                LongBlock col = out.getBlock(1 + c);
+                assertThat(col.getLong(0), equalTo(10L + c));
+                assertThat(col.getLong(positionCount - 1), equalTo(10L + c));
             }
         } finally {
             for (Page p : results) {
@@ -189,28 +237,38 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
                 }
                 input = new Page(builder.build());
             }
-            BytesRefBlock values;
-            try (BytesRefBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(2)) {
-                values = builder.appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("bb")).build();
+            BytesRefBlock v0;
+            BytesRefBlock v1;
+            try (
+                BytesRefBlock.Builder b0 = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(2);
+                BytesRefBlock.Builder b1 = TestBlockFactory.getNonBreakingInstance().newBytesRefBlockBuilder(2)
+            ) {
+                v0 = b0.appendBytesRef(new BytesRef("a")).appendBytesRef(new BytesRef("bb")).build();
+                v1 = b1.appendBytesRef(new BytesRef("x")).appendBytesRef(new BytesRef("yy")).build();
             }
             List<Page> results = new TestDriverRunner().builder(driverContext)
                 .input(input)
                 .run(
                     new ColumnLoadOperator.Factory(
-                        new ColumnLoadOperator.Values[] {
-                            new ColumnLoadOperator.Values("v0", values),
-                            new ColumnLoadOperator.Values("v1", values) },
+                        List.of(new ColumnLoadOperator.Values("v0", v0), new ColumnLoadOperator.Values("v1", v1)),
                         0
                     )
                 );
             try {
                 assertThat(results, hasSize(1));
-                assertThat(results.get(0).getPositionCount(), equalTo(positionCount));
+                Page out = results.get(0);
+                assertThat(out.getPositionCount(), equalTo(positionCount));
+                BytesRefBlock out0 = out.getBlock(1);
+                BytesRefBlock out1 = out.getBlock(2);
+                BytesRef scratch = new BytesRef();
+                assertThat(out0.getBytesRef(0, scratch), equalTo(new BytesRef("a")));
+                assertThat(out1.getBytesRef(0, scratch), equalTo(new BytesRef("x")));
             } finally {
                 for (Page p : results) {
                     p.releaseBlocks();
                 }
-                values.close();
+                v0.close();
+                v1.close();
             }
         }
     }
@@ -242,7 +300,7 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
         boolean driverStarted = false;
         try {
             ColumnLoadOperator.Factory factory = new ColumnLoadOperator.Factory(
-                new ColumnLoadOperator.Values[] { new ColumnLoadOperator.Values("v0", v0), new ColumnLoadOperator.Values("v1", v1) },
+                List.of(new ColumnLoadOperator.Values("v0", v0), new ColumnLoadOperator.Values("v1", v1)),
                 0
             );
             Operator operator = factory.get(crankyContext);
@@ -273,9 +331,7 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
         for (ColumnLoadOperator.Factory factory : List.of(
             new ColumnLoadOperator.Factory(new ColumnLoadOperator.Values("v1", rangeValues), 0),
             new ColumnLoadOperator.Factory(
-                new ColumnLoadOperator.Values[] {
-                    new ColumnLoadOperator.Values("v0", from),
-                    new ColumnLoadOperator.Values("v1", rangeValues) },
+                List.of(new ColumnLoadOperator.Values("v0", from), new ColumnLoadOperator.Values("v1", rangeValues)),
                 0
             )
         )) {
@@ -294,6 +350,21 @@ public class ColumnLoadOperatorTests extends OperatorTestCase {
                 () -> new TestDriverRunner().builder(nonEmptyContext).input(input).run(factory)
             );
         }
+    }
+
+    public void testMultiColumnNegativePositionThrows() {
+        BlockFactory nonBreaking = TestBlockFactory.getNonBreakingInstance();
+        ColumnLoadOperator.Factory factory = new ColumnLoadOperator.Factory(
+            List.of(
+                new ColumnLoadOperator.Values("c0", nonBreaking.newConstantLongBlockWith(1L, 1)),
+                new ColumnLoadOperator.Values("c1", nonBreaking.newConstantLongBlockWith(2L, 1))
+            ),
+            0
+        );
+        DriverContext context = driverContext();
+        Page input = new Page(context.blockFactory().newIntArrayVector(new int[] { 0, -2 }, 2).asBlock());
+        var e = expectThrows(IllegalArgumentException.class, () -> new TestDriverRunner().builder(context).input(input).run(factory));
+        assertThat(e.getMessage(), containsString("invalid position [-2]"));
     }
 
     @Override

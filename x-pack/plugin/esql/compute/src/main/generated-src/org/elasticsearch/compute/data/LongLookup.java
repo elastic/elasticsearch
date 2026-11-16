@@ -83,6 +83,9 @@ public final class LongLookup implements ReleasableIterator<LongBlock> {
         long valuesForPos = 0;
         for (int i = pStart; i < pEnd; i++) {
             int vp = positions.getInt(i);
+            if (vp < 0) {
+                throw new IllegalArgumentException("invalid position [" + vp + "]");
+            }
             if (vp < valuePositionCount) {
                 int vCount = values.getValueCount(vp);
                 valuesForPos += vCount;

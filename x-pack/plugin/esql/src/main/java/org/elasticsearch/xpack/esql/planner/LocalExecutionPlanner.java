@@ -1796,10 +1796,7 @@ public class LocalExecutionPlanner {
         }
         int loadedFields = valuesToLoad.size();
         if (loadedFields > 0) {
-            source = source.with(
-                new ColumnLoadOperator.Factory(valuesToLoad.toArray(ColumnLoadOperator.Values[]::new), positionsChannel),
-                layout
-            );
+            source = source.with(new ColumnLoadOperator.Factory(valuesToLoad, positionsChannel), layout);
         }
 
         if (marker != null) {

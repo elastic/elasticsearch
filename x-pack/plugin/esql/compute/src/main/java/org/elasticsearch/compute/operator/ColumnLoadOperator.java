@@ -15,13 +15,17 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefArrayBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.CompositeBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * {@link Block#lookup Looks up} values from one or more {@link Block}s and
@@ -29,6 +33,11 @@ import java.util.Arrays;
  */
 public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
     public record Values(String name, Block block) {
+        public Values {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(block, "block");
+        }
+
         @Override
         public String toString() {
             return name + ":" + block.elementType();
@@ -40,24 +49,26 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
      * are never closed by this factory; each operator instance deep-copies them into its
      * own {@link BlockFactory} on construction.
      */
-    public record Factory(Values[] values, int positionsOrd) implements OperatorFactory {
+    public record Factory(List<Values> values, int positionsOrd) implements OperatorFactory {
         public Factory {
-            if (values.length < 1) {
+            values = List.copyOf(values);
+            if (values.isEmpty()) {
                 throw new IllegalArgumentException("expected [values] to be non-empty");
             }
         }
 
         public Factory(Values value, int positionsOrd) {
-            this(new Values[] { value }, positionsOrd);
+            this(List.of(value), positionsOrd);
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            Values[] copied = new Values[values.length];
+            Values[] copied = new Values[values.size()];
             boolean success = false;
             try {
-                for (int i = 0; i < values.length; i++) {
-                    copied[i] = new Values(values[i].name, values[i].block.deepCopy(driverContext.blockFactory()));
+                for (int i = 0; i < copied.length; i++) {
+                    Values v = values.get(i);
+                    copied[i] = new Values(v.name, v.block.deepCopy(driverContext.blockFactory()));
                 }
                 ColumnLoadOperator operator = new ColumnLoadOperator(copied, positionsOrd);
                 success = true;
@@ -71,7 +82,7 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
 
         @Override
         public String describe() {
-            return "ColumnLoad[values=" + Arrays.toString(values) + ", positions=" + positionsOrd + "]";
+            return "ColumnLoad[values=" + values + ", positions=" + positionsOrd + "]";
         }
     }
 
@@ -89,6 +100,7 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
     private static final ByteSizeValue UNBOUNDED_BLOCK_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
 
     private final Values[] values;
+    private final ColumnScanState[] scanColumns;
     private final int positionsOrd;
 
     public ColumnLoadOperator(Values value, int positionsOrd) {
@@ -99,8 +111,20 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
         if (values.length < 1) {
             throw new IllegalArgumentException("expected [values] to be non-empty");
         }
+        Values[] owned = values.clone();
+        for (Values v : owned) {
+            Objects.requireNonNull(v, "value");
+        }
         this.positionsOrd = positionsOrd;
-        this.values = values;
+        this.values = owned;
+        if (owned.length > 1) {
+            this.scanColumns = new ColumnScanState[owned.length];
+            for (int c = 0; c < owned.length; c++) {
+                this.scanColumns[c] = new ColumnScanState(owned[c].block);
+            }
+        } else {
+            this.scanColumns = null;
+        }
     }
 
     @Override
@@ -109,7 +133,7 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
         if (values.length == 1) {
             return appendBlocks(page, values[0].block.lookup(positions, TARGET_LOADED_BYTES));
         }
-        return appendBlockArrays(page, new MultiColumnLookup(values, positions, TARGET_LOADED_BYTES));
+        return appendBlockArrays(page, new MultiColumnLookup(scanColumns, positions, TARGET_LOADED_BYTES));
     }
 
     @Override
@@ -138,14 +162,11 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
         private int position;
         private boolean closed;
 
-        MultiColumnLookup(Values[] values, IntBlock positions, ByteSizeValue targetByteSize) {
+        MultiColumnLookup(ColumnScanState[] columns, IntBlock positions, ByteSizeValue targetByteSize) {
             positions.incRef();
+            this.columns = columns;
             this.positions = positions;
             this.targetByteSize = targetByteSize.getBytes();
-            this.columns = new ColumnScanState[values.length];
-            for (int c = 0; c < values.length; c++) {
-                this.columns[c] = new ColumnScanState(values[c].block);
-            }
         }
 
         @Override
@@ -177,8 +198,15 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
         }
 
         private int scanBatchEnd(int batchStart) {
+            IntVector positionsVector = positions.asVector();
+            int positionsMin = positionsVector != null ? positionsVector.min() : -1;
+            int positionsMax = positionsVector != null ? positionsVector.max() : Integer.MAX_VALUE;
+            boolean anyNeedsScan = false;
             for (ColumnScanState column : columns) {
-                column.reset();
+                anyNeedsScan |= column.reset(positionsVector != null, positionsMin, positionsMax);
+            }
+            if (anyNeedsScan == false) {
+                return positions.getPositionCount();
             }
             int scanPos = batchStart;
             int count = 0;
@@ -227,6 +255,8 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
         final Block block;
         private final BytesRefBlock bytesBlock;
         private final int fixedElementBytes;
+        private final boolean isConstantVector;
+        private boolean skipAsConstant;
         private long totalValues;
         private long totalSlots;
         private boolean hasMultiValues;
@@ -236,20 +266,40 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
         ColumnScanState(Block block) {
             this.block = block;
             boolean allNull = block.areAllValuesNull();
+            Vector vector = block.asVector();
+            this.isConstantVector = allNull == false && vector != null && vector.isConstant();
             this.bytesBlock = (allNull == false && block instanceof BytesRefBlock b) ? b : null;
-            this.fixedElementBytes = (allNull || bytesBlock != null || block instanceof CompositeBlock) ? 0 : block.valueMaxByteSize();
+            this.fixedElementBytes = allNull ? 0 : fixedElementBytes(block.elementType());
         }
 
-        void reset() {
+        private static int fixedElementBytes(ElementType type) {
+            return switch (type) {
+                case BOOLEAN -> Byte.BYTES;
+                case INT -> Integer.BYTES;
+                case FLOAT -> Float.BYTES;
+                case LONG -> Long.BYTES;
+                case DOUBLE -> Double.BYTES;
+                case NULL, BYTES_REF, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE,
+                    DOUBLE_RANGE -> 0;
+            };
+        }
+
+        boolean reset(boolean densePositions, int positionsMin, int positionsMax) {
+            int colPosCount = block.getPositionCount();
+            skipAsConstant = isConstantVector
+                && densePositions
+                && positionsMin >= 0
+                && (positionsMin >= colPosCount || positionsMax < colPosCount);
             totalValues = 0;
             totalSlots = 0;
             hasMultiValues = false;
             totalValueBytes = 0;
             fixedLength = UNSET_FIXED_LENGTH;
+            return skipAsConstant == false && (bytesBlock != null || fixedElementBytes != 0);
         }
 
         boolean scanPosition(IntBlock positions, int pStart, int pEnd, int count, BytesRef scratch) {
-            if (bytesBlock == null && fixedElementBytes == 0) {
+            if (skipAsConstant || (bytesBlock == null && fixedElementBytes == 0)) {
                 return true;
             }
             int colPosCount = block.getPositionCount();
@@ -258,6 +308,9 @@ public class ColumnLoadOperator extends AbstractPageMappingToIteratorOperator {
             int posFixed = fixedLength;
             for (int i = pStart; i < pEnd; i++) {
                 int vp = positions.getInt(i);
+                if (vp < 0) {
+                    throw new IllegalArgumentException("invalid position [" + vp + "]");
+                }
                 if (vp < colPosCount) {
                     int vCount = block.getValueCount(vp);
                     valuesForPos += vCount;

@@ -37,6 +37,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertInsertNulls;
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -210,6 +211,39 @@ public class BlockMultiValuedTests extends ESTestCase {
         } finally {
             b.block().close();
         }
+    }
+
+    public void testLookupNegativePositionThrows() {
+        for (int valuePositions : new int[] { 1, 5 }) {
+            var b = RandomBlock.randomBlock(blockFactory(), elementType, valuePositions, nullAllowed, 1, 1, 0, 0);
+            try {
+                try (IntBlock dense = blockFactory().newIntArrayVector(new int[] { 0, -1 }, 2).asBlock()) {
+                    expectNegativePositionLookup(b.block(), dense);
+                }
+                try (IntBlock.Builder pb = blockFactory().newIntBlockBuilder(2)) {
+                    pb.appendInt(-1).appendNull();
+                    try (IntBlock sparse = pb.build()) {
+                        expectNegativePositionLookup(b.block(), sparse);
+                    }
+                }
+            } finally {
+                b.block().close();
+            }
+        }
+    }
+
+    private static void expectNegativePositionLookup(Block values, IntBlock positions) {
+        if (values.areAllValuesNull()) {
+            return;
+        }
+        var e = expectThrows(IllegalArgumentException.class, () -> {
+            try (ReleasableIterator<? extends Block> lookup = values.lookup(positions, ByteSizeValue.ofKb(10))) {
+                while (lookup.hasNext()) {
+                    lookup.next().close();
+                }
+            }
+        });
+        assertThat(e.getMessage(), containsString("invalid position [-1]"));
     }
 
     private void assertSplitBlocksHaveNoSpareCapacity(Block values, int positionCount, ByteSizeValue target) {

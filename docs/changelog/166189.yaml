@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 164188
+pr: 166189
+summary: Publish lazily computed plan fields safely
+type: bug

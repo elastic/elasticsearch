@@ -286,3 +286,25 @@ setup:
           # this is an PIT created with an older Elasticsearch version
           # that cannot exist on this version
           id: "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADa"
+
+---
+"invalid PIT id returns bad request":
+  - requires:
+      cluster_features: ["search.pit.invalid_id_bad_request"]
+      reason: "invalid PIT ids return a 400 instead of a 500"
+
+  # a known transport version followed by a negative shard count
+  - do:
+      catch: bad_request
+      close_point_in_time:
+        body:
+          id: "sKS2BP____8P"
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+
+  - do:
+      catch: bad_request
+      search:
+        body:
+          pit:
+            id: "sKS2BP____8P"
+  - match: { error.root_cause.0.type: illegal_argument_exception }

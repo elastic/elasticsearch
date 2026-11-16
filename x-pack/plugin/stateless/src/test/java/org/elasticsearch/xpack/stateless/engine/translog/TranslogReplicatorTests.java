@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
@@ -48,6 +49,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -101,10 +103,9 @@ public class TranslogReplicatorTests extends ESTestCase {
 
     @Before
     public void createThreadPool() {
-        Settings settings = Settings.builder().put("node.name", TranslogReplicatorTests.class.getSimpleName()).build();
         // TODO: Eventually we will move to more complicated scheduling logic than scheduleAtFixedRate. At that time switch to
         // DeterministicTaskQueue (which does not support scheduleAtFixedRate)
-        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
+        threadPool = new TestThreadPool(TranslogReplicatorTests.class.getSimpleName());
     }
 
     @After
@@ -756,11 +757,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         // create a new thread pool to that has specific time so we can check the total duration histogram
         AtomicLong time = new AtomicLong(0);
-        ThreadPool newThreadPool = new ThreadPool(
-            Settings.builder().put("node.name", TranslogReplicatorTests.class.getSimpleName()).build(),
-            MeterRegistry.NOOP,
-            new DefaultBuiltInExecutorBuilders()
-        ) {
+        ThreadPool newThreadPool = new TestThreadPool(TranslogReplicatorTests.class.getSimpleName()) {
             @Override
             public long relativeTimeInMillis() {
                 return time.get();
@@ -1543,7 +1540,12 @@ public class TranslogReplicatorTests extends ESTestCase {
             .put("node.name", TranslogReplicatorTests.class.getSimpleName())
             .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
             .build();
-        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+        threadPool = new ThreadPool(
+            new ThreadContext(nodeSettings),
+            nodeSettings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        ) {
             @Override
             public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 if (delay.millis() == hedgeDelay.millis()) {
@@ -1621,7 +1623,12 @@ public class TranslogReplicatorTests extends ESTestCase {
             .put("node.name", TranslogReplicatorTests.class.getSimpleName())
             .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
             .build();
-        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+        threadPool = new ThreadPool(
+            new ThreadContext(nodeSettings),
+            nodeSettings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        ) {
             @Override
             public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 if (delay.millis() == hedgeDelay.millis()) {
@@ -1709,7 +1716,12 @@ public class TranslogReplicatorTests extends ESTestCase {
             .put("node.name", TranslogReplicatorTests.class.getSimpleName())
             .put(TranslogReplicator.UPLOAD_HEDGE_DELAY_SETTING.getKey(), hedgeDelay)
             .build();
-        threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
+        threadPool = new ThreadPool(
+            new ThreadContext(nodeSettings),
+            nodeSettings,
+            MeterRegistry.NOOP,
+            new DefaultBuiltInExecutorBuilders()
+        ) {
             @Override
             public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 if (delay.millis() == hedgeDelay.millis()) {

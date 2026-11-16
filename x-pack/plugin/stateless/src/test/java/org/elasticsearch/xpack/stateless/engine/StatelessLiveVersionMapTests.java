@@ -457,8 +457,7 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         long emptyMapActualMemUsed = RamUsageTester.ramUsed(map);
-        IntStream.range(10000, randomIntBetween(10001, 100000))
-            .forEach(i -> { putIndex(map, randomIdentifier(), randomIndexVersionValue()); });
+        IntStream.range(0, randomIntBetween(10000, 100000)).forEach(i -> { putIndex(map, randomIdentifier(), randomIndexVersionValue()); });
         var preRefreshActualMemUsed = RamUsageTester.ramUsed(map);
         var preRefreshCalculatedMemUsed = map.ramBytesUsed();
         // The thresholds used here are based on the ones used in {@link LiveVersionMapTests#testRamBytesUsed()}

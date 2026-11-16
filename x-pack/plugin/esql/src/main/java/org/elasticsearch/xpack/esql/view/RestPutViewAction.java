@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -22,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -57,16 +60,30 @@ public class RestPutViewAction extends BaseRestHandler {
                 view
             );
             boolean validate = request.paramAsBoolean("validate", false);
-            return channel -> SubscribableListener.<Void>newForked(l -> {
-                if (validate) {
-                    // validation runs on current node, actual update below performed on elected master only
-                    client.execute(ValidateViewAction.INSTANCE, new ValidateViewAction.Request(view), l.map(ignored -> null));
-                } else {
-                    l.onResponse(null);
-                }
-            })
-                .<AcknowledgedResponse>andThen((l, ignored) -> client.execute(PutViewAction.INSTANCE, req, l))
-                .addListener(new RestToXContentListener<>(channel));
+            return channel -> {
+                final var warning = new AtomicReference<String>();
+                final var restListener = new RestToXContentListener<AcknowledgedResponse>(channel);
+                SubscribableListener.<Void>newForked(l -> {
+                    if (validate) {
+                        // validation runs on current node, actual update below performed on elected master only
+                        client.execute(ValidateViewAction.INSTANCE, new ValidateViewAction.Request(view), l.map(response -> {
+                            warning.set(response.warning());
+                            return null;
+                        }));
+                    } else {
+                        l.onResponse(null);
+                    }
+                })
+                    .<AcknowledgedResponse>andThen((l, ignored) -> client.execute(PutViewAction.INSTANCE, req, l))
+                    .addListener(ActionListener.wrap(response -> {
+                        // Warnings are added right before the response is sent, in whichever context that happens, because the stages
+                        // above may complete on other threads, or before this listener is subscribed.
+                        if (warning.get() != null) {
+                            HeaderWarning.addWarning("{}", warning.get());
+                        }
+                        restListener.onResponse(response);
+                    }, restListener::onFailure));
+            };
         }
     }
 

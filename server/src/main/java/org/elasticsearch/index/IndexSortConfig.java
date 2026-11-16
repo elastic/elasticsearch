@@ -485,7 +485,8 @@ public final class IndexSortConfig {
 
     private static void validateIndexSortField(SortField sortField) {
         SortField.Type type = getSortFieldType(sortField);
-        if (ALLOWED_INDEX_SORT_TYPES.contains(type) == false) {
+        // Lucene rejects sort fields without an IndexSorter (e.g. custom comparator sources) when the IndexWriter is opened
+        if (ALLOWED_INDEX_SORT_TYPES.contains(type) == false || sortField.getIndexSorter() == null) {
             throw new IllegalArgumentException("invalid index sort field:[" + sortField.getField() + "]");
         }
     }

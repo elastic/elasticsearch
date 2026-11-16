@@ -417,4 +417,11 @@ public class SemanticFieldMapperTests extends AbstractSemanticMapperTestCase<Sem
             assertThat(e.getMessage(), containsString("[search_inference_id] on mapper [field] of type [semantic] must not be empty"));
         }
     }
+
+    @Override
+    protected boolean supportsDynamicallyAddedMultiFields() {
+        // a semantic field can not be created without its inference configuration, so it can not stand in for an existing field in an
+        // update
+        return false;
+    }
 }

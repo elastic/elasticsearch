@@ -76,7 +76,7 @@ public class SearchRecoveryTimeoutCalculationService {
     );
 
     private final RelocationSourceShutdownTimeouts relocationSourceShutdownTimeouts;
-    private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
+    private final RelocationOtherNodeShutdownTimeouts relocationOtherNodeShutdownTimeouts;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingNonRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingReshardTargetTimeout;
@@ -99,10 +99,7 @@ public class SearchRecoveryTimeoutCalculationService {
             nodeSettings,
             maxHeap
         );
-        clusterSettings.initializeAndWatch(
-            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
-            value -> this.searchRecoveryWarmingRelocationWithShutdownTimeout = value
-        );
+        this.relocationOtherNodeShutdownTimeouts = new RelocationOtherNodeShutdownTimeouts(clusterSettings);
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             value -> this.searchRecoveryWarmingRelocationTimeout = value
@@ -184,20 +181,12 @@ public class SearchRecoveryTimeoutCalculationService {
         if (isRelocationTarget(shardRouting)) {
             final String sourceNodeId = shardRouting.relocatingNodeId();
             assert sourceNodeId != null;
+            final String targetNodeId = shardRouting.currentNodeId();
             if (state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId)) {
-                return relocationSourceShutdownTimeouts.relocationSourceShutdownTimeout(
-                    state,
-                    sourceNodeId,
-                    shardRouting.currentNodeId(),
-                    totalBytesToWarm,
-                    previousPlan
-                );
+                return relocationSourceShutdownTimeouts.timeout(state, sourceNodeId, targetNodeId, totalBytesToWarm, previousPlan);
             }
             if (hasShuttingDownSearchNodeWithShards(state)) {
-                return new SearchRecoveryTimeout(
-                    searchRecoveryWarmingRelocationWithShutdownTimeout,
-                    TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
-                );
+                return relocationOtherNodeShutdownTimeouts.timeout();
             }
             return new SearchRecoveryTimeout(
                 searchRecoveryWarmingRelocationTimeout,

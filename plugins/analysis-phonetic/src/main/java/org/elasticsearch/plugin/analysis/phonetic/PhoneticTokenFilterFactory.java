@@ -29,6 +29,7 @@ import org.apache.lucene.analysis.phonetic.PhoneticFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
@@ -41,6 +42,7 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Encoder encoder;
     private final boolean replace;
     private int maxcodelength;
+    private int maxVariations;
     private List<String> languageset;
     private NameType nametype;
     private RuleType ruletype;
@@ -53,8 +55,10 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         this.nametype = null;
         this.ruletype = null;
         this.maxcodelength = 0;
+        this.maxVariations = 0;
         this.isDaitchMokotoff = false;
         this.replace = settings.getAsBoolean("replace", true);
+        boolean legacyHaaseVariations = false;
         // weird, encoder is null at last step in SimplePhoneticAnalysisTests, so we set it to metaphone as default
         String encodername = settings.get("encoder", "metaphone");
         if ("metaphone".equalsIgnoreCase(encodername)) {
@@ -96,9 +100,12 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
                     nametype = NameType.SEPHARDIC;
                 }
             } else if ("koelnerphonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new KoelnerPhonetik();
+                this.maxVariations = maxVariations(settings);
+                this.encoder = new KoelnerPhonetik(maxVariations);
             } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
-                this.encoder = new HaasePhonetik();
+                this.maxVariations = maxVariations(settings);
+                legacyHaaseVariations = indexSettings.getIndexVersionCreated().before(IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS);
+                this.encoder = new HaasePhonetik(maxVariations, legacyHaaseVariations);
             } else if ("nysiis".equalsIgnoreCase(encodername)) {
                 this.encoder = new Nysiis();
             } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
@@ -107,17 +114,37 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             } else {
                 throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
             }
-        // The commons-codec encoders are built with their defaults, so the class identifies the encoding; the
-        // language set is used as a set, so its order and duplicates do not matter.
+        // The encoder classes don't implement equals, so the key identifies an encoder by its class; that
+        // is sound only while every encoder constructor argument (max_variations and the Haase legacy
+        // flag) is itself a key component. The language set is used as a set, so its order and duplicates
+        // do not matter.
         this.sharingKey = new Key(
             encoder == null ? null : encoder.getClass(),
             replace,
             maxcodelength,
+            maxVariations,
             languageset == null ? null : Set.copyOf(languageset),
             nametype,
             ruletype,
-            isDaitchMokotoff
+            isDaitchMokotoff,
+            legacyHaaseVariations
         );
+    }
+
+    // Only the koelnerphonetik and haasephonetik encoders generate spelling variations; the limit is ignored
+    // for every other encoder, like the other encoder-specific settings above.
+    private static int maxVariations(Settings settings) {
+        int maxVariations = settings.getAsInt("max_variations", KoelnerPhonetik.DEFAULT_MAX_VARIATIONS);
+        if (maxVariations < 1 || maxVariations > KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND) {
+            throw new IllegalArgumentException(
+                "[max_variations] must be between 1 and "
+                    + KoelnerPhonetik.MAX_VARIATIONS_UPPER_BOUND
+                    + " for phonetic token filter, got ["
+                    + maxVariations
+                    + "]"
+            );
+        }
+        return maxVariations;
     }
 
     @Override
@@ -156,9 +183,12 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         Class<? extends Encoder> encoder,
         boolean replace,
         int maxCodeLength,
+        int maxVariations,
         Set<String> languageSet,
         NameType nameType,
         RuleType ruleType,
-        boolean daitchMokotoff
+        boolean daitchMokotoff,
+        // Derived from the index version rather than a setting: the encoder class alone can't tell legacy and fixed haasephonetik apart.
+        boolean legacyHaaseVariations
     ) {}
 }

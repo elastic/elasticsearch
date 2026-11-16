@@ -5,7 +5,7 @@ import { StringDecoder } from "string_decoder";
 import { join } from "path";
 import sax from "sax";
 
-export type FailureKind = "assertion" | "suite-timeout" | "error" | "other";
+export type FailureKind = "assertion" | "suite-timeout" | "temp-dir-exhausted" | "error" | "other";
 
 export interface FailureEntry {
   type: string;
@@ -34,15 +34,21 @@ export interface BatchSummary {
   totalCases: number;
   failed: number;
   suiteTimeoutMarkers: number;
+  tempDirExhaustedMarkers: number;
 }
 
 export interface FlakinessReport {
   batches: BatchSummary[];
   perTest: TestSummary[];
+  // Classes with at least one temp-dir-exhausted marker, in first-seen order.
+  // Those markers are not real failures, so they never reach `perTest`; this
+  // names the classes that need fewer temp dirs per iteration.
+  tempDirExhaustedClasses: string[];
   totals: {
     iterations: number;
     realFailures: number;
     suiteTimeoutMarkers: number;
+    tempDirExhaustedMarkers: number;
     successfulCases: number;
   };
 }
@@ -51,6 +57,13 @@ const SUITE_TIMEOUT_PATTERNS = [
   "Test abandoned because suite timeout was reached.",
   "Suite timeout exceeded (>= ",
 ];
+
+// Lucene's TestRuleTemporaryFilesCleanup gives up once 9999 temp dirs with the
+// same prefix exist in a suite's temp directory, which is only emptied when the
+// suite ends. Every remaining iteration of the suite then fails with this
+// message: a test-harness limit, not flakiness. CommandBuilder caps iterations
+// per Gradle run to avoid it; this catches classes that hit it regardless.
+const TEMP_DIR_EXHAUSTED_PATTERN = "Failed to get a temporary name too many times";
 
 const SKIP_DIRS = new Set([
   "node_modules", ".git", ".gradle", "dist", "out",
@@ -80,6 +93,7 @@ export function classifyFailure(f: FailureEntry): FailureKind {
   for (const pat of SUITE_TIMEOUT_PATTERNS) {
     if (msg.includes(pat)) return "suite-timeout";
   }
+  if (msg.includes(TEMP_DIR_EXHAUSTED_PATTERN)) return "temp-dir-exhausted";
   const type = f.type ?? "";
   if (type.endsWith("AssertionError") || type.includes(".AssertionError")) {
     return "assertion";
@@ -117,6 +131,8 @@ interface AggregateState {
   perTestMap: Map<string, TestSummary>;
   realFailures: number;
   suiteTimeoutMarkers: number;
+  tempDirExhaustedMarkers: number;
+  tempDirExhaustedClasses: Set<string>;
   successfulCases: number;
 }
 
@@ -285,6 +301,7 @@ function streamParseReport(file: string, state: AggregateState): Promise<BatchSu
 
     let batchFailed = 0;
     let batchTimeout = 0;
+    let batchTempDirExhausted = 0;
     let batchTotalCases = 0;
     let curCase: CurrentCase | null = null;
 
@@ -362,6 +379,10 @@ function streamParseReport(file: string, state: AggregateState): Promise<BatchSu
           if (kind === "suite-timeout") {
             state.suiteTimeoutMarkers += 1;
             batchTimeout += 1;
+          } else if (kind === "temp-dir-exhausted") {
+            state.tempDirExhaustedMarkers += 1;
+            state.tempDirExhaustedClasses.add(curCase.entry.className);
+            batchTempDirExhausted += 1;
           } else {
             state.realFailures += 1;
             curCase.entry.failures += 1;
@@ -389,6 +410,7 @@ function streamParseReport(file: string, state: AggregateState): Promise<BatchSu
         totalCases: batchTotalCases,
         failed: batchFailed,
         suiteTimeoutMarkers: batchTimeout,
+        tempDirExhaustedMarkers: batchTempDirExhausted,
       });
     });
 
@@ -406,6 +428,8 @@ export async function analyzeReports(
     perTestMap: new Map(),
     realFailures: 0,
     suiteTimeoutMarkers: 0,
+    tempDirExhaustedMarkers: 0,
+    tempDirExhaustedClasses: new Set(),
     successfulCases: 0,
   };
   const batches: BatchSummary[] = [];
@@ -424,10 +448,12 @@ export async function analyzeReports(
   return {
     batches,
     perTest: [...state.perTestMap.values()],
+    tempDirExhaustedClasses: [...state.tempDirExhaustedClasses],
     totals: {
-      iterations: state.successfulCases + state.realFailures + state.suiteTimeoutMarkers,
+      iterations: state.successfulCases + state.realFailures + state.suiteTimeoutMarkers + state.tempDirExhaustedMarkers,
       realFailures: state.realFailures,
       suiteTimeoutMarkers: state.suiteTimeoutMarkers,
+      tempDirExhaustedMarkers: state.tempDirExhaustedMarkers,
       successfulCases: state.successfulCases,
     },
   };

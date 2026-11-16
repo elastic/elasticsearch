@@ -469,26 +469,36 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
      * {@link StringBinaryPayload}. This is the ingest path — the mapper writes that format precisely so the
      * count travels with the bytes — and the merge fallback for a segment written by some other
      * implementation of this surface.
+     *
+     * <p>A document's payload is split the first time something asks about its slots, not when the cursor
+     * lands on it. On ingest {@code binaryValue()} copies the payload out of the indexing buffer, so a pass that
+     * only walks the documents — writing a sparse column's presence — pays for no copy and no split. The
+     * payload stays valid until the field moves on, so asking later reads the same bytes asking at once would.
      */
     public static StringColumnValues decodePayloads(BinaryDocValues binary) {
         return new StringColumnValues() {
 
             private final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+            /** Whether the document the field is on has been split; cleared on every move. */
+            private boolean split;
             private int count;
             private BytesRef slot;
 
             @Override
-            public int valueCount() {
+            public int valueCount() throws IOException {
+                split();
                 return count;
             }
 
             @Override
             public int nullCount() throws IOException {
+                split();
                 return decoder.nullSlotCount();
             }
 
             @Override
             public void nextValue() throws IOException {
+                split();
                 slot = decoder.next();
             }
 
@@ -504,12 +514,14 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
 
             @Override
             public int nextDoc() throws IOException {
-                return position(binary.nextDoc());
+                split = false;
+                return binary.nextDoc();
             }
 
             @Override
             public int advance(int target) throws IOException {
-                return position(binary.advance(target));
+                split = false;
+                return binary.advance(target);
             }
 
             @Override
@@ -517,11 +529,12 @@ public final class ColumnarStringBinaryDocValues extends BinaryDocValues impleme
                 return binary.cost();
             }
 
-            private int position(int doc) throws IOException {
-                if (doc != DocIdSetIterator.NO_MORE_DOCS) {
+            /** Splits the current document's payload, once per document. */
+            private void split() throws IOException {
+                if (split == false) {
                     count = decoder.reset(binary.binaryValue());
+                    split = true;
                 }
-                return doc;
             }
 
         };

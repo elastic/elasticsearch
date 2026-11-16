@@ -2813,4 +2813,35 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             assertThat(i.status(), equalTo(RestStatus.CREATED));
         }
     }
+
+    public void testColumnarGeoShapeRespectsFieldLevelSecurity() {
+        assertAcked(
+            indicesAdmin().prepareCreate("doc_index")
+                .setMapping("field1", "type=text", "field2", "type=geo_shape")
+                .setSettings(Settings.builder().put("index.mode", "columnar").build())
+        );
+        prepareIndex("doc_index").setId("1")
+            .setSource("field1", "visible", "field2", "POINT (12.34 56.78)")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD))).prepareSearch("doc_index"),
+            response -> {
+                assertHitCount(response, 1);
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.get("field1"), equalTo("visible"));
+                assertThat(source.get("field2"), equalTo("POINT (12.34 56.78)"));
+            }
+        );
+        assertResponse(
+            client().filterWithHeader(Map.of(BASIC_AUTH_HEADER, basicAuthHeaderValue("user9", USERS_PASSWD))).prepareSearch("doc_index"),
+            response -> {
+                assertHitCount(response, 1);
+                var source = response.getHits().getHits()[0].getSourceAsMap();
+                assertThat(source.get("field1"), equalTo("visible"));
+                assertThat(source.get("field2"), nullValue());
+            }
+        );
+    }
 }

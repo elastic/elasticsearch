@@ -235,6 +235,14 @@ EOF
 
 <summary>Agent information from gobld</summary>
 EOF
+
+  if [[ "${BUILDKITE_PIPELINE_SLUG:-}" == "elasticsearch-pull-request" ]]; then
+    cat << EOF | buildkite-agent annotate --context "jacoco-reports" --style "info"
+<details>
+
+<summary>JaCoCo coverage reports</summary>
+EOF
+  fi
 fi
 
 # =============================================================================

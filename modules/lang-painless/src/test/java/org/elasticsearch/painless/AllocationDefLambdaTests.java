@@ -1186,6 +1186,17 @@ public class AllocationDefLambdaTests extends AllocationTestCase {
             Need.NEVER
         ),
         new Body(
+            "for-each over doc values",
+            "",
+            "",
+            "int n = 0; for (def v : params.kw) { n++; } return n;",
+            "1",
+            "int n = params.kw.size(); return n;",
+            "1",
+            AllocSizes.ITERATOR_BYTES + AllocationEstimators.termDecodeBytes(5),
+            Need.NEVER
+        ),
+        new Body(
             "user function call",
             "def g(def s) { return s.substring(0, 3); } ",
             "def s = 'abcdef';",

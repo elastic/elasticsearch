@@ -70,6 +70,11 @@ public class TimeSeriesWithoutTests extends AbstractScalarFunctionTestCase {
         // WITHOUT requires time-series dimension field attributes, so it can't be resolved or folded from literals.
     }
 
+    @Override
+    public void testFoldAnyNullIsNullWithoutFoldNull() {
+        // WITHOUT requires time-series dimension field attributes, so it can't be resolved or folded from literals.
+    }
+
     public void testResolveTypeAcceptsDimensionFields() {
         TimeSeriesWithout without = new TimeSeriesWithout(Source.EMPTY, List.of(dimension("pod"), dimension("host")));
         assertThat(without.resolveType().resolved(), equalTo(true));

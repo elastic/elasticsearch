@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.simdjson.JsonDocumentHandler;
 import org.elasticsearch.sourcebatch.KeyValueWriter;
 import org.elasticsearch.sourcebatch.LeafSink;
@@ -172,7 +173,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             return;
         }
         byte type = fitsFloat ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
-        int colIdx = row.doubleField(fieldName, value);
+        int colIdx = row.doubleField(fieldName, value, lexicalForm(value, srcBuf, srcOff, srcLen));
         if (rawTextMode) {
             sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen));
         } else if (firePathSink) {
@@ -269,6 +270,32 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             elemNumeric[elemCount] = Double.doubleToRawLongBits(value);
         }
         elemCount++;
+    }
+
+    /**
+     * The token's spelling when it is not the canonical {@code Double.toString} rendering of {@code value}, which
+     * readers fall back to; else {@code null}, so that nothing is stored for the common case.
+     */
+    @Nullable
+    private static XContentString.UTF8Bytes lexicalForm(double value, byte[] srcBuf, int srcOff, int srcLen) {
+        // Check if we need to store the spelling, comparing the rendering against the token bytes in place.
+        if (isCanonical(Double.toString(value), srcBuf, srcOff, srcLen)) {
+            return null;
+        }
+        return new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);
+    }
+
+    /** Whether the {@code len} ASCII bytes at {@code off} read exactly as {@code canonical}. */
+    private static boolean isCanonical(String canonical, byte[] bytes, int off, int len) {
+        if (canonical.length() != len) {
+            return false;
+        }
+        for (int i = 0; i < len; i++) {
+            if (canonical.charAt(i) != (char) (bytes[off + i] & 0xFF)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

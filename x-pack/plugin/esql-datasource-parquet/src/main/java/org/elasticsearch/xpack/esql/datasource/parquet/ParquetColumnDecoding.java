@@ -716,8 +716,9 @@ final class ParquetColumnDecoding {
     }
 
     /**
-     * Applies {@link #encodeUnsignedLong(long)} to the first {@code count} values in place. Null slots within the range
-     * hold undefined bits but are masked out by the caller, so encoding them is harmless.
+     * Applies {@link #encodeUnsignedLong(long)} to the first {@code count} values in place. A null slot in the range is
+     * encoded too, which is harmless because the caller has already defined it: being masked is not enough on its own,
+     * since serialization writes every position whatever the mask says. See {@link ValueArrays}.
      */
     static void encodeUnsignedLongInPlace(long[] values, int count) {
         for (int i = 0; i < count; i++) {

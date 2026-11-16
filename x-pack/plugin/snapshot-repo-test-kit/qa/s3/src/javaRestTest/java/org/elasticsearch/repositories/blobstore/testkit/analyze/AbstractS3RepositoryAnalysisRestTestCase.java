@@ -90,7 +90,7 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
             .keystore(clientPrefix + "access_key", System.getProperty("s3AccessKey"))
             .keystore(clientPrefix + "secret_key", System.getProperty("s3SecretKey"))
             .setting(clientPrefix + "protocol", () -> "http", n -> USE_FIXTURE)
-            .setting(clientPrefix + "region", regionSupplier, n -> USE_FIXTURE)
+            .setting(clientPrefix + "region", USE_FIXTURE ? regionSupplier : () -> System.getProperty("test.s3.region"))
             .setting(clientPrefix + "add_purpose_custom_query_parameter", () -> randomFrom("true", "false"), n -> randomBoolean())
             .setting(clientPrefix + "endpoint", s3HttpFixture::getAddress, n -> USE_FIXTURE)
             .setting(
@@ -109,6 +109,7 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
     protected Settings repositorySettings() {
         final String bucket = System.getProperty("test.s3.bucket");
         assertThat(bucket, not(blankOrNullString()));
+        assertThat(System.getProperty("test.s3.region"), not(blankOrNullString()));
 
         final String basePath = System.getProperty("test.s3.base_path");
         assertThat(basePath, not(blankOrNullString()));

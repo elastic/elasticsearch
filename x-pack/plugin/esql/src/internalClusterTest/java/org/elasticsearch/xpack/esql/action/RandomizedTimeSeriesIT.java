@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -63,6 +64,7 @@ import static org.hamcrest.Matchers.not;
 
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
+@LuceneTestCase.SuppressCodecs("*") // require production codecs
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     private static final Long NUM_DOCS = 2000L;
     private static final Long TIME_RANGE_SECONDS = 3600L;

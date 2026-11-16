@@ -100,6 +100,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-distribution-bwc-setup'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin'
     }
+    internalDistributionPackageCheck {
+      id = 'elasticsearch.internal-distribution-package-check'
+      implementationClass = 'org.elasticsearch.gradle.internal.distribution.InternalDistributionPackageCheckPlugin'
+    }
     internalDistributionDownload {
       id = 'elasticsearch.internal-distribution-download'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin'
@@ -236,9 +240,9 @@ gradlePlugin {
       id = 'elasticsearch.yaml-rest-compat-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin'
     }
-    cacheTestFixtures {
-        id = 'elasticsearch.cache-test-fixtures'
-        implementationClass = 'org.elasticsearch.gradle.internal.packer.CacheTestFixtureResourcesPlugin'
+    dockerImageCache {
+        id = 'elasticsearch.docker-image-cache'
+        implementationClass = 'org.elasticsearch.gradle.internal.docker.DockerImageCachePlugin'
     }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'

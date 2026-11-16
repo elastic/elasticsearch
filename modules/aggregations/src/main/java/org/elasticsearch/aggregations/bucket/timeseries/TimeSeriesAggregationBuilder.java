@@ -12,6 +12,8 @@ package org.elasticsearch.aggregations.bucket.timeseries;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -31,6 +33,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<TimeSeriesAggregationBuilder> {
     public static final String NAME = "time_series";
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TimeSeriesAggregationBuilder.class);
+    public static final String DEPRECATION_MESSAGE = "The [time_series] aggregation, and the aggregations that rely on it "
+        + "(such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed "
+        + "in a future version. Use the ES|QL [TS] command instead.";
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
     public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final InstantiatingObjectParser<TimeSeriesAggregationBuilder, String> PARSER;
@@ -62,6 +68,7 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     @ParserConstructor
     public TimeSeriesAggregationBuilder(String name, Boolean keyed, Integer size) {
         super(name);
+        DEPRECATION_LOGGER.warn(DeprecationCategory.AGGREGATIONS, "time-series-aggregation", DEPRECATION_MESSAGE);
         this.keyed = keyed != null ? keyed : true;
         this.size = size != null ? size : DEFAULT_SIZE;
     }

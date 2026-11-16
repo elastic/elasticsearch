@@ -188,7 +188,7 @@ public class RecursiveChunkingSettings implements ChunkingSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return null; // TODO: Add transport version
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

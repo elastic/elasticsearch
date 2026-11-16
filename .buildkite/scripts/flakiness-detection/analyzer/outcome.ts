@@ -9,7 +9,7 @@ export interface OutcomeInput {
   rc: number;
   // Wall-clock seconds the wrapped command ran (captured by the wrapper).
   durationSec: number;
-  // Real (non-suite-timeout) failing test cases recorded in this job's XML.
+  // Real (non-suite-timeout, non-temp-dir-exhausted) failing test cases recorded in this job's XML.
   realFailures: number;
   // Total <testcase> elements recorded in this job's XML.
   totalCases: number;

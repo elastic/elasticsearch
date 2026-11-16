@@ -7,12 +7,20 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ExemplarsRewriterTests extends ESTestCase {
 
@@ -72,7 +80,74 @@ public class ExemplarsRewriterTests extends ESTestCase {
         );
     }
 
+    public void testKeepsResolutionWithoutNonTimeSeriesIndices() {
+        EsIndex esIndex = exemplarsIndex(Map.of(".ds-exemplars-cpu-2026.10.08-000001", IndexMode.TIME_SERIES));
+
+        assertSame(esIndex, ExemplarsRewriter.timeSeriesIndicesOnly(esIndex));
+    }
+
+    public void testDropsNonTimeSeriesIndices() {
+        EsIndex esIndex = exemplarsIndex(
+            Map.of(
+                ".ds-exemplars-cpu-2026.10.01-000001",
+                IndexMode.STANDARD,
+                ".ds-exemplars-cpu-2026.10.08-000002",
+                IndexMode.TIME_SERIES,
+                "remote:.ds-exemplars-memory-2026.10.08-000001",
+                IndexMode.LOGSDB
+            )
+        );
+
+        EsIndex filtered = ExemplarsRewriter.timeSeriesIndicesOnly(esIndex);
+
+        assertNotNull(filtered);
+        assertEquals(Set.of(".ds-exemplars-cpu-2026.10.08-000002"), filtered.indexProperties().keySet());
+        // The surviving index is local, so the remote cluster is left without one and the compute service skips it.
+        assertEquals(Map.of("", List.of(".ds-exemplars-cpu-2026.10.08-000002")), filtered.concreteIndices());
+        // The patterns to resolve shards from are untouched; the concrete indices select from what they resolve to.
+        assertEquals(esIndex.originalIndices(), filtered.originalIndices());
+        assertEquals(esIndex.name(), filtered.name());
+        assertEquals(esIndex.mapping(), filtered.mapping());
+        assertWarnings(
+            "[exemplars] skipped [.ds-exemplars-cpu-2026.10.01-000001, remote:.ds-exemplars-memory-2026.10.08-000001]: "
+                + "exemplars indices must be time series indices"
+        );
+    }
+
+    public void testDropsResolutionWithoutAnyTimeSeriesIndex() {
+        EsIndex esIndex = exemplarsIndex(Map.of(".ds-exemplars-cpu-2026.10.08-000001", IndexMode.STANDARD));
+
+        assertNull(ExemplarsRewriter.timeSeriesIndicesOnly(esIndex));
+        assertWarnings("[exemplars] skipped [.ds-exemplars-cpu-2026.10.08-000001]: exemplars indices must be time series indices");
+    }
+
+    /**
+     * An index whose mappings resolved to nothing carries no index properties at all, so there is nothing to filter and nothing to
+     * warn about.
+     */
+    public void testKeepsResolutionWithoutIndexProperties() {
+        EsIndex esIndex = exemplarsIndex(Map.of());
+
+        assertSame(esIndex, ExemplarsRewriter.timeSeriesIndicesOnly(esIndex));
+    }
+
     private static IndexResolution resolution(Map<String, List<String>> concreteIndices) {
         return IndexResolution.valid(new EsIndex("metrics-*", Map.of(), Map.of(), concreteIndices, concreteIndices));
+    }
+
+    /**
+     * An exemplars resolution over the given concrete indices, named as {@code _field_caps} reports them: qualified with the cluster
+     * alias in the index properties and unqualified under it in the concrete indices.
+     */
+    private static EsIndex exemplarsIndex(Map<String, IndexMode> indexModes) {
+        Map<String, IndexProperties> indexProperties = new HashMap<>();
+        Map<String, List<String>> concreteIndices = new HashMap<>();
+        indexModes.forEach((index, mode) -> {
+            indexProperties.put(index, new IndexProperties(mode, 1));
+            var split = RemoteClusterAware.splitIndexName(index);
+            concreteIndices.computeIfAbsent(split.getClusterGroupingKey(), cluster -> new ArrayList<>()).add(split.indexExpression());
+        });
+        EsField value = new EsField("value", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        return new EsIndex("exemplars-*", Map.of("value", value), indexProperties, Map.of("", List.of("exemplars-*")), concreteIndices);
     }
 }

@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -150,6 +151,27 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
                     + "] cannot be cast to [java.lang.String]"
             )
         );
+    }
+
+    public void testMalformedFieldFailsAtExecutionTime() {
+        // creating the processor is fine, it is only when it is used that it fails
+        Processor processor = newProcessor("a..b", false, "target");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
+    public void testMalformedTargetFieldFailsAtExecutionTime() {
+        String fieldValue;
+        do {
+            fieldValue = modifyInput(RandomDocumentPicks.randomString(random()));
+        } while (isSupportedValue(fieldValue) == false);
+        // the source field has to be fine, so that it's the target field that causes the problem
+        Processor processor = newProcessor("source", false, "a..b");
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("source", fieldValue);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 
     public void testTargetField() throws Exception {

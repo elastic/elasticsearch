@@ -15,8 +15,10 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -27,11 +29,13 @@ import org.elasticsearch.index.codec.bwc.ES93TSDBDefaultCompressionLucene103Code
 import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
@@ -69,8 +73,9 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
 
         final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         final IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertTrue(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            assertTrue(canPartitionByTsidPrefix(searcher));
+            assertTrue(PartitionedDocValues.canPartitionByTsidPrefix(shard.indexSettings().getIndexVersionCreated()));
             PartitionedDocValues.PrefixPartitions partition = null;
             for (LeafReaderContext leaf : searcher.getLeafContexts()) {
                 final SortedDocValues dv = leaf.reader().getSortedDocValues("_tsid");
@@ -103,8 +108,9 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
 
         final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(indexName));
         final IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assertFalse(PartitionedDocValues.canPartitionByTsidPrefix(searcher));
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            assertFalse(PartitionedDocValues.canPartitionByTsidPrefix(shard.indexSettings().getIndexVersionCreated()));
+            assertFalse(canPartitionByTsidPrefix(searcher));
         }
     }
 
@@ -202,7 +208,7 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
         indicesAdmin().flush(new FlushRequest(indexName).force(true)).actionGet();
         indicesAdmin().prepareRefresh(indexName).get();
 
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             final List<LeafReaderContext> leaves = searcher.getDirectoryReader().leaves();
             assertThat(leaves.size(), greaterThan(0));
 
@@ -222,5 +228,20 @@ public abstract class AbstractTSDBDocValuesFormatSingleNodeTests extends ESSingl
                 }
             }
         }
+    }
+
+    static boolean canPartitionByTsidPrefix(IndexSearcher searcher) throws IOException {
+        for (LeafReaderContext leafContext : searcher.getLeafContexts()) {
+            var sortedDV = leafContext.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
+            // empty segment or fully deleted segment
+            if (sortedDV == null || sortedDV.getValueCount() == 0) {
+                continue;
+            }
+            if (sortedDV instanceof PartitionedDocValues partition && partition.prefixPartitionBits() > 0) {
+                continue;
+            }
+            return false;
+        }
+        return true;
     }
 }

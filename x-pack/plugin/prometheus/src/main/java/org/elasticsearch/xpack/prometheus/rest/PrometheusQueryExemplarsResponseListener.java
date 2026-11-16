@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -68,23 +69,6 @@ class PrometheusQueryExemplarsResponseListener implements ActionListener<EsqlQue
      * If required, we could make this a setting instead.
      * */
     private static final List<String> EXEMPLAR_LABEL_OBJECTS = List.of("filtered_attributes", "exemplar_labels");
-
-    private static final String BREAKER_LABEL = "prometheus_query_exemplars";
-
-    private static final long STRINGMAP_SHALLOW_RAM_BYTES = RamUsageEstimator.shallowSizeOfInstance(HashMap.class);
-
-    /** The memory of a label in a map of labels, apart from the characters of its name and value. */
-    private static final long STRINGMAP_ENTRY_SHALLOW_RAM_BYTES = RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + 2 * (RamUsageEstimator
-        .shallowSizeOfInstance(String.class) + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER);
-
-    /** The memory of a series in the map of exemplars by series, apart from its labels. */
-    private static final long SERIES_SHALLOW_RAM_BYTES = RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + RamUsageEstimator
-        .shallowSizeOfInstance(ArrayList.class) + STRINGMAP_SHALLOW_RAM_BYTES;
-
-    /** The memory of an exemplar in the list of exemplars of its series, apart from its labels. */
-    private static final long EXEMPLAR_SHALLOW_RAM_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.shallowSizeOfInstance(
-        Exemplar.class
-    ) + STRINGMAP_SHALLOW_RAM_BYTES;
 
     private final RestChannel channel;
     private final CircuitBreaker breaker;
@@ -152,8 +136,7 @@ class PrometheusQueryExemplarsResponseListener implements ActionListener<EsqlQue
         long startMillis = start.toEpochMilli();
         long endMillis = end.toEpochMilli();
         Map<Map<String, String>, List<Exemplar>> exemplarsBySeries = new HashMap<>();
-        long reservedBytes = 0;
-        try {
+        try (ExemplarsCircuitBreaker exemplarsBreaker = new ExemplarsCircuitBreaker(breaker)) {
             for (Page page : pages) {
                 for (int position = 0; position < page.getPositionCount(); position++) {
                     Long timestamp = cols.timestamp.readTimestampMillis(page, position);
@@ -176,35 +159,80 @@ class PrometheusQueryExemplarsResponseListener implements ActionListener<EsqlQue
                         cols.spanId.readString(page, position)
                     );
                     List<Exemplar> exemplars = exemplarsBySeries.get(seriesLabels);
-                    long bytes = EXEMPLAR_SHALLOW_RAM_BYTES + estimateLabelsRamBytes(exemplarLabels);
                     if (exemplars == null) {
-                        bytes += SERIES_SHALLOW_RAM_BYTES + estimateLabelsRamBytes(seriesLabels);
-                    }
-                    breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
-                    reservedBytes += bytes;
-                    if (exemplars == null) {
+                        exemplarsBreaker.addTimeSeriesBytes(seriesLabels);
                         exemplars = new ArrayList<>();
                         exemplarsBySeries.put(seriesLabels, exemplars);
                     }
+                    exemplarsBreaker.addExemplarBytes(exemplarLabels);
                     exemplars.add(new Exemplar(exemplarLabels, value.doubleValue(), timestamp));
                 }
             }
             return buildResponse(exemplarsBySeries);
-        } finally {
-            breaker.addWithoutBreaking(-reservedBytes);
         }
     }
 
     /**
-     * A cheap estimate of the memory of the entries of a map of labels, counting a byte per character like compact Latin-1 strings
-     * do, which is cheaper than {@link RamUsageEstimator#sizeOfMap}.
+     * Accounts for the memory of the exemplars grouped by series in a circuit breaker, and releases all of it once closed.
      */
-    private static long estimateLabelsRamBytes(Map<String, String> labels) {
-        long bytes = 0;
-        for (Map.Entry<String, String> label : labels.entrySet()) {
-            bytes += STRINGMAP_ENTRY_SHALLOW_RAM_BYTES + label.getKey().length() + label.getValue().length();
+    private static final class ExemplarsCircuitBreaker implements Releasable {
+        private static final String BREAKER_LABEL = "prometheus_query_exemplars";
+
+        private static final long STRINGMAP_SHALLOW_RAM_BYTES = RamUsageEstimator.shallowSizeOfInstance(HashMap.class);
+
+        /** The memory of a label in a map of labels, apart from the characters of its name and value. */
+        private static final long STRINGMAP_ENTRY_SHALLOW_RAM_BYTES = RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + 2
+            * (RamUsageEstimator.shallowSizeOfInstance(String.class) + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER);
+
+        /** The memory of a series in the map of exemplars by series, apart from its labels. */
+        private static final long SERIES_SHALLOW_RAM_BYTES = RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + RamUsageEstimator
+            .shallowSizeOfInstance(ArrayList.class) + STRINGMAP_SHALLOW_RAM_BYTES;
+
+        /** The memory of an exemplar in the list of exemplars of its series, apart from its labels. */
+        private static final long EXEMPLAR_SHALLOW_RAM_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator
+            .shallowSizeOfInstance(Exemplar.class) + STRINGMAP_SHALLOW_RAM_BYTES;
+
+        private final CircuitBreaker breaker;
+        private long reservedBytes;
+
+        ExemplarsCircuitBreaker(CircuitBreaker breaker) {
+            this.breaker = breaker;
         }
-        return bytes;
+
+        /** Reserves the memory of an exemplar, including its labels and its reference in its series' exemplar list. */
+        void addExemplarBytes(Map<String, String> labels) {
+            addEstimateBytesAndMaybeBreak(EXEMPLAR_SHALLOW_RAM_BYTES + estimateLabelsRamBytes(labels));
+        }
+
+        /** Reserves the memory of a series, including its labels and its exemplar list. */
+        void addTimeSeriesBytes(Map<String, String> labels) {
+            addEstimateBytesAndMaybeBreak(SERIES_SHALLOW_RAM_BYTES + estimateLabelsRamBytes(labels));
+        }
+
+        @Override
+        public void close() {
+            if (reservedBytes > 0) {
+                breaker.addWithoutBreaking(-reservedBytes);
+                reservedBytes = 0;
+            }
+        }
+
+        private void addEstimateBytesAndMaybeBreak(long bytes) {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+            reservedBytes += bytes;
+        }
+
+        /**
+         * A cheap estimate of the memory of the entries of a map of labels, counting a byte per character like compact Latin-1 strings
+         * do, which is cheaper than {@link RamUsageEstimator#sizeOfMap}.
+         */
+        private static long estimateLabelsRamBytes(Map<String, String> labels) {
+            long bytes = 0;
+            for (Map.Entry<String, String> label : labels.entrySet()) {
+                bytes += STRINGMAP_ENTRY_SHALLOW_RAM_BYTES + label.getKey().length() + label.getValue().length();
+            }
+            return bytes;
+        }
     }
 
     /** The response of a query that selects no series. */

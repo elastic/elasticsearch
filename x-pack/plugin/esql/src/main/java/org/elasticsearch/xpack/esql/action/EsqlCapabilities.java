@@ -1792,6 +1792,12 @@ public class EsqlCapabilities {
          */
         VIEWS_EXPLICIT_INCLUDE_EXCLUDE_FIX,
         /**
+         * Fixed a bug where a view or subquery over a bare time-series aggregation, such as
+         * {@code TS k8s | STATS rate(x) BY tbucket}, dropped the implicit {@code _timeseries} column when it was kept
+         * as its own branch, e.g. when the caller sets {@code unmapped_fields}.
+         */
+        VIEWS_IMPLICIT_TIMESERIES_COLUMN_FIX,
+        /**
          * Makes views not visible on remote clusters / linked projects
          */
         VIEWS_NOT_DISCOVERABLE_ON_REMOTES,
@@ -4553,8 +4559,9 @@ public class EsqlCapabilities {
 
         /**
          * Streaming execution on {@code POST /_query}: the {@code streaming} URL parameter is
-         * accepted, and with {@code format=ndjson} the response streams header / pages / footer
-         * as NDJSON as rows are produced.
+         * accepted, and with {@code format=ndjson} the response streams a columns line, one line
+         * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows
+         * are produced.
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING(Build.current().isSnapshot()),

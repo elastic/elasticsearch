@@ -41,6 +41,10 @@ for i in {1..3}; do
     aws s3 sync lucene-snapshot/ "s3://download.elasticsearch.org/lucenesnapshots/$LUCENE_SHA/" --acl public-read && break || sleep 5
 done
 
-if [[ "${UPDATE_ES_LUCENE_SNAPSHOT:-}" == "true" ]]; then
+# TARGET_BRANCH set (agentic path): S3 only. update-es-snapshot.sh pushes on
+# lucene_snapshot* and rejects main; Archimedes owns the ES bump after this.
+if [[ -n "${TARGET_BRANCH:-}" ]]; then
+  echo "--- Skipping update-es-snapshot.sh (TARGET_BRANCH=${TARGET_BRANCH}; Archimedes lucene-snapshot-update owns the bump)"
+elif [[ "${UPDATE_ES_LUCENE_SNAPSHOT:-}" == "true" ]]; then
   .buildkite/scripts/lucene-snapshot/update-es-snapshot.sh
 fi

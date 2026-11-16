@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -50,11 +51,12 @@ import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.ROW_COUNT
 import static org.elasticsearch.xpack.core.async.AsyncResultPagesIndex.TRANSPORT_VERSION_FIELD;
 
 /**
- * Stores the result of a streaming query while it is streamed. Page {@code 0}, the {@link StoredResultMetadata}, is written
- * first and rewritten once the query is done, and the index is then refreshed so that the whole result is visible. Each page
- * of rows is serialized straight into a columnar batch as it is handed to the client, at the cluster's minimum transport
- * version so that any node can read it, and indexed in the background, one bulk at a time. Producers are held back while too
- * many serialized bytes wait for a bulk to be acknowledged.
+ * Stores the result of a streaming query while it is streamed. Each page is serialized into a columnar batch as it is handed to
+ * the client, at the cluster's minimum transport version so that any node can read it, and indexed in the background, one bulk
+ * at a time. Producers are held back while too many bytes wait for a bulk to be acknowledged.
+ * <p>
+ * Page {@code 0}, the {@link StoredResultMetadata}, is written first and rewritten with how the query ended, in a last bulk that
+ * refreshes the result's shard. If storing fails, the pages not sent yet are dropped and page {@code 0} says so.
  */
 final class StoredResultWriter implements PageStreamPublisher.PageObserver {
 
@@ -86,14 +88,15 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     private final long expirationTime;
     private final PageStreamPublisher publisher;
 
-    // Guarded by this
+    // Guarded by this; unackedBytes and failure are also read without it, by hasCapacity
     private final ArrayDeque<Chunk> chunks = new ArrayDeque<>();
-    private long unackedBytes;
+    private volatile long unackedBytes;
     private boolean bulkInFlight;
     private int nextSeq = 1;
     private long nextRow;
+    // no page is added once finished
     private boolean finished;
-    private Exception failure;
+    private volatile Exception failure;
 
     StoredResultWriter(
         Client client,
@@ -125,7 +128,8 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     @Override
     public void onPage(Page page) {
         synchronized (this) {
-            if (failure == null) {
+            // a page can still be delivered while the stream is cancelled
+            if (finished == false) {
                 add(nextSeq, nextRow, page.getPositionCount(), page, DocWriteRequest.OpType.CREATE, false);
                 nextSeq++;
                 nextRow += page.getPositionCount();
@@ -135,7 +139,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     }
 
     @Override
-    public synchronized boolean hasCapacity() {
+    public boolean hasCapacity() {
         return failure != null || unackedBytes < MAX_UNACKED_BYTES;
     }
 
@@ -152,32 +156,40 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
             status = StoredResultMetadata.Status.COMPLETED;
         }
         synchronized (this) {
-            finished = true;
-            addMetadata(
-                new StoredResultMetadata(
-                    running.headers(),
-                    running.columns(),
-                    running.zoneId(),
-                    status,
-                    nextSeq - 1,
-                    nextRow,
-                    footer == null ? 0 : footer.tookMillis(),
-                    footer == null || footer.isPartial(),
-                    footer == null ? List.of() : footer.warnings(),
-                    error
-                )
-            );
+            if (failure == null) {
+                finished = true;
+                addMetadata(ended(status, nextSeq - 1, nextRow, footer, error));
+            }
         }
         flush();
+    }
+
+    private StoredResultMetadata ended(
+        StoredResultMetadata.Status status,
+        int pageCount,
+        long rowCount,
+        @Nullable PageStreamPublisher.StreamFooter footer,
+        @Nullable Exception error
+    ) {
+        return new StoredResultMetadata(
+            running.headers(),
+            running.columns(),
+            running.zoneId(),
+            status,
+            pageCount,
+            rowCount,
+            footer == null ? 0 : footer.tookMillis(),
+            footer == null || footer.isPartial(),
+            footer == null ? List.of() : footer.warnings(),
+            error
+        );
     }
 
     /**
      * Page {@code 0} is written twice, and a batch cannot hold the same document twice, so it starts a batch of its own.
      */
     private synchronized void addMetadata(StoredResultMetadata metadata) {
-        if (failure == null) {
-            add(0, 0, 0, metadata, DocWriteRequest.OpType.INDEX, true);
-        }
+        add(0, 0, 0, metadata, DocWriteRequest.OpType.INDEX, true);
     }
 
     private void add(int seq, long firstRow, int rowCount, Writeable content, DocWriteRequest.OpType opType, boolean newChunk) {
@@ -208,6 +220,10 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
             row.finishRow();
             chunk.builder.commit(0);
         } catch (Exception e) {
+            // the chunk holds a partial row
+            chunks.removeLastOccurrence(chunk);
+            unackedBytes -= chunk.bytes;
+            chunk.close();
             fail(e);
             return;
         }
@@ -221,7 +237,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
         Chunk chunk;
         boolean last;
         synchronized (this) {
-            if (bulkInFlight || chunks.isEmpty() || failure != null) {
+            if (bulkInFlight || chunks.isEmpty()) {
                 return;
             }
             chunk = chunks.poll();
@@ -229,7 +245,10 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
             bulkInFlight = true;
         }
         final long sentBytes = chunk.bytes;
-        BulkRequest bulk = new BulkRequest();
+        // the last bulk makes the whole result visible, refreshing its shard only
+        BulkRequest bulk = new BulkRequest().setRefreshPolicy(
+            last ? WriteRequest.RefreshPolicy.IMMEDIATE : WriteRequest.RefreshPolicy.NONE
+        );
         EscfBatch batch = null;
         try (chunk) {
             batch = chunk.builder.buildPartition(0);
@@ -261,25 +280,29 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
             }
         }
         publisher.observerCapacityAvailable();
-        if (e == null && last) {
-            client.admin()
-                .indices()
-                .prepareRefresh(AsyncResultPagesIndex.INDEX)
-                .execute(ActionListener.wrap(r -> {}, ex -> logger.warn(() -> "failed to refresh stored result [" + docId + "]", ex)));
-        } else {
-            flush();
-        }
+        flush();
     }
 
+    /**
+     * Drops the pages not sent yet and queues page {@code 0} saying that storing failed, sent once no bulk is in flight. Only the
+     * first failure does so: a later one, of that page too, is only logged.
+     */
     private void fail(Exception e) {
         assert Thread.holdsLock(this);
-        if (failure == null) {
-            failure = e;
-            logger.warn(() -> "failed to store result [" + docId + "]", e);
+        if (failure != null) {
+            logger.debug(() -> "failed to store result [" + docId + "] after it failed", e);
+            return;
+        }
+        failure = e;
+        finished = true;
+        logger.warn(() -> "failed to store result [" + docId + "]", e);
+        for (Chunk chunk : chunks) {
+            unackedBytes -= chunk.bytes;
         }
         Releasables.close(chunks);
         chunks.clear();
-        unackedBytes = 0;
+        // none of the pages can be trusted to be stored
+        addMetadata(ended(StoredResultMetadata.Status.FAILED, 0, 0, null, e));
     }
 
     @Nullable

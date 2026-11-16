@@ -302,13 +302,7 @@ public class SampleIterator implements Executable {
             hits(samples),
             ActionListeners.map(
                 listener,
-                listOfHits -> new SamplePayload(
-                    samples,
-                    listOfHits,
-                    false,
-                    timeTook(),
-                    List.copyOf(shardFailures.values())
-                )
+                listOfHits -> new SamplePayload(samples, listOfHits, false, timeTook(), List.copyOf(shardFailures.values()))
             )
         );
     }

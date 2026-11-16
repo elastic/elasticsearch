@@ -760,9 +760,7 @@ public class TumblingWindow implements Executable {
         log.trace("Sending payload for [{}] sequences", completed.size());
 
         if (completed.isEmpty() || (allowPartialSequenceResults == false && shardFailures.isEmpty() == false)) {
-            listener.onResponse(
-                new EmptyPayload(Type.SEQUENCE, timeTook(), List.copyOf(shardFailures.values()))
-            );
+            listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook(), List.copyOf(shardFailures.values())));
             return;
         }
 

@@ -164,13 +164,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     private final Map<String, List<ActionListener<Void>>> snapshotDeletionListeners = new ConcurrentHashMap<>();
 
     /// Set of repositories currently running a [RepositoryData] write task (either a snapshot finalization or a snapshot delete).
-    ///
-    /// Also used as a monitor to ensure mutual exclusion between the processes of acquiring listeners for completion on the master-service
-    /// and cluster-applier threads. Some amount of mutual exclusion is required in this area, at least to protect against double-completing
-    /// entries in [#snapshotDeletionListeners].
-    // It is unclear whether such a broad mutex is needed any more, and certainly looks odd to use this field as the monitor as there's no
-    // obvious reason to block changes to [#repositoriesRunningRepositoryDataWriteTasks] while acquiring the listeners to be completed.
-    // TODO tighten this up.
     private final Set<ProjectRepo> repositoriesRunningRepositoryDataWriteTasks = Collections.synchronizedSet(new HashSet<>());
 
     /** Set of currently initializing clone operations */
@@ -968,7 +961,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
     private void notifyAbortedByDeletion(Snapshot snapshot) {
         logger.info("snapshot [{}] aborted", snapshot);
-        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT), Runnable::run);
+        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, SnapshotsInProgress.ABORTED_FAILURE_TEXT));
     }
 
     private void completeOrAddDeleteListener(@Nullable String deleteUUID, ActionListener<Void> listener) {
@@ -1161,12 +1154,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
         @Override
         public final void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            final List<ActionListener<Void>> deleteListeners;
-            synchronized (repositoriesRunningRepositoryDataWriteTasks) {
-                deleteListeners = snapshotDeletionListeners.remove(deleteEntry.uuid());
-            }
-            // resolve listeners outside mutex
-            handleListeners(deleteListeners);
+            handleListeners(snapshotDeletionListeners.remove(deleteEntry.uuid()));
 
             // This task still holds the repository's RepositoryData write slot, even if the entry was already removed (for example by
             // another master while this deletion was writing to the repository). Choose the next task from the current cluster state.
@@ -2667,8 +2655,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             logger.debug(() -> "[" + snapshot + "] failed to update cluster state during snapshot finalization", e);
             failSnapshotCompletionListeners(
                 snapshot,
-                new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e),
-                Runnable::run
+                new SnapshotException(snapshot, "Failed to update cluster state during snapshot finalization", e)
             );
             failAllListenersOnMasterFailOver(e);
             endRepositoryDataWriteTask(snapshot.getProjectId(), snapshot.getRepository());
@@ -2730,8 +2717,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 );
                 failSnapshotCompletionListeners(
                     snapshot,
-                    new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e),
-                    Runnable::run
+                    new SnapshotException(snapshot, "Failed to remove snapshot from cluster state", e)
                 );
                 failAllListenersOnMasterFailOver(e);
                 if (repositoryData != null) {
@@ -2742,7 +2728,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                failSnapshotCompletionListeners(snapshot, failure, Runnable::run);
+                failSnapshotCompletionListeners(snapshot, failure);
                 if (repositoryData != null) {
                     runNextRepositoryDataWriteTask(snapshot.getProjectId(), snapshot.getRepository(), repositoryData);
                 }
@@ -2910,9 +2896,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     // Failure handling
     // ------------------------------------------------------------------------------------------------------------------------------------
 
-    private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e, Consumer<Runnable> failingListenersConsumer) {
-        final List<ActionListener<SnapshotInfo>> listeners = snapshotFinalizationListeners.remove(snapshot);
-        failingListenersConsumer.accept(() -> SnapshotsServiceUtils.failListenersIgnoringException(listeners, e));
+    private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e) {
+        SnapshotsServiceUtils.failListenersIgnoringException(snapshotFinalizationListeners.remove(snapshot), e);
     }
 
     /**
@@ -2989,21 +2974,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     failure
                 )
             );
-            final List<Runnable> readyToResolveListeners = new ArrayList<>();
-            synchronized (repositoriesRunningRepositoryDataWriteTasks) {
-                // Every snapshot and delete for this repository was removed from the cluster state, so the write slot must be released.
-                // A later cluster state (or re-election) starts anything that is ready then.
-                endRepositoryDataWriteTask(projectId, repository);
-                for (Snapshot snapshot : snapshotsToFail) {
-                    failSnapshotCompletionListeners(snapshot, failure, readyToResolveListeners::add);
-                }
-                for (String delete : deletionsToFail) {
-                    final List<ActionListener<Void>> listeners = snapshotDeletionListeners.remove(delete);
-                    readyToResolveListeners.add(() -> SnapshotsServiceUtils.failListenersIgnoringException(listeners, failure));
-                }
+            // Every snapshot and delete for this repository was removed from the cluster state, so the write slot must be released.
+            // A later cluster state (or re-election) starts anything that is ready then.
+            endRepositoryDataWriteTask(projectId, repository);
+            for (Snapshot snapshot : snapshotsToFail) {
+                failSnapshotCompletionListeners(snapshot, failure);
             }
-            // fail snapshot listeners outside mutex
-            readyToResolveListeners.forEach(Runnable::run);
+            for (String delete : deletionsToFail) {
+                SnapshotsServiceUtils.failListenersIgnoringException(snapshotDeletionListeners.remove(delete), failure);
+            }
         }
     }
 
@@ -3017,31 +2996,20 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      */
     private void failAllListenersOnMasterFailOver(Exception e) {
         logger.debug("Failing all snapshot operation listeners because this node is not master any longer", e);
-        final List<Runnable> readyToResolveListeners = new ArrayList<>();
-        synchronized (repositoriesRunningRepositoryDataWriteTasks) {
-            if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
-                for (final Snapshot snapshot : snapshotFinalizationListeners.keySet()) {
-                    failSnapshotCompletionListeners(
-                        snapshot,
-                        new SnapshotException(snapshot, "no longer master"),
-                        readyToResolveListeners::add
-                    );
-                }
-                final Exception wrapped = new RepositoryException("_all", "Failed to update cluster state during repository operation", e);
-                for (final Iterator<List<ActionListener<Void>>> it = snapshotDeletionListeners.values().iterator(); it.hasNext();) {
-                    final List<ActionListener<Void>> listeners = it.next();
-                    readyToResolveListeners.add(() -> SnapshotsServiceUtils.failListenersIgnoringException(listeners, wrapped));
-                    it.remove();
-                }
-                assert snapshotDeletionListeners.isEmpty() : "No new listeners should have been added but saw " + snapshotDeletionListeners;
-            } else {
-                assert false
-                    : new AssertionError("Modifying snapshot state should only ever fail because we failed to publish new state", e);
-                logger.error("Unexpected failure during cluster state update", e);
+        if (ExceptionsHelper.unwrap(e, NotMasterException.class, FailedToCommitClusterStateException.class) != null) {
+            for (final Snapshot snapshot : snapshotFinalizationListeners.keySet()) {
+                failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
             }
+            final Exception wrapped = new RepositoryException("_all", "Failed to update cluster state during repository operation", e);
+            for (final String delete : snapshotDeletionListeners.keySet()) {
+                // Atomically claim the listeners so concurrent completion or failover cannot complete them twice.
+                SnapshotsServiceUtils.failListenersIgnoringException(snapshotDeletionListeners.remove(delete), wrapped);
+            }
+            assert snapshotDeletionListeners.isEmpty() : "No new listeners should have been added but saw " + snapshotDeletionListeners;
+        } else {
+            assert false : new AssertionError("Modifying snapshot state should only ever fail because we failed to publish new state", e);
+            logger.error("Unexpected failure during cluster state update", e);
         }
-        // fail snapshot listeners outside mutex
-        readyToResolveListeners.forEach(Runnable::run);
     }
 
     // ------------------------------------------------------------------------------------------------------------------------------------

@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
@@ -120,6 +121,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.useragent.api.UserAgentParser;
@@ -331,6 +333,25 @@ public class LocalExecutionPlanner {
     private final MatcherWatchdog grokMatcherWatchdog;
     /** The oldest transport version in this node's cluster, which decides how external text files bind; see FileSourceFactory. */
     private final TransportVersion minTransportVersion;
+    /**
+     * Query identity and optional load targets for federated source operators. {@code null} is identity:
+     * registry executors stay unwrapped and {@link SourceOperatorContext#queryId()} is unset.
+     */
+    @Nullable
+    private final ExternalComputeContext externalCompute;
+
+    /**
+     * Per-compute identity and load targets for federated (external) source operators.
+     *
+     * @param queryId  coordinator task of the query, or {@code null} when the caller did not supply one
+     * @param load     target that wraps the producer executor; {@code null} leaves it unwrapped
+     * @param ioTarget target that wraps the file-read executor; {@code null} leaves it unwrapped
+     */
+    public record ExternalComputeContext(
+        @Nullable TaskId queryId,
+        @Nullable TaskLoadAttribution.Target load,
+        @Nullable TaskLoadAttribution.Target ioTarget
+    ) {}
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -356,7 +377,8 @@ public class LocalExecutionPlanner {
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
         TransportVersion minTransportVersion,
-        Client client
+        Client client,
+        @Nullable ExternalComputeContext externalCompute
     ) {
 
         this.sessionId = sessionId;
@@ -386,6 +408,7 @@ public class LocalExecutionPlanner {
         this.grokMatcherWatchdog = grokMatcherWatchdog;
         this.minTransportVersion = minTransportVersion;
         this.client = client;
+        this.externalCompute = externalCompute;
     }
 
     /**
@@ -933,7 +956,7 @@ public class LocalExecutionPlanner {
             deferredColumnTypes,
             capable::sourceExtractorsFor,
             capable.datasetLabel(),
-            operatorFactoryRegistry.fileReadExecutor()
+            attributedFileReadExecutor()
         );
         return source.with(factory, newLayout);
     }
@@ -2442,8 +2465,9 @@ public class LocalExecutionPlanner {
             .batchSize(pageSize)
             .maxBufferSize(effectiveBufferSize)
             .rowLimit(pushedLimit)
-            .executor(operatorFactoryRegistry.executor())
-            .fileReadExecutor(operatorFactoryRegistry.fileReadExecutor())
+            .executor(attributedExecutor())
+            .fileReadExecutor(attributedFileReadExecutor())
+            .queryId(externalCompute == null ? null : externalCompute.queryId())
             .config(externalSource.config())
             .declaredReadSpec(externalSource.declaredReadSpec())
             .sourceMetadata(externalSource.sourceMetadata())
@@ -2465,6 +2489,26 @@ public class LocalExecutionPlanner {
         annotateDatasetLabel(externalSource, factory);
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(factory, layout.build());
+    }
+
+    /**
+     * Registry producer executor, wrapped with {@link TaskLoadAttribution#charging} only when a load target exists.
+     * Null target is identity so tests (and empty-shard DATA on main) keep the node-shared registry executor.
+     */
+    private Executor attributedExecutor() {
+        Executor executor = operatorFactoryRegistry.executor();
+        TaskLoadAttribution.Target load = externalCompute == null ? null : externalCompute.load();
+        return load == null ? executor : TaskLoadAttribution.charging(executor, load);
+    }
+
+    /**
+     * Registry file-read executor, wrapped only when an I/O target exists. The CPU-only I/O adapter is not
+     * supplied on main; {@code ioTarget} stays null until that lands.
+     */
+    private Executor attributedFileReadExecutor() {
+        Executor executor = operatorFactoryRegistry.fileReadExecutor();
+        TaskLoadAttribution.Target ioTarget = externalCompute == null ? null : externalCompute.ioTarget();
+        return ioTarget == null ? executor : TaskLoadAttribution.charging(executor, ioTarget);
     }
 
     private static void annotateDatasetLabel(ExternalSourceExec externalSource, SourceOperator.SourceOperatorFactory factory) {

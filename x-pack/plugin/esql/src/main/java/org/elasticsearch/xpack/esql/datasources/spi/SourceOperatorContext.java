@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -41,6 +42,8 @@ import java.util.concurrent.Executor;
  * during optimization. Since external sources execute on coordinator only, this filter
  * is never serialized - it's created during local physical optimization and consumed
  * immediately by the operator factory in the same JVM.
+ *
+ * <p>{@link #queryId()} is the coordinator task of the query, or {@code null} when the planner did not supply one.
  */
 public record SourceOperatorContext(
     String sourceType,
@@ -68,7 +71,8 @@ public record SourceOperatorContext(
     int parallelism,
     boolean deferredExtraction,
     DeclaredReadSpec declaredReadSpec,
-    TransportVersion minTransportVersion
+    TransportVersion minTransportVersion,
+    @Nullable TaskId queryId
 ) {
     /**
      * Single source of truth for the {@code external_max_concurrent_open_segments} default. Lives in this SPI (leaf)
@@ -149,7 +153,8 @@ public record SourceOperatorContext(
             1,
             false,
             DeclaredReadSpec.NONE,
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
     }
 
@@ -192,7 +197,8 @@ public record SourceOperatorContext(
             1,
             false,
             DeclaredReadSpec.NONE,
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
     }
 
@@ -234,7 +240,8 @@ public record SourceOperatorContext(
             1,
             false,
             DeclaredReadSpec.NONE,
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
     }
 
@@ -274,7 +281,8 @@ public record SourceOperatorContext(
             1,
             false,
             DeclaredReadSpec.NONE,
-            TransportVersion.current()
+            TransportVersion.current(),
+            null
         );
     }
 
@@ -313,6 +321,8 @@ public record SourceOperatorContext(
         private boolean deferredExtraction;
         private DeclaredReadSpec declaredReadSpec = DeclaredReadSpec.NONE;
         private TransportVersion minTransportVersion = TransportVersion.current();
+        @Nullable
+        private TaskId queryId;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -475,6 +485,14 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * Coordinator task of the query. Defaults to {@code null} when the planner did not supply one.
+         */
+        public Builder queryId(@Nullable TaskId queryId) {
+            this.queryId = queryId;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -502,7 +520,8 @@ public record SourceOperatorContext(
                 parallelism,
                 deferredExtraction,
                 declaredReadSpec,
-                minTransportVersion
+                minTransportVersion,
+                queryId
             );
         }
     }

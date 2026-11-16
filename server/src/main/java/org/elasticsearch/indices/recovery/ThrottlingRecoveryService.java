@@ -236,7 +236,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     ///
     /// For each allocation ID, pre-emptively records the cancellation so that a future [#enqueue] call will reject it.
     /// Any matching entries already in the pending queue are immediately notified via `onRecoveryFailure`
-    /// (with `sendShardFailure=false`, since the master is informed through the action response).
+    /// (with a failure strategy of [FailureStrategy#FAIL_SILENT_AND_BLOCK], since the master is informed through the action response).
     ///
     /// Returns the set of allocation IDs that were found and removed from the pending queue.
     public Set<String> cancelRecoveries(Map<String, ShardId> cancellations) {

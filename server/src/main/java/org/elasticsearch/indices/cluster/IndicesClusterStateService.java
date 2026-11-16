@@ -221,7 +221,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /// Failure has been (or is being) reported to master; will prevent shard creation for this allocation until removed.
         /// Only cleared when shard allocation becomes stale through a cluster state update.
         ///
-        /// For a [FailureStrategy#FAIL_SILENT_AND_BLOCK] failure, master has not been sent the failure by [IndicesClusterStateService],
+        /// For a [FailureStrategy#FAIL_SILENT_AND_BLOCK] failure, the master has not been sent the failure by [IndicesClusterStateService],
         /// because it is expected to learn of it by some other route. The entry still prevents shard creation, and if a later cluster state
         /// still assigns the allocation then [#updatePendingAllocationTracker] sends the failure then, like it does for any other entry
         /// which master has not yet acted on.
@@ -485,8 +485,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * attempt. For {@link PendingAllocationState.FailureReported} entries, either drops the entry once
      * master has processed the failure, or resends it if master hasn't yet -- the initial failure report
      * is sent separately, from {@link #createIndicesAndUpdateShards}, except for a
-     * {@link FailureStrategy#FAIL_SILENT_AND_BLOCK} failure, for which this is where the failure is first sent, if master
-     * has not acted on it by then.
+     * {@link FailureStrategy#FAIL_SILENT_AND_BLOCK} failure, for which the master learns of the failure by another route (the
+     * cancellation response) and this only re-sends it if master has not acted on it.
      *
      * @param state new cluster state
      */
@@ -568,20 +568,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             );
             pendingAllocationStates.remove(key, ticket);
         } else if (masterNode != null) {
-            // This is either a re-send of a failure we already sent, or the first send of a FAIL_SILENT_AND_BLOCK failure, which we
-            // deliberately did not send when it happened because master was expected to learn of it some other way. Either way, a
-            // cluster state still assigns this allocation, so master has not acted on the failure (e.g. a message was lost).
+            // Every FailureReported entry has already been reported to master (as a shard-failed request for FAIL_SEND, or via the
+            // cancellation response for FAIL_SILENT_AND_BLOCK). If a cluster state still assigns this allocation, so master has not acted
+            // on the failure, either because of a delay or because e.g. a message was lost. Either way, re-sending is safe because this
+            // node has already failed and removed its copy of the shard, and master ignores a failure for an allocation which no longer
+            // exists.
             //
-            // TODO: remove this? Is resending shard failures the responsibility of shardStateAction? (Note that FAIL_SILENT_AND_BLOCK
-            // relies on this to report the failure at all, so removing it needs a replacement for that case.)
-            //
-            // For FAIL_SILENT_AND_BLOCK this can be a spurious report: master may simply not have processed the failure yet (e.g. its
-            // response arrived but a cluster state was applied here first). That is harmless. If master gets to it first, this failure
-            // is ignored by ShardFailedTaskExecutor because the allocation no longer exists, and if it doesn't, master fails the
-            // allocation anyway, as it was about to. A failure which this node reports itself has primary term 0, so it never marks
-            // the shard copy as stale.
-            String message = "master " + masterNode + " has not removed failed shard. sending shard failure";
-            logger.trace("[{}] sending failed shard [{}], reason [{}]", key.shardId(), ticket.routing(), message);
+            // TODO: remove this? Is resending shard failures the responsibility of shardStateAction?
+            String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
+            logger.trace("[{}] re-sending failed shard [{}], reason [{}]", key.shardId(), ticket.routing(), message);
             final Exception resendFailure = ticket.failureType() == ShardFailureType.RECOVERY_CANCELLED
                 ? new RecoveryCancelledException(key.shardId(), null, state.nodes().getLocalNode())
                 : null;

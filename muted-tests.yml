@@ -456,3 +456,7 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRelocateIndexingShardDoesNotReadFromTranslog
   issue: https://github.com/elastic/elasticsearch/issues/165841
+- class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcFetchSizeIT
+  tasks:
+  - :x-pack:plugin:sql:qa:jdbc:v9.5.7#bwcTest
+  issue: https://github.com/elastic/elasticsearch/issues/166074

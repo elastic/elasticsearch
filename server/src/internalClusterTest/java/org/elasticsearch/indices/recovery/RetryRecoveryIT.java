@@ -64,7 +64,11 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     private final IndexEventListener recoveryListener = new IndexEventListener() {
         @Override
         public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
-            maybePauseRecovery();
+            final var barrier = recoveryBarrier.getAndSet(null);
+            if (barrier != null) {
+                safeAwait(barrier);
+                safeAwait(barrier);
+            }
             maybeThrow(BEFORE_INDEX_SHARD_RECOVERY);
             listener.onResponse(null);
         }
@@ -93,13 +97,6 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             }
         }
 
-        private void maybePauseRecovery() {
-            final var barrier = recoveryBarrier.getAndSet(null);
-            if (barrier != null) {
-                safeAwait(barrier);
-                safeAwait(barrier);
-            }
-        }
     };
 
     @Override

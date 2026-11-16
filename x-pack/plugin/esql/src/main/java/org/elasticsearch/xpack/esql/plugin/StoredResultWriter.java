@@ -99,6 +99,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
     private volatile Exception failure;
 
     /**
+     * @param expirationTime when the result expires, in epoch millis, or {@code -1} for none
      * @param onCapacity called when {@link #hasCapacity()} may have turned true
      */
     StoredResultWriter(
@@ -215,7 +216,7 @@ final class StoredResultWriter implements PageStreamPublisher.PageObserver {
             row.longField(FIRST_ROW_FIELD, firstRow);
             row.longField(ROW_COUNT_FIELD, rowCount);
             row.longField(TRANSPORT_VERSION_FIELD, version.id());
-            if (seq == 0) {
+            if (seq == 0 && expirationTime >= 0) {
                 row.longField(EXPIRATION_TIME_FIELD, expirationTime);
             }
             row.binaryField(PAGE_FIELD, out -> {

@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
@@ -46,6 +47,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -78,6 +81,8 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         return numDocs;
     }
 
+    private static final TimeValue KEEP_ALIVE = TimeValue.timeValueHours(3);
+
     private EsqlStreamQueryAction.ResultStream stream(boolean store, StreamQueryTestUtils.CountingStreamSubscriber subscriber) {
         EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest("FROM test | KEEP v | LIMIT 10000");
         // small pages, so that a result is stored as many pages
@@ -89,7 +94,7 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
             resultStream.publisher().subscribe(subscriber);
         }, subscriber.failure::set), false);
         if (store) {
-            request.store(true);
+            request.store(true).storeKeepAlive(KEEP_ALIVE);
         }
         ActionFuture<ActionResponse.Empty> future = client().execute(EsqlStreamQueryAction.INSTANCE, request);
         future.actionGet(TEST_REQUEST_TIMEOUT);
@@ -128,6 +133,7 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
         int numDocs = indexDocs();
         var subscriber = new StreamQueryTestUtils.CountingStreamSubscriber();
         AtomicReference<EsqlStreamQueryAction.ResultStream> streamRef = new AtomicReference<>();
+        long before = System.currentTimeMillis();
         MockLog.assertThatLogger(() -> {
             streamRef.set(stream(true, subscriber));
             // pages are stored in the background, after the stream completes
@@ -172,6 +178,10 @@ public class StoredStreamIT extends AbstractEsqlIntegTestCase {
             StoredResultMetadata m = new StoredResultMetadata(input(first.get(0), registry));
             assertThat(m.status(), equalTo(StoredResultMetadata.Status.COMPLETED));
             metadata.set(m);
+            // the result is kept for the keep_alive of its request; the cluster's clock is cached, so it can lag by a little
+            long slack = TimeValue.timeValueMinutes(1).millis();
+            assertThat(first.get(0).expirationTime(), greaterThanOrEqualTo(before + KEEP_ALIVE.millis() - slack));
+            assertThat(first.get(0).expirationTime(), lessThanOrEqualTo(System.currentTimeMillis() + KEEP_ALIVE.millis() + slack));
         });
         assertThat(metadata.get().rowCount(), equalTo((long) numDocs));
         assertThat(metadata.get().pageCount(), greaterThan(1));

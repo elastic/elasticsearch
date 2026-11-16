@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -30,6 +32,8 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
     private final boolean dropNullColumns;
     private final Consumer<PageStreamPublisher.StreamFooter> preHeaderFailureFooterConsumer;
     private boolean store;
+    @Nullable
+    private TimeValue storeKeepAlive;
 
     EsqlStreamQueryRequest(
         EsqlQueryRequest source,
@@ -72,6 +76,19 @@ public class EsqlStreamQueryRequest extends EsqlQueryRequest {
 
     public EsqlStreamQueryRequest store(boolean store) {
         this.store = store;
+        return this;
+    }
+
+    /**
+     * How long a stored result is kept, or {@code null} for no expiration time.
+     */
+    @Nullable
+    public TimeValue storeKeepAlive() {
+        return storeKeepAlive;
+    }
+
+    public EsqlStreamQueryRequest storeKeepAlive(TimeValue storeKeepAlive) {
+        this.storeKeepAlive = storeKeepAlive;
         return this;
     }
 

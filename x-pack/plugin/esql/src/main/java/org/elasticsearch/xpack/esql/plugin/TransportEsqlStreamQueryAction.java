@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
-import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlStreamQueryRequest;
@@ -84,7 +83,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -500,8 +498,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 services.blockFactoryProvider().blockFactory().bigArrays().bytesRefRecycler(),
                 streamId,
                 StoredResultMetadata.running(securityHeaders, taskId, columns, zoneId),
-                threadPool.absoluteTimeInMillis() + Objects.requireNonNullElse(request.keepAlive(), EsqlQueryRequest.DEFAULT_KEEP_ALIVE)
-                    .millis(),
+                request.storeKeepAlive() == null ? -1 : threadPool.absoluteTimeInMillis() + request.storeKeepAlive().millis(),
                 publisher::observerCapacityAvailable
             );
             publisher.observePages(writer);

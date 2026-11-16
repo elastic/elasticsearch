@@ -66,6 +66,7 @@ final class QueryCircuitBreaker implements CircuitBreaker {
 
     private void add(long bytes) {
         long current = used.addAndGet(bytes);
+        assert current >= 0 : "the query released more than it charged: " + current;
         if (bytes > 0) {
             updatePeak(current);
         } else if (bytes < 0 && current == 0) {

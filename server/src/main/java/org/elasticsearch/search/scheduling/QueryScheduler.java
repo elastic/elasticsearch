@@ -192,16 +192,17 @@ public final class QueryScheduler {
     }
 
     /**
-     * Forgets the query if it has no task, no open part and no memory left.
+     * Forgets the query if it has no task, no open part and no memory left. A later task or part of the same query
+     * tracks it again from scratch, as when a search opens a new context on the node for its fetch phase.
      */
     private void forgetIfIdle(Query query) {
+        boolean forget;
         synchronized (query) {
-            if (query.forgotten || query.isIdle() == false) {
-                return;
-            }
-            query.forgotten = true;
+            forget = query.forgetIfIdle();
         }
-        queries.remove(query.id, query);
+        if (forget) {
+            queries.remove(query.id, query);
+        }
     }
 
     /**
@@ -269,14 +270,18 @@ public final class QueryScheduler {
          */
         @Override
         public void close() {
+            boolean forget;
             synchronized (query) {
                 if (closed) {
                     return;
                 }
                 closed = true;
                 query.openParts--;
+                forget = query.forgetIfIdle();
             }
-            forgetIfIdle(query);
+            if (forget) {
+                queries.remove(query.id, query);
+            }
             partsByOwner.computeIfPresent(owner, (id, parts) -> {
                 parts.remove(this);
                 return parts.isEmpty() ? null : parts;
@@ -369,10 +374,9 @@ public final class QueryScheduler {
             }
             task.completed = true;
             query.completed(task, clock);
-            if (query.isIdle() == false) {
+            if (query.forgetIfIdle() == false) {
                 return;
             }
-            query.forgotten = true;
         }
         queries.remove(query.id, query);
     }
@@ -417,6 +421,17 @@ public final class QueryScheduler {
 
         boolean isIdle() {
             return runningTasks == 0 && queuedTasks == 0 && openParts == 0 && (breaker == null || breaker.usedBytes() == 0);
+        }
+
+        /**
+         * Marks the query forgotten if it is idle, and returns whether it did. The caller then stops tracking it.
+         */
+        boolean forgetIfIdle() {
+            if (forgotten || isIdle() == false) {
+                return false;
+            }
+            forgotten = true;
+            return true;
         }
 
         /**

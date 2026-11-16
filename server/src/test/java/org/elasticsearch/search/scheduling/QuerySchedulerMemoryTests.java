@@ -118,6 +118,21 @@ public class QuerySchedulerMemoryTests extends ESTestCase {
     }
 
     /**
+     * A query releases only what it charged, even when the request breaker holds more.
+     */
+    public void testReleasingMoreThanChargedFails() {
+        request.addWithoutBreaking(100);
+        try (var part = scheduler.part(queryId("q"), owner)) {
+            CircuitBreaker breaker = part.breaker();
+            breaker.addWithoutBreaking(10);
+            AssertionError e = expectThrows(AssertionError.class, () -> breaker.addWithoutBreaking(-20));
+            assertThat(e.getMessage(), equalTo("the query released more than it charged: -10"));
+            breaker.addWithoutBreaking(10);
+        }
+        request.addWithoutBreaking(-100);
+    }
+
+    /**
      * The parts of a query on a node share one breaker.
      */
     public void testPartsOfAQueryShareItsBreaker() {

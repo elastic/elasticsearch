@@ -155,7 +155,7 @@ public final class UnmappedFields {
     @Nullable
     BytesRef extract(BytesReference source, XContentType sourceType, Filter filter, boolean holdAll, CircuitBreaker breaker)
         throws IOException {
-        Found found = walk(source, sourceType, new Walk(Set.of(), filter, 0), holdAll, breaker, 0);
+        Found found = walk(source, sourceType, new Walk(Set.of(), filter, 0), holdAll, breaker, 0, 0);
         return found == null ? SPELLED_IN_TWO_WAYS : found.written();
     }
 
@@ -227,8 +227,16 @@ public final class UnmappedFields {
      * @param allowance how many bytes of held values the reservation that the caller made already stands for
      */
     Found walk(BytesReference source, XContentType sourceType, Walk walk, CircuitBreaker breaker, long allowance) throws IOException {
-        Found found = walk(source, sourceType, walk, false, breaker, allowance);
-        return found == null ? walk(source, sourceType, walk, true, breaker, allowance) : found;
+        return walk(source, sourceType, walk, breaker, allowance, 0);
+    }
+
+    /**
+     * @param jsonAllowance how many bytes of the JSON that the walk builds the reservation that the caller made already stands for
+     */
+    Found walk(BytesReference source, XContentType sourceType, Walk walk, CircuitBreaker breaker, long allowance, long jsonAllowance)
+        throws IOException {
+        Found found = walk(source, sourceType, walk, false, breaker, allowance, jsonAllowance);
+        return found == null ? walk(source, sourceType, walk, true, breaker, allowance, jsonAllowance) : found;
     }
 
     /**
@@ -237,17 +245,25 @@ public final class UnmappedFields {
      * @return {@code null} if {@code holdAll} is {@code false} and the document may spell a field in two ways
      */
     @Nullable
-    private Found walk(BytesReference source, XContentType sourceType, Walk walk, boolean holdAll, CircuitBreaker breaker, long allowance)
-        throws IOException {
+    private Found walk(
+        BytesReference source,
+        XContentType sourceType,
+        Walk walk,
+        boolean holdAll,
+        CircuitBreaker breaker,
+        long allowance,
+        long jsonAllowance
+    ) throws IOException {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, sourceType);
             XContentBuilder out = walk.filter == null ? null : XContentFactory.jsonBuilder();
-            HeldValues heldValues = new HeldValues(breaker, allowance)
+            HeldValues heldValues = HeldValues.ofValues(breaker, allowance);
+            HeldValues writtenJson = HeldValues.ofWrittenJson(breaker, jsonAllowance)
         ) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalStateException("expected an object but was [" + parser.currentToken() + "]");
             }
-            Extraction extraction = new Extraction(parser, out, walk, heldValues);
+            Extraction extraction = new Extraction(parser, out, walk, heldValues, writtenJson);
             if (holdAll && out != null) {
                 extraction.held = new LinkedHashMap<>();
             }
@@ -330,6 +346,8 @@ public final class UnmappedFields {
         private final XContentBuilder out;
         private final Walk walk;
         private final HeldValues heldValues;
+        /** Charges the JSON written to {@link #out}, before it is written. */
+        private final HeldValues writtenJson;
         /** The values found of each name of the walk. */
         private Map<String, NamedValues> named = Map.of();
         /**
@@ -346,11 +364,12 @@ public final class UnmappedFields {
         private Map<String, Object> held;
         private boolean wrote;
 
-        Extraction(XContentParser parser, @Nullable XContentBuilder out, Walk walk, HeldValues heldValues) {
+        Extraction(XContentParser parser, @Nullable XContentBuilder out, Walk walk, HeldValues heldValues, HeldValues writtenJson) {
             this.parser = parser;
             this.out = out;
             this.walk = walk;
             this.heldValues = heldValues;
+            this.writtenJson = writtenJson;
             this.spelling = walk.names.isEmpty() ? null : new int[8];
         }
 
@@ -510,6 +529,7 @@ public final class UnmappedFields {
                         if (written) {
                             if (held == null) {
                                 field(path);
+                                writtenJson.add(JSON_GROWTH_FACTOR * scalarJsonBytes());
                                 out.copyCurrentStructure(parser);
                             } else {
                                 hold(path, value);
@@ -549,16 +569,33 @@ public final class UnmappedFields {
         void writeHeld() throws IOException {
             for (Map.Entry<String, Object> field : held.entrySet()) {
                 field(field.getKey());
+                writtenJson.add(JSON_GROWTH_FACTOR * jsonBytes(field.getValue()));
                 out.value(field.getValue());
             }
         }
 
+        /**
+         * Writes the key of a field. Each leaf is a key spelled as its full path, so what this writes is the number of leaves times
+         * the length of their paths, which a long key above many leaves makes far more than the size of {@code _source}.
+         */
         private void field(String path) throws IOException {
             if (wrote == false) {
                 out.startObject();
                 wrote = true;
             }
+            writtenJson.add(JSON_GROWTH_FACTOR * (utf8Length(path) + KEY_PUNCTUATION_BYTES));
             out.field(path);
+        }
+
+        /** The bytes that the scalar the parser is positioned on takes as JSON, counting a character of a string as one byte. */
+        private long scalarJsonBytes() throws IOException {
+            return switch (parser.currentToken()) {
+                case VALUE_STRING -> parser.textLength() + VALUE_PUNCTUATION_BYTES;
+                case VALUE_EMBEDDED_OBJECT -> base64Length(parser.binaryValue().length) + VALUE_PUNCTUATION_BYTES;
+                case VALUE_NUMBER -> NUMBER_JSON_BYTES;
+                case VALUE_BOOLEAN -> BOOLEAN_JSON_BYTES;
+                default -> throw new IllegalStateException("unexpected token [" + parser.currentToken() + "]");
+            };
         }
     }
 
@@ -635,29 +672,48 @@ public final class UnmappedFields {
      * about 50. What a walk reserves up front, a multiple of the size of {@code _source}, is too little for a document with many short
      * values, and a walk that reserves nothing, the one for the values of a name, is not covered at all.
      * <p>
+     * The same accounting charges the JSON that a walk writes, before it is written, in {@link #ofWrittenJson}: it takes the number of
+     * leaves times the length of their paths, which a long key above many leaves makes far more than the size of {@code _source}.
+     * <p>
      * The {@code allowance} is how much of the reservation stands for held values. What is held up to it is paid for already, so only
      * what is held beyond it is charged. The charge is made in steps of {@link #STEP} bytes, so that holding a value usually costs no
      * more than an addition. The breaker is asked, and may trip, when a step is made.
      */
     private static final class HeldValues implements Releasable {
         private static final long STEP = 64 * 1024;
-        private static final String LABEL = "unmapped fields held values";
+        private static final String HELD_VALUES_LABEL = "unmapped fields held values";
+        private static final String WRITTEN_JSON_LABEL = "unmapped fields written json";
 
         private final CircuitBreaker breaker;
         private final long allowance;
+        private final String label;
         private long held;
         private long charged;
 
-        HeldValues(CircuitBreaker breaker, long allowance) {
+        private HeldValues(CircuitBreaker breaker, long allowance, String label) {
             this.breaker = breaker;
             this.allowance = allowance;
+            this.label = label;
+        }
+
+        /** Charges the values that a walk holds, beyond the {@code allowance} that its reservation stands for. */
+        static HeldValues ofValues(CircuitBreaker breaker, long allowance) {
+            return new HeldValues(breaker, allowance, HELD_VALUES_LABEL);
+        }
+
+        /**
+         * Charges the JSON that a walk builds, beyond the {@code allowance} that its reservation stands for, before it is written so
+         * that the breaker trips before the buffer grows.
+         */
+        static HeldValues ofWrittenJson(CircuitBreaker breaker, long allowance) {
+            return new HeldValues(breaker, allowance, WRITTEN_JSON_LABEL);
         }
 
         void add(long bytes) {
             held += bytes;
             long uncharged = held - allowance - charged;
             if (uncharged >= STEP) {
-                breaker.addEstimateBytesAndMaybeBreak(uncharged, LABEL);
+                breaker.addEstimateBytesAndMaybeBreak(uncharged, label);
                 charged += uncharged;
             }
         }
@@ -711,6 +767,48 @@ public final class UnmappedFields {
     }
 
     /**
+     * How many times the bytes written to the JSON of a walk are charged: the buffer is a {@link java.io.ByteArrayOutputStream}, which
+     * grows by copying into an array of twice its length, so the old array and the new one are alive together and the peak is about
+     * three times what has been written.
+     */
+    private static final long JSON_GROWTH_FACTOR = 3;
+    /** The quotes and colon of a key, and the comma that precedes it. */
+    private static final long KEY_PUNCTUATION_BYTES = 4;
+    /** The quotes of a string value. */
+    private static final long VALUE_PUNCTUATION_BYTES = 2;
+    private static final long NUMBER_JSON_BYTES = 24;
+    private static final long BOOLEAN_JSON_BYTES = 5;
+
+    private static long utf8Length(String text) {
+        return UnicodeUtil.calcUTF16toUTF8Length(text, 0, text.length());
+    }
+
+    private static long base64Length(int bytes) {
+        return 4L * ((bytes + 2L) / 3);
+    }
+
+    /** The bytes that a held value, or the list of the values of a field, takes as JSON. */
+    private static long jsonBytes(Object value) {
+        if (value instanceof Values values) {
+            long bytes = 2;
+            for (Object element : values) {
+                bytes += jsonBytes(element) + 1;
+            }
+            return bytes;
+        }
+        if (value instanceof String string) {
+            return utf8Length(string) + VALUE_PUNCTUATION_BYTES;
+        }
+        if (value instanceof byte[] bytes) {
+            return base64Length(bytes.length) + VALUE_PUNCTUATION_BYTES;
+        }
+        if (value instanceof Boolean) {
+            return BOOLEAN_JSON_BYTES;
+        }
+        return NUMBER_JSON_BYTES;
+    }
+
+    /**
      * Loads the unmapped field {@code name} as keywords, with a walk of its own. Loads nothing where {@link #mayExist(String)}
      * rules it out.
      */
@@ -760,17 +858,18 @@ public final class UnmappedFields {
         return storedFields.shared(walk, fields -> {
             Source source = fields.source();
             BytesReference sourceBytes = source.internalSourceRef();
-            // Covers the JSON that is built and, up to the allowance below, the values held to build it. Held values are not bounded by
-            // the serialized size: a short value costs many times what it takes there, so what is held beyond the allowance is charged
-            // as it is held (see HeldValues). The reservation is released before a loader appends to its builder, which accounts for
-            // what it holds.
+            // Covers the JSON that is built and, up to the allowance below, the values held to build it. Neither is bounded by the
+            // serialized size: a short value costs many times what it takes there, and the JSON spells each leaf as its full path, so
+            // what is held or written beyond its share of the reservation is charged as it is held or written (see HeldValues). The
+            // reservation is released before a loader appends to its builder, which accounts for what it holds.
             long reservation = walk.filter == null ? 0 : (long) (sourceBytes.length() * walk.sourceReservationFactor);
-            // The JSON that is built, and the buffers that it grows through, take a few times the serialized size: the rest of the
-            // reservation is for the held values, which are charged beyond that as they are held.
-            long allowance = Math.max(0L, reservation - JSON_SIZE_FACTOR * sourceBytes.length());
+            // The JSON that is built, and the buffers that it grows through, are taken to need a few times the serialized size: the rest
+            // of the reservation is for the held values. Each is charged beyond its share.
+            long jsonAllowance = Math.min(reservation, JSON_SIZE_FACTOR * sourceBytes.length());
+            long allowance = reservation - jsonAllowance;
             breaker.addEstimateBytesAndMaybeBreak(reservation, "unmapped fields source");
             try {
-                return walk(sourceBytes, source.sourceContentType(), walk, breaker, allowance);
+                return walk(sourceBytes, source.sourceContentType(), walk, breaker, allowance, jsonAllowance);
             } finally {
                 breaker.addWithoutBreaking(-reservation);
             }

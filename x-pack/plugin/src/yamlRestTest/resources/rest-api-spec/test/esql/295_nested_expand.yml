@@ -566,3 +566,72 @@ setup:
   - length: { values: 2 }
   - match: { values.0: ["n", 1] }
   - match: { values.1: ["n", 2] }
+
+---
+"Expanding two nested fields in turn gives every pair of their objects":
+  - do:
+      indices.create:
+        index: ne_two
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              id:
+                type: keyword
+              items:
+                type: nested
+                properties:
+                  sku:
+                    type: keyword
+              events:
+                type: nested
+                properties:
+                  start:
+                    type: long
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "ne_two", "_id": "a" } }
+          - { "id": "a", "items": [ { "sku": "a1" }, { "sku": "a2" } ], "events": [ { "start": 1 }, { "start": 3 } ] }
+          - { "index": { "_index": "ne_two", "_id": "b" } }
+          - { "id": "b", "items": [ { "sku": "b1" } ], "events": [] }
+          - { "index": { "_index": "ne_two", "_id": "c" } }
+          - { "id": "c" }
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_two | NESTED_EXPAND items | NESTED_EXPAND events | KEEP id, items.sku, events.start | SORT id, items.sku, events.start | LIMIT 10'
+  - match: { columns.1.name: "items.sku" }
+  - match: { columns.2.name: "events.start" }
+  - match: { columns.2.type: "long" }
+  - length: { values: 6 }
+  - match: { values.0: ["a", "a1", 1] }
+  - match: { values.1: ["a", "a1", 3] }
+  - match: { values.2: ["a", "a2", 1] }
+  - match: { values.3: ["a", "a2", 3] }
+  - match: { values.4: ["b", "b1", null] }
+  - match: { values.5: ["c", null, null] }
+  # The order of the expansions does not change the rows
+  - do:
+      esql.query:
+        body:
+          query: 'FROM ne_two | NESTED_EXPAND events | NESTED_EXPAND items | KEEP id, items.sku, events.start | SORT id, items.sku, events.start | LIMIT 10'
+  - length: { values: 6 }
+  - match: { values.0: ["a", "a1", 1] }
+  - match: { values.3: ["a", "a2", 3] }
+  - match: { values.4: ["b", "b1", null] }
+  - match: { values.5: ["c", null, null] }
+  # Fields of the collection not yet expanded are still not ordinary columns
+  - do:
+      catch: /Unknown column \[events\.start\]/
+      esql.query:
+        body:
+          query: 'FROM ne_two | NESTED_EXPAND items | KEEP items.sku, events.start'
+  # An expanded collection is no longer a nested field
+  - do:
+      catch: /requires a mapped nested field, not \[items\]/
+      esql.query:
+        body:
+          query: 'FROM ne_two | NESTED_EXPAND items | NESTED_EXPAND items'

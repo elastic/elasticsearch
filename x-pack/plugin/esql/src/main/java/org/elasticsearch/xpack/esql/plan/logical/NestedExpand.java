@@ -172,15 +172,21 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
         if (output == null) {
             List<Attribute> result = new ArrayList<>();
             for (Attribute attribute : child().output()) {
-                // The private nested schema is analysis-only. Child fields leave it as ordinary columns.
-                if (attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField) {
-                    continue;
+                // The expanded collection's child fields leave the private nested schema as ordinary columns. Other
+                // collections keep theirs, so a later NESTED_EXPAND can expand them.
+                if (expandedScope(attribute) == false) {
+                    result.add(attribute);
                 }
-                result.add(attribute);
             }
             output = mergeOutputAttributes(expanded, result);
         }
         return output;
+    }
+
+    private boolean expandedScope(Attribute attribute) {
+        return attribute instanceof FieldAttribute field
+            && field.field() instanceof NestedScopeField scope
+            && (bound() == false || scope.path().equals(path) || scope.path().startsWith(path + "."));
     }
 
     /** Runs once pruning has dropped the child columns nothing reads, so only those that are read must have a readable type. */

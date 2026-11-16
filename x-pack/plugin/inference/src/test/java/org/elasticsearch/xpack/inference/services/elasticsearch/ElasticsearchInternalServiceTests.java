@@ -2607,7 +2607,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             XContentParseException.class,
             () -> existingSettings.updateServiceSettings(serviceSettingsWithNumThreads)
         );
-        assertThat(exception.getCause().getMessage(), containsString("[num_threads] cannot be updated"));
+        assertThat(exception.getMessage(), containsString("unknown field [num_threads]"));
     }
 
     private ElasticsearchInternalService createService(Client client) {

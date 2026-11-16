@@ -116,7 +116,7 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractElasticse
             ValidationException.class,
             () -> ElasticsearchInternalServiceSettings.fromRequestMap(
                 new HashMap<>(Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1))
-            )
+            ).build()
         );
 
         assertThat(e.getMessage(), containsString("[service_settings] does not contain the required setting [num_threads]"));
@@ -125,7 +125,7 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractElasticse
             ValidationException.class,
             () -> ElasticsearchInternalServiceSettings.fromRequestMap(
                 new HashMap<>(Map.of(ElasticsearchInternalServiceSettings.NUM_THREADS, 1))
-            )
+            ).build()
         );
 
         assertThat(
@@ -138,18 +138,24 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractElasticse
         var settingsMap = new HashMap<String, Object>(
             Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 0, ElasticsearchInternalServiceSettings.NUM_THREADS, 1)
         );
-        var e = expectThrows(XContentParseException.class, () -> ElasticsearchInternalServiceSettings.fromRequestMap(settingsMap));
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ElasticsearchInternalServiceSettings.fromRequestMap(settingsMap).build()
+        );
 
-        assertThat(e.getCause().getMessage(), containsString("Invalid value [0]. [num_allocations] must be a positive integer"));
+        assertThat(e.getMessage(), containsString("Invalid value [0]. [num_allocations] must be a positive integer"));
     }
 
     public void testFromMapInvalidNumThreads() {
         var settingsMap = new HashMap<String, Object>(
             Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, -1)
         );
-        var e = expectThrows(XContentParseException.class, () -> ElasticsearchInternalServiceSettings.fromRequestMap(settingsMap));
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ElasticsearchInternalServiceSettings.fromRequestMap(settingsMap).build()
+        );
 
-        assertThat(e.getCause().getMessage(), containsString("Invalid value [-1]. [num_threads] must be a positive integer"));
+        assertThat(e.getMessage(), containsString("Invalid value [-1]. [num_threads] must be a positive integer"));
     }
 
     public void testFromMapUnknownFieldInRequestContext() {

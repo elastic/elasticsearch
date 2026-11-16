@@ -106,21 +106,18 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
     public void testRandomPriorityIsDeterministic() {
         final long seed = randomLong();
-        assertThat(getResultsOfRunningByPriority(new Random(seed)), equalTo(getResultsOfRunningByPriority(new Random(seed))));
+        assertThat(executeAndGetOrder(new Random(seed)), equalTo(executeAndGetOrder(new Random(seed))));
     }
 
-    private List<String> getResultsOfRunningByPriority(Random random) {
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(
-            random,
-            DeterministicTaskQueue.TaskSelectionPolicy.RANDOM_PRIORITY
-        );
-        final List<String> strings = new ArrayList<>();
+    private List<Integer> executeAndGetOrder(Random random) {
+        final var taskQueue = new DeterministicTaskQueue(random, DeterministicTaskQueue.TaskSelectionPolicy.RANDOM_PRIORITY);
+        final var order = new ArrayList<Integer>();
         for (int i = 0; i < 20; i++) {
-            final String s = Integer.toString(i);
-            taskQueue.scheduleNow(() -> strings.add(s));
+            final var task = i;
+            taskQueue.scheduleNow(() -> order.add(task));
         }
         taskQueue.runAllRunnableTasks();
-        return strings;
+        return order;
     }
 
     /**

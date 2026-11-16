@@ -50,7 +50,11 @@ public class ToDateRange extends AbstractConvertFunction implements Configuratio
         .unaryConfig(ToDateRange::new)
         .name("to_date_range", "to_daterange");
 
-    private Map<DataType, BuildFactory> lazyEvaluators = null;
+    /**
+     * Volatile because a plan's expressions are shared by the drivers of every shard on a node, which may call
+     * {@link #factories()} concurrently.
+     */
+    private volatile Map<DataType, BuildFactory> lazyEvaluators = null;
 
     private final Configuration configuration;
 

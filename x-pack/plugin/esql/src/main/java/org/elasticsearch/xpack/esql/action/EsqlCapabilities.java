@@ -2462,6 +2462,8 @@ public class EsqlCapabilities {
          */
         PACK_DIMENSIONS_IN_TS,
 
+        PACK_DOUBLE_FLOAT_DIMENSIONS,
+
         /**
          * Support for exponential_histogram fields in the state of when it first was released into tech preview.
          */
@@ -4558,8 +4560,9 @@ public class EsqlCapabilities {
 
         /**
          * Streaming execution on {@code POST /_query}: the {@code streaming} URL parameter is
-         * accepted, and with {@code format=ndjson} the response streams header / pages / footer
-         * as NDJSON as rows are produced.
+         * accepted, and with {@code format=ndjson} the response streams a columns line, one line
+         * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows
+         * are produced.
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING(Build.current().isSnapshot()),

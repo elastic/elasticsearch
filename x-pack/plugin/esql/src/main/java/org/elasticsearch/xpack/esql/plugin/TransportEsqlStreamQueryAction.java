@@ -11,6 +11,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -19,6 +21,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -28,15 +31,19 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -142,6 +149,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     private final ClusterService clusterService;
     private final Executor requestExecutor;
     private final Client client;
+    private final BatchIndexingEnabled batchIndexingEnabled;
     private final QueryInterceptor<EsqlCaptureContext> queryInterceptor;
     private final TransportEsqlQueryAction transportEsqlQueryAction;
     private volatile boolean defaultAllowPartialResults;
@@ -179,6 +187,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.client = client;
+        this.batchIndexingEnabled = new BatchIndexingEnabled(clusterService.getClusterSettings());
 
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -206,6 +215,19 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
 
     @Override
     protected void doExecute(Task task, EsqlStreamQueryRequest request, ActionListener<ActionResponse.Empty> listener) {
+        if (request.store()) {
+            String unavailable = null;
+            if (EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled() == false) {
+                unavailable = "storing a result is not available";
+            } else if (ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService) == false) {
+                // stored pages are indexed as columnar batches
+                unavailable = "storing a result requires batch indexing, enable [" + BatchIndexingEnabled.BATCH_INDEXING.getKey() + "]";
+            }
+            if (unavailable != null) {
+                listener.onFailure(new IllegalArgumentException(unavailable));
+                return;
+            }
+        }
         requestExecutor.execute(ActionRunnable.wrap(listener, l -> prepareAndExecuteWithLogging(task, request, l)));
     }
 
@@ -233,6 +255,11 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
     ) {
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
+        String streamId = request.store() ? UUIDs.randomBase64UUID() : null;
+        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        Map<String, String> securityHeaders = streamId == null
+            ? null
+            : ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state());
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
@@ -287,6 +314,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                     try {
                         StreamingOutputExec streamingPlan = new StreamingOutputExec(plan, publisher);
                         Exception startFailure = startStream(
+                            streamId,
+                            taskId,
+                            securityHeaders,
                             request,
                             publisher,
                             streamStarted,
@@ -381,6 +411,9 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                     assert outputRunSeen.get() == false : "an OUTPUT plan ran but the stream was never started";
                     List<ColumnInfoImpl> columns = buildColumns(result.schema(), result.attributeMetadata());
                     Exception startFailure = startStream(
+                        streamId,
+                        taskId,
+                        securityHeaders,
                         request,
                         publisher,
                         streamStarted,
@@ -447,7 +480,10 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         return ChunkedToXContent.wrapAsToXContent(executionInfo);
     }
 
-    private static Exception startStream(
+    private Exception startStream(
+        @Nullable String streamId,
+        TaskId taskId,
+        @Nullable Map<String, String> securityHeaders,
         EsqlStreamQueryRequest request,
         PageStreamPublisher publisher,
         AtomicBoolean streamStarted,
@@ -455,7 +491,22 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         boolean[] nullColumns,
         ZoneId zoneId
     ) {
-        request.resultStreamListener().onResponse(new EsqlStreamQueryAction.ResultStream(columns, publisher, nullColumns, zoneId));
+        if (streamId != null) {
+            StoredResultWriter writer = new StoredResultWriter(
+                client,
+                clusterService,
+                services.blockFactoryProvider().blockFactory().bigArrays().bytesRefRecycler(),
+                streamId,
+                StoredResultMetadata.running(securityHeaders, taskId, columns, zoneId),
+                request.storeKeepAlive() == null ? -1 : threadPool.absoluteTimeInMillis() + request.storeKeepAlive().millis(),
+                publisher::observerCapacityAvailable
+            );
+            publisher.observePages(writer);
+            writer.start();
+            publisher.addCloseListener(ActionListener.running(() -> writer.finish(publisher.footer(), publisher.failure())));
+        }
+        request.resultStreamListener()
+            .onResponse(new EsqlStreamQueryAction.ResultStream(streamId, columns, publisher, nullColumns, zoneId));
         Exception startFailure = publisher.failure();
         if (startFailure != null) {
             return startFailure;

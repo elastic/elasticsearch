@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.common.util.FeatureFlag;
+
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -624,6 +626,7 @@ public class Constants {
         "indices:data/read/eql/async/get",
         "indices:data/read/esql",
         "indices:data/read/esql/async/get",
+        new FeatureFlag("esql_stored_results").isEnabled() ? "indices:data/read/esql/stream/pages" : null,
         "indices:data/read/esql/async/stop",
         "indices:data/read/esql/resolve_datasets",
         "indices:data/read/esql/resolve_fields",

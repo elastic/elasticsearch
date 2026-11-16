@@ -54,6 +54,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -64,6 +65,7 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -75,6 +77,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.esql.EsqlStreamResultsIndex;
 import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -202,7 +205,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin, ShutdownAwarePlugin {
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin, ShutdownAwarePlugin, SystemIndexPlugin {
 
     private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
@@ -790,34 +793,55 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     }
 
     @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled() ? List.of(EsqlStreamResultsIndex.getSystemIndexDescriptor()) : List.of();
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "esql";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Stores the results of streamed ES|QL queries";
+    }
+
+    @Override
     public List<ActionHandler> getActions() {
-        return List.of(
-            new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
-            new ActionHandler(EsqlStreamQueryAction.INSTANCE, TransportEsqlStreamQueryAction.class),
-            new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
-            new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
-            new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
-            new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
-            new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
-            new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
-            new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
-            new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
-            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
-            new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
-            new ActionHandler(ValidateViewAction.INSTANCE, TransportValidateViewAction.class),
-            new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
-            new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-            new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
-            new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
-            new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
-            new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
-            new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
-            new ActionHandler(TestDataSourceConnectionAction.INSTANCE, TransportTestDataSourceConnectionAction.class),
-            new ActionHandler(TestDataSourceNodeAction.TYPE, TestDataSourceNodeAction.TransportAction.class),
-            new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
-            new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
-            new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
+        List<ActionHandler> actions = new ArrayList<>(
+            List.of(
+                new ActionHandler(EsqlQueryAction.INSTANCE, TransportEsqlQueryAction.class),
+                new ActionHandler(EsqlStreamQueryAction.INSTANCE, TransportEsqlStreamQueryAction.class),
+                new ActionHandler(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
+                new ActionHandler(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
+                new ActionHandler(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
+                new ActionHandler(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
+                new ActionHandler(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
+                new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+                new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
+                new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
+                new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
+                new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+                new ActionHandler(ValidateViewAction.INSTANCE, TransportValidateViewAction.class),
+                new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
+                new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
+                new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class),
+                new ActionHandler(EsqlResolveDatasetAction.TYPE, EsqlResolveDatasetAction.class),
+                new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class),
+                new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class),
+                new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
+                new ActionHandler(TestDataSourceConnectionAction.INSTANCE, TransportTestDataSourceConnectionAction.class),
+                new ActionHandler(TestDataSourceNodeAction.TYPE, TestDataSourceNodeAction.TransportAction.class),
+                new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
+                new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
+                new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
+            )
         );
+        if (EsqlStreamResultsIndex.FEATURE_FLAG.isEnabled()) {
+            actions.add(new ActionHandler(TransportReadStreamPagesAction.TYPE, TransportReadStreamPagesAction.class));
+        }
+        return actions;
     }
 
     /**

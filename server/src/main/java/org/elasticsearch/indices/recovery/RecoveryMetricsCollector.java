@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -76,7 +77,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
         () -> 0L,
         () -> false,
         () -> 0L,
-        new DataNodeRecoveryThrottlingLimits(ClusterSettings.createBuiltInClusterSettings(), Settings.EMPTY, ByteSizeValue.ZERO)
+        new DataNodeRecoveryThrottlingLimits(new ClusterSettings(Settings.EMPTY, Set.of()), Settings.EMPTY, ByteSizeValue.ZERO)
     );
 
     private final LongCounter shardRecoveryTotalMetric;

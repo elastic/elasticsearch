@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
@@ -78,7 +77,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
             Settings.builder()
                 .put(DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
                 .build(),
-            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()))
+            Set.copyOf(DataNodeRecoveryThrottlingLimits.settings())
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);

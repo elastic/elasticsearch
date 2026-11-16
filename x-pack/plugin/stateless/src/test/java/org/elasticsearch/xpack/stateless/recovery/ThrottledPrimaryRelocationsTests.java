@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -1169,10 +1168,7 @@ public class ThrottledPrimaryRelocationsTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(DiscoveryNodeUtils.create(randomIdentifier()));
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
         when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(
-                Settings.EMPTY,
-                Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()))
-            )
+            new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()))
         );
         return clusterService;
     }

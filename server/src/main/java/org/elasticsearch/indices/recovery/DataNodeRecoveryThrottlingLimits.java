@@ -21,15 +21,15 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
-import java.util.function.Predicate;
 
 /// Central class to define the data node recovery throttling (DNRT) settings that bound the number of shard recoveries
 /// on a node, and to hold the node's current effective limits derived from them.
 ///
-/// A single instance is created per node and is the only watcher of these settings. Components read the current limits
-/// through the getters ([#incomingRecoveryLimits()], [#outgoingRecoveryLimit()], [#isDataNodeRecoveryThrottlingEnabled]),
-/// or register with [#addIncomingRecoveryLimitsConsumer] and [#addOutgoingRecoveryLimitConsumer] to react when the limits
-/// change (e.g. to start queued recoveries when a limit increases). Plugins get the instance from
+/// A single instance is created per node and watches these settings on behalf of the recovery components, with the exception
+/// of [PeerRecoverySourceService] which watches [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING] itself
+/// (see [#outgoingRecoveryLimit()]). Components read the current limits through the getters ([#incomingRecoveryLimits()],
+/// [#outgoingRecoveryLimit()]), or register with [#addIncomingRecoveryLimitsConsumer] and [#addOutgoingRecoveryLimitConsumer]
+/// to react when the limits change (e.g. to start queued recoveries when a limit increases). Plugins get the instance from
 /// [org.elasticsearch.plugins.Plugin.PluginServices#dataNodeRecoveryThrottlingLimits()].
 ///
 /// Note that the bandwidth and chunking settings are defined in [RecoverySettings].
@@ -218,8 +218,6 @@ public final class DataNodeRecoveryThrottlingLimits {
     /// The current effective source (outgoing) side limit, see [#outgoingRecoveryLimit()].
     private volatile int outgoingRecoveryLimit;
 
-    private final ClusterSettings clusterSettings;
-
     private final List<Consumer<IncomingRecoveryLimits>> incomingRecoveryLimitsConsumers = new CopyOnWriteArrayList<>();
     private final List<IntConsumer> outgoingRecoveryLimitConsumers = new CopyOnWriteArrayList<>();
 
@@ -230,7 +228,6 @@ public final class DataNodeRecoveryThrottlingLimits {
     /// If the throttle settings are not registered (see the class documentation), the limits stay unbounded, i.e.
     /// [IncomingRecoveryLimits#UNBOUNDED] and [Integer#MAX_VALUE].
     public DataNodeRecoveryThrottlingLimits(ClusterSettings clusterSettings, Settings nodeSettings, ByteSizeValue maxHeap) {
-        this.clusterSettings = clusterSettings;
         // TODO: remove the unregistered branch once the settings are also registered in stateful.
         final List<Setting<?>> registeredSettings = settings().stream().filter(s -> clusterSettings.isDynamicSetting(s.getKey())).toList();
         if (registeredSettings.size() == settings().size()) {
@@ -286,24 +283,13 @@ public final class DataNodeRecoveryThrottlingLimits {
     }
 
     /// Returns the node's current effective max concurrent outgoing recoveries.
+    ///
+    /// The limit takes the heap-based throttle (see [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING])
+    /// into account, which only applies to stateless primary relocations (`StatelessPrimaryRelocationSourceService`) for
+    /// now. [PeerRecoverySourceService] applies [#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING] separately, so
+    /// this limit does not reflect the one applied to stateful peer recoveries.
     public int outgoingRecoveryLimit() {
         return outgoingRecoveryLimit;
-    }
-
-    /// Returns whether recoveries are currently throttled by the data nodes. DNRT is considered enabled when
-    /// `masterRecoveryThrottlingDisabled` holds for the current cluster settings, and this node bounds its incoming and
-    /// outgoing recoveries ([IncomingRecoveryLimits#maxConcurrentRecoveries()] and `outgoingRecoveryLimit` are both finite).
-    ///
-    /// `masterRecoveryThrottlingDisabled` checks that every master decider throttling the caller's recoveries, including
-    /// plugin ones such as `StatelessThrottlingConcurrentRecoveriesAllocationDecider`, leaves throttling to the data nodes.
-    ///
-    /// This is conservative. When either side does not match, the master is assumed to still throttle, as it did before DNRT.
-    /// Note that this reflects the cluster settings as last applied on this node, which may be different from the master's
-    /// current settings view.
-    public boolean isDataNodeRecoveryThrottlingEnabled(Predicate<ClusterSettings> masterRecoveryThrottlingDisabled) {
-        return masterRecoveryThrottlingDisabled.test(clusterSettings)
-            && incomingRecoveryLimits.maxConcurrentRecoveries() < Integer.MAX_VALUE
-            && outgoingRecoveryLimit < Integer.MAX_VALUE;
     }
 
     /// Calls `consumer` with the node's current [IncomingRecoveryLimits], then again whenever a cluster settings update
@@ -320,6 +306,9 @@ public final class DataNodeRecoveryThrottlingLimits {
     /// Calls `consumer` with the node's current [#outgoingRecoveryLimit()], then again whenever a cluster settings update
     /// changes any of the outgoing throttle settings. The settings are watched as a group, so that an update changing
     /// both of them is applied atomically. Updates are delivered on the thread applying the cluster settings.
+    ///
+    /// As for [#outgoingRecoveryLimit()], the limit includes the heap-based throttle, which only applies to stateless
+    /// primary relocations for now. [PeerRecoverySourceService] does not use this method.
     ///
     /// If the throttle settings are not registered (see the class documentation), `consumer` is only called once, with
     /// [Integer#MAX_VALUE].

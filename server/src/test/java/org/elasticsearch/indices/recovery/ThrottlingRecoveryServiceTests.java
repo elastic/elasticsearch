@@ -40,7 +40,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -2827,10 +2826,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     private static ClusterService newClusterService(Settings settings) {
         ClusterService clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings = new ClusterSettings(
-            settings,
-            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()))
-        );
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.localNode()).thenReturn(localNode);

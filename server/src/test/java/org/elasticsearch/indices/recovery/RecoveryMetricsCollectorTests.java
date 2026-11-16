@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.recovery.ThrottlingRecoveryService.BlockedState;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
@@ -134,10 +133,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
 
     private void doTestIncomingRecoveryLimitsMetrics(Settings nodeSettings, boolean expectHeapBasedLimit) {
         final var telemetryPlugin = new TestTelemetryPlugin();
-        final var clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()))
-        );
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()));
         final int heapGb = between(1, 64);
         try (
             var collector = new RecoveryMetricsCollector(
@@ -189,10 +185,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
 
     public void testOutgoingRecoveryLimitMetric() {
         final var telemetryPlugin = new TestTelemetryPlugin();
-        final var clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()))
-        );
+        final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingLimits.settings()));
         final int heapGb = between(1, 64);
         try (
             var collector = new RecoveryMetricsCollector(

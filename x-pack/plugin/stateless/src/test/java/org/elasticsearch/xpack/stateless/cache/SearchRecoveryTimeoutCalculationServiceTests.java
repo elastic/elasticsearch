@@ -108,8 +108,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
     }
 
     private static ClusterSettings newClusterSettings(Settings settings) {
-        final Set<Setting<?>> registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        registeredSettings.addAll(DataNodeRecoveryThrottlingLimits.settings());
+        final Set<Setting<?>> registeredSettings = new HashSet<>(DataNodeRecoveryThrottlingLimits.settings());
         registeredSettings.addAll(
             List.of(
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,

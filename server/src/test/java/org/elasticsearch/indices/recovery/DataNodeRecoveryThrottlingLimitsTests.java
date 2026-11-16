@@ -11,7 +11,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
@@ -23,7 +22,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING;
 import static org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingLimits.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING;
@@ -316,64 +314,11 @@ public class DataNodeRecoveryThrottlingLimitsTests extends ESTestCase {
         assertThat(outgoingObserved, equalTo(Collections.nCopies(watcherCount, 7)));
     }
 
-    public void testDataNodeRecoveryThrottlingEnabledRequiresBoundedLimits() {
-        final var clusterSettings = clusterSettingsWithDataNodeSettingsRegistered(Settings.EMPTY);
-        final var limits = new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ZERO);
-        final Predicate<ClusterSettings> masterRecoveryThrottlingDisabled = settings -> true;
-        // Unbounded by default.
-        assertFalse(limits.isDataNodeRecoveryThrottlingEnabled(masterRecoveryThrottlingDisabled));
-
-        final var bothBounded = Settings.builder()
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4)
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4)
-            .build();
-        clusterSettings.applySettings(bothBounded);
-        assertTrue(limits.isDataNodeRecoveryThrottlingEnabled(masterRecoveryThrottlingDisabled));
-
-        // Only one side is bounded.
-        final String unboundedSide = randomFrom(
-            INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
-            INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey()
-        );
-        clusterSettings.applySettings(Settings.builder().put(bothBounded).remove(unboundedSide).build());
-        assertFalse(limits.isDataNodeRecoveryThrottlingEnabled(masterRecoveryThrottlingDisabled));
-    }
-
-    public void testDataNodeRecoveryThrottlingEnabledRequiresMasterCheck() {
-        final Setting<Integer> masterThrottleSetting = Setting.intSetting(
-            "test.master_concurrent_recoveries",
-            2,
-            0,
-            Setting.Property.Dynamic,
-            Setting.Property.NodeScope
-        );
-        final var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        registeredSettings.addAll(DataNodeRecoveryThrottlingLimits.settings());
-        registeredSettings.add(masterThrottleSetting);
-        final var bothBounded = Settings.builder()
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 4)
-            .put(INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 4)
-            .build();
-        final var clusterSettings = new ClusterSettings(bothBounded, registeredSettings);
-        final var limits = new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ZERO);
-        final Predicate<ClusterSettings> masterRecoveryThrottlingDisabled = settings -> settings.get(
-            masterThrottleSetting
-        ) == Integer.MAX_VALUE;
-        assertFalse(limits.isDataNodeRecoveryThrottlingEnabled(masterRecoveryThrottlingDisabled));
-
-        clusterSettings.applySettings(Settings.builder().put(bothBounded).put(masterThrottleSetting.getKey(), Integer.MAX_VALUE).build());
-        assertTrue(limits.isDataNodeRecoveryThrottlingEnabled(masterRecoveryThrottlingDisabled));
-
-        clusterSettings.applySettings(bothBounded);
-        assertFalse(limits.isDataNodeRecoveryThrottlingEnabled(masterRecoveryThrottlingDisabled));
-    }
-
-    public void testDataNodeRecoveryThrottlingDisabledWhenDataNodeSettingsAreNotRegistered() {
+    public void testGettersWhenSettingsAreNotRegistered() {
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var limits = new DataNodeRecoveryThrottlingLimits(clusterSettings, Settings.EMPTY, ByteSizeValue.ofGb(4));
         assertThat(limits.incomingRecoveryLimits(), equalTo(IncomingRecoveryLimits.UNBOUNDED));
         assertThat(limits.outgoingRecoveryLimit(), equalTo(Integer.MAX_VALUE));
-        assertFalse(limits.isDataNodeRecoveryThrottlingEnabled(settings -> true));
     }
 
     private static ClusterSettings clusterSettingsWithDataNodeSettingsRegistered(Settings settings) {

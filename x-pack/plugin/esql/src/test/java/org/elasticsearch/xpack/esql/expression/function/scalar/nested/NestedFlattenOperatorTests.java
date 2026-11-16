@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
@@ -203,6 +204,30 @@ public class NestedFlattenOperatorTests extends NestedIndexOperatorTestCase {
         public <S> IndexedByShardId<S> map(Function<T, S> mapper) {
             return new LiveShards<>(id -> mapper.apply(shard.apply(id)));
         }
+    }
+
+    /**
+     * A field converted as it is loaded can't be read from the children, so it is null with a warning. The warning goes to the
+     * driver, which reports it from a remote node too, where the exchange drops the response headers.
+     */
+    public void testConvertedLeafIsNullWithDriverWarning() {
+        DriverContext context = driverContext();
+        BlockFactory blockFactory = context.blockFactory();
+        Page page = parents(blockFactory, 2, 1).appendBlocks(new Block[] { blockFactory.newConstantNullBlock(1) });
+        var leaves = List.of(new NestedFlattenOperator.Leaf("items.price", 1, DataType.LONG, true));
+        try (Operator operator = new NestedFlattenOperator.Factory(new IndexedByShardIdFromSingleton<>(shard), 0, leaves).get(context)) {
+            operator.addInput(page);
+            Page result = operator.getOutput();
+            try {
+                assertThat(result.getBlock(1).isNull(0), equalTo(true));
+            } finally {
+                result.releaseBlocks();
+            }
+        }
+        assertThat(
+            collectWarnings(context),
+            equalTo(List.of("Field [items.price] cannot be retrieved, it is unsupported or not indexed; returning null"))
+        );
     }
 
     /** A page with no parent on a shard that nests the leaves is passed on as it is. */

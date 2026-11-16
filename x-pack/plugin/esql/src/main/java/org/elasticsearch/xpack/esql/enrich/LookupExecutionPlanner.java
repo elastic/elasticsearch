@@ -46,11 +46,13 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedFlattenOperator;
 import org.elasticsearch.xpack.esql.plan.physical.BulkLookupMvFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -382,7 +384,7 @@ public class LookupExecutionPlanner {
         // Create a factory that builds ShardContext and BlockLoader dynamically from LookupDriverContext
         // to avoid caching stale IndexReader references when PhysicalOperation is cached
         ByteSizeValue jumboSize = plannerSettings.valuesLoadingJumboSize();
-        return source.with(new OperatorFactory() {
+        PhysicalOperation extracted = source.with(new OperatorFactory() {
             @Override
             public Operator get(DriverContext driverContext) {
                 // In lookup execution path, driverContext is always LookupDriverContext
@@ -457,6 +459,29 @@ public class LookupExecutionPlanner {
                 }
                 sb.append("]]");
                 return sb.toString();
+            }
+        }, layout);
+        if (attributesToExtract.stream().noneMatch(a -> a instanceof FieldAttribute fa && fa.field().isUnderNested())) {
+            return extracted;
+        }
+        return extracted.with(new OperatorFactory() {
+            @Override
+            public Operator get(DriverContext driverContext) {
+                EsPhysicalOperationProviders.ShardContext esShardContext = ((LookupDriverContext) driverContext).lookupShardContext()
+                    .context();
+                var leaves = AbstractLookupService.nestedLeaves(
+                    esShardContext,
+                    attributesToExtract,
+                    i -> layout.get(attributesToExtract.get(i).id()).channel()
+                );
+                return new NestedFlattenOperator.Factory(new IndexedByShardIdFromSingleton<>(esShardContext), docChannel, leaves).get(
+                    driverContext
+                );
+            }
+
+            @Override
+            public String describe() {
+                return "NestedFlattenOperator";
             }
         }, layout);
     }

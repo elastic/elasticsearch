@@ -93,6 +93,8 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedFlattenOperator;
+import org.elasticsearch.xpack.esql.index.NestedLeaves;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -108,6 +110,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
@@ -543,6 +546,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 );
                 releasables.add(extractFieldsOperator);
                 operators.add(extractFieldsOperator);
+                var leaves = nestedLeaves(shardContext.context, request.extractFields, i -> i + 2);
+                if (leaves.isEmpty() == false) {
+                    var shards = new IndexedByShardIdFromSingleton<>(shardContext.context);
+                    Operator nestedFlatten = new NestedFlattenOperator.Factory(shards, 0, leaves).get(driverContext);
+                    releasables.add(nestedFlatten);
+                    operators.add(nestedFlatten);
+                }
             }
 
             // Stage 3
@@ -612,6 +622,29 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 Releasables.close(releasables);
             }
         }
+    }
+
+    /**
+     * The fields the lookup index maps under a nested object, which field extraction loads as nulls. {@code channel} gives
+     * the block of each of {@code extractFields}.
+     */
+    static List<NestedFlattenOperator.Leaf> nestedLeaves(
+        EsPhysicalOperationProviders.ShardContext shardContext,
+        List<? extends NamedExpression> extractFields,
+        IntUnaryOperator channel
+    ) {
+        if (NestedLeaves.ENABLED == false) {
+            return List.of();
+        }
+        List<NestedFlattenOperator.Leaf> leaves = new ArrayList<>();
+        for (int i = 0; i < extractFields.size(); i++) {
+            NamedExpression extractField = extractFields.get(i);
+            String fieldName = extractFieldName(extractField);
+            if (extractField.dataType() != DataType.UNSUPPORTED && NestedFlattenOperator.nestedPath(shardContext, fieldName) != null) {
+                leaves.add(new NestedFlattenOperator.Leaf(fieldName, channel.applyAsInt(i), extractField.dataType(), false));
+            }
+        }
+        return leaves;
     }
 
     private static Operator extractFieldsOperator(

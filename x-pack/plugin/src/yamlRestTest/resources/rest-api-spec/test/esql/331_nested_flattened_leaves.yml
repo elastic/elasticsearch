@@ -81,6 +81,14 @@ setup:
         items: { price: 7, sku: w }
 
 ---
+teardown:
+- do:
+    cluster.put_settings:
+      body:
+        persistent:
+          esql.query.lookup_join_streaming: null
+
+---
 leaves are multivalued columns:
 - do:
     esql.query:
@@ -639,3 +647,94 @@ null checks read the values of every object:
       body:
         query: FROM nn_nested, nn_root, nn_object | WHERE items.note IS NULL | KEEP id | LIMIT 10
 - match: { values: [[e]] }
+
+---
+lookup join reads fields under a nested object in the lookup index:
+- do:
+    indices.create:
+      index: lj_main
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              properties:
+                sku:
+                  type: keyword
+- do:
+    indices.create:
+      index: lj_lookup
+      body:
+        settings:
+          index.mode: lookup
+        mappings:
+          dynamic: strict
+          properties:
+            id:
+              type: keyword
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+                note:
+                  type: text
+                sku:
+                  type: keyword
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: lj_main
+      - id: a
+        items: { sku: x }
+      - index:
+          _index: lj_main
+      - id: b
+      - index:
+          _index: lj_lookup
+      - id: a
+        items:
+        - { price: 10, note: hello, sku: x }
+        - { price: 25, note: bye, sku: y }
+- do:
+    esql.query:
+      body:
+        query: FROM lj_main | LOOKUP JOIN lj_lookup ON id | KEEP id, items.price, items.note | SORT id | LIMIT 10
+- match: { values: [[a, [10, 25], [hello, bye]], [b, null, null]] }
+- do:
+    esql.query:
+      body:
+        query: FROM lj_main | LOOKUP JOIN lj_lookup ON id | WHERE MV_MAX(items.price) > 20 | KEEP id, items.price | LIMIT 10
+- match: { values: [[a, [10, 25]]] }
+- do:
+    cluster.put_settings:
+      body:
+        persistent:
+          esql.query.lookup_join_streaming: false
+- do:
+    esql.query:
+      body:
+        query: FROM lj_main | LOOKUP JOIN lj_lookup ON id | KEEP id, items.price, items.note | SORT id | LIMIT 10
+- match: { values: [[a, [10, 25], [hello, bye]], [b, null, null]] }
+# The lookup index is searched for the join key, but under a nested object the parent's index holds none of its values.
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM lj_main | LOOKUP JOIN lj_lookup ON items.sku | KEEP id | LIMIT 10
+- match: { error.type: verification_exception }
+- contains: { error.reason: "LOOKUP JOIN cannot match on [items.sku]: matching on nested child fields is not supported yet" }
+- do:
+    catch: bad_request
+    esql.query:
+      body:
+        query: FROM lj_main | RENAME items.sku AS s | LOOKUP JOIN lj_lookup ON s == items.sku | KEEP id | LIMIT 10
+- match: { error.type: verification_exception }
+- contains: { error.reason: "LOOKUP JOIN cannot match on [items.sku]: matching on nested child fields is not supported yet" }

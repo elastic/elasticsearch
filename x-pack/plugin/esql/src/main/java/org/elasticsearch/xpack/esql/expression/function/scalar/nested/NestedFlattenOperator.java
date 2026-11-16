@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -175,9 +175,9 @@ public final class NestedFlattenOperator extends AbstractPageMappingOperator {
                 if (leaf.readable()) {
                     byPath.computeIfAbsent(path, k -> new ArrayList<>()).add(l);
                 } else {
-                    HeaderWarning.addWarning(
-                        "Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null",
-                        leaf.name()
+                    // Not HeaderWarning: the exchange drops response headers from remote nodes
+                    context.addWarning(
+                        Strings.format("Field [%s] cannot be retrieved, it is unsupported or not indexed; returning null", leaf.name())
                     );
                     unreadable.add(l);
                 }

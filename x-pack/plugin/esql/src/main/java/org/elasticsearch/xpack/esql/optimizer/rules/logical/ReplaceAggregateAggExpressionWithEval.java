@@ -174,15 +174,23 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
     }
 
     /**
-     * Walks {@code plan} bottom-up and passes on the aliases whose value holds for every row reaching {@code aggregate}, so that
-     * aggregate functions whose arguments resolve to equal expressions compute the same value.
+     * Collects the aliases used to compare the aggregate functions of {@code aggregate}. Functions that are equal once their
+     * arguments are resolved through these aliases are computed only once, so an alias {@code x = e} may only be collected if
+     * {@code x} equals {@code e} on every row that reaches {@code aggregate}.
      * <p>
-     * Nothing at or below another {@link Aggregate} is collected: its aggregate values are computed over its own input rows, and
-     * a multi-valued grouping key keeps its id across it while holding one expanded value per group above it, so an alias below
-     * it no longer describes the key. Only the left-hand side of an {@link InlineJoin} is walked: its right-hand side computes
-     * values per group, and a multi-valued join key makes them multi-valued on the joined rows.
+     * Aliases from per-row commands such as {@code EVAL} and {@code RENAME} hold on every row. The walk skips these parts of the
+     * plan, where they do not:
+     * <ul>
+     *     <li>Any {@link Aggregate} other than {@code aggregate}, and everything below it. Its aggregate values depend on the rows
+     *     it aggregated: in {@code STATS c = COUNT(*) BY g | STATS d = COUNT(*) BY c}, {@code c} and {@code d} are both
+     *     {@code COUNT(*)} but count different rows. Its grouping keys keep their ids but not their values: a key that is
+     *     multi-valued below the aggregate holds a single value per group above it.</li>
+     *     <li>The right-hand side of an {@link InlineJoin}. It computes one value per group, and a row whose join key is
+     *     multi-valued joins several groups, so a value that is constant per group can be multi-valued on that row.</li>
+     * </ul>
      */
     private static void collectAliases(LogicalPlan plan, Aggregate aggregate, Consumer<Alias> consumer) {
+        // Stop at any aggregate other than the one being optimized, without walking below it.
         if (plan != aggregate && plan instanceof Aggregate) {
             return;
         }

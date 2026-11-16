@@ -722,4 +722,30 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(aggs), contains("mc"));
         aggFieldName(aggs.get(0), Min.class, "c");
     }
+
+    /**
+     * {@code avg(s2)} becomes {@code sum(s2) / count(s2)}, and {@code s2} is an alias of {@code salary}, so the {@code sum} is the
+     * same aggregation as {@code s}.
+     */
+    public void testAvgOverAliasReusesSumInSameAggregate() {
+        var plan = plan("""
+            from test
+            | eval s2 = salary
+            | stats s = sum(salary), a = avg(s2)
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("s", "a"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("a"));
+        var div = as(Alias.unwrap(eval.fields().get(0)), Div.class);
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(aggs, hasSize(2));
+        aggFieldName(aggs.get(0), Sum.class, "salary");
+        aggFieldName(aggs.get(1), Count.class, "salary");
+        assertThat(Expressions.attribute(div.left()), is(aggs.get(0).toAttribute()));
+        assertThat(Expressions.attribute(div.right()), is(aggs.get(1).toAttribute()));
+    }
 }

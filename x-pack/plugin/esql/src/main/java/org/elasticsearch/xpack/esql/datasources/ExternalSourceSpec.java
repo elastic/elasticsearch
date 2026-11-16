@@ -21,12 +21,11 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The key a resolution is stored and looked up under: a resource and the configuration it is read under. Both
- * matter: one prefix read as CSV and as TSV yields different columns, so the schema a resolution carries depends
- * on the configuration and not on the resource alone.
+ * The key a resolution is stored and looked up under. The configuration is part of it: one prefix read as CSV and
+ * as TSV yields different columns, so the schema depends on more than the resource.
  * <p>
- * This is derived wherever it is needed and never held on a plan node. A field on a plan node would travel to data
- * nodes and need a transport version, and resolution finishes before a plan is serialized.
+ * Derived wherever it is needed, never held on a plan node — that would travel to data nodes and need a transport
+ * version, and resolution finishes before a plan is serialized.
  *
  * @param path   the resource, as the relation's {@code tablePath} literal spells it
  * @param config includes the data source's credentials, which decide which objects are visible
@@ -39,13 +38,9 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
     }
 
     /**
-     * Copies every level, not just the top one. {@code DatasetRewriter.mergeSettings} builds the config with
-     * {@code putAll}, so its nested maps are shared and mutable; a one-level copy leaves this key's
-     * {@code hashCode} free to change underneath it while it is a key in the resolution map, and the analyzer's
-     * rebuilt key would then miss.
-     * <p>
-     * Not {@code Map.copyOf}: {@code Dataset.PARSER} reads settings with {@code p.map()}, so a null value is
-     * reachable and {@code copyOf} throws on it.
+     * Every level, not just the top: {@code DatasetRewriter.mergeSettings} shares its nested maps, so a one-level
+     * copy leaves this key's {@code hashCode} free to change while it is a key in the resolution map.
+     * Not {@code Map.copyOf}, which throws on the null values {@code Dataset.PARSER} admits.
      */
     private static Map<String, Object> deepCopy(Map<String, Object> config) {
         Map<String, Object> copy = new HashMap<>(config.size());
@@ -65,17 +60,15 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
             list.forEach(element -> copy.add(deepCopyValue(element)));
             return Collections.unmodifiableList(copy);
         }
-        // Everything else is kept by reference, which includes an array: a non-secret data-source setting can be a
-        // byte[] after a generic-serialization round-trip, and two equal arrays are not equal to Map.equals. That
-        // cannot separate two relations within one query -- both read the same parent.settings() instance, and a
-        // spec never outlives the query that derived it -- so it is a copy nobody needs rather than a missing arm.
+        // Kept by reference, arrays included. Two relations in one query read the same settings instance and a
+        // spec never outlives its query, so array identity cannot separate them.
         return value;
     }
 
     /**
      * The only derivation point, so the session and the analyzer cannot build different keys for one relation.
      *
-     * @throws IllegalStateException if the path is not a non-null literal, which post-parsing it always is
+     * @throws IllegalStateException if the path is not a non-null literal
      */
     public static ExternalSourceSpec of(UnresolvedExternalRelation relation) {
         ExternalSourceSpec spec = ofOrNull(relation);
@@ -91,9 +84,8 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
     }
 
     /**
-     * As {@link #of}, but {@code null} for a relation whose {@code tablePath} is not a non-null literal — a shape
-     * pre-analysis can still see. A caller that must not throw there gets the same derivation and no exception, and
-     * the relation is simply absent from the set it was being collected into.
+     * As {@link #of}, but {@code null} instead of throwing, for a caller collecting relations into a set: one
+     * without a literal {@code tablePath} is simply absent from it.
      */
     static ExternalSourceSpec ofOrNull(UnresolvedExternalRelation relation) {
         Expression tablePath = relation.tablePath();
@@ -104,15 +96,14 @@ public record ExternalSourceSpec(String path, Map<String, Object> config) {
 
     /**
      * The resource, and the dataset name when the read came from one. Nothing derived from {@code config}: the
-     * generated record {@code toString} would print the credentials outright, and a hash of the map is a function of
-     * a secret that is plaintext on a cluster which opted out of state encryption. Two debug logs render these.
+     * generated {@code toString} would print credentials, and a hash of the map is a function of a secret that is
+     * plaintext on a cluster which opted out of state encryption. Debug logs render this.
      */
     @Override
     public String toString() {
         Object context = config.get(ExternalSourceResolver.DATASET_CONTEXT_KEY);
         Object name = context instanceof Map<?, ?> map ? map.get("dataset") : null;
-        // Redacted for the same reason RequestFilterRewriter redacts a relation's path: an https resource may be a
-        // pre-signed URL whose query string IS the signature.
+        // An https resource may be a pre-signed URL whose query string IS the signature.
         return name == null ? ExternalFailures.redactHttpUrl(path) : ExternalFailures.redactHttpUrl(path) + "[" + name + "]";
     }
 }

@@ -737,15 +737,12 @@ public class ExternalSourceResolver {
      * @param declaredMappings    per-path declared mapping — strict skips inference, non-strict overlays it, and its
      *        derived read-instructions (renames, date formats) ride a typed {@code DeclaredReadSpec} to
      *        the reader boundary; {@code null} when no path declares a mapping.
-     * @param specsRequiringStats specs whose multi-file FFW resolution must eagerly aggregate global
-     *        statistics across all files (the ungrouped-aggregate metadata fast path). A {@code null}
-     *        value resolves every spec eagerly. When non-null, a spec absent from the set defers the per-file
-     *        footer reads (keeping {@code STATS_FILE_COUNT}, marking stats partial). See
-     *        {@link ExternalStatsRequirementExtractor#specsRequiringEagerStats}.
+     * @param specsRequiringStats specs whose FFW resolution eagerly aggregates global statistics across all files;
+     *        one absent from the set defers the per-file footer reads. {@code null} resolves every spec eagerly.
+     *        See {@link ExternalStatsRequirementExtractor#specsRequiringEagerStats}.
      * @param specsReadingNoRows specs whose rows the query all discards, so resolution owes them a schema and
-     *        nothing else. Membership no longer decides how far a listing runs - the dataset's mode does, for a
-     *        reading query too. {@code null} leaves every spec resolving as a reading query. See
-     *        {@link SchemaDiscoveryPathExtractor#specsReadingNoRows}.
+     *        nothing else. How far their listing runs is the dataset's mode, not this. {@code null} leaves every
+     *        spec resolving as a reading query. See {@link SchemaDiscoveryPathExtractor#specsReadingNoRows}.
      * @param folderRanges per-spec folder-range predicates, built from the TEMPORAL extract before
      *        {@code projectListingHints} drops {@code @timestamp}. A spec absent from the map gets grain INs only.
      */
@@ -871,8 +868,7 @@ public class ExternalSourceResolver {
         Map<String, Object> config = spec.config();
         List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(spec) : null;
         FolderRangePredicate folderRange = folderRanges != null ? folderRanges.get(spec) : null;
-        // How much of this path the query actually needs. The two sets are exclusive by construction, so they
-        // collapse into one value here rather than being carried side by side through resolution.
+        // The two sets are exclusive by construction, so they collapse into one demand here.
         ResolutionDemand demand = ResolutionDemand.of(spec, specsRequiringStats, specsReadingNoRows);
         DatasetMapping declaredMapping = declaredMappings != null ? declaredMappings.get(path) : null;
         // The declared mapping's read-instructions (logical->physical column renames, date formats) travel as a
@@ -911,8 +907,7 @@ public class ExternalSourceResolver {
                 effectiveReadSpec = declaredReadSpec;
             }
             resolved.put(spec, finalSource.withDeclaredReadSpec(effectiveReadSpec));
-            // The spec is logged rather than the raw path because an https resource can be a pre-signed URL, which
-            // the spec's toString redacts and the path does not.
+            // The spec, not the raw path: its toString redacts a pre-signed URL.
             LOGGER.debug("Successfully resolved external source: {}", spec);
             // Dispatch to the executor rather than calling directly: on a cache-hit the callback fires
             // synchronously, so a direct recursive call would stack one frame per path and overflow the
@@ -1651,13 +1646,9 @@ public class ExternalSourceResolver {
                 // across all files. This allows aggregate pushdown (COUNT/MIN/MAX) to use accurate global stats and
                 // to skip Phase 2 (split discovery) entirely for those queries.
                 //
-                // This eager all-file aggregation is gated on requiresStats: only query shapes that can consume the
-                // global stats — an ungrouped aggregate over the relation, detected by
-                // ExternalStatsRequirementExtractor#specsRequiringEagerStats — pay the N footer reads. Every other
-                // shape (LIMIT, SELECT *, grouped STATS ... BY, INLINESTATS) takes the defer branch below: it keeps
-                // STATS_FILE_COUNT (from enrichWithFileCount above) but marks stats partial, so Phase 2 split
-                // discovery reads footers once instead of twice. A caller passing a null specsRequiringStats set
-                // resolves every spec eagerly, which is the behaviour before the set existed.
+                // Gated on requiresStats: only shapes that can consume the global stats pay the N footer reads.
+                // Every other shape takes the defer branch below, keeping STATS_FILE_COUNT but marking stats
+                // partial. A null specsRequiringStats set resolves every spec eagerly.
                 //
                 // For an eager (requiresStats) resolve the cost is acceptable while a read still buys
                 // something - remainingReadsBuyNothing stops the gather when none does:

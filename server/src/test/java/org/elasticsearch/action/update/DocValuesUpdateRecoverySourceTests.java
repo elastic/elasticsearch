@@ -9,6 +9,10 @@
 
 package org.elasticsearch.action.update;
 
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,11 +30,13 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -136,6 +142,62 @@ public class DocValuesUpdateRecoverySourceTests extends IndexShardTestCase {
         }
     }
 
+    /**
+     * A reindex soft-deletes the previous generation of a document, but recovery and CCR still retain it. A later in-place update to the
+     * live generation must leave the retained one alone, so replaying the operation history reconstructs each operation with its own value.
+     */
+    public void testInPlaceUpdateDoesNotRewriteReindexedGeneration() throws Exception {
+        assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
+
+        final IndexShard primary = newRecoveredColumnarPrimary();
+        try {
+            // Index count=1, then reindex to count=3; a refresh between them puts the generations in separate segments, as production does.
+            final long indexSeqNo = indexDoc(primary, "_doc", "1", "{\"count\":1}").getSeqNo();
+            primary.refresh("test");
+            final long reindexSeqNo = indexDoc(primary, "_doc", "1", "{\"count\":3}").getSeqNo();
+            primary.refresh("test");
+            // In-place update the live generation to count=9.
+            applyUpdate(primary, 2L, "1", 9);
+            primary.refresh("test");
+
+            // The live document carries the update, so it was applied in place to the reindexed generation.
+            assertThat(liveCount(primary), equalTo(9L));
+            // Replaying the operation history reconstructs each operation with its own value: the index as 1, the reindex as 3.
+            assertThat(reconstructCount(primary, indexSeqNo), equalTo(1L));
+            assertThat(reconstructCount(primary, reindexSeqNo), equalTo(3L));
+        } finally {
+            closeShards(primary);
+        }
+    }
+
+    /**
+     * An in-place update captures the pre-image of the value it overwrites. When the preceding reindex has not been refreshed, that value
+     * lives only in the version map and not yet in the reader, so the capture must still read the reindexed value: replaying the reindex
+     * operation has to reconstruct its own value rather than the value of the generation it replaced.
+     */
+    public void testInPlaceUpdateCapturesReindexedValueWhenReindexUnrefreshed() throws Exception {
+        assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
+
+        final IndexShard primary = newRecoveredColumnarPrimary();
+        try {
+            // Index count=1 and refresh so the reader sees this generation.
+            indexDoc(primary, "_doc", "1", "{\"count\":1}");
+            primary.refresh("test");
+            // Reindex to count=2 without refreshing: the live generation is only in the version map, the reader still shows count=1.
+            final long reindexSeqNo = indexDoc(primary, "_doc", "1", "{\"count\":2}").getSeqNo();
+            // In-place update the live generation to count=7.
+            applyUpdate(primary, 2L, "1", 7);
+            primary.refresh("test");
+
+            // The live document carries the update, so it was applied in place to the reindexed generation.
+            assertThat(liveCount(primary), equalTo(7L));
+            // Replaying the reindex operation reconstructs its own value (2), not the value of the generation it replaced (1).
+            assertThat(reconstructCount(primary, reindexSeqNo), equalTo(2L));
+        } finally {
+            closeShards(primary);
+        }
+    }
+
     private IndexShard newRecoveredColumnarPrimary() throws Exception {
         return newRecoveredColumnarPrimary(null);
     }
@@ -161,6 +223,28 @@ public class DocValuesUpdateRecoverySourceTests extends IndexShardTestCase {
         final IndexShard primary = newShard(shardId, true, "primary-node", indexMetadata, null);
         recoverShardFromStore(primary);
         return primary;
+    }
+
+    /** The current value of {@code count} on the single live document, read from its doc-values column. */
+    private static long liveCount(IndexShard shard) throws IOException {
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+            final List<Long> values = new ArrayList<>();
+            for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
+                final LeafReader reader = leaf.reader();
+                final Bits liveDocs = reader.getLiveDocs();
+                final SortedNumericDocValues count = reader.getSortedNumericDocValues("count");
+                if (count == null) {
+                    continue;
+                }
+                for (int doc = 0; doc < reader.maxDoc(); doc++) {
+                    if ((liveDocs == null || liveDocs.get(doc)) && count.advanceExact(doc)) {
+                        values.add(count.nextValue());
+                    }
+                }
+            }
+            assertThat("expected exactly one live document with a count", values, hasSize(1));
+            return values.getFirst();
+        }
     }
 
     private static void applyUpdate(IndexShard primary, long version, String id, long value) throws IOException {

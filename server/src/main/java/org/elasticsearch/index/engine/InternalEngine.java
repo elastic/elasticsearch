@@ -2748,11 +2748,15 @@ public class InternalEngine extends Engine {
      * the read retried, which is amortized since one refresh makes every buffered document visible at once.
      */
     private void capturePreImage(DocValuesUpdate op, List<Field> fields) throws IOException {
+        // The pre-image must come from the generation the update patches, and that generation must be visible to the reader before the
+        // update so the patch does not also reach a reindexed-away generation held in another segment. The version map carries the latest
+        // indexed generation even before a refresh makes it visible, so a reader still showing an older one is refreshed and retried.
+        final long liveVersion = latestIndexedVersion(op.uid());
         boolean refreshed = false;
         while (true) {
             final boolean captured = performActionWithDirectoryReader(SearcherScope.INTERNAL, directoryReader -> {
                 final DocIdAndVersion live = VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), false);
-                if (live == null) {
+                if (live == null || live.version < liveVersion) {
                     return Boolean.FALSE;
                 }
                 readPreImage(op, live.reader, live.docId, fields);
@@ -2771,6 +2775,15 @@ public class InternalEngine extends Engine {
             refreshInternalSearcher(REAL_TIME_GET_REFRESH_SOURCE, true);
             refreshed = true;
         }
+    }
+
+    /**
+     * The version of the latest indexed generation of this id held in the version map, which a refresh may not have made visible to the
+     * reader yet, or {@link Versions#NOT_FOUND} when the reader already reflects it. An in-place update leaves the version unchanged, so a
+     * higher version means a reindex is still pending.
+     */
+    private long latestIndexedVersion(BytesRef uid) {
+        return versionMap.getUnderLock(uid) instanceof IndexVersionValue indexed ? indexed.version : Versions.NOT_FOUND;
     }
 
     private static void readPreImage(DocValuesUpdate op, LeafReader reader, int docId, List<Field> fields) throws IOException {

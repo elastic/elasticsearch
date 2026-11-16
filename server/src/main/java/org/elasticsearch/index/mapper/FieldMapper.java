@@ -314,6 +314,14 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Whether {@link #mapColumnBatch} takes a source column of this {@link EscfColumnKind}. A batch with a column the mapper does
+     * not take falls back to the row path before any column is mapped.
+     */
+    public boolean supportsColumnKind(byte kind) {
+        return true;
+    }
+
+    /**
      * How this field's values are written when the ColumNAR codec stores them as a string column, or
      * {@code null} when this field's doc values are not stored as one.
      *

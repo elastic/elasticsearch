@@ -215,6 +215,7 @@ public class ComputeService {
     private final SearchService searchService;
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
+    private final TransportRequestOptions planRequestOptions;
 
     private final TransportService transportService;
     private final DriverTaskRunner driverRunner;
@@ -262,6 +263,7 @@ public class ComputeService {
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
+        this.planRequestOptions = TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.computeExecutor = computeExecutor;
         this.threadPool = threadPool;
@@ -316,15 +318,14 @@ public class ComputeService {
      * copy is charged to the request breaker and a trip fails the request instead of running the node out of memory.
      */
     TransportRequestOptions planRequestOptions() {
-        return TransportRequestOptions.of(null, TransportRequestOptions.Type.REG, blockFactory.breaker());
+        return planRequestOptions;
     }
 
     /**
      * Wraps the listener of a plan request whose target already holds the exchange that {@code remoteSink} reads from. When the
      * request fails before it is sent, for example because serializing it trips the breaker, nothing runs on the target to finish
-     * that exchange, and once the failure cancels the request's task the coordinator can no longer tell the target to finish it.
-     * So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the target until
-     * its inactive-sink reaper removes it.
+     * that exchange. So the exchange is finished through {@code remoteSink} before the failure propagates, rather than left on the
+     * target until its inactive-sink reaper removes it.
      */
     static <T> ActionListener<T> finishRemoteSinkIfNotSent(RemoteSink remoteSink, ActionListener<T> listener) {
         return listener.delegateResponse((l, e) -> {

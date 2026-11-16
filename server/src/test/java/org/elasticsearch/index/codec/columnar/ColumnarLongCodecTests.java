@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
@@ -70,10 +71,7 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
 
     @Before
     public void requireFeatureFlag() {
-        assumeTrue(
-            "the ColumNAR numeric codec is behind a feature flag",
-            ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled()
-        );
+        assumeTrue("the ColumNAR numeric codec is behind a feature flag", IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
     }
 
     /**
@@ -242,6 +240,42 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
             assertNull(nothingButNulls, withCodec.get(nothingButNulls));
         }
         assertEquals(sourceValues(WITHOUT_CODEC, arrays.size()), withCodec);
+        // A document holding only nulls has no value: it is missing, and nulls count for nothing.
+        assertSameHits(QueryBuilders.existsQuery(FIELD));
+        assertSameAggregations();
+    }
+
+    /**
+     * {@code null_value} replaces a null before nulls are dropped, so the replacement is indexed in the null's place and the
+     * document matches {@code exists}.
+     */
+    public void testNullValueReplacesNulls() throws IOException {
+        final IndexMode mode = randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+        final boolean indexed = randomBoolean();
+        final String mapping = "type=long,null_value=7,index=" + indexed + ",index_terms=" + (indexed && randomBoolean());
+        createIndex(WITH_CODEC, settings(mode, true), "@timestamp", "type=date", FIELD, mapping);
+        createIndex(WITHOUT_CODEC, settings(mode, false), "@timestamp", "type=date", FIELD, mapping);
+        final Map<String, String> arrays = new LinkedHashMap<>();
+        arrays.put("null", "null");
+        arrays.put("only-null", "[null]");
+        arrays.put("null-first", "[null, 1]");
+        arrays.put("null-between", "[2, null, 1]");
+        arrays.put("empty", "[]");
+        indexIntoBoth(arrays, false);
+
+        final Map<String, Object> expected = new HashMap<>();
+        expected.put("null", 7);
+        expected.put("only-null", 7);
+        expected.put("null-first", List.of(7, 1));
+        expected.put("null-between", List.of(2, 7, 1));
+        expected.put("empty", null);
+        assertEquals(expected, sourceValues(WITH_CODEC, arrays.size()));
+
+        final Set<String> withValues = Set.of("null", "only-null", "null-first", "null-between");
+        assertSameHitsIn(WITH_CODEC, QueryBuilders.existsQuery(FIELD), withValues);
+        assertSameHitsIn(WITH_CODEC, QueryBuilders.termQuery(FIELD, 7), withValues);
+        assertSameHits(QueryBuilders.existsQuery(FIELD));
+        assertSameHits(QueryBuilders.termQuery(FIELD, 7));
     }
 
     /**
@@ -426,12 +460,14 @@ public class ColumnarLongCodecTests extends ESSingleNodeTestCase {
             .addAggregation(AggregationBuilders.min("min").field(FIELD))
             .addAggregation(AggregationBuilders.max("max").field(FIELD))
             .addAggregation(AggregationBuilders.count("count").field(FIELD))
+            .addAggregation(AggregationBuilders.missing("missing").field(FIELD))
             .addAggregation(AggregationBuilders.terms("terms").field(FIELD).size(10_000));
         assertResponse(search, response -> {
             results.add(((Sum) response.getAggregations().get("sum")).value());
             results.add(((Min) response.getAggregations().get("min")).value());
             results.add(((Max) response.getAggregations().get("max")).value());
             results.add(((ValueCount) response.getAggregations().get("count")).getValue());
+            results.add(((InternalMissing) response.getAggregations().get("missing")).getDocCount());
             final LongTerms terms = response.getAggregations().get("terms");
             for (LongTerms.Bucket bucket : terms.getBuckets()) {
                 results.add(Arrays.asList(bucket.getKey(), bucket.getDocCount()));

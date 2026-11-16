@@ -39,7 +39,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
@@ -59,7 +58,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -218,11 +216,11 @@ public class NumberFieldMapper extends FieldMapper {
         /** {@code SORTED_NUMERIC} doc values holding each value as a sortable long. */
         SORTED_NUMERIC,
         /**
-         * Binary doc values stored by the ColumNAR codec, one {@link ColumnarNumericDocValuesField} payload per document
-         * holding its non-null values in the order they were written. Nulls aren't kept, so the field has no
-         * {@code .offsets} companion. So far only {@code long} fields are stored this way.
+         * Binary doc values, one {@link ColumnarNumericDocValuesField} payload per document holding its non-null values in
+         * the order they were written. Nulls aren't kept, so the field has no {@code .offsets} companion. So far only
+         * {@code long} fields are written this way. Which codec stores the payloads is decided by {@code PerFieldFormatSupplier}.
          */
-        COLUMNAR
+        BINARY
     }
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
@@ -389,7 +387,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return IndexType.terms(indexed.get(), docValuesParameters.get().enabled());
             }
             // Binary doc values can't carry a doc values skipper; the ColumNAR codec keeps a skip index of its own.
-            if (indexed.get() == false && docValuesParameters.get().enabled() && diskFormat != DocValuesDiskFormat.COLUMNAR) {
+            if (indexed.get() == false && docValuesParameters.get().enabled() && diskFormat != DocValuesDiskFormat.BINARY) {
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                     return IndexType.skippers();
                 }
@@ -456,20 +454,20 @@ public class NumberFieldMapper extends FieldMapper {
         private DocValuesDiskFormat diskFormat;
 
         /**
-         * How the field's doc values are laid out on disk. {@code long} fields of an index that opts into the ColumNAR
-         * numeric codec are written with it, except for an index sort field, which Lucene's index sort reads as
-         * {@code SORTED_NUMERIC}.
+         * How the field's doc values are laid out on disk. {@code long} fields of an index that opts into binary numeric
+         * doc values are written as {@link DocValuesDiskFormat#BINARY}, except for an index sort field, which Lucene's
+         * index sort reads as {@code SORTED_NUMERIC}.
          */
-        // TODO: store the other numeric types with ColumNAR too.
-        // TODO: sort an index by a ColumNAR numeric field, as keyword fields can be.
+        // TODO: write the other numeric types as binary doc values too.
+        // TODO: sort an index by a numeric field with binary doc values, as keyword fields can be.
         private DocValuesDiskFormat diskFormat(String fullName) {
             if (docValuesParameters.getValue().enabled() == false) {
                 return DocValuesDiskFormat.NONE;
             }
             if (type == NumberType.LONG
-                && ColumnarDocValuesFormatSelector.useColumnarNumericCodec(indexSettings)
+                && indexSettings.useBinaryNumericDocValues()
                 && indexSettings.getIndexSortConfig().hasSortOnField(fullName) == false) {
-                return DocValuesDiskFormat.COLUMNAR;
+                return DocValuesDiskFormat.BINARY;
             }
             return DocValuesDiskFormat.SORTED_NUMERIC;
         }
@@ -483,9 +481,9 @@ public class NumberFieldMapper extends FieldMapper {
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
             this.diskFormat = diskFormat(context.buildFullName(leafName()));
-            // A ColumNAR column keeps a document's values in the order they were written and keeps no nulls, so it needs no
+            // A binary payload keeps a document's values in the order they were written and keeps no nulls, so it needs no
             // offsets to rebuild an array.
-            this.offsetsFieldName = diskFormat == DocValuesDiskFormat.COLUMNAR
+            this.offsetsFieldName = diskFormat == DocValuesDiskFormat.BINARY
                 ? null
                 : getOffsetsFieldName(
                     context,
@@ -2423,7 +2421,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final boolean indexTerms;
         private final boolean staticallySingleValued;
         private final DocValuesDiskFormat diskFormat;
-        /** The readers of the field's ColumNAR column, or {@code null} when the ColumNAR codec doesn't store its doc values. */
+        /** The readers of the field's binary doc values, or {@code null} when its disk format isn't {@link DocValuesDiskFormat#BINARY}. */
         @Nullable
         private final ColumnarNumbers columnar;
 
@@ -2484,7 +2482,7 @@ public class NumberFieldMapper extends FieldMapper {
         ) {
             super(name, indexType, isStored, meta);
             this.diskFormat = diskFormat;
-            this.columnar = diskFormat == DocValuesDiskFormat.COLUMNAR ? ColumnarNumbers.of(type) : null;
+            this.columnar = diskFormat == DocValuesDiskFormat.BINARY ? ColumnarNumbers.of(type) : null;
             this.type = Objects.requireNonNull(type);
             this.coerce = coerce;
             this.nullValue = nullValue;
@@ -2621,7 +2619,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return new TermQuery(new Term(name(), term));
             }
-            if (diskFormat == DocValuesDiskFormat.COLUMNAR) {
+            if (diskFormat == DocValuesDiskFormat.BINARY) {
                 return columnar.termQuery(name(), value, indexType);
             }
             return type.termQuery(name(), value, indexType);
@@ -2675,7 +2673,7 @@ public class NumberFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             failIfNotIndexedNorDocValuesFallback(context);
-            if (diskFormat == DocValuesDiskFormat.COLUMNAR) {
+            if (diskFormat == DocValuesDiskFormat.BINARY) {
                 return columnar.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, indexType);
             }
             return type.rangeQuery(
@@ -2708,7 +2706,7 @@ public class NumberFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
-                if (diskFormat == DocValuesDiskFormat.COLUMNAR) {
+                if (diskFormat == DocValuesDiskFormat.BINARY) {
                     // supportsBlockLoaderConfig refuses every function for these fields, so none is asked for.
                     assert cfg == null : "no function is fused into a ColumNAR numeric block loader";
                     return columnar.blockLoader(name());
@@ -2746,7 +2744,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public boolean supportsBlockLoaderConfig(BlockLoaderFunctionConfig config, FieldExtractPreference preference) {
             // TODO: fuse functions into ColumNAR numeric block loaders.
-            if (diskFormat == DocValuesDiskFormat.COLUMNAR) {
+            if (diskFormat == DocValuesDiskFormat.BINARY) {
                 return false;
             }
             if (hasDocValues() && (preference != FieldExtractPreference.STORED || isSyntheticSource)) {
@@ -2772,7 +2770,7 @@ public class NumberFieldMapper extends FieldMapper {
                 : type.numericType.getValuesSourceType();
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return diskFormat == DocValuesDiskFormat.COLUMNAR
+                return diskFormat == DocValuesDiskFormat.BINARY
                     ? columnar.fieldDataBuilder(this, valuesSourceType)
                     : type.getFieldDataBuilder(this, valuesSourceType);
             }
@@ -2918,26 +2916,14 @@ public class NumberFieldMapper extends FieldMapper {
 
         // this is basically just an inlined version of `(NumberFieldType) super.fieldType()`
         this.fieldType = (NumberFieldType) mappedFieldType;
-        // indexValue's one-field-per-key check reads the last field added, which a ColumNAR payload added earlier isn't.
-        assert allowMultipleValues || fieldType.diskFormat != DocValuesDiskFormat.COLUMNAR
-            : "a field that allows only one value can't be stored with ColumNAR";
+        // indexValue's one-field-per-key check reads the last field added, which a binary payload added earlier isn't.
+        assert allowMultipleValues || fieldType.diskFormat != DocValuesDiskFormat.BINARY
+            : "a field that allows only one value can't write binary doc values";
         this.dvFactory = new DocValuesFieldFactory(
             docValuesParameters.multiValue(),
             fieldType.indexType.hasDocValuesSkipper(),
             builder.indexSettings.getIndexVersionCreated()
         );
-    }
-
-    /**
-     * The kind of ColumNAR column this field's doc values are written as, or {@code null} if the ColumNAR codec doesn't
-     * store them.
-     */
-    @Nullable
-    public ColumnarFieldType columnarNumericType() {
-        return switch (fieldType.diskFormat) {
-            case NONE, SORTED_NUMERIC -> null;
-            case COLUMNAR -> ColumnarFieldType.LONG;
-        };
     }
 
     boolean coerce() {
@@ -3030,8 +3016,8 @@ public class NumberFieldMapper extends FieldMapper {
         return switch (fieldType.diskFormat) {
             case NONE -> false;
             case SORTED_NUMERIC -> indexTerms == false && dimensionAllowsColumnarParse(fieldType(), writeDimensionRouting);
-            // TODO: map ColumNAR doc values a column at a time too; until then these fields take the row path.
-            case COLUMNAR -> false;
+            // TODO: map binary doc values a column at a time too; until then these fields take the row path.
+            case BINARY -> false;
         };
     }
 
@@ -3276,9 +3262,9 @@ public class NumberFieldMapper extends FieldMapper {
 
     private void addLongFields(LuceneDocument document, String name, long l) {
         final var indexType = fieldType.indexType();
-        if (fieldType.diskFormat == DocValuesDiskFormat.COLUMNAR) {
-            // LongField and IndexTermsLongField write SORTED_NUMERIC doc values, so a ColumNAR field writes its index and doc values
-            // apart.
+        if (fieldType.diskFormat == DocValuesDiskFormat.BINARY) {
+            // LongField and IndexTermsLongField write SORTED_NUMERIC doc values, so a field with binary doc values writes its index
+            // and doc values apart.
             if (indexTerms) {
                 document.add(new Field(name, encodeLongIndexTerm(l), INDEX_TERMS_FIELD_TYPE_INDEX_ONLY));
             } else if (indexType.hasPoints()) {
@@ -3336,7 +3322,7 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     private SourceLoader.SyntheticFieldLoader docValuesSyntheticFieldLoader() {
-        if (fieldType.diskFormat == DocValuesDiskFormat.COLUMNAR) {
+        if (fieldType.diskFormat == DocValuesDiskFormat.BINARY) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new ColumnarNumericPayloadSyntheticFieldLoaderLayer(fullPath(), type::writeValue));
             CompositeSyntheticFieldLoader.addFallbackLayers(layers, this, indexSettings);

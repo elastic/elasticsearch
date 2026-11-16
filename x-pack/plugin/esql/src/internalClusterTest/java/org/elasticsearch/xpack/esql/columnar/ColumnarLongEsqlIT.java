@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -42,7 +41,7 @@ public class ColumnarLongEsqlIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void requireFeatureFlag() {
-        assumeTrue("behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        assumeTrue("behind a feature flag", IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
     }
 
     @Override
@@ -119,10 +118,10 @@ public class ColumnarLongEsqlIT extends AbstractEsqlIntegTestCase {
             | SORT id
             | LIMIT 1000""");
         // Multi-value functions take shortcuts on blocks that say their values are sorted, so these catch a block of values in
-        // array order that claims to be sorted.
+        // array order that claims to be sorted. MV_COUNT counts no null elements.
         assertSameResults("""
-            | EVAL mn = MV_MIN(l), mx = MV_MAX(l), sorted = MV_SORT(l)
-            | KEEP id, mn, mx, sorted
+            | EVAL mn = MV_MIN(l), mx = MV_MAX(l), sorted = MV_SORT(l), n = MV_COUNT(l)
+            | KEEP id, mn, mx, sorted, n
             | SORT id
             | LIMIT 1000""");
         assertSameResults("""

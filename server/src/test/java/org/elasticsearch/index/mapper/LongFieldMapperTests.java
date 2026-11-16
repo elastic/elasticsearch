@@ -21,11 +21,11 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -371,15 +371,12 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
      * and so no point either.
      */
     public void testColumnarCodecPayloadKeepsArrayOrder() throws IOException {
-        assumeTrue("behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        assumeTrue("behind a feature flag", IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createMapperService(
             columnarNumericCodecSettings(),
             mapping(b -> b.startObject("field").field("type", "long").endObject())
         ).documentMapper();
-        assertEquals(
-            NumberFieldMapper.DocValuesDiskFormat.COLUMNAR,
-            ((NumberFieldMapper.NumberFieldType) mapper.mappers().getFieldType("field")).diskFormat()
-        );
+        assertEquals(NumberFieldMapper.DocValuesDiskFormat.BINARY, diskFormat(mapper));
 
         long v1 = randomLong();
         long v2 = randomLong();
@@ -400,7 +397,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
      * reads the same as the same array without its nulls does in an index that doesn't use the ColumNAR codec.
      */
     public void testColumnarCodecSyntheticSourceKeepsArrayOrder() throws IOException {
-        assumeTrue("behind a feature flag", ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
+        assumeTrue("behind a feature flag", IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createMapperService(
             columnarNumericCodecSettings(),
             mapping(b -> b.startObject("field").field("type", "long").endObject())
@@ -437,6 +434,43 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
             );
         }
         assertEquals("{}", syntheticSource(mapper, b -> b.nullField("field")));
+    }
+
+    /**
+     * Runs in release builds too, so the binary layout can't ship by mistake: without the feature flag the setting is unknown and
+     * a strict columnar {@code long} field keeps {@code SORTED_NUMERIC} doc values.
+     */
+    public void testBinaryDocValuesFollowFeatureFlag() throws IOException {
+        final DocumentMapper withSetting = createMapperService(
+            columnarNumericCodecSettings(),
+            mapping(b -> b.startObject("field").field("type", "long").endObject())
+        ).documentMapper();
+        if (IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled()) {
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(columnarNumericCodecSettings(), true);
+            assertEquals(NumberFieldMapper.DocValuesDiskFormat.BINARY, diskFormat(withSetting));
+        } else {
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> IndexScopedSettings.DEFAULT_SCOPED_SETTINGS.validate(columnarNumericCodecSettings(), true)
+            );
+            assertThat(
+                e.getMessage(),
+                containsString("unknown setting [" + IndexSettings.COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING.getKey() + "]")
+            );
+            // Even a setting that got past validation is ignored.
+            assertEquals(NumberFieldMapper.DocValuesDiskFormat.SORTED_NUMERIC, diskFormat(withSetting));
+        }
+        final DocumentMapper withoutSetting = createMapperService(
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR).getName())
+                .build(),
+            mapping(b -> b.startObject("field").field("type", "long").endObject())
+        ).documentMapper();
+        assertEquals(NumberFieldMapper.DocValuesDiskFormat.SORTED_NUMERIC, diskFormat(withoutSetting));
+    }
+
+    private static NumberFieldMapper.DocValuesDiskFormat diskFormat(DocumentMapper mapper) {
+        return ((NumberFieldMapper.NumberFieldType) mapper.mappers().getFieldType("field")).diskFormat();
     }
 
     private static Settings columnarNumericCodecSettings() {

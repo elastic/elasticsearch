@@ -45,7 +45,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ColumnarLongIndexFieldData;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
@@ -138,7 +137,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                 }
             }
         }
-        if (ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled()) {
+        if (IndexSettings.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled()) {
             for (boolean indexed : new boolean[] { true, false }) {
                 for (boolean multivaluedField : new boolean[] { true, false }) {
                     for (boolean allowEmpty : new boolean[] { true, false }) {

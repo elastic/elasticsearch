@@ -413,13 +413,21 @@ public class PerFieldFormatSupplier {
 
         /**
          * The kind of numeric column the named field is written as, or {@code null} when the ColumNAR codec doesn't
-         * store it as one. Only {@link NumberFieldMapper} fields are stored as numeric columns.
+         * store it as one. A {@link NumberFieldMapper} field is stored as a numeric column when it writes
+         * {@link NumberFieldMapper.DocValuesDiskFormat#BINARY} doc values, which only {@code long} fields do so far.
          */
         @Nullable
         ColumnarFieldType numericTypeOf(final String field) {
-            return mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper numberFieldMapper
-                ? numberFieldMapper.columnarNumericType()
-                : null;
+            if (mapperService.mappingLookup().getMapper(field) instanceof NumberFieldMapper numberFieldMapper
+                && numberFieldMapper.fieldType().diskFormat() == NumberFieldMapper.DocValuesDiskFormat.BINARY) {
+                return switch (numberFieldMapper.type()) {
+                    case LONG -> ColumnarFieldType.LONG;
+                    case HALF_FLOAT, FLOAT, DOUBLE, BYTE, SHORT, INTEGER -> throw new IllegalStateException(
+                        "field [" + field + "] of type [" + numberFieldMapper.type().typeName() + "] can't write binary doc values"
+                    );
+                };
+            }
+            return null;
         }
 
         /**

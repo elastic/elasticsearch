@@ -23,8 +23,8 @@ import org.elasticsearch.script.field.LongDocValuesField;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 /**
- * How a number field whose doc values the ColumNAR codec stores is searched and read, see
- * {@link NumberFieldMapper.DocValuesDiskFormat#COLUMNAR}. Kept apart from {@link NumberType}, which serves the
+ * How a number field with binary doc values is searched and read, see
+ * {@link NumberFieldMapper.DocValuesDiskFormat#BINARY}. Kept apart from {@link NumberType}, which serves the
  * {@code SORTED_NUMERIC} layout, with one constant per numeric type holding all of that type's readers.
  */
 // TODO: add the other numeric types once ColumNAR stores them.

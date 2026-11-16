@@ -27,11 +27,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
@@ -1264,6 +1264,9 @@ public final class IndexSettings {
         return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
     }
 
+    /** Gates {@link #COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING} while the numeric doc values layout it opts into is under development. */
+    public static final FeatureFlag COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG = new FeatureFlag("columnar_numeric_codec");
+
     /**
      * Opts the numeric fields of a strict columnar index into the ColumNAR doc values codec, which so far stores only
      * {@code long} fields. Off by default while the format is under development, and only registered while the
@@ -1707,7 +1710,7 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean timeSeriesEs95CodecEnabled;
-    private final boolean columnarNumericCodecEnabled;
+    private final boolean binaryNumericDocValues;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
@@ -1942,7 +1945,7 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
-        columnarNumericCodecEnabled = ColumnarDocValuesFormatSelector.COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled()
+        binaryNumericDocValues = COLUMNAR_NUMERIC_CODEC_FEATURE_FLAG.isEnabled()
             && scopedSettings.get(COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
@@ -2845,11 +2848,12 @@ public final class IndexSettings {
     }
 
     /**
-     * @return whether this index opts its numeric fields into the ColumNAR codec, as resolved from
-     *         {@link #COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING}; always {@code false} while the feature flag is off
+     * @return whether the numeric fields of this index that support it write their doc values as one binary payload per
+     *         document, in the order the values were written, rather than as {@code SORTED_NUMERIC}; resolved from
+     *         {@link #COLUMNAR_NUMERIC_CODEC_ENABLED_SETTING}, and always {@code false} while the feature flag is off
      */
-    public boolean isColumnarNumericCodecEnabled() {
-        return columnarNumericCodecEnabled;
+    public boolean useBinaryNumericDocValues() {
+        return binaryNumericDocValues;
     }
 
     /**

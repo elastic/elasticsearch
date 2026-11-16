@@ -728,7 +728,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             fileRead
         );
         TaskId queryId = new TaskId("test-node", 7);
-        var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(queryId, (nanos, finishNanos) -> {}, null);
+        var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(queryId, (nanos, cpuNanos, finishNanos) -> {}, null);
 
         planner(operatorFactoryRegistry, true, null, true, externalCompute).plan(
             "test",
@@ -752,14 +752,18 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         TaskId queryId = new TaskId("test-node", 7);
 
         ExternalFieldExtractOperator.Factory identity = planExtractFactory(
-            new LocalExecutionPlanner.ExternalComputeContext(queryId, (nanos, finishNanos) -> {}, null),
+            new LocalExecutionPlanner.ExternalComputeContext(queryId, (nanos, cpuNanos, finishNanos) -> {}, null),
             producer,
             fileRead
         );
         assertThat(identity.executor(), sameInstance(fileRead));
 
         ExternalFieldExtractOperator.Factory wrapped = planExtractFactory(
-            new LocalExecutionPlanner.ExternalComputeContext(queryId, (nanos, finishNanos) -> {}, (nanos, finishNanos) -> {}),
+            new LocalExecutionPlanner.ExternalComputeContext(
+                queryId,
+                (nanos, cpuNanos, finishNanos) -> {},
+                (nanos, cpuNanos, finishNanos) -> {}
+            ),
             producer,
             fileRead
         );
@@ -788,8 +792,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             TaskId queryId = new TaskId("test-node", 7);
             var externalCompute = new LocalExecutionPlanner.ExternalComputeContext(
                 queryId,
-                (nanos, finishNanos) -> producerCharged.addAndGet(nanos),
-                (nanos, finishNanos) -> ioCharged.addAndGet(nanos)
+                (nanos, cpuNanos, finishNanos) -> producerCharged.addAndGet(nanos),
+                (nanos, cpuNanos, finishNanos) -> ioCharged.addAndGet(nanos)
             );
 
             planner(operatorFactoryRegistry, true, null, true, externalCompute).plan(
@@ -2194,7 +2198,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         throws Exception {
         charging.execute(() -> {
             long start = System.nanoTime();
-            while (System.nanoTime() - start < 1_000) {
+            while (System.nanoTime() - start < 25_000) {
                 Thread.onSpinWait();
             }
         });

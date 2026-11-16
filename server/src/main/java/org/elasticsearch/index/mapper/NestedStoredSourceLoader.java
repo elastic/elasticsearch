@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.LeafNestedDocuments;
@@ -21,7 +20,6 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -34,33 +32,33 @@ import java.util.Set;
  * This class detects that case, loads the root document's source instead, and delegates to
  * {@link SearchHit.NestedIdentity#extractSource} to return just the relevant nested-object slice.
  *
- * <p>Root documents are passed through unchanged. The root source is cached per root document ID
+ * <p>Root documents are passed through to the root loader. The root source is cached per root document ID
  * so that multiple children of the same parent, or a root document visited after its children, do
- * not trigger redundant stored-field reads.
+ * not trigger redundant reads.
  *
- * <p>This loader is only applicable to stored source (not synthetic or columnar); it is
- * constructed exclusively from the stored-source branch of
+ * <p>The root loader reads stored source, optionally with vectors patched back in; it is not applicable
+ * to synthetic or columnar source, whose loaders need the doc IDs of a leaf up front. It is constructed
+ * exclusively from the stored-source branch of
  * {@link MappingLookup#newSourceLoader(SourceFilter, SourceFieldMetrics, NestedDocuments)}.
  */
 final class NestedStoredSourceLoader implements SourceLoader {
 
-    @Nullable
-    private final SourceFilter filter;
+    private final SourceLoader rootLoader;
     private final NestedDocuments nestedDocuments;
 
-    NestedStoredSourceLoader(@Nullable SourceFilter filter, NestedDocuments nestedDocuments) {
-        this.filter = filter;
+    NestedStoredSourceLoader(SourceLoader rootLoader, NestedDocuments nestedDocuments) {
+        this.rootLoader = rootLoader;
         this.nestedDocuments = nestedDocuments;
     }
 
     @Override
     public boolean reordersFieldValues() {
-        return false;
+        return rootLoader.reordersFieldValues();
     }
 
     @Override
     public Set<String> requiredStoredFields() {
-        return Collections.emptySet();
+        return rootLoader.requiredStoredFields();
     }
 
     @Override
@@ -69,26 +67,25 @@ final class NestedStoredSourceLoader implements SourceLoader {
 
         // Separate stored-field loader for root documents: nested child docs carry no _source,
         // so when the caller's storedFields are positioned on a child, we need to reload from root.
-        StoredFieldLoader rootStoredFieldLoader = StoredFieldLoader.create(true, Collections.emptySet());
+        StoredFieldLoader rootStoredFieldLoader = StoredFieldLoader.create(true, rootLoader.requiredStoredFields());
         LeafStoredFieldLoader leafRootLoader = rootStoredFieldLoader.getLoader(ctx, null);
 
-        return new NestedLeaf(leafNestedDocuments, leafRootLoader, filter);
+        return new NestedLeaf(leafNestedDocuments, leafRootLoader, rootLoader.leaf(ctx, null));
     }
 
     private static class NestedLeaf implements Leaf {
 
         private final LeafNestedDocuments leafNestedDocuments;
         private final LeafStoredFieldLoader leafRootLoader;
-        @Nullable
-        private final SourceFilter filter;
+        private final Leaf rootLeaf;
 
         private int lastRootDoc = -1;
         private Source lastRootSource = null;
 
-        NestedLeaf(LeafNestedDocuments leafNestedDocuments, LeafStoredFieldLoader leafRootLoader, @Nullable SourceFilter filter) {
+        NestedLeaf(LeafNestedDocuments leafNestedDocuments, LeafStoredFieldLoader leafRootLoader, Leaf rootLeaf) {
             this.leafNestedDocuments = leafNestedDocuments;
             this.leafRootLoader = leafRootLoader;
-            this.filter = filter;
+            this.rootLeaf = rootLeaf;
         }
 
         @Override
@@ -97,7 +94,7 @@ final class NestedStoredSourceLoader implements SourceLoader {
             if (nestedIdentity == null) {
                 // Root document: load and cache so that later children of this root skip the reload.
                 if (docId != lastRootDoc) {
-                    lastRootSource = loadSource(storedFields);
+                    lastRootSource = rootLeaf.source(storedFields, docId);
                     lastRootDoc = docId;
                 }
                 return lastRootSource;
@@ -105,15 +102,10 @@ final class NestedStoredSourceLoader implements SourceLoader {
             int rootDoc = leafNestedDocuments.rootDoc();
             if (rootDoc != lastRootDoc) {
                 leafRootLoader.advanceTo(rootDoc);
-                lastRootSource = loadSource(leafRootLoader);
+                lastRootSource = rootLeaf.source(leafRootLoader, rootDoc);
                 lastRootDoc = rootDoc;
             }
             return nestedIdentity.extractSource(lastRootSource);
-        }
-
-        private Source loadSource(LeafStoredFieldLoader loader) throws IOException {
-            Source source = Source.fromBytes(loader.source());
-            return filter != null ? source.filter(filter) : source;
         }
 
         @Override

@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 165935
+summary: Fix NPE in transform stats without a node
+type: bug

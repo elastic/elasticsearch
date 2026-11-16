@@ -512,6 +512,57 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertThat(messagesSeen.get(1), instanceOf(DefaultHttpContent.class));
     }
 
+    public void testReleasesEncodedChunkIfWriteSetupFails() {
+        final List<Object> messagesSeen = new ArrayList<>();
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
+        embeddedChannel.writeInbound(createHttpRequest("/chunked"));
+        final Netty4HttpRequest request = embeddedChannel.readInbound();
+        final AtomicBoolean encoded = new AtomicBoolean();
+        final AtomicBoolean released = new AtomicBoolean();
+        final ChunkedRestResponseBodyPart body = new ChunkedRestResponseBodyPart() {
+            @Override
+            public boolean isPartComplete() {
+                // Fails once the chunk is encoded, before the handler has written it.
+                if (encoded.get()) {
+                    throw new IllegalStateException("simulated failure after encoding");
+                }
+                return false;
+            }
+
+            @Override
+            public boolean isLastPart() {
+                return true;
+            }
+
+            @Override
+            public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                fail("no continuations here");
+            }
+
+            @Override
+            public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) {
+                assertTrue(encoded.compareAndSet(false, true));
+                return new ReleasableBytesReference(new BytesArray(randomByteArrayOfLength(between(1, 1024))), () -> {
+                    assertTrue("released twice", released.compareAndSet(false, true));
+                });
+            }
+
+            @Override
+            public String getResponseContentTypeString() {
+                return "application/octet-stream";
+            }
+        };
+        final ChannelPromise promise = embeddedChannel.newPromise();
+        embeddedChannel.write(request.createResponse(RestStatus.OK, body), promise);
+        embeddedChannel.flush();
+        embeddedChannel.runPendingTasks();
+
+        assertTrue("the chunk was never released", released.get());
+        assertTrue(promise.isDone());
+        assertFalse(promise.isSuccess());
+        assertFalse(embeddedChannel.isOpen());
+    }
+
     public void testActivityTracking() {
         final var watchdog = new ThreadWatchdog();
         final var activityTracker = watchdog.getActivityTrackerForCurrentThread();

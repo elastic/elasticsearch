@@ -86,13 +86,27 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
     /// The smallest allowed per-heap-GB ratio, which deterministically sets heap-based limit to 1.
     private static final double MIN_PER_HEAP_GB = Double.MIN_NORMAL;
 
-    /// Unthrottle master-side limits.
+    /// Unthrottle master-side allocation and data node limits. Each test customizes their own throttle.
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(
-            ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(),
+            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
             Integer.MAX_VALUE
         )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                "100%"
+            )
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
             .put(
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                 Integer.MAX_VALUE

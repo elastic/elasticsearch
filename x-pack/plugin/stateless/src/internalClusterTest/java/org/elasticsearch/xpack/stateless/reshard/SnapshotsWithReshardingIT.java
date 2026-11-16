@@ -34,6 +34,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -1476,7 +1477,19 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
     @Override
     protected Settings.Builder nodeSettings() {
         // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
-        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
+        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO)
+            // Split targets recover as non-critical shards, and restoreOverOpenIndexWhileResharding holds the state update
+            // request of every target at once, releasing them only once all of them are held. They must therefore all be
+            // able to recover at the same time: a target whose recovery is queued never sends the request being waited on.
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                "100%"
+            );
     }
 
     private void waitForReshardCompletion(Index index) {

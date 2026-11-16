@@ -29,13 +29,27 @@ import static org.hamcrest.Matchers.equalTo;
 /// Integration tests for source-side relocation throttling in stateless Elasticsearch.
 public class IndexingShardRelocationSourceThrottleIT extends AbstractStatelessPluginIntegTestCase {
 
-    /// Unthrottle master-side allocation so concurrent primary relocations can reach the source queue.
+    /// Unthrottle master-side allocation and data node limits. Each test customizes their own throttle.
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(
-            ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(),
+            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
             Integer.MAX_VALUE
         )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                "100%"
+            )
+            .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                Double.MAX_VALUE
+            )
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
             .put(
                 ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                 Integer.MAX_VALUE

@@ -35,6 +35,8 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
@@ -66,8 +68,10 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
+import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.TestRecoverySchedulingListener;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -86,6 +90,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.allocation.StatelessThrottlingConcurrentRecoveriesAllocationDecider;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -183,6 +188,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     private boolean useBasePath;
     private boolean hollowIndexShardsDisabled;
     private boolean hollowIndexShardsZeroTtl;
+    private boolean throttleRecoveriesOnDataNodes;
     // TODO(szybia): remove once merge blobs are uploaded for real
     private MockLog mergeBlobLogCapture;
 
@@ -192,6 +198,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             ? between(1, 10)
             : StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getDefault(Settings.EMPTY);
         useBasePath = randomBoolean();
+        throttleRecoveriesOnDataNodes = randomBoolean();
         if (randomBoolean()) {
             // Randomly disable hollow shards
             hollowIndexShardsDisabled = true;
@@ -516,7 +523,76 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             var cacheBoostPreference = StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING;
             builder.put(cacheBoostPreference.getKey(), cacheBoostPreference.getDefault(Settings.EMPTY));
         }
+        // if (throttleRecoveriesOnDataNodes) {
+        // builder.put(randomDataNodeRecoveryThrottlingSettings());
+        // }
+        builder.put(randomDataNodeRecoveryThrottlingSettings());
         return builder;
+    }
+
+    /// Randomized values for all the data node recovery throttling (DNRT) settings.
+    ///
+    /// DNRT replaces the master-side recovery throttling, so this hands the throttling over to the data nodes and
+    /// unthrottles the master-side deciders. See [DataNodeRecoveryThrottlingSettings] for effective limits.
+    private static Settings randomDataNodeRecoveryThrottlingSettings() {
+        // Bounds of the effective concurrent recovery limits drawn below.
+        final int minConcurrentRecoveries = 1;
+        // final int maxConcurrentRecoveries = 10;
+        final int maxConcurrentRecoveries = 1;
+        return Settings.builder()
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(
+                StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING
+                    .getKey(),
+                ByteSizeValue.ZERO
+            )
+            .put(
+                StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(), -1)
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                between(minConcurrentRecoveries, maxConcurrentRecoveries)
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                perHeapGbFor(between(minConcurrentRecoveries, maxConcurrentRecoveries))
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                between(50, 100) + "%"
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                between(minConcurrentRecoveries, maxConcurrentRecoveries)
+            )
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING.getKey(),
+                perHeapGbFor(between(minConcurrentRecoveries, maxConcurrentRecoveries))
+            )
+            .build();
+    }
+
+    /// Returns the `*_per_heap_gb` ratio that yields `effectiveLimit` on this JVM
+    private static double perHeapGbFor(int effectiveLimit) {
+        final var heapGb = JvmInfo.jvmInfo().getMem().getHeapMax().getGbFrac();
+        if (heapGb == 0) { // heap size is unknown
+            return 1000;
+        }
+        return effectiveLimit / heapGb;
     }
 
     protected String startSearchNode() {

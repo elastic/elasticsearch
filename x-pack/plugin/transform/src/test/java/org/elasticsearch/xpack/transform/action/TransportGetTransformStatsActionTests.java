@@ -7,9 +7,17 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
@@ -18,6 +26,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStatsTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.transforms.TransformContext;
 import org.elasticsearch.xpack.transform.transforms.TransformHealthChecker;
@@ -381,6 +390,65 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testSetNodeAttributes() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node-1");
+        TransformStats stats = TransformStats.initialStats("transform-1");
+
+        TransportGetTransformStatsAction.setNodeAttributes(
+            stats,
+            tasks("transform-1", new PersistentTasksCustomMetadata.Assignment(node.getId(), "test assignment")),
+            clusterState(node)
+        );
+
+        assertThat(stats.getNode().getId(), equalTo(node.getId()));
+    }
+
+    public void testSetNodeAttributesWhenTaskIsNotAssigned() {
+        // A node can still have a task, and report its stats, for a transform that is not assigned in the cluster state, for example
+        // when it is being reassigned. The stats are returned without a node.
+        TransformStats stats = TransformStats.initialStats("transform-1");
+
+        TransportGetTransformStatsAction.setNodeAttributes(
+            stats,
+            tasks("transform-1", PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT),
+            clusterState(DiscoveryNodeUtils.create("node-1"), DiscoveryNodeUtils.create("node-2"))
+        );
+
+        assertNull(stats.getNode());
+    }
+
+    public void testSetNodeAttributesWhenAssignedNodeIsNotInClusterState() {
+        // The node the task is assigned to has left the cluster, and the task has not been reassigned yet
+        TransformStats stats = TransformStats.initialStats("transform-1");
+
+        TransportGetTransformStatsAction.setNodeAttributes(
+            stats,
+            tasks("transform-1", new PersistentTasksCustomMetadata.Assignment("node-that-left", "test assignment")),
+            clusterState(DiscoveryNodeUtils.create("node-1"))
+        );
+
+        assertNull(stats.getNode());
+    }
+
+    private static PersistentTasksCustomMetadata tasks(String transformId, PersistentTasksCustomMetadata.Assignment assignment) {
+        return PersistentTasksCustomMetadata.builder()
+            .addTask(
+                transformId,
+                TransformField.TASK_NAME,
+                new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, null, false),
+                assignment
+            )
+            .build();
+    }
+
+    private static ClusterState clusterState(DiscoveryNode... nodes) {
+        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
+        for (DiscoveryNode node : nodes) {
+            nodesBuilder.add(node);
+        }
+        return ClusterState.builder(new ClusterName("test")).nodes(nodesBuilder).build();
     }
 
     private void withIdStateAndStats(String transformId, TransformState state, TransformIndexerStats stats) {

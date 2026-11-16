@@ -319,9 +319,10 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
-import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
+import org.elasticsearch.xpack.ml.datafeed.esql.EsqlQueryParsers;
+import org.elasticsearch.xpack.ml.datafeed.esql.UnavailableEsqlQueryParser;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryParser;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.UnavailableEsqlQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -597,19 +598,14 @@ public class MachineLearning extends Plugin
             machineLearningExtension.set(new DefaultMachineLearningExtension());
         }
         if (loader != null) {
-            List<EsqlQueryAnalyzer> analyzers = loader.loadExtensions(EsqlQueryAnalyzer.class);
-            // With a shared classpath (internal cluster tests) every plugin extending ML finds the ES|QL services file,
-            // and the test composite plugin calls loadExtensions more than once.
-            if (analyzers.stream().map(Object::getClass).distinct().count() > 1) {
-                throw new IllegalStateException("Expected one ES|QL query analyzer provider but found " + analyzers);
-            }
-            if (analyzers.isEmpty() == false) {
-                esqlQueryAnalyzer.trySet(analyzers.getFirst());
-            }
+            EsqlQueryParsers.selectOne(loader.loadExtensions(EsqlQueryParser.class)).ifPresent(esqlQueryParser::trySet);
         }
-        if (esqlQueryAnalyzer.get() == null) {
-            esqlQueryAnalyzer.set(new UnavailableEsqlQueryAnalyzer());
-        }
+    }
+
+    /** The ES|QL query parser the ES|QL plugin provides, or one that rejects ES|QL datafeeds when there is none. */
+    EsqlQueryParser esqlQueryParser() {
+        EsqlQueryParser parser = esqlQueryParser.get();
+        return parser != null ? parser : new UnavailableEsqlQueryParser();
     }
 
     // This is not used in v8 and higher, but users are still prevented from setting it directly to avoid confusion
@@ -969,7 +965,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterService = new SetOnce<>();
 
     private final SetOnce<MachineLearningExtension> machineLearningExtension = new SetOnce<>();
-    private final SetOnce<EsqlQueryAnalyzer> esqlQueryAnalyzer = new SetOnce<>();
+    private final SetOnce<EsqlQueryParser> esqlQueryParser = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
         this.settings = settings;

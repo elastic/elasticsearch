@@ -1743,3 +1743,67 @@ a runtime field named under a nested object runs on the parent:
     values:
     - [rt_nested, 10]
     - [rt_object, 20]
+
+---
+a nested object is not one of the types a cast resolves:
+# The nested object only shapes the fields under it, so the long and integer the other indices map a cast resolves.
+- do:
+    indices.create:
+      index: cn_nested
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: nested
+              properties:
+                price:
+                  type: long
+- do:
+    indices.create:
+      index: cn_long
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: long
+- do:
+    indices.create:
+      index: cn_integer
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 0
+        mappings:
+          properties:
+            items:
+              type: integer
+- do:
+    bulk:
+      refresh: true
+      body:
+      - index:
+          _index: cn_nested
+      - items:
+        - { price: 3 }
+        - { price: 4 }
+      - index:
+          _index: cn_long
+      - items: 2
+      - index:
+          _index: cn_integer
+      - items: 1
+- do:
+    esql.query:
+      body:
+        query: FROM cn_* METADATA _index | EVAL i = items::long | KEEP _index, i, items.price | SORT _index | LIMIT 10
+- match:
+    values:
+    - [cn_integer, 1, null]
+    - [cn_long, 2, null]
+    - [cn_nested, null, [3, 4]]

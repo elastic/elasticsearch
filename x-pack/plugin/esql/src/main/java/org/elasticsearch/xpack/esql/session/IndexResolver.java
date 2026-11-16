@@ -597,7 +597,7 @@ public class IndexResolver {
         private boolean isLeaf(String name) {
             for (FieldCapabilitiesIndexResponse response : caps.getIndexResponses()) {
                 IndexFieldCapabilities fc = response.get().get(name);
-                if (fc != null && isObject(fc) == false) {
+                if (fc != null && isObject(fc) == false && isNested(fc) == false) {
                     return true;
                 }
             }
@@ -757,7 +757,7 @@ public class IndexResolver {
             boolean isNew = indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) <= 1;
             String indexName = response.getIndexName();
             for (IndexFieldCapabilities mapped : response.get().values()) {
-                if (mapped.type().equals(NestedObjectMapper.CONTENT_TYPE)) {
+                if (isNested(mapped)) {
                     // Like an object, a nested object only shapes the fields under it
                     continue;
                 }
@@ -1192,8 +1192,14 @@ public class IndexResolver {
         return ObjectMapper.CONTENT_TYPE.equals(fc.type());
     }
 
+    /** Whether the field is a nested object, which, unlike an object on an older node, is never a leaf. */
+    private static boolean isNested(IndexFieldCapabilities fc) {
+        return NestedObjectMapper.CONTENT_TYPE.equals(fc.type());
+    }
+
+    /** Whether the field is one {@link #collectFieldCaps} keeps, for the steps that read the caps of each index again. */
     private static boolean isLeaf(IndexFieldCapabilities fc, FieldsInfo fieldsInfo) {
-        return fieldsInfo.objectsAreNotLeaves() == false || isObject(fc) == false;
+        return isNested(fc) == false && (fieldsInfo.objectsAreNotLeaves() == false || isObject(fc) == false);
     }
 
     private static boolean useCompactInvalidMappedField(@Nullable TransportVersion minTransportVersion) {

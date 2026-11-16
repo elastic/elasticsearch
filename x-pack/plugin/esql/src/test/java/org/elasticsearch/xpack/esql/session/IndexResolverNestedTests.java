@@ -100,6 +100,23 @@ public class IndexResolverNestedTests extends ESTestCase {
     }
 
     /**
+     * A nested object only shapes the fields under it, so where other indices map its name with types a cast resolves, it is
+     * not one of those types and the field is not unsupported.
+     */
+    public void testNestedObjectIsNotATypeOfAConflict() {
+        assumeTrue("snapshot builds read the fields under a nested object", NestedLeaves.ENABLED);
+        Map<String, EsField> mapping = resolve(
+            TransportVersion.current(),
+            nestedIndex(),
+            index("long", new IndexFieldCapabilitiesBuilder("process", "long").build()),
+            index("integer", new IndexFieldCapabilitiesBuilder("process", "integer").build())
+        );
+        EsField process = mapping.get("process");
+        assertThat(process, instanceOf(TypeConflictedField.class));
+        assertThat(((TypeConflictedField) process).getTypesToIndices().keySet(), equalTo(Set.of("integer", "long")));
+    }
+
+    /**
      * An older data node can't read the children, so it would load null for a column a newer one fills. Every coordinator
      * leaves the field out, as field caps did before.
      */

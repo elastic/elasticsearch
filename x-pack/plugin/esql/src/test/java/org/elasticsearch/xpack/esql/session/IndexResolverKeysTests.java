@@ -103,6 +103,17 @@ public class IndexResolverKeysTests extends ESTestCase {
         assertThat(env.isAggregatable(), equalTo(true));
     }
 
+    /** A nested object only shapes the fields under it, so where another index maps its name, a name under a flattened field is a key. */
+    public void testANestedObjectIsNotALeaf() {
+        assumeTrue("snapshot builds read the fields under a nested object", NestedLeaves.ENABLED);
+        Map<String, EsField> mapping = resolve(
+            TransportVersion.current(),
+            index("flat", field("attrs", "flattened")),
+            index("nest", field("attrs", "object"), field("attrs.bar", "nested"))
+        );
+        assertThat(mapping.get("attrs").getProperties().get("bar").getDataType(), equalTo(DataType.KEYWORD));
+    }
+
     /** With a node that can't read the child documents, the flattened field under the nested object and its keys are left out. */
     public void testWithAnOlderNodeAKeyUnderANestedObjectIsLeftOut() {
         Map<String, EsField> mapping = resolve(

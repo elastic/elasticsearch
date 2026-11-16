@@ -204,10 +204,11 @@ public class DocValuesUpdateRecoverySourceTests extends IndexShardTestCase {
     }
 
     /**
-     * Same as {@link #testInPlaceUpdateCapturesReindexedValueWhenReindexUnrefreshed}, but the reindex uses {@code version_type=external_gte}
-     * with the same version as the generation it replaces. The two generations then share a version but not a sequence number, so a
-     * staleness check on the version alone cannot tell that the reader still shows the replaced generation. The in-place update is prepared
-     * as {@code UpdateHelper} would after a realtime get served from the translog: against the reindex's seq_no, without a refresh.
+     * Same as {@link #testInPlaceUpdateCapturesReindexedValueWhenReindexUnrefreshed}, but the reindex uses
+     * {@code version_type=external_gte} with the same version as the generation it replaces. The two generations then share a version but
+     * not a sequence number, so a staleness check on the version alone cannot tell that the reader still shows the replaced generation.
+     * The in-place update is prepared as {@code UpdateHelper} would after a realtime get served from the translog: against the reindex's
+     * seq_no, without a refresh.
      */
     public void testInPlaceUpdateCapturesReindexedValueWhenExternalGteReindexKeepsVersion() throws Exception {
         assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());

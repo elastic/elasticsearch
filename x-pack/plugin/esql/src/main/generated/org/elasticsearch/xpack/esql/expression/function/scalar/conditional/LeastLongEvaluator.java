@@ -70,7 +70,7 @@ public final class LeastLongEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongBlock[] valuesBlocks) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       long[] valuesValues = new long[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {

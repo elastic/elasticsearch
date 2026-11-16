@@ -59,6 +59,17 @@ public class DatasetListingServiceAsyncTests extends ESTestCase {
         java.util.concurrent.Executor executor,
         PlainActionFuture<FileList> future
     ) {
+        list(service, provider, memory, executor, ListingExtents.UNBOUNDED, future);
+    }
+
+    private static void list(
+        DatasetListingService service,
+        StorageProvider provider,
+        PlanningMemory memory,
+        java.util.concurrent.Executor executor,
+        ListingExtents extents,
+        PlainActionFuture<FileList> future
+    ) {
         service.cachedListingAsync(
             GLOB,
             StoragePath.of(GLOB),
@@ -72,7 +83,7 @@ public class DatasetListingServiceAsyncTests extends ESTestCase {
             4,
             executor,
             k -> {},
-            ListingExtents.UNBOUNDED,
+            extents,
             future
         );
     }
@@ -123,6 +134,57 @@ public class DatasetListingServiceAsyncTests extends ESTestCase {
             assertEquals(2L * FileList.LISTING_BYTES_PER_ENTRY, leaderCharge.get());
             assertEquals(leaderCharge.get(), followerCharge.get());
             assertEquals("the folders were listed once", 2, provider.listObjectsCalls.get());
+        }
+    }
+
+    /**
+     * A bounded listing that drained the glob is the whole dataset, so a later unbounded ask must not list
+     * again. This is the dashboard-then-aggregate shape: the prefix bound was large enough, and the full
+     * dataset is the same artifact.
+     */
+    public void testAnUntruncatedBoundedListingAnswersALaterUnboundedAsk() throws Exception {
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {
+            DatasetListingService service = new DatasetListingService(Settings.EMPTY, cache, null, null, null);
+            StubProvider provider = new StubProvider(twoFolders());
+
+            PlainActionFuture<FileList> bounded = new PlainActionFuture<>();
+            list(service, provider, bytes -> {}, EsExecutors.DIRECT_EXECUTOR_SERVICE, new ListingExtents(1000), bounded);
+            FileList listing = bounded.actionGet();
+            assertEquals(2, listing.fileCount());
+            assertFalse(listing.isTruncated());
+            int afterBounded = provider.listObjectsCalls.get();
+            assertTrue("the bounded ask listed", afterBounded > 0);
+
+            PlainActionFuture<FileList> unbounded = new PlainActionFuture<>();
+            list(service, provider, bytes -> {}, EsExecutors.DIRECT_EXECUTOR_SERVICE, ListingExtents.UNBOUNDED, unbounded);
+            FileList served = unbounded.actionGet();
+            assertSame("the unbounded ask is the same listing the bound published", listing, served);
+            assertEquals("and must not list again", afterBounded, provider.listObjectsCalls.get());
+        }
+    }
+
+    /**
+     * A bounded listing that stopped short is a prefix, not the glob. Publishing it under the unbounded
+     * address would make a later aggregate read a fraction of the dataset.
+     */
+    public void testATruncatedBoundedListingDoesNotAnswerAnUnboundedAsk() throws Exception {
+        try (ExternalSourceCacheService cache = new ExternalSourceCacheService(cacheEnabled())) {
+            DatasetListingService service = new DatasetListingService(Settings.EMPTY, cache, null, null, null);
+            StubProvider provider = new StubProvider(twoFolders());
+
+            PlainActionFuture<FileList> bounded = new PlainActionFuture<>();
+            list(service, provider, bytes -> {}, EsExecutors.DIRECT_EXECUTOR_SERVICE, new ListingExtents(1), bounded);
+            FileList prefix = bounded.actionGet();
+            assertEquals("the prefix is one file of two", 1, prefix.fileCount());
+            assertTrue(prefix.isTruncated());
+            int afterBounded = provider.listObjectsCalls.get();
+
+            PlainActionFuture<FileList> unbounded = new PlainActionFuture<>();
+            list(service, provider, bytes -> {}, EsExecutors.DIRECT_EXECUTOR_SERVICE, ListingExtents.UNBOUNDED, unbounded);
+            FileList whole = unbounded.actionGet();
+            assertEquals(2, whole.fileCount());
+            assertFalse(whole.isTruncated());
+            assertTrue("the unbounded ask must list; the prefix is not the glob", provider.listObjectsCalls.get() > afterBounded);
         }
     }
 

@@ -18,8 +18,6 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.action.support.DefaultShardOperationFailedException.readShardOperationFailed;
-
 /**
  * Base class for all broadcast operation based responses.
  */
@@ -30,21 +28,13 @@ public class BaseBroadcastResponse extends ActionResponse {
     private final int totalShards;
     private final int successfulShards;
     private final int failedShards;
-    private final DefaultShardOperationFailedException[] shardFailures;
+    private final List<DefaultShardOperationFailedException> shardFailures;
 
     public BaseBroadcastResponse(StreamInput in) throws IOException {
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         failedShards = in.readVInt();
-        int size = in.readVInt();
-        if (size > 0) {
-            shardFailures = new DefaultShardOperationFailedException[size];
-            for (int i = 0; i < size; i++) {
-                shardFailures[i] = readShardOperationFailed(in);
-            }
-        } else {
-            shardFailures = EMPTY;
-        }
+        shardFailures = in.readCollectionAsImmutableList(DefaultShardOperationFailedException::readShardOperationFailed);
     }
 
     public BaseBroadcastResponse(
@@ -56,11 +46,7 @@ public class BaseBroadcastResponse extends ActionResponse {
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
-        if (shardFailures == null) {
-            this.shardFailures = EMPTY;
-        } else {
-            this.shardFailures = shardFailures.toArray(new DefaultShardOperationFailedException[shardFailures.size()]);
-        }
+        this.shardFailures = shardFailures != null ? List.copyOf(shardFailures) : List.of();
     }
 
     /**
@@ -96,7 +82,7 @@ public class BaseBroadcastResponse extends ActionResponse {
      */
     public RestStatus getStatus() {
         if (failedShards > 0) {
-            return shardFailures[0].status();
+            return shardFailures.getFirst().status();
         } else {
             return RestStatus.OK;
         }
@@ -105,8 +91,15 @@ public class BaseBroadcastResponse extends ActionResponse {
     /**
      * The list of shard failures exception.
      */
-    public DefaultShardOperationFailedException[] getShardFailures() {
+    public List<DefaultShardOperationFailedException> shardFailuresList() {
         return shardFailures;
+    }
+
+    /**
+     * The list of shard failures exception.
+     */
+    public DefaultShardOperationFailedException[] getShardFailures() {
+        return shardFailures.toArray(EMPTY);
     }
 
     @Override
@@ -114,6 +107,6 @@ public class BaseBroadcastResponse extends ActionResponse {
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);
-        out.writeArray(shardFailures);
+        out.writeCollection(shardFailures);
     }
 }

@@ -458,8 +458,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
             settings,
             ExternalSourceResolver.storageConfig(config)
         );
+        FormatReader prototype = null;
+        Configured<FormatReader> resolvedReader = null;
         try {
-            Configured<FormatReader> resolvedReader = unwrappedDatasetReader(location, config).withConfigTrackingConsumedKeys(config);
+            prototype = unwrappedDatasetReader(location, config);
+            resolvedReader = prototype.withConfigTrackingConsumedKeys(config);
             ConfigKeyValidator.check(
                 config,
                 List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS, LEGACY_VOCABULARY_KEYS)
@@ -477,6 +480,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
             FileOrderConfig.validate(config);
         } finally {
+            if (resolvedReader != null) {
+                FormatReaders.closeDistinctFrom(resolvedReader.value(), prototype);
+            }
             StorageProviderCache.closeLease(resolvedStorage.value());
         }
     }
@@ -484,18 +490,19 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
         StorageProvider provider = null;
+        FormatReader prototype = null;
+        FormatReader reader = null;
         boolean hasConfig = config != null && config.isEmpty() == false;
         try {
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
-            FormatReader reader;
+            prototype = unwrappedDatasetReader(location, config);
+            reader = readerForListedObject(location, storagePath.objectName(), config);
             if (hasConfig) {
                 provider = storageRegistry.createProvider(scheme, settings, ExternalSourceResolver.storageConfig(config));
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             } else {
                 provider = storageRegistry.provider(storagePath);
-                reader = readerForListedObject(location, storagePath.objectName(), config);
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
@@ -508,6 +515,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // own diagnosis and never names the path.
             throw new IllegalArgumentException(ExternalFailures.rootDetail(e), e);
         } finally {
+            FormatReaders.closeDistinctFrom(reader, prototype);
             StorageProviderCache.closeLease(provider);
         }
     }
@@ -529,8 +537,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Consumer<String> warningSink,
         ActionListener<SourceMetadata> listener
     ) {
-        final StorageObject storageObject;
-        final FormatReader reader;
+        StorageObject storageObject;
+        FormatReader prototype = null;
+        FormatReader reader = null;
         StorageProvider provider = null;
         boolean hasConfig = config != null && config.isEmpty() == false;
         boolean setupComplete = false;
@@ -551,6 +560,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 provider = storageRegistry.provider(storagePath);
             }
             int schemaSampleShare = hint != null ? hint.schemaSampleShare() : 1;
+            prototype = unwrappedDatasetReader(location, config);
             reader = readerForListedObject(location, storagePath.objectName(), config).withSchemaSampleShare(schemaSampleShare);
 
             if (hint != null) {
@@ -574,6 +584,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             return;
         } finally {
             if (setupComplete == false) {
+                FormatReaders.closeDistinctFrom(reader, prototype);
                 StorageProviderCache.closeLease(provider);
             }
         }
@@ -584,6 +595,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 l.onFailure(e);
             }
         });
+        FormatReader minted = reader;
+        FormatReader mintedFrom = prototype;
+        completion = ActionListener.runAfter(completion, () -> FormatReaders.closeDistinctFrom(minted, mintedFrom));
         if (StorageProviderCache.isPooledLease(provider)) {
             StorageProvider leased = provider;
             completion = ActionListener.runAfter(completion, () -> StorageProviderCache.closeLease(leased));
@@ -597,6 +611,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         } finally {
             // metadataAsync may throw Error; runAfter already closed if the listener ran. closeLease is idempotent.
             if (started == false) {
+                FormatReaders.closeDistinctFrom(reader, prototype);
                 StorageProviderCache.closeLease(provider);
             }
         }
@@ -642,10 +657,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     storage = storageRegistry.provider(path);
                 }
 
-                FormatReader format = formatRegistry.byName(
+                FormatReader prototype = formatRegistry.byName(
                     FormatNameResolver.datasetFormat(config, datasetResource(context), formatRegistry)
-                )
-                    .withConfig(config)
+                );
+                FormatReader format = prototype.withConfig(config)
                     .withPushedFilter(context.pushedFilter())
                     .withSchema(context.attributes())
                     // Declared per-column date formats: the spec keys them by logical name, but the reader sees physical
@@ -745,6 +760,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
                     .streamingSegmentatorAdmission(segmentatorAdmission)
                     .formatReaderRegistry(formatRegistry)
+                    .registryPrototype(prototype)
                     .parallelism(context.parallelism())
                     .pushedExpressions(pushedExpressions)
                     .pushdownSupport(pushdownSupport)

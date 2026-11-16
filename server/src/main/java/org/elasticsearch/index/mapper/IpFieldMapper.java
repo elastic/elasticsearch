@@ -934,11 +934,9 @@ public class IpFieldMapper extends FieldMapper {
 
     /** Encodes an IP address to the 16-byte InetAddressPoint sortable format, or returns {@code null} if it is not valid. */
     private static BytesRef tryEncodeIp(BytesRef utf8) {
-        try {
-            return new BytesRef(InetAddresses.encodeAsIpv6(utf8.bytes, utf8.offset, utf8.length));
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
+        // Avoids the exception encodeAsIpv6 would build for every malformed value.
+        final byte[] encoded = InetAddresses.tryEncodeAsIpv6(utf8.bytes, utf8.offset, utf8.length);
+        return encoded == null ? null : new BytesRef(encoded);
     }
 
     @Override

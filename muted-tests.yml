@@ -647,3 +647,8 @@ tests:
   tasks:
   - :x-pack:plugin:inference:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/166137
+- class: org.elasticsearch.xpack.esql.session.EsqlSessionQueryTimeFilterTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testTimeSeriesSources
+  issue: https://github.com/elastic/elasticsearch/issues/166145

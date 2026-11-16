@@ -45,6 +45,6 @@ done
 # lucene_snapshot* and rejects main; Archimedes owns the ES bump after this.
 if [[ -n "${TARGET_BRANCH:-}" ]]; then
   echo "--- Skipping update-es-snapshot.sh (TARGET_BRANCH=${TARGET_BRANCH}; Archimedes lucene-snapshot-update owns the bump)"
-elif [[ "${UPDATE_ES_LUCENE_SNAPSHOT:-}" == "true" ]]; then
+elif [[ "${UPDATE_ES_LUCENE_SNAPSHOT:-}" ]]; then
   .buildkite/scripts/lucene-snapshot/update-es-snapshot.sh
 fi

@@ -20,9 +20,7 @@ steps:
     timeout_in_minutes: 15
     env:
       USE_LUCENE_SNAPSHOT_CREDS: "true"
-      # Default true for the lucene_snapshot branch job. Ignored when TARGET_BRANCH
-      # is set: upload-snapshot.sh skips update-es-snapshot.sh on that path.
-      UPDATE_ES_LUCENE_SNAPSHOT: "${UPDATE_ES_LUCENE_SNAPSHOT:-true}"
+      UPDATE_ES_LUCENE_SNAPSHOT: "true"
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

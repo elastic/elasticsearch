@@ -92,7 +92,7 @@ public class SkipperPruningTests extends ESTestCase {
     public void testMatchTailWithMissingFirstAndNoMissingValues() throws IOException {
         for (boolean usePoints : new boolean[] { false, true }) {
             int numDocs = atLeast(1000);
-            assertThat(firstCompetitiveDocOfMatchTail(numDocs, 0, usePoints), equalTo(numDocs - 2));
+            assertThat(firstCompetitiveDocOfMatchTail(numDocs, 0, usePoints ? Indexing.POINTS : Indexing.SKIPPER), equalTo(numDocs - 2));
         }
     }
 
@@ -104,16 +104,34 @@ public class SkipperPruningTests extends ESTestCase {
         for (boolean usePoints : new boolean[] { false, true }) {
             int numDocs = atLeast(1000);
             int numMissing = between(1, 10);
-            int first = firstCompetitiveDocOfMatchTail(numDocs, numMissing, usePoints);
+            int first = firstCompetitiveDocOfMatchTail(numDocs, numMissing, usePoints ? Indexing.POINTS : Indexing.SKIPPER);
             assertThat(first, not(equalTo(numDocs + numMissing - 2)));
         }
+    }
+
+    /**
+     * Without a skipper or points there is no cheap way to tell that every document has a {@code @timestamp}, so a missing-first
+     * sort conservatively skips the shortcut, and so any competitive iterator, even though no document is missing the field.
+     */
+    public void testMatchTailWithMissingFirstAndNoSkipperOrPoints() throws IOException {
+        int numDocs = atLeast(1000);
+        assertThat(firstCompetitiveDocOfMatchTail(numDocs, 0, Indexing.NONE), equalTo(NO_COMPETITIVE_ITERATOR));
+    }
+
+    private static final int NO_COMPETITIVE_ITERATOR = -1;
+
+    /** How the {@code @timestamp} field is indexed, which decides whether the segment can tell cheaply that it is dense. */
+    private enum Indexing {
+        SKIPPER,
+        POINTS,
+        NONE
     }
 
     /**
      * Returns the first doc of the competitive iterator for a single-hit match-tail sort on a segment sorted by
      * {@code @timestamp} descending with missing values first.
      */
-    private int firstCompetitiveDocOfMatchTail(int numDocsWithTimestamp, int numDocsWithoutTimestamp, boolean usePoints)
+    private int firstCompetitiveDocOfMatchTail(int numDocsWithTimestamp, int numDocsWithoutTimestamp, Indexing indexing)
         throws IOException {
         try (Directory dir = newDirectory()) {
             SortField timestampSort = new SortField("@timestamp", SortField.Type.LONG, true);
@@ -122,11 +140,13 @@ public class SkipperPruningTests extends ESTestCase {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), dir, iwc)) {
                 for (int i = 0; i < numDocsWithTimestamp; i++) {
                     Document doc = new Document();
-                    if (usePoints) {
-                        doc.add(new NumericDocValuesField("@timestamp", 1_000_000 + i));
-                        doc.add(new LongPoint("@timestamp", 1_000_000 + i));
-                    } else {
-                        doc.add(NumericDocValuesField.indexedField("@timestamp", 1_000_000 + i));
+                    switch (indexing) {
+                        case POINTS -> {
+                            doc.add(new NumericDocValuesField("@timestamp", 1_000_000 + i));
+                            doc.add(new LongPoint("@timestamp", 1_000_000 + i));
+                        }
+                        case SKIPPER -> doc.add(NumericDocValuesField.indexedField("@timestamp", 1_000_000 + i));
+                        case NONE -> doc.add(new NumericDocValuesField("@timestamp", 1_000_000 + i));
                     }
                     indexWriter.addDocument(doc);
                 }
@@ -142,7 +162,11 @@ public class SkipperPruningTests extends ESTestCase {
                         IndexNumericFieldData.NumericType.LONG,
                         CoreValuesSourceType.NUMERIC,
                         null,
-                        usePoints ? IndexType.points(true, true) : IndexType.skippers()
+                        switch (indexing) {
+                            case POINTS -> IndexType.points(true, true);
+                            case SKIPPER -> IndexType.skippers();
+                            case NONE -> IndexType.NONE;
+                        }
                     );
                     LongValuesComparatorSource source = new LongValuesComparatorSource(
                         fd,
@@ -161,7 +185,8 @@ public class SkipperPruningTests extends ESTestCase {
                     leafComparator.setScorer(null);
                     // The iterator only narrows to the tail once the hits threshold is reached
                     leafComparator.setHitsThresholdReached();
-                    return leafComparator.competitiveIterator().nextDoc();
+                    var iterator = leafComparator.competitiveIterator();
+                    return iterator == null ? NO_COMPETITIVE_ITERATOR : iterator.nextDoc();
                 }
             }
         }
